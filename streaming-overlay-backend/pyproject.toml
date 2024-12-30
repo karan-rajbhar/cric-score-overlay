@@ -17,6 +17,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+dependencies = [
+    "uvicorn>=0.34.0",
+    "fastapi",
+    "python-socketio",
+]
 
 [project.urls]
 Homepage = "https://karan-rajbhar.github.io/streaming-overlay-backend/"
@@ -42,6 +47,8 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["streaming_overlay"]
 py-modules = ["streaming_overlay"]
 
 [tool.mypy]

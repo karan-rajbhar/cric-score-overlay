@@ -3,17 +3,17 @@ services:
     build: ./streaming-overlay-backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./streaming-overlay-backend:/app
     environment:
       - DATABASE_URL=postgresql://user:password@db:5432/overlay_db
 
   frontend:
+    platform: linux/amd64
     build: ./streaming-overlay-frontend
     ports:
       - "3000:3000"
     volumes:
       - ./streaming-overlay-frontend:/app
+      - node_modules:/app/node_modules
     environment:
       - VITE_API_URL=http://localhost:8000
       - VITE_WS_URL=ws://localhost:8000
@@ -31,3 +31,4 @@ services:
 
 volumes:
   postgres_data:
+  node_modules:

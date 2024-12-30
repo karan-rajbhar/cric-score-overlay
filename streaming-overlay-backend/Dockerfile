@@ -6,16 +6,19 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 WORKDIR /app
 
 # Copy the lockfile and `pyproject.toml` into the image
-ADD uv.lock /app/uv.lock
-ADD pyproject.toml /app/pyproject.toml
+COPY uv.lock pyproject.toml ./
+
+# Install uvicorn first
+RUN pip install uvicorn
 
 # Install dependencies
 RUN uv sync --frozen --no-install-project
 
 # Copy the project into the image
-ADD . /app
+COPY . .
 
-# Sync the project
-RUN uv sync --frozen
+# Install the project in development mode
+RUN uv pip install --system -e .
 
-CMD [ "python", "streaming_overlay/foo.py"]
+# Try running with python module path
+CMD [ "python", "-m", "uvicorn", "src.streaming_overlay.main:socket_app", "--host", "0.0.0.0", "--port", "8000" ]
