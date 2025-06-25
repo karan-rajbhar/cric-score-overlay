@@ -1,5 +1,6 @@
 import "~/styles/globals.css";
 import { Inter } from "next/font/google";
+import { cookies } from "next/headers";
 import { TRPCReactProvider } from "~/trpc/react";
 
 const inter = Inter({
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${inter.variable} antialiased`}>
-        <TRPCReactProvider>
+        <TRPCReactProvider cookies={cookies().toString()}>
           <div className="min-h-screen bg-gradient-to-br from-cricket-green to-cricket-field">
             <nav className="border-b border-white/10 bg-white/5 backdrop-blur-sm">
               <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

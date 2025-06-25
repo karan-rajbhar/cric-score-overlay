@@ -1,25 +1,43 @@
-# Dependencies
-node_modules/
-.pnpm-store/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Next.js
-.next/
-out/
-build/
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# Environment variables
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-# Vercel
+# vercel
 .vercel
 
-# TypeScript
+# typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Supabase
+.supabase/
+supabase/.env
 
 # IDEs and editors
 .vscode/
@@ -28,16 +46,10 @@ next-env.d.ts
 *.swo
 
 # OS
-.DS_Store
 Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
 # Runtime data
 pids
@@ -46,7 +58,6 @@ pids
 *.pid.lock
 
 # Coverage directory used by tools like istanbul
-coverage/
 *.lcov
 
 # nyc test coverage
@@ -94,6 +105,3 @@ jspm_packages/
 
 # TernJS port file
 .tern-port
-
-# Prisma
-prisma/dev.db*

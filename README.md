@@ -9,60 +9,85 @@ A professional cricket management platform built with Next.js, tRPC, and Supabas
 - **🏆 Tournament Management**: Create and manage tournaments and clubs
 - **📱 Mobile Ready**: Works seamlessly on mobile devices
 - **⚡ Real-time Updates**: Powered by Supabase real-time subscriptions
-- **🎯 Type-Safe**: End-to-end TypeScript with tRPC
+- **🎯 Type-Safe**: End-to-end TypeScript with tRPC and auto-generated Supabase types
+- **🔐 Authentication**: Built-in user management with Supabase Auth
+- **💾 File Storage**: Integrated media storage with Supabase Storage
 
 ## 🚀 Tech Stack
 
 - **Frontend**: Next.js 14 (App Router), React, TypeScript
 - **Backend**: tRPC, Next.js API Routes
-- **Database**: Supabase (PostgreSQL)
-- **Real-time**: Supabase Realtime
+- **Database**: Supabase (PostgreSQL with real-time subscriptions)
 - **Authentication**: Supabase Auth
+- **Storage**: Supabase Storage
 - **Styling**: Tailwind CSS
-- **Deployment**: Vercel
+- **Local Development**: Supabase CLI
+- **Package Manager**: pnpm
+- **Deployment**: Vercel + Supabase
 
 ## 📋 Prerequisites
 
 - Node.js 18+ 
 - pnpm (recommended) or npm/yarn
-- A Supabase account
+- Docker (for Supabase local development)
 
 ## 🛠️ Quick Start
 
-### 1. Clone and Install
+### Option 1: Local Development (Recommended)
 
 ```bash
+# Clone and install
 git clone <your-repo-url>
 cd cricket-platform
 pnpm install
+
+# First-time setup (installs Supabase CLI and starts local stack)
+make first-time
+
+# Start development
+make dev
 ```
 
-### 2. Set up Supabase
+This will:
+- Install all dependencies
+- Set up Supabase CLI
+- Start local PostgreSQL, Auth, Storage, and Realtime
+- Run database migrations
+- Seed with sample data
+- Start the Next.js development server
+
+Open [http://localhost:3000](http://localhost:3000) to see the app.
+Supabase Studio will be available at [http://localhost:54323](http://localhost:54323).
+
+### Option 2: Production Supabase
+
+If you prefer to use Supabase cloud:
 
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to Settings > API to get your keys
-3. Copy `.env.example` to `.env` and fill in your Supabase credentials:
+3. Copy `.env.local.example` to `.env.local` and fill in your Supabase credentials:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
 SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-DATABASE_URL="your-database-url"
 ```
 
-### 3. Run the Development Server
+4. Run the migrations:
+```bash
+npx supabase db push
+```
 
+5. Start development:
 ```bash
 pnpm dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000) to see the app.
 
 ## 🎯 Usage
 
 ### For Scorers
 
-1. **Create a Match**: Go to `/matches/create` and set up teams
+1. **Create a Match**: Use the tRPC API to create matches and teams
 2. **Start Scoring**: Use the scoring interface to update scores in real-time
 3. **Manage Players**: Add/edit player details and statistics
 4. **Share**: Share the match URL with viewers
@@ -72,16 +97,15 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 1. **Get Overlay URL**: For any match, the overlay is available at `/overlay/[matchId]`
 2. **Add to OBS**: 
    - Add a "Browser Source" in OBS
-   - Set URL to `http://localhost:3000/overlay/your-match-id`
+   - Set URL to `http://localhost:3000/overlay/1` (demo match)
    - Set Width: 1920, Height: 1080
    - Check "Shutdown source when not visible"
 3. **Customize**: Position and resize the overlay as needed
 4. **Go Live**: The overlay will update in real-time as scores change
 
 ### Example Overlay URLs
-- `http://localhost:3000/overlay/match_123` - Basic overlay
-- `http://localhost:3000/overlay/match_123?theme=dark` - Dark theme
-- `http://localhost:3000/overlay/match_123?minimal=true` - Minimal view
+- `http://localhost:3000/overlay/1` - Demo match overlay
+- `http://localhost:3000/overlay/match_123` - Specific match overlay
 
 ## 🏗️ Project Structure
 
@@ -90,81 +114,114 @@ src/
 ├── app/                    # Next.js 14 App Router
 │   ├── layout.tsx         # Root layout with navigation
 │   ├── page.tsx           # Homepage
-│   ├── overlay/           # OBS overlay pages
-│   └── matches/           # Match management pages
-├── components/            # Reusable UI components
+│   ├── api/               # tRPC API routes
+│   │   └── trpc/
+│   │       └── [trpc]/
+│   │           └── route.ts
+│   └── overlay/           # OBS overlay pages
+│       └── [matchId]/
+│           └── page.tsx
 ├── lib/                   # Utilities and configurations
-│   ├── supabase.ts       # Supabase client setup
-│   └── db.ts             # Database utilities
+│   └── db.ts             # Supabase client setup
 ├── server/               # tRPC backend
 │   └── api/
+│       ├── trpc.ts       # tRPC configuration
+│       ├── root.ts       # Main router
 │       └── routers/      # API route handlers
+│           └── matches.ts
+├── trpc/                # tRPC client configuration
+│   ├── react.tsx        # React Query provider
+│   ├── server.ts        # Server-side client
+│   └── shared.ts        # Shared utilities
 ├── styles/              # Global CSS and Tailwind
+│   └── globals.css
 ├── types/               # TypeScript type definitions
-└── trpc/                # tRPC client configuration
+│   └── cricket.ts
+└── supabase/            # Supabase configuration
+    ├── config.toml      # Local development config
+    ├── migrations/      # Database migrations
+    └── seed.sql         # Sample data
 ```
 
 ## 📊 Database Schema
 
-The platform uses Supabase with the following main tables:
+The platform uses Supabase PostgreSQL with the following main tables:
 
 ```sql
--- Users and authentication
-users (id, email, name, role, created_at)
+-- Authentication (built into Supabase)
+auth.users                 # User authentication
 
--- Clubs and organizations  
-clubs (id, name, description, owner_id, created_at)
-
--- Tournaments
-tournaments (id, name, club_id, format, start_date, end_date)
-
--- Matches
-matches (id, title, team1_id, team2_id, status, created_at)
-
--- Real-time scoring data
-match_scores (match_id, team_id, score, wickets, overs, updated_at)
-
--- Ball-by-ball data
-ball_by_ball (id, match_id, over, ball, runs, wickets, updated_at)
+-- Core application tables
+profiles                   # User profiles (extends auth.users)
+clubs                     # Cricket clubs and organizations
+tournaments               # Tournament management
+teams                     # Team information
+players                   # Player details and statistics
+matches                   # Match metadata and status
+innings                   # Innings-level data
+batting_performances      # Individual batting statistics
+bowling_performances      # Individual bowling statistics
+ball_by_ball             # Detailed ball-by-ball scoring data
 ```
+
+### Real-time Subscriptions
+
+All tables support real-time updates through Supabase's built-in WebSocket connections:
+- Live score updates
+- Match status changes
+- Player performance updates
+- Real-time overlay synchronization
 
 ## 🔄 Real-time Features
 
 The platform uses Supabase Realtime for instant updates:
 
-- **Live Scoring**: Scores update across all connected clients
+- **Live Scoring**: Scores update across all connected clients instantly
 - **Match Status**: Real-time match state changes
 - **Player Statistics**: Live player performance updates
-- **Overlay Updates**: OBS overlays update automatically
+- **Overlay Updates**: OBS overlays update automatically without refresh
+- **Connection Management**: Automatic reconnection on network issues
 
 ## 🎨 Customization
 
 ### Themes
 - Default cricket theme (green/red)
 - Dark mode support
-- Custom color schemes
+- Custom color schemes via Tailwind
 
 ### Overlay Customization
 - Multiple layout options
 - Custom team colors
 - Adjustable font sizes
 - Show/hide specific elements
+- Real-time theme switching
 
 ## 📱 Mobile Support
 
-The platform is fully responsive and works great on:
-- Mobile browsers for scoring
-- Tablet devices for scorers
-- Desktop for full management
+The platform is fully responsive and optimized for:
+- **Mobile browsers** for live scoring on the go
+- **Tablet devices** perfect for scorers and umpires
+- **Desktop** for full management and administration
+- **Touch interfaces** with large, accessible buttons
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+### Vercel + Supabase (Recommended)
 
-1. Push your code to GitHub
-2. Connect your repo to Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy automatically on push
+1. **Deploy Database**:
+   - Create a Supabase project
+   - Run migrations: `npx supabase db push`
+
+2. **Deploy Frontend**:
+   - Push your code to GitHub
+   - Connect your repo to Vercel
+   - Add environment variables in Vercel dashboard:
+     ```env
+     NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+     NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+     SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+     ```
+   - Deploy automatically on push
 
 ### Manual Deployment
 
@@ -175,15 +232,30 @@ pnpm start
 
 ## 🔧 Development
 
-### Available Scripts
+### Available Commands
 
 ```bash
-pnpm dev             # Start development server
-pnpm build           # Build for production
-pnpm start           # Start production server
-pnpm lint            # Run ESLint
-pnpm db:push         # Push database schema
-pnpm db:studio       # Open database studio
+# Setup and development
+make first-time          # Complete first-time setup
+make dev                # Start Next.js development server
+make dev-db             # Start Supabase local development stack
+make dev-stop           # Stop all development services
+
+# Building and testing
+make build              # Build for production
+make lint               # Run ESLint
+make format             # Format code with Prettier
+make test               # Run tests
+
+# Database operations
+make db-migrate         # Run database migrations
+make db-seed            # Seed database with sample data
+make db-reset           # Reset database with fresh data
+make db-studio          # Open Supabase Studio (database GUI)
+
+# Package management
+make install            # Install dependencies
+make clean              # Clean node_modules and lock files
 ```
 
 ### Adding New Features
@@ -192,40 +264,83 @@ pnpm db:studio       # Open database studio
 2. **Frontend**: Create new pages in `src/app/`
 3. **Components**: Add reusable components in `src/components/`
 4. **Types**: Update TypeScript types in `src/types/`
+5. **Database**: Add migrations in `supabase/migrations/`
+
+### Supabase Features
+
+The platform leverages these Supabase features:
+
+- **Database**: PostgreSQL with Row Level Security (RLS)
+- **Auth**: Built-in authentication with multiple providers
+- **Realtime**: WebSocket subscriptions for live updates
+- **Storage**: File uploads and media management
+- **Edge Functions**: Server-side logic (if needed)
+- **Studio**: Visual database management
 
 ## 📝 API Routes
 
 The platform provides several tRPC endpoints:
 
-- `matches.getAll` - Get all matches
-- `matches.getById` - Get specific match
-- `matches.create` - Create new match
-- `matches.updateScore` - Update match score
-- `clubs.getAll` - Get all clubs
-- `tournaments.getAll` - Get all tournaments
+```typescript
+// Match management
+matches.getAll()           // Get all matches
+matches.getById(id)        // Get specific match
+matches.create(data)       // Create new match
+matches.updateScore(data)  // Update match score
+
+// Club management
+clubs.getAll()            // Get all clubs
+clubs.create(data)        // Create new club
+
+// Tournament management
+tournaments.getAll()       // Get all tournaments
+tournaments.create(data)   // Create new tournament
+```
+
+All endpoints are fully type-safe with automatic TypeScript inference.
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Environment Variables**: Make sure all required env vars are set
-2. **Supabase Connection**: Check your Supabase URL and keys
-3. **Real-time Not Working**: Verify Supabase RLS policies
-4. **Build Errors**: Run `pnpm lint` to check for issues
+1. **Supabase Not Starting**:
+   - Make sure Docker is running
+   - Run `make dev-stop` then `make dev-db`
+
+2. **Environment Variables**:
+   - For local development, no env vars needed
+   - For production, ensure all Supabase keys are set
+
+3. **Real-time Not Working**:
+   - Check Supabase RLS policies
+   - Verify WebSocket connections in browser dev tools
+
+4. **Build Errors**:
+   - Run `make lint` to check for TypeScript issues
+   - Ensure all dependencies are installed with `make install`
+
+5. **Database Issues**:
+   - Reset database: `make db-reset`
+   - Check migrations: `make db-migrate`
+   - Open Supabase Studio: `make db-studio`
 
 ### Getting Help
 
 1. Check the [Next.js docs](https://nextjs.org/docs)
 2. Visit [Supabase docs](https://supabase.com/docs)
 3. Review [tRPC documentation](https://trpc.io/docs)
+4. Check [Supabase CLI documentation](https://supabase.com/docs/reference/cli)
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+4. Run tests: `make test`
+5. Run linting: `make lint`
+6. Commit your changes: `git commit -m 'Add amazing feature'`
+7. Push to the branch: `git push origin feature/amazing-feature`
+8. Submit a pull request
 
 ## 📄 License
 
@@ -233,12 +348,14 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- Built with [T3 Stack](https://create.t3.gg/)
+- Built with [T3 Stack](https://create.t3.gg/) principles
+- Powered by [Supabase](https://supabase.com) for backend services
 - Inspired by modern cricket scoring needs
-- Designed for professional broadcasting
+- Designed for professional broadcasting with OBS
+- Real-time features enabled by Supabase Realtime
 
 ---
 
 **Ready to revolutionize cricket scoring?** 🏏
 
-Get started in minutes with our modern, real-time cricket platform! 
+Get started in minutes with our modern, real-time cricket platform powered by Supabase!

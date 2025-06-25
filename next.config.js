@@ -8,9 +8,6 @@ await import("./src/env.js");
 const config = {
   reactStrictMode: true,
   swcMinify: true,
-  experimental: {
-    appDir: true,
-  },
   images: {
     domains: ["your-supabase-project.supabase.co"],
   },

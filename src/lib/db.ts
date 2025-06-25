@@ -1,15 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+import { createClient } from '@supabase/supabase-js'
 import { env } from "~/env.js";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
+export const supabase = createClient(supabaseUrl, supabaseKey)
 
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db; 
+// For server-side operations, you might want a service role client
+const supabaseServiceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY
+export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey)
