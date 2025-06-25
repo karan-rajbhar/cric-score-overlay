@@ -1,1 +1,0 @@
-::: streaming_overlay.foo
