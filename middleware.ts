@@ -7,6 +7,12 @@ export async function middleware(request: NextRequest) {
     request,
   });
 
+  // Handle auth callback route - let it process without interference
+  if (request.nextUrl.pathname.startsWith("/auth/callback")) {
+    console.log('Middleware: Allowing auth callback to process');
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -28,22 +34,35 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session if needed
+  // Get user session
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log('Middleware: Path:', request.nextUrl.pathname, 'User:', user?.email || 'none');
+
   // Protect dashboard and other authenticated routes
-  if (request.nextUrl.pathname.startsWith("/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    if (!user) {
+      console.log('Middleware: Redirecting to login - no user for dashboard');
+      return NextResponse.redirect(new URL("/auth/login", request.url));
+    }
+    console.log('Middleware: Allowing dashboard access for user:', user.email);
   }
 
-  // Redirect logged-in users away from auth pages
+  // Protect overlay routes (they should be public for streaming)
+  // Skip auth check for overlay routes to allow public access
+  if (request.nextUrl.pathname.startsWith("/overlay")) {
+    return supabaseResponse;
+  }
+
+  // Redirect logged-in users away from auth pages (except callback)
   if (
     (request.nextUrl.pathname.startsWith("/auth/login") ||
       request.nextUrl.pathname.startsWith("/auth/signup")) &&
     user
   ) {
+    console.log('Middleware: Redirecting authenticated user to dashboard');
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

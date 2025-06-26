@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -25,8 +25,37 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [signupMethod, setSignupMethod] = useState<'email' | 'phone'>('email');
-  const { signUp, signUpWithPhone, signInWithGoogle } = useAuth();
+  const { signUp, signUpWithPhone, signInWithGoogle, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Handle OAuth errors from URL params
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    const messageParam = searchParams.get('message');
+    if (errorParam) {
+      switch (errorParam) {
+        case 'oauth_error':
+          setError(messageParam ? decodeURIComponent(messageParam) : 'OAuth authentication failed. Please try again.');
+          break;
+        case 'session_error':
+          setError('Session creation failed. Please try again.');
+          break;
+        case 'unexpected_error':
+          setError('An unexpected error occurred. Please try again.');
+          break;
+        default:
+          setError('Authentication failed. Please try again.');
+      }
+    }
+  }, [searchParams]);
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard");
+    }
+  }, [user, router]);
 
   // Password validation
   const passwordRequirements = [
@@ -190,6 +219,16 @@ export default function SignupPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Error Display */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Google Sign Up */}
             <Button
               onClick={handleGoogleSignUp}

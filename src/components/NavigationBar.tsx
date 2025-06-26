@@ -1,14 +1,31 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
-import { Activity, Trophy, Users, BarChart3 } from "lucide-react";
+import { Activity, Trophy, Users, BarChart3, LogOut } from "lucide-react";
 
 export function NavigationBar() {
   const { user, signOut, loading } = useAuth();
+  const [signOutLoading, setSignOutLoading] = useState(false);
+
+  const handleSignOut = async () => {
+    if (signOutLoading) return; // Prevent multiple clicks
+    try {
+      setSignOutLoading(true);
+      console.log('NavigationBar: Starting sign out');
+      await signOut();
+      console.log('NavigationBar: Sign out completed');
+    } catch (error) {
+      console.error('NavigationBar: Failed to sign out:', error);
+      // Force reload as fallback
+      window.location.reload();
+    }
+    // Don't reset signOutLoading here - let the auth context handle the redirect
+  };
 
   return (
     <nav className="nav-glass sticky top-0 z-50">
@@ -70,12 +87,23 @@ export function NavigationBar() {
                       </div>
                     </Badge>
                     <Button
-                      onClick={() => signOut()}
+                      onClick={handleSignOut}
+                      disabled={signOutLoading}
                       variant="ghost"
                       size="sm"
                       className="text-destructive hover:text-destructive-foreground hover:bg-destructive/10 transition-all duration-300 rounded-lg"
                     >
-                      Sign out
+                      {signOutLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-2"></div>
+                          Signing out...
+                        </>
+                      ) : (
+                        <>
+                          <LogOut className="h-4 w-4 mr-2" />
+                          Sign out
+                        </>
+                      )}
                     </Button>
                   </div>
                 </>
