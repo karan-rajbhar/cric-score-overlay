@@ -7,12 +7,14 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Users table (extends Supabase auth.users)
 CREATE TABLE public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE,
+  phone TEXT UNIQUE,
   full_name TEXT,
   avatar_url TEXT,
   role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'scorer', 'manager')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT email_or_phone_required CHECK (email IS NOT NULL OR phone IS NOT NULL)
 );
 
 -- Clubs table
@@ -197,7 +199,7 @@ CREATE POLICY "Public tournaments read" ON public.tournaments FOR SELECT USING (
 CREATE POLICY "Users can read own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
--- Create indexes for better performance
+-- Performance indexes
 CREATE INDEX idx_matches_status ON public.matches(status);
 CREATE INDEX idx_matches_start_time ON public.matches(start_time);
 CREATE INDEX idx_ball_by_ball_match ON public.ball_by_ball(match_id);

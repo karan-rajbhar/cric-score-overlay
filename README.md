@@ -56,7 +56,7 @@ This will:
 - Seed with sample data
 - Start the Next.js development server
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+Open [http://localhost:3001](http://localhost:3001) to see the app.
 Supabase Studio will be available at [http://localhost:54323](http://localhost:54323).
 
 ### Option 2: Production Supabase
@@ -97,15 +97,15 @@ pnpm dev
 1. **Get Overlay URL**: For any match, the overlay is available at `/overlay/[matchId]`
 2. **Add to OBS**: 
    - Add a "Browser Source" in OBS
-   - Set URL to `http://localhost:3000/overlay/1` (demo match)
+   - Set URL to `http://localhost:3001/overlay/1` (demo match)
    - Set Width: 1920, Height: 1080
    - Check "Shutdown source when not visible"
 3. **Customize**: Position and resize the overlay as needed
 4. **Go Live**: The overlay will update in real-time as scores change
 
 ### Example Overlay URLs
-- `http://localhost:3000/overlay/1` - Demo match overlay
-- `http://localhost:3000/overlay/match_123` - Specific match overlay
+- `http://localhost:3001/overlay/1` - Demo match overlay
+- `http://localhost:3001/overlay/match_123` - Specific match overlay
 
 ## 🏗️ Project Structure
 

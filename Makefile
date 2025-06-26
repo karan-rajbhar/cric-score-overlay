@@ -1,93 +1,119 @@
 # Cricket Platform Development Makefile
 
-.PHONY: help setup dev-db dev-stop clean install build dev test lint format db-migrate db-seed db-reset db-studio restart first-time
+.PHONY: help install dev server db-start db-stop db-reset db-studio build test lint format clean setup stop restart
 
 help: ## Show this help message
 	@echo "Cricket Platform Development Commands"
 	@echo "====================================="
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-# Main development workflow
-setup: ## Initial setup - install deps and start database
-	@echo "🚀 Setting up development environment..."
-	@$(MAKE) install
-	@$(MAKE) dev-db
-	@echo "✅ Setup complete! Database is running."
+# =============================================================================
+# Main Development Commands (most commonly used)
+# =============================================================================
 
-dev-db: ## Start development database with Supabase
-	@echo "🗄️  Starting Supabase local development..."
+dev: ## Start full development environment (database + server)
+	@echo "🚀 Starting full development environment..."
+	@echo "🗄️  Starting Supabase..."
+	@npx supabase start
+	@echo "✅ Supabase started!"
+	@echo "🚀 Starting Next.js development server..."
+	@pnpm dev
+
+server: ## Start only the Next.js development server
+	@echo "🚀 Starting Next.js development server..."
+	@pnpm dev
+
+stop: ## Stop all development services
+	@echo "🛑 Stopping all services..."
+	@npx supabase stop
+	@echo "✅ All services stopped."
+
+restart: ## Restart the full development environment
+	@echo "🔄 Restarting development environment..."
+	@$(MAKE) stop
+	@$(MAKE) dev
+
+# =============================================================================
+# Database Commands
+# =============================================================================
+
+db-start: ## Start only the database (Supabase)
+	@echo "🗄️  Starting Supabase..."
 	@npx supabase start
 	@echo "✅ Supabase started! Check 'npx supabase status' for details."
 
-dev-stop: ## Stop development database
+db-stop: ## Stop only the database
 	@echo "🛑 Stopping Supabase..."
 	@npx supabase stop
 	@echo "✅ Supabase stopped."
 
-clean: ## Clean up everything (stop containers, remove deps)
-	@echo "🧹 Cleaning up..."
-	@$(MAKE) dev-stop
-	@rm -rf node_modules
-	@rm -rf .next
-	@echo "✅ Cleanup complete."
+db-reset: ## Reset database to initial state
+	@echo "🔄 Resetting database..."
+	@npx supabase db reset
+	@echo "✅ Database reset complete."
 
-# Package management
-install: ## Install dependencies
+db-studio: ## Open Supabase Studio in browser
+	@echo "🎨 Opening Supabase Studio..."
+	@echo "Visit http://localhost:54323 to access Supabase Studio"
+	@open http://localhost:54323 2>/dev/null || echo "Please visit http://localhost:54323 manually"
+
+# =============================================================================
+# Project Setup & Dependencies
+# =============================================================================
+
+install: ## Install project dependencies
 	@echo "📦 Installing dependencies..."
 	@pnpm install
 
-# Build and development
-build: ## Build the application
+setup: ## Initial project setup (install deps + start database)
+	@echo "🚀 Setting up development environment..."
+	@$(MAKE) install
+	@$(MAKE) db-start
+	@echo "✅ Setup complete! Run 'make dev' to start development."
+
+# =============================================================================
+# Build & Quality
+# =============================================================================
+
+build: ## Build the application for production
 	@echo "🏗️  Building application..."
 	@pnpm build
 
-dev: ## Start development server
-	@echo "🚀 Starting development server..."
-	@pnpm dev
-
-# Testing and quality
-test: ## Run tests
+test: ## Run all tests
 	@echo "🧪 Running tests..."
 	@pnpm test
 
-lint: ## Run linter
+lint: ## Run code linter
 	@echo "🔍 Running linter..."
 	@pnpm lint
 
-format: ## Format code
+format: ## Format code with prettier
 	@echo "✨ Formatting code..."
 	@pnpm format
 
-# Database operations
-db-migrate: ## Run database migrations
-	@echo "🔄 Running database migrations..."
-	@npx supabase db reset
+# =============================================================================
+# Maintenance & Cleanup
+# =============================================================================
 
-db-seed: ## Seed the database
-	@echo "🌱 Seeding database..."
-	@npx supabase db reset --linked
+clean: ## Clean up everything (stop services, remove deps, build artifacts)
+	@echo "🧹 Cleaning up..."
+	@$(MAKE) stop
+	@rm -rf node_modules .next
+	@echo "✅ Cleanup complete."
 
-db-reset: ## Reset database
-	@echo "🔄 Resetting database..."
-	@npx supabase db reset
+# =============================================================================
+# Quick Start Commands
+# =============================================================================
 
-db-studio: ## Open Supabase Studio
-	@echo "🎨 Opening Supabase Studio..."
-	@echo "Visit http://localhost:54323 to access Supabase Studio"
+start: ## Alias for 'dev' - start full development environment
+	@$(MAKE) dev
 
-# Convenience workflows
-restart: ## Restart everything
-	@echo "🔄 Restarting development environment..."
-	@$(MAKE) dev-stop
-	@$(MAKE) dev-db
-	@echo "✅ Restart complete!"
-
-first-time: ## First time setup (run this once)
+first-time: ## Complete first-time setup and start development
 	@echo "🎯 First time setup..."
 	@$(MAKE) setup
 	@echo ""
 	@echo "🎉 Ready to develop!"
 	@echo "Next steps:"
-	@echo "  1. Run 'make dev' to start the development server"
-	@echo "  2. Visit http://localhost:3000"
+	@echo "  1. Run 'make dev' to start full development environment"
+	@echo "  2. Visit http://localhost:3001 for your app"
 	@echo "  3. Visit http://localhost:54323 for Supabase Studio"

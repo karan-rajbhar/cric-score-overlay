@@ -15,7 +15,7 @@ import { transformer } from "./shared";
  */
 const createContext = async () => {
   return createTRPCContext({
-    req: new Request("http://localhost:3000"),
+    req: new Request("http://localhost:3001"),
     resHeaders: new Headers(),
   });
 };
