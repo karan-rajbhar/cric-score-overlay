@@ -40,7 +40,7 @@ export default function HomePage() {
       <section className="relative py-24 md:py-32 hero-gradient">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/10"></div>
         <div className="container mx-auto px-4 relative z-10">
-          <div className="text-center space-y-8 fade-in">
+          <div className="text-center space-y-8">
             <div className="space-y-6">
               <div className="inline-block">
                 <Badge className="bg-cricket-primary/10 text-cricket-primary border-cricket-primary/20 px-4 py-2 text-sm font-medium">
