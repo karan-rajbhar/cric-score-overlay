@@ -28,45 +28,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient();
 
-    // Enhanced session initialization with retry logic for OAuth flows
+    // Simple, reliable session initialization
     const initializeAuth = async () => {
       try {
-        console.log('Auth context: Initializing authentication...');
+        const { data: { session }, error } = await supabase.auth.getSession();
 
-        // Check if we're potentially coming from an OAuth redirect
-        const isFromOAuth = typeof window !== 'undefined' &&
-          (window.location.pathname === '/dashboard' || window.location.search.includes('code='));
-
-        let session = null;
-        let retryCount = 0;
-        const maxRetries = isFromOAuth ? 3 : 1;
-
-        // Retry logic for OAuth flows where session might not be immediately available
-        while (!session && retryCount < maxRetries) {
-          const { data, error } = await supabase.auth.getSession();
-
-          if (error) {
-            console.error('Auth context: Error getting session:', error);
-            break;
-          }
-
-          session = data.session;
-
-          if (!session && retryCount < maxRetries - 1) {
-            console.log(`Auth context: No session found, retry ${retryCount + 1}/${maxRetries} in 500ms...`);
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-
-          retryCount++;
+        if (error) {
+          console.error('Auth initialization error:', error);
+          setUser(null);
+        } else {
+          setUser(session?.user ?? null);
+          console.log('Auth initialized:', session?.user?.email || 'no user');
         }
-
-        console.log('Auth context: Session result:', session?.user?.email || 'no session');
-        setUser(session?.user ?? null);
-        setLoading(false);
-
       } catch (error) {
-        console.error('Auth context: Error during initialization:', error);
+        console.error('Auth initialization failed:', error);
         setUser(null);
+      } finally {
         setLoading(false);
       }
     };
@@ -74,47 +51,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Initialize authentication
     initializeAuth();
 
-    // Listen for auth changes
+    // Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email || 'no session');
+      
+      // Update user state
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Handle different auth events
+      // Handle profile creation for new users
       if (event === 'SIGNED_IN' && session?.user) {
-        const user = session.user;
-        console.log('User signed in, creating profile if needed:', user.email);
-
-        // Create profile on sign in (only if not done by server callback)
         try {
           const { data: profile } = await supabase
             .from("profiles")
             .select("id")
-            .eq("id", user.id)
+            .eq("id", session.user.id)
             .single();
 
           if (!profile) {
-            console.log('Creating profile for user:', user.email);
             await supabase.from("profiles").insert({
-              id: user.id,
-              email: user.email!,
-              full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
-              avatar_url: user.user_metadata?.avatar_url || null,
-              phone: user.phone || null,
+              id: session.user.id,
+              email: session.user.email!,
+              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
+              avatar_url: session.user.user_metadata?.avatar_url || null,
+              phone: session.user.phone || null,
             });
-          } else {
-            console.log('Profile already exists for user:', user.email);
           }
         } catch (error) {
-          console.error('Error handling profile:', error);
+          console.error('Profile creation error:', error);
         }
-
-        console.log('Auth context: User authenticated, ready for navigation');
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out, clearing state');
-        setUser(null);
       }
     });
 
@@ -134,11 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     const supabase = createClient();
-
-    // Get the current origin, fallback to localhost for development
-    const origin = typeof window !== 'undefined'
-      ? window.location.origin
-      : 'http://localhost:3001';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -200,49 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    try {
-      console.log('Starting sign out process...');
-      setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
 
-      const supabase = createClient();
-
-      // First, clear the local state immediately
-      setUser(null);
-
-      // Then sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        console.error('Supabase sign out error:', error);
-        // Don't throw error, still proceed with clearing local state
-      }
-
-      console.log('Sign out completed, redirecting to home');
-
-      // Force redirect after a short delay
-      setTimeout(() => {
-        // Use window.location for more reliable redirect
-        if (typeof window !== 'undefined') {
-          window.location.href = '/';
-        } else {
-          router.push('/');
-        }
-      }, 100);
-
-    } catch (error) {
-      console.error('Error during sign out:', error);
-      // Even if there's an error, clear the local state and redirect
-      setUser(null);
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.location.href = '/';
-        } else {
-          router.push('/');
-        }
-      }, 100);
-    } finally {
-      setLoading(false);
+    if (error) {
+      console.error('Sign out error:', error);
     }
+
+    // Clear local state and redirect
+    setUser(null);
+    router.push('/');
   };
 
   const resetPassword = async (email: string) => {

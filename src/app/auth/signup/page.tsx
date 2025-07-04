@@ -50,12 +50,20 @@ export default function SignupPage() {
     }
   }, [searchParams]);
 
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (user) {
-      router.push("/dashboard");
-    }
-  }, [user, router]);
+  // Show loading while auth is initializing
+  if (loading && !success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+      </div>
+    );
+  }
+
+  // Redirect authenticated users to dashboard (but not during signup flow)
+  if (user && !success) {
+    router.push("/dashboard");
+    return null;
+  }
 
   // Password validation
   const passwordRequirements = [

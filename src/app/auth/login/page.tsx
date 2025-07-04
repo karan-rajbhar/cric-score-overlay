@@ -49,12 +49,20 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (user) {
-      router.push("/dashboard");
-    }
-  }, [user, router]);
+  // Show loading while auth is initializing
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+      </div>
+    );
+  }
+
+  // Redirect authenticated users to dashboard
+  if (user) {
+    router.push("/dashboard");
+    return null;
+  }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
