@@ -356,6 +356,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Ready to revolutionize cricket scoring?** 🏏
-
-Get started in minutes with our modern, real-time cricket platform powered by Supabase!
