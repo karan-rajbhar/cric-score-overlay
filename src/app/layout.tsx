@@ -5,33 +5,41 @@ import { TRPCReactProvider } from "~/trpc/react";
 import { AuthProvider } from "~/lib/auth";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { NavigationBar } from "~/components/NavigationBar";
+import type { Metadata, Viewport } from "next";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Cricket Platform - Live Scoring & Management",
   description: "Professional cricket match scoring and club management platform with real-time updates",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   keywords: "cricket, scoring, live, management, tournament, OBS, streaming",
   authors: [{ name: "Cricket Platform Team" }],
-  viewport: "width=device-width, initial-scale=1",
 };
 
-export default function RootLayout({
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const cookieString = cookieStore.toString();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${inter.variable} antialiased overflow-x-hidden`}>
         <ThemeProvider
           defaultTheme="dark"
         >
-          <TRPCReactProvider cookies={cookies().toString()}>
+          <TRPCReactProvider cookies={cookieString}>
             <AuthProvider>
               <div className="min-h-screen relative">
                 {/* Modern Background with Dynamic Theming */}

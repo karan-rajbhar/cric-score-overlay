@@ -31,20 +31,15 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- 1. USERS TABLE (All users are players)
+-- NOTE: In production, uncomment the auth.users foreign key reference
 CREATE TABLE public.users (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  -- id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,  -- Uncomment for production
   email TEXT UNIQUE,
   phone TEXT UNIQUE,
   full_name TEXT NOT NULL,
   avatar_url TEXT,
-  bio TEXT,
-  date_of_birth DATE,
   location TEXT,
-  
-  -- Cricket preferences
-  preferred_batting_style TEXT CHECK (preferred_batting_style IN ('right_hand', 'left_hand')),
-  preferred_bowling_style TEXT CHECK (preferred_bowling_style IN ('right_arm_fast', 'left_arm_fast', 'right_arm_medium', 'left_arm_medium', 'right_arm_spin', 'left_arm_spin', 'wicket_keeper')),
-  preferred_position TEXT CHECK (preferred_position IN ('batsman', 'bowler', 'all_rounder', 'wicket_keeper')),
   
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -628,7 +623,118 @@ CREATE INDEX idx_user_achievements_user ON public.user_achievements(user_id);
 CREATE INDEX idx_user_achievements_type ON public.user_achievements(achievement_type);
 CREATE INDEX idx_user_achievements_match ON public.user_achievements(match_id);
 
+-- Additional indexes for foreign keys (performance optimization)
+CREATE INDEX idx_ball_by_ball_batsman ON public.ball_by_ball(batsman_id);
+CREATE INDEX idx_ball_by_ball_bowler ON public.ball_by_ball(bowler_id);
+CREATE INDEX idx_ball_by_ball_non_striker ON public.ball_by_ball(non_striker_id);
+CREATE INDEX idx_ball_by_ball_fielder ON public.ball_by_ball(fielder_id);
+
+CREATE INDEX idx_batting_performances_bowler ON public.batting_performances(bowler_id);
+CREATE INDEX idx_batting_performances_fielder ON public.batting_performances(fielder_id);
+
+CREATE INDEX idx_club_invitations_club ON public.club_invitations(club_id);
+CREATE INDEX idx_club_invitations_invited_by ON public.club_invitations(invited_by);
+
+CREATE INDEX idx_fall_of_wickets_batsman_out ON public.fall_of_wickets(batsman_out_id);
+CREATE INDEX idx_fall_of_wickets_bowler ON public.fall_of_wickets(bowler_id);
+CREATE INDEX idx_fall_of_wickets_fielder ON public.fall_of_wickets(fielder_id);
+
+CREATE INDEX idx_match_claims_verified_by ON public.match_claims(verified_by);
+CREATE INDEX idx_match_events_created_by ON public.match_events(created_by);
+
+CREATE INDEX idx_matches_team1 ON public.matches(team1_id);
+CREATE INDEX idx_matches_team2 ON public.matches(team2_id);
+CREATE INDEX idx_matches_toss_winner ON public.matches(toss_winner_team_id);
+CREATE INDEX idx_matches_winning_team ON public.matches(winning_team_id);
+
+CREATE INDEX idx_partnerships_batsman1 ON public.partnerships(batsman1_id);
+CREATE INDEX idx_partnerships_batsman2 ON public.partnerships(batsman2_id);
+
+CREATE INDEX idx_team_players_added_by ON public.team_players(added_by);
+
+CREATE INDEX idx_teams_created_by ON public.teams(created_by);
+CREATE INDEX idx_teams_vice_captain ON public.teams(vice_captain_id);
+
+CREATE INDEX idx_tournament_registrations_registered_by ON public.tournament_registrations(registered_by);
+CREATE INDEX idx_tournament_standings_team ON public.tournament_standings(team_id);
+CREATE INDEX idx_tournaments_created_by ON public.tournaments(created_by);
+
+-- ============================================================================
+-- SECURITY DEFINER HELPER FUNCTIONS
+-- These functions run with elevated privileges to check permissions
+-- without triggering RLS recursion
+-- ============================================================================
+
+-- Check if user is a member of a club (any role)
+CREATE OR REPLACE FUNCTION public.is_club_member(p_club_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.club_memberships
+    WHERE club_id = p_club_id 
+    AND user_id = p_user_id 
+    AND status = 'active'
+  );
+$$;
+
+-- Check if user is a club admin or owner
+CREATE OR REPLACE FUNCTION public.is_club_admin(p_club_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.club_memberships
+    WHERE club_id = p_club_id 
+    AND user_id = p_user_id 
+    AND role IN ('owner', 'admin')
+    AND status = 'active'
+  );
+$$;
+
+-- Check if user is a match admin
+CREATE OR REPLACE FUNCTION public.is_match_admin(p_match_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.matches
+    WHERE id = p_match_id 
+    AND (
+      created_by = p_user_id 
+      OR p_user_id = ANY(match_admins)
+      OR public.is_club_admin(club_id, p_user_id)
+    )
+  );
+$$;
+
+-- Check if user is on a team
+CREATE OR REPLACE FUNCTION public.is_team_member(p_team_id UUID, p_user_id UUID DEFAULT auth.uid())
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.team_players
+    WHERE team_id = p_team_id 
+    AND user_id = p_user_id
+  );
+$$;
+
+-- ============================================================================
 -- ENABLE ROW LEVEL SECURITY
+-- ============================================================================
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clubs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.club_memberships ENABLE ROW LEVEL SECURITY;
@@ -658,48 +764,54 @@ CREATE POLICY "Users can view all profiles" ON public.users FOR SELECT USING (tr
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Clubs policies
+-- Clubs policies (using security definer functions)
 CREATE POLICY "Anyone can view public clubs" ON public.clubs FOR SELECT USING (is_public = true);
 CREATE POLICY "Club members can view private clubs" ON public.clubs FOR SELECT USING (
-  NOT is_public AND EXISTS (
-    SELECT 1 FROM public.club_memberships 
-    WHERE club_id = clubs.id AND user_id = auth.uid() AND status = 'active'
-  )
+  NOT is_public AND public.is_club_member(id)
 );
 CREATE POLICY "Users can create clubs" ON public.clubs FOR INSERT WITH CHECK (auth.uid() = owner_id);
 CREATE POLICY "Club owners can update clubs" ON public.clubs FOR UPDATE USING (auth.uid() = owner_id);
 
--- Club memberships policies
-CREATE POLICY "Club members can view memberships" ON public.club_memberships FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM public.club_memberships cm 
-    WHERE cm.club_id = club_memberships.club_id AND cm.user_id = auth.uid() AND cm.status = 'active'
-  )
+-- Club memberships policies (using security definer functions)
+CREATE POLICY "Users can view own memberships" ON public.club_memberships FOR SELECT USING (
+  user_id = auth.uid()
 );
-CREATE POLICY "Club owners/admins can manage memberships" ON public.club_memberships FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM public.club_memberships cm 
-    WHERE cm.club_id = club_memberships.club_id AND cm.user_id = auth.uid() 
-    AND cm.role IN ('owner', 'admin') AND cm.status = 'active'
-  )
+CREATE POLICY "Club members can view other memberships" ON public.club_memberships FOR SELECT USING (
+  public.is_club_member(club_id)
+);
+CREATE POLICY "Club admins can manage memberships" ON public.club_memberships FOR INSERT WITH CHECK (
+  public.is_club_admin(club_id)
+);
+CREATE POLICY "Club admins can update memberships" ON public.club_memberships FOR UPDATE USING (
+  public.is_club_admin(club_id)
+);
+CREATE POLICY "Club admins can delete memberships" ON public.club_memberships FOR DELETE USING (
+  public.is_club_admin(club_id)
+);
+
+-- Teams policies
+CREATE POLICY "Anyone can view teams" ON public.teams FOR SELECT USING (true);
+CREATE POLICY "Club admins can create teams" ON public.teams FOR INSERT WITH CHECK (
+  club_id IS NULL OR public.is_club_admin(club_id)
+);
+CREATE POLICY "Team captains and club admins can update teams" ON public.teams FOR UPDATE USING (
+  captain_id = auth.uid() OR (club_id IS NOT NULL AND public.is_club_admin(club_id))
+);
+
+-- Team players policies  
+CREATE POLICY "Anyone can view team players" ON public.team_players FOR SELECT USING (true);
+CREATE POLICY "Team captains can manage players" ON public.team_players FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.teams t WHERE t.id = team_id AND t.captain_id = auth.uid())
+  OR EXISTS (SELECT 1 FROM public.teams t WHERE t.id = team_id AND t.club_id IS NOT NULL AND public.is_club_admin(t.club_id))
 );
 
 -- Matches policies - public read for live scoring
 CREATE POLICY "Anyone can view matches" ON public.matches FOR SELECT USING (true);
-CREATE POLICY "Club members can create matches" ON public.matches FOR INSERT WITH CHECK (
-  auth.uid() = created_by AND (
-    club_id IS NULL OR EXISTS (
-      SELECT 1 FROM public.club_memberships 
-      WHERE club_id = matches.club_id AND user_id = auth.uid() AND status = 'active'
-    )
-  )
+CREATE POLICY "Authenticated users can create matches" ON public.matches FOR INSERT WITH CHECK (
+  auth.uid() = created_by
 );
-CREATE POLICY "Match creators and admins can update matches" ON public.matches FOR UPDATE USING (
-  auth.uid() = created_by OR auth.uid() = ANY(match_admins) OR EXISTS (
-    SELECT 1 FROM public.club_memberships 
-    WHERE club_id = matches.club_id AND user_id = auth.uid() 
-    AND role IN ('owner', 'admin') AND status = 'active'
-  )
+CREATE POLICY "Match admins can update matches" ON public.matches FOR UPDATE USING (
+  public.is_match_admin(id)
 );
 
 -- Scoring data policies - public read for live updates
@@ -711,41 +823,21 @@ CREATE POLICY "Anyone can view partnerships" ON public.partnerships FOR SELECT U
 CREATE POLICY "Anyone can view fall of wickets" ON public.fall_of_wickets FOR SELECT USING (true);
 CREATE POLICY "Anyone can view match events" ON public.match_events FOR SELECT USING (true);
 
--- Match admins can insert/update scoring data
+-- Match admins can insert/update scoring data (using security definer function)
 CREATE POLICY "Match admins can manage scoring" ON public.innings FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM public.matches m 
-    WHERE m.id = innings.match_id AND (
-      m.created_by = auth.uid() OR auth.uid() = ANY(m.match_admins)
-    )
-  )
+  public.is_match_admin(match_id)
 );
 
 CREATE POLICY "Match admins can manage batting" ON public.batting_performances FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM public.matches m 
-    WHERE m.id = batting_performances.match_id AND (
-      m.created_by = auth.uid() OR auth.uid() = ANY(m.match_admins)
-    )
-  )
+  public.is_match_admin(match_id)
 );
 
 CREATE POLICY "Match admins can manage bowling" ON public.bowling_performances FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM public.matches m 
-    WHERE m.id = bowling_performances.match_id AND (
-      m.created_by = auth.uid() OR auth.uid() = ANY(m.match_admins)
-    )
-  )
+  public.is_match_admin(match_id)
 );
 
 CREATE POLICY "Match admins can manage ball by ball" ON public.ball_by_ball FOR ALL USING (
-  EXISTS (
-    SELECT 1 FROM public.matches m 
-    WHERE m.id = ball_by_ball.match_id AND (
-      m.created_by = auth.uid() OR auth.uid() = ANY(m.match_admins)
-    )
-  )
+  public.is_match_admin(match_id)
 );
 
 -- Notifications policies
@@ -767,7 +859,3 @@ CREATE POLICY "Anyone can view achievements" ON public.user_achievements FOR SEL
 CREATE POLICY "Anyone can view tournaments" ON public.tournaments FOR SELECT USING (true);
 CREATE POLICY "Anyone can view tournament registrations" ON public.tournament_registrations FOR SELECT USING (true);
 CREATE POLICY "Anyone can view tournament standings" ON public.tournament_standings FOR SELECT USING (true);
-
--- Team policies
-CREATE POLICY "Anyone can view teams" ON public.teams FOR SELECT USING (true);
-CREATE POLICY "Anyone can view team players" ON public.team_players FOR SELECT USING (true); 

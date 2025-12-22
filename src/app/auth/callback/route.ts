@@ -62,18 +62,18 @@ export async function GET(request: NextRequest) {
 
     // Create profile if it doesn't exist
     try {
-      const { data: profile } = await supabase
-        .from("profiles")
+      const { data: existingUser } = await supabase
+        .from("users")
         .select("id")
         .eq("id", data.session.user.id)
         .single();
 
-      if (!profile) {
-        console.log('Creating profile for new user');
-        await supabase.from("profiles").insert({
+      if (!existingUser) {
+        console.log('Creating user record for new user');
+        await supabase.from("users").insert({
           id: data.session.user.id,
           email: data.session.user.email!,
-          full_name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || null,
+          full_name: data.session.user.user_metadata?.full_name || data.session.user.user_metadata?.name || 'Unknown',
           avatar_url: data.session.user.user_metadata?.avatar_url || null,
           phone: data.session.user.phone || null,
         });

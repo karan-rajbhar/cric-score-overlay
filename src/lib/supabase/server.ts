@@ -15,8 +15,8 @@ import { env } from "~/env.js";
  * 
  * @returns Supabase server client with cookie handling
  */
-export const createServerClient = () => {
-  const cookieStore = cookies();
+export const createServerClient = async () => {
+  const cookieStore = await cookies();
 
   return createSupabaseServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
@@ -67,4 +67,4 @@ export const createServerSupabaseClient = createServerClient;
  * Legacy export for backward compatibility
  * @deprecated Use createAdminClient() instead
  */
-export const supabaseAdmin = createAdminClient(); 
+export const supabaseAdmin = createAdminClient();

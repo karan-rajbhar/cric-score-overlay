@@ -156,12 +156,12 @@ max_frequency = "5s"
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# Disabled for local development - enable when you have Twilio credentials
 [auth.sms.twilio]
-enabled = true
-account_sid = "env(TWILIO_ACCOUNT_SID)"
-message_service_sid = "env(TWILIO_MESSAGE_SERVICE_SID)"
-# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(TWILIO_AUTH_TOKEN)"
+enabled = false
+account_sid = ""
+message_service_sid = ""
+auth_token = ""
 
 [auth.mfa]
 # Control how many MFA factors can be enrolled at once per user.
@@ -185,14 +185,12 @@ verify_enabled = true
 # `twitter`, `slack`, `spotify`, `workos`, `zoom`.
 
 # Configure Google OAuth
+# Disabled for local development - enable when you have Google OAuth credentials
 [auth.external.google]
-enabled = true
-client_id = "env(GOOGLE_CLIENT_ID)"
-# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
-secret = "env(GOOGLE_CLIENT_SECRET)"
-# Overrides the default auth redirectUrl.
+enabled = false
+client_id = ""
+secret = ""
 redirect_uri = ""
-# If enabled, the nonce check will be skipped. Required for local sign in with Google auth.
 skip_nonce_check = true
 
 [auth.external.apple]

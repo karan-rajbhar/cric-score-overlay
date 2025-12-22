@@ -7,10 +7,15 @@ await import("./src/env.js");
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
-  swcMinify: true,
   images: {
-    domains: ["your-supabase-project.supabase.co"],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/**",
+      },
+    ],
   },
 };
 
-export default config; 
+export default config;

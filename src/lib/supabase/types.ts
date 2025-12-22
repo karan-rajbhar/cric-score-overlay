@@ -17,28 +17,37 @@ import type { SupabaseClient as BaseSupabaseClient } from '@supabase/supabase-js
 export interface Database {
   public: {
     Tables: {
-      profiles: {
+      users: {
         Row: {
           id: string;
-          email: string;
-          full_name: string | null;
+          email: string | null;
+          phone: string | null;
+          full_name: string;
           avatar_url: string | null;
+          location: string | null;
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id: string;
-          email: string;
-          full_name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          full_name: string;
           avatar_url?: string | null;
+          location?: string | null;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          email?: string;
-          full_name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          full_name?: string;
           avatar_url?: string | null;
+          location?: string | null;
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };

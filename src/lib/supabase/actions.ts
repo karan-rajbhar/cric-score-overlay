@@ -27,8 +27,8 @@ const updateProfileSchema = z.object({
  */
 export async function updateProfile(formData: FormData) {
   try {
-    const supabase = createServerClient();
-    
+    const supabase = await createServerClient();
+
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -41,9 +41,9 @@ export async function updateProfile(formData: FormData) {
       avatar_url: formData.get('avatar_url'),
     });
 
-    // Update profile
+    // Update user record
     const { error } = await supabase
-      .from('profiles')
+      .from('users')
       .update({
         ...validatedData,
         updated_at: new Date().toISOString(),
@@ -58,16 +58,16 @@ export async function updateProfile(formData: FormData) {
     return { success: true, message: 'Profile updated successfully' };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { 
-        success: false, 
-        message: 'Validation error', 
-        errors: error.flatten().fieldErrors 
+      return {
+        success: false,
+        message: 'Validation error',
+        errors: error.flatten().fieldErrors
       };
     }
-    
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'An unexpected error occurred' 
+
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'An unexpected error occurred'
     };
   }
 }
@@ -77,11 +77,11 @@ export async function updateProfile(formData: FormData) {
  */
 export async function signOut() {
   try {
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
     await supabase.auth.signOut();
   } catch (error) {
     console.error('Sign out error:', error);
   }
-  
+
   redirect('/auth/login');
 } 

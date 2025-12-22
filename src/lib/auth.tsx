@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.email || 'no session');
-      
+
       // Update user state
       setUser(session?.user ?? null);
       setLoading(false);
@@ -64,17 +64,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Handle profile creation for new users
       if (event === 'SIGNED_IN' && session?.user) {
         try {
-          const { data: profile } = await supabase
-            .from("profiles")
+          const { data: existingUser } = await supabase
+            .from("users")
             .select("id")
             .eq("id", session.user.id)
             .single();
 
-          if (!profile) {
-            await supabase.from("profiles").insert({
+          if (!existingUser) {
+            await supabase.from("users").insert({
               id: session.user.id,
               email: session.user.email!,
-              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
+              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Unknown',
               avatar_url: session.user.user_metadata?.avatar_url || null,
               phone: session.user.phone || null,
             });
