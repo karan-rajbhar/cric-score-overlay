@@ -10,10 +10,10 @@ import {
     setCurrentBowler,
     endInnings,
 } from "../../mutations";
-import { createPlayerQuick } from "../../../../teams/actions";
+import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
-import type { ScoringState } from "../../types";
+import type { ExtraType, ScoringState } from "../../types";
 
 type Player = TeamPlayer;
 
@@ -154,7 +154,7 @@ export function useScoring(matchId: string) {
         return result;
     };
 
-    const handleScore = async (bowlerId: string, batsmanId: string, nonStriker: string, event: { runsScored?: number; extras?: number; extraType?: string; isWicket?: boolean; dismissalType?: string; fielderId?: string | null }) => {
+    const handleScore = async (bowlerId: string, batsmanId: string, nonStriker: string, event: { runsScored?: number; extras?: number; extraType?: ExtraType; isWicket?: boolean; dismissalType?: string; fielderId?: string | null }) => {
         setIsProcessing(true);
         const result = await recordBall({
             matchId,
