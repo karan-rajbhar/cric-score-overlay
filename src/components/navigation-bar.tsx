@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
-import { LayoutDashboard, Activity, Users, LogOut, Menu } from "lucide-react";
+import { LayoutDashboard, Activity, Users, LogOut, Menu, Search } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { cn } from "~/lib/utils";
 
@@ -19,8 +19,10 @@ const NAV_ITEMS = [
 export function NavigationBar() {
     const { user, signOut, loading } = useAuth();
     const pathname = usePathname();
+    const router = useRouter();
     const [signOutLoading, setSignOutLoading] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const handleSignOut = async () => {
         if (signOutLoading) return;
@@ -65,6 +67,25 @@ export function NavigationBar() {
                             ))}
                         </div>
                     )}
+
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            const q = searchQuery.trim();
+                            if (q.length >= 2) router.push(`/search?q=${encodeURIComponent(q)}`);
+                        }}
+                        className="hidden items-center md:flex"
+                    >
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <input
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search teams, players…"
+                                className="h-9 w-56 rounded-md border border-input bg-background pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                        </div>
+                    </form>
 
                     <div className="flex items-center gap-2">
                         <ThemeToggle />
@@ -130,6 +151,19 @@ export function NavigationBar() {
                                 {label}
                             </Link>
                         ))}
+                        <Link
+                            href="/search"
+                            onClick={() => setMobileOpen(false)}
+                            className={cn(
+                                "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
+                                isActive("/search")
+                                    ? "bg-secondary text-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60"
+                            )}
+                        >
+                            <Search className="h-4 w-4" />
+                            Search
+                        </Link>
                     </div>
                 </div>
             )}
