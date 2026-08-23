@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createServerClient } from "~/lib/supabase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -79,11 +80,18 @@ export default async function ClubsPage() {
 
     return (
         <div className="container mx-auto max-w-5xl px-4 py-10">
-            <header className="mb-8">
-                <h1 className="text-2xl font-bold tracking-tight">Clubs</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Clubs you belong to, plus public clubs on the platform.
-                </p>
+            <header className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Clubs</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Clubs you belong to, plus public clubs on the platform.
+                    </p>
+                </div>
+                {user && (
+                    <Button asChild size="sm">
+                        <Link href="/clubs/create">Create club</Link>
+                    </Button>
+                )}
             </header>
 
             {user && (

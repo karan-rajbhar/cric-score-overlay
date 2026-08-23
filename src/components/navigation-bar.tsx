@@ -6,13 +6,14 @@ import { useState } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
-import { LayoutDashboard, Activity, Users, LogOut, Menu, Search } from "lucide-react";
+import { LayoutDashboard, Activity, Users, LogOut, Menu, Search, Trophy } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { cn } from "~/lib/utils";
 
 const NAV_ITEMS = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/matches", label: "Matches", icon: Activity },
+    { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/clubs", label: "Clubs", icon: Users },
 ] as const;
 
