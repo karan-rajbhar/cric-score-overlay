@@ -9,17 +9,33 @@ import { TeamCard } from "~/components/teams/team-card";
 export default async function TeamsPage({
     searchParams,
 }: {
-    searchParams: { search?: string; type?: "club" | "match" | "tournament" };
+    searchParams: { search?: string; type?: "club" | "match" | "tournament"; view?: "mine" | "all" };
 }) {
-    const { data: teams, error } = await getTeams(searchParams);
+    const view = searchParams?.view === "all" ? "all" : "mine";
+    const { data: teams, error } = await getTeams({
+        ...searchParams,
+        mine: view === "mine",
+    });
+
+    const buildHref = (nextView: "mine" | "all") => {
+        const params = new URLSearchParams();
+        if (searchParams?.search) params.set("search", searchParams.search);
+        if (nextView === "all") params.set("view", "all");
+        const qs = params.toString();
+        return qs ? `/teams?${qs}` : "/teams";
+    };
 
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Teams</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">
+                        {view === "mine" ? "My Teams" : "All Teams"}
+                    </h1>
                     <p className="text-muted-foreground mt-1">
-                        Manage your cricket teams and squads
+                        {view === "mine"
+                            ? "Teams you created, lead, or play in"
+                            : "Every team on the platform"}
                     </p>
                 </div>
                 <Button asChild>
@@ -30,7 +46,29 @@ export default async function TeamsPage({
                 </Button>
             </div>
 
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center justify-between gap-4 mb-6">
+                <div className="inline-flex rounded-lg border border-border p-0.5">
+                    <Link
+                        href={buildHref("mine")}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                            view === "mine"
+                                ? "bg-secondary text-secondary-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                        My teams
+                    </Link>
+                    <Link
+                        href={buildHref("all")}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                            view === "all"
+                                ? "bg-secondary text-secondary-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                        All teams
+                    </Link>
+                </div>
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <form action="/teams" method="GET">
@@ -41,6 +79,7 @@ export default async function TeamsPage({
                             className="pl-8"
                             defaultValue={searchParams?.search}
                         />
+                        {view === "all" && <input type="hidden" name="view" value="all" />}
                     </form>
                 </div>
             </div>
@@ -57,10 +96,26 @@ export default async function TeamsPage({
                         ))}
                         {teams?.length === 0 && (
                             <div className="col-span-full text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-                                <p>No teams found.</p>
-                                <Button variant="link" asChild className="mt-2">
-                                    <Link href="/teams/create">Create your first team</Link>
-                                </Button>
+                                {view === "mine" ? (
+                                    <>
+                                        <p>You're not part of any team yet.</p>
+                                        <div className="mt-2 flex justify-center gap-2">
+                                            <Button variant="link" asChild>
+                                                <Link href="/teams/create">Create your first team</Link>
+                                            </Button>
+                                            <Button variant="link" asChild>
+                                                <Link href="/teams?view=all">Browse all teams</Link>
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p>No teams found.</p>
+                                        <Button variant="link" asChild className="mt-2">
+                                            <Link href="/teams/create">Create the first one</Link>
+                                        </Button>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>

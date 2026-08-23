@@ -5,11 +5,39 @@ import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { ChevronLeft, Edit, Users, Trophy, Calendar } from "lucide-react";
 import { getTeam } from "../actions";
+import { createServerClient } from "~/lib/supabase/server";
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
+import { TeamLogoEditor } from "~/components/teams/team-logo-editor";
+import { TeamLogo } from "~/components/teams/team-logo";
+import { TeamSquadShare } from "~/components/teams/team-squad-share";
 
-export default async function TeamDetailsPage({ params }: { params: { id: string } }) {
-    const { data: team, error } = await getTeam(params.id);
+function TeamLogoStatic({
+    name,
+    shortName,
+    logoUrl,
+}: {
+    name: string;
+    shortName?: string | null;
+    logoUrl?: string | null;
+}) {
+    return <TeamLogo name={name} shortName={shortName} logoUrl={logoUrl} className="h-16 w-16 rounded-lg text-lg" />;
+}
+
+export default async function TeamDetailsPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
+    const { id } = await params;
+    const { data: team, error } = await getTeam(id);
+
+    // Only captain/creator can edit the crest.
+    const supabase = await createServerClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    const canEditLogo = !!user && (team?.captain_id === user.id || team?.created_by === user.id);
 
     if (error || !team) {
         if (!team) notFound();
@@ -23,10 +51,18 @@ export default async function TeamDetailsPage({ params }: { params: { id: string
     }
 
     // Flatten the player structure for the PlayerList component
-    const players = team.team_players?.map((tp: any) => ({
-        ...tp,
-        user: tp.user
-    })) || [];
+    const players = (team.team_players as Array<{
+        id: string;
+        user_id: string;
+        role_in_team?: string;
+        jersey_number?: number;
+        user?: {
+            id: string;
+            full_name: string;
+            email?: string;
+            avatar_url?: string;
+        };
+    }> | null) || [];
 
     return (
         <div className="container mx-auto px-4 py-8">
@@ -43,9 +79,20 @@ export default async function TeamDetailsPage({ params }: { params: { id: string
                     <Card>
                         <CardHeader>
                             <div className="flex items-start justify-between">
-                                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-2xl mb-4">
-                                    {team.short_name?.substring(0, 2) || team.name.substring(0, 2).toUpperCase()}
-                                </div>
+                                {canEditLogo ? (
+                                    <TeamLogoEditor
+                                        teamId={team.id}
+                                        teamName={team.name}
+                                        shortName={team.short_name}
+                                        logoUrl={team.logo_url}
+                                    />
+                                ) : (
+                                    <TeamLogoStatic
+                                        name={team.name}
+                                        shortName={team.short_name}
+                                        logoUrl={team.logo_url}
+                                    />
+                                )}
                                 <Button variant="outline" size="icon" title="Edit Team">
                                     <Edit className="h-4 w-4" />
                                 </Button>
@@ -109,7 +156,19 @@ export default async function TeamDetailsPage({ params }: { params: { id: string
                 <div className="lg:col-span-2 space-y-6">
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-semibold tracking-tight">Squad</h2>
-                        <AddPlayerDialog teamId={team.id} />
+                        <div className="flex items-center gap-2">
+                            <TeamSquadShare
+                                teamId={team.id}
+                                teamName={team.name}
+                                shortName={team.short_name}
+                                players={players.map((p) => ({
+                                    full_name: p.user?.full_name ?? "Unknown",
+                                    role_in_team: p.role_in_team,
+                                    jersey_number: p.jersey_number,
+                                }))}
+                            />
+                            <AddPlayerDialog teamId={team.id} />
+                        </div>
                     </div>
 
                     <PlayerList

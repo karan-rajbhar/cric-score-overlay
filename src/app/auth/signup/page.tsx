@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "~/lib/auth";
@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Eye, EyeOff, Mail, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Trophy, Phone, MessageCircle } from "lucide-react";
 
-export default function SignupPage() {
+function SignupPageInner() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,26 +29,32 @@ export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Handle OAuth errors from URL params
-  useEffect(() => {
+  // Derive OAuth errors from URL params during render (no state/effect needed)
+  const urlError = (() => {
     const errorParam = searchParams.get('error');
-    const messageParam = searchParams.get('message');
-    if (errorParam) {
-      switch (errorParam) {
-        case 'oauth_error':
-          setError(messageParam ? decodeURIComponent(messageParam) : 'OAuth authentication failed. Please try again.');
-          break;
-        case 'session_error':
-          setError('Session creation failed. Please try again.');
-          break;
-        case 'unexpected_error':
-          setError('An unexpected error occurred. Please try again.');
-          break;
-        default:
-          setError('Authentication failed. Please try again.');
+    if (!errorParam) return null;
+    switch (errorParam) {
+      case 'oauth_error': {
+        const messageParam = searchParams.get('message');
+        return messageParam ? decodeURIComponent(messageParam) : 'OAuth authentication failed. Please try again.';
       }
+      case 'session_error':
+        return 'Session creation failed. Please try again.';
+      case 'unexpected_error':
+        return 'An unexpected error occurred. Please try again.';
+      default:
+        return 'Authentication failed. Please try again.';
     }
-  }, [searchParams]);
+  })();
+  const displayError = error ?? urlError;
+
+  // Redirect authenticated users to dashboard, but not while the signup
+  // confirmation screen is showing. Effects only — no setState during render.
+  useEffect(() => {
+    if (user && !success) {
+      router.push("/dashboard");
+    }
+  }, [user, success, router]);
 
   // Show loading while auth is initializing
   if (loading && !success) {
@@ -59,9 +65,7 @@ export default function SignupPage() {
     );
   }
 
-  // Redirect authenticated users to dashboard (but not during signup flow)
   if (user && !success) {
-    router.push("/dashboard");
     return null;
   }
 
@@ -147,13 +151,12 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="w-full max-w-md space-y-8">
-          <Card className="glass-card border-cricket-secondary/30">
+          <Card>
             <CardContent className="p-8 text-center space-y-6">
               <div className="relative inline-block">
                 <div className="w-20 h-20 mx-auto bg-cricket-secondary/10 rounded-3xl flex items-center justify-center">
                   <CheckCircle2 className="h-10 w-10 text-cricket-secondary animate-pulse" />
                 </div>
-                <div className="absolute inset-0 bg-cricket-secondary/20 rounded-3xl blur-lg opacity-50 animate-glow"></div>
               </div>
               
               <div className="space-y-4">
@@ -176,7 +179,7 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-3">
-                <Button asChild className="w-full btn-primary">
+                <Button asChild className="w-full h-11">
                   <Link href="/auth/login" className="flex items-center justify-center gap-2">
                     <ArrowRight className="h-4 w-4" />
                     Continue to Login
@@ -202,14 +205,8 @@ export default function SignupPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center space-y-4">
-          <div className="relative inline-block">
-            <div className="w-16 h-16 mx-auto bg-cricket-primary/10 rounded-2xl flex items-center justify-center group">
-              <div className="text-3xl group-hover:animate-bounce transition-transform">🏏</div>
-              <div className="absolute inset-0 bg-cricket-primary/20 rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-          </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground via-cricket-primary to-foreground bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold tracking-tight">
               Join Cricket Platform
             </h1>
             <p className="text-muted-foreground">
@@ -219,7 +216,7 @@ export default function SignupPage() {
         </div>
 
         {/* Signup Form */}
-        <Card className="glass-card border-border/50">
+        <Card>
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-foreground">Create account</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
@@ -228,7 +225,7 @@ export default function SignupPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Error Display */}
-            {error && (
+            {displayError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
@@ -423,7 +420,7 @@ export default function SignupPage() {
                 <Button
                   type="submit"
                   disabled={loading || password !== confirmPassword}
-                  className="w-full btn-primary group"
+                  className="w-full h-11"
                 >
                   {loading ? (
                     <>
@@ -560,7 +557,7 @@ export default function SignupPage() {
                 <Button
                   type="submit"
                   disabled={loading || password !== confirmPassword}
-                  className="w-full btn-primary group"
+                  className="w-full h-11"
                 >
                   {loading ? (
                     <>
@@ -578,7 +575,7 @@ export default function SignupPage() {
             )}
 
             {/* Error Alert */}
-            {error && (
+            {displayError && (
               <Alert className="bg-destructive/10 border-destructive/20">
                 <AlertCircle className="h-4 w-4 text-destructive" />
                 <AlertDescription className="text-destructive">
@@ -626,3 +623,10 @@ export default function SignupPage() {
     </div>
   );
 } 
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupPageInner />
+    </Suspense>
+  );
+}

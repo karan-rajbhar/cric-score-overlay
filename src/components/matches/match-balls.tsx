@@ -1,50 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
+import { Loader2 } from "lucide-react";
+import { getMatchBallLog } from "~/app/matches/queries";
+import type { BallEvent, Match } from "~/lib/match-types";
+import { teamName } from "~/lib/cricket";
 
-interface Ball {
-    id: string;
-    over_number: number;
-    ball_number: number;
-    runs_scored: number;
-    extras: number;
-    extra_type?: string;
-    is_wicket: boolean;
-    dismissal_type?: string;
-    commentary?: string;
-    batsman?: { id: string; full_name: string };
-    bowler?: { id: string; full_name: string };
-    innings?: { innings_number: number; team_id: string };
-}
-
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    ball_by_ball?: Ball[];
-}
-
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
-
-interface Match {
-    id: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
-}
+type Ball = BallEvent;
 
 interface MatchBallsProps {
     match: Match;
@@ -52,10 +18,30 @@ interface MatchBallsProps {
 
 export function MatchBalls({ match }: MatchBallsProps) {
     const [filter, setFilter] = useState<"all" | "boundaries" | "wickets">("all");
+    // Ball log is fetched lazily — the main match payload no longer hauls it.
+    const [ballLog, setBallLog] = useState<Ball[] | null>(null);
+    const [logError, setLogError] = useState<string | null>(null);
 
-    const getTeamName = (teamId: string) => {
-        return teamId === match.team1_id ? match.team1.name : match.team2.name;
-    };
+    useEffect(() => {
+        let cancelled = false;
+
+        (async () => {
+            const result = await getMatchBallLog(match.id);
+            if (cancelled) return;
+            if (result.error || !result.data) {
+                setLogError(result.error ?? "Could not load ball log");
+                setBallLog([]);
+                return;
+            }
+            setBallLog(result.data as Ball[]);
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [match.id]);
+
+
 
     const getBallDisplay = (ball: Ball) => {
         if (ball.is_wicket) return "W";
@@ -105,11 +91,21 @@ export function MatchBalls({ match }: MatchBallsProps) {
         (a, b) => a.innings_number - b.innings_number
     );
 
-    if (sortedInnings.length === 0) {
+    if (ballLog === null) {
+        return (
+            <Card>
+                <CardContent className="flex justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (sortedInnings.length === 0 || logError) {
         return (
             <Card>
                 <CardContent className="py-12 text-center text-muted-foreground">
-                    No ball-by-ball data available yet
+                    {logError ?? "No ball-by-ball data available yet"}
                 </CardContent>
             </Card>
         );
@@ -156,7 +152,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                 </TabsList>
 
                 {sortedInnings.map((innings) => {
-                    const balls = innings.ball_by_ball || [];
+                    const balls = ballLog.filter((b) => b.innings_id === innings.id);
                     const filteredBalls = filterBalls(balls);
                     const overGroups = groupBallsByOver(filteredBalls);
                     const overNumbers = Object.keys(overGroups)
@@ -177,7 +173,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                     <Card>
                                         <CardContent className="py-3">
                                             <div className="flex items-center justify-between">
-                                                <span className="font-medium">{getTeamName(innings.team_id)}</span>
+                                                <span className="font-medium">{teamName(match, innings.team_id)}</span>
                                                 <span className="text-lg font-bold">
                                                     {innings.total_runs}/{innings.total_wickets} ({innings.total_overs} ov)
                                                 </span>

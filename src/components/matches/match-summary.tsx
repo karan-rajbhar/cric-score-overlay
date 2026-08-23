@@ -3,67 +3,13 @@
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Trophy, Target, Clock, TrendingUp } from "lucide-react";
+import type { Innings, Match } from "~/lib/match-types";
+import { formatDecimalOvers } from "~/lib/cricket";
 
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    is_completed: boolean;
-    target_runs?: number;
-    extras_total?: number;
-    batting_performances?: BattingPerformance[];
-    bowling_performances?: BowlingPerformance[];
-}
 
-interface BattingPerformance {
-    id: string;
-    user_id: string;
-    runs_scored: number;
-    balls_faced: number;
-    fours: number;
-    sixes: number;
-    is_not_out: boolean;
-    user?: { id: string; full_name: string };
-}
 
-interface BowlingPerformance {
-    id: string;
-    user_id: string;
-    overs_bowled: number;
-    runs_conceded: number;
-    wickets_taken: number;
-    maidens: number;
-    user?: { id: string; full_name: string };
-}
 
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
 
-interface Match {
-    id: string;
-    title: string;
-    match_format: string;
-    overs_per_innings: number;
-    status: string;
-    current_innings: number;
-    current_over: number;
-    current_ball: number;
-    toss_winner_team_id?: string;
-    toss_decision?: string;
-    result_description?: string;
-    winning_team_id?: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
-}
 
 interface MatchSummaryProps {
     match: Match;
@@ -82,19 +28,6 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         return innings.batting_performances.reduce((best, current) =>
             current.runs_scored > (best?.runs_scored || 0) ? current : best
             , innings.batting_performances[0]);
-    };
-
-    const getTopBowler = (innings: Innings | null) => {
-        if (!innings?.bowling_performances?.length) return null;
-        return innings.bowling_performances.reduce((best, current) =>
-            current.wickets_taken > (best?.wickets_taken || 0) ? current : best
-            , innings.bowling_performances[0]);
-    };
-
-    const formatOvers = (overs: number) => {
-        const fullOvers = Math.floor(overs);
-        const balls = Math.round((overs - fullOvers) * 10);
-        return `${fullOvers}.${balls}`;
     };
 
     return (
@@ -153,7 +86,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                                 <>
                                     {team1Innings.total_runs}/{team1Innings.total_wickets}
                                     <span className="text-lg text-muted-foreground ml-2">
-                                        ({formatOvers(team1Innings.total_overs)} ov)
+                                        ({formatDecimalOvers(team1Innings.total_overs)} ov)
                                     </span>
                                 </>
                             ) : (
@@ -168,7 +101,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                                         <span className="text-muted-foreground">Top Scorer</span>
                                         <span className="font-medium">
                                             {getTopScorer(team1Innings)?.user?.full_name} - {getTopScorer(team1Innings)?.runs_scored}
-                                            {getTopScorer(team1Innings)?.is_not_out && "*"}
+                                            {!getTopScorer(team1Innings)?.is_out && "*"}
                                             ({getTopScorer(team1Innings)?.balls_faced})
                                         </span>
                                     </div>
@@ -202,7 +135,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                                 <>
                                     {team2Innings.total_runs}/{team2Innings.total_wickets}
                                     <span className="text-lg text-muted-foreground ml-2">
-                                        ({formatOvers(team2Innings.total_overs)} ov)
+                                        ({formatDecimalOvers(team2Innings.total_overs)} ov)
                                     </span>
                                 </>
                             ) : (
@@ -217,7 +150,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                                         <span className="text-muted-foreground">Top Scorer</span>
                                         <span className="font-medium">
                                             {getTopScorer(team2Innings)?.user?.full_name} - {getTopScorer(team2Innings)?.runs_scored}
-                                            {getTopScorer(team2Innings)?.is_not_out && "*"}
+                                            {!getTopScorer(team2Innings)?.is_out && "*"}
                                             ({getTopScorer(team2Innings)?.balls_faced})
                                         </span>
                                     </div>
@@ -261,7 +194,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                                             <div key={bp.id} className="flex items-center justify-between text-sm">
                                                 <span>{bp.user?.full_name}</span>
                                                 <span className="font-medium">
-                                                    {bp.runs_scored}{bp.is_not_out && "*"} ({bp.balls_faced})
+                                                    {bp.runs_scored}{!bp.is_out && "*"} ({bp.balls_faced})
                                                 </span>
                                             </div>
                                         ))

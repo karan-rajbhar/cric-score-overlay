@@ -2,20 +2,21 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { createClient } from "~/lib/supabase";
+import type { AuthError } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signInWithGoogle: () => Promise<{ error: any }>;
-  signInWithPhone: (phone: string) => Promise<{ error: any }>;
-  verifyOTP: (phone: string, token: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: any }>;
-  signUpWithPhone: (phone: string, password: string, fullName?: string) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+  signInWithPhone: (phone: string) => Promise<{ error: AuthError | null }>;
+  verifyOTP: (phone: string, token: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
+  signUpWithPhone: (phone: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: any }>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,21 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Handle profile creation for new users
       if (event === 'SIGNED_IN' && session?.user) {
         try {
-          const { data: existingUser } = await supabase
-            .from("users")
-            .select("id")
-            .eq("id", session.user.id)
-            .single();
-
-          if (!existingUser) {
-            await supabase.from("users").insert({
-              id: session.user.id,
-              email: session.user.email!,
-              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Unknown',
-              avatar_url: session.user.user_metadata?.avatar_url || null,
-              phone: session.user.phone || null,
-            });
-          }
+          // Idempotent server-side bootstrap; safe to call on every sign-in.
+          await supabase.rpc("ensure_own_profile");
         } catch (error) {
           console.error('Profile creation error:', error);
         }

@@ -6,7 +6,7 @@
  */
 
 import 'server-only'; // This ensures this file is never bundled client-side
-import { createServerClient as createSupabaseServerClient, createBrowserClient } from "@supabase/ssr";
+import { createServerClient as createSupabaseServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { env } from "~/env.js";
 
@@ -44,16 +44,27 @@ export const createServerClient = async () => {
 
 /**
  * Admin client with service role key (server-side only)
- * 
- * WARNING: This bypasses Row Level Security. Use with extreme caution.
- * Only use when you need full database access for admin operations.
- * 
+ *
+ * WARNING: This bypasses Row Level Security. Use only for administrative
+ * tasks that cannot be expressed through RLS policies. Never expose the
+ * returned client to the browser.
+ *
  * @returns Supabase admin client
  */
 export const createAdminClient = () => {
-  return createBrowserClient(
+  return createSupabaseServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll() {
+          // Service-role requests carry no user session cookies.
+        },
+      },
+    }
   );
 };
 
@@ -62,9 +73,3 @@ export const createAdminClient = () => {
  * @deprecated Use createServerClient() instead
  */
 export const createServerSupabaseClient = createServerClient;
-
-/**
- * Legacy export for backward compatibility
- * @deprecated Use createAdminClient() instead
- */
-export const supabaseAdmin = createAdminClient();

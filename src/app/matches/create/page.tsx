@@ -7,7 +7,12 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "~/components/ui/dialog";
 import {
     Select,
     SelectContent,
@@ -16,9 +21,14 @@ import {
     SelectValue,
 } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
-import { createMatch, getTeams } from "../actions";
+import { createMatch } from "../mutations";
+import { getTeams } from "../queries";
+import { createTeamQuick } from "../../teams/actions";
 import { useAuth } from "~/lib/auth";
-import { ChevronLeft, ChevronRight, Loader2, Check, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "~/lib/utils";
+import { deriveShortName } from "~/lib/utils";
+import { ChevronLeft, ChevronRight, Loader2, Check, AlertCircle, Plus } from "lucide-react";
 
 interface Team {
     id: string;
@@ -63,18 +73,10 @@ export default function CreateMatchPage() {
         umpire2Name: "",
     });
 
-    useEffect(() => {
-        loadTeams();
-    }, []);
-
-    useEffect(() => {
-        // Auto-set overs based on format
-        if (formData.matchFormat === "T20") {
-            setFormData((prev) => ({ ...prev, oversPerInnings: 20 }));
-        } else if (formData.matchFormat === "ODI") {
-            setFormData((prev) => ({ ...prev, oversPerInnings: 50 }));
-        }
-    }, [formData.matchFormat]);
+    // Inline "new team" creation from the team-selection step.
+    const [newTeamFor, setNewTeamFor] = useState<"team1Id" | "team2Id" | null>(null);
+    const [newTeamName, setNewTeamName] = useState("");
+    const [newTeamSaving, setNewTeamSaving] = useState(false);
 
     const loadTeams = async () => {
         const result = await getTeams();
@@ -82,6 +84,34 @@ export default function CreateMatchPage() {
             setTeams(result.data);
         }
         setTeamsLoading(false);
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchTeams = async () => {
+            const result = await getTeams();
+            if (cancelled) return;
+            if (result.data) {
+                setTeams(result.data);
+            }
+            setTeamsLoading(false);
+        };
+
+        void fetchTeams();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // Auto-set overs when format changes (derived in the change handler, not an effect)
+    const handleFormatChange = (format: MatchFormat) => {
+        updateField("matchFormat", format);
+        if (format === "T20") {
+            updateField("oversPerInnings", 20);
+        } else if (format === "ODI") {
+            updateField("oversPerInnings", 50);
+        }
     };
 
     const handleSubmit = async () => {
@@ -120,6 +150,26 @@ export default function CreateMatchPage() {
     const canProceedStep3 = formData.title.trim().length > 0;
 
     const getTeamName = (id: string) => teams.find((t) => t.id === id)?.name || "";
+
+    const handleCreateTeamInline = async () => {
+        if (!newTeamName.trim() || !newTeamFor) return;
+        setNewTeamSaving(true);
+
+        const result = await createTeamQuick(newTeamName, deriveShortName(newTeamName));
+        if (result.error || !result.data) {
+            toast.error(result.error ?? "Could not create team");
+        } else {
+            // Refresh the list and select the new team in the slot that
+            // opened the dialog.
+            const refreshed = await getTeams();
+            setTeams((refreshed.data as Team[]) ?? []);
+            updateField(newTeamFor, result.data.id);
+            toast.success(`Team "${result.data.name}" created`);
+            setNewTeamFor(null);
+            setNewTeamName("");
+        }
+        setNewTeamSaving(false);
+    };
 
     if (authLoading) {
         return (
@@ -233,7 +283,7 @@ export default function CreateMatchPage() {
                                                 <button
                                                     key={format}
                                                     type="button"
-                                                    onClick={() => updateField("matchFormat", format)}
+                                                    onClick={() => handleFormatChange(format)}
                                                     className={`p-4 rounded-lg border-2 transition-colors ${formData.matchFormat === format
                                                             ? "border-cricket-primary bg-cricket-primary/10"
                                                             : "border-border hover:border-cricket-primary/50"
@@ -281,16 +331,7 @@ export default function CreateMatchPage() {
 
                                 {teamsLoading ? (
                                     <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="h-6 w-6 animate-spin text-cricket-primary" />
-                                    </div>
-                                ) : teams.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <p className="text-muted-foreground mb-4">
-                                            No teams available. Create teams in your club first.
-                                        </p>
-                                        <Button asChild variant="outline">
-                                            <Link href="/dashboard">Go to Dashboard</Link>
-                                        </Button>
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -314,6 +355,24 @@ export default function CreateMatchPage() {
                                                         ))}
                                                 </SelectContent>
                                             </Select>
+                                            {teams.length === 0 && (
+                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                    No teams yet — create one below.
+                                                </p>
+                                            )}
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="mt-1.5 h-7 px-2 text-xs text-primary"
+                                                onClick={() => {
+                                                    setNewTeamFor("team1Id");
+                                                    setNewTeamName("");
+                                                }}
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1" />
+                                                Create new team
+                                            </Button>
                                         </div>
 
                                         <div className="flex items-center justify-center py-2">
@@ -340,6 +399,19 @@ export default function CreateMatchPage() {
                                                         ))}
                                                 </SelectContent>
                                             </Select>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="mt-1.5 h-7 px-2 text-xs text-primary"
+                                                onClick={() => {
+                                                    setNewTeamFor("team2Id");
+                                                    setNewTeamName("");
+                                                }}
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1" />
+                                                Create new team
+                                            </Button>
                                         </div>
                                     </div>
                                 )}
@@ -516,6 +588,56 @@ export default function CreateMatchPage() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Inline new-team dialog */}
+                <Dialog
+                    open={newTeamFor !== null}
+                    onOpenChange={(open) => !open && setNewTeamFor(null)}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create New Team</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 pt-2">
+                            <div>
+                                <Label htmlFor="new-team-name">Team name *</Label>
+                                <Input
+                                    id="new-team-name"
+                                    placeholder="e.g., Riverside Warriors"
+                                    value={newTeamName}
+                                    onChange={(e) => setNewTeamName(e.target.value)}
+                                    className="mt-2"
+                                    autoFocus
+                                />
+                                {newTeamName.trim() && (
+                                    <p className="mt-1.5 text-xs text-muted-foreground">
+                                        Short code:{" "}
+                                        <span className="font-semibold">
+                                            {deriveShortName(newTeamName)}
+                                        </span>
+                                    </p>
+                                )}
+                            </div>
+                            <Button
+                                className="w-full"
+                                onClick={handleCreateTeamInline}
+                                disabled={!newTeamName.trim() || newTeamSaving}
+                            >
+                                {newTeamSaving ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Creating…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="h-4 w-4 mr-1.5" />
+                                        Create team
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </div>
     );

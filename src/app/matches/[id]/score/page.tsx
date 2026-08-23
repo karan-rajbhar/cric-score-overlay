@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "~/components/ui/dialog";
 import {
     Select,
@@ -23,65 +23,61 @@ import {
 import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { CurrentBatsmen } from "~/components/matches/current-batsmen";
 import { CurrentBowler } from "~/components/matches/current-bowler";
+import { getMatch, getTeamPlayers, getScoringState } from "../../queries";
 import {
-    getMatch,
-    getTeamPlayers,
     startMatch,
     recordBall,
-    endOver,
+    undoLastBall,
+    setCurrentBatsmen,
+    setCurrentBowler,
     endInnings,
-} from "../../actions";
+} from "../../mutations";
+import type { ExtraType, ScoringState } from "../../types";
+import { createPlayerQuick } from "../../../teams/actions";
 import { useAuth } from "~/lib/auth";
-import { ChevronLeft, Tv, Loader2, AlertCircle, Play } from "lucide-react";
+import type { Match, TeamPlayer } from "~/lib/match-types";
 
-interface Player {
-    user_id: string;
-    user: {
-        id: string;
-        full_name: string;
-    };
-    jersey_number?: number;
-    batting_order?: number;
-}
+type Player = TeamPlayer;
 
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    is_completed: boolean;
-    target_runs?: number;
-}
+import { toast } from "sonner";
+import { ChevronLeft, Tv, Loader2, AlertCircle, Play, Undo2, UserPlus } from "lucide-react";
 
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
 
-interface Match {
-    id: string;
-    title: string;
-    match_format: string;
-    overs_per_innings: number;
-    status: string;
-    current_innings: number;
-    current_over: number;
-    current_ball: number;
-    toss_winner_team_id?: string;
-    toss_decision?: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
+const DISMISSAL_TYPES = [
+    { value: "bowled", label: "Bowled", needsFielder: false },
+    { value: "caught", label: "Caught", needsFielder: true },
+    { value: "lbw", label: "LBW", needsFielder: false },
+    { value: "stumped", label: "Stumped", needsFielder: true },
+    { value: "run_out", label: "Run Out", needsFielder: true },
+    { value: "hit_wicket", label: "Hit Wicket", needsFielder: false },
+];
+
+function deliveryLabel(d: {
+    runs_scored: number | null;
+    extras: number | null;
+    extra_type: string | null;
+    is_wicket: boolean | null;
+}): string {
+    if (d.is_wicket) return "W";
+    const runs = d.runs_scored ?? 0;
+    switch (d.extra_type) {
+        case "wide":
+            return runs > 0 ? `${runs}+wd` : "wd";
+        case "no_ball":
+            return runs > 0 ? `${runs}+nb` : "nb";
+        case "bye":
+            return `${d.extras ?? 0}b`;
+        case "leg_bye":
+            return `${d.extras ?? 0}lb`;
+        case "penalty":
+            return `${d.extras ?? 0}p`;
+        default:
+            return String(runs);
+    }
 }
 
 export default function ScoringPage() {
     const params = useParams();
-    const router = useRouter();
     const matchId = params.id as string;
     const { user, loading: authLoading } = useAuth();
 
@@ -93,10 +89,13 @@ export default function ScoringPage() {
     const [battingTeamPlayers, setBattingTeamPlayers] = useState<Player[]>([]);
     const [bowlingTeamPlayers, setBowlingTeamPlayers] = useState<Player[]>([]);
 
-    // Current players
+    // Current players (mirrored from database)
     const [strikerId, setStrikerId] = useState<string | null>(null);
     const [nonStrikerId, setNonStrikerId] = useState<string | null>(null);
     const [currentBowlerId, setCurrentBowlerId] = useState<string | null>(null);
+
+    // This over's deliveries
+    const [lastBalls, setLastBalls] = useState<string[]>([]);
 
     // UI state
     const [showTossDialog, setShowTossDialog] = useState(false);
@@ -105,36 +104,20 @@ export default function ScoringPage() {
     const [showWicketDialog, setShowWicketDialog] = useState(false);
     const [tossWinner, setTossWinner] = useState<string>("");
     const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
-    const [lastBalls, setLastBalls] = useState<string[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    useEffect(() => {
-        loadMatch();
-    }, [matchId]);
+    // Wicket dialog inputs
+    const [dismissalType, setDismissalType] = useState("bowled");
+    const [fielderId, setFielderId] = useState<string>("");
 
-    const loadMatch = async () => {
-        const result = await getMatch(matchId);
-        if (result.error) {
-            setError(result.error);
-        } else if (result.data) {
-            setMatch(result.data as Match);
-
-            // If match is scheduled, show toss dialog
-            if (result.data.status === "scheduled") {
-                setShowTossDialog(true);
-            } else if (result.data.status === "live") {
-                // Load players for current innings
-                await loadPlayers(result.data as Match);
-            }
-        }
-        setLoading(false);
-    };
+    // Inline "add player" while scoring ("batting" | "bowling" | null)
+    const [addPlayerTarget, setAddPlayerTarget] = useState<"batting" | "bowling" | null>(null);
+    const [newPlayerName, setNewPlayerName] = useState("");
 
     const loadPlayers = async (matchData: Match) => {
         const currentInnings = matchData.innings?.find(
             (i) => i.innings_number === matchData.current_innings
         );
-
         if (!currentInnings) return;
 
         const battingTeamId = currentInnings.team_id;
@@ -148,11 +131,78 @@ export default function ScoringPage() {
             getTeamPlayers(bowlingTeamId),
         ]);
 
-        if (battingResult.data) {
-            setBattingTeamPlayers(battingResult.data);
+        if (battingResult.data) setBattingTeamPlayers(battingResult.data);
+        if (bowlingResult.data) setBowlingTeamPlayers(bowlingResult.data);
+    };
+
+    /** Hydrate all client-side mirrors from authoritative database state. */
+    const syncFromDb = useCallback(async () => {
+        const result = await getScoringState(matchId);
+        if (result.error || !result.data) return;
+
+        const { match: m, strikerId: s, nonStrikerId: ns, bowlerId: b, thisOverDeliveries } = result.data as {
+            match: Match;
+            strikerId: string | null;
+            nonStrikerId: string | null;
+            bowlerId: string | null;
+            thisOverDeliveries: Array<{
+                runs_scored: number | null;
+                extras: number | null;
+                extra_type: string | null;
+                is_wicket: boolean | null;
+            }>;
+        };
+
+        if (m.status === "scheduled") setShowTossDialog(true);
+        if (m.status === "live") await loadPlayers(m);
+
+        setMatch(m);
+        setStrikerId(s);
+        setNonStrikerId(ns);
+        setCurrentBowlerId(b);
+        setLastBalls(thisOverDeliveries.map(deliveryLabel));
+    }, [matchId]);
+
+    const loadMatch = useCallback(async () => {
+        const result = await getMatch(matchId);
+        if (result.error) {
+            setError(result.error);
+        } else if (result.data) {
+            setMatch(result.data as Match);
+            if (result.data.status === "scheduled") setShowTossDialog(true);
         }
-        if (bowlingResult.data) {
-            setBowlingTeamPlayers(bowlingResult.data);
+    }, [matchId]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const init = async () => {
+            await syncFromDb();
+            if (!cancelled) setLoading(false);
+        };
+
+        void init();
+        return () => {
+            cancelled = true;
+        };
+    }, [syncFromDb]);
+
+    const applyState = (state: ScoringState) => {
+        setStrikerId(state.striker_id);
+        setNonStrikerId(state.non_striker_id);
+
+        if (state.match_completed) {
+            toast.info(state.result_description ?? "Match completed");
+            void loadMatch();
+            return;
+        }
+        if (state.innings_break || state.needs_batsman) {
+            setShowSelectBatsmen(true);
+        } else if (state.needs_bowler) {
+            // Over finished: force a fresh bowler choice instead of keeping
+            // the previous over's bowler pre-selected.
+            setCurrentBowlerId(null);
+            setShowSelectBowler(true);
         }
     };
 
@@ -166,102 +216,183 @@ export default function ScoringPage() {
         } else {
             setShowTossDialog(false);
             setShowSelectBatsmen(true);
-            await loadMatch();
+            await syncFromDb();
         }
         setIsProcessing(false);
     };
 
-    const handleScore = async (runs: number, extras?: { type: string; runs: number }) => {
-        if (!match || !strikerId || !nonStrikerId || !currentBowlerId) return;
+    const handleScore = async (
+        runs: number,
+        extras?: { type: string; runs: number }
+    ) => {
+        if (!match) return;
+        if (!strikerId || !nonStrikerId || !currentBowlerId) {
+            toast.warning("Select batters and a bowler before scoring.");
+            return;
+        }
+
+        const currentInnings = match.innings?.find(
+            (i) => i.innings_number === match.current_innings
+        );
+        if (!currentInnings) {
+            toast.warning("No open innings to score.");
+            return;
+        }
+
+        setIsProcessing(true);
+
+        const result = await recordBall({
+            matchId: match.id,
+            bowlerId: currentBowlerId,
+            batsmanId: strikerId,
+            nonStrikerId: nonStrikerId,
+            event: {
+                runsScored: extras ? 0 : runs,
+                extras: extras?.runs ?? 0,
+                extraType: extras?.type as ExtraType | undefined,
+            },
+        });
+
+        if (result.error) {
+            toast.error(result.error);
+            await syncFromDb();
+        } else if (result.data) {
+            applyState(result.data);
+            await syncFromDb();
+        }
+
+        setIsProcessing(false);
+    };
+
+    const handleWicketConfirm = async () => {
+        if (!match || !strikerId || !nonStrikerId || !currentBowlerId) {
+            toast.warning("Select batters and a bowler first.");
+            return;
+        }
 
         const currentInnings = match.innings?.find(
             (i) => i.innings_number === match.current_innings
         );
         if (!currentInnings) return;
 
+        const dismissal = DISMISSAL_TYPES.find((d) => d.value === dismissalType);
+        const needsFielder = dismissal?.needsFielder && fielderId;
+
         setIsProcessing(true);
 
-        const ballData = {
+        const result = await recordBall({
             matchId: match.id,
-            inningsId: currentInnings.id,
-            overNumber: match.current_over,
-            ballNumber: match.current_ball + 1,
             bowlerId: currentBowlerId,
             batsmanId: strikerId,
             nonStrikerId: nonStrikerId,
-            runsScored: extras ? 0 : runs,
-            extras: extras?.runs,
-            extraType: extras?.type as "wide" | "no_ball" | "bye" | "leg_bye" | undefined,
-        };
+            event: {
+                runsScored: 0,
+                extras: 0,
+                isWicket: true,
+                dismissalType,
+                fielderId: needsFielder ? fielderId : null,
+            },
+        });
 
-        const result = await recordBall(ballData);
-
-        if (!result.error) {
-            // Update last balls display
-            let ballDisplay = runs.toString();
-            if (runs === 4) ballDisplay = "4";
-            if (runs === 6) ballDisplay = "6";
-            if (extras) ballDisplay = `${extras.runs}${extras.type === "wide" ? "wd" : "nb"}`;
-
-            setLastBalls((prev) => [...prev.slice(-5), ballDisplay]);
-
-            // Swap striker if odd runs
-            if (runs % 2 === 1) {
-                const temp = strikerId;
-                setStrikerId(nonStrikerId);
-                setNonStrikerId(temp);
-            }
-
-            // Check if over complete
-            const isLegal = !extras || !["wide", "no_ball"].includes(extras.type);
-            if (isLegal && match.current_ball + 1 >= 6) {
-                // End of over - swap strikers
-                const temp = strikerId;
-                setStrikerId(nonStrikerId);
-                setNonStrikerId(temp);
-                setLastBalls([]);
-                setShowSelectBowler(true);
-            }
-
-            await loadMatch();
+        if (result.error) {
+            toast.error(result.error);
+            await syncFromDb();
+        } else if (result.data) {
+            applyState(result.data);
+            await syncFromDb();
         }
 
+        setShowWicketDialog(false);
+        setDismissalType("bowled");
+        setFielderId("");
         setIsProcessing(false);
     };
 
-    const handleWicket = () => {
-        setShowWicketDialog(true);
+    const handleUndo = async () => {
+        setIsProcessing(true);
+        const result = await undoLastBall(matchId);
+        if (result.error) {
+            toast.error(result.error);
+        } else if (result.data) {
+            applyState(result.data);
+            toast.success("Last ball undone");
+        }
+        await syncFromDb();
+        setIsProcessing(false);
     };
 
-    const handleEndOver = async () => {
+    const handleConfirmBatsmen = async () => {
+        if (!strikerId || !nonStrikerId) return;
+        setIsProcessing(true);
+        const result = await setCurrentBatsmen(matchId, strikerId, nonStrikerId);
+        if (result.error) {
+            toast.error(result.error);
+        } else {
+            setShowSelectBatsmen(false);
+            if (!currentBowlerId) setShowSelectBowler(true);
+            await syncFromDb();
+        }
+        setIsProcessing(false);
+    };
+
+    const handleConfirmBowler = async () => {
         if (!currentBowlerId) return;
         setIsProcessing(true);
+        const result = await setCurrentBowler(matchId, currentBowlerId);
+        if (result.error) {
+            toast.error(result.error);
+        } else {
+            setShowSelectBowler(false);
+            await syncFromDb();
+        }
+        setIsProcessing(false);
+    };
 
-        // Swap strikers at end of over
-        const temp = strikerId;
-        setStrikerId(nonStrikerId);
-        setNonStrikerId(temp);
+    const handleAddPlayerInline = async () => {
+        if (!addPlayerTarget || !newPlayerName.trim() || !match) return;
 
-        await endOver(matchId, "");
-        setLastBalls([]);
-        setShowSelectBowler(true);
-        await loadMatch();
+        const currentInnings = match.innings?.find(
+            (i) => i.innings_number === match.current_innings
+        );
+        const battingTeamId = currentInnings?.team_id;
+        const targetTeamId =
+            addPlayerTarget === "batting" ? battingTeamId : battingTeamId === match.team1_id ? match.team2_id : match.team1_id;
+        if (!targetTeamId) return;
 
+        setIsProcessing(true);
+        const result = await createPlayerQuick(targetTeamId, newPlayerName.trim());
+        if (result.error || !result.data) {
+            toast.error(result.error ?? "Could not add player");
+        } else {
+            const newPlayer: Player = {
+                id: result.data.user_id,
+                team_id: targetTeamId,
+                user_id: result.data.user_id,
+                user: { id: result.data.user_id, full_name: result.data.full_name },
+            };
+            if (addPlayerTarget === "batting") {
+                setBattingTeamPlayers((prev) => [...prev, newPlayer]);
+                if (!strikerId) setStrikerId(newPlayer.user_id);
+                else if (!nonStrikerId) setNonStrikerId(newPlayer.user_id);
+            } else {
+                setBowlingTeamPlayers((prev) => [...prev, newPlayer]);
+                if (!currentBowlerId) setCurrentBowlerId(newPlayer.user_id);
+            }
+            toast.success(`${result.data.full_name} added to squad`);
+            setNewPlayerName("");
+        }
         setIsProcessing(false);
     };
 
     const handleEndInnings = async () => {
         setIsProcessing(true);
-        await endInnings(matchId);
-        await loadMatch();
-
-        // Reset for new innings
-        setStrikerId(null);
-        setNonStrikerId(null);
-        setCurrentBowlerId(null);
-        setLastBalls([]);
-        setShowSelectBatsmen(true);
-
+        const result = await endInnings(matchId);
+        if (result.error) {
+            toast.error(result.error);
+        } else if (result.data) {
+            applyState(result.data);
+        }
+        await syncFromDb();
         setIsProcessing(false);
     };
 
@@ -289,7 +420,7 @@ export default function ScoringPage() {
     if (authLoading || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-cricket-primary" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -332,10 +463,31 @@ export default function ScoringPage() {
     const battingTeam = getBattingTeam();
     const bowlingTeam = getBowlingTeam();
 
+    // Scoring authorization: creator or listed match admin.
+    const isScorer =
+        !!user &&
+        (match.created_by === user.id || (match.match_admins ?? []).includes(user.id));
+
+    // Real performance numbers straight from the database.
+    const strikerPerf = currentInnings?.batting_performances?.find(
+        (p) => p.user_id === strikerId && p.is_current_batsman
+    );
+    const nonStrikerPerf = currentInnings?.batting_performances?.find(
+        (p) => p.user_id === nonStrikerId && p.is_current_batsman
+    );
+    const bowlerPerf = currentInnings?.bowling_performances?.find(
+        (p) => p.user_id === currentBowlerId && p.is_current_bowler
+    );
+
+    const crr =
+        currentInnings && (currentInnings.total_balls ?? 0) > 0
+            ? ((currentInnings.total_runs ?? 0) * 6) / (currentInnings.total_balls ?? 1)
+            : null;
+
     return (
         <div className="min-h-screen bg-background">
             {/* Header */}
-            <div className="border-b border-border/50 bg-card/50 backdrop-blur sticky top-0 z-20">
+            <div className="border-b border-border bg-card sticky top-16 z-20">
                 <div className="container mx-auto px-4 py-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -353,9 +505,7 @@ export default function ScoringPage() {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Badge className="bg-red-500/10 text-red-500 border-red-500/20 animate-pulse">
-                                🔴 LIVE
-                            </Badge>
+                            <Badge variant="live">LIVE</Badge>
                             <Button variant="outline" size="sm" asChild>
                                 <Link href={`/overlay/${match.id}`} target="_blank">
                                     <Tv className="h-4 w-4 mr-1" />
@@ -368,12 +518,12 @@ export default function ScoringPage() {
             </div>
 
             {/* Score Display */}
-            <div className="bg-gradient-to-r from-cricket-primary/10 via-background to-cricket-secondary/10 py-6 border-b">
+            <div className="border-b border-border bg-muted/40 py-5">
                 <div className="container mx-auto px-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-full bg-cricket-primary flex items-center justify-center text-white font-bold">
-                                {battingTeam?.short_name?.substring(0, 2) || battingTeam?.name.substring(0, 2)}
+                            <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center text-secondary-foreground font-bold text-sm tracking-wide">
+                                {battingTeam?.short_name || battingTeam?.name.substring(0, 3).toUpperCase()}
                             </div>
                             <div>
                                 <p className="font-semibold text-lg">{battingTeam?.name}</p>
@@ -381,24 +531,22 @@ export default function ScoringPage() {
                             </div>
                         </div>
                         <div className="text-center">
-                            <p className="text-4xl font-bold text-foreground">
+                            <p className="text-4xl font-bold tabular-nums">
                                 {currentInnings?.total_runs || 0}/{currentInnings?.total_wickets || 0}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                                ({match.current_over}.{match.current_ball} overs)
+                            <p className="text-sm text-muted-foreground tabular-nums">
+                                ({match.current_over}.{match.current_ball} / {match.overs_per_innings} ov)
                             </p>
                             {currentInnings?.target_runs && (
-                                <p className="text-sm text-cricket-primary font-medium">
-                                    Need {currentInnings.target_runs - (currentInnings.total_runs || 0)} runs
+                                <p className="text-sm text-primary font-medium tabular-nums">
+                                    Need {currentInnings.target_runs - (currentInnings.total_runs || 0)} more to win
                                 </p>
                             )}
                         </div>
                         <div className="text-right">
                             <p className="text-sm text-muted-foreground">vs {bowlingTeam?.name}</p>
-                            <p className="text-lg font-semibold">
-                                CRR: {currentInnings && currentInnings.total_overs > 0
-                                    ? (currentInnings.total_runs / currentInnings.total_overs).toFixed(2)
-                                    : "0.00"}
+                            <p className="text-lg font-semibold tabular-nums">
+                                CRR: {crr !== null ? crr.toFixed(2) : "—"}
                             </p>
                         </div>
                     </div>
@@ -407,6 +555,18 @@ export default function ScoringPage() {
 
             {/* Main Content */}
             <div className="container mx-auto px-4 py-6">
+                {!isScorer && (
+                    <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                        <p className="font-medium text-amber-700 dark:text-amber-300">
+                            View-only scoring
+                        </p>
+                        <p className="text-muted-foreground">
+                            Only the match creator and match admins can score. You are signed in
+                            as a different account — ask the creator to add you, or create your
+                            own match to test scoring.
+                        </p>
+                    </div>
+                )}
                 <div className="grid lg:grid-cols-3 gap-6">
                     {/* Left Column - Batsmen & Bowler */}
                     <div className="space-y-4">
@@ -416,10 +576,10 @@ export default function ScoringPage() {
                                     ? {
                                         id: strikerId,
                                         name: getPlayerName(strikerId, battingTeamPlayers) || "",
-                                        runs: 0,
-                                        balls: 0,
-                                        fours: 0,
-                                        sixes: 0,
+                                        runs: strikerPerf?.runs_scored ?? 0,
+                                        balls: strikerPerf?.balls_faced ?? 0,
+                                        fours: strikerPerf?.fours ?? 0,
+                                        sixes: strikerPerf?.sixes ?? 0,
                                         isStriker: true,
                                     }
                                     : null
@@ -429,10 +589,10 @@ export default function ScoringPage() {
                                     ? {
                                         id: nonStrikerId,
                                         name: getPlayerName(nonStrikerId, battingTeamPlayers) || "",
-                                        runs: 0,
-                                        balls: 0,
-                                        fours: 0,
-                                        sixes: 0,
+                                        runs: nonStrikerPerf?.runs_scored ?? 0,
+                                        balls: nonStrikerPerf?.balls_faced ?? 0,
+                                        fours: nonStrikerPerf?.fours ?? 0,
+                                        sixes: nonStrikerPerf?.sixes ?? 0,
                                         isStriker: false,
                                     }
                                     : null
@@ -451,10 +611,10 @@ export default function ScoringPage() {
                                     ? {
                                         id: currentBowlerId,
                                         name: getPlayerName(currentBowlerId, bowlingTeamPlayers) || "",
-                                        overs: 0,
-                                        maidens: 0,
-                                        runs: 0,
-                                        wickets: 0,
+                                        overs: bowlerPerf?.overs_bowled ?? 0,
+                                        maidens: bowlerPerf?.maidens ?? 0,
+                                        runs: bowlerPerf?.runs_conceded ?? 0,
+                                        wickets: bowlerPerf?.wickets_taken ?? 0,
                                     }
                                     : null
                             }
@@ -463,31 +623,57 @@ export default function ScoringPage() {
                     </div>
 
                     {/* Center Column - Scoring Panel */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-2 space-y-4">
                         <ScoringPanel
                             onScore={handleScore}
-                            onWicket={handleWicket}
+                            onWicket={() => setShowWicketDialog(true)}
+                            onUndo={handleUndo}
                             currentOver={match.current_over}
                             currentBall={match.current_ball}
                             lastBalls={lastBalls}
-                            disabled={!strikerId || !nonStrikerId || !currentBowlerId || isProcessing}
+                            disabled={
+                                !isScorer ||
+                                !strikerId ||
+                                !nonStrikerId ||
+                                !currentBowlerId ||
+                                isProcessing
+                            }
                         />
 
-                        {/* Quick Actions */}
-                        <div className="flex gap-3 mt-4">
+                        {!strikerId || !nonStrikerId ? (
+                            <p className="text-sm text-muted-foreground">
+                                Waiting for batters — open the batter selection to continue.
+                            </p>
+                        ) : !currentBowlerId ? (
+                            <p className="text-sm text-muted-foreground">
+                                Select a bowler to start the next over.
+                            </p>
+                        ) : null}
+
+                        <div className="flex gap-3">
                             <Button
                                 variant="outline"
                                 className="flex-1"
-                                onClick={handleEndOver}
-                                disabled={isProcessing}
+                                onClick={handleUndo}
+                                disabled={
+                                    !isScorer ||
+                                    isProcessing ||
+                                    (currentInnings?.total_balls ?? 0) === 0
+                                }
                             >
-                                End Over
+                                <Undo2 className="h-4 w-4 mr-2" />
+                                Undo Last Ball
                             </Button>
                             <Button
                                 variant="outline"
                                 className="flex-1"
                                 onClick={handleEndInnings}
-                                disabled={isProcessing}
+                                disabled={
+                                    !isScorer ||
+                                    isProcessing ||
+                                    !currentInnings ||
+                                    currentInnings.is_completed
+                                }
                             >
                                 End Innings
                             </Button>
@@ -522,26 +708,26 @@ export default function ScoringPage() {
                                     type="button"
                                     onClick={() => setTossDecision("bat")}
                                     className={`p-4 rounded-lg border-2 transition-colors ${tossDecision === "bat"
-                                            ? "border-cricket-primary bg-cricket-primary/10"
+                                            ? "border-primary bg-primary/10"
                                             : "border-border"
                                         }`}
                                 >
-                                    🏏 Bat
+                                    Bat
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setTossDecision("bowl")}
                                     className={`p-4 rounded-lg border-2 transition-colors ${tossDecision === "bowl"
-                                            ? "border-cricket-primary bg-cricket-primary/10"
+                                            ? "border-primary bg-primary/10"
                                             : "border-border"
                                         }`}
                                 >
-                                    ⚾ Bowl
+                                    Bowl
                                 </button>
                             </div>
                         </div>
                         <Button
-                            className="w-full bg-cricket-primary hover:bg-cricket-primary/90"
+                            className="w-full"
                             onClick={handleStartMatch}
                             disabled={!tossWinner || isProcessing}
                         >
@@ -560,7 +746,7 @@ export default function ScoringPage() {
             <Dialog open={showSelectBatsmen} onOpenChange={setShowSelectBatsmen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Select Opening Batsmen</DialogTitle>
+                        <DialogTitle>Select Batsmen</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
                         <div>
@@ -598,16 +784,62 @@ export default function ScoringPage() {
                                         ))}
                                 </SelectContent>
                             </Select>
+                            {battingTeamPlayers.length === 0 && (
+                                <p className="mt-2 text-xs text-muted-foreground">
+                                    Squad is empty — add players below.
+                                </p>
+                            )}
                         </div>
+
+                        {addPlayerTarget === "batting" ? (
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Player name"
+                                    value={newPlayerName}
+                                    onChange={(e) => setNewPlayerName(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={(e) =>
+                                        e.key === "Enter" && void handleAddPlayerInline()
+                                    }
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => void handleAddPlayerInline()}
+                                    disabled={!newPlayerName.trim() || isProcessing}
+                                >
+                                    Add
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                        setAddPlayerTarget(null);
+                                        setNewPlayerName("");
+                                    }}
+                                >
+                                    ✕
+                                </Button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setAddPlayerTarget("batting");
+                                    setNewPlayerName("");
+                                }}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                            >
+                                <UserPlus className="h-3.5 w-3.5" />
+                                New player not on a team? Add to squad
+                            </button>
+                        )}
+
                         <Button
                             className="w-full"
-                            onClick={() => {
-                                setShowSelectBatsmen(false);
-                                if (!currentBowlerId) {
-                                    setShowSelectBowler(true);
-                                }
-                            }}
-                            disabled={!strikerId || !nonStrikerId}
+                            onClick={handleConfirmBatsmen}
+                            disabled={!strikerId || !nonStrikerId || isProcessing}
                         >
                             Confirm
                         </Button>
@@ -635,12 +867,115 @@ export default function ScoringPage() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        {bowlingTeamPlayers.length === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                Squad is empty — add players below.
+                            </p>
+                        )}
+
+                        {addPlayerTarget === "bowling" ? (
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Player name"
+                                    value={newPlayerName}
+                                    onChange={(e) => setNewPlayerName(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={(e) =>
+                                        e.key === "Enter" && void handleAddPlayerInline()
+                                    }
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => void handleAddPlayerInline()}
+                                    disabled={!newPlayerName.trim() || isProcessing}
+                                >
+                                    Add
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                        setAddPlayerTarget(null);
+                                        setNewPlayerName("");
+                                    }}
+                                >
+                                    ✕
+                                </Button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setAddPlayerTarget("bowling");
+                                    setNewPlayerName("");
+                                }}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                            >
+                                <UserPlus className="h-3.5 w-3.5" />
+                                New player not on a team? Add to squad
+                            </button>
+                        )}
+
                         <Button
                             className="w-full"
-                            onClick={() => setShowSelectBowler(false)}
-                            disabled={!currentBowlerId}
+                            onClick={handleConfirmBowler}
+                            disabled={!currentBowlerId || isProcessing}
                         >
                             Confirm
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Wicket Dialog */}
+            <Dialog open={showWicketDialog} onOpenChange={setShowWicketDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Record Wicket</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        <div>
+                            <label className="text-sm font-medium">How was {getPlayerName(strikerId, battingTeamPlayers)} out?</label>
+                            <Select value={dismissalType} onValueChange={setDismissalType}>
+                                <SelectTrigger className="mt-2">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {DISMISSAL_TYPES.map((d) => (
+                                        <SelectItem key={d.value} value={d.value}>
+                                            {d.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        {DISMISSAL_TYPES.find((d) => d.value === dismissalType)?.needsFielder && (
+                            <div>
+                                <label className="text-sm font-medium">Fielder</label>
+                                <Select value={fielderId} onValueChange={setFielderId}>
+                                    <SelectTrigger className="mt-2">
+                                        <SelectValue placeholder="Select fielder" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {bowlingTeamPlayers.map((player) => (
+                                            <SelectItem key={player.user_id} value={player.user_id}>
+                                                {player.user?.full_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+                        <Button
+                            variant="destructive"
+                            className="w-full"
+                            onClick={handleWicketConfirm}
+                            disabled={isProcessing ||
+                                (DISMISSAL_TYPES.find((d) => d.value === dismissalType)?.needsFielder && !fielderId)}
+                        >
+                            Confirm Wicket
                         </Button>
                     </div>
                 </DialogContent>

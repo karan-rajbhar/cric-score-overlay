@@ -4,91 +4,89 @@ import Link from "next/link";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Clock, MapPin, Play, Eye, BarChart3 } from "lucide-react";
+import { TeamLogo } from "~/components/teams/team-logo";
+import { MapPin, CalendarDays, ArrowRight, PlayCircle, Radio } from "lucide-react";
+import type { Team, Innings, Match } from "~/lib/match-types";
 
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
 
-interface Innings {
-    id: string;
-    team_id: string;
-    innings_number: number;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    is_completed: boolean;
-}
 
-interface Match {
-    id: string;
-    title: string;
-    match_format: string;
-    overs_per_innings: number;
-    status: "scheduled" | "live" | "completed" | "abandoned" | "cancelled";
-    venue?: string;
-    scheduled_at?: string;
-    result_description?: string;
-    team1: Team;
-    team2: Team;
-    innings?: Innings[];
-}
 
 interface MatchCardProps {
     match: Match;
     showActions?: boolean;
+    /** Whether the signed-in user may score this match (creator/admin). */
+    canScore?: boolean;
 }
 
-export function MatchCard({ match, showActions = true }: MatchCardProps) {
-    const getStatusBadge = () => {
-        switch (match.status) {
-            case "live":
-                return (
-                    <Badge className="bg-red-500/10 text-red-500 border-red-500/20 animate-pulse">
-                        🔴 LIVE
-                    </Badge>
-                );
-            case "completed":
-                return (
-                    <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
-                        ✓ Completed
-                    </Badge>
-                );
-            case "scheduled":
-                return (
-                    <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                        ⏰ Scheduled
-                    </Badge>
-                );
-            case "abandoned":
-                return (
-                    <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
-                        ⚠️ Abandoned
-                    </Badge>
-                );
-            default:
-                return (
-                    <Badge variant="outline">{match.status}</Badge>
-                );
-        }
-    };
+function StatusBadge({ status }: { status: Match["status"] }) {
+    switch (status) {
+        case "live":
+            return <Badge variant="live">Live</Badge>;
+        case "completed":
+            return <Badge variant="success">Result</Badge>;
+        case "scheduled":
+            return <Badge variant="outline">Scheduled</Badge>;
+        case "abandoned":
+            return <Badge variant="warning">Abandoned</Badge>;
+        default:
+            return <Badge variant="outline">{status}</Badge>;
+    }
+}
 
-    const getTeamScore = (teamId: string) => {
-        const innings = match.innings?.find((i) => i.team_id === teamId);
-        if (!innings) return null;
-        return {
-            runs: innings.total_runs,
-            wickets: innings.total_wickets,
-            overs: innings.total_overs,
-        };
-    };
+function TeamRow({
+    team,
+    innings,
+    leading,
+}: {
+    team: Team;
+    innings?: Innings;
+    leading: boolean;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+                <TeamLogo
+                    name={team.name}
+                    shortName={team.short_name}
+                    logoUrl={team.logo_url}
+                    className={leading ? "ring-1 ring-primary/60" : undefined}
+                />
+                <div className="min-w-0">
+                    <p className="truncate font-medium">{team.name}</p>
+                    {innings ? (
+                        <p className="text-xs text-muted-foreground">
+                            {innings.is_completed ? "Innings closed" : "Innings in progress"}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">Yet to bat</p>
+                    )}
+                </div>
+            </div>
+            {innings && (
+                <div className="text-right">
+                    <p className="score-display text-2xl font-semibold leading-none tabular">
+                        {innings.total_runs}/{innings.total_wickets}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground tabular">
+                        {innings.total_overs.toFixed(1)} ov
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+}
 
-    const team1Score = getTeamScore(match.team1.id);
-    const team2Score = getTeamScore(match.team2.id);
+export function MatchCard({ match, showActions = true, canScore = false }: MatchCardProps) {
+    const inningsFor = (teamId: string) =>
+        match.innings?.find((i) => i.team_id === teamId);
 
-    const formatDate = (dateStr?: string) => {
+    const inn1 = inningsFor(match.team1.id);
+    const inn2 = inningsFor(match.team2.id);
+
+    // The team currently ahead on the scoreboard gets the accent treatment.
+    const team1Leading = (inn1?.total_runs ?? 0) >= (inn2?.total_runs ?? 0);
+
+    const formatDate = (dateStr?: string | null) => {
         if (!dateStr) return "TBD";
         return new Date(dateStr).toLocaleDateString("en-US", {
             weekday: "short",
@@ -100,133 +98,75 @@ export function MatchCard({ match, showActions = true }: MatchCardProps) {
     };
 
     return (
-        <Card className="overflow-hidden hover:shadow-lg transition-shadow border-border/50 bg-card/50 backdrop-blur">
-            <CardContent className="p-0">
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-muted/30">
-                    <div className="flex items-center gap-2">
-                        {getStatusBadge()}
-                        <Badge variant="outline" className="text-xs">
-                            {match.match_format} • {match.overs_per_innings} overs
-                        </Badge>
-                    </div>
-                </div>
-
-                {/* Teams & Scores */}
-                <div className="p-4 space-y-4">
-                    {/* Team 1 */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                                {match.team1.short_name?.substring(0, 2) || match.team1.name.substring(0, 2)}
-                            </div>
-                            <div>
-                                <p className="font-semibold text-foreground">{match.team1.name}</p>
-                                {match.team1.short_name && (
-                                    <p className="text-xs text-muted-foreground">{match.team1.short_name}</p>
-                                )}
-                            </div>
-                        </div>
-                        {team1Score && (
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-foreground">
-                                    {team1Score.runs}/{team1Score.wickets}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    ({team1Score.overs} ov)
-                                </p>
-                            </div>
-                        )}
+        <Link href={`/matches/${match.id}`} className="group block">
+            <Card className="overflow-hidden transition-colors group-hover:border-primary/50">
+                <CardContent className="p-0">
+                    {/* Meta strip */}
+                    <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                        <StatusBadge status={match.status} />
+                        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                            {match.match_format} · {match.overs_per_innings} ov
+                        </span>
                     </div>
 
-                    {/* VS Divider */}
-                    <div className="flex items-center gap-4">
-                        <div className="flex-1 h-px bg-border" />
-                        <span className="text-xs text-muted-foreground font-medium">VS</span>
-                        <div className="flex-1 h-px bg-border" />
+                    {/* Teams */}
+                    <div className="space-y-4 px-4 py-4">
+                        <TeamRow team={match.team1} innings={inn1} leading={team1Leading} />
+                        <TeamRow team={match.team2} innings={inn2} leading={!team1Leading} />
                     </div>
 
-                    {/* Team 2 */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
-                                {match.team2.short_name?.substring(0, 2) || match.team2.name.substring(0, 2)}
-                            </div>
-                            <div>
-                                <p className="font-semibold text-foreground">{match.team2.name}</p>
-                                {match.team2.short_name && (
-                                    <p className="text-xs text-muted-foreground">{match.team2.short_name}</p>
-                                )}
-                            </div>
-                        </div>
-                        {team2Score && (
-                            <div className="text-right">
-                                <p className="text-2xl font-bold text-foreground">
-                                    {team2Score.runs}/{team2Score.wickets}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    ({team2Score.overs} ov)
-                                </p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Result */}
-                    {match.result_description && (
-                        <div className="pt-2 border-t border-border/50">
-                            <p className="text-sm font-medium text-center text-cricket-primary">
+                    {/* Result / timing */}
+                    <div className="border-t border-border px-4 py-2.5">
+                        {match.result_description ? (
+                            <p className="truncate text-sm font-medium text-primary">
                                 {match.result_description}
                             </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-4 py-3 border-t border-border/50 bg-muted/20">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-3">
-                            {match.venue && (
-                                <span className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {match.venue}
+                        ) : (
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                {match.venue && (
+                                    <span className="inline-flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {match.venue}
+                                    </span>
+                                )}
+                                <span className="inline-flex items-center gap-1 tabular">
+                                    <CalendarDays className="h-3 w-3" />
+                                    {formatDate(match.scheduled_at)}
                                 </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {formatDate(match.scheduled_at)}
-                            </span>
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Actions */}
                     {showActions && (
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex gap-2 border-t border-border px-4 py-3">
                             <Button asChild size="sm" variant="outline" className="flex-1">
-                                <Link href={`/matches/${match.id}`}>
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    View
-                                </Link>
+                                <span>
+                                    Scorecard
+                                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                                </span>
                             </Button>
-                            {match.status === "live" && (
-                                <Button asChild size="sm" className="flex-1 bg-cricket-primary hover:bg-cricket-primary/90">
-                                    <Link href={`/matches/${match.id}/score`}>
-                                        <Play className="h-4 w-4 mr-1" />
-                                        Score
-                                    </Link>
+                            {canScore && match.status === "live" && (
+                                <Button asChild size="sm" className="flex-1">
+                                    <span>
+                                        <Radio className="mr-1.5 h-3.5 w-3.5" />
+                                        Live
+                                    </span>
                                 </Button>
                             )}
-                            {match.status === "scheduled" && (
-                                <Button asChild size="sm" className="flex-1 bg-cricket-secondary hover:bg-cricket-secondary/90">
-                                    <Link href={`/matches/${match.id}/score`}>
-                                        <BarChart3 className="h-4 w-4 mr-1" />
-                                        Start
-                                    </Link>
-                                </Button>
-                            )}
+                            {canScore &&
+                                (match.status === "scheduled" || match.status === "live") && (
+                                    <Button asChild size="sm" variant="secondary" className="flex-1">
+                                        <span>
+                                            <PlayCircle className="mr-1.5 h-3.5 w-3.5" />
+                                            Score
+                                        </span>
+                                    </Button>
+                                )}
                         </div>
                     )}
-                </div>
-            </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+        </Link>
     );
 }

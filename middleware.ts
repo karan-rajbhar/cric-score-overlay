@@ -4,7 +4,7 @@ import { env } from "~/env.js";
 
 export async function middleware(request: NextRequest) {
   // Create response early to handle cookies properly
-  let response = NextResponse.next({
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -35,17 +35,7 @@ export async function middleware(request: NextRequest) {
   );
 
   // Get user session
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser();
-
-  // Log for debugging
-  console.log('Middleware:', {
-    path: request.nextUrl.pathname,
-    user: user?.email || 'none',
-    error: error?.message || 'none'
-  });
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Only protect dashboard routes
   if (request.nextUrl.pathname.startsWith("/dashboard")) {

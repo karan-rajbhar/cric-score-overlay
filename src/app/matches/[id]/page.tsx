@@ -7,17 +7,22 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { MatchExportButtons } from "~/components/matches/match-export-buttons";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
 import { MatchStats } from "~/components/matches/match-stats";
 import { MatchBalls } from "~/components/matches/match-balls";
+import { MatchManhattan } from "~/components/matches/match-manhattan";
+import { MatchPartnerships } from "~/components/matches/match-partnerships";
 import { MatchInfo } from "~/components/matches/match-info";
-import { getMatchFull } from "../actions";
+import { getMatch } from "../queries";
+import type { Match } from "~/lib/match-types";
+import { formatDecimalOvers } from "~/lib/cricket";
+import { useAuth } from "~/lib/auth";
 import {
     ChevronLeft,
     Tv,
     Play,
-    Share2,
     Loader2,
     LayoutDashboard,
     FileText,
@@ -26,140 +31,17 @@ import {
     Info,
 } from "lucide-react";
 
-interface TeamPlayer {
-    id: string;
-    user_id: string;
-    role?: string;
-    batting_order?: number;
-    jersey_number?: number;
-    user?: { id: string; full_name: string; avatar_url?: string };
-}
-
-interface BattingPerformance {
-    id: string;
-    user_id: string;
-    runs_scored: number;
-    balls_faced: number;
-    fours: number;
-    sixes: number;
-    is_not_out: boolean;
-    dismissal_type?: string;
-    user?: { id: string; full_name: string };
-}
-
-interface BowlingPerformance {
-    id: string;
-    user_id: string;
-    overs_bowled: number;
-    runs_conceded: number;
-    wickets_taken: number;
-    maidens: number;
-    wides: number;
-    no_balls: number;
-    user?: { id: string; full_name: string };
-}
-
-interface Ball {
-    id: string;
-    over_number: number;
-    ball_number: number;
-    runs_scored: number;
-    extras: number;
-    extra_type?: string;
-    is_wicket: boolean;
-    dismissal_type?: string;
-    commentary?: string;
-    batsman?: { id: string; full_name: string };
-    bowler?: { id: string; full_name: string };
-    innings?: { innings_number: number; team_id: string };
-}
-
-interface FallOfWicket {
-    id: string;
-    wicket_number: number;
-    runs_at_wicket: number;
-    overs_at_wicket: number;
-    batsman?: { id: string; full_name: string };
-}
-
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    is_completed: boolean;
-    target_runs?: number;
-    extras_total?: number;
-    extras_wides?: number;
-    extras_no_balls?: number;
-    extras_byes?: number;
-    extras_leg_byes?: number;
-    batting_performances?: BattingPerformance[];
-    bowling_performances?: BowlingPerformance[];
-    ball_by_ball?: Ball[];
-    fall_of_wickets?: FallOfWicket[];
-}
-
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-    team_players?: TeamPlayer[];
-}
-
-interface Tournament {
-    id: string;
-    name: string;
-}
-
-interface Club {
-    id: string;
-    name: string;
-}
-
-interface Match {
-    id: string;
-    title: string;
-    match_format: string;
-    overs_per_innings: number;
-    status: string;
-    current_innings: number;
-    current_over: number;
-    current_ball: number;
-    venue?: string;
-    scheduled_at?: string;
-    actual_start_time?: string;
-    actual_end_time?: string;
-    toss_winner_team_id?: string;
-    toss_decision?: string;
-    result_description?: string;
-    winning_team_id?: string;
-    weather_conditions?: string;
-    pitch_conditions?: string;
-    ball_type?: string;
-    umpire1_name?: string;
-    umpire2_name?: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
-    tournament?: Tournament;
-    club?: Club;
-}
-
 export default function MatchDetailsPage() {
     const params = useParams();
     const matchId = params.id as string;
+    const { user } = useAuth();
     const [match, setMatch] = useState<Match | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         async function loadMatch() {
-            const result = await getMatchFull(matchId);
+            const result = await getMatch(matchId);
             if (result.error) {
                 setError(result.error);
             } else {
@@ -170,32 +52,14 @@ export default function MatchDetailsPage() {
         loadMatch();
     }, [matchId]);
 
-    const formatOvers = (overs: number) => {
-        const fullOvers = Math.floor(overs);
-        const balls = Math.round((overs - fullOvers) * 10);
-        return `${fullOvers}.${balls}`;
-    };
-
     const getStatusBadge = (status: string) => {
         switch (status) {
             case "live":
-                return (
-                    <Badge className="bg-red-500/10 text-red-500 border-red-500/20 animate-pulse">
-                        🔴 LIVE
-                    </Badge>
-                );
+                return <Badge variant="live">Live</Badge>;
             case "completed":
-                return (
-                    <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
-                        ✓ Completed
-                    </Badge>
-                );
+                return <Badge variant="success">Result</Badge>;
             case "scheduled":
-                return (
-                    <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">
-                        📅 Scheduled
-                    </Badge>
-                );
+                return <Badge variant="outline">Scheduled</Badge>;
             default:
                 return <Badge variant="outline">{status}</Badge>;
         }
@@ -204,7 +68,7 @@ export default function MatchDetailsPage() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-cricket-primary" />
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         );
     }
@@ -226,11 +90,14 @@ export default function MatchDetailsPage() {
 
     const team1Innings = match.innings?.find((i) => i.team_id === match.team1_id);
     const team2Innings = match.innings?.find((i) => i.team_id === match.team2_id);
+    const isScorer =
+        !!user &&
+        (match.created_by === user.id || (match.match_admins ?? []).includes(user.id));
 
     return (
         <div className="min-h-screen bg-background">
             {/* Header */}
-            <div className="border-b border-border/50 bg-card/50 backdrop-blur sticky top-0 z-20">
+            <div className="border-b border-border bg-card sticky top-14 z-20">
                 <div className="container mx-auto px-4 py-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -251,88 +118,80 @@ export default function MatchDetailsPage() {
             </div>
 
             {/* Score Header - Always Visible */}
-            <div className="bg-gradient-to-r from-cricket-primary/10 via-background to-cricket-secondary/10 border-b">
+            <div className="border-b border-border bg-card">
                 <div className="container mx-auto px-4 py-6">
-                    <h1 className="text-xl font-bold mb-4 text-center">{match.title}</h1>
+                    <h1 className="text-center text-sm font-medium text-muted-foreground mb-5">{match.title}</h1>
 
-                    <div className="flex items-center justify-center gap-8">
+                    <div className="flex items-center justify-center gap-6 sm:gap-10">
                         {/* Team 1 */}
-                        <div className="text-center flex-1 max-w-[300px]">
-                            <div className="flex items-center justify-center gap-3 mb-2">
-                                <div className="w-12 h-12 rounded-full bg-cricket-primary/20 flex items-center justify-center text-cricket-primary font-bold text-lg">
-                                    {match.team1.short_name?.substring(0, 2) || match.team1.name.substring(0, 2)}
-                                </div>
-                                <div className="text-left">
-                                    <p className="font-semibold">{match.team1.name}</p>
-                                    {team1Innings && (
-                                        <p className="text-2xl font-bold">
-                                            {team1Innings.total_runs}/{team1Innings.total_wickets}
-                                            <span className="text-sm font-normal text-muted-foreground ml-2">
-                                                ({formatOvers(team1Innings.total_overs)})
-                                            </span>
-                                        </p>
-                                    )}
-                                </div>
+                        <div className="flex flex-1 items-center justify-end gap-4 text-right max-w-[320px]">
+                            <div>
+                                <p className="font-semibold">{match.team1.name}</p>
+                                {team1Innings ? (
+                                    <p className="score-display mt-0.5 text-3xl font-semibold leading-none tabular">
+                                        {team1Innings.total_runs}/{team1Innings.total_wickets}
+                                        <span className="ml-2 font-score text-base font-medium text-muted-foreground">
+                                            ({formatDecimalOvers(team1Innings.total_overs)})
+                                        </span>
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Yet to bat</p>
+                                )}
                             </div>
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-bold tracking-wide text-secondary-foreground">
+                                {match.team1.short_name?.substring(0, 3).toUpperCase() || match.team1.name.substring(0, 3).toUpperCase()}
+                            </span>
                         </div>
 
                         {/* VS */}
-                        <div className="text-2xl font-bold text-muted-foreground">vs</div>
+                        <div className="font-score text-lg font-medium uppercase tracking-widest text-muted-foreground/60">vs</div>
 
                         {/* Team 2 */}
-                        <div className="text-center flex-1 max-w-[300px]">
-                            <div className="flex items-center justify-center gap-3 mb-2">
-                                <div className="text-right">
-                                    <p className="font-semibold">{match.team2.name}</p>
-                                    {team2Innings && (
-                                        <p className="text-2xl font-bold">
-                                            {team2Innings.total_runs}/{team2Innings.total_wickets}
-                                            <span className="text-sm font-normal text-muted-foreground ml-2">
-                                                ({formatOvers(team2Innings.total_overs)})
-                                            </span>
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="w-12 h-12 rounded-full bg-cricket-secondary/20 flex items-center justify-center text-cricket-secondary font-bold text-lg">
-                                    {match.team2.short_name?.substring(0, 2) || match.team2.name.substring(0, 2)}
-                                </div>
+                        <div className="flex flex-1 items-center gap-4 max-w-[320px]">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-secondary text-xs font-bold tracking-wide text-secondary-foreground">
+                                {match.team2.short_name?.substring(0, 3).toUpperCase() || match.team2.name.substring(0, 3).toUpperCase()}
+                            </span>
+                            <div>
+                                <p className="font-semibold">{match.team2.name}</p>
+                                {team2Innings ? (
+                                    <p className="score-display mt-0.5 text-3xl font-semibold leading-none tabular">
+                                        {team2Innings.total_runs}/{team2Innings.total_wickets}
+                                        <span className="ml-2 font-score text-base font-medium text-muted-foreground">
+                                            ({formatDecimalOvers(team2Innings.total_overs)})
+                                        </span>
+                                    </p>
+                                ) : (
+                                    <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">Yet to bat</p>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {/* Result */}
                     {match.status === "completed" && match.result_description && (
-                        <p className="text-center mt-4 text-lg font-medium text-cricket-primary">
+                        <p className="mt-5 text-center text-base font-medium text-primary">
                             {match.result_description}
                         </p>
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex items-center justify-center gap-3 mt-4">
-                        {match.status === "scheduled" && (
-                            <Button asChild className="bg-cricket-primary hover:bg-cricket-primary/90">
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                        {isScorer && (match.status === "scheduled" || match.status === "live") && (
+                            <Button asChild size="sm">
                                 <Link href={`/matches/${match.id}/score`}>
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Start Match
+                                    <Play className="mr-1.5 h-4 w-4" />
+                                    {match.status === "scheduled" ? "Start match" : "Continue scoring"}
                                 </Link>
                             </Button>
                         )}
-                        {match.status === "live" && (
-                            <Button asChild className="bg-cricket-primary hover:bg-cricket-primary/90">
-                                <Link href={`/matches/${match.id}/score`}>
-                                    <Play className="h-4 w-4 mr-2" />
-                                    Continue Scoring
-                                </Link>
-                            </Button>
+                        {match.status === "completed" && (
+                            <MatchExportButtons match={match} />
                         )}
-                        <Button variant="outline" asChild>
+                        <Button variant="outline" size="sm" asChild>
                             <Link href={`/overlay/${match.id}`} target="_blank">
-                                <Tv className="h-4 w-4 mr-2" />
-                                OBS Overlay
+                                <Tv className="mr-1.5 h-4 w-4" />
+                                OBS overlay
                             </Link>
-                        </Button>
-                        <Button variant="outline" size="icon">
-                            <Share2 className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
@@ -372,7 +231,9 @@ export default function MatchDetailsPage() {
                         <MatchScorecard match={match} />
                     </TabsContent>
 
-                    <TabsContent value="stats">
+                    <TabsContent value="stats" className="space-y-6">
+                        <MatchManhattan match={match} />
+                        <MatchPartnerships match={match} />
                         <MatchStats match={match} />
                     </TabsContent>
 

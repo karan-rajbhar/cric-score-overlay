@@ -26,7 +26,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
     const [searching, setSearching] = useState(false);
-    const [users, setUsers] = useState<any[]>([]);
+    const [users, setUsers] = useState<{ id: string; email: string; full_name?: string }[]>([]);
     const [selectedUser, setSelectedUser] = useState<string | null>(null);
     const [adding, setAdding] = useState(false);
 

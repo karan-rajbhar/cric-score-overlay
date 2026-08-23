@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
 	darkMode: ["class"],
@@ -12,17 +13,16 @@ export default {
 					'ui-sans-serif',
 					'system-ui',
 					'sans-serif'
-				]
+				],
+				score: ['var(--font-score)', 'Inter', 'sans-serif']
 			},
 			colors: {
-				// Modern cricket colors for 2025
 				cricket: {
 					primary: 'hsl(var(--cricket-primary))',
 					secondary: 'hsl(var(--cricket-secondary))',
 					accent: 'hsl(var(--cricket-accent))',
 					neutral: 'hsl(var(--cricket-neutral))'
 				},
-				// Shadcn/ui colors with our modern palette
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				card: {
@@ -68,30 +68,8 @@ export default {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
 				sm: 'calc(var(--radius) - 4px)'
-			},
-			animation: {
-				"float": "float 6s ease-in-out infinite",
-				"glow": "glow 2s ease-in-out infinite",
-				"shimmer": "shimmer 2s linear infinite"
-			},
-			keyframes: {
-				float: {
-					'0%, 100%': { transform: 'translateY(0px)' },
-					'50%': { transform: 'translateY(-10px)' }
-				},
-				glow: {
-					'0%, 100%': { opacity: '1' },
-					'50%': { opacity: '0.5' }
-				},
-				shimmer: {
-					'0%': { transform: 'translateX(-100%)' },
-					'100%': { transform: 'translateX(100%)' }
-				}
-			},
-			backdropBlur: {
-				xs: '2px'
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [tailwindcssAnimate],
 } satisfies Config;

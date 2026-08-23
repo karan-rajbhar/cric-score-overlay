@@ -1,7 +1,7 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { Card, CardContent } from "~/components/ui/card";
+import { ArrowLeftRight, UserPlus } from "lucide-react";
 
 interface Batsman {
     id: string;
@@ -20,89 +20,92 @@ interface CurrentBatsmenProps {
     onSelectNewBatsman?: () => void;
 }
 
+import { strikeRate } from "~/lib/cricket";
+
+function BatsmanRow({
+    batsman,
+    onSelectNewBatsman,
+}: {
+    batsman: Batsman | null;
+    onSelectNewBatsman?: () => void;
+}) {
+    if (!batsman) {
+        return (
+            <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-3">
+                <span className="text-sm text-muted-foreground">Empty seat</span>
+                {onSelectNewBatsman && (
+                    <button
+                        type="button"
+                        onClick={onSelectNewBatsman}
+                        className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                    >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Select batter
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className={`flex items-center justify-between rounded-lg border p-3 ${
+                batsman.isStriker
+                    ? "border-primary/40 bg-primary/5"
+                    : "border-border bg-muted/30"
+            }`}
+        >
+            <div className="min-w-0">
+                <p className="truncate font-medium">
+                    {batsman.name}
+                    {batsman.isStriker && (
+                        <span className="ml-1.5 text-primary" title="On strike">
+                            *
+                        </span>
+                    )}
+                </p>
+                <p className="text-xs text-muted-foreground tabular">
+                    {batsman.fours}×4 · {batsman.sixes}×6 · SR {strikeRate(batsman.runs, batsman.balls)}
+                </p>
+            </div>
+            <p className="score-display shrink-0 text-2xl font-semibold leading-none">
+                {batsman.runs}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                    ({batsman.balls})
+                </span>
+            </p>
+        </div>
+    );
+}
+
 export function CurrentBatsmen({
     batsman1,
     batsman2,
     onSwapStriker,
     onSelectNewBatsman,
 }: CurrentBatsmenProps) {
-    const calculateStrikeRate = (runs: number, balls: number) => {
-        if (balls === 0) return "0.00";
-        return ((runs / balls) * 100).toFixed(2);
-    };
-
-    const BatsmanRow = ({ batsman }: { batsman: Batsman | null }) => {
-        if (!batsman) {
-            return (
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30">
-                    <span className="text-muted-foreground">Select batsman</span>
-                    {onSelectNewBatsman && (
-                        <button
-                            onClick={onSelectNewBatsman}
-                            className="text-sm text-cricket-primary hover:underline"
-                        >
-                            Choose
-                        </button>
-                    )}
-                </div>
-            );
-        }
-
-        return (
-            <div
-                className={`flex items-center justify-between p-3 rounded-lg transition-colors ${batsman.isStriker
-                        ? "bg-cricket-primary/10 border border-cricket-primary/30"
-                        : "bg-muted/30 border border-transparent"
-                    }`}
-            >
-                <div className="flex items-center gap-3">
-                    {batsman.isStriker && (
-                        <Badge className="bg-cricket-primary text-white text-xs">
-                            🏏
-                        </Badge>
-                    )}
-                    <div>
-                        <p className="font-semibold text-foreground">{batsman.name}</p>
-                        <div className="flex gap-2 text-xs text-muted-foreground">
-                            <span>{batsman.fours} fours</span>
-                            <span>•</span>
-                            <span>{batsman.sixes} sixes</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-2xl font-bold text-foreground">
-                        {batsman.runs}
-                        <span className="text-sm font-normal text-muted-foreground ml-1">
-                            ({batsman.balls})
-                        </span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                        SR: {calculateStrikeRate(batsman.runs, batsman.balls)}
-                    </p>
-                </div>
-            </div>
-        );
-    };
-
     return (
         <Card>
-            <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Batsmen</CardTitle>
+            <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        At the crease
+                    </h3>
                     {onSwapStriker && batsman1 && batsman2 && (
                         <button
+                            type="button"
                             onClick={onSwapStriker}
-                            className="text-xs text-cricket-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                         >
-                            Swap Striker
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                            Swap strike
                         </button>
                     )}
                 </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-                <BatsmanRow batsman={batsman1} />
-                <BatsmanRow batsman={batsman2} />
+                <div className="space-y-2">
+                    <BatsmanRow batsman={batsman1} onSelectNewBatsman={onSelectNewBatsman} />
+                    <BatsmanRow batsman={batsman2} onSelectNewBatsman={onSelectNewBatsman} />
+                </div>
             </CardContent>
         </Card>
     );

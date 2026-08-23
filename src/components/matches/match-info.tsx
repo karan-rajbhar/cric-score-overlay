@@ -2,7 +2,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Badge } from "~/components/ui/badge";
 import {
     Table,
     TableBody,
@@ -21,57 +20,8 @@ import {
     CircleDot,
     Layers,
 } from "lucide-react";
+import type { Match } from "~/lib/match-types";
 
-interface TeamPlayer {
-    id: string;
-    user_id: string;
-    role?: string;
-    batting_order?: number;
-    jersey_number?: number;
-    user?: { id: string; full_name: string; avatar_url?: string };
-}
-
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-    team_players?: TeamPlayer[];
-}
-
-interface Tournament {
-    id: string;
-    name: string;
-}
-
-interface Club {
-    id: string;
-    name: string;
-}
-
-interface Match {
-    id: string;
-    title: string;
-    match_format: string;
-    overs_per_innings: number;
-    status: string;
-    venue?: string;
-    scheduled_at?: string;
-    actual_start_time?: string;
-    actual_end_time?: string;
-    toss_winner_team_id?: string;
-    toss_decision?: string;
-    weather_conditions?: string;
-    pitch_conditions?: string;
-    ball_type?: string;
-    umpire1_name?: string;
-    umpire2_name?: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    tournament?: Tournament;
-    club?: Club;
-}
 
 interface MatchInfoProps {
     match: Match;
@@ -100,16 +50,16 @@ export function MatchInfo({ match }: MatchInfoProps) {
         return "Not decided";
     };
 
-    const getPlayerRole = (role?: string) => {
+    const getPlayerRole = (role?: string | null) => {
         switch (role) {
             case "batsman":
-                return "🏏 Batsman";
+                return "Batter";
             case "bowler":
-                return "⚾ Bowler";
+                return "Bowler";
             case "all_rounder":
-                return "🌟 All-rounder";
+                return "All-rounder";
             case "wicket_keeper":
-                return "🧤 Wicket Keeper";
+                return "Wicket-keeper";
             default:
                 return role || "";
         }
@@ -318,7 +268,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                                                 </TableCell>
                                                 <TableCell>{tp.user?.full_name}</TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">
-                                                    {getPlayerRole(tp.role)}
+                                                    {getPlayerRole(tp.role_in_team)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -361,7 +311,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                                                 </TableCell>
                                                 <TableCell>{tp.user?.full_name}</TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">
-                                                    {getPlayerRole(tp.role)}
+                                                    {getPlayerRole(tp.role_in_team)}
                                                 </TableCell>
                                             </TableRow>
                                         ))}

@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-
 type Theme = "dark" | "light" | "system";
 
 type ThemeProviderProps = {
@@ -28,21 +27,12 @@ export function ThemeProvider({
   storageKey = "cricket-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
-  const [mounted, setMounted] = useState(false);
-
-  // Load theme from localStorage after component mounts (client-side only)
-  useEffect(() => {
-    setMounted(true);
-    const storedTheme = localStorage.getItem(storageKey) as Theme;
-    if (storedTheme) {
-      setTheme(storedTheme);
-    }
-  }, [storageKey]);
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return defaultTheme;
+    return (localStorage.getItem(storageKey) as Theme | null) ?? defaultTheme;
+  });
 
   useEffect(() => {
-    if (!mounted) return;
-    
     const root = window.document.documentElement;
 
     root.classList.remove("light", "dark");
@@ -58,14 +48,12 @@ export function ThemeProvider({
     }
 
     root.classList.add(theme);
-  }, [theme, mounted]);
+  }, [theme]);
 
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      if (mounted) {
-        localStorage.setItem(storageKey, theme);
-      }
+      localStorage.setItem(storageKey, theme);
       setTheme(theme);
     },
   };

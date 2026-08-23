@@ -18,21 +18,69 @@ export interface MatchFormData {
     tournamentId?: string;
 }
 
-export interface BallData {
-    matchId: string;
-    inningsId: string;
-    overNumber: number;
-    ballNumber: number;
-    bowlerId: string;
-    batsmanId: string;
-    nonStrikerId: string;
-    runsScored: number;
+export type ExtraType = "wide" | "no_ball" | "bye" | "leg_bye" | "penalty";
+
+/** Outcome of a single delivery (everything else is derived server-side). */
+export interface BallEvent {
+    runsScored?: number;
     extras?: number;
-    extraType?: "wide" | "no_ball" | "bye" | "leg_bye" | "penalty";
+    extraType?: ExtraType;
     isWicket?: boolean;
     dismissalType?: string;
-    fielderId?: string;
+    fielderId?: string | null;
     commentary?: string;
+}
+
+/**
+ * Authoritative scoring state returned by the record_ball / undo /
+ * end-innings Postgres functions. The client mirrors this state; it never
+ * computes strike rotation or over progression itself.
+ */
+export interface ScoringState {
+    ok: boolean;
+    status: string;
+    current_innings: number;
+    current_over: number;
+    current_ball: number;
+    total_runs: number;
+    total_wickets: number;
+    total_balls: number;
+    target_runs: number | null;
+    is_completed: boolean;
+    striker_id: string | null;
+    non_striker_id: string | null;
+    striker_name: string | null;
+    non_striker_name: string | null;
+    striker_runs: number | null;
+    striker_balls: number | null;
+    non_striker_runs: number | null;
+    non_striker_balls: number | null;
+    needs_batsman: boolean;
+    needs_bowler: boolean;
+    innings_completed: boolean;
+    match_completed: boolean;
+    result_description: string | null;
+    innings_break?: boolean;
+}
+
+const ERROR_MESSAGES: Record<string, string> = {
+    awaiting_new_batsman: "Select the new batsman before scoring the next ball.",
+    bowler_not_set: "Select a bowler before scoring the next ball.",
+    striker_mismatch: "Batsmen out of sync - reloading latest state.",
+    non_striker_mismatch: "Batsmen out of sync - reloading latest state.",
+    same_bowler_next_over: "This bowler just bowled the previous over. Choose a different bowler.",
+    player_not_in_batting_team: "Selected player is not on the batting team.",
+    player_already_out: "That batsman is already dismissed.",
+    too_many_batsmen: "All 11 batsmen have already batted.",
+    match_not_live: "The match is not live.",
+    no_open_innings: "No open innings found.",
+    nothing_to_undo: "Nothing to undo.",
+    not_authorized: "You do not have permission to score this match.",
+};
+
+function friendlyError(message: string): string {
+    const key = message.split('"')[1] ?? message.split("\n")[0];
+    return (key && ERROR_MESSAGES[key]) || message;
 }
 
 // Get all matches with optional filters
@@ -102,21 +150,101 @@ export async function getMatch(matchId: string) {
     return { data, error: null };
 }
 
+/**
+ * Live scoring snapshot: current players + this over's deliveries,
+ * derived entirely from database state so a page refresh never loses
+ * the scorer's position.
+ */
+export async function getScoringState(matchId: string) {
+    const supabase = await createServerClient();
+    const { data: match, error } = await supabase
+        .from("matches")
+        .select(`
+      *,
+      team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
+      team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
+      innings(
+        *,
+        batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
+        bowling_performances(*, user:users!bowling_performances_user_id_fkey(id, full_name))
+      )
+    `)
+        .eq("id", matchId)
+        .single();
+    if (error) {
+        console.error("Error fetching scoring state:", error);
+        return { data: null, error: error.message };
+    }
+    type InningsWithPerformances = {
+        id: string;
+        innings_number: number;
+        total_balls: number | null;
+        batting_performances: Array<{
+            user_id: string;
+            is_current_batsman: boolean | null;
+            is_striker: boolean | null;
+            is_out: boolean | null;
+            runs_scored: number | null;
+            balls_faced: number | null;
+            fours: number | null;
+            sixes: number | null;
+            user: { id: string; full_name: string } | null;
+        }>;
+        bowling_performances: Array<{
+            user_id: string;
+            is_current_bowler: boolean | null;
+            overs_bowled: number | null;
+            maidens: number | null;
+            runs_conceded: number | null;
+            wickets_taken: number | null;
+            user: { id: string; full_name: string } | null;
+        }>;
+    };
+    const innings = (match?.innings ?? []) as unknown as InningsWithPerformances[];
+    const current = innings.find((i) => i.innings_number === match?.current_innings);
+    const striker =
+        current?.batting_performances.find((p) => p.is_striker && p.is_current_batsman) ?? null;
+    const nonStriker =
+        current?.batting_performances.find((p) => !p.is_striker && p.is_current_batsman) ?? null;
+    const bowler = current?.bowling_performances.find((p) => p.is_current_bowler) ?? null;
+    let thisOverDeliveries: Array<{
+        runs_scored: number | null;
+        extras: number | null;
+        extra_type: string | null;
+        is_wicket: boolean | null;
+    }> = [];
+    if (current) {
+        const ongoingOver = Math.floor((current.total_balls ?? 0) / 6);
+        const { data: balls } = await supabase
+            .from("ball_by_ball")
+            .select("runs_scored, extras, extra_type, is_wicket")
+            .eq("innings_id", current.id)
+            .eq("over_number", ongoingOver)
+            .order("seq");
+        thisOverDeliveries = balls ?? [];
+    }
+    return {
+        data: {
+            match,
+            strikerId: striker?.user_id ?? null,
+            nonStrikerId: nonStriker?.user_id ?? null,
+            bowlerId: bowler?.user_id ?? null,
+            thisOverDeliveries,
+        },
+        error: null,
+    };
+}
+
 // Create a new match
 export async function createMatch(formData: MatchFormData) {
     const supabase = await createServerClient();
-
-    // Get current user
     const {
         data: { user },
         error: authError,
     } = await supabase.auth.getUser();
-
     if (authError || !user) {
         return { data: null, error: "You must be logged in to create a match" };
     }
-
-    // Create the match
     const { data: match, error: matchError } = await supabase
         .from("matches")
         .insert({
@@ -137,12 +265,10 @@ export async function createMatch(formData: MatchFormData) {
         })
         .select()
         .single();
-
     if (matchError) {
         console.error("Error creating match:", matchError);
         return { data: null, error: matchError.message };
     }
-
     revalidatePath("/matches");
     return { data: match, error: null };
 }
@@ -154,27 +280,20 @@ export async function startMatch(
     tossDecision: "bat" | "bowl"
 ) {
     const supabase = await createServerClient();
-
-    // Get match details
     const { data: match, error: matchError } = await supabase
         .from("matches")
         .select("team1_id, team2_id")
         .eq("id", matchId)
         .single();
-
     if (matchError || !match) {
         return { data: null, error: "Match not found" };
     }
-
-    // Determine batting team
     const battingTeamId =
         tossDecision === "bat"
             ? tossWinnerId
             : tossWinnerId === match.team1_id
                 ? match.team2_id
                 : match.team1_id;
-
-    // Update match status and toss info
     const { error: updateError } = await supabase
         .from("matches")
         .update({
@@ -187,12 +306,9 @@ export async function startMatch(
             current_ball: 0,
         })
         .eq("id", matchId);
-
     if (updateError) {
         return { data: null, error: updateError.message };
     }
-
-    // Create first innings
     const { data: innings, error: inningsError } = await supabase
         .from("innings")
         .insert({
@@ -202,249 +318,132 @@ export async function startMatch(
         })
         .select()
         .single();
-
     if (inningsError) {
         return { data: null, error: inningsError.message };
     }
-
     revalidatePath(`/matches/${matchId}`);
     return { data: { match, innings }, error: null };
 }
 
-// Record a ball
-export async function recordBall(ballData: BallData) {
+/**
+ * Record one delivery. A single atomic Postgres function inserts the ball
+ * and recomputes every projection (totals, batting/bowling figures,
+ * partnerships, fall of wickets, strike rotation, over progression,
+ * innings/match completion).
+ */
+export async function recordBall(params: {
+    matchId: string;
+    bowlerId: string;
+    batsmanId: string;
+    nonStrikerId: string;
+    event: BallEvent;
+}): Promise<{ data: ScoringState | null; error: string | null }> {
     const supabase = await createServerClient();
-
-    // Insert ball record
-    const { data: ball, error: ballError } = await supabase
-        .from("ball_by_ball")
-        .insert({
-            match_id: ballData.matchId,
-            innings_id: ballData.inningsId,
-            over_number: ballData.overNumber,
-            ball_number: ballData.ballNumber,
-            bowler_id: ballData.bowlerId,
-            batsman_id: ballData.batsmanId,
-            non_striker_id: ballData.nonStrikerId,
-            runs_scored: ballData.runsScored,
-            extras: ballData.extras ?? 0,
-            extra_type: ballData.extraType,
-            is_wicket: ballData.isWicket ?? false,
-            dismissal_type: ballData.dismissalType,
-            fielder_id: ballData.fielderId,
-            commentary: ballData.commentary,
-        })
-        .select()
-        .single();
-
-    if (ballError) {
-        return { data: null, error: ballError.message };
-    }
-
-    // Update innings totals
-    const totalRuns = ballData.runsScored + (ballData.extras ?? 0);
-    const isLegalBall =
-        !ballData.extraType ||
-        !["wide", "no_ball"].includes(ballData.extraType);
-
-    const { error: inningsError } = await supabase.rpc("update_innings_totals", {
-        p_innings_id: ballData.inningsId,
-        p_runs: totalRuns,
-        p_wickets: ballData.isWicket ? 1 : 0,
-        p_balls: isLegalBall ? 1 : 0,
-        p_extras: ballData.extras ?? 0,
-        p_extra_type: ballData.extraType,
+    const { data, error } = await supabase.rpc("record_ball", {
+        p_match_id: params.matchId,
+        p_bowler_id: params.bowlerId,
+        p_batsman_id: params.batsmanId,
+        p_non_striker_id: params.nonStrikerId,
+        p_runs_scored: params.event.runsScored ?? 0,
+        p_extras: params.event.extras ?? 0,
+        p_extra_type: params.event.extraType ?? null,
+        p_is_wicket: params.event.isWicket ?? false,
+        p_dismissal_type: params.event.dismissalType ?? null,
+        p_fielder_id: params.event.fielderId ?? null,
+        p_commentary: params.event.commentary ?? null,
     });
-
-    if (inningsError) {
-        console.error("Error updating innings:", inningsError);
+    if (error) {
+        console.error("record_ball failed:", error);
+        return { data: null, error: friendlyError(error.message) };
     }
-
-    // Update batting performance
-    await supabase.rpc("update_batting_performance", {
-        p_match_id: ballData.matchId,
-        p_innings_id: ballData.inningsId,
-        p_user_id: ballData.batsmanId,
-        p_runs: ballData.runsScored,
-        p_balls: isLegalBall ? 1 : 0,
-        p_fours: ballData.runsScored === 4 ? 1 : 0,
-        p_sixes: ballData.runsScored === 6 ? 1 : 0,
-    });
-
-    // Update bowling performance
-    await supabase.rpc("update_bowling_performance", {
-        p_match_id: ballData.matchId,
-        p_innings_id: ballData.inningsId,
-        p_user_id: ballData.bowlerId,
-        p_runs: totalRuns,
-        p_balls: isLegalBall ? 1 : 0,
-        p_wickets: ballData.isWicket ? 1 : 0,
-        p_wides: ballData.extraType === "wide" ? 1 : 0,
-        p_no_balls: ballData.extraType === "no_ball" ? 1 : 0,
-    });
-
-    // Update match current ball/over
-    let newBall = ballData.ballNumber;
-    let newOver = ballData.overNumber;
-    if (isLegalBall && ballData.ballNumber >= 6) {
-        newOver = ballData.overNumber + 1;
-        newBall = 0;
-    } else if (isLegalBall) {
-        newBall = ballData.ballNumber + 1;
-    }
-
-    await supabase
-        .from("matches")
-        .update({
-            current_over: newOver,
-            current_ball: newBall,
-        })
-        .eq("id", ballData.matchId);
-
-    revalidatePath(`/matches/${ballData.matchId}`);
-    return { data: ball, error: null };
+    revalidatePath(`/matches/${params.matchId}`);
+    revalidatePath(`/matches/${params.matchId}/score`);
+    revalidatePath(`/overlay/${params.matchId}`);
+    return { data: data as ScoringState, error: null };
 }
 
-// End current over
-export async function endOver(matchId: string, newBowlerId: string) {
+/** Remove the most recent delivery and rebuild all projections. */
+export async function undoLastBall(
+    matchId: string
+): Promise<{ data: ScoringState | null; error: string | null }> {
     const supabase = await createServerClient();
-
-    // Get current innings
-    const { data: match } = await supabase
-        .from("matches")
-        .select("current_innings, current_over")
-        .eq("id", matchId)
-        .single();
-
-    if (!match) {
-        return { error: "Match not found" };
+    const { data, error } = await supabase.rpc("undo_last_ball", {
+        p_match_id: matchId,
+    });
+    if (error) {
+        console.error("undo_last_ball failed:", error);
+        return { data: null, error: friendlyError(error.message) };
     }
-
-    // Update match with new over
-    await supabase
-        .from("matches")
-        .update({
-            current_over: match.current_over + 1,
-            current_ball: 0,
-        })
-        .eq("id", matchId);
-
     revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { data: data as ScoringState, error: null };
+}
+
+/** Persist who is on strike (opening pair or new batsman after a wicket). */
+export async function setCurrentBatsmen(
+    matchId: string,
+    strikerId: string,
+    nonStrikerId: string
+): Promise<{ error: string | null }> {
+    const supabase = await createServerClient();
+    const { error } = await supabase.rpc("set_current_batsmen", {
+        p_match_id: matchId,
+        p_striker_id: strikerId,
+        p_non_striker_id: nonStrikerId,
+    });
+    if (error) {
+        console.error("set_current_batsmen failed:", error);
+        return { error: friendlyError(error.message) };
+    }
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
     return { error: null };
 }
 
-// End innings
-export async function endInnings(matchId: string) {
+/** Persist the current bowler (start of innings or new over). */
+export async function setCurrentBowler(
+    matchId: string,
+    bowlerId: string
+): Promise<{ error: string | null }> {
     const supabase = await createServerClient();
-
-    // Get match and current innings
-    const { data: match } = await supabase
-        .from("matches")
-        .select(`
-      *,
-      innings(id, team_id, innings_number, total_runs)
-    `)
-        .eq("id", matchId)
-        .single();
-
-    if (!match) {
-        return { error: "Match not found" };
+    const { error } = await supabase.rpc("set_current_bowler", {
+        p_match_id: matchId,
+        p_bowler_id: bowlerId,
+    });
+    if (error) {
+        console.error("set_current_bowler failed:", error);
+        return { error: friendlyError(error.message) };
     }
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { error: null };
+}
 
-    const currentInnings = match.innings?.find(
-        (i: { innings_number: number }) => i.innings_number === match.current_innings
-    );
-
-    if (!currentInnings) {
-        return { error: "Current innings not found" };
+/**
+ * End the current innings early (declaration / rain). When the first
+ * innings closes this creates the second innings with its target; when the
+ * second closes it finalizes the match result.
+ */
+export async function endInnings(
+    matchId: string
+): Promise<{ data: ScoringState | null; error: string | null }> {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("end_innings", {
+        p_match_id: matchId,
+    });
+    if (error) {
+        console.error("end_innings failed:", error);
+        return { data: null, error: friendlyError(error.message) };
     }
-
-    // Mark current innings as completed
-    await supabase
-        .from("innings")
-        .update({ is_completed: true })
-        .eq("id", currentInnings.id);
-
-    if (match.current_innings === 1) {
-        // Start second innings
-        const bowlingTeamId =
-            currentInnings.team_id === match.team1_id
-                ? match.team2_id
-                : match.team1_id;
-
-        // Create second innings with target
-        const { data: newInnings } = await supabase
-            .from("innings")
-            .insert({
-                match_id: matchId,
-                team_id: bowlingTeamId,
-                innings_number: 2,
-                target_runs: currentInnings.total_runs + 1,
-            })
-            .select()
-            .single();
-
-        // Update match
-        await supabase
-            .from("matches")
-            .update({
-                current_innings: 2,
-                current_over: 0,
-                current_ball: 0,
-            })
-            .eq("id", matchId);
-
-        revalidatePath(`/matches/${matchId}`);
-        return { data: newInnings, error: null };
-    } else {
-        // Match complete - determine winner
-        const innings1 = match.innings?.find(
-            (i: { innings_number: number }) => i.innings_number === 1
-        );
-        const innings2 = currentInnings;
-
-        let result_type = "win";
-        let winning_team_id = null;
-        let win_margin_type = null;
-        let win_margin = null;
-        let result_description = "";
-
-        if (innings2.total_runs > innings1.total_runs) {
-            // Team 2 wins
-            winning_team_id = innings2.team_id;
-            win_margin_type = "wickets";
-            win_margin = 10 - (innings2.total_wickets ?? 0);
-            result_description = `Won by ${win_margin} wickets`;
-        } else if (innings1.total_runs > innings2.total_runs) {
-            // Team 1 wins
-            winning_team_id = innings1.team_id;
-            win_margin_type = "runs";
-            win_margin = innings1.total_runs - innings2.total_runs;
-            result_description = `Won by ${win_margin} runs`;
-        } else {
-            result_type = "tie";
-            result_description = "Match tied";
-        }
-
-        await supabase
-            .from("matches")
-            .update({
-                status: "completed",
-                actual_end_time: new Date().toISOString(),
-                result_type,
-                winning_team_id,
-                win_margin_type,
-                win_margin,
-                result_description,
-            })
-            .eq("id", matchId);
-
-        revalidatePath(`/matches/${matchId}`);
-        return { data: null, error: null };
-    }
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { data: data as ScoringState, error: null };
 }
 
 // Get teams for selection
+
 export async function getTeams(clubId?: string) {
     const supabase = await createServerClient();
 
@@ -583,5 +582,76 @@ export async function getMatchFull(matchId: string) {
         return { data: null, error: error.message };
     }
 
+    return { data, error: null };
+}
+
+/**
+ * Ball log for a match — fetched lazily (Balls tab only) so the main
+ * match payload never hauls every delivery + player joins.
+ */
+export async function getMatchBallLog(matchId: string) {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+        .from("ball_by_ball")
+        .select(`
+        *,
+        batsman:users!ball_by_ball_batsman_id_fkey(id, full_name),
+        bowler:users!ball_by_ball_bowler_id_fkey(id, full_name),
+        innings(innings_number, team_id)
+    `)
+        .eq("match_id", matchId)
+        .order("seq");
+    if (error) {
+        console.error("Error fetching ball log:", error);
+        return { data: null, error: error.message };
+    }
+    return { data, error: null };
+}
+
+/**
+ * Per-over rollup from the native match_over_summaries view — the data
+ * behind Manhattan/over-comparison charts, aggregated by Postgres.
+ */
+export async function getOverSummaries(matchId: string) {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+        .from("match_over_summaries")
+        .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
+        .eq("match_id", matchId)
+        .order("over_number");
+    if (error) {
+        console.error("Error fetching over summaries:", error);
+        return { data: null, error: error.message };
+    }
+    return { data, error: null };
+}
+
+/**
+ * Partnerships as natively persisted by the scoring engine — no joins to
+ * reconstruct, just names for display.
+ */
+export async function getPartnerships(matchId: string) {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase
+        .from("partnerships")
+        .select(`
+        id,
+        innings_id,
+        batsman1_id,
+        batsman2_id,
+        runs,
+        balls,
+        start_over,
+        end_over,
+        is_current,
+        batsman1:users!partnerships_batsman1_id_fkey(full_name),
+        batsman2:users!partnerships_batsman2_id_fkey(full_name)
+    `)
+        .eq("match_id", matchId)
+        .order("start_over");
+    if (error) {
+        console.error("Error fetching partnerships:", error);
+        return { data: null, error: error.message };
+    }
     return { data, error: null };
 }

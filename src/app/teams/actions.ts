@@ -7,14 +7,29 @@ import { redirect } from "next/navigation";
 export async function getTeams(filters?: {
     search?: string;
     type?: "club" | "match" | "tournament";
+    /** Only return teams the current user has a stake in. */
+    mine?: boolean;
 }) {
     const supabase = await createServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
     let query = supabase.from("teams").select(`
       *,
       captain:users!teams_captain_id_fkey(full_name),
       _count:team_players(count)
     `);
+
+    // "mine" shows only teams the user has a stake in (created, lead, or
+    // squad member). Without it (e.g. match-creation picker) all teams are
+    // visible so opponents can be selected.
+    if (user && filters?.mine) {
+        query = query.or(
+            `created_by.eq.${user.id},captain_id.eq.${user.id},vice_captain_id.eq.${user.id},team_players.user_id.eq.${user.id}`
+        );
+    }
 
     if (filters?.search) {
         query = query.ilike("name", `%${filters.search}%`);
@@ -31,11 +46,14 @@ export async function getTeams(filters?: {
         return { data: null, error: error.message };
     }
 
-    // Calculate player count from the _count aggregation if needed
+    // Calculate player count from the _count aggregation
     // Supabase returns count as an array of objects
-    const teamsWithCount = data.map((team: any) => ({
+    const teamsWithCount = data.map((team) => ({
         ...team,
-        player_count: team._count?.[0]?.count || 0,
+        player_count:
+            Array.isArray(team._count) && team._count.length > 0
+                ? (team._count[0]?.count ?? 0)
+                : 0,
     }));
 
     return { data: teamsWithCount, error: null };
@@ -100,6 +118,86 @@ export async function createTeam(formData: FormData) {
 
     revalidatePath("/teams");
     redirect(`/teams/${data.id}`);
+}
+
+/**
+ * Create a team without navigating away — used by inline flows such as
+ * "new team" inside the create-match wizard.
+ */
+export async function createTeamQuick(name: string, shortName?: string) {
+    const supabase = await createServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+        return { data: null, error: "You must be logged in to create a team" };
+    }
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+        return { data: null, error: "Team name is required" };
+    }
+
+    const { data, error } = await supabase
+        .from("teams")
+        .insert({
+            name: trimmed,
+            short_name: shortName?.trim() || null,
+            created_by: user.id,
+            is_template: false,
+            team_type: "club",
+        })
+        .select("id, name, short_name, club_id")
+        .single();
+
+    if (error) {
+        console.error("Error creating team:", error);
+        return { data: null, error: error.message };
+    }
+
+    revalidatePath("/teams");
+    return { data, error: null };
+}
+
+/**
+ * Add a player who isn't on the platform yet — used inline while scoring
+ * when the squad doesn't have enough names. Creates the player's identity
+ * and squad entry in one step via create_team_player().
+ */
+export async function createPlayerQuick(teamId: string, fullName: string) {
+    const supabase = await createServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+        return { data: null, error: "You must be logged in to add players" };
+    }
+
+    const { data, error } = await supabase.rpc("create_team_player", {
+        p_team_id: teamId,
+        p_full_name: fullName,
+    });
+
+    if (error) {
+        console.error("Error creating player:", error);
+        if (error.message.includes("not_authorized")) {
+            return {
+                data: null,
+                error: "Only team captains, club admins, or match admins can add players",
+            };
+        }
+        if (error.message.includes("team_not_found")) {
+            return { data: null, error: "Team no longer exists" };
+        }
+        return { data: null, error: error.message };
+    }
+
+    revalidatePath(`/teams/${teamId}`);
+    return { data: data as { user_id: string; full_name: string }, error: null };
 }
 
 export async function updateTeam(id: string, formData: FormData) {
@@ -221,4 +319,80 @@ export async function searchUsers(query: string) {
     }
 
     return { data, error: null };
+}
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
+const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+
+/**
+ * Upload a crest for a team and store its public URL on the team row.
+ * Only the team captain or creator may do this (enforced again by storage
+ * RLS via the team-logos/<team_id>/ folder convention).
+ */
+export async function updateTeamLogo(teamId: string, file: File) {
+    const supabase = await createServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { data: null, error: "You must be logged in" };
+
+    if (file.size > MAX_LOGO_BYTES) {
+        return { data: null, error: "Logo must be under 2 MB" };
+    }
+    if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+        return { data: null, error: "Use PNG, JPG, WebP, or SVG" };
+    }
+
+    const ext =
+        file.type === "image/svg+xml"
+            ? "svg"
+            : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
+    const path = `${teamId}/logo-${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+        .from("team-logos")
+        .upload(path, file, { contentType: file.type, upsert: true });
+
+    if (uploadError) {
+        console.error("Logo upload failed:", uploadError);
+        return { data: null, error: "Only the team captain or creator can change the logo" };
+    }
+
+    const { data: urlData } = supabase.storage.from("team-logos").getPublicUrl(path);
+
+    const { error: updateError } = await supabase
+        .from("teams")
+        .update({ logo_url: urlData.publicUrl })
+        .eq("id", teamId);
+
+    if (updateError) {
+        console.error("Error saving logo URL:", updateError);
+        return { data: null, error: updateError.message };
+    }
+
+    revalidatePath(`/teams/${teamId}`);
+    return { data: urlData.publicUrl, error: null };
+}
+
+export async function removeTeamLogo(teamId: string) {
+    const supabase = await createServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { error: "You must be logged in" };
+
+    const { error } = await supabase
+        .from("teams")
+        .update({ logo_url: null })
+        .eq("id", teamId);
+
+    if (error) {
+        console.error("Error removing logo:", error);
+        return { error: error.message };
+    }
+
+    revalidatePath(`/teams/${teamId}`);
+    return { error: null };
 }

@@ -11,97 +11,26 @@ import {
     TableRow,
 } from "~/components/ui/table";
 import { Badge } from "~/components/ui/badge";
+import type { Match } from "~/lib/match-types";
+import {
+    economyRate,
+    formatDecimalOvers,
+    oversFromBalls,
+    strikeRate,
+    teamName,
+} from "~/lib/cricket";
 
-interface BattingPerformance {
-    id: string;
-    user_id: string;
-    runs_scored: number;
-    balls_faced: number;
-    fours: number;
-    sixes: number;
-    is_not_out: boolean;
-    dismissal_type?: string;
-    user?: { id: string; full_name: string };
-}
 
-interface BowlingPerformance {
-    id: string;
-    user_id: string;
-    overs_bowled: number;
-    runs_conceded: number;
-    wickets_taken: number;
-    maidens: number;
-    wides: number;
-    no_balls: number;
-    user?: { id: string; full_name: string };
-}
 
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    is_completed: boolean;
-    target_runs?: number;
-    extras_total?: number;
-    extras_wides?: number;
-    extras_no_balls?: number;
-    extras_byes?: number;
-    extras_leg_byes?: number;
-    batting_performances?: BattingPerformance[];
-    bowling_performances?: BowlingPerformance[];
-    fall_of_wickets?: FallOfWicket[];
-}
 
-interface FallOfWicket {
-    id: string;
-    wicket_number: number;
-    runs_at_wicket: number;
-    overs_at_wicket: number;
-    batsman?: { id: string; full_name: string };
-}
 
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
 
-interface Match {
-    id: string;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
-}
 
 interface MatchScorecardProps {
     match: Match;
 }
 
 export function MatchScorecard({ match }: MatchScorecardProps) {
-    const getTeamName = (teamId: string) => {
-        return teamId === match.team1_id ? match.team1.name : match.team2.name;
-    };
-
-    const formatOvers = (overs: number) => {
-        const fullOvers = Math.floor(overs);
-        const balls = Math.round((overs - fullOvers) * 10);
-        return `${fullOvers}.${balls}`;
-    };
-
-    const calculateStrikeRate = (runs: number, balls: number) => {
-        if (balls === 0) return "0.00";
-        return ((runs / balls) * 100).toFixed(2);
-    };
-
-    const calculateEconomy = (runs: number, overs: number) => {
-        if (overs === 0) return "0.00";
-        return (runs / overs).toFixed(2);
-    };
 
     const sortedInnings = [...(match.innings || [])].sort(
         (a, b) => a.innings_number - b.innings_number
@@ -126,7 +55,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                         value={`innings-${innings.innings_number}`}
                         className="flex-1 max-w-[200px]"
                     >
-                        {getTeamName(innings.team_id)} - {innings.total_runs}/{innings.total_wickets}
+                        {teamName(match, innings.team_id)} - {innings.total_runs}/{innings.total_wickets}
                     </TabsTrigger>
                 ))}
             </TabsList>
@@ -138,13 +67,13 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                         <Card>
                             <CardHeader className="pb-2">
                                 <div className="flex items-center justify-between">
-                                    <CardTitle>{getTeamName(innings.team_id)} Innings</CardTitle>
+                                    <CardTitle>{teamName(match, innings.team_id)} Innings</CardTitle>
                                     <div className="text-right">
                                         <div className="text-3xl font-bold">
                                             {innings.total_runs}/{innings.total_wickets}
                                         </div>
                                         <div className="text-sm text-muted-foreground">
-                                            ({formatOvers(innings.total_overs)} overs)
+                                            ({formatDecimalOvers(innings.total_overs)} overs)
                                         </div>
                                     </div>
                                 </div>
@@ -177,7 +106,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                                         <div>
                                                             <span className="font-medium">
                                                                 {bp.user?.full_name}
-                                                                {bp.is_not_out && (
+                                                                {!bp.is_out && (
                                                                     <Badge variant="outline" className="ml-2 text-xs">
                                                                         not out
                                                                     </Badge>
@@ -197,7 +126,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                                     <TableCell className="text-center">{bp.fours}</TableCell>
                                                     <TableCell className="text-center">{bp.sixes}</TableCell>
                                                     <TableCell className="text-center">
-                                                        {calculateStrikeRate(bp.runs_scored, bp.balls_faced)}
+                                                        {strikeRate(bp.runs_scored, bp.balls_faced)}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -247,14 +176,14 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                                     <TableCell className="font-medium">
                                                         {bp.user?.full_name}
                                                     </TableCell>
-                                                    <TableCell className="text-center">{bp.overs_bowled}</TableCell>
+                                                    <TableCell className="text-center">{oversFromBalls(bp.balls_bowled ?? 0)}</TableCell>
                                                     <TableCell className="text-center">{bp.maidens}</TableCell>
                                                     <TableCell className="text-center">{bp.runs_conceded}</TableCell>
                                                     <TableCell className="text-center font-semibold">
                                                         {bp.wickets_taken}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        {calculateEconomy(bp.runs_conceded, bp.overs_bowled)}
+                                                        {economyRate(bp.runs_conceded, bp.balls_bowled)}
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -279,8 +208,8 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                                     variant="outline"
                                                     className="text-sm py-1 px-3"
                                                 >
-                                                    {fow.runs_at_wicket}/{fow.wicket_number} ({fow.batsman?.full_name},{" "}
-                                                    {formatOvers(fow.overs_at_wicket)} ov)
+                                                    {fow.runs_at_fall}/{fow.wicket_number} ({fow.batsman?.full_name},{" "}
+                                                    {formatDecimalOvers(fow.overs_at_fall)} ov)
                                                 </Badge>
                                             ))}
                                     </div>

@@ -1,54 +1,42 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
+import { Loader2 } from "lucide-react";
+import { getMatchBallLog } from "~/app/matches/queries";
+import type { BallEvent, Match } from "~/lib/match-types";
+import { teamName } from "~/lib/cricket";
 
-interface Ball {
-    id: string;
-    over_number: number;
-    ball_number: number;
-    runs_scored: number;
-    extras: number;
-    is_wicket: boolean;
-    innings?: { innings_number: number; team_id: string };
-}
+type Ball = BallEvent;
 
-interface Innings {
-    id: string;
-    innings_number: number;
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-    ball_by_ball?: Ball[];
-}
 
-interface Team {
-    id: string;
-    name: string;
-    short_name?: string;
-}
 
-interface Match {
-    id: string;
-    overs_per_innings: number;
-    team1_id: string;
-    team2_id: string;
-    team1: Team;
-    team2: Team;
-    innings: Innings[];
-}
+
 
 interface MatchStatsProps {
     match: Match;
 }
 
 export function MatchStats({ match }: MatchStatsProps) {
-    const getTeamName = (teamId: string) => {
-        return teamId === match.team1_id ? match.team1.name : match.team2.name;
-    };
+    const [ballLog, setBallLog] = useState<Ball[] | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const result = await getMatchBallLog(match.id);
+            if (!cancelled) setBallLog((result.data as Ball[]) ?? []);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [match.id]);
+
+
+
+    const ballsForInnings = (inningsId: string): Ball[] =>
+        (ballLog ?? []).filter((b) => b.innings_id === inningsId);
 
     const getRunsPerOver = (balls: Ball[], maxOvers: number) => {
         const runsPerOver: number[] = Array(maxOvers).fill(0);
@@ -92,9 +80,9 @@ export function MatchStats({ match }: MatchStatsProps) {
     const innings2 = sortedInnings[1];
 
     const maxBarHeight = 60;
-    const maxRuns = Math.max(
+    const maxRuns = ballLog === null ? 1 : Math.max(
         ...sortedInnings.flatMap((inn) =>
-            getRunsPerOver(inn.ball_by_ball || [], match.overs_per_innings)
+            getRunsPerOver(ballsForInnings(inn.id), match.overs_per_innings)
         ),
         1
     );
@@ -114,7 +102,11 @@ export function MatchStats({ match }: MatchStatsProps) {
                         <CardTitle>Runs Per Over Comparison</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {sortedInnings.length === 0 ? (
+                        {ballLog === null ? (
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : sortedInnings.length === 0 ? (
                             <div className="text-center py-12 text-muted-foreground">
                                 No data available yet
                             </div>
@@ -125,13 +117,13 @@ export function MatchStats({ match }: MatchStatsProps) {
                                     {innings1 && (
                                         <div className="flex items-center gap-2">
                                             <div className="w-4 h-4 rounded bg-cricket-primary" />
-                                            <span className="text-sm">{getTeamName(innings1.team_id)}</span>
+                                            <span className="text-sm">{teamName(match, innings1.team_id)}</span>
                                         </div>
                                     )}
                                     {innings2 && (
                                         <div className="flex items-center gap-2">
                                             <div className="w-4 h-4 rounded bg-cricket-secondary" />
-                                            <span className="text-sm">{getTeamName(innings2.team_id)}</span>
+                                            <span className="text-sm">{teamName(match, innings2.team_id)}</span>
                                         </div>
                                     )}
                                 </div>
@@ -139,11 +131,11 @@ export function MatchStats({ match }: MatchStatsProps) {
                                 {/* Bar Chart */}
                                 <div className="flex items-end justify-center gap-1 h-[200px] px-4">
                                     {Array.from({ length: match.overs_per_innings }, (_, i) => {
-                                        const runs1 = (innings1?.ball_by_ball
-                                            ? getRunsPerOver(innings1.ball_by_ball, match.overs_per_innings)[i]
+                                        const runs1 = (innings1
+                                            ? getRunsPerOver(ballsForInnings(innings1.id), match.overs_per_innings)[i]
                                             : 0) || 0;
-                                        const runs2 = (innings2?.ball_by_ball
-                                            ? getRunsPerOver(innings2.ball_by_ball, match.overs_per_innings)[i]
+                                        const runs2 = (innings2
+                                            ? getRunsPerOver(ballsForInnings(innings2.id), match.overs_per_innings)[i]
                                             : 0) || 0;
 
                                         const height1 = (runs1 / maxRuns) * maxBarHeight;
@@ -155,13 +147,13 @@ export function MatchStats({ match }: MatchStatsProps) {
                                                     <div
                                                         className="w-3 bg-cricket-primary rounded-t transition-all"
                                                         style={{ height: `${height1}px` }}
-                                                        title={`${getTeamName(innings1?.team_id || "")}: ${runs1} runs`}
+                                                        title={`${teamName(match, innings1?.team_id ?? "")}: ${runs1} runs`}
                                                     />
                                                     {innings2 && (
                                                         <div
                                                             className="w-3 bg-cricket-secondary rounded-t transition-all"
                                                             style={{ height: `${height2}px` }}
-                                                            title={`${getTeamName(innings2.team_id)}: ${runs2} runs`}
+                                                            title={`${teamName(match, innings2.team_id)}: ${runs2} runs`}
                                                         />
                                                     )}
                                                 </div>
@@ -175,7 +167,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                                 <div className="grid md:grid-cols-2 gap-4 pt-4">
                                     {sortedInnings.map((innings) => {
                                         const runsPerOver = getRunsPerOver(
-                                            innings.ball_by_ball || [],
+                                            ballsForInnings(innings.id),
                                             match.overs_per_innings
                                         );
                                         const maxOver = runsPerOver.reduce(
@@ -187,7 +179,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                                         return (
                                             <Card key={innings.id}>
                                                 <CardContent className="py-3">
-                                                    <p className="font-medium mb-2">{getTeamName(innings.team_id)}</p>
+                                                    <p className="font-medium mb-2">{teamName(match, innings.team_id)}</p>
                                                     <div className="grid grid-cols-2 gap-2 text-sm">
                                                         <div>
                                                             <span className="text-muted-foreground">Best Over: </span>
@@ -222,7 +214,11 @@ export function MatchStats({ match }: MatchStatsProps) {
                         <CardTitle>Run Rate Progression</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {sortedInnings.length === 0 ? (
+                        {ballLog === null ? (
+                            <div className="flex justify-center py-12">
+                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : sortedInnings.length === 0 ? (
                             <div className="text-center py-12 text-muted-foreground">
                                 No data available yet
                             </div>
@@ -230,14 +226,14 @@ export function MatchStats({ match }: MatchStatsProps) {
                             <div className="space-y-4">
                                 {/* Simple line representation */}
                                 {sortedInnings.map((innings) => {
-                                    const cumulative = getCumulativeRuns(innings.ball_by_ball || []);
+                                    const cumulative = getCumulativeRuns(ballsForInnings(innings.id));
                                     const maxCumulative = Math.max(...cumulative.map((c) => c.runs), 1);
 
                                     return (
                                         <Card key={innings.id}>
                                             <CardHeader className="pb-2">
                                                 <CardTitle className="text-base">
-                                                    {getTeamName(innings.team_id)}
+                                                    {teamName(match, innings.team_id)}
                                                 </CardTitle>
                                             </CardHeader>
                                             <CardContent>
@@ -281,7 +277,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                     <CardContent>
                         <div className="grid md:grid-cols-2 gap-6">
                             {sortedInnings.map((innings) => {
-                                const balls = innings.ball_by_ball || [];
+                                const balls = ballsForInnings(innings.id);
                                 const dots = balls.filter(
                                     (b) => b.runs_scored === 0 && !b.extras && !b.is_wicket
                                 ).length;
@@ -296,7 +292,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                                     <Card key={innings.id}>
                                         <CardHeader className="pb-2">
                                             <CardTitle className="text-base">
-                                                {getTeamName(innings.team_id)}
+                                                {teamName(match, innings.team_id)}
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent>

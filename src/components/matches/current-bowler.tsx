@@ -1,7 +1,7 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { Card, CardContent } from "~/components/ui/card";
+import { Repeat } from "lucide-react";
 
 interface Bowler {
     id: string;
@@ -18,74 +18,58 @@ interface CurrentBowlerProps {
 }
 
 export function CurrentBowler({ bowler, onChangeBowler }: CurrentBowlerProps) {
-    const calculateEconomy = (runs: number, overs: number) => {
-        if (overs === 0) return "0.00";
-        return (runs / overs).toFixed(2);
-    };
-
-    if (!bowler) {
-        return (
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">Bowler</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30">
-                        <span className="text-muted-foreground">Select bowler</span>
-                        {onChangeBowler && (
-                            <button
-                                onClick={onChangeBowler}
-                                className="text-sm text-cricket-primary hover:underline"
-                            >
-                                Choose
-                            </button>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    }
+    const economy = (runs: number, overs: number) =>
+        overs === 0 ? "—" : (runs / overs).toFixed(2);
 
     return (
         <Card>
-            <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">Bowler</CardTitle>
+            <CardContent className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                        Current bowler
+                    </h3>
                     {onChangeBowler && (
                         <button
+                            type="button"
                             onClick={onChangeBowler}
-                            className="text-xs text-cricket-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                         >
-                            Change Bowler
+                            <Repeat className="h-3.5 w-3.5" />
+                            Change
                         </button>
                     )}
                 </div>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-cricket-secondary/10 border border-cricket-secondary/30">
-                    <div className="flex items-center gap-3">
-                        <Badge className="bg-cricket-secondary text-white text-xs">
-                            ⚾
-                        </Badge>
-                        <div>
-                            <p className="font-semibold text-foreground">{bowler.name}</p>
-                            <div className="flex gap-2 text-xs text-muted-foreground">
-                                <span>{bowler.maidens}M</span>
-                            </div>
-                        </div>
+
+                {!bowler ? (
+                    <div className="flex items-center justify-between rounded-lg border border-dashed border-border p-3">
+                        <span className="text-sm text-muted-foreground">No bowler selected</span>
+                        {onChangeBowler && (
+                            <button
+                                type="button"
+                                onClick={onChangeBowler}
+                                className="text-sm font-medium text-primary hover:underline"
+                            >
+                                Select bowler
+                            </button>
+                        )}
                     </div>
-                    <div className="text-right">
-                        <p className="text-xl font-bold text-foreground">
+                ) : (
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/40 p-3">
+                        <div className="min-w-0">
+                            <p className="truncate font-medium">{bowler.name}</p>
+                            <p className="text-xs text-muted-foreground tabular">
+                                Econ {economy(bowler.runs, bowler.overs)} · {bowler.maidens} maiden
+                                {bowler.maidens === 1 ? "" : "s"}
+                            </p>
+                        </div>
+                        <p className="score-display shrink-0 text-xl font-semibold leading-none">
                             {bowler.wickets}-{bowler.runs}
-                            <span className="text-sm font-normal text-muted-foreground ml-1">
+                            <span className="ml-1 text-sm font-normal text-muted-foreground">
                                 ({bowler.overs})
                             </span>
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                            Econ: {calculateEconomy(bowler.runs, bowler.overs)}
-                        </p>
                     </div>
-                </div>
+                )}
             </CardContent>
         </Card>
     );

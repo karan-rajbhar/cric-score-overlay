@@ -1,10 +1,9 @@
 import "~/styles/globals.css";
-import { Inter } from "next/font/google";
-import { cookies } from "next/headers";
-import { TRPCReactProvider } from "~/trpc/react";
+import { Inter, Barlow_Condensed } from "next/font/google";
+import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
 import { ThemeProvider } from "~/lib/theme-provider";
-import { NavigationBar } from "~/components/NavigationBar";
+import { NavigationBar } from "~/components/navigation-bar";
 import type { Metadata, Viewport } from "next";
 
 const inter = Inter({
@@ -12,12 +11,18 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-score",
+});
+
 export const metadata: Metadata = {
-  title: "Cricket Platform - Live Scoring & Management",
+  title: "CricScore — Live Cricket Scoring & Overlay",
   description: "Professional cricket match scoring and club management platform with real-time updates",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   keywords: "cricket, scoring, live, management, tournament, OBS, streaming",
-  authors: [{ name: "Cricket Platform Team" }],
+  authors: [{ name: "CricScore" }],
 };
 
 export const viewport: Viewport = {
@@ -30,54 +35,34 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const cookieString = cookieStore.toString();
-
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`font-sans ${inter.variable} antialiased overflow-x-hidden`}>
-        <ThemeProvider
-          defaultTheme="dark"
-        >
-          <TRPCReactProvider cookies={cookieString}>
-            <AuthProvider>
-              <div className="min-h-screen relative">
-                {/* Modern Background with Dynamic Theming */}
-                <div className="fixed inset-0 -z-10">
-                  <div className="absolute inset-0 bg-gradient-to-br from-background via-cricket-primary/5 to-background"></div>
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,hsl(var(--cricket-primary)_/_0.05),transparent_50%)]"></div>
-                  <div
-                    className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23${encodeURIComponent('currentColor')}' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-                    }}
-                  ></div>
-                </div>
+      <body className={`font-sans ${inter.variable} ${barlowCondensed.variable} antialiased overflow-x-hidden`}>
+        <ThemeProvider defaultTheme="dark">
+          <AuthProvider>
+            <div className="min-h-screen flex flex-col">
+              <NavigationBar />
+              <main className="flex-1">
+                {children}
+              </main>
 
-                <NavigationBar />
-
-                <main className="relative">
-                  {children}
-                </main>
-
-                {/* Modern Footer */}
-                <footer className="relative mt-20 border-t border-border/50 bg-card/30 backdrop-blur-sm">
-                  <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-                    <div className="text-center space-y-4">
-                      <p className="text-muted-foreground">
-                        © 2025 Cricket Platform. Built for cricket enthusiasts worldwide.
-                      </p>
-                      <div className="flex justify-center space-x-6 text-sm text-muted-foreground">
-                        <a href="#" className="hover:text-cricket-primary transition-colors">Privacy Policy</a>
-                        <a href="#" className="hover:text-cricket-secondary transition-colors">Terms of Service</a>
-                        <a href="#" className="hover:text-cricket-accent transition-colors">Support</a>
-                      </div>
+              <footer className="border-t border-border">
+                <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                  <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+                    <p className="text-xs text-muted-foreground">
+                      © 2025 CricScore. Live scoring for every level of the game.
+                    </p>
+                    <div className="flex gap-5 text-xs text-muted-foreground">
+                      <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+                      <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+                      <a href="#" className="hover:text-foreground transition-colors">Support</a>
                     </div>
                   </div>
-                </footer>
-              </div>
-            </AuthProvider>
-          </TRPCReactProvider>
+                </div>
+              </footer>
+            </div>
+            <Toaster richColors position="top-center" />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "~/lib/auth";
@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle, Phone, MessageCircle } from "lucide-react";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
@@ -28,26 +28,32 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Handle OAuth errors from URL params
-  useEffect(() => {
+  // Derive OAuth errors from URL params during render (no state/effect needed)
+  const urlError = (() => {
     const errorParam = searchParams.get('error');
-    const messageParam = searchParams.get('message');
-    if (errorParam) {
-      switch (errorParam) {
-        case 'oauth_error':
-          setError(messageParam ? decodeURIComponent(messageParam) : 'OAuth authentication failed. Please try again.');
-          break;
-        case 'session_error':
-          setError('Session creation failed. Please try again.');
-          break;
-        case 'unexpected_error':
-          setError('An unexpected error occurred. Please try again.');
-          break;
-        default:
-          setError('Authentication failed. Please try again.');
+    if (!errorParam) return null;
+    switch (errorParam) {
+      case 'oauth_error': {
+        const messageParam = searchParams.get('message');
+        return messageParam ? decodeURIComponent(messageParam) : 'OAuth authentication failed. Please try again.';
       }
+      case 'session_error':
+        return 'Session creation failed. Please try again.';
+      case 'unexpected_error':
+        return 'An unexpected error occurred. Please try again.';
+      default:
+        return 'Authentication failed. Please try again.';
     }
-  }, [searchParams]);
+  })();
+  const displayError = error ?? urlError;
+
+  // Redirect authenticated users to dashboard (side effects belong in effects,
+  // never in render).
+  useEffect(() => {
+    if (user) {
+      router.push("/dashboard");
+    }
+  }, [user, router]);
 
   // Show loading while auth is initializing
   if (loading) {
@@ -58,9 +64,7 @@ export default function LoginPage() {
     );
   }
 
-  // Redirect authenticated users to dashboard
   if (user) {
-    router.push("/dashboard");
     return null;
   }
 
@@ -131,14 +135,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center space-y-4">
-          <div className="relative inline-block">
-            <div className="w-16 h-16 mx-auto bg-cricket-primary/10 rounded-2xl flex items-center justify-center group">
-              <div className="text-3xl group-hover:animate-bounce transition-transform">🏏</div>
-              <div className="absolute inset-0 bg-cricket-primary/20 rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-          </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-foreground via-cricket-primary to-foreground bg-clip-text text-transparent">
+            <h1 className="text-2xl font-bold tracking-tight">
               Welcome back
             </h1>
             <p className="text-muted-foreground">
@@ -148,7 +146,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Form */}
-        <Card className="glass-card border-border/50">
+        <Card>
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl text-center text-foreground">Sign in</CardTitle>
             <CardDescription className="text-center text-muted-foreground">
@@ -157,7 +155,7 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Error Display */}
-            {error && (
+            {displayError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
@@ -171,7 +169,7 @@ export default function LoginPage() {
               onClick={handleGoogleSignIn}
               disabled={googleLoading}
               variant="outline"
-              className="w-full relative h-12 btn-secondary"
+              className="w-full h-11"
             >
               {googleLoading ? (
                 <>
@@ -299,7 +297,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full btn-primary group"
+                  className="w-full h-11"
                 >
                   {loading ? (
                     <>
@@ -385,7 +383,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   disabled={otpLoading}
-                  className="w-full btn-primary group"
+                  className="w-full h-11"
                 >
                   {otpLoading ? (
                     <>
@@ -412,7 +410,7 @@ export default function LoginPage() {
             )}
 
             {/* Error Alert */}
-            {error && (
+            {displayError && (
               <Alert className="bg-destructive/10 border-destructive/20">
                 <AlertCircle className="h-4 w-4 text-destructive" />
                 <AlertDescription className="text-destructive">
@@ -462,3 +460,10 @@ export default function LoginPage() {
     </div>
   );
 } 
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
