@@ -7,6 +7,7 @@ const eslintConfig = [
       "src/lib/supabase/types.ts",
       "supabase/.temp/**",
       "supabase/functions/**",
+      "coverage/**",
     ],
   },
   ...coreWebVitals,

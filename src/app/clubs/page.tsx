@@ -7,137 +7,159 @@ import { Button } from "~/components/ui/button";
 export const dynamic = "force-dynamic";
 
 interface ClubRow {
-    id: string;
-    name: string;
-    short_name: string | null;
-    location: string | null;
-    club_type: string | null;
-    is_public: boolean | null;
-    teams: { count: number }[];
+  id: string;
+  name: string;
+  short_name: string | null;
+  location: string | null;
+  club_type: string | null;
+  is_public: boolean | null;
+  teams: { count: number }[];
 }
 
 function ClubCard({ club }: { club: ClubRow }) {
-    const teamCount = club.teams?.[0]?.count ?? 0;
-    return (
-        <Link href={`/clubs/${club.id}`} className="group">
-            <Card className="transition-colors group-hover:border-primary/50">
-                <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <h2 className="font-semibold">{club.name}</h2>
-                            <p className="text-sm text-muted-foreground">
-                                {club.location ?? "—"}
-                            </p>
-                        </div>
-                        {club.short_name && (
-                            <span className="rounded-md bg-secondary px-2 py-1 text-xs font-bold text-secondary-foreground">
-                                {club.short_name}
-                            </span>
-                        )}
-                    </div>
-                    <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-                        {club.club_type && (
-                            <Badge variant="outline" className="capitalize">
-                                {club.club_type}
-                            </Badge>
-                        )}
-                        <span>
-                            {teamCount} {teamCount === 1 ? "team" : "teams"}
-                        </span>
-                    </div>
-                </CardContent>
-            </Card>
-        </Link>
-    );
+  const teamCount = club.teams?.[0]?.count ?? 0;
+  return (
+    <Link href={`/clubs/${club.id}`} className="group">
+      <Card className="transition-colors group-hover:border-primary/50">
+        <CardContent className="p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">{club.name}</h2>
+              <p className="text-sm text-muted-foreground">
+                {club.location ?? "—"}
+              </p>
+            </div>
+            {club.short_name && (
+              <span className="rounded-md bg-secondary px-2 py-1 text-xs font-bold text-secondary-foreground">
+                {club.short_name}
+              </span>
+            )}
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+            {club.club_type && (
+              <Badge variant="outline" className="capitalize">
+                {club.club_type}
+              </Badge>
+            )}
+            <span>
+              {teamCount} {teamCount === 1 ? "team" : "teams"}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
 }
 
 export default async function ClubsPage() {
-    const supabase = await createServerClient();
+  const supabase = await createServerClient();
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    // My clubs: owned or a member of (only when logged in).
-    const myClubs = user
-        ? ((await supabase
-              .from("clubs")
-              .select("id, name, short_name, location, club_type, is_public, teams(count)")
-              .or(`owner_id.eq.${user.id},club_memberships.user_id.eq.${user.id}`)
-              .order("name")
-              .then((r) => r.data)) as ClubRow[] | null)
-        : null;
-
-    // Public directory, excluding clubs already shown above.
-    const { data: publicClubs } = (await supabase
-        .from("clubs")
-        .select("id, name, short_name, location, club_type, is_public, teams(count)")
-        .eq("is_public", true)
-        .order("name")) as { data: ClubRow[] | null };
-
-    const myIds = new Set((myClubs ?? []).map((c) => c.id));
-    const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
-
-    return (
-        <div className="container mx-auto max-w-5xl px-4 py-10">
-            <header className="mb-8 flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Clubs</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Clubs you belong to, plus public clubs on the platform.
-                    </p>
-                </div>
-                {user && (
-                    <Button asChild size="sm">
-                        <Link href="/clubs/create">Create club</Link>
-                    </Button>
-                )}
-            </header>
-
-            {user && (
-                <section className="mb-10">
-                    <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        My clubs
-                    </h2>
-                    {myClubs?.length ? (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {myClubs.map((club) => (
-                                <ClubCard key={club.id} club={club} />
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                            You don't belong to any club yet. Create one from the{" "}
-                            <Link href="/dashboard" className="text-primary hover:underline">
-                                dashboard
-                            </Link>
-                            .
-                        </p>
-                    )}
-                </section>
-            )}
-
-            <section>
-                {!user && (
-                    <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                        Public clubs
-                    </h2>
-                )}
-                {explore.length ? (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                        {explore.map((club) => (
-                            <ClubCard key={club.id} club={club} />
-                        ))}
-                    </div>
-                ) : (
-                    !user && (
-                        <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                            No public clubs yet.
-                        </p>
-                    )
-                )}
-                {user && !explore.length && null}
-            </section>
-        </div>
+  let myClubIds: string[] = [];
+  if (user) {
+    const [{ data: mems }, { data: owned }] = await Promise.all([
+      supabase
+        .from("club_memberships")
+        .select("club_id")
+        .eq("user_id", user.id),
+      supabase.from("clubs").select("id").eq("owner_id", user.id),
+    ]);
+    myClubIds = Array.from(
+      new Set([
+        ...(mems ?? []).map((m) => m.club_id),
+        ...(owned ?? []).map((o) => o.id),
+      ]),
     );
+  }
+
+  // My clubs: owned or a member of (only when logged in).
+  const myClubs =
+    myClubIds.length > 0
+      ? ((await supabase
+          .from("clubs")
+          .select(
+            "id, name, short_name, location, club_type, is_public, teams(count)",
+          )
+          .in("id", myClubIds)
+          .order("name")
+          .then((r) => r.data)) as ClubRow[] | null)
+      : null;
+
+  // Public directory, excluding clubs already shown above.
+  const { data: publicClubs } = (await supabase
+    .from("clubs")
+    .select(
+      "id, name, short_name, location, club_type, is_public, teams(count)",
+    )
+    .eq("is_public", true)
+    .order("name")) as { data: ClubRow[] | null };
+
+  const myIds = new Set((myClubs ?? []).map((c) => c.id));
+  const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
+
+  return (
+    <div className="container mx-auto max-w-5xl px-4 py-10">
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Clubs</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Clubs you belong to, plus public clubs on the platform.
+          </p>
+        </div>
+        {user && (
+          <Button asChild size="sm">
+            <Link href="/clubs/create">Create club</Link>
+          </Button>
+        )}
+      </header>
+
+      {user && (
+        <section className="mb-10">
+          <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            My clubs
+          </h2>
+          {myClubs?.length ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {myClubs.map((club) => (
+                <ClubCard key={club.id} club={club} />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              You don't belong to any club yet. Create one from the{" "}
+              <Link href="/dashboard" className="text-primary hover:underline">
+                dashboard
+              </Link>
+              .
+            </p>
+          )}
+        </section>
+      )}
+
+      <section>
+        {!user && (
+          <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Public clubs
+          </h2>
+        )}
+        {explore.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {explore.map((club) => (
+              <ClubCard key={club.id} club={club} />
+            ))}
+          </div>
+        ) : (
+          !user && (
+            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              No public clubs yet.
+            </p>
+          )
+        )}
+        {user && !explore.length && null}
+      </section>
+    </div>
+  );
 }
