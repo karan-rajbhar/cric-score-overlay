@@ -31,6 +31,7 @@ import { ClubMembershipButton } from "~/components/clubs/club-membership-button"
 import { MemberRoleAction } from "~/components/clubs/member-role-action";
 import { HallOfFameDialog } from "~/components/clubs/hall-of-fame-dialog";
 import { SeasonDialog } from "~/components/clubs/season-dialog";
+import { EmptyState } from "~/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -118,10 +119,18 @@ interface HallOfFameRow {
 
 export default async function ClubPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  ) {
+    notFound();
+  }
+  const resolvedSearchParams = await searchParams;
   const supabase = await createServerClient();
 
   const {
@@ -409,7 +418,10 @@ export default async function ClubPage({
       </div>
 
       {/* Club Tabs */}
-      <Tabs defaultValue="teams" className="mt-8">
+      <Tabs
+        defaultValue={resolvedSearchParams?.tab ?? "teams"}
+        className="mt-8"
+      >
         <TabsList className="grid w-full max-w-2xl grid-cols-5">
           <TabsTrigger value="teams" className="gap-1.5">
             <Shield className="h-4 w-4" />
@@ -451,29 +463,22 @@ export default async function ClubPage({
           </div>
 
           {typedTeams.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Shield className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                <h3 className="mb-1 text-base font-semibold">
-                  No teams registered yet
-                </h3>
-                <p className="mx-auto mb-4 max-w-sm text-xs">
-                  Create the club&apos;s first playing squad to start tracking
-                  fixtures and player statistics.
-                </p>
-                <Button asChild size="sm">
-                  <Link href={`/teams/create?clubId=${club.id}`}>
-                    Create Club Team
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Shield}
+              title="No Teams Registered Yet"
+              description="Create the club's first playing squad to start organizing fixtures and player statistics."
+              primaryAction={{
+                label: "Create Club Team",
+                href: `/teams/create?clubId=${club.id}`,
+                icon: Plus,
+              }}
+            />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {typedTeams.map((team) => (
                 <Link
                   key={team.id}
-                  href={`/teams/${team.id}`}
+                  href={`/teams/${team.id}?clubId=${club.id}`}
                   className="group"
                 >
                   <Card className="transition-colors group-hover:border-primary/50">
@@ -528,27 +533,23 @@ export default async function ClubPage({
           </div>
 
           {typedTournaments.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Trophy className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                <h3 className="mb-1 text-base font-semibold">
-                  No tournaments hosted yet
-                </h3>
-                <p className="mx-auto mb-4 max-w-sm text-xs">
-                  Organize a tournament under your club with automated points
-                  tables, fixtures, and leaderboards.
-                </p>
-                <Button asChild size="sm">
-                  <Link href={`/tournaments/create?clubId=${club.id}`}>
-                    Host Tournament
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Trophy}
+              title="No Tournaments Hosted Yet"
+              description="Organize a tournament under your club with automated points tables, fixtures, and leaderboards."
+              primaryAction={{
+                label: "Host Tournament",
+                href: `/tournaments/create?clubId=${club.id}`,
+                icon: Plus,
+              }}
+            />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {typedTournaments.map((t) => (
-                <Link key={t.id} href={`/tournaments/${t.id}`}>
+                <Link
+                  key={t.id}
+                  href={`/tournaments/${t.id}?clubId=${club.id}`}
+                >
                   <Card className="transition-colors hover:border-primary/40">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
@@ -606,23 +607,16 @@ export default async function ClubPage({
           </div>
 
           {typedMatches.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Calendar className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                <h3 className="mb-1 text-base font-semibold">
-                  No matches found
-                </h3>
-                <p className="mx-auto mb-4 max-w-sm text-xs">
-                  Schedule club matches to start tracking live scores, wagon
-                  wheels, and overlays.
-                </p>
-                <Button asChild size="sm">
-                  <Link href={`/matches/create?clubId=${club.id}`}>
-                    Schedule Match
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Calendar}
+              title="No Matches Scheduled"
+              description="Schedule club matches to start tracking live scores, wagon wheels, and broadcast overlays."
+              primaryAction={{
+                label: "Schedule Match",
+                href: `/matches/create?clubId=${club.id}`,
+                icon: Plus,
+              }}
+            />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {typedMatches.map((m) => {
@@ -880,9 +874,12 @@ export default async function ClubPage({
           <Card>
             <CardContent className="p-0">
               {typedMembers.length === 0 ? (
-                <p className="py-12 text-center text-sm text-muted-foreground">
-                  No members registered in this club yet.
-                </p>
+                <EmptyState
+                  icon={Users}
+                  title="No Members Registered"
+                  description="No players or club administrators are registered in this club directory yet."
+                  className="border-0 bg-transparent py-12"
+                />
               ) : (
                 <div className="divide-y divide-border text-sm">
                   {typedMembers.map((m) => {

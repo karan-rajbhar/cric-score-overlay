@@ -337,9 +337,23 @@ function CreateMatchWizard() {
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/matches">
+            <Link
+              href={
+                selectedTournament
+                  ? `/tournaments/${selectedTournament.id}?tab=fixtures`
+                  : selectedClub || urlClubId
+                    ? `/clubs/${selectedClub?.id || urlClubId}?tab=matches`
+                    : "/matches"
+              }
+            >
               <ChevronLeft className="mr-2 h-4 w-4" />
-              Back to Matches
+              {selectedTournament
+                ? `Back to ${selectedTournament.name}`
+                : selectedClub
+                  ? `Back to ${selectedClub.name}`
+                  : urlClubId
+                    ? "Back to Club"
+                    : "Back to Matches"}
             </Link>
           </Button>
           <div className="flex items-center gap-2">

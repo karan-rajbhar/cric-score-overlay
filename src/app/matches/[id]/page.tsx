@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Card, CardContent } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { MatchExportButtons } from "~/components/matches/match-export-buttons";
 import { MatchSummary } from "~/components/matches/match-summary";
@@ -21,11 +20,12 @@ import { formatDecimalOvers } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { HeadToHead } from "~/components/matches/head-to-head";
 import { supabase } from "~/lib/supabase";
+import MatchDetailLoading from "./loading";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   ChevronLeft,
   Tv,
   Play,
-  Loader2,
   FileText,
   BarChart3,
   CircleDot,
@@ -33,6 +33,7 @@ import {
   LayoutDashboard,
   Award,
   Swords,
+  AlertCircle,
 } from "lucide-react";
 
 export default function MatchDetailsPage() {
@@ -73,6 +74,12 @@ export default function MatchDetailsPage() {
 
   // Realtime subscription + polling fallback when live
   useEffect(() => {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        matchId,
+      );
+    if (!isUuid) return;
+
     const scheduleRefetch = () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
       fetchTimer.current = setTimeout(() => void refetchMatch(), 250);
@@ -139,24 +146,30 @@ export default function MatchDetailsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <MatchDetailLoading />;
   }
 
   if (error || !match) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <p className="mb-4 text-red-500">{error || "Match not found"}</p>
-            <Button asChild>
-              <Link href="/matches">Back to Matches</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4 py-12">
+        <EmptyState
+          icon={AlertCircle}
+          title={error ? "Error Loading Match" : "Match Not Found"}
+          description={
+            error ||
+            "This match could not be found or may have been removed from the tournament schedule."
+          }
+          primaryAction={{
+            label: "Back to Matches",
+            href: "/matches",
+            icon: ChevronLeft,
+          }}
+          secondaryAction={{
+            label: "Try Again",
+            onClick: () => refetchMatch(),
+          }}
+          className="w-full"
+        />
       </div>
     );
   }
@@ -168,6 +181,15 @@ export default function MatchDetailsPage() {
     (match.created_by === user.id ||
       (match.match_admins ?? []).includes(user.id));
 
+  const matchBackHref = match.tournament
+    ? `/tournaments/${match.tournament.id}?tab=fixtures`
+    : match.club
+      ? `/clubs/${match.club.id}?tab=matches`
+      : "/matches";
+
+  const matchBackLabel =
+    match.tournament?.name ?? match.club?.name ?? "Matches";
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -176,9 +198,9 @@ export default function MatchDetailsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/matches">
+                <Link href={matchBackHref}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
-                  Matches
+                  {matchBackLabel}
                 </Link>
               </Button>
             </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -11,7 +12,8 @@ import {
 } from "~/components/ui/table";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { MoreHorizontal, Trash2, Crown, Shield } from "lucide-react";
+import { MoreHorizontal, Trash2, Crown, Shield, Users } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,14 +114,15 @@ export function PlayerList({
 
   if (!players || players.length === 0) {
     return (
-      <div className="rounded-lg border bg-muted/20 py-12 text-center">
-        <p className="text-muted-foreground">No players in this team yet.</p>
-        {allowEdit && (
-          <p className="mt-1 text-sm">
-            Click "Add Player" to build your squad.
-          </p>
-        )}
-      </div>
+      <EmptyState
+        icon={Users}
+        title="No Players in Squad Yet"
+        description={
+          allowEdit
+            ? "Build your team line-up by adding registered players, wicket-keepers, and appointing leadership roles."
+            : "No squad members have been added to this team roster yet."
+        }
+      />
     );
   }
 
@@ -144,9 +147,12 @@ export function PlayerList({
                     {player.user?.full_name?.substring(0, 1)}
                   </div>
                   <div>
-                    <p className="text-sm font-medium">
+                    <Link
+                      href={`/players/${player.user_id}?teamId=${teamId}`}
+                      className="cursor-pointer text-sm font-medium transition-colors hover:text-primary"
+                    >
                       {player.user?.full_name}
-                    </p>
+                    </Link>
                     {player.user?.email && (
                       <p className="text-xs text-muted-foreground">
                         {player.user.email}

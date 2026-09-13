@@ -2,7 +2,8 @@ import Link from "next/link";
 import { createServerClient } from "~/lib/supabase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, UserX } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +67,24 @@ export default async function PlayersPage({
           </Link>
         ))}
         {(players ?? []).length === 0 && (
-          <p className="col-span-full py-8 text-center text-sm text-muted-foreground">
-            No players found
-          </p>
+          <EmptyState
+            icon={UserX}
+            title="No Players Found"
+            description={
+              q
+                ? `No registered cricketers match "${q}". Try another query.`
+                : "No registered players are currently active on the platform."
+            }
+            primaryAction={
+              q
+                ? {
+                    label: "Clear Search",
+                    href: "/players",
+                  }
+                : undefined
+            }
+            className="col-span-full"
+          />
         )}
       </div>
     </div>

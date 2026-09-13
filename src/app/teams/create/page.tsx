@@ -202,6 +202,32 @@ function CreateTeamForm() {
   );
 }
 
+function CreateTeamBackButton() {
+  const searchParams = useSearchParams();
+  const clubId = searchParams.get("clubId");
+  const tournamentId = searchParams.get("tournamentId");
+
+  const backHref = tournamentId
+    ? `/tournaments/${tournamentId}?tab=teams`
+    : clubId
+      ? `/clubs/${clubId}?tab=teams`
+      : "/teams";
+
+  const backLabel = tournamentId
+    ? "Back to Tournament"
+    : clubId
+      ? "Back to Club"
+      : "Back to Teams";
+
+  return (
+    <Button variant="ghost" asChild className="mb-4">
+      <Link href={backHref}>
+        <ChevronLeft className="mr-2 h-4 w-4" /> {backLabel}
+      </Link>
+    </Button>
+  );
+}
+
 export default function CreateTeamPage() {
   const { user, loading: authLoading } = useAuth();
 
@@ -235,11 +261,9 @@ export default function CreateTeamPage() {
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="container mx-auto max-w-xl px-4">
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href="/teams">
-            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Teams
-          </Link>
-        </Button>
+        <Suspense fallback={null}>
+          <CreateTeamBackButton />
+        </Suspense>
 
         <Suspense
           fallback={

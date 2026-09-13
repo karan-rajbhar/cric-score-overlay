@@ -26,6 +26,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { RegisterTeamDialog } from "~/components/tournaments/register-team-dialog";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   PointsTableShare,
   type StandingsShareRow,
@@ -69,10 +70,18 @@ interface MatchRow {
 
 export default async function TournamentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  ) {
+    notFound();
+  }
+  const resolvedSearchParams = await searchParams;
   const supabase = await createServerClient();
 
   const [
@@ -437,7 +446,10 @@ export default async function TournamentPage({
       </div>
 
       {/* Main Tabs Navigation */}
-      <Tabs defaultValue="standings" className="mt-8">
+      <Tabs
+        defaultValue={resolvedSearchParams?.tab ?? "standings"}
+        className="mt-8"
+      >
         <TabsList className="grid w-full max-w-xl grid-cols-4">
           <TabsTrigger value="standings" className="gap-1.5">
             <Trophy className="h-4 w-4" />
@@ -483,16 +495,13 @@ export default async function TournamentPage({
             </CardHeader>
             <CardContent>
               {(standings ?? []).length === 0 ? (
-                <div className="py-12 text-center">
-                  <Trophy className="mx-auto h-12 w-12 text-muted-foreground/40" />
-                  <h3 className="mt-4 text-base font-semibold">
-                    No Standings Yet
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Register teams and schedule tournament matches to activate
-                    the automated points table.
-                  </p>
-                  <div className="mt-4">
+                <div className="py-6 text-center">
+                  <EmptyState
+                    icon={Trophy}
+                    title="No Standings Yet"
+                    description="Register participating squads and start tournament fixtures to begin auto-computing points tables and net run rates."
+                  />
+                  <div className="mt-4 flex justify-center">
                     <RegisterTeamDialog
                       tournamentId={tournament.id}
                       availableTeams={
@@ -507,8 +516,8 @@ export default async function TournamentPage({
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <div className="data-table-container">
+                  <table className="data-table">
                     <thead>
                       <tr className="border-b text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         <th className="px-3 py-3 text-left">Pos</th>
@@ -558,7 +567,7 @@ export default async function TournamentPage({
                             </td>
                             <td className="px-3 py-3">
                               <Link
-                                href={`/teams/${teamObj?.id ?? s.team_id}`}
+                                href={`/teams/${teamObj?.id ?? s.team_id}?tournamentId=${tournament.id}`}
                                 className="flex items-center gap-2 transition-colors hover:text-primary"
                               >
                                 <span className="font-semibold text-foreground">
@@ -705,11 +714,11 @@ export default async function TournamentPage({
               Upcoming Fixtures ({upcomingMatches.length})
             </h3>
             {upcomingMatches.length === 0 ? (
-              <Card>
-                <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                  No upcoming matches scheduled.
-                </CardContent>
-              </Card>
+              <EmptyState
+                icon={Calendar}
+                title="No Upcoming Fixtures"
+                description="No upcoming tournament matches are scheduled. Generate fixtures from the admin tab or schedule new matches."
+              />
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {upcomingMatches.map((m) => (
@@ -797,11 +806,11 @@ export default async function TournamentPage({
           )}
 
           {confirmedRegistrations.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                No confirmed teams in this tournament yet.
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Shield}
+              title="No Confirmed Teams"
+              description="No confirmed squads have joined this tournament yet. Approve pending team registrations or register squads directly."
+            />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {confirmedRegistrations.map((r) => {
@@ -816,7 +825,7 @@ export default async function TournamentPage({
                 return (
                   <Link
                     key={r.id}
-                    href={`/teams/${r.team_id}`}
+                    href={`/teams/${r.team_id}?tournamentId=${tournament.id}`}
                     className="group"
                   >
                     <Card className="transition-colors group-hover:border-primary/50">

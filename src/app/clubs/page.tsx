@@ -3,6 +3,8 @@ import { createServerClient } from "~/lib/supabase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
+import { Shield, Plus } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -128,13 +130,16 @@ export default async function ClubsPage() {
               ))}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              You don't belong to any club yet. Create one from the{" "}
-              <Link href="/dashboard" className="text-primary hover:underline">
-                dashboard
-              </Link>
-              .
-            </p>
+            <EmptyState
+              icon={Shield}
+              title="No Clubs Joined Yet"
+              description="You don't belong to any cricket clubs yet. Create your club to organize teams, record seasons, and showcase top performers."
+              primaryAction={{
+                label: "Create Club",
+                href: "/clubs/create",
+                icon: Plus,
+              }}
+            />
           )}
         </section>
       )}
@@ -153,9 +158,15 @@ export default async function ClubsPage() {
           </div>
         ) : (
           !user && (
-            <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              No public clubs yet.
-            </p>
+            <EmptyState
+              icon={Shield}
+              title="No Public Clubs Found"
+              description="No public cricket clubs have been registered on the platform yet. Sign in to create the first club!"
+              primaryAction={{
+                label: "Sign In to Create Club",
+                href: "/auth/login",
+              }}
+            />
           )
         )}
         {user && !explore.length && null}

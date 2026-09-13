@@ -16,6 +16,10 @@ export async function getTeams(filters?: {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (filters?.mine && !user) {
+    return { data: [], error: null };
+  }
+
   let query = supabase.from("teams").select(`
       *,
       captain:users!teams_captain_id_fkey(full_name),
@@ -26,9 +30,31 @@ export async function getTeams(filters?: {
   // squad member). Without it (e.g. match-creation picker) all teams are
   // visible so opponents can be selected.
   if (user && filters?.mine) {
-    query = query.or(
-      `created_by.eq.${user.id},captain_id.eq.${user.id},vice_captain_id.eq.${user.id},team_players.user_id.eq.${user.id}`,
-    );
+    const { data: playerRows, error: playerErr } = await supabase
+      .from("team_players")
+      .select("team_id")
+      .eq("user_id", user.id);
+
+    if (playerErr) {
+      console.error(
+        "Error fetching player team memberships:",
+        playerErr.message || playerErr,
+      );
+    }
+
+    const playerTeamIds =
+      playerRows?.map((r) => r.team_id).filter(Boolean) ?? [];
+
+    const orConditions = [
+      `created_by.eq.${user.id}`,
+      `captain_id.eq.${user.id}`,
+      `vice_captain_id.eq.${user.id}`,
+    ];
+    if (playerTeamIds.length > 0) {
+      orConditions.push(`id.in.(${playerTeamIds.join(",")})`);
+    }
+
+    query = query.or(orConditions.join(","));
   }
 
   if (filters?.search) {
@@ -42,7 +68,7 @@ export async function getTeams(filters?: {
   const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
-    console.error("Error fetching teams:", error);
+    console.error("Error fetching teams:", error.message || error);
     return { data: null, error: error.message };
   }
 
@@ -60,6 +86,12 @@ export async function getTeams(filters?: {
 }
 
 export async function getTeam(id: string) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  ) {
+    return { data: null, error: "Invalid team ID" };
+  }
+
   const supabase = await createServerClient();
 
   const { data, error } = await supabase

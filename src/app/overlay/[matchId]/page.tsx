@@ -1,7 +1,11 @@
 import { createServerClient } from "~/lib/supabase/server";
 import { OverlayClient } from "./overlay-client";
+import { DEMO_MATCH_STATE } from "./demo-data";
 
 export const dynamic = "force-dynamic";
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function OverlayPage({
   params,
@@ -17,13 +21,30 @@ export default async function OverlayPage({
 }) {
   const { matchId } = await params;
   const initialParams = await searchParams;
-  const supabase = await createServerClient();
 
-  const { data } = await supabase
-    .from("live_match_state")
-    .select("*")
-    .eq("match_id", matchId)
-    .single();
+  if (matchId === "test") {
+    return (
+      <OverlayClient
+        matchId={matchId}
+        initial={DEMO_MATCH_STATE}
+        initialLayout={initialParams?.layout}
+        initialTheme={initialParams?.theme}
+        initialControls={initialParams?.controls !== "false"}
+        initialSponsor={initialParams?.sponsor}
+      />
+    );
+  }
+
+  let data = null;
+  if (UUID_REGEX.test(matchId)) {
+    const supabase = await createServerClient();
+    const result = await supabase
+      .from("live_match_state")
+      .select("*")
+      .eq("match_id", matchId)
+      .single();
+    data = result.data;
+  }
 
   return (
     <OverlayClient

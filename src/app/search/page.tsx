@@ -4,6 +4,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/badge";
 import { Search } from "lucide-react";
+import { EmptyState } from "~/components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -68,11 +69,20 @@ export default async function SearchPage({
       )}
 
       {result && !hasResults && (
-        <Card className="mt-6">
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            No results for “{q}”
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Search}
+          title={`No Results for "${q}"`}
+          description="We couldn't find any matches, teams, tournaments, clubs, or players matching your search query. Try checking for typos or searching a broader term."
+          primaryAction={{
+            label: "Explore Matches",
+            href: "/matches",
+          }}
+          secondaryAction={{
+            label: "Browse Tournaments",
+            href: "/tournaments",
+          }}
+          className="mt-6"
+        />
       )}
 
       {result && hasResults && (

@@ -151,6 +151,22 @@ function CreateTournamentForm() {
   );
 }
 
+function CreateTournamentBackButton() {
+  const searchParams = useSearchParams();
+  const clubId = searchParams.get("clubId");
+
+  const backHref = clubId ? `/clubs/${clubId}?tab=tournaments` : "/tournaments";
+  const backLabel = clubId ? "Back to Club" : "Back to Tournaments";
+
+  return (
+    <Button variant="ghost" asChild className="mb-4">
+      <Link href={backHref}>
+        <ChevronLeft className="mr-2 h-4 w-4" /> {backLabel}
+      </Link>
+    </Button>
+  );
+}
+
 export default function CreateTournamentPage() {
   const { user, loading: authLoading } = useAuth();
 
@@ -167,6 +183,7 @@ export default function CreateTournamentPage() {
       <div className="flex min-h-screen items-center justify-center">
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
+            <h2 className="mb-2 text-lg font-semibold">Sign In Required</h2>
             <p className="mb-4">Sign in to create a tournament</p>
             <Button asChild>
               <Link href="/auth/login?redirect=/tournaments/create">
@@ -182,11 +199,9 @@ export default function CreateTournamentPage() {
   return (
     <div className="min-h-screen bg-background py-8">
       <div className="container mx-auto max-w-2xl px-4">
-        <Button variant="ghost" asChild className="mb-4">
-          <Link href="/tournaments">
-            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Tournaments
-          </Link>
-        </Button>
+        <Suspense fallback={null}>
+          <CreateTournamentBackButton />
+        </Suspense>
 
         <Suspense
           fallback={

@@ -153,7 +153,7 @@ export function OverlayClient({
   initialSponsor = "",
 }: OverlayClientProps) {
   const [state, setState] = useState<LiveMatchState | null>(initial);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(matchId === "test");
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Customization states
@@ -174,14 +174,20 @@ export function OverlayClient({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const isRealUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      matchId,
+    );
+
   const refetch = useCallback(async () => {
+    if (!isRealUuid) return;
     const { data } = await supabase
       .from("live_match_state")
       .select("*")
       .eq("match_id", matchId)
       .single();
     if (data) setState(data as LiveMatchState);
-  }, [matchId]);
+  }, [isRealUuid, matchId]);
 
   // Keyboard shortcut to toggle drawer: 'S'
   useEffect(() => {
@@ -201,6 +207,8 @@ export function OverlayClient({
   }, []);
 
   useEffect(() => {
+    if (!isRealUuid) return;
+
     const scheduleRefetch = () => {
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
       fetchTimer.current = setTimeout(() => void refetch(), 250);
@@ -247,7 +255,7 @@ export function OverlayClient({
       clearInterval(poll);
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [matchId, refetch]);
+  }, [isRealUuid, matchId, refetch]);
 
   const copyObsUrl = () => {
     if (typeof window === "undefined") return;

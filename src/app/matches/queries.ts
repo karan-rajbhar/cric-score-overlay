@@ -30,7 +30,14 @@ export async function getMatches(filters?: {
   return { data, error: null };
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getMatch(matchId: string) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+
   const supabase = await createServerClient();
   const { data, error } = await supabase
     .from("matches")
@@ -69,6 +76,10 @@ export async function getMatch(matchId: string) {
 }
 
 export async function getScoringState(matchId: string) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+
   const supabase = await createServerClient();
   const { data: match, error } = await supabase
     .from("matches")
