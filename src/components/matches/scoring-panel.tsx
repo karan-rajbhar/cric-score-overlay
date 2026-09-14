@@ -12,8 +12,9 @@ interface ScoringPanelProps {
     extras?: { type: string; runs: number },
     shotZone?: string,
   ) => void;
-  onWicket: () => void;
+  onWicket: (extraType?: string | null) => void;
   onUndo?: () => void;
+  onSelectBall?: (index: number) => void;
   currentOver: number;
   currentBall: number;
   lastBalls: string[];
@@ -24,6 +25,7 @@ export function ScoringPanel({
   onScore,
   onWicket,
   onUndo,
+  onSelectBall,
   currentOver,
   currentBall,
   lastBalls,
@@ -47,17 +49,36 @@ export function ScoringPanel({
       label: "Leg bye",
       activeClass: "bg-violet-500 text-white",
     },
+    {
+      type: "penalty",
+      label: "Penalty (+5)",
+      activeClass: "bg-rose-600 text-white",
+    },
   ];
 
   const handleRunClick = (runs: number) => {
     const zone = selectedZone ?? undefined;
     if (selectedExtra) {
-      // Extra + additional runs (e.g. wide + 1 boundary).
-      onScore(
-        runs === 0 ? 0 : runs,
-        { type: selectedExtra, runs: runs === 0 ? 1 : runs },
-        zone,
-      );
+      if (selectedExtra === "wide") {
+        // In cricket, all runs on a wide are extras (striker gets 0 bat runs).
+        // If wide + boundary: 1 penalty + 4 boundary = 5 wides total.
+        onScore(0, { type: "wide", runs: 1 + runs }, zone);
+      } else if (selectedExtra === "no_ball") {
+        // 1 penalty run charged to bowler, plus runs off the bat credited to striker.
+        onScore(runs, { type: "no_ball", runs: 1 }, zone);
+      } else if (selectedExtra === "bye" || selectedExtra === "leg_bye") {
+        // Byes / Leg-byes are extras, 0 runs off the bat.
+        onScore(0, { type: selectedExtra, runs: runs === 0 ? 1 : runs }, zone);
+      } else if (selectedExtra === "penalty") {
+        // MCC Law 41/42/28: 5 penalty runs awarded to batting side
+        onScore(0, { type: "penalty", runs: runs === 0 ? 5 : runs }, zone);
+      } else {
+        onScore(
+          runs === 0 ? 0 : runs,
+          { type: selectedExtra, runs: runs === 0 ? 1 : runs },
+          zone,
+        );
+      }
       setSelectedExtra(null);
     } else {
       onScore(runs, undefined, zone);
@@ -70,24 +91,28 @@ export function ScoringPanel({
   };
 
   const getBallDisplay = (ball: string) => {
-    if (ball === "W") return "bg-red-600 text-white border-red-600";
+    if (ball === "W")
+      return "bg-red-600 text-white border-red-600 font-black shadow-sm";
     if (ball === "4")
-      return "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/40";
+      return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 font-black";
     if (ball === "6")
-      return "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/40";
+      return "bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/40 font-black";
     if (ball.includes("wd") || ball.includes("nb"))
-      return "bg-amber-400/20 text-amber-700 dark:text-amber-300 border-amber-500/50";
-    return "bg-secondary text-secondary-foreground border-border";
+      return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border-amber-500/40 font-bold";
+    return "bg-muted/60 text-muted-foreground border-border/80 font-medium";
   };
 
   return (
-    <Card>
-      <CardContent className="space-y-4 p-4">
+    <Card className="rounded-3xl border-emerald-500/20 bg-card/90 shadow-sm">
+      <CardContent className="space-y-4 p-5 sm:p-6">
         {/* Header row */}
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Score this delivery
-          </h3>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+            <h3 className="text-sm font-extrabold tracking-tight text-foreground">
+              Score Delivery
+            </h3>
+          </div>
           <div className="flex items-center gap-2">
             {onUndo && (
               <Button
@@ -96,81 +121,111 @@ export function ScoringPanel({
                 onClick={onUndo}
                 disabled={disabled}
                 title="Undo last ball"
+                className="h-8 w-8 rounded-full p-0 text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="h-4 w-4" />
               </Button>
             )}
-            <span className="tabular rounded-md border border-border bg-secondary px-2.5 py-1 font-score text-lg font-semibold leading-none">
-              {currentOver}.{currentBall}
+            <span className="tabular rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-score text-base font-extrabold leading-none text-emerald-800 dark:text-emerald-300">
+              Over {currentOver}.{currentBall}
             </span>
           </div>
         </div>
 
-        {/* This over */}
+        {/* This over ball-by-ball pill trail */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">This over:</span>
+          <span className="text-xs font-bold text-muted-foreground">
+            This over:
+          </span>
           {lastBalls.length > 0 ? (
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               {lastBalls.map((ball, idx) => (
-                <span
+                <button
                   key={idx}
+                  type="button"
+                  onClick={() => onSelectBall?.(idx)}
                   className={cn(
-                    "tabular inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold",
+                    "flex h-8 w-8 items-center justify-center rounded-full border text-xs transition-transform duration-150 hover:scale-110 active:scale-95",
                     getBallDisplay(ball),
                   )}
+                  title={`Ball ${idx + 1}: ${ball}`}
                 >
                   {ball}
-                </span>
+                </button>
               ))}
             </div>
           ) : (
-            <span className="text-xs text-muted-foreground/70">
-              No deliveries yet
+            <span className="text-xs font-medium text-muted-foreground/70">
+              Awaiting first ball of over...
             </span>
           )}
         </div>
 
         {/* Extra pending banner */}
         {selectedExtra && (
-          <div className="flex items-center justify-between rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <span className="flex items-center gap-2 text-sm font-medium">
+          <div className="flex items-center justify-between rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3.5 py-2.5 shadow-sm">
+            <span className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              {selectedExtra.replace("_", " ")} — tap runs to continue
+              {selectedExtra.replace("_", " ").toUpperCase()} PENDING: Tap runs
+              to record delivery
             </span>
             <Button
               variant="ghost"
               size="sm"
+              className="h-6 w-6 rounded-full p-0"
               onClick={() => setSelectedExtra(null)}
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
         )}
 
-        {/* Optional Shot Zone (Wagon Wheel) Selector */}
+        {/* Optional Shot Zone (Wagon Wheel) Selector as Joyful Pills */}
         <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Shot zone (optional for wagon wheel)</span>
+            <span className="font-semibold">
+              Shot zone (optional for live wagon radar)
+            </span>
             {selectedZone && (
               <button
                 type="button"
                 onClick={() => setSelectedZone(null)}
-                className="text-[10px] text-muted-foreground underline hover:text-foreground"
+                className="text-[10.5px] font-bold text-emerald-600 underline hover:text-emerald-700"
               >
                 Clear
               </button>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-1 sm:grid-cols-8">
+          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8">
             {[
-              { id: "third_man", label: "3rd Man" },
-              { id: "point", label: "Point" },
-              { id: "cover", label: "Cover" },
-              { id: "long_off", label: "Long Off" },
-              { id: "long_on", label: "Long On" },
-              { id: "mid_wicket", label: "Mid Wkt" },
-              { id: "square_leg", label: "Sq Leg" },
-              { id: "fine_leg", label: "Fine Leg" },
+              { id: "third_man", label: "3rd Man", bg: "hover:border-sky-400" },
+              { id: "point", label: "Point", bg: "hover:border-amber-400" },
+              { id: "cover", label: "Cover", bg: "hover:border-emerald-400" },
+              {
+                id: "long_off",
+                label: "Long Off",
+                bg: "hover:border-purple-400",
+              },
+              {
+                id: "long_on",
+                label: "Long On",
+                bg: "hover:border-orange-400",
+              },
+              {
+                id: "mid_wicket",
+                label: "Mid Wkt",
+                bg: "hover:border-teal-400",
+              },
+              {
+                id: "square_leg",
+                label: "Sq Leg",
+                bg: "hover:border-rose-400",
+              },
+              {
+                id: "fine_leg",
+                label: "Fine Leg",
+                bg: "hover:border-indigo-400",
+              },
             ].map((z) => (
               <button
                 key={z.id}
@@ -179,10 +234,11 @@ export function ScoringPanel({
                   setSelectedZone((prev) => (prev === z.id ? null : z.id))
                 }
                 className={cn(
-                  "truncate rounded border px-1.5 py-1 text-center text-xs font-medium transition-colors",
+                  "truncate rounded-full border px-2 py-1 text-center text-xs font-bold transition-all duration-150 active:scale-95",
                   selectedZone === z.id
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted",
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400"
+                    : "border-border/70 bg-muted/40 text-muted-foreground hover:bg-muted/70",
+                  z.bg,
                 )}
               >
                 {z.label}
@@ -191,27 +247,57 @@ export function ScoringPanel({
           </div>
         </div>
 
-        {/* Runs */}
-        <div className="grid grid-cols-6 gap-2">
-          {runButtons.map((runs) => (
-            <Button
-              key={runs}
-              variant="outline"
-              size="lg"
-              disabled={disabled}
-              className={cn(
-                "score-display h-14 text-2xl font-semibold",
-                runs === 0 && "col-span-1",
-              )}
-              onClick={() => handleRunClick(runs)}
-            >
-              {runs}
-            </Button>
-          ))}
+        {/* 6 Bouncy Run Buttons */}
+        <div className="grid grid-cols-6 gap-2 sm:gap-2.5">
+          {runButtons.map((runs) => {
+            const isFour = runs === 4;
+            const isSix = runs === 6;
+            const isDot = runs === 0;
+            return (
+              <button
+                key={runs}
+                type="button"
+                disabled={disabled}
+                className={cn(
+                  "score-display tabular flex h-16 flex-col items-center justify-center rounded-2xl border-2 text-3xl font-black transition-all duration-150 hover:-translate-y-0.5 active:scale-90 disabled:opacity-50",
+                  isDot &&
+                    "border-border/80 bg-background/80 text-muted-foreground shadow-sm hover:border-slate-400 hover:text-foreground",
+                  runs === 1 &&
+                    "border-amber-500/30 bg-amber-500/5 text-amber-800 shadow-sm hover:bg-amber-500/15 dark:text-amber-300",
+                  runs === 2 &&
+                    "border-amber-500/40 bg-amber-500/10 text-amber-900 shadow-sm hover:bg-amber-500/20 dark:text-amber-200",
+                  runs === 3 &&
+                    "border-orange-500/40 bg-orange-500/10 text-orange-900 shadow-sm hover:bg-orange-500/20 dark:text-orange-200",
+                  isFour &&
+                    "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 hover:bg-emerald-500/25 dark:text-emerald-300",
+                  isSix &&
+                    "border-purple-500/50 bg-purple-500/15 text-purple-700 shadow-md ring-2 ring-purple-500/20 hover:bg-purple-500/25 dark:text-purple-300",
+                )}
+                onClick={() => handleRunClick(runs)}
+              >
+                <span>{runs}</span>
+                {isFour && (
+                  <span className="font-sans text-[9px] font-extrabold tracking-wider text-emerald-600 dark:text-emerald-400">
+                    FOUR 💥
+                  </span>
+                )}
+                {isSix && (
+                  <span className="font-sans text-[9px] font-extrabold tracking-wider text-purple-600 dark:text-purple-400">
+                    MAX ✨
+                  </span>
+                )}
+                {isDot && (
+                  <span className="font-sans text-[9px] font-bold text-muted-foreground">
+                    DOT
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Extras */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* Extras as Playful Capsules */}
+        <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 sm:gap-2">
           {extraTypes.map(({ type, label, activeClass }) => (
             <button
               key={type}
@@ -219,10 +305,10 @@ export function ScoringPanel({
               onClick={() => handleExtraClick(type)}
               disabled={disabled}
               className={cn(
-                "h-9 rounded-md border text-sm font-medium transition-colors",
+                "h-10 rounded-xl border text-xs font-bold transition-all duration-150 active:scale-95",
                 selectedExtra === type
-                  ? `${activeClass} border-transparent`
-                  : "border-border hover:bg-secondary",
+                  ? `${activeClass} border-transparent font-black shadow-md`
+                  : "border-border/80 bg-background/80 text-foreground shadow-sm hover:bg-muted",
               )}
             >
               {label}
@@ -230,15 +316,19 @@ export function ScoringPanel({
           ))}
         </div>
 
-        {/* Wicket */}
+        {/* Wicket Button: Radiant Joyful Red with Lightning */}
         <Button
           variant="destructive"
           size="lg"
-          className="w-full font-semibold tracking-wide"
-          onClick={onWicket}
+          className="h-12 w-full gap-2 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-sm font-black tracking-wider text-white shadow-md hover:from-red-700 hover:to-rose-700 active:scale-95"
+          onClick={() => {
+            onWicket(selectedExtra);
+            setSelectedExtra(null);
+            setSelectedZone(null);
+          }}
           disabled={disabled}
         >
-          Wicket
+          <span>⚡ WICKET DISMISSAL</span>
         </Button>
       </CardContent>
     </Card>

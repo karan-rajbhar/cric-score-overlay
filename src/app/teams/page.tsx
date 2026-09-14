@@ -44,7 +44,7 @@ export default async function TeamsPage({
       <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {view === "mine" ? "My Teams" : "All Teams"}
+            {view === "mine" ? "My teams" : "All teams"}
           </h1>
           <p className="mt-1 text-muted-foreground">
             {view === "mine"
@@ -55,7 +55,7 @@ export default async function TeamsPage({
         <Button asChild>
           <Link href="/teams/create">
             <Plus className="mr-2 h-4 w-4" />
-            Create Team
+            Create team
           </Link>
         </Button>
       </div>
@@ -101,10 +101,10 @@ export default async function TeamsPage({
       {error ? (
         <EmptyState
           icon={AlertCircle}
-          title="Unable to Load Teams"
+          title="Unable to load teams"
           description={`There was an issue fetching teams: ${error}`}
           primaryAction={{
-            label: "Browse All Teams",
+            label: "Browse all teams",
             href: "/teams?view=all",
           }}
         />
@@ -119,8 +119,8 @@ export default async function TeamsPage({
                 icon={Users}
                 title={
                   view === "mine"
-                    ? "You're Not in Any Teams Yet"
-                    : "No Teams Found"
+                    ? "You're not in any teams yet"
+                    : "No teams found"
                 }
                 description={
                   view === "mine"
@@ -130,14 +130,14 @@ export default async function TeamsPage({
                       : "No teams have been created on the platform yet."
                 }
                 primaryAction={{
-                  label: "Create Team",
+                  label: "Create team",
                   href: "/teams/create",
                   icon: Plus,
                 }}
                 secondaryAction={
                   view === "mine"
                     ? {
-                        label: "Browse All Teams",
+                        label: "Browse all teams",
                         href: "/teams?view=all",
                       }
                     : undefined

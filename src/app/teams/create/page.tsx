@@ -35,6 +35,7 @@ interface ClubOption {
 function CreateTeamForm() {
   const searchParams = useSearchParams();
   const prefilledClubId = searchParams.get("clubId") ?? "";
+  const { user } = useAuth();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,24 +45,56 @@ function CreateTeamForm() {
   useEffect(() => {
     let cancelled = false;
     const fetchClubs = async () => {
+      if (!user) return;
       const supabase = createClient();
-      const { data } = await supabase
-        .from("clubs")
-        .select("id, name, short_name")
-        .order("name");
+      const [ownedClubsRes, memberClubsRes] = await Promise.all([
+        supabase
+          .from("clubs")
+          .select("id, name, short_name")
+          .eq("owner_id", user.id)
+          .order("name"),
+        supabase
+          .from("club_memberships")
+          .select("club:clubs(id, name, short_name)")
+          .eq("user_id", user.id)
+          .in("role", ["owner", "admin"])
+          .eq("status", "active"),
+      ]);
 
-      if (!cancelled && data) {
-        setClubs(data);
-        if (prefilledClubId) {
-          setSelectedClubId(prefilledClubId);
-        }
+      if (cancelled) return;
+
+      const clubMap = new Map<string, ClubOption>();
+      (ownedClubsRes.data ?? []).forEach((c) => {
+        clubMap.set(c.id, c);
+      });
+      (memberClubsRes.data ?? []).forEach((m) => {
+        const c = Array.isArray(m.club) ? m.club[0] : m.club;
+        if (c) clubMap.set(c.id, c);
+      });
+
+      // If prefilled via URL, allow it to remain selected if valid
+      if (prefilledClubId && !clubMap.has(prefilledClubId)) {
+        const { data: prefClub } = await supabase
+          .from("clubs")
+          .select("id, name, short_name")
+          .eq("id", prefilledClubId)
+          .single();
+        if (prefClub) clubMap.set(prefClub.id, prefClub);
+      }
+
+      const available = Array.from(clubMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      setClubs(available);
+      if (prefilledClubId) {
+        setSelectedClubId(prefilledClubId);
       }
     };
     void fetchClubs();
     return () => {
       cancelled = true;
     };
-  }, [prefilledClubId]);
+  }, [prefilledClubId, user]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -87,8 +120,8 @@ function CreateTeamForm() {
       <CardHeader>
         <div className="flex items-center gap-2 text-primary">
           <Users className="h-5 w-5" />
-          <span className="text-xs font-bold uppercase tracking-wider">
-            Team Registration
+          <span className="text-xs font-semibold text-primary">
+            Team registration
           </span>
         </div>
         <CardTitle className="text-xl">Create New Team</CardTitle>

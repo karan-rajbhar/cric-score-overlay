@@ -87,14 +87,14 @@ export function NavigationBar() {
             <PanelLeft className="h-4 w-4" />
           </Button>
 
-          <Link href="/" className="flex shrink-0 items-center gap-2">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
             <BrandMark />
             <BrandWordmark />
           </Link>
         </div>
 
-        {/* Center: Search & Live ticker */}
-        <div className="hidden w-full max-w-md items-center gap-3 lg:flex">
+        {/* Center: Search */}
+        <div className="hidden w-full max-w-md items-center lg:flex">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -117,18 +117,6 @@ export function NavigationBar() {
               ⌘K
             </kbd>
           </form>
-
-          {/* Live broadcast badge link */}
-          <Link
-            href="/matches"
-            className="flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-            </span>
-            <span>Live Center</span>
-          </Link>
         </div>
 
         {/* Right: Quick actions, Theme, Profile */}

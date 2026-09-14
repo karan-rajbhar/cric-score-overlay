@@ -61,7 +61,7 @@ export async function getMatch(matchId: string) {
           fielder:users!fall_of_wickets_fielder_id_fkey(full_name)
         )
       ),
-      tournament:tournaments(id, name),
+      tournament:tournaments(id, name, tournament_format, venue),
       club:clubs(id, name),
       player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
     `,
@@ -142,20 +142,42 @@ export async function getScoringState(matchId: string) {
   const bowler =
     current?.bowling_performances.find((p) => p.is_current_bowler) ?? null;
   let thisOverDeliveries: Array<{
+    id: string;
+    over_number?: number;
+    ball_number?: number;
     runs_scored: number | null;
     extras: number | null;
     extra_type: string | null;
     is_wicket: boolean | null;
+    dismissal_type?: string | null;
+    bowler_id?: string | null;
+    batsman_id?: string | null;
+    dismissed_player_id?: string | null;
   }> = [];
+  let lastOverBowlerId: string | null = null;
   if (current) {
     const ongoingOver = Math.floor((current.total_balls ?? 0) / 6);
     const { data: balls } = await supabase
       .from("ball_by_ball")
-      .select("runs_scored, extras, extra_type, is_wicket")
+      .select(
+        "id, over_number, ball_number, runs_scored, extras, extra_type, is_wicket, dismissal_type, bowler_id, batsman_id, dismissed_player_id",
+      )
       .eq("innings_id", current.id)
       .eq("over_number", ongoingOver)
       .order("seq");
     thisOverDeliveries = balls ?? [];
+
+    if (ongoingOver > 0) {
+      const { data: lastOverBall } = await supabase
+        .from("ball_by_ball")
+        .select("bowler_id")
+        .eq("innings_id", current.id)
+        .eq("over_number", ongoingOver - 1)
+        .order("seq", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastOverBowlerId = lastOverBall?.bowler_id ?? null;
+    }
   }
   return {
     data: {
@@ -163,6 +185,7 @@ export async function getScoringState(matchId: string) {
       strikerId: striker?.user_id ?? null,
       nonStrikerId: nonStriker?.user_id ?? null,
       bowlerId: bowler?.user_id ?? null,
+      lastOverBowlerId,
       thisOverDeliveries,
     },
     error: null,
@@ -295,6 +318,9 @@ export async function getMatchBallLog(matchId: string) {
         *,
         batsman:users!ball_by_ball_batsman_id_fkey(id, full_name),
         bowler:users!ball_by_ball_bowler_id_fkey(id, full_name),
+        non_striker:users!ball_by_ball_non_striker_id_fkey(id, full_name),
+        fielder:users!ball_by_ball_fielder_id_fkey(id, full_name),
+        dismissed_player:users!ball_by_ball_dismissed_player_id_fkey(id, full_name),
         innings(innings_number, team_id)
     `,
     )
@@ -305,6 +331,41 @@ export async function getMatchBallLog(matchId: string) {
     return { data: null, error: error.message };
   }
   return { data, error: null };
+}
+
+export async function getFullMatchForExport(matchId: string) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+
+  const [matchRes, ballsRes] = await Promise.all([
+    getMatch(matchId),
+    getMatchBallLog(matchId),
+  ]);
+
+  if (matchRes.error || !matchRes.data) {
+    return { data: null, error: matchRes.error ?? "Match not found" };
+  }
+
+  const match = matchRes.data as unknown as import("~/lib/match-types").Match;
+
+  if (ballsRes.data && match.innings) {
+    const balls =
+      ballsRes.data as unknown as import("~/lib/match-types").BallEvent[];
+    const ballsByInnings = new Map<string, typeof balls>();
+    for (const b of balls) {
+      const arr = ballsByInnings.get(b.innings_id) ?? [];
+      arr.push(b);
+      ballsByInnings.set(b.innings_id, arr);
+    }
+
+    match.innings = match.innings.map((inn) => ({
+      ...inn,
+      ball_by_ball: ballsByInnings.get(inn.id) ?? [],
+    }));
+  }
+
+  return { data: match, error: null };
 }
 
 export async function getOverSummaries(matchId: string) {

@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -87,6 +88,10 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add Player to Squad</DialogTitle>
+          <DialogDescription>
+            Search registered players by name and assign them to this team
+            roster.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -97,7 +102,11 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
               onChange={(e) => setQuery(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit" disabled={searching || query.length < 2}>
+            <Button
+              type="submit"
+              disabled={searching || query.length < 2}
+              aria-label="Search players"
+            >
               {searching ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

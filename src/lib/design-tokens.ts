@@ -257,13 +257,13 @@ export const PALETTE = {
     },
   },
 
-  // Clean Paper Neutrals (Light Mode)
+  // Clean Paper Neutrals (Light Mode - Chromatic Joy)
   lightSurfaces: {
     base: {
-      hsl: "40 20% 98%",
-      hex: "#faf9f6",
-      rgb: [250, 249, 246],
-      label: "Surface Base (Light)",
+      hsl: "40 33% 98%",
+      hex: "#fffdfa",
+      rgb: [255, 253, 250],
+      label: "Surface Base (Chromatic Joy Daylight)",
     },
     surface1: {
       hsl: "0 0% 100%",

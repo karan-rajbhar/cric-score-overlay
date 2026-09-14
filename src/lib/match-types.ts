@@ -88,6 +88,8 @@ export interface BallEvent {
   id: string;
   batsman?: UserRef | null;
   bowler?: UserRef | null;
+  non_striker?: UserRef | null;
+  fielder?: UserRef | null;
   innings?: { innings_number: number; team_id: string } | null;
   match_id: string;
   innings_id: string;
@@ -96,13 +98,17 @@ export interface BallEvent {
   batsman_id: string;
   non_striker_id?: string | null;
   bowler_id?: string | null;
+  fielder_id?: string | null;
   runs_scored: number;
   extras: number;
   extra_type?: string | null;
   is_wicket: boolean;
   dismissal_type?: string | null;
+  dismissed_player_id?: string | null;
+  dismissed_player?: UserRef | null;
   commentary?: string | null;
   shot_zone?: string | null;
+  seq?: number;
 }
 
 export interface Innings {
@@ -143,13 +149,18 @@ export interface Match {
   actual_end_time?: string | null;
   toss_winner_team_id?: string | null;
   toss_decision?: string | null;
-  result_description?: string | null;
+  result_type?: "win" | "tie" | "no_result" | "abandoned" | string | null;
   winning_team_id?: string | null;
+  win_margin_type?: "runs" | "wickets" | "balls" | string | null;
+  win_margin?: number | null;
+  result_description?: string | null;
   weather_conditions?: string | null;
   pitch_conditions?: string | null;
   ball_type?: string | null;
   umpire1_name?: string | null;
   umpire2_name?: string | null;
+  third_umpire_name?: string | null;
+  scorer_name?: string | null;
   team1_id: string;
   team2_id: string;
   created_by?: string | null;
@@ -159,11 +170,18 @@ export interface Match {
   wickets_per_innings?: number | null;
   last_man_stands?: boolean | null;
   golden_ball?: boolean | null;
+  club_id?: string | null;
+  tournament_id?: string | null;
   season_id?: string | null;
   team1: MatchTeam;
   team2: MatchTeam;
   innings?: Innings[];
-  tournament?: { id: string; name: string } | null;
+  tournament?: {
+    id: string;
+    name: string;
+    tournament_format?: string | null;
+    venue?: string | null;
+  } | null;
   club?: { id: string; name: string } | null;
 }
 

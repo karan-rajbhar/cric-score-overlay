@@ -29,6 +29,7 @@ export interface BallEvent {
   isWicket?: boolean;
   dismissalType?: string;
   fielderId?: string | null;
+  dismissedPlayerId?: string | null;
   commentary?: string;
   shotZone?: string | null;
 }

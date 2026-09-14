@@ -52,6 +52,14 @@ export default {
           DEFAULT: "hsl(var(--sky))",
           foreground: "hsl(var(--sky-foreground))",
         },
+        violet: {
+          DEFAULT: "hsl(var(--violet))",
+          foreground: "hsl(var(--violet-foreground))",
+        },
+        magenta: {
+          DEFAULT: "hsl(var(--magenta))",
+          foreground: "hsl(var(--magenta-foreground))",
+        },
         surface: {
           base: "hsl(var(--surface-base))",
           card: "hsl(var(--surface-card))",

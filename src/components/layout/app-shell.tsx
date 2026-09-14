@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         toggleMobile,
       }}
     >
-      <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <div className="sunlit-canvas flex min-h-screen flex-col bg-background text-foreground">
         <NavigationBar />
 
         <div className="flex flex-1">
@@ -94,8 +94,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-row">
               <p>
-                © 2026 CricScore &bull; Live cricket scoring, tournament
-                management & broadcast engine.
+                © 2026 CricScore. Live cricket scoring, tournament management
+                and broadcast engine.
               </p>
               <div className="flex gap-5">
                 <a href="#" className="transition-colors hover:text-foreground">

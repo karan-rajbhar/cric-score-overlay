@@ -10,8 +10,8 @@
     --font-score:
       "Barlow Condensed", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-    /* Light theme - clean paper neutrals with calibrated WCAG 2.1 AA contrast */
-    --background: 40 20% 98%;
+    /* Light theme - Chromatic Joy: Sunlit porcelain & radiant daylight celebration */
+    --background: 40 33% 98%;
     --foreground: 220 30% 10%;
     --card: 0 0% 100%;
     --card-foreground: 220 30% 10%;
@@ -19,59 +19,63 @@
     --popover-foreground: 220 30% 10%;
 
     /* Brand Pitch Emerald */
-    --primary: 152 68% 30%;
+    --primary: 152 70% 32%;
     --primary-foreground: 0 0% 100%;
 
     /* Secondary & Muted Surfaces */
-    --secondary: 150 10% 94%;
+    --secondary: 150 14% 95%;
     --secondary-foreground: 220 22% 18%;
-    --muted: 150 10% 94%;
+    --muted: 150 14% 95%;
     --muted-foreground: 220 12% 40%;
-    --accent: 150 12% 91%;
+    --accent: 150 16% 92%;
     --accent-foreground: 220 25% 12%;
 
-    /* Status Colors */
+    /* Chromatic Joy Accents */
     --destructive: 354 88% 44%;
     --destructive-foreground: 0 0% 100%;
     --ruby: 354 84% 54%;
     --ruby-foreground: 0 0% 100%;
-    --gold: 38 92% 44%;
+    --gold: 38 92% 48%;
     --gold-foreground: 0 0% 100%;
-    --sky: 200 85% 38%;
+    --sky: 199 89% 46%;
     --sky-foreground: 0 0% 100%;
+    --violet: 262 83% 58%;
+    --violet-foreground: 0 0% 100%;
+    --magenta: 330 81% 60%;
+    --magenta-foreground: 0 0% 100%;
 
     /* Borders & Rings */
-    --border: 150 8% 86%;
-    --input: 150 8% 84%;
-    --ring: 152 68% 30%;
+    --border: 150 10% 88%;
+    --input: 150 10% 86%;
+    --ring: 152 70% 32%;
 
     /* Surfaces */
-    --surface-base: 40 20% 98%;
+    --surface-base: 40 33% 98%;
     --surface-card: 0 0% 100%;
-    --surface-elevated: 150 10% 95%;
-    --surface-hover: 150 12% 90%;
+    --surface-elevated: 150 14% 96%;
+    --surface-hover: 150 16% 92%;
 
     /* Sidebar Tokens */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 30% 10%;
-    --sidebar-border: 150 8% 88%;
-    --sidebar-active: 150 12% 91%;
-    --sidebar-active-foreground: 152 68% 28%;
+    --sidebar-border: 150 10% 90%;
+    --sidebar-active: 150 16% 93%;
+    --sidebar-active-foreground: 152 70% 28%;
 
-    --radius: 0.625rem; /* 10px */
+    --radius: 0.75rem; /* 12px - friendly, buoyant, rounded */
 
     /* Chart colors */
-    --chart-1: 152 68% 30%;
-    --chart-2: 200 80% 42%;
-    --chart-3: 38 92% 45%;
-    --chart-4: 354 84% 50%;
-    --chart-5: 270 70% 50%;
+    --chart-1: 152 70% 32%;
+    --chart-2: 199 89% 46%;
+    --chart-3: 38 92% 48%;
+    --chart-4: 330 81% 60%;
+    --chart-5: 262 83% 58%;
 
     /* Legacy compatibility aliases */
-    --cricket-primary: 152 68% 30%;
+    --cricket-primary: 152 70% 32%;
     --cricket-secondary: 152 70% 23%;
     --cricket-accent: 354 84% 54%;
-    --cricket-neutral: 150 10% 94%;
+    --cricket-neutral: 150 14% 95%;
   }
 
   .dark {
@@ -104,6 +108,10 @@
     --gold-foreground: 40 95% 10%;
     --sky: 200 85% 55%;
     --sky-foreground: 200 95% 10%;
+    --violet: 262 83% 66%;
+    --violet-foreground: 0 0% 100%;
+    --magenta: 330 81% 66%;
+    --magenta-foreground: 0 0% 100%;
 
     /* Borders & Rings */
     --border: 220 16% 18%;
@@ -180,7 +188,7 @@
   }
 
   .data-table th {
-    @apply border-b border-border bg-muted/40 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+    @apply border-b border-border bg-muted/40 px-4 py-3 text-xs font-semibold text-muted-foreground;
   }
 
   .data-table td {
@@ -206,7 +214,7 @@
 
   /* Status pills */
   .status-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium;
   }
   .status-live {
     @apply status-pill border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400;
@@ -221,6 +229,29 @@
   /* Tactile interactive button states */
   .interactive-button {
     @apply transition-all duration-150 active:scale-[0.98];
+  }
+
+  /* Chromatic Joy: Sunlit Meadow Grid - subtle daylight texture inspired by the canvas artwork */
+  .sunlit-canvas {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(hsla(152, 60%, 45%, 0.08) 1.2px, transparent 0),
+      linear-gradient(to right, hsla(152, 60%, 45%, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, hsla(152, 60%, 45%, 0.03) 1px, transparent 1px);
+    background-size:
+      24px 24px,
+      48px 48px,
+      48px 48px;
+  }
+
+  /* Cheerful Pill Tag */
+  .pill-bubble {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm;
+  }
+
+  /* Radiant Text Gradient */
+  .gradient-joy-text {
+    @apply bg-gradient-to-r from-emerald-600 via-amber-500 to-rose-500 bg-clip-text text-transparent dark:from-emerald-400 dark:via-amber-300 dark:to-rose-400;
   }
 }
 
@@ -243,4 +274,337 @@
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite ease-in-out;
+}
+
+/* Broadcast Marquee Ticker */
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: marquee 30s linear infinite;
+}
+
+/* Score change celebration pulse */
+@keyframes scorePulse {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.9));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0));
+  }
+}
+
+.animate-score-pulse {
+  animation: scorePulse 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Authentic TV Broadcast Angled Shapes & Glass Sheens */
+.clip-slant-right {
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
+}
+
+.clip-slant-left {
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%);
+}
+
+.clip-chamfer-both {
+  clip-path: polygon(
+    12px 0%,
+    calc(100% - 12px) 0%,
+    100% 12px,
+    100% calc(100% - 12px),
+    calc(100% - 12px) 100%,
+    12px 100%,
+    0% calc(100% - 12px),
+    0% 12px
+  );
+}
+
+.broadcast-gloss {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.04) 49%,
+    rgba(0, 0, 0, 0.22) 51%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+}
+
+.broadcast-bevel {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+    0 8px 24px rgba(0, 0, 0, 0.85);
+}
+
+/* Broadcast Specular Light Sweep */
+@keyframes lightSweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+  }
+  50%,
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+  }
+}
+
+.animate-light-sweep {
+  animation: lightSweep 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Fast Broadcast Stinger Spring Entry */
+@keyframes stingerEntry {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(24px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-stinger-entry {
+  animation: stingerEntry 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* In-Bug Sub-Bar Flip Transition */
+@keyframes subBarFlip {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-sub-bar-flip {
+  animation: subBarFlip 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Television Parallelogram Over-Ball Tiles */
+.skew-tile {
+  transform: skewX(-12deg);
+}
+
+.skew-tile-content {
+  transform: skewX(12deg);
+}
+
+/* Broadcast Pro / Premium Broadcast Animations & Motifs */
+
+/* 1. Thunder Shockwave Blast */
+@keyframes shockwave {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.animate-shockwave {
+  animation: shockwave 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+/* 2. Apex Gold Sparkle Embers */
+@keyframes sparkle {
+  0%,
+  100% {
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.25) rotate(90deg);
+    opacity: 1;
+    filter: drop-shadow(0 0 8px #f59e0b);
+  }
+}
+
+.animate-sparkle {
+  animation: sparkle 2.2s ease-in-out infinite;
+}
+
+/* 3. Volt Cyber Lightning Flash */
+@keyframes lightningFlash {
+  0%,
+  100% {
+    opacity: 0.2;
+    filter: drop-shadow(0 0 2px #00ff66);
+  }
+  12% {
+    opacity: 1;
+    filter: drop-shadow(0 0 20px #00f0ff);
+  }
+  24% {
+    opacity: 0.35;
+  }
+  36% {
+    opacity: 0.95;
+    filter: drop-shadow(0 0 28px #00ff66);
+  }
+  55% {
+    opacity: 0.3;
+  }
+  75% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 16px #00f0ff);
+  }
+}
+
+.animate-lightning-flash {
+  animation: lightningFlash 2s ease-in-out infinite;
+}
+
+/* 4. Nakshatra Celestial Orbit */
+@keyframes cosmicOrbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-cosmic-orbit {
+  animation: cosmicOrbit 14s linear infinite;
+}
+
+/* 5. Dharma Royal Banner Unfurl */
+@keyframes bannerUnfurl {
+  0% {
+    transform: scaleY(0.15) scaleX(0.9);
+    opacity: 0;
+  }
+  60% {
+    transform: scaleY(1.04) scaleX(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(1) scaleX(1);
+    opacity: 1;
+  }
+}
+
+.animate-banner-unfurl {
+  animation: bannerUnfurl 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 6. Pulse Glow */
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 22px currentColor);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Hexagon & Tech Clip Paths */
+.clip-hexagon {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
+.clip-notch-card {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+}
+
+/* Carbon Fiber Matrix Background */
+.carbon-matrix {
+  background-color: #0d0d11;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    4px 4px;
+}
+
+/* 7. Agni Magma & Flame Keyframes */
+@keyframes flameFlicker {
+  0%,
+  100% {
+    transform: scaleY(1) scaleX(1) translateY(0);
+    filter: drop-shadow(0 0 12px #ff4500) drop-shadow(0 0 24px #ff8c00);
+  }
+  25% {
+    transform: scaleY(1.06) scaleX(0.97) translateY(-3px);
+    filter: drop-shadow(0 0 22px #ff2200) drop-shadow(0 0 35px #ffaa00);
+  }
+  50% {
+    transform: scaleY(0.98) scaleX(1.03) translateY(1px);
+    filter: drop-shadow(0 0 14px #ff3b00) drop-shadow(0 0 20px #ff6600);
+  }
+  75% {
+    transform: scaleY(1.04) scaleX(0.99) translateY(-2px);
+    filter: drop-shadow(0 0 26px #ff0000) drop-shadow(0 0 38px #ffd700);
+  }
+}
+
+.animate-flame-flicker {
+  animation: flameFlicker 1.8s ease-in-out infinite;
+}
+
+/* Agni Magma Matrix Texture */
+.magma-matrix {
+  background-color: #120502;
+  background-image:
+    radial-gradient(rgba(255, 69, 0, 0.16) 1.5px, transparent 0),
+    radial-gradient(rgba(255, 140, 0, 0.09) 1.5px, transparent 0);
+  background-size: 10px 10px;
+  background-position:
+    0 0,
+    5px 5px;
+}
+
+.clip-flame-badge {
+  clip-path: polygon(
+    0 0,
+    calc(100% - 12px) 0,
+    100% 50%,
+    calc(100% - 12px) 100%,
+    0 100%,
+    12px 50%
+  );
 }

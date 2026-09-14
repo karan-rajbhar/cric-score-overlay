@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
-import { Download, Share2 } from "lucide-react";
+import { Download, Share2, FileJson, Loader2 } from "lucide-react";
+import { downloadCricsheetJson } from "~/lib/cricsheet";
+import { getFullMatchForExport } from "~/app/matches/queries";
 import {
   buildMatchReportHtml,
   buildExportSummary,
@@ -42,67 +44,71 @@ function drawSummary(
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
+  // Top accent stripe
+  ctx.fillStyle = COLORS.accent;
+  ctx.fillRect(0, 0, W, 4);
+
   ctx.textBaseline = "top";
 
   // Header
   ctx.fillStyle = COLORS.text;
-  ctx.font = "bold 40px Arial, sans-serif";
-  ctx.fillText("SUMMARY", 80, 52);
+  ctx.font = "bold 34px Arial, sans-serif";
+  ctx.fillText("MATCH SUMMARY", 64, 34);
 
   ctx.textAlign = "right";
   ctx.fillStyle = COLORS.accent;
-  ctx.font = "bold 22px Arial, sans-serif";
-  ctx.fillText("C R I C S C O R E", W - 80, 62);
+  ctx.font = "bold 18px Arial, sans-serif";
+  ctx.fillText("C R I C S C O R E", W - 64, 42);
   ctx.textAlign = "left";
 
   // Team blocks
   const block = (y: number, t: ExportTeamStats) => {
     // Team panel
     ctx.fillStyle = COLORS.panel;
-    roundRect(ctx, 64, y, W - 128, 210, 14);
+    roundRect(ctx, 64, y, W - 128, 186, 12);
     ctx.fill();
 
     ctx.fillStyle = COLORS.accent;
-    ctx.font = "bold 26px Arial, sans-serif";
+    ctx.font = "bold 24px Arial, sans-serif";
     ctx.fillText(
       t.name.length > 34 ? `${t.name.slice(0, 34)}…` : t.name,
-      92,
-      y + 20,
+      88,
+      y + 16,
     );
 
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.text;
-    ctx.font = "bold 30px Arial, sans-serif";
-    ctx.fillText(t.scoreLine, W - 92, y + 18);
+    ctx.font = "bold 28px Arial, sans-serif";
+    ctx.fillText(t.scoreLine, W - 88, y + 14);
     ctx.textAlign = "left";
 
     // Column headers
     ctx.fillStyle = COLORS.faint;
-    ctx.font = "600 13px Arial, sans-serif";
-    ctx.fillText("BATTING", 92, y + 62);
-    ctx.fillText("BOWLING", 640, y + 62);
+    ctx.font = "600 12px Arial, sans-serif";
+    ctx.fillText("BATTING", 88, y + 50);
+    ctx.fillText("BOWLING", 640, y + 50);
 
     ctx.fillStyle = COLORS.dim;
-    ctx.font = "12px Arial, sans-serif";
-    ctx.fillText("R (B)        SR", 400, y + 62);
-    ctx.fillText("O-R-W      ECON", 960, y + 62);
+    ctx.font = "11px Arial, sans-serif";
+    ctx.fillText("R (B)        SR", 400, y + 50);
+    ctx.fillText("O-R-W      ECON", 960, y + 50);
 
     // Rows
-    const rows = Math.max(t.batters.length, t.bowlers.length, 1);
+    const rows = Math.min(Math.max(t.batters.length, t.bowlers.length, 1), 3);
     for (let i = 0; i < rows; i++) {
-      const ry = y + 88 + i * 34;
+      const ry = y + 72 + i * 32;
       if (i % 2 === 0) {
         ctx.fillStyle = "rgba(255,255,255,0.025)";
-        ctx.fillRect(80, ry - 6, W - 160, 30);
+        ctx.fillRect(76, ry - 4, W - 152, 28);
       }
-      ctx.font = "15px Arial, sans-serif";
+      ctx.font = "14px Arial, sans-serif";
 
       const b = t.batters[i];
       if (b) {
         ctx.fillStyle = COLORS.text;
         ctx.fillText(
           b.name.length > 22 ? `${b.name.slice(0, 22)}…` : b.name,
-          92,
+          88,
           ry,
         );
         ctx.textAlign = "right";
@@ -129,45 +135,47 @@ function drawSummary(
     }
   };
 
-  block(120, s.team1);
-  block(348, s.team2);
+  block(84, s.team1);
+  block(282, s.team2);
 
   // Result banner
-  const bannerY = 576;
+  const bannerY = 480;
   ctx.fillStyle = COLORS.accent;
-  roundRect(ctx, 64, bannerY, W - 128, 52, 10);
+  roundRect(ctx, 64, bannerY, W - 128, 44, 8);
   ctx.fill();
   ctx.fillStyle = "#06130d";
-  ctx.font = "bold 20px Arial, sans-serif";
+  ctx.font = "bold 18px Arial, sans-serif";
   ctx.textAlign = "center";
   const resultText = s.playerOfTheMatch
     ? `${s.result.length > 46 ? `${s.result.slice(0, 46)}…` : s.result}  ★  POTM: ${s.playerOfTheMatch}`
     : s.result.length > 72
       ? `${s.result.slice(0, 72)}…`
       : s.result;
-  ctx.fillText(resultText, W / 2, bannerY + 16);
+  ctx.fillText(resultText, W / 2, bannerY + 13);
   ctx.textAlign = "left";
 
   // Footer: URL left, meta center-left, QR right
   ctx.fillStyle = COLORS.faint;
-  ctx.font = "15px Arial, sans-serif";
-  ctx.fillText(s.matchUrl, 64, bannerY + 68);
-  const meta = [s.venue, s.playedAt].filter(Boolean).join("  ·  ");
+  ctx.font = "14px Arial, sans-serif";
+  ctx.fillText(s.matchUrl, 64, bannerY + 58);
+  const meta = [s.venue, s.playedAt].filter(Boolean).join(", ");
   if (meta) {
     ctx.fillStyle = COLORS.dim;
     ctx.fillText(
       meta.length > 90 ? `${meta.slice(0, 90)}…` : meta,
       64,
-      bannerY + 88,
+      bannerY + 78,
     );
   }
 
   if (qrImage) {
-    ctx.drawImage(qrImage, W - 156, bannerY + 60, 92, 92);
+    const qrSize = 80;
+    const qrX = W - 64 - qrSize;
+    ctx.drawImage(qrImage, qrX, bannerY + 50, qrSize, qrSize);
     ctx.fillStyle = COLORS.faint;
-    ctx.font = "11px Arial, sans-serif";
+    ctx.font = "10px Arial, sans-serif";
     ctx.textAlign = "right";
-    ctx.fillText("SCAN FOR SCORECARD", W - 156, bannerY + 156);
+    ctx.fillText("SCAN FOR SCORECARD", W - 64, bannerY + 138);
     ctx.textAlign = "left";
   }
 }
@@ -201,6 +209,31 @@ export function MatchExportButtons({ match }: { match: Match }) {
     w.document.close();
   };
 
+  const [isExportingCricsheet, setIsExportingCricsheet] = useState(false);
+
+  const handleCricsheetExport = async () => {
+    setIsExportingCricsheet(true);
+    try {
+      let exportMatch = match;
+      const hasBalls = match.innings?.some(
+        (inn) => inn.ball_by_ball && inn.ball_by_ball.length > 0,
+      );
+      if (!hasBalls) {
+        const res = await getFullMatchForExport(match.id);
+        if (res.data) {
+          exportMatch = res.data;
+        }
+      }
+      downloadCricsheetJson(exportMatch);
+      toast.success("Cricsheet JSON downloaded with full delivery data");
+    } catch (err) {
+      console.error("Cricsheet export error:", err);
+      toast.error("Failed to export Cricsheet data");
+    } finally {
+      setIsExportingCricsheet(false);
+    }
+  };
+
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => void exportPdf()}>
@@ -210,6 +243,19 @@ export function MatchExportButtons({ match }: { match: Match }) {
       <Button variant="outline" size="sm" onClick={() => void shareImage()}>
         <Share2 className="mr-1.5 h-4 w-4" />
         Share summary
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isExportingCricsheet}
+        onClick={() => void handleCricsheetExport()}
+      >
+        {isExportingCricsheet ? (
+          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+        ) : (
+          <FileJson className="mr-1.5 h-4 w-4" />
+        )}
+        Cricsheet JSON
       </Button>
     </>
   );

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { CurrentBatsmen } from "~/components/matches/current-batsmen";
@@ -12,11 +12,18 @@ import { CurrentBowler } from "~/components/matches/current-bowler";
 import { TossDialog } from "./components/TossDialog";
 import { BatsmenDialog } from "./components/BatsmenDialog";
 import { BowlerDialog } from "./components/BowlerDialog";
-import { WicketDialog } from "./components/WicketDialog";
+import { WicketDialog, ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
+import {
+  EditBallDialog,
+  type DeliveryToEdit,
+} from "./components/EditBallDialog";
 import { AddPlayerDialog } from "./components/AddPlayerDialog";
 import { PotmDialog } from "./components/PotmDialog";
+import { DlsCalculatorModal } from "~/components/matches/dls-calculator-modal";
 import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
+import { createClient } from "~/lib/supabase/client";
+import type { ExtraType } from "../../types";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -27,21 +34,35 @@ import {
   UserPlus,
   Users,
   Award,
+  ShieldAlert,
 } from "lucide-react";
-
-const DISMISSAL_TYPES = [
-  { value: "bowled", label: "Bowled", needsFielder: false },
-  { value: "caught", label: "Caught", needsFielder: true },
-  { value: "lbw", label: "LBW", needsFielder: false },
-  { value: "stumped", label: "Stumped", needsFielder: true },
-  { value: "run_out", label: "Run Out", needsFielder: true },
-  { value: "hit_wicket", label: "Hit Wicket", needsFielder: false },
-];
 
 export default function ScoringPage() {
   const params = useParams();
   const matchId = params.id as string;
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkAuth = async () => {
+      if (!user || !matchId) {
+        if (!authLoading && !cancelled) setIsAuthorized(false);
+        return;
+      }
+      const supabaseClient = createClient();
+      const { data } = await supabaseClient.rpc("is_match_admin", {
+        p_match_id: matchId,
+      });
+      if (!cancelled) {
+        setIsAuthorized(Boolean(data));
+      }
+    };
+    void checkAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, matchId, authLoading]);
 
   const {
     match,
@@ -52,7 +73,9 @@ export default function ScoringPage() {
     strikerId,
     nonStrikerId,
     currentBowlerId,
+    lastOverBowlerId,
     lastBalls,
+    rawDeliveries,
     isProcessing,
     setStrikerId,
     setNonStrikerId,
@@ -60,6 +83,8 @@ export default function ScoringPage() {
     handleStartMatch,
     handleScore,
     handleUndo,
+    handleUpdateBall,
+    handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,
     handleAddPlayerInline,
@@ -71,6 +96,10 @@ export default function ScoringPage() {
   const [showSelectBatsmen, setShowSelectBatsmen] = useState(false);
   const [showSelectBowler, setShowSelectBowler] = useState(false);
   const [showWicketDialog, setShowWicketDialog] = useState(false);
+  const [showEditBallDialog, setShowEditBallDialog] = useState(false);
+  const [editingDelivery, setEditingDelivery] = useState<DeliveryToEdit | null>(
+    null,
+  );
   const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
   const [showPotmDialog, setShowPotmDialog] = useState(false);
   const [addPlayerTeam, setAddPlayerTeam] = useState<"batting" | "bowling">(
@@ -80,6 +109,12 @@ export default function ScoringPage() {
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [dismissalType, setDismissalType] = useState("bowled");
   const [fielderId, setFielderId] = useState<string>("");
+  const [wicketExtraType, setWicketExtraType] = useState<string | null>(null);
+  const [dismissedPlayerId, setDismissedPlayerId] = useState<string | null>(
+    null,
+  );
+  const [runsCompletedBeforeRunOut, setRunsCompletedBeforeRunOut] =
+    useState<number>(0);
   const [addPlayerTarget, setAddPlayerTarget] = useState<
     "batting" | "bowling" | null
   >(null);
@@ -116,22 +151,60 @@ export default function ScoringPage() {
     });
   };
 
-  const onWicket = async () => {
-    if (!strikerId) return;
-    const needsFielder = DISMISSAL_TYPES.find(
+  const openWicketDialog = (extraType?: string | null) => {
+    setWicketExtraType(extraType ?? null);
+    setDismissedPlayerId(strikerId);
+    setRunsCompletedBeforeRunOut(0);
+    if (extraType === "no_ball") {
+      setDismissalType("run_out");
+    } else if (extraType === "wide") {
+      setDismissalType("stumped");
+    } else {
+      setDismissalType("bowled");
+    }
+    setShowWicketDialog(true);
+  };
+
+  const onWicketConfirm = async () => {
+    if (!strikerId || !nonStrikerId || !currentBowlerId) return;
+    const selectedDismissal = ALL_DISMISSAL_TYPES.find(
       (d) => d.value === dismissalType,
-    )?.needsFielder;
-    if (needsFielder && !fielderId) {
+    );
+    if (selectedDismissal?.needsFielder && !fielderId) {
       toast.error("Select a fielder");
       return;
     }
-    await handleScore(currentBowlerId!, strikerId, nonStrikerId!, {
+
+    let runsScored = 0;
+    let extras = 0;
+    let extraType: ExtraType | undefined = undefined;
+
+    if (wicketExtraType === "wide") {
+      runsScored = 0;
+      extras = 1 + runsCompletedBeforeRunOut;
+      extraType = "wide";
+    } else if (wicketExtraType === "no_ball") {
+      runsScored = runsCompletedBeforeRunOut;
+      extras = 1;
+      extraType = "no_ball";
+    } else if (dismissalType === "run_out") {
+      runsScored = runsCompletedBeforeRunOut;
+      extras = 0;
+    }
+
+    await handleScore(currentBowlerId, strikerId, nonStrikerId, {
+      runsScored,
+      extras,
+      extraType,
       isWicket: true,
       dismissalType,
       fielderId: fielderId || null,
+      dismissedPlayerId: dismissedPlayerId || strikerId,
     });
     setShowWicketDialog(false);
     setFielderId("");
+    setWicketExtraType(null);
+    setRunsCompletedBeforeRunOut(0);
   };
 
   const onAddPlayer = async () => {
@@ -162,7 +235,7 @@ export default function ScoringPage() {
     setShowAddPlayerDialog(false);
   };
 
-  if (loading) {
+  if (loading || authLoading || isAuthorized === null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -186,10 +259,68 @@ export default function ScoringPage() {
     );
   }
 
-  const isScorer =
-    !!user &&
-    (match.created_by === user.id ||
-      (match.match_admins ?? []).includes(user.id));
+  if (!user) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <Card className="max-w-md text-center">
+          <CardHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <CardTitle className="mt-2 text-xl font-bold">
+              Authentication Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You must be signed in to access the match scoring console.
+            </p>
+            <Button asChild className="w-full">
+              <Link href={`/auth/login?redirect=/matches/${matchId}/score`}>
+                Sign In
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <Card className="max-w-md text-center">
+          <CardHeader>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <CardTitle className="mt-2 text-xl font-bold">
+              Access Denied
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You do not have administrative permissions to score this match.
+              Only the match creator, designated scorers, or club administrators
+              can record scores.
+            </p>
+            <div className="flex gap-2">
+              <Button asChild className="flex-1">
+                <Link href={`/matches/${matchId}`}>View Match Center</Link>
+              </Button>
+              <Button variant="outline" asChild className="flex-1">
+                <Link href={`/overlay/${matchId}`} target="_blank">
+                  View Overlay
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isScorer = isAuthorized;
 
   return (
     <div className="min-h-screen bg-background">
@@ -197,18 +328,24 @@ export default function ScoringPage() {
         <div className="container mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" asChild>
-              <Link href={`/matches/${match.id}`}>
+              <Link
+                href={`/matches/${match.id}`}
+                aria-label="Back to match details"
+              >
                 <ChevronLeft className="h-5 w-5" />
               </Link>
             </Button>
             <div>
               <h1 className="font-semibold leading-none">{match.title}</h1>
               <p className="text-xs text-muted-foreground">
-                {match.team1.name} vs {match.team2.name} · {match.match_format}
+                {match.team1.name} vs {match.team2.name}, {match.match_format}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {match.status === "live" && isScorer && (
+              <DlsCalculatorModal match={match} canEdit={isScorer} />
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -217,7 +354,11 @@ export default function ScoringPage() {
               <UserPlus className="mr-1.5 h-4 w-4" /> Add Player
             </Button>
             <Button variant="ghost" size="icon" asChild>
-              <Link href={`/overlay/${match.id}`} target="_blank">
+              <Link
+                href={`/overlay/${match.id}`}
+                target="_blank"
+                aria-label="Open broadcast overlay in new tab"
+              >
                 <Tv className="h-4 w-4" />
               </Link>
             </Button>
@@ -308,7 +449,8 @@ export default function ScoringPage() {
           {!isScorer && (
             <Card className="border-amber-500/30 bg-amber-500/5">
               <CardContent className="p-3 text-sm text-amber-700 dark:text-amber-300">
-                You are viewing as spectator — only match admins can score.
+                You are viewing in spectator mode: only match administrators can
+                score.
               </CardContent>
             </Card>
           )}
@@ -367,13 +509,41 @@ export default function ScoringPage() {
 
           <ScoringPanel
             onScore={onScore}
-            onWicket={() => setShowWicketDialog(true)}
+            onWicket={openWicketDialog}
             onUndo={() => void handleUndo()}
+            onSelectBall={(idx) => {
+              const d = rawDeliveries[idx];
+              if (d) {
+                setEditingDelivery(d);
+                setShowEditBallDialog(true);
+              }
+            }}
             currentOver={match.current_over}
             currentBall={match.current_ball}
             lastBalls={lastBalls}
             disabled={!isScorer || isProcessing}
           />
+
+          {match.status === "completed" &&
+            match.result_description?.toLowerCase().includes("tie") &&
+            isScorer && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-center">
+                <h4 className="text-base font-bold text-amber-800 dark:text-amber-200">
+                  Match Tied!
+                </h4>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Scores are level. You can initiate a Super Over tiebreaker
+                  according to tournament rules.
+                </p>
+                <Button
+                  className="mt-3 gap-2"
+                  onClick={() => void handleStartSuperOver()}
+                  disabled={isProcessing}
+                >
+                  Start Super Over
+                </Button>
+              </div>
+            )}
         </div>
 
         <div className="space-y-4">
@@ -482,6 +652,7 @@ export default function ScoringPage() {
         onOpenChange={setShowSelectBowler}
         bowlingTeamPlayers={bowlingTeamPlayers}
         currentBowlerId={currentBowlerId}
+        lastOverBowlerId={lastOverBowlerId}
         onBowlerChange={setCurrentBowlerId}
         onConfirm={async () => {
           const res = await handleConfirmBowler(currentBowlerId);
@@ -516,7 +687,32 @@ export default function ScoringPage() {
         fielderId={fielderId}
         onFielderChange={setFielderId}
         bowlingTeamPlayers={bowlingTeamPlayers}
-        onConfirm={() => void onWicket()}
+        strikerId={strikerId}
+        nonStrikerId={nonStrikerId}
+        strikerName={
+          battingTeamPlayers.find((p) => p.user_id === strikerId)?.user
+            ?.full_name
+        }
+        nonStrikerName={
+          battingTeamPlayers.find((p) => p.user_id === nonStrikerId)?.user
+            ?.full_name
+        }
+        dismissedPlayerId={dismissedPlayerId}
+        onDismissedPlayerChange={setDismissedPlayerId}
+        extraType={wicketExtraType}
+        runsCompleted={runsCompletedBeforeRunOut}
+        onRunsCompletedChange={setRunsCompletedBeforeRunOut}
+        onConfirm={() => void onWicketConfirm()}
+        isProcessing={isProcessing}
+      />
+
+      <EditBallDialog
+        open={showEditBallDialog}
+        onOpenChange={setShowEditBallDialog}
+        delivery={editingDelivery}
+        onSave={async (params) => {
+          await handleUpdateBall(params);
+        }}
         isProcessing={isProcessing}
       />
 

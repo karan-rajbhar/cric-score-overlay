@@ -72,10 +72,10 @@ export function PotmDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-amber-500">
-            <Award className="h-6 w-6" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Match Honors
+          <div className="mb-1 flex items-center gap-1.5 text-amber-500">
+            <Award className="h-4 w-4" />
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              Match honors
             </span>
           </div>
           <DialogTitle className="text-xl">

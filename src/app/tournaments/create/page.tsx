@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
@@ -17,13 +17,77 @@ import {
 } from "~/components/ui/select";
 import { createTournament } from "../actions";
 import { useAuth } from "~/lib/auth";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { createClient } from "~/lib/supabase/client";
+import { ChevronLeft, Loader2, Shield } from "lucide-react";
+
+interface ClubOption {
+  id: string;
+  name: string;
+  short_name?: string | null;
+}
 
 function CreateTournamentForm() {
   const searchParams = useSearchParams();
-  const clubId = searchParams.get("clubId") ?? "";
+  const prefilledClubId = searchParams.get("clubId") ?? "";
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clubs, setClubs] = useState<ClubOption[]>([]);
+  const [selectedClubId, setSelectedClubId] = useState<string>(prefilledClubId);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchClubs = async () => {
+      if (!user) return;
+      const supabase = createClient();
+      const [ownedClubsRes, memberClubsRes] = await Promise.all([
+        supabase
+          .from("clubs")
+          .select("id, name, short_name")
+          .eq("owner_id", user.id)
+          .order("name"),
+        supabase
+          .from("club_memberships")
+          .select("club:clubs(id, name, short_name)")
+          .eq("user_id", user.id)
+          .in("role", ["owner", "admin"])
+          .eq("status", "active"),
+      ]);
+
+      if (cancelled) return;
+
+      const clubMap = new Map<string, ClubOption>();
+      (ownedClubsRes.data ?? []).forEach((c) => {
+        clubMap.set(c.id, c);
+      });
+      (memberClubsRes.data ?? []).forEach((m) => {
+        const c = Array.isArray(m.club) ? m.club[0] : m.club;
+        if (c) clubMap.set(c.id, c);
+      });
+
+      if (prefilledClubId && !clubMap.has(prefilledClubId)) {
+        const { data: prefClub } = await supabase
+          .from("clubs")
+          .select("id, name, short_name")
+          .eq("id", prefilledClubId)
+          .single();
+        if (prefClub) clubMap.set(prefClub.id, prefClub);
+      }
+
+      const available = Array.from(clubMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      setClubs(available);
+      if (prefilledClubId) {
+        setSelectedClubId(prefilledClubId);
+      }
+    };
+
+    void fetchClubs();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, prefilledClubId]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -41,11 +105,43 @@ function CreateTournamentForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create Tournament</CardTitle>
+        <CardTitle>Create tournament</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {clubId && <input type="hidden" name="club_id" value={clubId} />}
+          <input type="hidden" name="club_id" value={selectedClubId} />
+
+          {clubs.length > 0 && (
+            <div>
+              <Label htmlFor="club_id">Hosting Club (Optional)</Label>
+              <Select
+                value={selectedClubId || "none"}
+                onValueChange={(val) =>
+                  setSelectedClubId(val === "none" ? "" : val)
+                }
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Select club (or none for independent)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">
+                    None (Independent Tournament)
+                  </SelectItem>
+                  {clubs.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>
+                          {c.name} {c.short_name ? `(${c.short_name})` : ""}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div>
             <Label htmlFor="name">Tournament name *</Label>
             <Input
@@ -142,7 +238,7 @@ function CreateTournamentForm() {
                 Creating tournament...
               </>
             ) : (
-              "Create Tournament"
+              "Create tournament"
             )}
           </Button>
         </form>
@@ -156,7 +252,7 @@ function CreateTournamentBackButton() {
   const clubId = searchParams.get("clubId");
 
   const backHref = clubId ? `/clubs/${clubId}?tab=tournaments` : "/tournaments";
-  const backLabel = clubId ? "Back to Club" : "Back to Tournaments";
+  const backLabel = clubId ? "Back to club" : "Back to tournaments";
 
   return (
     <Button variant="ghost" asChild className="mb-4">
@@ -183,11 +279,11 @@ export default function CreateTournamentPage() {
       <div className="flex min-h-screen items-center justify-center">
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <h2 className="mb-2 text-lg font-semibold">Sign In Required</h2>
+            <h2 className="mb-2 text-lg font-semibold">Sign in required</h2>
             <p className="mb-4">Sign in to create a tournament</p>
             <Button asChild>
               <Link href="/auth/login?redirect=/tournaments/create">
-                Sign In
+                Sign in
               </Link>
             </Button>
           </CardContent>

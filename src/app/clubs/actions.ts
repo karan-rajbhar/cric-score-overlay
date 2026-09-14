@@ -103,6 +103,32 @@ export async function leaveClub(clubId: string) {
   return { success: true };
 }
 
+async function checkClubAdminAuth(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  clubId: string,
+  userId: string,
+  requireOwnerOnly = false,
+): Promise<boolean> {
+  const { data: club } = await supabase
+    .from("clubs")
+    .select("owner_id")
+    .eq("id", clubId)
+    .single();
+
+  if (club?.owner_id === userId) return true;
+  if (requireOwnerOnly) return false;
+
+  const { data: membership } = await supabase
+    .from("club_memberships")
+    .select("role")
+    .eq("club_id", clubId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  return membership?.role === "admin";
+}
+
 export async function updateMemberRole(
   clubId: string,
   membershipId: string,
@@ -114,6 +140,11 @@ export async function updateMemberRole(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  const isOwner = await checkClubAdminAuth(supabase, clubId, user.id, true);
+  if (!isOwner) {
+    return { error: "Only the club owner can change member roles" };
+  }
 
   const { error } = await supabase
     .from("club_memberships")
@@ -143,6 +174,11 @@ export async function createSeason(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to manage seasons for this club" };
+  }
 
   if (isCurrent) {
     // Reset previous is_current flags for this club
@@ -187,6 +223,14 @@ export async function inductHallOfFame(
 
   if (!user) return { error: "You must be logged in" };
 
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "You are not authorized to induct members into this club's Hall of Fame",
+    };
+  }
+
   const { error } = await supabase.from("club_hall_of_fame").insert({
     club_id: clubId,
     player_id: data.playerId,
@@ -217,6 +261,11 @@ export async function updateClubSocialLinks(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to update this club's links" };
+  }
 
   const { error } = await supabase
     .from("clubs")

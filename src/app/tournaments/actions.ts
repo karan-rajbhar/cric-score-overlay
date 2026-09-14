@@ -17,6 +17,36 @@ export async function createTournament(formData: FormData) {
 
   const clubId = (formData.get("club_id") as string) || null;
 
+  if (clubId) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", clubId)
+      .single();
+
+    if (!club) {
+      return { error: "The selected club does not exist" };
+    }
+
+    if (club.owner_id !== user.id) {
+      const { data: membership } = await supabase
+        .from("club_memberships")
+        .select("id")
+        .eq("club_id", clubId)
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (!membership) {
+        return {
+          error:
+            "You are not authorized to create a tournament under this club",
+        };
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from("tournaments")
     .insert({
@@ -47,6 +77,86 @@ export async function createTournament(formData: FormData) {
   redirect(`/tournaments/${data.id}`);
 }
 
+async function checkTournamentAdminAuth(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("created_by, club_id")
+    .eq("id", tournamentId)
+    .single();
+
+  if (!tournament) return false;
+  if (tournament.created_by === userId) return true;
+
+  if (tournament.club_id) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", tournament.club_id)
+      .single();
+
+    if (club?.owner_id === userId) return true;
+
+    const { data: mem } = await supabase
+      .from("club_memberships")
+      .select("id")
+      .eq("club_id", tournament.club_id)
+      .eq("user_id", userId)
+      .in("role", ["owner", "admin"])
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (mem) return true;
+  }
+
+  return false;
+}
+
+async function checkTeamRepAuth(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  teamId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("created_by, captain_id, vice_captain_id, club_id")
+    .eq("id", teamId)
+    .single();
+
+  if (!team) return false;
+  if (
+    team.created_by === userId ||
+    team.captain_id === userId ||
+    team.vice_captain_id === userId
+  ) {
+    return true;
+  }
+
+  if (team.club_id) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", team.club_id)
+      .single();
+    if (club?.owner_id === userId) return true;
+
+    const { data: mem } = await supabase
+      .from("club_memberships")
+      .select("id")
+      .eq("club_id", team.club_id)
+      .eq("user_id", userId)
+      .in("role", ["owner", "admin"])
+      .eq("status", "active")
+      .maybeSingle();
+    if (mem) return true;
+  }
+
+  return false;
+}
+
 export async function registerTeamForTournament(
   tournamentId: string,
   teamId: string,
@@ -57,6 +167,19 @@ export async function registerTeamForTournament(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in to register a team" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  const isTeamRep = await checkTeamRepAuth(supabase, teamId, user.id);
+
+  if (!isTournAdmin && !isTeamRep) {
+    return {
+      error: "You can only register teams that you represent or manage.",
+    };
+  }
 
   const { error: regError } = await supabase
     .from("tournament_registrations")
@@ -93,6 +216,20 @@ export async function removeTeamFromTournament(
 
   if (!user) return { error: "You must be logged in" };
 
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  const isTeamRep = await checkTeamRepAuth(supabase, teamId, user.id);
+
+  if (!isTournAdmin && !isTeamRep) {
+    return {
+      error:
+        "Only tournament organizers or team managers can withdraw this team.",
+    };
+  }
+
   const { error } = await supabase
     .from("tournament_registrations")
     .delete()
@@ -117,6 +254,21 @@ export async function removeTeamFromTournament(
 
 export async function refreshTournamentStandings(tournamentId: string) {
   const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!canManage) {
+    return { error: "Only tournament organizers can refresh standings" };
+  }
+
   const { error } = await supabase.rpc("recalculate_tournament_standings", {
     p_tournament_id: tournamentId,
   });
@@ -138,6 +290,23 @@ export async function overridePointsTableEntry(
   qualificationStatus?: "in_contention" | "qualified" | "eliminated",
 ) {
   const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers can modify points table entries.",
+    };
+  }
+
   const { error } = await supabase
     .from("tournament_standings")
     .update({
@@ -174,6 +343,17 @@ export async function updateRegistrationStatus(
 
   if (!user) return { error: "You must be logged in" };
 
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers can approve or reject registrations.",
+    };
+  }
+
   const { error } = await supabase
     .from("tournament_registrations")
     .update({
@@ -207,6 +387,17 @@ export async function generateTournamentFixtures(tournamentId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers can generate round-robin fixtures.",
+    };
+  }
 
   // Fetch tournament details
   const { data: tournament, error: tourError } = await supabase

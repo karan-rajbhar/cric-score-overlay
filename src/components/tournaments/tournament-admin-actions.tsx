@@ -37,6 +37,7 @@ export function PointsOverrideButton(props: PointsOverrideButtonProps) {
         size="icon"
         className="h-7 w-7 text-muted-foreground hover:text-foreground"
         title="Manual points / qualification override"
+        aria-label="Manual points and qualification override"
         onClick={() => setOpen(true)}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />

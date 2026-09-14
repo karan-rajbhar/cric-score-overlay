@@ -13,6 +13,7 @@ import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import {
   ChevronLeft,
+  ChevronRight,
   Calendar,
   MapPin,
   Trophy,
@@ -37,6 +38,7 @@ import {
   GenerateFixturesButton,
   RegistrationApprovalActions,
 } from "~/components/tournaments/tournament-admin-actions";
+import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +75,7 @@ export default async function TournamentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tab?: string }>;
+  searchParams?: Promise<{ tab?: string; clubId?: string }>;
 }) {
   const { id } = await params;
   if (
@@ -124,7 +126,12 @@ export default async function TournamentPage({
       )
       .eq("tournament_id", id)
       .order("scheduled_at", { ascending: true }),
-    supabase.from("teams").select("id, name, short_name").order("name"),
+    supabase
+      .from("teams")
+      .select(
+        "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
+      )
+      .order("name"),
   ]);
 
   if (!tournament) notFound();
@@ -288,7 +295,87 @@ export default async function TournamentPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isTournamentAdmin = !!user && tournament.created_by === user.id;
+
+  let isClubAdmin = false;
+  if (user && tournament.club_id) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", tournament.club_id)
+      .single();
+
+    if (club?.owner_id === user.id) {
+      isClubAdmin = true;
+    } else {
+      const { data: mem } = await supabase
+        .from("club_memberships")
+        .select("id")
+        .eq("club_id", tournament.club_id)
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (mem) isClubAdmin = true;
+    }
+  }
+
+  const isTournamentAdmin =
+    !!user && (tournament.created_by === user.id || isClubAdmin);
+
+  const myTeamIds = new Set<string>();
+  if (user && !isTournamentAdmin) {
+    const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
+      supabase.from("team_players").select("team_id").eq("user_id", user.id),
+      supabase
+        .from("club_memberships")
+        .select("club_id")
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .eq("status", "active"),
+      supabase.from("clubs").select("id").eq("owner_id", user.id),
+    ]);
+
+    const adminClubIds = new Set<string>([
+      ...(clubMemsRes.data ?? []).map((m) => m.club_id),
+      ...(clubsRes.data ?? []).map((c) => c.id),
+    ]);
+    const playerTeamIds = new Set<string>(
+      (teamPlayersRes.data ?? []).map((r) => r.team_id),
+    );
+
+    (allTeams ?? []).forEach(
+      (t: {
+        id: string;
+        club_id?: string | null;
+        created_by?: string | null;
+        captain_id?: string | null;
+        vice_captain_id?: string | null;
+      }) => {
+        if (
+          t.created_by === user.id ||
+          t.captain_id === user.id ||
+          t.vice_captain_id === user.id ||
+          playerTeamIds.has(t.id) ||
+          (t.club_id && adminClubIds.has(t.club_id))
+        ) {
+          myTeamIds.add(t.id);
+        }
+      },
+    );
+  }
+
+  const availableTeams = (
+    isTournamentAdmin
+      ? (allTeams ?? [])
+      : (allTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id))
+  ) as Array<{
+    id: string;
+    name: string;
+    short_name: string | null;
+  }>;
+
+  const canRegisterTeams = isTournamentAdmin || availableTeams.length > 0;
 
   const pendingRegistrations = (registrations ?? []).filter(
     (r) => r.status === "pending",
@@ -339,15 +426,53 @@ export default async function TournamentPage({
   const topBatter = battingLeaders[0];
   const topBowler = bowlingLeaders[0];
 
+  const targetClubId = resolvedSearchParams?.clubId;
+  const clubInfo = tournament.club as { id: string; name: string } | null;
+  const backHref = targetClubId
+    ? `/clubs/${targetClubId}?tab=tournaments`
+    : "/tournaments";
+  const backLabel =
+    targetClubId && clubInfo?.name
+      ? `Back to ${clubInfo.name}`
+      : "All Tournaments";
+
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
-      {/* Top Back Nav */}
-      <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link href="/tournaments">
-          <ChevronLeft className="mr-1 h-4 w-4" />
-          All Tournaments
-        </Link>
-      </Button>
+      {/* Top Back Nav & Breadcrumbs */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="interactive-button pl-0 text-xs sm:text-sm"
+        >
+          <Link href={backHref}>
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            {backLabel}
+          </Link>
+        </Button>
+        {targetClubId && clubInfo && (
+          <nav
+            aria-label="Breadcrumb"
+            className="hidden items-center gap-1.5 border-l pl-3 text-xs text-muted-foreground sm:flex"
+          >
+            <Link href="/clubs" className="hover:text-foreground">
+              Clubs
+            </Link>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <Link
+              href={`/clubs/${targetClubId}?tab=tournaments`}
+              className="max-w-[150px] truncate hover:text-foreground"
+            >
+              {clubInfo.name}
+            </Link>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <span className="max-w-[180px] truncate font-medium text-foreground">
+              {tournament.name}
+            </span>
+          </nav>
+        )}
+      </div>
 
       {/* Tournament Hero Banner */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/80 to-primary/5 p-6 shadow-sm md:p-8">
@@ -362,15 +487,14 @@ export default async function TournamentPage({
                       ? "secondary"
                       : "outline"
                 }
-                className="capitalize"
               >
                 {tournament.status === "ongoing" && (
                   <span className="mr-1.5 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
                 )}
-                {tournament.status}
+                {formatStatus(tournament.status)}
               </Badge>
-              <Badge variant="outline" className="capitalize">
-                {tournament.tournament_format} Format
+              <Badge variant="outline">
+                {formatTournamentFormat(tournament.tournament_format)} Format
               </Badge>
               <Badge variant="secondary">{tournament.match_format}</Badge>
               {tournament.club && (
@@ -424,23 +548,21 @@ export default async function TournamentPage({
               format={tournament.match_format ?? "T20"}
               standings={shareRows}
             />
-            <RegisterTeamDialog
-              tournamentId={tournament.id}
-              availableTeams={
-                (allTeams ?? []) as Array<{
-                  id: string;
-                  name: string;
-                  short_name: string | null;
-                }>
-              }
-              registeredTeamIds={registeredTeamIds}
-            />
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/matches/create?tournamentId=${tournament.id}`}>
-                <Plus className="h-4 w-4" />
-                Schedule Match
-              </Link>
-            </Button>
+            {canRegisterTeams && (
+              <RegisterTeamDialog
+                tournamentId={tournament.id}
+                availableTeams={availableTeams}
+                registeredTeamIds={registeredTeamIds}
+              />
+            )}
+            {isTournamentAdmin && (
+              <Button asChild size="sm" className="gap-1.5">
+                <Link href={`/matches/create?tournamentId=${tournament.id}`}>
+                  <Plus className="h-4 w-4" />
+                  Schedule Match
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -501,25 +623,21 @@ export default async function TournamentPage({
                     title="No Standings Yet"
                     description="Register participating squads and start tournament fixtures to begin auto-computing points tables and net run rates."
                   />
-                  <div className="mt-4 flex justify-center">
-                    <RegisterTeamDialog
-                      tournamentId={tournament.id}
-                      availableTeams={
-                        (allTeams ?? []) as Array<{
-                          id: string;
-                          name: string;
-                          short_name: string | null;
-                        }>
-                      }
-                      registeredTeamIds={registeredTeamIds}
-                    />
-                  </div>
+                  {canRegisterTeams && (
+                    <div className="mt-4 flex justify-center">
+                      <RegisterTeamDialog
+                        tournamentId={tournament.id}
+                        availableTeams={availableTeams}
+                        registeredTeamIds={registeredTeamIds}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="data-table-container">
                   <table className="data-table">
                     <thead>
-                      <tr className="border-b text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <tr className="border-b text-xs font-semibold text-muted-foreground">
                         <th className="px-3 py-3 text-left">Pos</th>
                         <th className="px-3 py-3 text-left">Team</th>
                         <th className="px-3 py-3 text-center">Status</th>
@@ -696,13 +814,18 @@ export default async function TournamentPage({
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Radio className="h-4 w-4 animate-pulse text-emerald-400" />
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-emerald-500">
-                  Live Now
+                <h3 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  Live now
                 </h3>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 {liveMatches.map((m) => (
-                  <MatchCard key={m.id} match={m} />
+                  <MatchCard
+                    key={m.id}
+                    match={m}
+                    tournamentId={tournament.id}
+                    clubId={targetClubId}
+                  />
                 ))}
               </div>
             </div>
@@ -710,19 +833,24 @@ export default async function TournamentPage({
 
           {/* Upcoming Fixtures */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Upcoming Fixtures ({upcomingMatches.length})
+            <h3 className="text-sm font-semibold text-foreground">
+              Upcoming fixtures ({upcomingMatches.length})
             </h3>
             {upcomingMatches.length === 0 ? (
               <EmptyState
                 icon={Calendar}
-                title="No Upcoming Fixtures"
+                title="No upcoming fixtures"
                 description="No upcoming tournament matches are scheduled. Generate fixtures from the admin tab or schedule new matches."
               />
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {upcomingMatches.map((m) => (
-                  <MatchCard key={m.id} match={m} />
+                  <MatchCard
+                    key={m.id}
+                    match={m}
+                    tournamentId={tournament.id}
+                    clubId={targetClubId}
+                  />
                 ))}
               </div>
             )}
@@ -731,12 +859,17 @@ export default async function TournamentPage({
           {/* Completed Matches */}
           {completedMatches.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Completed Results ({completedMatches.length})
+              <h3 className="text-sm font-semibold text-foreground">
+                Completed results ({completedMatches.length})
               </h3>
               <div className="grid gap-4 md:grid-cols-2">
                 {completedMatches.map((m) => (
-                  <MatchCard key={m.id} match={m} />
+                  <MatchCard
+                    key={m.id}
+                    match={m}
+                    tournamentId={tournament.id}
+                    clubId={targetClubId}
+                  />
                 ))}
               </div>
             </div>
@@ -747,30 +880,26 @@ export default async function TournamentPage({
         <TabsContent value="teams" className="mt-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold">Registered Teams</h2>
+              <h2 className="text-lg font-bold">Registered teams</h2>
               <p className="text-xs text-muted-foreground">
                 Participating teams and rosters in this tournament.
               </p>
             </div>
-            <RegisterTeamDialog
-              tournamentId={tournament.id}
-              availableTeams={
-                (allTeams ?? []) as Array<{
-                  id: string;
-                  name: string;
-                  short_name: string | null;
-                }>
-              }
-              registeredTeamIds={registeredTeamIds}
-            />
+            {canRegisterTeams && (
+              <RegisterTeamDialog
+                tournamentId={tournament.id}
+                availableTeams={availableTeams}
+                registeredTeamIds={registeredTeamIds}
+              />
+            )}
           </div>
 
           {/* Admin Pending Join Requests Inbox */}
           {isTournamentAdmin && pendingRegistrations.length > 0 && (
             <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-400">
                 <Shield className="h-4 w-4" />
-                Pending Registration Requests ({pendingRegistrations.length})
+                Pending registration requests ({pendingRegistrations.length})
               </h3>
               <div className="grid gap-3 sm:grid-cols-2">
                 {pendingRegistrations.map((r) => {
@@ -848,8 +977,8 @@ export default async function TournamentPage({
                         </div>
                         <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
                           <span>{playerCount} Players in Squad</span>
-                          <span className="font-medium capitalize text-emerald-500">
-                            {r.status}
+                          <span className="font-medium text-emerald-500">
+                            {formatStatus(r.status)}
                           </span>
                         </div>
                       </CardContent>
@@ -884,10 +1013,10 @@ export default async function TournamentPage({
                 <div className="flex items-center justify-between">
                   <Badge className="gap-1 bg-amber-500 text-black hover:bg-amber-400">
                     <Flame className="h-3.5 w-3.5 fill-current" />
-                    ORANGE CAP LEADER
+                    Orange Cap leader
                   </Badge>
-                  <span className="text-xs font-semibold uppercase text-amber-500">
-                    Top Run Scorer
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    Top run scorer
                   </span>
                 </div>
               </CardHeader>
@@ -904,7 +1033,7 @@ export default async function TournamentPage({
                         {topBatter.name}
                       </h3>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {topBatter.inningsCount} Innings · SR{" "}
+                        {topBatter.inningsCount} innings, SR{" "}
                         {topBatter.strikeRate}
                       </p>
                       <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
@@ -923,10 +1052,10 @@ export default async function TournamentPage({
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-4xl font-black text-amber-500">
+                      <div className="tabular text-4xl font-black text-amber-500">
                         {topBatter.runs}
                       </div>
-                      <span className="text-xs uppercase text-muted-foreground">
+                      <span className="text-xs font-medium text-muted-foreground">
                         Runs
                       </span>
                     </div>
@@ -941,10 +1070,10 @@ export default async function TournamentPage({
                 <div className="flex items-center justify-between">
                   <Badge className="gap-1 bg-purple-600 text-white hover:bg-purple-500">
                     <Award className="h-3.5 w-3.5 fill-current" />
-                    PURPLE CAP LEADER
+                    Purple Cap leader
                   </Badge>
-                  <span className="text-xs font-semibold uppercase text-purple-400">
-                    Top Wicket Taker
+                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                    Top wicket taker
                   </span>
                 </div>
               </CardHeader>
@@ -961,8 +1090,7 @@ export default async function TournamentPage({
                         {topBowler.name}
                       </h3>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {topBowler.overs} Overs Bowled · Econ{" "}
-                        {topBowler.economy}
+                        {topBowler.overs} overs bowled, Econ {topBowler.economy}
                       </p>
                       <div className="mt-3 text-xs text-muted-foreground">
                         Runs Conceded:{" "}
@@ -972,10 +1100,10 @@ export default async function TournamentPage({
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-4xl font-black text-purple-400">
+                      <div className="tabular text-4xl font-black text-purple-400">
                         {topBowler.wickets}
                       </div>
-                      <span className="text-xs uppercase text-muted-foreground">
+                      <span className="text-xs font-medium text-muted-foreground">
                         Wickets
                       </span>
                     </div>
@@ -1016,12 +1144,12 @@ export default async function TournamentPage({
                               {player.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {player.balls} balls · SR {player.strikeRate}
+                              {player.balls} balls, SR {player.strikeRate}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-base font-bold text-foreground">
+                          <div className="tabular text-base font-bold text-foreground">
                             {player.runs}
                           </div>
                           <div className="text-[10px] text-muted-foreground">
@@ -1040,7 +1168,7 @@ export default async function TournamentPage({
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Trophy className="h-4 w-4 text-purple-500" />
-                  Most Wickets
+                  Most wickets
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -1064,7 +1192,7 @@ export default async function TournamentPage({
                               {player.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {player.overs} ov · Econ {player.economy}
+                              {player.overs} ov, Econ {player.economy}
                             </div>
                           </div>
                         </div>
@@ -1089,13 +1217,25 @@ export default async function TournamentPage({
   );
 }
 
-function MatchCard({ match }: { match: MatchRow }) {
+function MatchCard({
+  match,
+  tournamentId,
+  clubId,
+}: {
+  match: MatchRow;
+  tournamentId?: string;
+  clubId?: string;
+}) {
   const isLive = match.status === "live";
   const isCompleted = match.status === "completed";
 
   // Find innings for team1 and team2
   const inn1 = match.innings?.find((i) => i.team_id === match.team1?.id);
   const inn2 = match.innings?.find((i) => i.team_id === match.team2?.id);
+
+  const matchHref = `/matches/${match.id}?tournamentId=${tournamentId ?? ""}${
+    clubId ? `&clubId=${clubId}` : ""
+  }`;
 
   return (
     <Card
@@ -1108,12 +1248,11 @@ function MatchCard({ match }: { match: MatchRow }) {
           </span>
           <Badge
             variant={isLive ? "default" : isCompleted ? "secondary" : "outline"}
-            className="capitalize"
           >
             {isLive && (
               <span className="mr-1 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
             )}
-            {match.status}
+            {formatStatus(match.status)}
           </Badge>
         </div>
 
@@ -1172,8 +1311,8 @@ function MatchCard({ match }: { match: MatchRow }) {
             </Link>
           </Button>
           <Button variant="secondary" size="sm" asChild className="h-7 text-xs">
-            <Link href={`/matches/${match.id}`}>
-              {isLive ? "Match Center (Live)" : "View Scorecard"}
+            <Link href={matchHref}>
+              {isLive ? "Match Center" : "View Scorecard"}
             </Link>
           </Button>
         </div>

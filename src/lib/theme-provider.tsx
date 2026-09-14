@@ -23,8 +23,8 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: "system",
-  resolvedTheme: "dark",
+  theme: "light",
+  resolvedTheme: "light",
   setTheme: () => null,
 };
 
@@ -32,7 +32,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "light",
   storageKey = "cricket-ui-theme",
 }: ThemeProviderProps) {
   const [, startTransition] = useTransition();
@@ -41,7 +41,7 @@ export function ThemeProvider({
     return (localStorage.getItem(storageKey) as Theme | null) ?? defaultTheme;
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
+  const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("light");
 
   useEffect(() => {
     const root = window.document.documentElement;

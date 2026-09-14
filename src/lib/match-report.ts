@@ -1,8 +1,10 @@
 import QRCode from "qrcode";
 import type { Match } from "./match-types";
 import {
+  bowlerEconomy,
   dismissalText,
-  economyRate,
+  formatBowlerOvers,
+  formatDecimalOvers,
   oversFromBalls,
   scoreLine,
   strikeRate,
@@ -75,10 +77,10 @@ export function buildExportSummary(
     })),
     bowlers: topBowlers(match, team.id).map((b) => ({
       name: b.user?.full_name ?? "—",
-      overs: oversFromBalls(b.balls_bowled ?? 0),
+      overs: formatBowlerOvers(b),
       runs: b.runs_conceded ?? 0,
       wickets: b.wickets_taken ?? 0,
-      econ: economyRate(b.runs_conceded, b.balls_bowled),
+      econ: bowlerEconomy(b),
     })),
   });
 
@@ -193,7 +195,7 @@ function fowRow(inn: InningsRow): string {
   const items = entries
     .map(
       (f) =>
-        `<span class="fow-item"><strong>${f.wicket_number}-${f.runs_at_fall}</strong> <span class="fow-sub">(${esc(f.batsman?.full_name ?? "Batter")}, ${oversFromBalls(f.overs_at_fall ?? 0)} ov)</span></span>`,
+        `<span class="fow-item"><strong>${f.wicket_number}-${f.runs_at_fall}</strong> <span class="fow-sub">(${esc(f.batsman?.full_name ?? "Batter")}, ${formatDecimalOvers(f.overs_at_fall)} ov)</span></span>`,
     )
     .join("");
   return `<div class="fow"><div class="fow-label">Fall of Wickets:</div><div class="fow-list">${items}</div></div>`;
@@ -224,11 +226,11 @@ function bowlingRows(inn: InningsRow): string {
 
       return `<tr>
                 <td class="name font-medium">${esc(b.user?.full_name ?? "—")}</td>
-                <td class="num">${oversFromBalls(b.balls_bowled ?? 0)}</td>
+                <td class="num">${formatBowlerOvers(b)}</td>
                 <td class="num">${b.maidens ?? 0}</td>
                 <td class="num">${b.runs_conceded ?? 0}</td>
                 <td class="num">${wktBadge}</td>
-                <td class="num font-mono">${economyRate(b.runs_conceded, b.balls_bowled)}</td>
+                <td class="num font-mono">${bowlerEconomy(b)}</td>
                 <td class="num">${b.wides ?? 0}</td>
                 <td class="num">${b.no_balls ?? 0}</td>
             </tr>`;
@@ -389,10 +391,12 @@ export async function buildMatchReportHtml(
     }
     if (
       potmBowl &&
-      ((potmBowl.wickets_taken ?? 0) > 0 || (potmBowl.balls_bowled ?? 0) > 0)
+      ((potmBowl.wickets_taken ?? 0) > 0 ||
+        (potmBowl.balls_bowled ?? 0) > 0 ||
+        (potmBowl.overs_bowled ?? 0) > 0)
     ) {
       stats.push(
-        `${potmBowl.wickets_taken}/${potmBowl.runs_conceded} (${oversFromBalls(potmBowl.balls_bowled ?? 0)} ov)`,
+        `${potmBowl.wickets_taken}/${potmBowl.runs_conceded} (${formatBowlerOvers(potmBowl)} ov)`,
       );
     }
 

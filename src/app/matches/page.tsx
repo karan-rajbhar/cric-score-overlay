@@ -11,12 +11,13 @@ import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Plus, Search, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "~/lib/auth";
+import { createClient } from "~/lib/supabase/client";
 import { cn } from "~/lib/utils";
 import type { Match } from "~/lib/match-types";
 
 const statusOptions = [
-  { value: "all", label: "All Matches" },
-  { value: "live", label: "Live Now" },
+  { value: "all", label: "All matches" },
+  { value: "live", label: "Live now" },
   { value: "scheduled", label: "Upcoming" },
   { value: "completed", label: "Completed" },
 ] as const;
@@ -28,6 +29,35 @@ export default function MatchesPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [myClubAdminIds, setMyClubAdminIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const fetchAdminClubs = async () => {
+      const supabaseClient = createClient();
+      const [{ data: owned }, { data: mems }] = await Promise.all([
+        supabaseClient.from("clubs").select("id").eq("owner_id", user.id),
+        supabaseClient
+          .from("club_memberships")
+          .select("club_id")
+          .eq("user_id", user.id)
+          .in("role", ["owner", "admin"])
+          .eq("status", "active"),
+      ]);
+      if (cancelled) return;
+      const set = new Set<string>();
+      (owned ?? []).forEach((c) => set.add(c.id));
+      (mems ?? []).forEach((m) => {
+        if (m.club_id) set.add(m.club_id);
+      });
+      setMyClubAdminIds(set);
+    };
+    void fetchAdminClubs();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,12 +121,14 @@ export default function MatchesPage() {
             ) : null}
             <span
               className={cn(
-                live ? "font-bold text-red-500 dark:text-red-400" : "",
+                live
+                  ? "font-bold text-red-600 dark:text-red-400"
+                  : "font-bold text-foreground",
               )}
             >
               {title}
             </span>
-            <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+            <span className="tabular rounded-full bg-muted/80 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
               {items.length}
             </span>
           </div>
@@ -106,10 +138,15 @@ export default function MatchesPage() {
             <MatchCard
               key={match.id}
               match={match}
+              contextQuery="from=matches"
               canScore={
                 !!user &&
                 (match.created_by === user.id ||
-                  (match.match_admins ?? []).includes(user.id))
+                  (match.match_admins ?? []).includes(user.id) ||
+                  Boolean(
+                    (match.club_id || match.club?.id) &&
+                      myClubAdminIds.has((match.club_id || match.club?.id)!),
+                  ))
               }
             />
           ))}
@@ -222,7 +259,7 @@ export default function MatchesPage() {
           />
         ) : (
           <>
-            {renderSection("Live now", liveMatches, true)}
+            {renderSection("Live matches", liveMatches, true)}
             {renderSection("Upcoming fixtures", scheduledMatches)}
             {renderSection("Completed results", completedMatches)}
             {renderSection("Other fixtures", otherMatches)}

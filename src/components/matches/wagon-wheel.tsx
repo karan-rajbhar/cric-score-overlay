@@ -286,32 +286,47 @@ export function WagonWheel({ match }: WagonWheelProps) {
           <div className="flex flex-col items-center justify-center lg:col-span-7">
             <div className="relative aspect-square w-full max-w-[480px]">
               <svg
+                role="img"
+                aria-label="Cricket wagon wheel shot distribution map"
                 viewBox="0 0 500 500"
                 className="h-full w-full select-none drop-shadow-md"
               >
+                <title>Cricket Wagon Wheel Shot Distribution Map</title>
                 <defs>
-                  {/* Turf gradient */}
+                  {/* Sunlit Daylight Turf Gradients */}
                   <radialGradient id="turfGrad" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#142e20" />
-                    <stop offset="70%" stopColor="#0c1e14" />
-                    <stop offset="100%" stopColor="#08140e" />
+                    <stop offset="0%" stopColor="#d1fae5" stopOpacity="0.85" />
+                    <stop offset="65%" stopColor="#ecfdf5" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="#ffffff" stopOpacity="0.2" />
                   </radialGradient>
                   <radialGradient id="circleGrad" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#1d432e" stopOpacity="0.4" />
-                    <stop offset="100%" stopColor="#0c1e14" stopOpacity="0" />
+                    <stop offset="0%" stopColor="#a7f3d0" stopOpacity="0.5" />
+                    <stop
+                      offset="100%"
+                      stopColor="#ecfdf5"
+                      stopOpacity="0.05"
+                    />
                   </radialGradient>
                 </defs>
 
-                {/* Outer Ground Circle */}
-                <circle cx={CX} cy={CY} r={BOUNDARY_R + 15} fill="#050a07" />
+                {/* Outer Ground Circle with Sunlit Paper Backdrop */}
+                <circle
+                  cx={CX}
+                  cy={CY}
+                  r={BOUNDARY_R + 24}
+                  fill="#fffdfa"
+                  stroke="#10b981"
+                  strokeWidth="1.2"
+                  strokeOpacity="0.35"
+                />
                 <circle
                   cx={CX}
                   cy={CY}
                   r={BOUNDARY_R}
                   fill="url(#turfGrad)"
-                  stroke="#22c55e"
+                  stroke="#059669"
                   strokeWidth="2.5"
-                  strokeOpacity="0.8"
+                  strokeOpacity="0.9"
                 />
 
                 {/* 30-yard Circle */}
@@ -320,10 +335,10 @@ export function WagonWheel({ match }: WagonWheelProps) {
                   cy={CY}
                   r={CIRCLE_R}
                   fill="url(#circleGrad)"
-                  stroke="#22c55e"
+                  stroke="#10b981"
                   strokeWidth="1.5"
-                  strokeDasharray="4 4"
-                  strokeOpacity="0.4"
+                  strokeDasharray="5 5"
+                  strokeOpacity="0.65"
                 />
 
                 {/* 8 Sector Divider Lines */}
@@ -338,9 +353,10 @@ export function WagonWheel({ match }: WagonWheelProps) {
                       y1={CY}
                       x2={x2}
                       y2={y2}
-                      stroke="#22c55e"
-                      strokeWidth="1"
-                      strokeOpacity="0.2"
+                      stroke="#059669"
+                      strokeWidth="1.2"
+                      strokeDasharray="4 4"
+                      strokeOpacity="0.3"
                     />
                   );
                 })}
@@ -360,7 +376,7 @@ export function WagonWheel({ match }: WagonWheelProps) {
                       key={s.id}
                       d={`M ${CX} ${CY} L ${x1} ${y1} A ${BOUNDARY_R} ${BOUNDARY_R} 0 0 1 ${x2} ${y2} Z`}
                       fill={
-                        isHovered ? "rgba(34, 197, 94, 0.15)" : "transparent"
+                        isHovered ? "rgba(16, 185, 129, 0.18)" : "transparent"
                       }
                       className="cursor-pointer transition-colors"
                       onMouseEnter={() => setHoveredSector(s.id)}
@@ -369,47 +385,73 @@ export function WagonWheel({ match }: WagonWheelProps) {
                   );
                 })}
 
-                {/* Central Pitch */}
+                {/* Central Pitch: Warm Amber Turf */}
                 <rect
                   x={CX - 8}
                   y={CY - 28}
                   width={16}
                   height={56}
-                  fill="#b89358"
-                  rx={2}
-                  stroke="#8f6f3a"
-                  strokeWidth="1"
+                  fill="#fef3c7"
+                  rx={3}
+                  stroke="#f59e0b"
+                  strokeWidth="1.4"
                 />
-                {/* Stumps */}
-                <circle cx={CX} cy={CY - 22} r={2} fill="#ffffff" />
-                <circle cx={CX} cy={CY + 22} r={2} fill="#ffffff" />
+                {/* Batter sweet spot contact pulse */}
+                <circle
+                  cx={CX}
+                  cy={CY + 18}
+                  r={6}
+                  fill="#f59e0b"
+                  fillOpacity="0.35"
+                />
+                <circle cx={CX} cy={CY + 18} r={2.5} fill="#f59e0b" />
+                {/* Cherry Red Stumps */}
+                <circle
+                  cx={CX}
+                  cy={CY - 22}
+                  r={2.2}
+                  fill="#ef4444"
+                  stroke="#991b1b"
+                  strokeWidth="0.5"
+                />
+                <circle
+                  cx={CX}
+                  cy={CY + 22}
+                  r={2.2}
+                  fill="#ef4444"
+                  stroke="#991b1b"
+                  strokeWidth="0.5"
+                />
 
-                {/* Shot Vectors */}
+                {/* Shot Vectors: Joyful Palette */}
                 {mappedShots.map((shot, idx) => {
                   const r = (shot.angle * Math.PI) / 180;
                   const length = BOUNDARY_R * shot.distPercent;
                   const endX = CX + length * Math.sin(r);
                   const endY = CY - length * Math.cos(r);
 
-                  let strokeColor = "#6b7280"; // dots
+                  let strokeColor = "#94a3b8"; // dots
                   let strokeWidth = 1.2;
+                  let isDash = false;
+
                   if (shot.runs_scored === 6) {
-                    strokeColor = "#c084fc"; // 6s (violet)
-                    strokeWidth = 2.5;
+                    strokeColor = "#8b5cf6"; // 6s (Electric Violet)
+                    strokeWidth = 2.8;
                   } else if (shot.runs_scored === 4) {
-                    strokeColor = "#22c55e"; // 4s (green)
-                    strokeWidth = 2;
+                    strokeColor = "#059669"; // 4s (Meadow Emerald)
+                    strokeWidth = 2.2;
                   } else if (shot.runs_scored && shot.runs_scored > 0) {
-                    strokeColor = "#fbbf24"; // 1,2,3 (amber)
-                    strokeWidth = 1.4;
+                    strokeColor = "#f59e0b"; // 1,2,3 (Citrus Amber)
+                    strokeWidth = 1.6;
+                    isDash = true;
                   } else if (shot.is_wicket) {
-                    strokeColor = "#ef4444"; // wicket (red)
-                    strokeWidth = 2;
+                    strokeColor = "#ef4444"; // wicket (Radiant Cherry)
+                    strokeWidth = 2.2;
                   }
 
                   const isHighlighted =
                     !hoveredSector || hoveredSector === shot.sectorId;
-                  const opacity = isHighlighted ? 0.9 : 0.15;
+                  const opacity = isHighlighted ? 0.95 : 0.18;
 
                   return (
                     <g key={idx}>
@@ -421,14 +463,17 @@ export function WagonWheel({ match }: WagonWheelProps) {
                         stroke={strokeColor}
                         strokeWidth={strokeWidth}
                         strokeOpacity={opacity}
+                        strokeDasharray={isDash ? "3 3" : undefined}
                         strokeLinecap="round"
                       />
                       {shot.runs_scored && shot.runs_scored >= 4 && (
                         <circle
                           cx={endX}
                           cy={endY}
-                          r={shot.runs_scored === 6 ? 4 : 3}
+                          r={shot.runs_scored === 6 ? 4.5 : 3.5}
                           fill={strokeColor}
+                          stroke="#ffffff"
+                          strokeWidth="1.2"
                           fillOpacity={opacity}
                         />
                       )}
@@ -450,12 +495,12 @@ export function WagonWheel({ match }: WagonWheelProps) {
                       key={s.id}
                       x={lx}
                       y={ly}
-                      fill={isHovered ? "#22c55e" : "#8ca094"}
-                      fontSize="9"
-                      fontWeight={isHovered ? "bold" : "600"}
+                      fill={isHovered ? "#047857" : "#334155"}
+                      fontSize="9.5"
+                      fontWeight={isHovered ? "800" : "600"}
                       textAnchor="middle"
                       dominantBaseline="central"
-                      className="pointer-events-none transition-colors"
+                      className="pointer-events-none transition-colors dark:fill-slate-200"
                     >
                       {s.label} ({stats?.runs ?? 0})
                     </text>
@@ -464,43 +509,41 @@ export function WagonWheel({ match }: WagonWheelProps) {
               </svg>
             </div>
 
-            {/* Legend */}
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-violet-400" />
-                <span>Six (6)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                <span>Four (4)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-amber-400" />
-                <span>1 / 2 / 3 Runs</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-gray-500" />
-                <span>Dot Ball</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-red-500" />
-                <span>Wicket</span>
-              </div>
+            {/* Joyful Legend with Badges */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2 text-xs">
+              <span className="pill-bubble border-purple-500/30 bg-purple-500/10 font-bold text-purple-700 dark:text-purple-300">
+                <span className="h-2 w-2 rounded-full bg-purple-500" />
+                Six (6s) ✨
+              </span>
+              <span className="pill-bubble border-emerald-500/30 bg-emerald-500/10 font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Four (4s) 💥
+              </span>
+              <span className="pill-bubble border-amber-500/30 bg-amber-500/10 font-bold text-amber-800 dark:text-amber-300">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                1-3 Runs ⚡
+              </span>
+              <span className="pill-bubble border-slate-300/80 bg-slate-100 font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                Dot Ball
+              </span>
+              <span className="pill-bubble border-red-500/30 bg-red-500/10 font-bold text-red-600 dark:text-red-400">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Wicket 🎯
+              </span>
             </div>
           </div>
 
           {/* Sector Breakdown Grid */}
           <div className="space-y-3 lg:col-span-5">
             <div className="flex items-center justify-between border-b pb-2">
-              <span className="text-sm font-semibold">
-                Scoring Zone Breakdown
-              </span>
-              <Badge variant="outline" className="text-xs">
+              <span className="text-sm font-bold">Scoring Zone Breakdown</span>
+              <Badge variant="outline" className="font-mono text-xs font-bold">
                 {totalRunsInFilter} Total Runs
               </Badge>
             </div>
 
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[360px] space-y-2.5 overflow-y-auto pr-1">
               {SECTORS.map((s) => {
                 const st = sectorStats.get(s.id) ?? {
                   runs: 0,
@@ -520,10 +563,10 @@ export function WagonWheel({ match }: WagonWheelProps) {
                     key={s.id}
                     onMouseEnter={() => setHoveredSector(s.id)}
                     onMouseLeave={() => setHoveredSector(null)}
-                    className={`cursor-pointer rounded-lg border p-2.5 transition-all ${
+                    className={`cursor-pointer rounded-2xl border p-3 transition-all duration-150 ${
                       isHovered
-                        ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary/40"
-                        : "border-border/60 text-foreground hover:bg-muted/40"
+                        ? "-translate-y-0.5 border-emerald-500/60 bg-emerald-500/10 text-foreground shadow-sm ring-2 ring-emerald-500/30"
+                        : "border-border/60 bg-card/70 text-foreground hover:border-emerald-500/30 hover:bg-muted/50"
                     }`}
                   >
                     <div className="mb-1 flex items-center justify-between text-xs">

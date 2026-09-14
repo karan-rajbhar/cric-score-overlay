@@ -47,6 +47,68 @@ describe("match-report export helpers", () => {
       },
     ],
     bowling_performances: [],
+    fall_of_wickets: [
+      {
+        id: "fow1",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 1,
+        runs_at_fall: 26,
+        overs_at_fall: 2.5,
+        batsman_out_id: "u4",
+        batsman: { id: "u4", full_name: "David Brown" },
+      },
+      {
+        id: "fow2",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 2,
+        runs_at_fall: 46,
+        overs_at_fall: 5.4,
+        batsman_out_id: "u5",
+        batsman: { id: "u5", full_name: "Tom Garcia" },
+      },
+      {
+        id: "fow3",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 3,
+        runs_at_fall: 73,
+        overs_at_fall: 8.4,
+        batsman_out_id: "u6",
+        batsman: { id: "u6", full_name: "Mike Wilson" },
+      },
+      {
+        id: "fow4",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 4,
+        runs_at_fall: 94,
+        overs_at_fall: 11.3,
+        batsman_out_id: "u7",
+        batsman: { id: "u7", full_name: "John Smith" },
+      },
+      {
+        id: "fow5",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 5,
+        runs_at_fall: 117,
+        overs_at_fall: 14.2,
+        batsman_out_id: "u8",
+        batsman: { id: "u8", full_name: "Ryan Martinez" },
+      },
+      {
+        id: "fow6",
+        match_id: "m1",
+        innings_id: "inn1",
+        wicket_number: 6,
+        runs_at_fall: 141,
+        overs_at_fall: 17.1,
+        batsman_out_id: "u9",
+        batsman: { id: "u9", full_name: "Alex Davis" },
+      },
+    ],
   };
 
   const innings2: Innings = {
@@ -156,6 +218,34 @@ describe("match-report export helpers", () => {
       expect(html).toContain("data:image/png;base64,"); // QR code data url
       expect(html).toContain('class="innings"');
       expect(html).toContain("@media print");
+
+      // Verify Fall of Wickets formatting
+      expect(html).toContain(
+        '1-26</strong> <span class="fow-sub">(David Brown, 2.5 ov)',
+      );
+      expect(html).toContain(
+        '2-46</strong> <span class="fow-sub">(Tom Garcia, 5.4 ov)',
+      );
+      expect(html).toContain(
+        '3-73</strong> <span class="fow-sub">(Mike Wilson, 8.4 ov)',
+      );
+      expect(html).toContain(
+        '4-94</strong> <span class="fow-sub">(John Smith, 11.3 ov)',
+      );
+      expect(html).toContain(
+        '5-117</strong> <span class="fow-sub">(Ryan Martinez, 14.2 ov)',
+      );
+      expect(html).toContain(
+        '6-141</strong> <span class="fow-sub">(Alex Davis, 17.1 ov)',
+      );
+
+      // Must never produce double-dot or float artifacts
+      expect(html).not.toContain("0.2.5 ov");
+      expect(html).not.toContain("0.5.4 ov");
+      expect(html).not.toContain("1.2.4000");
+      expect(html).not.toContain("1.5.3000");
+      expect(html).not.toContain("2.2.1999");
+      expect(html).not.toContain("2.5.1000");
     });
   });
 });

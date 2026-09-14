@@ -140,6 +140,36 @@ export async function createTeam(formData: FormData) {
     return { error: "Team name is required" };
   }
 
+  if (club_id) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", club_id)
+      .single();
+
+    if (!club) {
+      return { error: "Specified club does not exist" };
+    }
+
+    if (club.owner_id !== user.id) {
+      const { data: membership } = await supabase
+        .from("club_memberships")
+        .select("id")
+        .eq("club_id", club_id)
+        .eq("user_id", user.id)
+        .in("role", ["owner", "admin"])
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (!membership) {
+        return {
+          error:
+            "You must be an owner or admin of the club to create teams for it",
+        };
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from("teams")
     .insert({
@@ -256,11 +286,71 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
   return { data: data as { user_id: string; full_name: string }, error: null };
 }
 
+async function checkTeamManageAuth(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  teamId: string,
+  userId: string,
+): Promise<boolean> {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("created_by, captain_id, vice_captain_id, club_id")
+    .eq("id", teamId)
+    .single();
+
+  if (!team) return false;
+
+  if (
+    team.created_by === userId ||
+    team.captain_id === userId ||
+    team.vice_captain_id === userId
+  ) {
+    return true;
+  }
+
+  if (team.club_id) {
+    const { data: club } = await supabase
+      .from("clubs")
+      .select("owner_id")
+      .eq("id", team.club_id)
+      .single();
+
+    if (club?.owner_id === userId) return true;
+
+    const { data: mem } = await supabase
+      .from("club_memberships")
+      .select("id")
+      .eq("club_id", team.club_id)
+      .eq("user_id", userId)
+      .in("role", ["owner", "admin"])
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (mem) return true;
+  }
+
+  return false;
+}
+
 export async function updateTeam(id: string, formData: FormData) {
   const supabase = await createServerClient();
-  const name = formData.get("name") as string;
-  const short_name = formData.get("short_name") as string;
-  const description = formData.get("description") as string;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in to update a team" };
+
+  const canManage = await checkTeamManageAuth(supabase, id, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "Only team captains, creators, or club admins can update this team",
+    };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return { error: "Team name is required" };
+  const short_name = (formData.get("short_name") as string)?.trim() || null;
+  const description = (formData.get("description") as string)?.trim() || null;
 
   const { error } = await supabase
     .from("teams")
@@ -288,16 +378,25 @@ export async function addPlayerToTeam(
 ) {
   const supabase = await createServerClient();
 
-  // Get current user for 'added_by'
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in to add players" };
+
+  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "Only team captains, creators, or club admins can add players to this team",
+    };
+  }
 
   const { error } = await supabase.from("team_players").insert({
     team_id: teamId,
     user_id: userId,
     role_in_team: role,
-    added_by: user?.id,
+    added_by: user.id,
   });
 
   if (error) {
@@ -319,9 +418,22 @@ export async function removePlayerFromTeam(
 ) {
   const supabase = await createServerClient();
 
-  // Wait, the argument should probably be the player's user ID,
-  // but let's check if we're passing the team_player record ID or the user ID.
-  // The plan said "userId", so let's stick to that for consistency.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in to remove players" };
+
+  const isSelf = user.id === userInputId;
+  if (!isSelf) {
+    const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+    if (!canManage) {
+      return {
+        error:
+          "Only team captains, creators, or club admins can remove players from this team",
+      };
+    }
+  }
 
   const { error } = await supabase
     .from("team_players")
@@ -344,6 +456,20 @@ export async function updatePlayerRole(
   role: string,
 ) {
   const supabase = await createServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in to change player roles" };
+
+  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "Only team captains, creators, or club admins can update player roles",
+    };
+  }
 
   // Start a transaction-like update if we're setting captain
   if (role === "captain") {
@@ -415,6 +541,14 @@ export async function updateTeamLogo(teamId: string, file: File) {
   } = await supabase.auth.getUser();
   if (!user) return { data: null, error: "You must be logged in" };
 
+  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  if (!canManage) {
+    return {
+      data: null,
+      error: "Only team captains, creators, or club admins can change the logo",
+    };
+  }
+
   if (file.size > MAX_LOGO_BYTES) {
     return { data: null, error: "Logo must be under 2 MB" };
   }
@@ -465,6 +599,14 @@ export async function removeTeamLogo(teamId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  if (!canManage) {
+    return {
+      error:
+        "Only team captains, creators, or club admins can remove the team logo",
+    };
+  }
 
   const { error } = await supabase
     .from("teams")

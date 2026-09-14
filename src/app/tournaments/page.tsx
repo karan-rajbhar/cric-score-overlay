@@ -5,6 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Trophy, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +33,10 @@ export default async function TournamentsPage() {
       {(tournaments ?? []).length === 0 ? (
         <EmptyState
           icon={Trophy}
-          title="No Tournaments Hosted Yet"
+          title="No tournaments hosted yet"
           description="Create a tournament to schedule matches, generate automatic fixtures, and maintain live automated standings points tables."
           primaryAction={{
-            label: "Create Tournament",
+            label: "Create tournament",
             href: "/tournaments/create",
             icon: Plus,
           }}
@@ -48,15 +49,16 @@ export default async function TournamentsPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>{t.name}</span>
-                    <Badge variant="outline" className="capitalize">
-                      {t.status}
-                    </Badge>
+                    <Badge variant="outline">{formatStatus(t.status)}</Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Trophy className="h-4 w-4" />
-                    {t.tournament_format} {t.venue ? `· ${t.venue}` : ""}
+                  <div className="flex items-center gap-1.5">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <span>
+                      {formatTournamentFormat(t.tournament_format)}
+                      {t.venue ? `, ${t.venue}` : ""}
+                    </span>
                   </div>
                   {t.description && (
                     <p className="line-clamp-2 text-foreground/80">

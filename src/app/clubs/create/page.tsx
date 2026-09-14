@@ -36,9 +36,11 @@ export default function CreateClubPage() {
       <div className="flex min-h-screen items-center justify-center">
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <p className="mb-4">Sign in to create a club</p>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Sign in to create a club
+            </p>
             <Button asChild>
-              <Link href="/auth/login">Sign In</Link>
+              <Link href="/auth/login">Sign in</Link>
             </Button>
           </CardContent>
         </Card>
@@ -63,13 +65,13 @@ export default function CreateClubPage() {
       <div className="container mx-auto max-w-2xl px-4">
         <Button variant="ghost" asChild className="mb-4">
           <Link href="/clubs">
-            <ChevronLeft className="mr-2 h-4 w-4" /> Back to Clubs
+            <ChevronLeft className="mr-2 h-4 w-4" /> Back to clubs
           </Link>
         </Button>
 
         <Card>
           <CardHeader>
-            <CardTitle>Create Club</CardTitle>
+            <CardTitle>Create club</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -132,7 +134,7 @@ export default function CreateClubPage() {
               </div>
 
               {error && (
-                <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-600">
+                <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                   {error}
                 </div>
               )}

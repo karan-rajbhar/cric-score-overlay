@@ -32,6 +32,12 @@ import { MemberRoleAction } from "~/components/clubs/member-role-action";
 import { HallOfFameDialog } from "~/components/clubs/hall-of-fame-dialog";
 import { SeasonDialog } from "~/components/clubs/season-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  formatStatus,
+  formatTournamentFormat,
+  formatClubType,
+  formatTeamType,
+} from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -243,8 +249,8 @@ export default async function ClubPage({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 {club.club_type && (
-                  <Badge variant="outline" className="capitalize">
-                    {club.club_type} Club
+                  <Badge variant="outline">
+                    {formatClubType(club.club_type)} Club
                   </Badge>
                 )}
                 {club.founded_year && (
@@ -365,18 +371,22 @@ export default async function ClubPage({
               isOwner={isOwner}
               isAuthenticated={!!user}
             />
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link href={`/tournaments/create?clubId=${club.id}`}>
-                <Trophy className="h-4 w-4" />
-                Host Tournament
-              </Link>
-            </Button>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/teams/create?clubId=${club.id}`}>
-                <Plus className="h-4 w-4" />
-                Create Club Team
-              </Link>
-            </Button>
+            {isAdmin && (
+              <>
+                <Button asChild size="sm" variant="outline" className="gap-1.5">
+                  <Link href={`/tournaments/create?clubId=${club.id}`}>
+                    <Trophy className="h-4 w-4" />
+                    Host Tournament
+                  </Link>
+                </Button>
+                <Button asChild size="sm" className="gap-1.5">
+                  <Link href={`/teams/create?clubId=${club.id}`}>
+                    <Plus className="h-4 w-4" />
+                    Create Club Team
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -386,7 +396,7 @@ export default async function ClubPage({
             <div className="text-xl font-bold text-foreground">
               {typedTeams.length}
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground">
               Teams
             </div>
           </div>
@@ -394,7 +404,7 @@ export default async function ClubPage({
             <div className="text-xl font-bold text-foreground">
               {typedTournaments.length}
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground">
               Tournaments
             </div>
           </div>
@@ -402,7 +412,7 @@ export default async function ClubPage({
             <div className="text-xl font-bold text-foreground">
               {typedHallOfFame.length}
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground">
               Hall of Fame
             </div>
           </div>
@@ -410,7 +420,7 @@ export default async function ClubPage({
             <div className="text-xl font-bold text-foreground">
               {typedMembers.length}
             </div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="text-xs font-medium text-muted-foreground">
               Members
             </div>
           </div>
@@ -454,12 +464,14 @@ export default async function ClubPage({
                 Teams representing {club.name} in leagues and friendly matches.
               </p>
             </div>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/teams/create?clubId=${club.id}`}>
-                <Plus className="h-4 w-4" />
-                Add Team
-              </Link>
-            </Button>
+            {isAdmin && (
+              <Button asChild size="sm" className="gap-1.5">
+                <Link href={`/teams/create?clubId=${club.id}`}>
+                  <Plus className="h-4 w-4" />
+                  Add Team
+                </Link>
+              </Button>
+            )}
           </div>
 
           {typedTeams.length === 0 ? (
@@ -467,11 +479,15 @@ export default async function ClubPage({
               icon={Shield}
               title="No Teams Registered Yet"
               description="Create the club's first playing squad to start organizing fixtures and player statistics."
-              primaryAction={{
-                label: "Create Club Team",
-                href: `/teams/create?clubId=${club.id}`,
-                icon: Plus,
-              }}
+              primaryAction={
+                isAdmin
+                  ? {
+                      label: "Create Club Team",
+                      href: `/teams/create?clubId=${club.id}`,
+                      icon: Plus,
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -499,9 +515,7 @@ export default async function ClubPage({
                         )}
                       </div>
                       <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
-                        <span className="capitalize">
-                          {team.team_type ?? "Club"}
-                        </span>
+                        <span>{formatTeamType(team.team_type)}</span>
                         <span>
                           {team.team_players?.[0]?.count ?? 0} Players
                         </span>
@@ -524,12 +538,14 @@ export default async function ClubPage({
                 this club.
               </p>
             </div>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/tournaments/create?clubId=${club.id}`}>
-                <Plus className="h-4 w-4" />
-                Host Tournament
-              </Link>
-            </Button>
+            {isAdmin && (
+              <Button asChild size="sm" className="gap-1.5">
+                <Link href={`/tournaments/create?clubId=${club.id}`}>
+                  <Plus className="h-4 w-4" />
+                  Host Tournament
+                </Link>
+              </Button>
+            )}
           </div>
 
           {typedTournaments.length === 0 ? (
@@ -537,11 +553,15 @@ export default async function ClubPage({
               icon={Trophy}
               title="No Tournaments Hosted Yet"
               description="Organize a tournament under your club with automated points tables, fixtures, and leaderboards."
-              primaryAction={{
-                label: "Host Tournament",
-                href: `/tournaments/create?clubId=${club.id}`,
-                icon: Plus,
-              }}
+              primaryAction={
+                isAdmin
+                  ? {
+                      label: "Host Tournament",
+                      href: `/tournaments/create?clubId=${club.id}`,
+                      icon: Plus,
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -556,12 +576,13 @@ export default async function ClubPage({
                         <CardTitle className="text-base font-bold transition-colors hover:text-primary">
                           {t.name}
                         </CardTitle>
-                        <Badge variant="outline" className="capitalize">
-                          {t.status}
+                        <Badge variant="outline">
+                          {formatStatus(t.status)}
                         </Badge>
                       </div>
                       <CardDescription className="text-xs">
-                        {t.tournament_format} Format · {t.match_format ?? "T20"}
+                        {formatTournamentFormat(t.tournament_format)} format,{" "}
+                        {t.match_format ?? "T20"}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 text-xs text-muted-foreground">
@@ -598,12 +619,14 @@ export default async function ClubPage({
                 this club.
               </p>
             </div>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link href={`/matches/create?clubId=${club.id}`}>
-                <Plus className="h-4 w-4" />
-                Schedule Match
-              </Link>
-            </Button>
+            {isAdmin && (
+              <Button asChild size="sm" className="gap-1.5">
+                <Link href={`/matches/create?clubId=${club.id}`}>
+                  <Plus className="h-4 w-4" />
+                  Schedule Match
+                </Link>
+              </Button>
+            )}
           </div>
 
           {typedMatches.length === 0 ? (
@@ -611,11 +634,15 @@ export default async function ClubPage({
               icon={Calendar}
               title="No Matches Scheduled"
               description="Schedule club matches to start tracking live scores, wagon wheels, and broadcast overlays."
-              primaryAction={{
-                label: "Schedule Match",
-                href: `/matches/create?clubId=${club.id}`,
-                icon: Plus,
-              }}
+              primaryAction={
+                isAdmin
+                  ? {
+                      label: "Schedule Match",
+                      href: `/matches/create?clubId=${club.id}`,
+                      icon: Plus,
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
@@ -642,12 +669,11 @@ export default async function ClubPage({
                                 ? "secondary"
                                 : "outline"
                           }
-                          className="capitalize"
                         >
                           {isLive && (
                             <Radio className="mr-1 h-3 w-3 animate-pulse text-emerald-400" />
                           )}
-                          {m.status}
+                          {formatStatus(m.status)}
                         </Badge>
                       </div>
 
@@ -715,8 +741,8 @@ export default async function ClubPage({
                           asChild
                           className="h-7 text-xs"
                         >
-                          <Link href={`/matches/${m.id}`}>
-                            {isLive ? "Match Center (Live)" : "View Scorecard"}
+                          <Link href={`/matches/${m.id}?clubId=${club.id}`}>
+                            {isLive ? "Match Center" : "View Scorecard"}
                           </Link>
                         </Button>
                       </div>
@@ -800,7 +826,7 @@ export default async function ClubPage({
                         <div className="mb-3 flex items-center justify-between gap-2">
                           <Badge
                             variant="outline"
-                            className={`text-[10px] font-semibold capitalize tracking-wider ${badgeColor}`}
+                            className={`text-xs font-medium capitalize ${badgeColor}`}
                           >
                             {entry.category.replace(/_/g, " ")}
                           </Badge>

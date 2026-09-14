@@ -22,8 +22,8 @@ export default function GlobalError({
         <AlertCircle className="h-8 w-8" />
       </div>
 
-      <span className="mb-2 rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-destructive">
-        Execution Error
+      <span className="mb-2 rounded-full border border-destructive/20 bg-destructive/10 px-3 py-1 text-xs font-medium text-destructive">
+        Execution error
       </span>
 
       <h1 className="mb-2 text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">

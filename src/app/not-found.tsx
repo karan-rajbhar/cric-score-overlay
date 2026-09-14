@@ -9,8 +9,8 @@ export default function NotFound() {
         <Compass className="h-8 w-8 animate-spin-slow" />
       </div>
 
-      <span className="mb-3 rounded-full bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        404 · Clean Bowled
+      <span className="mb-3 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+        404, clean bowled
       </span>
 
       <h1 className="mb-3 text-3xl font-extrabold tracking-tight text-foreground sm:text-4xl">

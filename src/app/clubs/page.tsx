@@ -5,6 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Shield, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formatClubType } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,7 @@ function ClubCard({ club }: { club: ClubRow }) {
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             {club.club_type && (
-              <Badge variant="outline" className="capitalize">
-                {club.club_type}
-              </Badge>
+              <Badge variant="outline">{formatClubType(club.club_type)}</Badge>
             )}
             <span>
               {teamCount} {teamCount === 1 ? "team" : "teams"}
@@ -120,7 +119,7 @@ export default async function ClubsPage() {
 
       {user && (
         <section className="mb-10">
-          <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="section-heading mb-4 text-sm font-semibold text-foreground">
             My clubs
           </h2>
           {myClubs?.length ? (
@@ -132,10 +131,10 @@ export default async function ClubsPage() {
           ) : (
             <EmptyState
               icon={Shield}
-              title="No Clubs Joined Yet"
+              title="No clubs joined yet"
               description="You don't belong to any cricket clubs yet. Create your club to organize teams, record seasons, and showcase top performers."
               primaryAction={{
-                label: "Create Club",
+                label: "Create club",
                 href: "/clubs/create",
                 icon: Plus,
               }}
@@ -146,7 +145,7 @@ export default async function ClubsPage() {
 
       <section>
         {!user && (
-          <h2 className="section-heading mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className="section-heading mb-4 text-sm font-semibold text-foreground">
             Public clubs
           </h2>
         )}
@@ -160,7 +159,7 @@ export default async function ClubsPage() {
           !user && (
             <EmptyState
               icon={Shield}
-              title="No Public Clubs Found"
+              title="No public clubs found"
               description="No public cricket clubs have been registered on the platform yet. Sign in to create the first club!"
               primaryAction={{
                 label: "Sign In to Create Club",

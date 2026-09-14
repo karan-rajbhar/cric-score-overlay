@@ -239,7 +239,7 @@ function SignupPageInner() {
         <div className="space-y-4 text-center">
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight">
-              Join Cricket Platform
+              Join CricScore
             </h1>
             <p className="text-muted-foreground">
               Create your account and start scoring matches
@@ -271,7 +271,7 @@ function SignupPageInner() {
               onClick={handleGoogleSignUp}
               disabled={googleLoading}
               variant="outline"
-              className="btn-secondary relative h-12 w-full"
+              className="h-11 w-full"
             >
               {googleLoading ? (
                 <>
@@ -308,8 +308,8 @@ function SignupPageInner() {
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border"></span>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
+              <div className="relative flex justify-center text-xs font-medium text-muted-foreground">
+                <span className="bg-card px-2.5">or</span>
               </div>
             </div>
 
@@ -693,10 +693,8 @@ function SignupPageInner() {
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-border"></span>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Already have an account?
-                </span>
+              <div className="relative flex justify-center text-xs font-medium text-muted-foreground">
+                <span className="bg-card px-2.5">Already have an account?</span>
               </div>
             </div>
 

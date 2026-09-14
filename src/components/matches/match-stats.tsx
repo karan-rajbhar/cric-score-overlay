@@ -7,7 +7,7 @@ import { cn } from "~/lib/utils";
 import { Loader2 } from "lucide-react";
 import { getMatchBallLog } from "~/app/matches/queries";
 import type { BallEvent, Match } from "~/lib/match-types";
-import { teamName } from "~/lib/cricket";
+import { teamName, runRate, inningsBalls } from "~/lib/cricket";
 import { WagonWheel } from "./wagon-wheel";
 
 type Ball = BallEvent;
@@ -211,11 +211,10 @@ export function MatchStats({ match }: MatchStatsProps) {
                                 Run Rate:{" "}
                               </span>
                               <span className="font-medium">
-                                {innings.total_overs > 0
-                                  ? (
-                                      innings.total_runs / innings.total_overs
-                                    ).toFixed(2)
-                                  : "0.00"}
+                                {runRate(
+                                  innings.total_runs,
+                                  inningsBalls(innings),
+                                )}
                               </span>
                             </div>
                           </div>

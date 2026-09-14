@@ -17,13 +17,13 @@ export default async function PlayersPage({
 
   let query = supabase
     .from("users")
-    .select("id, full_name, avatar_url, email")
+    .select("id, full_name, avatar_url")
     .order("full_name")
     .limit(30);
   if (q.trim().length >= 2) {
     query = supabase
       .from("users")
-      .select("id, full_name, avatar_url, email")
+      .select("id, full_name, avatar_url")
       .ilike("full_name", `%${q.trim()}%`)
       .order("full_name")
       .limit(30);
@@ -57,9 +57,9 @@ export default async function PlayersPage({
                   {p.full_name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-medium">{p.full_name}</p>
+                  <p className="font-medium text-foreground">{p.full_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {p.email ?? "—"}
+                    Player profile
                   </p>
                 </div>
               </CardContent>
@@ -69,7 +69,7 @@ export default async function PlayersPage({
         {(players ?? []).length === 0 && (
           <EmptyState
             icon={UserX}
-            title="No Players Found"
+            title="No players found"
             description={
               q
                 ? `No registered cricketers match "${q}". Try another query.`
@@ -78,7 +78,7 @@ export default async function PlayersPage({
             primaryAction={
               q
                 ? {
-                    label: "Clear Search",
+                    label: "Clear search",
                     href: "/players",
                   }
                 : undefined

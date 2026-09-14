@@ -5,23 +5,26 @@ import { getMatch, getTeamPlayers, getScoringState } from "../../queries";
 import {
   startMatch,
   recordBall,
+  updateBall,
   undoLastBall,
   setCurrentBatsmen,
   setCurrentBowler,
   endInnings,
+  startSuperOver,
 } from "../../mutations";
 import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
-import type { BallEvent, ScoringState } from "../../types";
+import type { BallEvent, ScoringState, ExtraType } from "../../types";
+import type { DeliveryToEdit } from "./components/EditBallDialog";
 
 type Player = TeamPlayer;
 
 function deliveryLabel(d: {
-  runs_scored: number | null | undefined;
-  extras: number | null | undefined;
-  extra_type: string | null | undefined;
-  is_wicket: boolean | null | undefined;
+  runs_scored?: number | null;
+  extras?: number | null;
+  extra_type?: string | null;
+  is_wicket?: boolean | null;
 }): string {
   if (d.is_wicket) return "W";
   if (d.extra_type === "wide") {
@@ -29,8 +32,8 @@ function deliveryLabel(d: {
     return w === 1 ? "Wd" : `Wd+${w - 1}`;
   }
   if (d.extra_type === "no_ball") {
-    const nb = d.extras ?? 1;
-    return nb === 1 ? "Nb" : `Nb+${nb - 1}`;
+    const batRuns = d.runs_scored ?? 0;
+    return batRuns === 0 ? "Nb" : `Nb+${batRuns}`;
   }
   if (d.extra_type === "bye") return `B${d.extras ?? 0}`;
   if (d.extra_type === "leg_bye") return `Lb${d.extras ?? 0}`;
@@ -55,8 +58,10 @@ export function useScoring(matchId: string) {
   const [strikerId, setStrikerId] = useState<string | null>(null);
   const [nonStrikerId, setNonStrikerId] = useState<string | null>(null);
   const [currentBowlerId, setCurrentBowlerId] = useState<string | null>(null);
+  const [lastOverBowlerId, setLastOverBowlerId] = useState<string | null>(null);
 
   const [lastBalls, setLastBalls] = useState<string[]>([]);
+  const [rawDeliveries, setRawDeliveries] = useState<DeliveryToEdit[]>([]);
 
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -88,24 +93,23 @@ export function useScoring(matchId: string) {
       strikerId: s,
       nonStrikerId: ns,
       bowlerId: b,
+      lastOverBowlerId: lob,
       thisOverDeliveries,
     } = result.data as {
       match: Match;
       strikerId: string | null;
       nonStrikerId: string | null;
       bowlerId: string | null;
-      thisOverDeliveries: Array<{
-        runs_scored: number | null;
-        extras: number | null;
-        extra_type: string | null;
-        is_wicket: boolean | null;
-      }>;
+      lastOverBowlerId?: string | null;
+      thisOverDeliveries: DeliveryToEdit[];
     };
     if (m.status === "live") await loadPlayers(m);
     setMatch(m);
     setStrikerId(s);
     setNonStrikerId(ns);
     setCurrentBowlerId(b);
+    setLastOverBowlerId(lob ?? null);
+    setRawDeliveries(thisOverDeliveries);
     setLastBalls(thisOverDeliveries.map(deliveryLabel));
   }, [matchId]);
 
@@ -215,6 +219,44 @@ export function useScoring(matchId: string) {
     return result;
   };
 
+  const handleUpdateBall = async (params: {
+    ballId: string;
+    runsScored: number;
+    extras: number;
+    extraType: ExtraType | null;
+    isWicket: boolean;
+    dismissalType: string | null;
+  }) => {
+    setIsProcessing(true);
+    const result = await updateBall({
+      matchId,
+      ...params,
+    });
+    if (result.error) {
+      toast.error(result.error);
+    } else if (result.data) {
+      applyState(result.data);
+      toast.success("Delivery updated in place");
+    }
+    await syncFromDb();
+    setIsProcessing(false);
+    return result;
+  };
+
+  const handleStartSuperOver = async () => {
+    setIsProcessing(true);
+    const result = await startSuperOver(matchId);
+    if (result.error) {
+      toast.error(result.error);
+    } else if (result.data) {
+      applyState(result.data);
+      toast.success("Super Over initiated!");
+    }
+    await syncFromDb();
+    setIsProcessing(false);
+    return result;
+  };
+
   const handleConfirmBatsmen = async (
     sId: string | null,
     nsId: string | null,
@@ -312,7 +354,9 @@ export function useScoring(matchId: string) {
     strikerId,
     nonStrikerId,
     currentBowlerId,
+    lastOverBowlerId,
     lastBalls,
+    rawDeliveries,
     isProcessing,
     setStrikerId,
     setNonStrikerId,
@@ -323,6 +367,8 @@ export function useScoring(matchId: string) {
     handleStartMatch,
     handleScore,
     handleUndo,
+    handleUpdateBall,
+    handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,
     handleAddPlayerInline,

@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { removePlayerFromTeam, updatePlayerRole } from "~/app/teams/actions";
+import { formatPlayerRole } from "~/lib/cricket";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -43,12 +44,16 @@ interface PlayerListProps {
   teamId: string;
   players: Player[];
   allowEdit?: boolean;
+  tournamentId?: string;
+  clubId?: string;
 }
 
 export function PlayerList({
   teamId,
   players,
   allowEdit = false,
+  tournamentId,
+  clubId,
 }: PlayerListProps) {
   const [updating, setUpdating] = useState<string | null>(null);
 
@@ -105,8 +110,8 @@ export function PlayerList({
         return <Badge variant="outline">Wicket Keeper</Badge>;
       default:
         return (
-          <span className="text-sm capitalize text-muted-foreground">
-            {role || "Player"}
+          <span className="text-sm text-muted-foreground">
+            {formatPlayerRole(role)}
           </span>
         );
     }
@@ -148,12 +153,12 @@ export function PlayerList({
                   </div>
                   <div>
                     <Link
-                      href={`/players/${player.user_id}?teamId=${teamId}`}
+                      href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
                       className="cursor-pointer text-sm font-medium transition-colors hover:text-primary"
                     >
                       {player.user?.full_name}
                     </Link>
-                    {player.user?.email && (
+                    {allowEdit && player.user?.email && (
                       <p className="text-xs text-muted-foreground">
                         {player.user.email}
                       </p>
@@ -169,6 +174,7 @@ export function PlayerList({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Player actions for ${player.user?.full_name || "member"}`}
                         disabled={updating === player.user_id}
                       >
                         {updating === player.user_id ? (

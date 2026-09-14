@@ -87,8 +87,8 @@ export function AppSidebar() {
       <div className="space-y-6">
         {isMobile && (
           <div className="flex items-center justify-between border-b border-border/70 px-2 pb-3">
-            <span className="text-sm font-extrabold uppercase tracking-wider text-primary">
-              CricScore Menu
+            <span className="text-sm font-bold text-foreground">
+              Navigation
             </span>
             <button
               onClick={() => setMobileOpen(false)}
@@ -109,7 +109,7 @@ export function AppSidebar() {
           return (
             <div key={sIdx} className="space-y-1">
               {!collapsed || isMobile ? (
-                <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                <div className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/75">
                   {section.title}
                 </div>
               ) : (

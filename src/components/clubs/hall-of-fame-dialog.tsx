@@ -99,8 +99,8 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
         <DialogHeader>
           <div className="mb-1 flex items-center gap-2 text-amber-500">
             <Trophy className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Club Honors
+            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              Club honors
             </span>
           </div>
           <DialogTitle className="text-xl">Hall of Fame Induction</DialogTitle>

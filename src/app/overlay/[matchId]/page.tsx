@@ -1,6 +1,7 @@
 import { createServerClient } from "~/lib/supabase/server";
+import { getMatch } from "~/app/matches/queries";
 import { OverlayClient } from "./overlay-client";
-import { DEMO_MATCH_STATE } from "./demo-data";
+import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "./demo-data";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function OverlayPage({
       <OverlayClient
         matchId={matchId}
         initial={DEMO_MATCH_STATE}
+        match={DEMO_MATCH_DETAILS}
         initialLayout={initialParams?.layout}
         initialTheme={initialParams?.theme}
         initialControls={initialParams?.controls !== "false"}
@@ -36,20 +38,27 @@ export default async function OverlayPage({
   }
 
   let data = null;
+  let match = null;
+
   if (UUID_REGEX.test(matchId)) {
     const supabase = await createServerClient();
-    const result = await supabase
-      .from("live_match_state")
-      .select("*")
-      .eq("match_id", matchId)
-      .single();
-    data = result.data;
+    const [liveResult, matchResult] = await Promise.all([
+      supabase
+        .from("live_match_state")
+        .select("*")
+        .eq("match_id", matchId)
+        .single(),
+      getMatch(matchId),
+    ]);
+    data = liveResult.data;
+    match = matchResult.data;
   }
 
   return (
     <OverlayClient
       matchId={matchId}
       initial={data}
+      match={match}
       initialLayout={initialParams?.layout}
       initialTheme={initialParams?.theme}
       initialControls={initialParams?.controls !== "false"}

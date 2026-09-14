@@ -1,4 +1,5 @@
 import "~/styles/globals.css";
+import "~/styles/broadcast-suite.css";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
@@ -9,12 +10,14 @@ import type { Metadata, Viewport } from "next";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  display: "swap",
 });
 
 const barlowCondensed = Barlow_Condensed({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800", "900"],
   variable: "--font-score",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +44,7 @@ export default async function RootLayout({
       <body
         className={`font-sans ${inter.variable} ${barlowCondensed.variable} overflow-x-hidden antialiased`}
       >
-        <ThemeProvider defaultTheme="system">
+        <ThemeProvider defaultTheme="light">
           <AuthProvider>
             <AppShell>{children}</AppShell>
             <Toaster richColors position="top-center" />

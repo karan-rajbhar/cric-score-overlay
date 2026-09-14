@@ -5,6 +5,7 @@ import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/badge";
 import { Search } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { formatStatus } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,12 @@ function Section<T>({
   if (items.length === 0) return null;
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        {title} · {items.length}
-      </h2>
+      <div className="mb-2.5 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <span className="tabular text-xs font-medium text-muted-foreground">
+          {items.length} {items.length === 1 ? "result" : "results"}
+        </span>
+      </div>
       <div className="grid gap-2">{items.map(render)}</div>
     </div>
   );
@@ -97,7 +101,7 @@ export default async function SearchPage({
               venue: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/matches/${x.id}`}>
+                <Link key={x.id} href={`/matches/${x.id}?from=search`}>
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="flex items-center justify-between p-4">
                       <div>
@@ -106,9 +110,7 @@ export default async function SearchPage({
                           {x.venue ?? "—"}
                         </p>
                       </div>
-                      <Badge variant="outline" className="capitalize">
-                        {x.status}
-                      </Badge>
+                      <Badge variant="outline">{formatStatus(x.status)}</Badge>
                     </CardContent>
                   </Card>
                 </Link>
@@ -147,16 +149,21 @@ export default async function SearchPage({
             render={(x: {
               id: string;
               full_name: string;
-              email: string | null;
+              avatar_url: string | null;
             }) => {
               return (
                 <Link key={x.id} href={`/players/${x.id}`}>
                   <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="p-4">
-                      <p className="font-medium">{x.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {x.email ?? "—"}
-                      </p>
+                    <CardContent className="flex items-center gap-3 p-4">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {(x.full_name ?? "P")[0]?.toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium">{x.full_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Player Profile
+                        </p>
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>
@@ -200,8 +207,8 @@ export default async function SearchPage({
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="flex items-center justify-between p-4">
                       <p className="font-medium">{x.name}</p>
-                      <Badge variant="outline" className="capitalize">
-                        {x.status ?? "—"}
+                      <Badge variant="outline">
+                        {formatStatus(x.status) || "—"}
                       </Badge>
                     </CardContent>
                   </Card>
