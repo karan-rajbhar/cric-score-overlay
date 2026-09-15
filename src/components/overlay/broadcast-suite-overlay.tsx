@@ -1,5 +1,6 @@
 "use client";
 
+import "~/styles/broadcast-suite.css";
 import React, { useMemo } from "react";
 import type { BroadcastViewId, LiveMatchState, OverlayTheme } from "./types";
 import type {

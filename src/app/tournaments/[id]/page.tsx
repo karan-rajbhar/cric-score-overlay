@@ -437,7 +437,7 @@ export default async function TournamentPage({
       : "All Tournaments";
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
+    <div className="container mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
       {/* Top Back Nav & Breadcrumbs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button
@@ -448,7 +448,8 @@ export default async function TournamentPage({
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1 h-4 w-4" />
-            {backLabel}
+            <span className="sm:hidden">Back</span>
+            <span className="hidden sm:inline">{backLabel}</span>
           </Link>
         </Button>
         {targetClubId && clubInfo && (
@@ -475,10 +476,10 @@ export default async function TournamentPage({
       </div>
 
       {/* Tournament Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/80 to-primary/5 p-6 shadow-sm md:p-8">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/80 to-primary/5 p-4 shadow-sm sm:p-6 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <Badge
                 variant={
                   tournament.status === "ongoing"
@@ -507,17 +508,17 @@ export default async function TournamentPage({
               )}
             </div>
 
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight md:text-4xl">
+            <h1 className="mt-3 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
               {tournament.name}
             </h1>
 
             {tournament.description && (
-              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              <p className="mt-2 max-w-2xl text-xs text-muted-foreground sm:text-sm">
                 {tournament.description}
               </p>
             )}
 
-            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
               {tournament.venue && (
                 <div className="flex items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 text-primary" />
@@ -541,7 +542,7 @@ export default async function TournamentPage({
           </div>
 
           {/* Hero Actions */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <PointsTableShare
               tournamentName={tournament.name}
               tournamentId={tournament.id}
@@ -556,7 +557,11 @@ export default async function TournamentPage({
               />
             )}
             {isTournamentAdmin && (
-              <Button asChild size="sm" className="gap-1.5">
+              <Button
+                asChild
+                size="sm"
+                className="w-full justify-center gap-1.5 sm:w-auto"
+              >
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4" />
                   Schedule Match
@@ -570,39 +575,53 @@ export default async function TournamentPage({
       {/* Main Tabs Navigation */}
       <Tabs
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
-        className="mt-8"
+        className="mt-6 sm:mt-8"
       >
-        <TabsList className="grid w-full max-w-xl grid-cols-4">
-          <TabsTrigger value="standings" className="gap-1.5">
-            <Trophy className="h-4 w-4" />
+        <TabsList className="grid h-auto w-full max-w-xl grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+          <TabsTrigger
+            value="standings"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Points Table
           </TabsTrigger>
-          <TabsTrigger value="fixtures" className="gap-1.5">
-            <Calendar className="h-4 w-4" />
+          <TabsTrigger
+            value="fixtures"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Fixtures ({typedMatches.length})
           </TabsTrigger>
-          <TabsTrigger value="teams" className="gap-1.5">
-            <Users className="h-4 w-4" />
+          <TabsTrigger
+            value="teams"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Teams ({(registrations ?? []).length})
           </TabsTrigger>
-          <TabsTrigger value="analysis" className="gap-1.5">
-            <Sparkles className="h-4 w-4" />
+          <TabsTrigger
+            value="analysis"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Super Stars
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: POINTS TABLE */}
-        <TabsContent value="standings" className="mt-6 space-y-6">
+        <TabsContent value="standings" className="mt-4 space-y-6 sm:mt-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-lg">Tournament Standings</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-base sm:text-lg">
+                  Tournament Standings
+                </CardTitle>
+                <CardDescription className="text-xs sm:text-sm">
                   Points table with automated ICC Net Run Rate (NRR)
                   calculations.
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <QualificationCalculatorButton
                   tournamentName={tournament.name}
                   teams={teamsForCalculator}
@@ -785,10 +804,10 @@ export default async function TournamentPage({
         </TabsContent>
 
         {/* TAB 2: FIXTURES & MATCHES */}
-        <TabsContent value="fixtures" className="mt-6 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold">
+              <h2 className="text-base font-bold sm:text-lg">
                 Tournament Fixtures & Matches
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -796,11 +815,11 @@ export default async function TournamentPage({
                 results.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isTournamentAdmin && typedMatches.length === 0 && (
                 <GenerateFixturesButton tournamentId={tournament.id} />
               )}
-              <Button asChild size="sm" className="gap-1.5">
+              <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4" />
                   Schedule Match
@@ -877,10 +896,12 @@ export default async function TournamentPage({
         </TabsContent>
 
         {/* TAB 3: TEAMS & SQUADS */}
-        <TabsContent value="teams" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold">Registered teams</h2>
+              <h2 className="text-base font-bold sm:text-lg">
+                Registered teams
+              </h2>
               <p className="text-xs text-muted-foreground">
                 Participating teams and rosters in this tournament.
               </p>

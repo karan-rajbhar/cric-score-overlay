@@ -30,12 +30,12 @@ export default function ClubDetailLoading() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-border pb-2">
-        <Skeleton className="h-9 w-24 rounded-lg" />
-        <Skeleton className="h-9 w-28 rounded-lg" />
-        <Skeleton className="h-9 w-24 rounded-lg" />
-        <Skeleton className="h-9 w-32 rounded-lg" />
-        <Skeleton className="h-9 w-24 rounded-lg" />
+      <div className="grid grid-cols-2 gap-2 border-b border-border pb-2 min-[540px]:grid-cols-3 sm:grid-cols-5">
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="col-span-2 h-9 w-full rounded-lg min-[540px]:col-span-2 sm:col-span-1" />
       </div>
 
       {/* Cards Grid */}

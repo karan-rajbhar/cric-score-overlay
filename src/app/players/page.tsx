@@ -32,13 +32,17 @@ export default async function PlayersPage({
   const { data: players } = await query;
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Players</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
+      <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Players</h1>
+      <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
         All players on the platform
       </p>
 
-      <form action="/players" method="GET" className="relative mt-6 max-w-md">
+      <form
+        action="/players"
+        method="GET"
+        className="relative mt-4 w-full max-w-md sm:mt-6"
+      >
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
           name="q"
@@ -53,11 +57,13 @@ export default async function PlayersPage({
           <Link key={p.id} href={`/players/${p.id}`}>
             <Card className="transition-colors hover:border-primary/40">
               <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 font-bold text-primary">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary">
                   {p.full_name.slice(0, 2).toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-medium text-foreground">{p.full_name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-foreground">
+                    {p.full_name}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Player profile
                   </p>

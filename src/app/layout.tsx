@@ -1,5 +1,4 @@
 import "~/styles/globals.css";
-import "~/styles/broadcast-suite.css";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
@@ -41,6 +40,21 @@ export default async function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          type="speculationrules"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              prerender: [
+                {
+                  where: { href_matches: "/matches/*" },
+                  eagerness: "moderate",
+                },
+              ],
+            }),
+          }}
+        />
+      </head>
       <body
         className={`font-sans ${inter.variable} ${barlowCondensed.variable} overflow-x-hidden antialiased`}
       >

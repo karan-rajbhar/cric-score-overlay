@@ -26,7 +26,9 @@ const upcomingMatch = {
 describe("ScoreCard", () => {
   it("renders both team names", () => {
     render(<ScoreCard match={liveMatch} />);
-    expect(screen.getByText("Royal Tigers vs Coastal Kings")).toBeInTheDocument();
+    expect(
+      screen.getByText("Royal Tigers vs Coastal Kings"),
+    ).toBeInTheDocument();
   });
 
   it("shows a live indicator for live matches", () => {

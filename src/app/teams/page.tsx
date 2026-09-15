@@ -40,19 +40,19 @@ export default async function TeamsPage({
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+    <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
+      <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {view === "mine" ? "My teams" : "All teams"}
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
             {view === "mine"
               ? "Teams you created, lead, or play in"
               : "Every team on the platform"}
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/teams/create">
             <Plus className="mr-2 h-4 w-4" />
             Create team
@@ -60,11 +60,11 @@ export default async function TeamsPage({
         </Button>
       </div>
 
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="inline-flex rounded-lg border border-border p-0.5">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="inline-flex w-full rounded-lg border border-border p-0.5 sm:w-auto">
           <Link
             href={buildHref("mine")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors sm:flex-none ${
               view === "mine"
                 ? "bg-secondary text-secondary-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -74,7 +74,7 @@ export default async function TeamsPage({
           </Link>
           <Link
             href={buildHref("all")}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors sm:flex-none ${
               view === "all"
                 ? "bg-secondary text-secondary-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -83,14 +83,14 @@ export default async function TeamsPage({
             All teams
           </Link>
         </div>
-        <div className="relative max-w-sm flex-1">
+        <div className="relative w-full flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <form action="/teams" method="GET">
             <Input
               name="search"
               type="search"
               placeholder="Search teams..."
-              className="pl-8"
+              className="w-full pl-8"
               defaultValue={resolvedParams?.search}
             />
             {view === "all" && <input type="hidden" name="view" value="all" />}

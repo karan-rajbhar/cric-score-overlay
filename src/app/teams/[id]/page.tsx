@@ -211,7 +211,7 @@ export default async function TeamDetailsPage({
     completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -295,7 +295,8 @@ export default async function TeamDetailsPage({
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1.5 h-4 w-4" />
-            {backLabel}
+            <span className="sm:hidden">Back</span>
+            <span className="hidden sm:inline">{backLabel}</span>
           </Link>
         </Button>
       </div>
@@ -448,8 +449,11 @@ export default async function TeamDetailsPage({
             className="w-full"
           >
             <div className="flex items-center justify-between border-b pb-4">
-              <TabsList>
-                <TabsTrigger value="matches" className="gap-1.5">
+              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:w-auto">
+                <TabsTrigger
+                  value="matches"
+                  className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm"
+                >
                   <Swords className="h-4 w-4" />
                   Matches
                   <Badge
@@ -459,7 +463,10 @@ export default async function TeamDetailsPage({
                     {teamMatches.length}
                   </Badge>
                 </TabsTrigger>
-                <TabsTrigger value="squad" className="gap-1.5">
+                <TabsTrigger
+                  value="squad"
+                  className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm"
+                >
                   <Users className="h-4 w-4" />
                   Squad
                   <Badge
@@ -481,11 +488,11 @@ export default async function TeamDetailsPage({
             </TabsContent>
 
             <TabsContent value="squad" className="mt-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold tracking-tight">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
                   Squad roster
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <TeamSquadShare
                     teamId={team.id}
                     teamName={team.name}

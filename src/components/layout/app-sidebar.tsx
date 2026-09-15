@@ -19,6 +19,7 @@ import {
   ChevronRight,
   PlusCircle,
   X,
+  Search,
 } from "lucide-react";
 
 interface NavItem {
@@ -86,17 +87,27 @@ export function AppSidebar() {
     <div className="flex h-full select-none flex-col justify-between p-3">
       <div className="space-y-6">
         {isMobile && (
-          <div className="flex items-center justify-between border-b border-border/70 px-2 pb-3">
-            <span className="text-sm font-bold text-foreground">
-              Navigation
-            </span>
-            <button
+          <div className="space-y-2.5 border-b border-border/70 px-1 pb-3">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-sm font-bold text-foreground">
+                Navigation
+              </span>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Close menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <Link
+              href="/search"
               onClick={() => setMobileOpen(false)}
-              className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Close menu"
+              className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <X className="h-5 w-5" />
-            </button>
+              <Search className="h-3.5 w-3.5" />
+              <span>Search matches, clubs, players…</span>
+            </Link>
           </div>
         )}
 

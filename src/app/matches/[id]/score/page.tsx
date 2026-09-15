@@ -9,17 +9,45 @@ import { Badge } from "~/components/ui/badge";
 import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { CurrentBatsmen } from "~/components/matches/current-batsmen";
 import { CurrentBowler } from "~/components/matches/current-bowler";
-import { TossDialog } from "./components/TossDialog";
-import { BatsmenDialog } from "./components/BatsmenDialog";
-import { BowlerDialog } from "./components/BowlerDialog";
-import { WicketDialog, ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
-import {
-  EditBallDialog,
-  type DeliveryToEdit,
-} from "./components/EditBallDialog";
-import { AddPlayerDialog } from "./components/AddPlayerDialog";
-import { PotmDialog } from "./components/PotmDialog";
-import { DlsCalculatorModal } from "~/components/matches/dls-calculator-modal";
+import dynamic from "next/dynamic";
+import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
+import type { DeliveryToEdit } from "./components/EditBallDialog";
+
+const TossDialog = dynamic(
+  () => import("./components/TossDialog").then((m) => m.TossDialog),
+  { ssr: false },
+);
+const BatsmenDialog = dynamic(
+  () => import("./components/BatsmenDialog").then((m) => m.BatsmenDialog),
+  { ssr: false },
+);
+const BowlerDialog = dynamic(
+  () => import("./components/BowlerDialog").then((m) => m.BowlerDialog),
+  { ssr: false },
+);
+const WicketDialog = dynamic(
+  () => import("./components/WicketDialog").then((m) => m.WicketDialog),
+  { ssr: false },
+);
+const EditBallDialog = dynamic(
+  () => import("./components/EditBallDialog").then((m) => m.EditBallDialog),
+  { ssr: false },
+);
+const AddPlayerDialog = dynamic(
+  () => import("./components/AddPlayerDialog").then((m) => m.AddPlayerDialog),
+  { ssr: false },
+);
+const PotmDialog = dynamic(
+  () => import("./components/PotmDialog").then((m) => m.PotmDialog),
+  { ssr: false },
+);
+const DlsCalculatorModal = dynamic(
+  () =>
+    import("~/components/matches/dls-calculator-modal").then(
+      (m) => m.DlsCalculatorModal,
+    ),
+  { ssr: false },
+);
 import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
 import { createClient } from "~/lib/supabase/client";
@@ -325,9 +353,9 @@ export default function ScoringPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b bg-card">
-        <div className="container mx-auto flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" asChild>
+        <div className="container mx-auto flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button variant="ghost" size="icon" className="shrink-0" asChild>
               <Link
                 href={`/matches/${match.id}`}
                 aria-label="Back to match details"
@@ -335,14 +363,16 @@ export default function ScoringPage() {
                 <ChevronLeft className="h-5 w-5" />
               </Link>
             </Button>
-            <div>
-              <h1 className="font-semibold leading-none">{match.title}</h1>
-              <p className="text-xs text-muted-foreground">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-semibold leading-tight sm:text-base">
+                {match.title}
+              </h1>
+              <p className="truncate text-xs text-muted-foreground">
                 {match.team1.name} vs {match.team2.name}, {match.match_format}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {match.status === "live" && isScorer && (
               <DlsCalculatorModal match={match} canEdit={isScorer} />
             )}
@@ -350,10 +380,12 @@ export default function ScoringPage() {
               variant="outline"
               size="sm"
               onClick={() => setShowAddPlayerDialog(true)}
+              className="h-8 px-2 sm:px-3"
             >
-              <UserPlus className="mr-1.5 h-4 w-4" /> Add Player
+              <UserPlus className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Add Player</span>
             </Button>
-            <Button variant="ghost" size="icon" asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
               <Link
                 href={`/overlay/${match.id}`}
                 target="_blank"
@@ -366,19 +398,19 @@ export default function ScoringPage() {
         </div>
       </header>
 
-      <div className="container mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-3">
+      <div className="container mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <Card>
             <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground sm:text-sm">
                     {battingTeam?.name ?? "—"} batting
                   </p>
-                  <p className="score-display text-3xl font-bold">
+                  <p className="score-display text-2xl font-bold sm:text-3xl">
                     {currentInnings?.total_runs ?? 0}/
                     {currentInnings?.total_wickets ?? 0}
-                    <span className="ml-2 text-lg font-normal text-muted-foreground">
+                    <span className="ml-2 text-base font-normal text-muted-foreground sm:text-lg">
                       (
                       {currentInnings
                         ? `${Math.floor((currentInnings.total_balls ?? 0) / 6)}.${(currentInnings.total_balls ?? 0) % 6}`
@@ -387,7 +419,7 @@ export default function ScoringPage() {
                     </span>
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <Button
                     variant="outline"
                     size="sm"

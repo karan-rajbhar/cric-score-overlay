@@ -1,7 +1,8 @@
-import { createServerClient } from "~/lib/supabase/server";
-import { getMatch } from "~/app/matches/queries";
+import { getMatch, getLiveMatchState } from "~/app/matches/queries";
 import { OverlayClient } from "./overlay-client";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "./demo-data";
+import type { LiveMatchState } from "~/components/overlay/types";
+import type { Match } from "~/lib/match-types";
 
 export const dynamic = "force-dynamic";
 
@@ -41,17 +42,12 @@ export default async function OverlayPage({
   let match = null;
 
   if (UUID_REGEX.test(matchId)) {
-    const supabase = await createServerClient();
     const [liveResult, matchResult] = await Promise.all([
-      supabase
-        .from("live_match_state")
-        .select("*")
-        .eq("match_id", matchId)
-        .single(),
+      getLiveMatchState(matchId),
       getMatch(matchId),
     ]);
-    data = liveResult.data;
-    match = matchResult.data;
+    data = (liveResult.data as LiveMatchState) ?? null;
+    match = (matchResult.data as Match) ?? null;
   }
 
   return (

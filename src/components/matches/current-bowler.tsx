@@ -57,8 +57,8 @@ export function CurrentBowler({ bowler, onChangeBowler }: CurrentBowlerProps) {
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-between rounded-2xl border border-sky-500/30 bg-sky-500/5 p-3.5 transition-all">
-            <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-3 transition-all sm:p-3.5">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-foreground">
                 {bowler.name}
               </p>
@@ -72,7 +72,7 @@ export function CurrentBowler({ bowler, onChangeBowler }: CurrentBowlerProps) {
                 </span>
               </p>
             </div>
-            <p className="score-display tabular shrink-0 text-3xl font-black leading-none text-foreground">
+            <p className="score-display tabular shrink-0 text-2xl font-black leading-none text-foreground sm:text-3xl">
               <span
                 className={
                   bowler.wickets > 0 ? "text-red-600 dark:text-red-400" : ""
@@ -82,7 +82,7 @@ export function CurrentBowler({ bowler, onChangeBowler }: CurrentBowlerProps) {
               </span>
               <span className="text-muted-foreground">/</span>
               <span>{bowler.runs}</span>
-              <span className="ml-1 text-sm font-bold text-muted-foreground">
+              <span className="ml-1 text-xs font-bold text-muted-foreground sm:text-sm">
                 ({formatDecimalOvers(bowler.overs)})
               </span>
             </p>

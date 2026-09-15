@@ -164,7 +164,7 @@ function CreateTournamentForm() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div>
               <Label>Tournament format</Label>
               <Select name="tournament_format" defaultValue="league">
@@ -194,7 +194,7 @@ function CreateTournamentForm() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div>
               <Label htmlFor="start_date">Start date</Label>
               <Input
@@ -293,8 +293,8 @@ export default function CreateTournamentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto max-w-2xl px-4">
+    <div className="min-h-screen bg-background py-6 sm:py-8">
+      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
         <Suspense fallback={null}>
           <CreateTournamentBackButton />
         </Suspense>

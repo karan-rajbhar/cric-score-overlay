@@ -8,10 +8,10 @@ export default function MatchDetailLoading() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Skeleton className="h-8 w-24 rounded-lg" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Skeleton className="h-6 w-16 rounded-full" />
-              <Skeleton className="h-6 w-14 rounded-full" />
-              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="hidden h-6 w-14 rounded-full sm:inline-block" />
+              <Skeleton className="hidden h-6 w-20 rounded-full sm:inline-block" />
             </div>
           </div>
         </div>
@@ -56,9 +56,9 @@ export default function MatchDetailLoading() {
       {/* Navigation Tabs Bar */}
       <div className="border-b border-border bg-card/40">
         <div className="container mx-auto max-w-5xl px-4 py-3">
-          <div className="flex gap-2 overflow-x-auto">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-24 flex-shrink-0 rounded-lg" />
+              <Skeleton key={i} className="h-9 w-full rounded-lg" />
             ))}
           </div>
         </div>

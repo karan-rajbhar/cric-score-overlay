@@ -88,10 +88,27 @@ export function MatchStats({ match }: MatchStatsProps) {
 
   return (
     <Tabs defaultValue="run-comparison" className="w-full">
-      <TabsList className="mb-4 w-full justify-start">
-        <TabsTrigger value="run-comparison">Over Comparison</TabsTrigger>
-        <TabsTrigger value="run-rate">Run Rate</TabsTrigger>
-        <TabsTrigger value="scoring-zones">Scoring Zones</TabsTrigger>
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-3 gap-1 p-1">
+        <TabsTrigger
+          value="run-comparison"
+          className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+        >
+          <span className="sm:hidden">Overs</span>
+          <span className="hidden sm:inline">Over Comparison</span>
+        </TabsTrigger>
+        <TabsTrigger
+          value="run-rate"
+          className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+        >
+          Run Rate
+        </TabsTrigger>
+        <TabsTrigger
+          value="scoring-zones"
+          className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+        >
+          <span className="sm:hidden">Zones</span>
+          <span className="hidden sm:inline">Scoring Zones</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Over Comparison */}
@@ -132,48 +149,53 @@ export function MatchStats({ match }: MatchStatsProps) {
                 </div>
 
                 {/* Bar Chart */}
-                <div className="flex h-[200px] items-end justify-center gap-1 px-4">
-                  {Array.from({ length: match.overs_per_innings }, (_, i) => {
-                    const runs1 =
-                      (innings1
-                        ? getRunsPerOver(
-                            ballsForInnings(innings1.id),
-                            match.overs_per_innings,
-                          )[i]
-                        : 0) || 0;
-                    const runs2 =
-                      (innings2
-                        ? getRunsPerOver(
-                            ballsForInnings(innings2.id),
-                            match.overs_per_innings,
-                          )[i]
-                        : 0) || 0;
+                <div className="w-full overflow-x-auto pb-2">
+                  <div className="flex h-[200px] min-w-max items-end justify-start gap-1 px-2 sm:justify-center sm:px-4">
+                    {Array.from({ length: match.overs_per_innings }, (_, i) => {
+                      const runs1 =
+                        (innings1
+                          ? getRunsPerOver(
+                              ballsForInnings(innings1.id),
+                              match.overs_per_innings,
+                            )[i]
+                          : 0) || 0;
+                      const runs2 =
+                        (innings2
+                          ? getRunsPerOver(
+                              ballsForInnings(innings2.id),
+                              match.overs_per_innings,
+                            )[i]
+                          : 0) || 0;
 
-                    const height1 = (runs1 / maxRuns) * maxBarHeight;
-                    const height2 = (runs2 / maxRuns) * maxBarHeight;
+                      const height1 = (runs1 / maxRuns) * maxBarHeight;
+                      const height2 = (runs2 / maxRuns) * maxBarHeight;
 
-                    return (
-                      <div key={i} className="flex flex-col items-center gap-1">
-                        <div className="flex h-[60px] items-end gap-0.5">
-                          <div
-                            className="w-3 rounded-t bg-cricket-primary transition-all"
-                            style={{ height: `${height1}px` }}
-                            title={`${teamName(match, innings1?.team_id ?? "")}: ${runs1} runs`}
-                          />
-                          {innings2 && (
+                      return (
+                        <div
+                          key={i}
+                          className="flex flex-col items-center gap-1"
+                        >
+                          <div className="flex h-[60px] items-end gap-0.5">
                             <div
-                              className="w-3 rounded-t bg-cricket-secondary transition-all"
-                              style={{ height: `${height2}px` }}
-                              title={`${teamName(match, innings2.team_id)}: ${runs2} runs`}
+                              className="w-3 rounded-t bg-cricket-primary transition-all"
+                              style={{ height: `${height1}px` }}
+                              title={`${teamName(match, innings1?.team_id ?? "")}: ${runs1} runs`}
                             />
-                          )}
+                            {innings2 && (
+                              <div
+                                className="w-3 rounded-t bg-cricket-secondary transition-all"
+                                style={{ height: `${height2}px` }}
+                                title={`${teamName(match, innings2.team_id)}: ${runs2} runs`}
+                              />
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {i + 1}
+                          </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {i + 1}
-                        </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Summary */}

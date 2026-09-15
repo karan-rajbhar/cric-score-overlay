@@ -45,17 +45,23 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
       defaultValue={`innings-${sortedInnings[0]?.innings_number}`}
       className="w-full"
     >
-      <TabsList className="mb-4 w-full justify-start">
-        {sortedInnings.map((innings) => (
-          <TabsTrigger
-            key={innings.id}
-            value={`innings-${innings.innings_number}`}
-            className="max-w-[200px] flex-1"
-          >
-            {teamName(match, innings.team_id)} - {innings.total_runs}/
-            {innings.total_wickets}
-          </TabsTrigger>
-        ))}
+      <TabsList className="mb-4 grid h-auto w-full max-w-md grid-cols-2 gap-1 p-1">
+        {sortedInnings.map((innings) => {
+          const t =
+            innings.team_id === match.team1_id ? match.team1 : match.team2;
+          const shortName = t?.short_name || t?.name;
+          return (
+            <TabsTrigger
+              key={innings.id}
+              value={`innings-${innings.innings_number}`}
+              className="flex min-w-0 items-center justify-center px-2 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+            >
+              <span className="truncate">
+                {shortName} {innings.total_runs}/{innings.total_wickets}
+              </span>
+            </TabsTrigger>
+          );
+        })}
       </TabsList>
 
       {sortedInnings.map((innings) => (
@@ -92,12 +98,24 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[200px]">Batter</TableHead>
-                      <TableHead className="text-center">R</TableHead>
-                      <TableHead className="text-center">B</TableHead>
-                      <TableHead className="text-center">4s</TableHead>
-                      <TableHead className="text-center">6s</TableHead>
-                      <TableHead className="text-center">SR</TableHead>
+                      <TableHead className="w-auto min-w-[110px] px-2 py-2 text-xs sm:w-[200px] sm:px-4 sm:py-3 sm:text-sm">
+                        Batter
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        R
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        B
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        4s
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        6s
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        SR
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -110,21 +128,21 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                       })
                       .map((bp) => (
                         <TableRow key={bp.id}>
-                          <TableCell>
+                          <TableCell className="px-2 py-2 sm:px-4 sm:py-3">
                             <div>
-                              <span className="font-medium">
+                              <span className="text-xs font-medium sm:text-sm">
                                 {bp.user?.full_name}
                                 {!bp.is_out && (
                                   <Badge
                                     variant="outline"
-                                    className="ml-2 text-xs"
+                                    className="ml-1 px-1.5 py-0 text-[10px] sm:ml-2 sm:text-xs"
                                   >
                                     not out
                                   </Badge>
                                 )}
                               </span>
                               {bp.is_out && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-[11px] text-muted-foreground sm:text-xs">
                                   {dismissalText(
                                     bp,
                                     innings.fall_of_wickets ?? [],
@@ -133,19 +151,19 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="tabular text-center font-semibold">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
                             {bp.runs_scored}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.balls_faced}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.fours}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.sixes}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {strikeRate(bp.runs_scored, bp.balls_faced)}
                           </TableCell>
                         </TableRow>
@@ -184,12 +202,24 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[200px]">Bowler</TableHead>
-                      <TableHead className="text-center">O</TableHead>
-                      <TableHead className="text-center">M</TableHead>
-                      <TableHead className="text-center">R</TableHead>
-                      <TableHead className="text-center">W</TableHead>
-                      <TableHead className="text-center">Econ</TableHead>
+                      <TableHead className="w-auto min-w-[110px] px-2 py-2 text-xs sm:w-[200px] sm:px-4 sm:py-3 sm:text-sm">
+                        Bowler
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        O
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        M
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        R
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        W
+                      </TableHead>
+                      <TableHead className="px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                        Econ
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -197,22 +227,22 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                       .sort((a, b) => b.wickets_taken - a.wickets_taken)
                       .map((bp) => (
                         <TableRow key={bp.id}>
-                          <TableCell className="font-medium">
+                          <TableCell className="px-2 py-2 text-xs font-medium sm:px-4 sm:py-3 sm:text-sm">
                             {bp.user?.full_name}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {oversFromBalls(bp.balls_bowled ?? 0)}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.maidens}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.runs_conceded}
                           </TableCell>
-                          <TableCell className="tabular text-center font-semibold">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
                             {bp.wickets_taken}
                           </TableCell>
-                          <TableCell className="tabular text-center">
+                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {economyRate(bp.runs_conceded, bp.balls_bowled)}
                           </TableCell>
                         </TableRow>

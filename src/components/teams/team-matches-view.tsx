@@ -157,7 +157,7 @@ export function TeamMatchesView({
   return (
     <div className="space-y-4">
       {/* Scope & Status Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Tournament vs All Toggle (when tournament context exists) */}
         {tournamentInfo ? (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted/60 p-1">
@@ -180,7 +180,7 @@ export function TeamMatchesView({
             </Button>
           </div>
         ) : (
-          <div className="text-sm font-medium text-muted-foreground">
+          <div className="text-xs font-medium text-muted-foreground sm:text-sm">
             Total Matches:{" "}
             <span className="font-semibold text-foreground">
               {matches.length}
@@ -189,24 +189,26 @@ export function TeamMatchesView({
         )}
 
         {/* Status Filters */}
-        <div className="flex flex-wrap items-center gap-1">
-          <Filter className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
-          {[
-            { id: "all", label: "All" },
-            { id: "live", label: "Live" },
-            { id: "scheduled", label: "Upcoming" },
-            { id: "completed", label: "Results" },
-          ].map((item) => (
-            <Button
-              key={item.id}
-              variant={statusFilter === item.id ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 px-2.5 text-xs font-medium"
-              onClick={() => setStatusFilter(item.id)}
-            >
-              {item.label}
-            </Button>
-          ))}
+        <div className="flex w-full items-center gap-1 py-0.5 sm:w-auto">
+          <Filter className="mr-1 hidden h-3.5 w-3.5 shrink-0 text-muted-foreground sm:inline-block" />
+          <div className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto">
+            {[
+              { id: "all", label: "All" },
+              { id: "live", label: "Live" },
+              { id: "scheduled", label: "Upcoming" },
+              { id: "completed", label: "Results" },
+            ].map((item) => (
+              <Button
+                key={item.id}
+                variant={statusFilter === item.id ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 w-full px-1.5 text-xs font-medium sm:w-auto sm:px-3"
+                onClick={() => setStatusFilter(item.id)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 

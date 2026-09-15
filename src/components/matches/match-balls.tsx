@@ -148,12 +148,12 @@ export function MatchBalls({ match }: MatchBallsProps) {
         defaultValue={`innings-${sortedInnings[0]?.innings_number}`}
         className="w-full"
       >
-        <TabsList className="mb-4 w-full justify-start">
+        <TabsList className="mb-4 grid h-auto w-full max-w-xs grid-cols-2 gap-1 p-1">
           {sortedInnings.map((innings) => (
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="max-w-[200px] flex-1"
+              className="justify-center px-2 py-1.5 text-xs font-semibold sm:px-4 sm:text-sm"
             >
               {innings.innings_number === 1 ? "1st" : "2nd"} Innings
             </TabsTrigger>

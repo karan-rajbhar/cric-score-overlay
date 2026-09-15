@@ -231,7 +231,7 @@ export default async function ClubPage({
     }));
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
+    <div className="container mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link href="/clubs">
           <ChevronLeft className="mr-1 h-4 w-4" />
@@ -240,14 +240,14 @@ export default async function ClubPage({
       </Button>
 
       {/* Club Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/90 to-primary/10 p-6 shadow-sm md:p-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 flex-none items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner">
-              <Shield className="h-8 w-8" />
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/90 to-primary/10 p-4 shadow-sm sm:p-6 md:p-8">
+        <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner sm:h-16 sm:w-16">
+              <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {club.club_type && (
                   <Badge variant="outline">
                     {formatClubType(club.club_type)} Club
@@ -272,17 +272,17 @@ export default async function ClubPage({
                 )}
               </div>
 
-              <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">
+              <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
                 {club.name}
               </h1>
 
               {club.description && (
-                <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                <p className="mt-2 max-w-2xl text-xs text-muted-foreground sm:text-sm">
                   {club.description}
                 </p>
               )}
 
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
                 {club.location && (
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3.5 w-3.5 text-primary" />
@@ -363,7 +363,7 @@ export default async function ClubPage({
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {isAdmin && <SeasonDialog clubId={club.id} />}
             <ClubMembershipButton
               clubId={club.id}
@@ -373,13 +373,18 @@ export default async function ClubPage({
             />
             {isAdmin && (
               <>
-                <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5 sm:w-auto"
+                >
                   <Link href={`/tournaments/create?clubId=${club.id}`}>
                     <Trophy className="h-4 w-4" />
                     Host Tournament
                   </Link>
                 </Button>
-                <Button asChild size="sm" className="gap-1.5">
+                <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                   <Link href={`/teams/create?clubId=${club.id}`}>
                     <Plus className="h-4 w-4" />
                     Create Club Team
@@ -430,34 +435,49 @@ export default async function ClubPage({
       {/* Club Tabs */}
       <Tabs
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
-        className="mt-8"
+        className="mt-6 sm:mt-8"
       >
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
-          <TabsTrigger value="teams" className="gap-1.5">
-            <Shield className="h-4 w-4" />
+        <TabsList className="grid h-auto w-full max-w-2xl grid-cols-2 gap-1 p-1 min-[540px]:grid-cols-3 sm:grid-cols-5">
+          <TabsTrigger
+            value="teams"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Teams ({typedTeams.length})
           </TabsTrigger>
-          <TabsTrigger value="tournaments" className="gap-1.5">
-            <Trophy className="h-4 w-4" />
+          <TabsTrigger
+            value="tournaments"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Tournaments ({typedTournaments.length})
           </TabsTrigger>
-          <TabsTrigger value="matches" className="gap-1.5">
-            <Calendar className="h-4 w-4" />
+          <TabsTrigger
+            value="matches"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Matches ({typedMatches.length})
           </TabsTrigger>
-          <TabsTrigger value="hall-of-fame" className="gap-1.5">
-            <Award className="h-4 w-4" />
+          <TabsTrigger
+            value="hall-of-fame"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Hall of Fame ({typedHallOfFame.length})
           </TabsTrigger>
-          <TabsTrigger value="members" className="gap-1.5">
-            <Users className="h-4 w-4" />
+          <TabsTrigger
+            value="members"
+            className="col-span-2 gap-1.5 px-2 py-1.5 text-xs min-[540px]:col-span-2 sm:col-span-1 sm:px-3 sm:text-sm"
+          >
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Members ({typedMembers.length})
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: CLUB TEAMS */}
-        <TabsContent value="teams" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold">Club Squads & Teams</h2>
               <p className="text-xs text-muted-foreground">
@@ -529,17 +549,19 @@ export default async function ClubPage({
         </TabsContent>
 
         {/* TAB 2: CLUB TOURNAMENTS */}
-        <TabsContent value="tournaments" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <TabsContent value="tournaments" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold">Hosted Tournaments</h2>
+              <h2 className="text-base font-bold sm:text-lg">
+                Hosted Tournaments
+              </h2>
               <p className="text-xs text-muted-foreground">
                 Cricket leagues, knockout tournaments, and events organized by
                 this club.
               </p>
             </div>
             {isAdmin && (
-              <Button asChild size="sm" className="gap-1.5">
+              <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                 <Link href={`/tournaments/create?clubId=${club.id}`}>
                   <Plus className="h-4 w-4" />
                   Host Tournament
@@ -755,11 +777,13 @@ export default async function ClubPage({
         </TabsContent>
 
         {/* TAB 4: HALL OF FAME */}
-        <TabsContent value="hall-of-fame" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <TabsContent value="hall-of-fame" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold">Club Hall of Fame</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-bold sm:text-lg">
+                  Club Hall of Fame
+                </h2>
                 <Badge
                   variant="secondary"
                   className="border-amber-500/20 bg-amber-500/10 text-xs text-amber-500"
@@ -881,10 +905,12 @@ export default async function ClubPage({
         </TabsContent>
 
         {/* TAB 5: CLUB MEMBERS */}
-        <TabsContent value="members" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <TabsContent value="members" className="mt-4 space-y-6 sm:mt-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold">Club Members & Staff</h2>
+              <h2 className="text-base font-bold sm:text-lg">
+                Club Members & Staff
+              </h2>
               <p className="text-xs text-muted-foreground">
                 Owners, administrators, coaches, and registered players.
               </p>

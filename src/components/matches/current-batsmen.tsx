@@ -51,19 +51,19 @@ function BatsmanRow({
 
   return (
     <div
-      className={`flex items-center justify-between rounded-2xl border p-3.5 transition-all duration-200 ${
+      className={`flex items-center justify-between gap-2 rounded-2xl border p-3 transition-all duration-200 sm:p-3.5 ${
         batsman.isStriker
           ? "border-emerald-500/50 bg-emerald-500/10 shadow-sm ring-1 ring-emerald-500/25"
           : "border-border/70 bg-card/70"
       }`}
     >
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           <p className="truncate text-sm font-bold text-foreground">
             {batsman.name}
           </p>
           {batsman.isStriker && (
-            <span className="inline-flex items-center rounded-full bg-emerald-500/25 px-2 py-0.5 text-[9.5px] font-black tracking-wider text-emerald-800 dark:text-emerald-300">
+            <span className="inline-flex items-center rounded-full bg-emerald-500/25 px-2 py-0.5 text-[9px] font-black tracking-wider text-emerald-800 dark:text-emerald-300">
               🏏 STRIKE
             </span>
           )}
@@ -80,9 +80,9 @@ function BatsmanRow({
           <span>SR {strikeRate(batsman.runs, batsman.balls)}</span>
         </p>
       </div>
-      <p className="score-display tabular shrink-0 text-3xl font-black leading-none text-foreground">
+      <p className="score-display tabular shrink-0 text-2xl font-black leading-none text-foreground sm:text-3xl">
         {batsman.runs}
-        <span className="ml-1 text-sm font-bold text-muted-foreground">
+        <span className="ml-1 text-xs font-bold text-muted-foreground sm:text-sm">
           ({batsman.balls})
         </span>
       </p>

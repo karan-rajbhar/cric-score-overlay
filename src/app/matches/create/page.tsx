@@ -612,10 +612,10 @@ function CreateMatchWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto max-w-2xl px-4">
+    <div className="min-h-screen bg-background py-6 sm:py-8">
+      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <Button variant="ghost" asChild className="mb-4">
             <Link
               href={
@@ -636,8 +636,8 @@ function CreateMatchWizard() {
                     : "Back to Matches"}
             </Link>
           </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold text-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
               Create New Match
             </h1>
             {selectedTournament && (
@@ -647,31 +647,30 @@ function CreateMatchWizard() {
               </Badge>
             )}
           </div>
-          <p className="mt-2 text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
             Set up teams, format, overs, and tournament linkage in a few simple
             steps.
           </p>
         </div>
 
         {/* Progress Steps */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between px-2 sm:mb-8">
           {[1, 2, 3, 4].map((s) => (
-            <div key={s} className="flex items-center">
+            <div key={s} className="flex flex-1 items-center last:flex-none">
               <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors sm:h-10 sm:w-10 sm:text-sm ${
                   step >= s
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {step > s ? <Check className="h-5 w-5" /> : s}
+                {step > s ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : s}
               </div>
               {s < 4 && (
                 <div
-                  className={`mx-2 h-1 w-full ${
+                  className={`mx-1.5 h-0.5 max-w-[80px] flex-1 sm:mx-2 sm:h-1 ${
                     step > s ? "bg-primary" : "bg-muted"
                   }`}
-                  style={{ width: "60px" }}
                 />
               )}
             </div>
@@ -679,7 +678,7 @@ function CreateMatchWizard() {
         </div>
 
         {/* Step Labels */}
-        <div className="mb-8 flex justify-between px-2 text-xs text-muted-foreground">
+        <div className="mb-6 flex justify-between px-2 text-xs text-muted-foreground sm:mb-8">
           <span className={step === 1 ? "font-medium text-primary" : ""}>
             Format
           </span>
@@ -696,7 +695,7 @@ function CreateMatchWizard() {
 
         {/* Step Content */}
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             {/* Step 1: Format */}
             {step === 1 && (
               <div className="space-y-6">
@@ -710,24 +709,26 @@ function CreateMatchWizard() {
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium">Format</Label>
-                    <div className="mt-2 grid grid-cols-3 gap-3">
+                    <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-3">
                       {(["T20", "ODI", "Custom"] as MatchFormat[]).map(
                         (format) => (
                           <button
                             key={format}
                             type="button"
                             onClick={() => handleFormatChange(format)}
-                            className={`rounded-lg border-2 p-4 transition-colors ${
+                            className={`rounded-lg border-2 p-2.5 text-center transition-colors sm:p-4 ${
                               formData.matchFormat === format
                                 ? "border-primary bg-primary/10"
                                 : "border-border hover:border-primary/50"
                             }`}
                           >
-                            <div className="text-lg font-bold">{format}</div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-base font-bold sm:text-lg">
+                              {format}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground sm:text-xs">
                               {format === "T20" && "20 overs"}
                               {format === "ODI" && "50 overs"}
-                              {format === "Custom" && "Custom overs"}
+                              {format === "Custom" && "Custom"}
                             </div>
                           </button>
                         ),
@@ -1222,7 +1223,7 @@ function CreateMatchWizard() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                     <div>
                       <Label htmlFor="umpire1">Umpire 1</Label>
                       <Input
@@ -1265,54 +1266,74 @@ function CreateMatchWizard() {
                 </div>
 
                 <div className="space-y-3 rounded-lg border p-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Match Title</span>
-                    <span className="font-semibold">{formData.title}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">
+                      Match Title
+                    </span>
+                    <span className="break-words text-right font-semibold">
+                      {formData.title}
+                    </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Format</span>
-                    <span className="font-medium">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">
+                      Format
+                    </span>
+                    <span className="text-right font-medium">
                       {formData.matchFormat} ({formData.oversPerInnings} overs)
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Team 1</span>
-                    <span className="font-medium">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">
+                      Team 1
+                    </span>
+                    <span className="break-words text-right font-medium">
                       {getTeamName(formData.team1Id)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Team 2</span>
-                    <span className="font-medium">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 text-muted-foreground">
+                      Team 2
+                    </span>
+                    <span className="break-words text-right font-medium">
                       {getTeamName(formData.team2Id)}
                     </span>
                   </div>
                   {selectedTournament && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tournament</span>
-                      <span className="font-semibold text-amber-500">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="shrink-0 text-muted-foreground">
+                        Tournament
+                      </span>
+                      <span className="break-words text-right font-semibold text-amber-500">
                         {selectedTournament.name}
                       </span>
                     </div>
                   )}
                   {selectedClub && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Club</span>
-                      <span className="font-semibold text-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="shrink-0 text-muted-foreground">
+                        Club
+                      </span>
+                      <span className="break-words text-right font-semibold text-foreground">
                         {selectedClub.name}
                       </span>
                     </div>
                   )}
                   {formData.venue && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Venue</span>
-                      <span className="font-medium">{formData.venue}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="shrink-0 text-muted-foreground">
+                        Venue
+                      </span>
+                      <span className="break-words text-right font-medium">
+                        {formData.venue}
+                      </span>
                     </div>
                   )}
                   {formData.scheduledAt && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Date/Time</span>
-                      <span className="font-medium">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="shrink-0 text-muted-foreground">
+                        Date/Time
+                      </span>
+                      <span className="text-right font-medium">
                         {new Date(formData.scheduledAt).toLocaleString()}
                       </span>
                     </div>
@@ -1389,7 +1410,7 @@ function CreateMatchWizard() {
           open={newTeamFor !== null}
           onOpenChange={(open) => !open && setNewTeamFor(null)}
         >
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {newTeamFor === "team1Id"

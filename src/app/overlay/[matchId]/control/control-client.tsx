@@ -394,13 +394,13 @@ export function ControlClient({
       {/* ============================================================= */}
       {/* 1. STUDIO HEADER (CLEAN & PROFESSIONAL)                       */}
       {/* ============================================================= */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 px-4 py-3 shadow-lg backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 px-3 py-2.5 shadow-lg backdrop-blur-xl sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 sm:gap-3">
           {/* Status & Match Summary */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-red-500/40 bg-red-600/20 px-3 py-1 text-xs font-black text-red-400">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-0.5 text-[11px] font-black text-red-400 sm:gap-2 sm:px-3 sm:py-1 sm:text-xs">
               <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-              <span>LIVE BROADCAST STUDIO</span>
+              <span>LIVE STUDIO</span>
             </div>
 
             <div className="hidden sm:block">
@@ -416,10 +416,10 @@ export function ControlClient({
           </div>
 
           {/* Quick Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={copyObsUrl}
-              className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold shadow-sm transition ${
+              className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold shadow-sm transition sm:px-3.5 ${
                 copiedObsUrl
                   ? "bg-emerald-600 text-white"
                   : "border border-white/10 bg-white/10 text-white hover:bg-white/20"
@@ -430,14 +430,19 @@ export function ControlClient({
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
-              <span>{copiedObsUrl ? "Copied OBS URL!" : "Copy OBS URL"}</span>
+              <span className="hidden sm:inline">
+                {copiedObsUrl ? "Copied OBS URL!" : "Copy OBS URL"}
+              </span>
+              <span className="sm:hidden">
+                {copiedObsUrl ? "Copied!" : "URL"}
+              </span>
             </button>
 
             <a
               href={obsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white sm:px-3"
               title="Open full transparent overlay in new window"
             >
               <ExternalLink className="h-3.5 w-3.5" />
@@ -446,11 +451,12 @@ export function ControlClient({
 
             <button
               onClick={handlePanicClear}
-              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3.5 py-1.5 text-xs font-black uppercase text-white shadow transition hover:bg-red-500 active:scale-95"
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-2.5 py-1.5 text-xs font-black uppercase text-white shadow transition hover:bg-red-500 active:scale-95 sm:px-3.5"
               title="Emergency Clear (Space/ESC)"
             >
               <XCircle className="h-4 w-4" />
-              <span>Clear Overlay</span>
+              <span className="hidden sm:inline">Clear Overlay</span>
+              <span className="sm:hidden">Clear</span>
             </button>
           </div>
         </div>
@@ -459,9 +465,9 @@ export function ControlClient({
       {/* ============================================================= */}
       {/* 2. MAIN PRODUCTION WORKSPACE                                  */}
       {/* ============================================================= */}
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6">
+      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
         {/* Broadcast TV Themes Quick Switcher */}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 shadow-lg backdrop-blur-md">
+        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 shadow-lg backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Palette className="h-4 w-4 text-amber-400" />
             <span className="text-xs font-semibold text-slate-200">
@@ -469,7 +475,42 @@ export function ControlClient({
             </span>
           </div>
 
-          <div className="flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
+          {/* Mobile Theme Dropdown (Eliminates horizontal scroll on mobile) */}
+          <div className="w-full sm:hidden">
+            <select
+              value={selectedTheme}
+              onChange={(e) =>
+                handleSelectTheme(e.target.value as OverlayTheme)
+              }
+              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-white focus:border-amber-400 focus:outline-none"
+            >
+              {[
+                { id: "starsports", label: "⭐ Star Sports (IPL Gold & Blue)" },
+                { id: "sonysports", label: "🔴 Sony Sports (LIV Crimson Red)" },
+                {
+                  id: "foxcricket",
+                  label: "🦊 Fox Cricket (Aussie BBL Orange)",
+                },
+                { id: "skysports", label: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Sky Sports (Ashes Red & Navy)" },
+                { id: "apex", label: "👑 Apex 24K (Mirror Gold)" },
+                { id: "volt", label: "⚡ Volt Tech (Cyber Lime)" },
+                { id: "agni", label: "🔥 Agni Inferno (Volcanic Magma)" },
+                { id: "thehundred", label: "🦄 The Hundred (Hot Pink & Cyan)" },
+                { id: "dharma", label: "🕉️ Dharma (Royal Vedic Gold)" },
+                { id: "thunder", label: "⚡ Thunder (Electric Cyan)" },
+                { id: "nakshatra", label: "✨ Nakshatra (Cosmic Purple)" },
+                { id: "emerald", label: "🏏 Emerald (Pitch Green)" },
+                { id: "dark", label: "🖤 Dark Titanium (Carbon)" },
+              ].map((thm) => (
+                <option key={thm.id} value={thm.id}>
+                  {thm.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desktop Theme Pills */}
+          <div className="hidden flex-wrap items-center gap-1.5 sm:flex">
             {[
               {
                 id: "starsports",
@@ -570,10 +611,10 @@ export function ControlClient({
         {/* =========================================================== */}
         {/* LIVE PROGRAM MONITOR (16:9 1080P HERO PREVIEW)              */}
         {/* =========================================================== */}
-        <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-4 shadow-2xl backdrop-blur-md">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-3 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-4">
           {/* Monitor Header */}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3 text-xs">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
               <span className="font-mono text-xs font-semibold text-slate-200">
                 Program Feed (1920×1080 60fps)
@@ -664,13 +705,13 @@ export function ControlClient({
           {/* THE 29-VIEW SWITCHER DOCK (FRONT & CENTER)                */}
           {/* ========================================================= */}
           <div className="mt-4 border-t border-white/10 pt-3">
-            <div className="mb-2.5 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid grid-cols-2 items-center gap-1.5 text-xs min-[440px]:grid-cols-3 sm:flex sm:flex-wrap">
                 {VIEW_CATEGORIES.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition ${
+                    className={`rounded-full px-3 py-1 text-center text-xs font-bold transition ${
                       selectedCategory === cat.id
                         ? "bg-amber-500 font-black text-black shadow-md"
                         : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
@@ -685,8 +726,28 @@ export function ControlClient({
               </span>
             </div>
 
-            {/* Authentic Horizontal Scrolling Switcher Bar */}
-            <div className="premiumBtns" id="premiumBtns">
+            {/* Mobile View Selector (Zero horizontal scroll needed) */}
+            <div className="mt-2 sm:hidden">
+              <label className="mb-1 block text-[11px] font-semibold text-slate-400">
+                Select Broadcast Overlay View ({filteredViews.length} views):
+              </label>
+              <select
+                value={selectedBroadcastView}
+                onChange={(e) =>
+                  handleSelectBroadcastView(e.target.value as BroadcastViewId)
+                }
+                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
+              >
+                {filteredViews.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    View {opt.id}: {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Desktop Switcher Bar */}
+            <div className="premiumBtns hidden sm:flex" id="premiumBtns">
               {filteredViews.map((opt, idx) => (
                 <button
                   key={opt.id}
@@ -707,32 +768,32 @@ export function ControlClient({
         {/* ============================================================= */}
         {/* 3. CLEAN PRODUCER ACTION DECKS                                */}
         {/* ============================================================= */}
-        <div className="space-y-4 rounded-3xl border border-white/10 bg-slate-900/60 p-5 shadow-xl backdrop-blur-md">
+        <div className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-5">
           {/* Tabs Selector */}
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto">
               <button
                 onClick={() => setActiveTab("inplay")}
-                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-4 ${
                   activeTab === "inplay"
                     ? "bg-amber-500 font-bold text-black shadow-md"
                     : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <Zap className="h-4 w-4" />
-                <span>In-Play Actions & Celebrations</span>
+                <span>In-Play Actions</span>
               </button>
 
               <button
                 onClick={() => setActiveTab("settings")}
-                className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+                className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-4 ${
                   activeTab === "settings"
                     ? "bg-amber-500 font-bold text-black shadow-md"
                     : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <Sliders className="h-4 w-4" />
-                <span>Broadcast Themes & Settings</span>
+                <span>Theme & Settings</span>
               </button>
             </div>
 
@@ -876,7 +937,7 @@ export function ControlClient({
                 </div>
 
                 {/* Impromptu Notice Box */}
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <input
                     type="text"
                     value={customStrapText}
@@ -889,7 +950,7 @@ export function ControlClient({
                   />
                   <button
                     onClick={handleSendCustomAlert}
-                    className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400"
+                    className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400"
                   >
                     <Send className="h-3.5 w-3.5" />
                     <span>Send Alert</span>

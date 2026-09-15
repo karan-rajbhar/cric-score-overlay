@@ -1,0 +1,25 @@
+{
+	# Global options
+	email {$LETSENCRYPT_EMAIL:admin@example.com}
+	admin off
+}
+
+# Match either a custom domain or fallback to any host/IP
+{$APP_DOMAIN::80} {
+	# Encode responses with gzip or zstd
+	encode zstd gzip
+
+	# Forward all requests to Next.js standalone server
+	reverse_proxy app:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Cache static Next.js assets
+	@static {
+		path /_next/static/* /favicon.ico /robots.txt
+	}
+	header @static Cache-Control "public, max-age=31536000, immutable"
+}

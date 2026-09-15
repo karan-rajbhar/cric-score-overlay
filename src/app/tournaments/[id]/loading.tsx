@@ -26,11 +26,11 @@ export default function TournamentDetailLoading() {
       </div>
 
       {/* Tabs Header */}
-      <div className="flex gap-2 overflow-x-auto border-b border-border pb-2">
-        <Skeleton className="h-9 w-28 rounded-lg" />
-        <Skeleton className="h-9 w-36 rounded-lg" />
-        <Skeleton className="h-9 w-24 rounded-lg" />
-        <Skeleton className="h-9 w-32 rounded-lg" />
+      <div className="grid grid-cols-2 gap-2 border-b border-border pb-2 sm:grid-cols-4">
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
+        <Skeleton className="h-9 w-full rounded-lg" />
       </div>
 
       {/* Standings Table Skeleton */}

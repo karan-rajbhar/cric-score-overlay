@@ -167,7 +167,11 @@ export default function MatchesPage() {
           </p>
         </div>
         {user && (
-          <Button asChild size="sm" className="interactive-button gap-1.5">
+          <Button
+            asChild
+            size="sm"
+            className="interactive-button w-full gap-1.5 sm:w-auto"
+          >
             <Link href="/matches/create">
               <Plus className="h-4 w-4" />
               Score New Match
@@ -177,24 +181,24 @@ export default function MatchesPage() {
       </div>
 
       <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:max-w-xs">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search teams, titles or venues…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 pl-9 text-xs"
+            className="h-9 w-full pl-9 text-xs"
           />
         </div>
 
-        <div className="flex flex-wrap gap-1 rounded-xl border border-border/80 bg-muted/40 p-1">
+        <div className="grid w-full grid-cols-4 gap-1 rounded-xl border border-border/80 bg-muted/40 p-1 sm:flex sm:w-auto">
           {statusOptions.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => setStatusFilter(option.value)}
               className={cn(
-                "interactive-button rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                "interactive-button flex-1 rounded-lg px-2 py-1.5 text-center text-xs font-semibold transition-all sm:flex-initial sm:px-3",
                 statusFilter === option.value
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/60 hover:text-foreground",

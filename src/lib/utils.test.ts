@@ -23,19 +23,19 @@ describe("cn", () => {
 import { deriveShortName } from "./utils";
 
 describe("deriveShortName", () => {
-    it("takes the first three letters uppercased", () => {
-        expect(deriveShortName("Riverside Warriors")).toBe("RIV");
-    });
+  it("takes the first three letters uppercased", () => {
+    expect(deriveShortName("Riverside Warriors")).toBe("RIV");
+  });
 
-    it("ignores spaces and punctuation", () => {
-        expect(deriveShortName("R.C. United")).toBe("RCU");
-    });
+  it("ignores spaces and punctuation", () => {
+    expect(deriveShortName("R.C. United")).toBe("RCU");
+  });
 
-    it("returns whatever exists for very short names", () => {
-        expect(deriveShortName("FC")).toBe("FC");
-    });
+  it("returns whatever exists for very short names", () => {
+    expect(deriveShortName("FC")).toBe("FC");
+  });
 
-    it("handles empty strings", () => {
-        expect(deriveShortName("")).toBe("");
-    });
+  it("handles empty strings", () => {
+    expect(deriveShortName("")).toBe("");
+  });
 });

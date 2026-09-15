@@ -100,12 +100,12 @@ export default function Dashboard() {
             Live pitch updates, tournament tables, and broadcast controls
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <Button
             asChild
             size="sm"
             variant="outline"
-            className="interactive-button gap-1.5"
+            className="interactive-button flex-1 justify-center gap-1.5 sm:flex-none"
           >
             <Link href="/teams">
               <Shield className="h-4 w-4" />
@@ -115,7 +115,7 @@ export default function Dashboard() {
           <Button
             asChild
             size="sm"
-            className="interactive-button gap-1.5 font-semibold"
+            className="interactive-button flex-1 justify-center gap-1.5 font-semibold sm:flex-none"
           >
             <Link href="/matches/create">
               <Plus className="h-4 w-4" />
@@ -129,9 +129,9 @@ export default function Dashboard() {
       {loading ? (
         <div className="h-56 animate-pulse rounded-2xl border border-border/70 bg-card/50" />
       ) : featuredLive ? (
-        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 p-5 shadow-sm sm:p-7">
+        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-sm sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border/70 pb-4">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
@@ -166,15 +166,15 @@ export default function Dashboard() {
           </div>
 
           {/* Teams and Scores Display */}
-          <div className="my-5 grid gap-4 sm:grid-cols-2 sm:gap-6">
+          <div className="my-4 grid gap-3 sm:my-5 sm:grid-cols-2 sm:gap-6">
             {/* Team 1 */}
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3.5 sm:p-5">
+              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                 <TeamLogo
                   name={featuredLive.team1.name}
                   shortName={featuredLive.team1.short_name}
                   logoUrl={featuredLive.team1.logo_url}
-                  className="h-11 w-11 text-xs"
+                  className="h-10 w-10 shrink-0 text-xs sm:h-11 sm:w-11"
                 />
                 <div className="min-w-0">
                   <h3 className="truncate font-bold text-foreground sm:text-lg">
@@ -190,7 +190,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="score-display tabular text-3xl font-bold leading-none sm:text-4xl">
+                <p className="score-display tabular text-2xl font-bold leading-none sm:text-4xl">
                   {featuredInn1
                     ? `${featuredInn1.total_runs}/${featuredInn1.total_wickets}`
                     : "-"}
@@ -204,13 +204,13 @@ export default function Dashboard() {
             </div>
 
             {/* Team 2 */}
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-4 sm:p-5">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 p-3.5 sm:p-5">
+              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                 <TeamLogo
                   name={featuredLive.team2.name}
                   shortName={featuredLive.team2.short_name}
                   logoUrl={featuredLive.team2.logo_url}
-                  className="h-11 w-11 text-xs"
+                  className="h-10 w-10 shrink-0 text-xs sm:h-11 sm:w-11"
                 />
                 <div className="min-w-0">
                   <h3 className="truncate font-bold text-foreground sm:text-lg">
@@ -226,7 +226,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="score-display tabular text-3xl font-bold leading-none sm:text-4xl">
+                <p className="score-display tabular text-2xl font-bold leading-none sm:text-4xl">
                   {featuredInn2
                     ? `${featuredInn2.total_runs}/${featuredInn2.total_wickets}`
                     : "-"}
@@ -247,23 +247,32 @@ export default function Dashboard() {
           )}
 
           {/* Action Bar */}
-          <div className="flex flex-wrap items-center gap-2.5 border-t border-border/70 pt-4">
+          <div className="flex flex-col gap-2 border-t border-border/70 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
             {canScoreMatch(featuredLive) && (
-              <Button asChild size="sm" className="gap-2 font-semibold">
+              <Button
+                asChild
+                size="sm"
+                className="w-full justify-center gap-2 font-semibold sm:w-auto"
+              >
                 <Link href={`/matches/${featuredLive.id}/score`}>
                   <Radio className="h-4 w-4" />
                   Score live match
                 </Link>
               </Button>
             )}
-            <Button asChild size="sm" variant="outline" className="gap-2">
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="w-full justify-center gap-2 sm:w-auto"
+            >
               <Link href={`/matches/${featuredLive.id}`}>View scorecard</Link>
             </Button>
             <Button
               asChild
               size="sm"
               variant="ghost"
-              className="gap-2 text-muted-foreground hover:text-foreground"
+              className="w-full justify-center gap-2 text-muted-foreground hover:text-foreground sm:w-auto"
             >
               <Link href={`/overlay/${featuredLive.id}`} target="_blank">
                 <Tv className="h-4 w-4" />
@@ -273,28 +282,35 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 p-6 sm:p-8">
+        <div className="rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-muted/20 p-5 sm:p-8">
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               <Shield className="h-3.5 w-3.5" />
               <span>Matchday command</span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-3xl">
               Ready to score, stream, or run your tournament?
             </h2>
-            <p className="text-sm text-muted-foreground sm:text-base">
+            <p className="text-xs text-muted-foreground sm:text-base">
               Create a match with live ball-by-ball scoring, generate broadcast
               overlay graphics for OBS, or organize club tournaments with
               automated standings tables.
             </p>
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button asChild className="gap-2 font-semibold">
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <Button
+                asChild
+                className="w-full justify-center gap-2 font-semibold sm:w-auto"
+              >
                 <Link href="/matches/create">
                   <Plus className="h-4 w-4" />
                   Start new match
                 </Link>
               </Button>
-              <Button asChild variant="outline" className="gap-2">
+              <Button
+                asChild
+                variant="outline"
+                className="w-full justify-center gap-2 sm:w-auto"
+              >
                 <Link href="/tournaments">
                   <Trophy className="h-4 w-4" />
                   Tournaments & standings
@@ -303,7 +319,7 @@ export default function Dashboard() {
               <Button
                 asChild
                 variant="ghost"
-                className="gap-2 text-muted-foreground hover:text-foreground"
+                className="w-full justify-center gap-2 text-muted-foreground hover:text-foreground sm:w-auto"
               >
                 <Link href="/teams">Manage teams</Link>
               </Button>
@@ -410,10 +426,10 @@ export default function Dashboard() {
 
       {/* Recent Completed Results Section */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between border-b border-border/70 pb-3">
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            <h2 className="text-base font-bold text-foreground">
+        <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
+            <h2 className="truncate text-sm font-bold text-foreground sm:text-base">
               Recent completed results
             </h2>
           </div>
@@ -421,9 +437,9 @@ export default function Dashboard() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            className="h-8 shrink-0 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Link href="/matches?status=completed">View all results</Link>
+            <Link href="/matches?status=completed">View all</Link>
           </Button>
         </div>
 

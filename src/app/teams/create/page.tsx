@@ -143,7 +143,7 @@ function CreateTeamForm() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div>
               <Label htmlFor="short_name">Short Name / Code</Label>
               <Input
@@ -292,8 +292,8 @@ export default function CreateTeamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto max-w-xl px-4">
+    <div className="min-h-screen bg-background py-6 sm:py-8">
+      <div className="container mx-auto max-w-xl px-3 sm:px-4">
         <Suspense fallback={null}>
           <CreateTeamBackButton />
         </Suspense>

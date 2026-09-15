@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/supabase/server";
+import { invalidateMatchCache } from "~/lib/match-cache";
 import { friendlyError } from "./errors";
 import type {
   BallEvent,
@@ -471,6 +472,7 @@ export async function startMatch(
   if (inningsError) {
     return { data: null, error: inningsError.message };
   }
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   return { data: { match, innings }, error: null };
 }
@@ -501,6 +503,7 @@ export async function recordBall(params: {
     console.error("record_ball failed:", error);
     return { data: null, error: friendlyError(error.message) };
   }
+  invalidateMatchCache(params.matchId);
   revalidatePath(`/matches/${params.matchId}`);
   revalidatePath(`/matches/${params.matchId}/score`);
   revalidatePath(`/overlay/${params.matchId}`);
@@ -552,6 +555,7 @@ export async function undoLastBall(
     console.error("undo_last_ball failed:", error);
     return { data: null, error: friendlyError(error.message) };
   }
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);
@@ -573,6 +577,7 @@ export async function setCurrentBatsmen(
     console.error("set_current_batsmen failed:", error);
     return { error: friendlyError(error.message) };
   }
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);
@@ -592,6 +597,7 @@ export async function setCurrentBowler(
     console.error("set_current_bowler failed:", error);
     return { error: friendlyError(error.message) };
   }
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);
@@ -609,6 +615,7 @@ export async function endInnings(
     console.error("end_innings failed:", error);
     return { data: null, error: friendlyError(error.message) };
   }
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);
@@ -664,6 +671,7 @@ export async function setPlayerOfTheMatch(
     return { success: false, error: friendlyError(error.message) };
   }
 
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   return { success: true, error: null };
@@ -702,6 +710,7 @@ export async function updateDlsTarget(
     return { success: false, error: friendlyError(error.message) };
   }
 
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);
@@ -737,6 +746,7 @@ export async function updateBall(params: {
     return { data: null, error: friendlyError(error.message) };
   }
 
+  invalidateMatchCache(params.matchId);
   revalidatePath(`/matches/${params.matchId}`);
   revalidatePath(`/matches/${params.matchId}/score`);
   revalidatePath(`/overlay/${params.matchId}`);
@@ -756,6 +766,7 @@ export async function startSuperOver(
     return { data: null, error: friendlyError(error.message) };
   }
 
+  invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   revalidatePath(`/overlay/${matchId}`);

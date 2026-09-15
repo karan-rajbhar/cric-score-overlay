@@ -239,7 +239,7 @@ export default async function PlayerPage({
     Math.max(matchesList.length, batting.length, bowling.length);
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
+    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -337,28 +337,31 @@ export default async function PlayerPage({
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1.5 h-4 w-4" />
-            {backLabel}
+            <span className="sm:hidden">Back</span>
+            <span className="hidden sm:inline">{backLabel}</span>
           </Link>
         </Button>
       </div>
 
       {/* Profile Header */}
-      <div className="flex flex-col gap-4 rounded-xl border bg-card p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/15 text-2xl font-bold text-primary">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-bold text-primary sm:h-16 sm:w-16 sm:text-2xl">
             {user.full_name.slice(0, 2).toUpperCase()}
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
               {user.full_name}
             </h1>
             {isSelf && user.email && (
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+              <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                {user.email}
+              </p>
             )}
 
             {/* Quick Affiliations / Teams */}
             {teams.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {teams.map((tm) => (
                   <Link
                     key={tm.id}
@@ -391,7 +394,7 @@ export default async function PlayerPage({
         </div>
 
         {/* Quick Highlights Pill */}
-        <div className="flex items-center gap-4 border-t pt-4 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+        <div className="flex items-center justify-around gap-4 border-t pt-4 sm:justify-start sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
           <div className="text-center">
             <div className="text-xl font-bold">{totalMatches}</div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -418,7 +421,7 @@ export default async function PlayerPage({
       </div>
 
       {/* Career Overview Stats Cards */}
-      <div className="mt-8 grid gap-6 md:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold">

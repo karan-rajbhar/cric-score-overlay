@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
             }`}
           >
-            <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1440px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
               {children}
             </div>
           </main>
@@ -91,13 +91,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
           }`}
         >
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-row">
-              <p>
+              <p className="text-center sm:text-left">
                 © 2026 CricScore. Live cricket scoring, tournament management
                 and broadcast engine.
               </p>
-              <div className="flex gap-5">
+              <div className="flex flex-wrap justify-center gap-4 sm:gap-5">
                 <a href="#" className="transition-colors hover:text-foreground">
                   Privacy
                 </a>

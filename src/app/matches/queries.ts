@@ -21,7 +21,8 @@ export async function getMatches(filters?: {
     .order("scheduled_at", { ascending: false });
   if (filters?.status) query = query.eq("status", filters.status);
   if (filters?.clubId) query = query.eq("club_id", filters.clubId);
-  if (filters?.limit) query = query.limit(filters.limit);
+  const limit = filters?.limit ?? 50;
+  query = query.limit(limit);
   const { data, error } = await query;
   if (error) {
     console.error("Error fetching matches:", error);
@@ -33,46 +34,141 @@ export async function getMatches(filters?: {
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getMatch(matchId: string) {
+import {
+  getCachedMatch,
+  setCachedMatch,
+  getPendingQuery,
+  setPendingQuery,
+  clearPendingQuery,
+  getCachedLiveState,
+  setCachedLiveState,
+  getPendingLiveQuery,
+  setPendingLiveQuery,
+  clearPendingLiveQuery,
+} from "~/lib/match-cache";
+
+export async function getMatch(
+  matchId: string,
+  options?: { skipCache?: boolean },
+) {
   if (!UUID_REGEX.test(matchId)) {
     return { data: null, error: "Invalid match ID" };
   }
 
-  const supabase = await createServerClient();
-  const { data, error } = await supabase
-    .from("matches")
-    .select(
-      `
-      *,
-      team1:teams!matches_team1_id_fkey(*,
-        team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-      ),
-      team2:teams!matches_team2_id_fkey(*,
-        team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-      ),
-      innings(
-        *,
-        batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
-        bowling_performances(*, user:users!bowling_performances_user_id_fkey(id, full_name)),
-        fall_of_wickets(
-          *,
-          batsman:users!fall_of_wickets_batsman_out_id_fkey(id, full_name),
-          bowler:users!fall_of_wickets_bowler_id_fkey(full_name),
-          fielder:users!fall_of_wickets_fielder_id_fkey(full_name)
-        )
-      ),
-      tournament:tournaments(id, name, tournament_format, venue),
-      club:clubs(id, name),
-      player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
-    `,
-    )
-    .eq("id", matchId)
-    .single();
-  if (error) {
-    console.error("Error fetching match:", error);
-    return { data: null, error: error.message };
+  if (!options?.skipCache) {
+    const cached = getCachedMatch<{ data: unknown; error: string | null }>(
+      matchId,
+    );
+    if (cached) {
+      return cached;
+    }
+
+    const inFlight = getPendingQuery<{ data: unknown; error: string | null }>(
+      matchId,
+    );
+    if (inFlight) {
+      return inFlight;
+    }
   }
-  return { data, error: null };
+
+  const queryPromise = (async () => {
+    try {
+      const supabase = await createServerClient();
+      const { data, error } = await supabase
+        .from("matches")
+        .select(
+          `
+          *,
+          team1:teams!matches_team1_id_fkey(*,
+            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
+          ),
+          team2:teams!matches_team2_id_fkey(*,
+            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
+          ),
+          innings(
+            *,
+            batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
+            bowling_performances(*, user:users!bowling_performances_user_id_fkey(id, full_name)),
+            fall_of_wickets(
+              *,
+              batsman:users!fall_of_wickets_batsman_out_id_fkey(id, full_name),
+              bowler:users!fall_of_wickets_bowler_id_fkey(full_name),
+              fielder:users!fall_of_wickets_fielder_id_fkey(full_name)
+            )
+          ),
+          tournament:tournaments(id, name, tournament_format, venue),
+          club:clubs(id, name),
+          player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
+        `,
+        )
+        .eq("id", matchId)
+        .single();
+
+      if (error) {
+        console.error("Error fetching match:", error);
+        return { data: null, error: error.message };
+      }
+
+      const result = { data, error: null };
+      setCachedMatch(matchId, result);
+      return result;
+    } finally {
+      clearPendingQuery(matchId);
+    }
+  })();
+
+  setPendingQuery(matchId, queryPromise);
+  return queryPromise;
+}
+
+export async function getLiveMatchState(
+  matchId: string,
+  options?: { skipCache?: boolean },
+) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+
+  if (!options?.skipCache) {
+    const cached = getCachedLiveState<{ data: unknown; error: string | null }>(
+      matchId,
+    );
+    if (cached) {
+      return cached;
+    }
+
+    const inFlight = getPendingLiveQuery<{
+      data: unknown;
+      error: string | null;
+    }>(matchId);
+    if (inFlight) {
+      return inFlight;
+    }
+  }
+
+  const queryPromise = (async () => {
+    try {
+      const supabase = await createServerClient();
+      const { data, error } = await supabase
+        .from("live_match_state")
+        .select("*")
+        .eq("match_id", matchId)
+        .single();
+
+      if (error) {
+        return { data: null, error: error.message };
+      }
+
+      const result = { data, error: null };
+      setCachedLiveState(matchId, result);
+      return result;
+    } finally {
+      clearPendingLiveQuery(matchId);
+    }
+  })();
+
+  setPendingLiveQuery(matchId, queryPromise);
+  return queryPromise;
 }
 
 export async function getScoringState(matchId: string) {

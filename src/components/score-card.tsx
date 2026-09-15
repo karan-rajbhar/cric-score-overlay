@@ -11,7 +11,7 @@ interface ScoreCardProps {
     id: string;
     team1: string;
     team2: string;
-    status: 'upcoming' | 'live' | 'completed';
+    status: "upcoming" | "live" | "completed";
     team1Score?: {
       runs: number;
       wickets: number;
@@ -58,7 +58,7 @@ function TeamScore({
           <span className="score-display text-3xl font-semibold leading-none">
             {score.runs}/{score.wickets}
           </span>
-          <span className="text-sm text-muted-foreground tabular">
+          <span className="tabular text-sm text-muted-foreground">
             ({score.overs.toFixed(1)} ov)
           </span>
         </div>
@@ -70,7 +70,6 @@ function TeamScore({
 }
 
 export function ScoreCard({ match }: ScoreCardProps) {
-
   return (
     <Card className="mx-auto w-full max-w-4xl">
       <CardContent className="space-y-5 p-6">
@@ -105,18 +104,18 @@ export function ScoreCard({ match }: ScoreCardProps) {
                         <span className="ml-1.5 text-primary">*</span>
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground tabular">
+                    <p className="tabular text-xs text-muted-foreground">
                       SR {strikeRate(b.runs, b.balls)}
                     </p>
                   </div>
-                  <p className="score-display text-xl font-semibold tabular">
+                  <p className="score-display tabular text-xl font-semibold">
                     {b.runs}
                     <span className="ml-1 text-sm font-normal text-muted-foreground">
                       ({b.balls})
                     </span>
                   </p>
                 </div>
-              )
+              ),
             )}
           </div>
         )}
@@ -126,17 +125,24 @@ export function ScoreCard({ match }: ScoreCardProps) {
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {match.recentOvers.map((over, overIndex) => (
               <div key={overIndex} className="flex items-center gap-1.5">
-                <span className="mr-1 text-xs text-muted-foreground">Ov {overIndex + 1}</span>
+                <span className="mr-1 text-xs text-muted-foreground">
+                  Ov {overIndex + 1}
+                </span>
                 {over.split(" ").map((ball, ballIndex) => {
                   let cls =
                     "bg-secondary text-secondary-foreground border-border";
-                  if (ball === "W") cls = "bg-red-600 text-white border-red-600";
-                  else if (ball === "4") cls = "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/40";
-                  else if (ball === "6") cls = "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/40";
+                  if (ball === "W")
+                    cls = "bg-red-600 text-white border-red-600";
+                  else if (ball === "4")
+                    cls =
+                      "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/40";
+                  else if (ball === "6")
+                    cls =
+                      "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/40";
                   return (
                     <span
                       key={ballIndex}
-                      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold tabular ${cls}`}
+                      className={`tabular inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold ${cls}`}
                     >
                       {ball}
                     </span>

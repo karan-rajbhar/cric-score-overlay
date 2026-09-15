@@ -91,45 +91,47 @@ export function MatchManhattan({ match }: { match: Match }) {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {inn.teamName}
                 </p>
-                <div
-                  className="flex items-end gap-1"
-                  style={{ height: 120 }}
-                  role="region"
-                  aria-label={`Over-by-over chart for ${inn.teamName}`}
-                >
-                  {inn.overs.map((over) => (
-                    <div
-                      key={over.over_number}
-                      className="group relative flex-1 transition-transform hover:scale-x-110"
-                      role="img"
-                      aria-label={`Over ${over.over_number + 1}: ${over.runs} run${over.runs === 1 ? "" : "s"}${over.wickets ? `, ${over.wickets} wicket${over.wickets === 1 ? "" : "s"}` : ""}`}
-                      title={`Over ${over.over_number + 1}: ${over.runs} run${over.runs === 1 ? "" : "s"}${over.wickets ? `, ${over.wickets} wicket${over.wickets === 1 ? "" : "s"}` : ""}`}
-                    >
-                      {over.wickets > 0 && (
-                        <span className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black leading-tight text-white shadow-sm">
-                          W{over.wickets > 1 ? over.wickets : ""}
-                        </span>
-                      )}
+                <div className="no-scrollbar overflow-x-auto pb-2">
+                  <div
+                    className="flex w-full min-w-0 items-end gap-1"
+                    style={{ height: 120 }}
+                    role="region"
+                    aria-label={`Over-by-over chart for ${inn.teamName}`}
+                  >
+                    {inn.overs.map((over) => (
                       <div
-                        className={`w-full rounded-t-md transition-all ${
-                          over.wickets > 0
-                            ? "bg-gradient-to-t from-red-600 to-rose-400 shadow-sm"
-                            : over.runs >= 12
-                              ? "bg-gradient-to-t from-purple-600 to-violet-400 shadow-sm"
-                              : over.runs >= 8
-                                ? "bg-gradient-to-t from-emerald-600 to-teal-400"
-                                : "bg-emerald-500/70"
-                        }`}
-                        style={{
-                          height: `${Math.max((over.runs / inn.max) * 96, 4)}px`,
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-                  <span>1</span>
-                  <span>{inn.overs.length}</span>
+                        key={over.over_number}
+                        className="group relative flex-1 transition-transform hover:scale-x-110"
+                        role="img"
+                        aria-label={`Over ${over.over_number + 1}: ${over.runs} run${over.runs === 1 ? "" : "s"}${over.wickets ? `, ${over.wickets} wicket${over.wickets === 1 ? "" : "s"}` : ""}`}
+                        title={`Over ${over.over_number + 1}: ${over.runs} run${over.runs === 1 ? "" : "s"}${over.wickets ? `, ${over.wickets} wicket${over.wickets === 1 ? "" : "s"}` : ""}`}
+                      >
+                        {over.wickets > 0 && (
+                          <span className="absolute -top-4 left-1/2 flex -translate-x-1/2 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black leading-tight text-white shadow-sm">
+                            W{over.wickets > 1 ? over.wickets : ""}
+                          </span>
+                        )}
+                        <div
+                          className={`w-full rounded-t-md transition-all ${
+                            over.wickets > 0
+                              ? "bg-gradient-to-t from-red-600 to-rose-400 shadow-sm"
+                              : over.runs >= 12
+                                ? "bg-gradient-to-t from-purple-600 to-violet-400 shadow-sm"
+                                : over.runs >= 8
+                                  ? "bg-gradient-to-t from-emerald-600 to-teal-400"
+                                  : "bg-emerald-500/70"
+                          }`}
+                          style={{
+                            height: `${Math.max((over.runs / inn.max) * 96, 4)}px`,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-1 flex w-full min-w-0 justify-between text-[10px] text-muted-foreground">
+                    <span>1</span>
+                    <span>{inn.overs.length}</span>
+                  </div>
                 </div>
               </div>
             ))}

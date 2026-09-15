@@ -244,7 +244,7 @@ export function WagonWheel({ match }: WagonWheelProps) {
                 value={selectedInningsId}
                 onValueChange={setSelectedInningsId}
               >
-                <SelectTrigger className="h-9 w-[180px] text-xs">
+                <SelectTrigger className="h-9 w-full text-xs sm:w-[180px]">
                   <SelectValue placeholder="Select Innings" />
                 </SelectTrigger>
                 <SelectContent>
@@ -261,7 +261,7 @@ export function WagonWheel({ match }: WagonWheelProps) {
               value={selectedBatterId}
               onValueChange={setSelectedBatterId}
             >
-              <SelectTrigger className="h-9 w-[180px] text-xs">
+              <SelectTrigger className="h-9 w-full text-xs sm:w-[180px]">
                 <Users className="mr-1 h-3.5 w-3.5 text-muted-foreground" />
                 <SelectValue placeholder="All Batters" />
               </SelectTrigger>

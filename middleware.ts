@@ -10,12 +10,24 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  const pathname = request.nextUrl.pathname;
+
   // Skip middleware for auth callback - let it handle session creation
-  if (request.nextUrl.pathname.startsWith("/auth/callback")) {
+  if (pathname.startsWith("/auth/callback")) {
     return response;
   }
 
-  // Create supabase client with proper cookie handling
+  const isDashboardRoute = pathname.startsWith("/dashboard");
+  const isAuthRoute =
+    pathname.startsWith("/auth/login") || pathname.startsWith("/auth/signup");
+
+  // Performance optimization: skip Supabase auth network round-trip for public routes
+  // (e.g. /matches/[id], /overlay/[matchId], clubs, teams, landing page)
+  if (!isDashboardRoute && !isAuthRoute) {
+    return response;
+  }
+
+  // Create supabase client with proper cookie handling only when auth is needed
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -31,25 +43,23 @@ export async function middleware(request: NextRequest) {
           });
         },
       },
-    }
+    },
   );
 
   // Get user session
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   // Only protect dashboard routes
-  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+  if (isDashboardRoute) {
     if (!user) {
       return NextResponse.redirect(new URL("/auth/login", request.url));
     }
   }
 
   // Redirect authenticated users away from auth pages
-  if (
-    user &&
-    (request.nextUrl.pathname.startsWith("/auth/login") ||
-     request.nextUrl.pathname.startsWith("/auth/signup"))
-  ) {
+  if (user && isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -68,4 +78,4 @@ export const config = {
      */
     "/((?!_next/static|_next/image|favicon.ico|api|public).*)",
   ],
-}; 
+};

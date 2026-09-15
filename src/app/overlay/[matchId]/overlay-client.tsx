@@ -837,6 +837,17 @@ export function OverlayClient({
     const dataChannel = supabase
       .channel(`overlay_${matchId}`)
       .on(
+        "broadcast",
+        { event: "score_update" },
+        ({ payload }: { payload?: { liveState?: LiveMatchState } }) => {
+          if (payload?.liveState && payload.liveState.match_id === matchId) {
+            setState(payload.liveState);
+          } else {
+            void refetch();
+          }
+        },
+      )
+      .on(
         "postgres_changes",
         {
           event: "INSERT",
@@ -3764,7 +3775,7 @@ export function OverlayClient({
 
                     {/* Balls */}
                     {showBalls && thisOverBalls.length > 0 && (
-                      <div className="flex items-center gap-1 overflow-x-auto border-t border-white/10 bg-black/70 px-3 py-1.5">
+                      <div className="flex flex-wrap items-center gap-1 border-t border-white/10 bg-black/70 px-3 py-1.5">
                         {thisOverBalls.map((b, idx) => (
                           <BallChip key={idx} label={b} />
                         ))}

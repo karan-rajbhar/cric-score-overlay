@@ -167,10 +167,10 @@ function SignupPageInner() {
   // Success State
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex min-h-screen items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <div className="w-full max-w-md space-y-6 sm:space-y-8">
           <Card>
-            <CardContent className="space-y-6 p-8 text-center">
+            <CardContent className="space-y-6 p-6 text-center sm:p-8">
               <div className="relative inline-block">
                 <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-cricket-secondary/10">
                   <CheckCircle2 className="h-10 w-10 animate-pulse text-cricket-secondary" />
@@ -233,36 +233,32 @@ function SignupPageInner() {
 
   // Signup Form
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
+    <div className="flex min-h-screen items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="space-y-4 text-center">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight">
-              Join CricScore
-            </h1>
-            <p className="text-muted-foreground">
-              Create your account and start scoring matches
-            </p>
-          </div>
+        <div className="space-y-2 text-center">
+          <h1 className="text-2xl font-bold tracking-tight">Join CricScore</h1>
+          <p className="text-sm text-muted-foreground">
+            Create your account and start scoring matches
+          </p>
         </div>
 
         {/* Signup Form */}
         <Card>
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-center text-2xl text-foreground">
+            <CardTitle className="text-center text-xl text-foreground sm:text-2xl">
               Create account
             </CardTitle>
-            <CardDescription className="text-center text-muted-foreground">
+            <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
               Choose your preferred sign-up method
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5 p-4 sm:p-6">
             {/* Error Display */}
             {displayError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{displayError}</AlertDescription>
               </Alert>
             )}
 
@@ -676,16 +672,6 @@ function SignupPageInner() {
                   )}
                 </Button>
               </form>
-            )}
-
-            {/* Error Alert */}
-            {displayError && (
-              <Alert className="border-destructive/20 bg-destructive/10">
-                <AlertCircle className="h-4 w-4 text-destructive" />
-                <AlertDescription className="text-destructive">
-                  {error}
-                </AlertDescription>
-              </Alert>
             )}
 
             {/* Divider */}

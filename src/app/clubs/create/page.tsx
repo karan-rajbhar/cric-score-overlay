@@ -61,8 +61,8 @@ export default function CreateClubPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto max-w-2xl px-4">
+    <div className="min-h-screen bg-background py-6 sm:py-8">
+      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
         <Button variant="ghost" asChild className="mb-4">
           <Link href="/clubs">
             <ChevronLeft className="mr-2 h-4 w-4" /> Back to clubs

@@ -130,45 +130,50 @@ export function PlayerList({
       />
     );
   }
-
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="w-full overflow-x-auto rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[50px]">#</TableHead>
-            <TableHead>Player</TableHead>
-            <TableHead>Role</TableHead>
-            {allowEdit && <TableHead className="w-[50px]"></TableHead>}
+            <TableHead className="w-8 px-2 sm:w-[50px] sm:px-4">#</TableHead>
+            <TableHead className="px-2 sm:px-4">Player</TableHead>
+            <TableHead className="px-2 sm:px-4">Role</TableHead>
+            {allowEdit && (
+              <TableHead className="w-10 px-2 sm:w-[50px] sm:px-4"></TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {players.map((player, idx) => (
             <TableRow key={player.id}>
-              <TableCell className="font-medium">{idx + 1}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
+              <TableCell className="px-2 text-xs font-medium sm:px-4 sm:text-sm">
+                {idx + 1}
+              </TableCell>
+              <TableCell className="px-2 sm:px-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium sm:h-8 sm:w-8 sm:text-sm">
                     {player.user?.full_name?.substring(0, 1)}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <Link
                       href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
-                      className="cursor-pointer text-sm font-medium transition-colors hover:text-primary"
+                      className="block cursor-pointer truncate text-xs font-medium transition-colors hover:text-primary sm:text-sm"
                     >
                       {player.user?.full_name}
                     </Link>
                     {allowEdit && player.user?.email && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
                         {player.user.email}
                       </p>
                     )}
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{getRoleBadge(player.role_in_team)}</TableCell>
+              <TableCell className="px-2 sm:px-4">
+                {getRoleBadge(player.role_in_team)}
+              </TableCell>
               {allowEdit && (
-                <TableCell>
+                <TableCell className="px-2 sm:px-4">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button

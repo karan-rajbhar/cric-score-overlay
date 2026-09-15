@@ -6,11 +6,9 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { MatchExportButtons } from "~/components/matches/match-export-buttons";
-import { DlsCalculatorModal } from "~/components/matches/dls-calculator-modal";
+import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
-import { MatchStats } from "~/components/matches/match-stats";
 import { MatchBalls } from "~/components/matches/match-balls";
 import { MatchManhattan } from "~/components/matches/match-manhattan";
 import { MatchPartnerships } from "~/components/matches/match-partnerships";
@@ -20,10 +18,32 @@ import type { Match } from "~/lib/match-types";
 import { formatDecimalOvers, formatStatus } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { TeamLogo } from "~/components/teams/team-logo";
-import { HeadToHead } from "~/components/matches/head-to-head";
 import { supabase } from "~/lib/supabase";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
+
+const MatchExportButtons = dynamic(
+  () =>
+    import("~/components/matches/match-export-buttons").then(
+      (m) => m.MatchExportButtons,
+    ),
+  { ssr: false },
+);
+const DlsCalculatorModal = dynamic(
+  () =>
+    import("~/components/matches/dls-calculator-modal").then(
+      (m) => m.DlsCalculatorModal,
+    ),
+  { ssr: false },
+);
+const MatchStats = dynamic(
+  () => import("~/components/matches/match-stats").then((m) => m.MatchStats),
+  { ssr: false },
+);
+const HeadToHead = dynamic(
+  () => import("~/components/matches/head-to-head").then((m) => m.HeadToHead),
+  { ssr: false },
+);
 import {
   ChevronLeft,
   ChevronRight,
@@ -51,6 +71,7 @@ function MatchDetailsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const isConnectedRef = useRef(false);
   const [isScorerRole, setIsScorerRole] = useState<boolean>(false);
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -189,6 +210,7 @@ function MatchDetailsPageContent() {
 
     const channel = supabase
       .channel(`match_detail_${matchId}`)
+      .on("broadcast", { event: "score_update" }, scheduleRefetch)
       .on(
         "postgres_changes",
         {
@@ -219,17 +241,30 @@ function MatchDetailsPageContent() {
         },
         scheduleRefetch,
       )
-      .subscribe((status) => setIsConnected(status === "SUBSCRIBED"));
+      .subscribe((status) => {
+        const connected = status === "SUBSCRIBED";
+        setIsConnected(connected);
+        isConnectedRef.current = connected;
+      });
 
+    // Fallback polling: if live and WebSocket disconnects, poll every 15s.
+    // If healthy & connected, poll very gently every 60s as a passive heartbeat.
     const poll = setInterval(() => {
-      if (match?.status === "live") {
+      if (match?.status === "live" && !isConnectedRef.current) {
         void refetchMatch();
       }
     }, 15000);
 
+    const heartbeat = setInterval(() => {
+      if (match?.status === "live" && isConnectedRef.current) {
+        void refetchMatch();
+      }
+    }, 60000);
+
     return () => {
       void supabase.removeChannel(channel);
       clearInterval(poll);
+      clearInterval(heartbeat);
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
   }, [matchId, refetchMatch, match?.status]);
@@ -415,9 +450,9 @@ function MatchDetailsPageContent() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-14 z-20 border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-2.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+        <div className="container mx-auto px-3 py-2.5 sm:px-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <Button
                 variant="ghost"
                 size="sm"
@@ -426,7 +461,8 @@ function MatchDetailsPageContent() {
               >
                 <Link href={matchBackHref} onClick={handleBackClick}>
                   <ChevronLeft className="mr-1 h-4 w-4" />
-                  {matchBackLabel}
+                  <span className="sm:hidden">Back</span>
+                  <span className="hidden sm:inline">{matchBackLabel}</span>
                 </Link>
               </Button>
 
@@ -455,9 +491,14 @@ function MatchDetailsPageContent() {
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               {match.status === "live" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-2.5 py-1 text-xs font-medium">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-2 py-1 text-xs font-medium sm:px-2.5"
+                  title={
+                    isConnected ? "Realtime sync connected" : "Connecting..."
+                  }
+                >
                   <span
                     className={`h-2 w-2 rounded-full ${
                       isConnected
@@ -465,7 +506,7 @@ function MatchDetailsPageContent() {
                         : "bg-zinc-400"
                     }`}
                   />
-                  <span className="text-xs font-medium text-muted-foreground">
+                  <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
                     {isConnected ? "Realtime sync" : "Connecting"}
                   </span>
                 </span>
@@ -517,11 +558,12 @@ function MatchDetailsPageContent() {
             {match.title}
           </h1>
 
-          <div className="flex items-center justify-center gap-6 sm:gap-10">
+          {/* Desktop Score View (sm and up) */}
+          <div className="hidden items-center justify-center gap-6 sm:flex sm:gap-10">
             {/* Team 1 */}
             <div className="flex max-w-[320px] flex-1 items-center justify-end gap-4 text-right">
-              <div>
-                <p className="font-semibold text-foreground">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-foreground">
                   {match.team1.name}
                 </p>
                 {team1Innings ? (
@@ -558,8 +600,8 @@ function MatchDetailsPageContent() {
                 logoUrl={match.team2.logo_url}
                 className="h-12 w-12 shrink-0 text-sm"
               />
-              <div>
-                <p className="font-semibold text-foreground">
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-foreground">
                   {match.team2.name}
                 </p>
                 {team2Innings ? (
@@ -573,6 +615,65 @@ function MatchDetailsPageContent() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Yet to bat
                   </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Score View (< sm) */}
+          <div className="space-y-2 sm:hidden">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <TeamLogo
+                  name={match.team1.name}
+                  shortName={match.team1.short_name}
+                  logoUrl={match.team1.logo_url}
+                  className="h-8 w-8 shrink-0 text-xs"
+                />
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {match.team1.name}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                {team1Innings ? (
+                  <p className="score-display tabular text-lg font-bold leading-none">
+                    {team1Innings.total_runs}/{team1Innings.total_wickets}
+                    <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatDecimalOvers(team1Innings.total_overs)})
+                    </span>
+                  </p>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Yet to bat
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <TeamLogo
+                  name={match.team2.name}
+                  shortName={match.team2.short_name}
+                  logoUrl={match.team2.logo_url}
+                  className="h-8 w-8 shrink-0 text-xs"
+                />
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {match.team2.name}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                {team2Innings ? (
+                  <p className="score-display tabular text-lg font-bold leading-none">
+                    {team2Innings.total_runs}/{team2Innings.total_wickets}
+                    <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
+                      ({formatDecimalOvers(team2Innings.total_overs)})
+                    </span>
+                  </p>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Yet to bat
+                  </span>
                 )}
               </div>
             </div>
@@ -599,10 +700,10 @@ function MatchDetailsPageContent() {
           )}
 
           {/* Action Buttons */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
             {isScorer &&
               (match.status === "scheduled" || match.status === "live") && (
-                <Button asChild size="sm">
+                <Button asChild size="sm" className="interactive-button">
                   <Link
                     href={`/matches/${match.id}/score${
                       searchParams.toString()
@@ -634,32 +735,51 @@ function MatchDetailsPageContent() {
       </div>
 
       {/* Tabs Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
         <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-7">
-            <TabsTrigger value="summary" className="gap-1.5">
-              <FileText className="h-4 w-4" />
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-xl p-1 sm:grid-cols-6">
+            <TabsTrigger
+              value="summary"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Summary
             </TabsTrigger>
-            <TabsTrigger value="scorecard" className="gap-1.5">
-              <LayoutDashboard className="h-4 w-4" />
+            <TabsTrigger
+              value="scorecard"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Scorecard
             </TabsTrigger>
-            <TabsTrigger value="stats" className="gap-1.5">
-              <BarChart3 className="h-4 w-4" />
+            <TabsTrigger
+              value="stats"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Stats
             </TabsTrigger>
-            <TabsTrigger value="balls" className="gap-1.5">
-              <CircleDot className="h-4 w-4" />
+            <TabsTrigger
+              value="balls"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Balls
             </TabsTrigger>
-            <TabsTrigger value="info" className="gap-1.5">
-              <Info className="h-4 w-4" />
+            <TabsTrigger
+              value="info"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Info
             </TabsTrigger>
-            <TabsTrigger value="h2h" className="gap-1.5">
-              <Swords className="h-4 w-4" />
-              Head-to-Head
+            <TabsTrigger
+              value="h2h"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="sm:hidden">H2H</span>
+              <span className="hidden sm:inline">Head-to-Head</span>
             </TabsTrigger>
           </TabsList>
 

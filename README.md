@@ -48,17 +48,17 @@ Copy `.env.example` to `.env.local` for cloud Supabase; local dev works with def
 
 ## 🧪 Scripts
 
-| Command              | What it does                              |
-| -------------------- | ----------------------------------------- |
-| `npm run dev`        | Dev server (port 3001)                    |
-| `npm run build`      | Production build                          |
-| `npm run lint`       | ESLint                                    |
-| `npm run typecheck`  | `tsc --noEmit`                            |
-| `npm run check`      | Lint + typecheck + tests (quality gate)   |
-| `npm test`           | Run tests once (Vitest)                   |
-| `npm run test:watch` | Tests in watch mode                       |
-| `npm run format`     | Format everything with Prettier           |
-| `npm run db:types`   | Regenerate Supabase DB types              |
+| Command              | What it does                            |
+| -------------------- | --------------------------------------- |
+| `npm run dev`        | Dev server (port 3001)                  |
+| `npm run build`      | Production build                        |
+| `npm run lint`       | ESLint                                  |
+| `npm run typecheck`  | `tsc --noEmit`                          |
+| `npm run check`      | Lint + typecheck + tests (quality gate) |
+| `npm test`           | Run tests once (Vitest)                 |
+| `npm run test:watch` | Tests in watch mode                     |
+| `npm run format`     | Format everything with Prettier         |
+| `npm run db:types`   | Regenerate Supabase DB types            |
 
 Makefile equivalents exist for most (`make test`, `make coverage`, `make db-reset`, …).
 

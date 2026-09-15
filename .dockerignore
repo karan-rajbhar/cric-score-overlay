@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.agents
+.gemini
+coverage
+*.log
+npm-debug.log*
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

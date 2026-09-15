@@ -61,9 +61,9 @@ export function NavigationBar() {
 
   return (
     <nav className="sticky top-0 z-40 h-[58px] border-b border-border/70 bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
-      <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
         {/* Left: Sidebar toggle + Brand */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {/* Mobile menu trigger */}
           <Button
             variant="ghost"
@@ -87,9 +87,14 @@ export function NavigationBar() {
             <PanelLeft className="h-4 w-4" />
           </Button>
 
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2 sm:gap-2.5"
+          >
             <BrandMark />
-            <BrandWordmark />
+            <span className="hidden min-[400px]:inline-flex">
+              <BrandWordmark />
+            </span>
           </Link>
         </div>
 
@@ -119,15 +124,29 @@ export function NavigationBar() {
           </form>
         </div>
 
-        {/* Right: Quick actions, Theme, Profile */}
-        <div className="flex items-center gap-2">
+        {/* Right: Quick actions, Mobile Search, Theme, Profile */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Mobile Search Button */}
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground lg:hidden"
+            title="Search"
+            aria-label="Search"
+          >
+            <Link href="/search">
+              <Search className="h-4 w-4" />
+            </Link>
+          </Button>
+
           {/* Quick Create Dropdown (Auth only) */}
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  className="interactive-button h-8 gap-1 text-xs font-semibold"
+                  className="interactive-button h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Create</span>
@@ -232,16 +251,24 @@ export function NavigationBar() {
           )}
 
           {!loading && !user && (
-            <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm" className="h-8 text-xs">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Button
+                asChild
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs sm:px-3"
+              >
                 <Link href="/auth/login">Sign in</Link>
               </Button>
               <Button
                 asChild
                 size="sm"
-                className="interactive-button h-8 text-xs font-semibold"
+                className="interactive-button h-8 px-2.5 text-xs font-semibold sm:px-3"
               >
-                <Link href="/auth/signup">Get started</Link>
+                <Link href="/auth/signup">
+                  <span className="hidden sm:inline">Get started</span>
+                  <span className="sm:hidden">Join</span>
+                </Link>
               </Button>
             </div>
           )}

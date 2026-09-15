@@ -295,7 +295,7 @@ export function PointsTableShare({
           Share Table
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Share Points Table Graphic</DialogTitle>
           <DialogDescription>

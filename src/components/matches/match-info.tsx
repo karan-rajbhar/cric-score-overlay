@@ -54,18 +54,28 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
   return (
     <Tabs defaultValue="match-info" className="w-full">
-      <TabsList className="mb-4 w-full justify-start">
-        <TabsTrigger value="match-info" className="flex items-center gap-2">
-          <Hash className="h-4 w-4" />
-          Match Info
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-3 gap-1 p-1">
+        <TabsTrigger
+          value="match-info"
+          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+        >
+          <Hash className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+          <span className="truncate">Match Info</span>
         </TabsTrigger>
-        <TabsTrigger value="squads" className="flex items-center gap-2">
-          <Users className="h-4 w-4" />
-          Squads
+        <TabsTrigger
+          value="squads"
+          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+        >
+          <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+          <span className="truncate">Squads</span>
         </TabsTrigger>
-        <TabsTrigger value="head-to-head" className="flex items-center gap-2">
-          <Trophy className="h-4 w-4" />
-          Head to Head
+        <TabsTrigger
+          value="head-to-head"
+          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+        >
+          <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+          <span className="sm:hidden">H2H</span>
+          <span className="hidden sm:inline">Head to Head</span>
         </TabsTrigger>
       </TabsList>
 

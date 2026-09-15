@@ -49,7 +49,7 @@ export default async function SearchPage({
       result.tournaments.length > 0);
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-8">
+    <div className="container mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-8">
       <h1 className="text-2xl font-bold tracking-tight">Search</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Teams, matches, players, clubs and tournaments
@@ -103,14 +103,16 @@ export default async function SearchPage({
               return (
                 <Link key={x.id} href={`/matches/${x.id}?from=search`}>
                   <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="flex items-center justify-between p-4">
-                      <div>
-                        <p className="font-medium">{x.title}</p>
-                        <p className="text-xs text-muted-foreground">
+                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{x.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">
                           {x.venue ?? "—"}
                         </p>
                       </div>
-                      <Badge variant="outline">{formatStatus(x.status)}</Badge>
+                      <Badge variant="outline" className="shrink-0">
+                        {formatStatus(x.status)}
+                      </Badge>
                     </CardContent>
                   </Card>
                 </Link>
@@ -130,9 +132,9 @@ export default async function SearchPage({
                 <Link key={x.id} href={`/teams/${x.id}`}>
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="p-4">
-                      <p className="font-medium">{x.name}</p>
+                      <p className="truncate font-medium">{x.name}</p>
                       {x.short_name && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="truncate text-xs text-muted-foreground">
                           {x.short_name}
                         </p>
                       )}
@@ -155,11 +157,11 @@ export default async function SearchPage({
                 <Link key={x.id} href={`/players/${x.id}`}>
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="flex items-center gap-3 p-4">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                         {(x.full_name ?? "P")[0]?.toUpperCase()}
                       </div>
-                      <div>
-                        <p className="font-medium">{x.full_name}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{x.full_name}</p>
                         <p className="text-xs text-muted-foreground">
                           Player Profile
                         </p>
@@ -183,8 +185,8 @@ export default async function SearchPage({
                 <Link key={x.id} href={`/clubs/${x.id}`}>
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="p-4">
-                      <p className="font-medium">{x.name}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="truncate font-medium">{x.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
                         {x.location ?? "—"}
                       </p>
                     </CardContent>
@@ -205,9 +207,11 @@ export default async function SearchPage({
               return (
                 <Link key={x.id} href={`/tournaments/${x.id}`}>
                   <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="flex items-center justify-between p-4">
-                      <p className="font-medium">{x.name}</p>
-                      <Badge variant="outline">
+                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                      <p className="min-w-0 flex-1 truncate font-medium">
+                        {x.name}
+                      </p>
+                      <Badge variant="outline" className="shrink-0">
                         {formatStatus(x.status) || "—"}
                       </Badge>
                     </CardContent>

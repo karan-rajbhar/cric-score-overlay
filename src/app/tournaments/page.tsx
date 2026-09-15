@@ -19,10 +19,12 @@ export default async function TournamentsPage() {
     .order("start_date", { ascending: false });
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Tournaments</h1>
-        <Button asChild size="sm">
+    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+          Tournaments
+        </h1>
+        <Button asChild size="sm" className="w-full sm:w-auto">
           <Link href="/tournaments/create">
             <Plus className="mr-1.5 h-4 w-4" />
             New tournament
@@ -47,9 +49,11 @@ export default async function TournamentsPage() {
             <Link key={t.id} href={`/tournaments/${t.id}`}>
               <Card className="transition-colors hover:border-primary/40">
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>{t.name}</span>
-                    <Badge variant="outline">{formatStatus(t.status)}</Badge>
+                  <CardTitle className="flex items-center justify-between gap-2">
+                    <span className="truncate">{t.name}</span>
+                    <Badge variant="outline" className="shrink-0">
+                      {formatStatus(t.status)}
+                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">

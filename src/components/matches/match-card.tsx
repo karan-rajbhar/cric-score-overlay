@@ -63,7 +63,7 @@ function TeamRow({
         </div>
       </div>
       {innings && (
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <p className="score-display tabular text-2xl font-semibold leading-none">
             {innings.total_runs}/{innings.total_wickets}
           </p>

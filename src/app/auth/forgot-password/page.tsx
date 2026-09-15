@@ -40,18 +40,16 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <div className="space-y-4 text-center">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Reset your password
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Enter your email address and we&apos;ll send you recovery
-              instructions.
-            </p>
-          </div>
+    <div className="flex min-h-screen items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="w-full max-w-md space-y-6 sm:space-y-8">
+        <div className="space-y-2 text-center">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Reset your password
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Enter your email address and we&apos;ll send you recovery
+            instructions.
+          </p>
         </div>
 
         <Card>
@@ -59,13 +57,13 @@ export default function ForgotPasswordPage() {
             <CardTitle className="text-center text-xl text-foreground">
               {success ? "Check your inbox" : "Forgot password"}
             </CardTitle>
-            <CardDescription className="text-center text-muted-foreground">
+            <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
               {success
                 ? `We sent a reset link to ${email}`
                 : "We will email you a secure link to reset your credentials"}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5 p-4 sm:p-6">
             {success ? (
               <div className="space-y-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">

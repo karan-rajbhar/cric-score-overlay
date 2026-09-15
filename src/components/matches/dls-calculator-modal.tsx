@@ -115,7 +115,8 @@ export function DlsCalculatorModal({
           className="gap-1.5 text-xs font-medium"
         >
           <CloudRain className="h-3.5 w-3.5 text-sky-500" />
-          DLS Rain Calc
+          <span className="hidden sm:inline">DLS Rain Calc</span>
+          <span className="sm:hidden">DLS</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">

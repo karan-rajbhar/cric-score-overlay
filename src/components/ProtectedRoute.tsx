@@ -12,8 +12,8 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({
   children,
-  redirectTo = '/auth/login',
-  loadingComponent
+  redirectTo = "/auth/login",
+  loadingComponent,
 }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -21,7 +21,10 @@ export default function ProtectedRoute({
   useEffect(() => {
     // Only redirect if we're sure there's no user and not loading
     if (!loading && !user) {
-      console.log('ProtectedRoute: No authenticated user, redirecting to', redirectTo);
+      console.log(
+        "ProtectedRoute: No authenticated user, redirecting to",
+        redirectTo,
+      );
       router.push(redirectTo);
     }
   }, [user, loading, router, redirectTo]);
@@ -33,10 +36,10 @@ export default function ProtectedRoute({
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="text-lg">Loading...</div>
-          <div className="text-sm text-muted-foreground mt-2">
+          <div className="mt-2 text-sm text-muted-foreground">
             Checking authentication status
           </div>
         </div>
@@ -51,4 +54,4 @@ export default function ProtectedRoute({
 
   // Render children if user is authenticated
   return <>{children}</>;
-} 
+}

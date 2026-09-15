@@ -9,12 +9,26 @@ import { useRouter } from "next/navigation";
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
   signInWithPhone: (phone: string) => Promise<{ error: AuthError | null }>;
-  verifyOTP: (phone: string, token: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
-  signUpWithPhone: (phone: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
+  verifyOTP: (
+    phone: string,
+    token: string,
+  ) => Promise<{ error: AuthError | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName?: string,
+  ) => Promise<{ error: AuthError | null }>;
+  signUpWithPhone: (
+    phone: string,
+    password: string,
+    fullName?: string,
+  ) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
@@ -23,26 +37,41 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () =>
+      typeof window === "undefined" ||
+      !window.location.pathname.startsWith("/overlay"),
+  );
   const router = useRouter();
 
   useEffect(() => {
+    // If running inside OBS overlay browser source, skip client-side auth initialization
+    if (
+      typeof window !== "undefined" &&
+      window.location.pathname.startsWith("/overlay")
+    ) {
+      return;
+    }
+
     const supabase = createClient();
 
     // Simple, reliable session initialization
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
 
         if (error) {
-          console.error('Auth initialization error:', error);
+          console.error("Auth initialization error:", error);
           setUser(null);
         } else {
           setUser(session?.user ?? null);
-          console.log('Auth initialized:', session?.user?.email || 'no user');
+          console.log("Auth initialized:", session?.user?.email || "no user");
         }
       } catch (error) {
-        console.error('Auth initialization failed:', error);
+        console.error("Auth initialization failed:", error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -56,19 +85,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email || 'no session');
+      console.log(
+        "Auth state changed:",
+        event,
+        session?.user?.email || "no session",
+      );
 
       // Update user state
       setUser(session?.user ?? null);
       setLoading(false);
 
       // Handle profile creation for new users
-      if (event === 'SIGNED_IN' && session?.user) {
+      if (event === "SIGNED_IN" && session?.user) {
         try {
           // Idempotent server-side bootstrap; safe to call on every sign-in.
           await supabase.rpc("ensure_own_profile");
         } catch (error) {
-          console.error('Profile creation error:', error);
+          console.error("Profile creation error:", error);
         }
       }
     });
@@ -89,15 +122,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     const supabase = createClient();
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+    const origin =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "http://localhost:3001";
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
         redirectTo: `${origin}/auth/callback`,
         queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
+          access_type: "offline",
+          prompt: "consent",
         },
       },
     });
@@ -117,7 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.verifyOtp({
       phone,
       token,
-      type: 'sms',
+      type: "sms",
     });
     return { error };
   };
@@ -136,7 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error };
   };
 
-  const signUpWithPhone = async (phone: string, password: string, fullName?: string) => {
+  const signUpWithPhone = async (
+    phone: string,
+    password: string,
+    fullName?: string,
+  ) => {
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       phone,
@@ -155,12 +195,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      console.error('Sign out error:', error);
+      console.error("Sign out error:", error);
     }
 
     // Clear local state and redirect
     setUser(null);
-    router.push('/');
+    router.push("/");
   };
 
   const resetPassword = async (email: string) => {
@@ -197,4 +237,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-} 
+}

@@ -10,13 +10,16 @@ interface UseProtectedRouteOptions {
 export function useProtectedRoute(options: UseProtectedRouteOptions = {}) {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { redirectTo = '/auth/login', onUnauthenticated } = options;
+  const { redirectTo = "/auth/login", onUnauthenticated } = options;
 
   useEffect(() => {
     // Only redirect if we're sure there's no user and not loading
     if (!loading && !user) {
-      console.log('useProtectedRoute: No authenticated user, redirecting to', redirectTo);
-      
+      console.log(
+        "useProtectedRoute: No authenticated user, redirecting to",
+        redirectTo,
+      );
+
       if (onUnauthenticated) {
         onUnauthenticated();
       } else {
@@ -29,6 +32,6 @@ export function useProtectedRoute(options: UseProtectedRouteOptions = {}) {
     user,
     loading,
     isAuthenticated: !!user && !loading,
-    isUnauthenticated: !user && !loading
+    isUnauthenticated: !user && !loading,
   };
-} 
+}

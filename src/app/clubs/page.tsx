@@ -24,16 +24,16 @@ function ClubCard({ club }: { club: ClubRow }) {
   return (
     <Link href={`/clubs/${club.id}`} className="group">
       <Card className="transition-colors group-hover:border-primary/50">
-        <CardContent className="p-5">
+        <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold">{club.name}</h2>
-              <p className="text-sm text-muted-foreground">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate font-semibold">{club.name}</h2>
+              <p className="truncate text-sm text-muted-foreground">
                 {club.location ?? "—"}
               </p>
             </div>
             {club.short_name && (
-              <span className="rounded-md bg-secondary px-2 py-1 text-xs font-bold text-secondary-foreground">
+              <span className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-bold text-secondary-foreground">
                 {club.short_name}
               </span>
             )}
@@ -102,17 +102,22 @@ export default async function ClubsPage() {
   const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
+    <div className="container mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-10">
+      <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clubs</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+            Clubs
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
             Clubs you belong to, plus public clubs on the platform.
           </p>
         </div>
         {user && (
-          <Button asChild size="sm">
-            <Link href="/clubs/create">Create club</Link>
+          <Button asChild size="sm" className="w-full sm:w-auto">
+            <Link href="/clubs/create">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Create club
+            </Link>
           </Button>
         )}
       </header>
