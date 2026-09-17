@@ -49,6 +49,26 @@ describe("mutations error formatting", () => {
     );
   });
 
+  it("handles Postgres constraint and conflict errors gracefully", () => {
+    const conflictError =
+      "there is no unique or exclusion constraint matching the ON CONFLICT specification";
+    expect(friendlyError(conflictError)).toBe(
+      "A scoring synchronization issue occurred. Please refresh the match and try again.",
+    );
+
+    const dupKeyError =
+      'duplicate key value violates unique constraint "batting_performances_innings_user_unique"';
+    expect(friendlyError(dupKeyError)).toBe(
+      "This player already has a record in this innings.",
+    );
+
+    const fkError =
+      'insert or update on table "matches" violates foreign key constraint "matches_team1_id_fkey"';
+    expect(friendlyError(fkError)).toBe(
+      "The referenced player, team, or match could not be found.",
+    );
+  });
+
   it("returns raw message unchanged when no translation exists", () => {
     const unmapped = "Network connection failed";
     expect(friendlyError(unmapped)).toBe("Network connection failed");

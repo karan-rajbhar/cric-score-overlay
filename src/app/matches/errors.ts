@@ -12,6 +12,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
   no_open_innings: "No open innings found.",
   nothing_to_undo: "Nothing to undo.",
   not_authorized: "You do not have permission to score this match.",
+  "ON CONFLICT specification":
+    "A scoring synchronization issue occurred. Please refresh the match and try again.",
+  "violates unique constraint":
+    "This player already has a record in this innings.",
+  "violates foreign key constraint":
+    "The referenced player, team, or match could not be found.",
 };
 
 export function friendlyError(message: string): string {
