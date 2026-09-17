@@ -114,12 +114,17 @@ export function useScoring(matchId: string) {
     const currentInnings = matchData.innings?.find(
       (i) => i.innings_number === matchData.current_innings,
     );
-    if (!currentInnings) return;
-    const battingTeamId = currentInnings.team_id;
-    const bowlingTeamId =
-      battingTeamId === matchData.team1_id
-        ? matchData.team2_id
-        : matchData.team1_id;
+    const battingTeamId = currentInnings
+      ? currentInnings.team_id
+      : matchData.team1_id;
+    const bowlingTeamId = currentInnings
+      ? (battingTeamId === matchData.team1_id
+          ? matchData.team2_id
+          : matchData.team1_id)
+      : matchData.team2_id;
+
+    if (!battingTeamId || !bowlingTeamId) return;
+
     const [battingResult, bowlingResult] = await Promise.all([
       getTeamPlayers(battingTeamId),
       getTeamPlayers(bowlingTeamId),
@@ -148,7 +153,7 @@ export function useScoring(matchId: string) {
       lastOverBowlerId?: string | null;
       thisOverDeliveries: DeliveryToEdit[];
     };
-    if (m.status === "live") await loadPlayers(m);
+    await loadPlayers(m);
     setMatch(m);
     setStrikerId(s);
     setNonStrikerId(ns);
@@ -353,13 +358,19 @@ export function useScoring(matchId: string) {
     const currentInnings = currentMatch.innings?.find(
       (i) => i.innings_number === currentMatch.current_innings,
     );
-    const battingTeamId = currentInnings?.team_id;
-    const bowlingTeamId =
-      battingTeamId === currentMatch.team1_id
-        ? currentMatch.team2_id
-        : currentMatch.team1_id;
+    const battingTeamId = currentInnings
+      ? currentInnings.team_id
+      : currentMatch.team1_id;
+    const bowlingTeamId = currentInnings
+      ? (battingTeamId === currentMatch.team1_id
+          ? currentMatch.team2_id
+          : currentMatch.team1_id)
+      : currentMatch.team2_id;
     const targetTeamId = target === "batting" ? battingTeamId : bowlingTeamId;
-    if (!targetTeamId) return null;
+    if (!targetTeamId) {
+      toast.error("Could not find team to add player to");
+      return null;
+    }
     setIsProcessing(true);
     const result = await createPlayerQuick(targetTeamId, name.trim());
     if (result.error || !result.data) {
@@ -372,14 +383,24 @@ export function useScoring(matchId: string) {
         user: { id: result.data.user_id, full_name: result.data.full_name },
       };
       if (target === "batting") {
-        setBattingTeamPlayers((prev) => [...prev, newPlayer]);
-        if (!currentStriker) setStrikerId(newPlayer.user_id);
-        else if (!currentNonStriker) setNonStrikerId(newPlayer.user_id);
+        setBattingTeamPlayers((prev) => {
+          if (prev.some((p) => p.user_id === newPlayer.user_id)) return prev;
+          return [...prev, newPlayer];
+        });
+        if (!currentStriker) {
+          setStrikerId(newPlayer.user_id);
+        } else if (!currentNonStriker && currentStriker !== newPlayer.user_id) {
+          setNonStrikerId(newPlayer.user_id);
+        }
       } else {
-        setBowlingTeamPlayers((prev) => [...prev, newPlayer]);
+        setBowlingTeamPlayers((prev) => {
+          if (prev.some((p) => p.user_id === newPlayer.user_id)) return prev;
+          return [...prev, newPlayer];
+        });
         if (!currentBowler) setCurrentBowlerId(newPlayer.user_id);
       }
       toast.success(`${result.data.full_name} added to squad`);
+      await loadPlayers(currentMatch);
     }
     setIsProcessing(false);
     return result;

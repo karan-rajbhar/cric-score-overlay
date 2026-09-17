@@ -63,6 +63,7 @@ import {
   Users,
   Award,
   ShieldAlert,
+  Play,
 } from "lucide-react";
 
 export default function ScoringPage() {
@@ -120,7 +121,7 @@ export default function ScoringPage() {
   } = useScoring(matchId);
 
   // UI state only — scoring state lives in the hook
-  const [showTossDialog, setShowTossDialog] = useState(false);
+  const [tossDialogDismissed, setTossDialogDismissed] = useState(false);
   const [showSelectBatsmen, setShowSelectBatsmen] = useState(false);
   const [showSelectBowler, setShowSelectBowler] = useState(false);
   const [showWicketDialog, setShowWicketDialog] = useState(false);
@@ -133,7 +134,7 @@ export default function ScoringPage() {
   const [addPlayerTeam, setAddPlayerTeam] = useState<"batting" | "bowling">(
     "batting",
   );
-  const [tossWinner, setTossWinner] = useState<string>("");
+  const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [dismissalType, setDismissalType] = useState("bowled");
   const [fielderId, setFielderId] = useState<string>("");
@@ -151,21 +152,32 @@ export default function ScoringPage() {
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,
   );
-  const battingTeam =
-    currentInnings?.team_id === match?.team1_id ? match?.team1 : match?.team2;
-  const bowlingTeam =
-    currentInnings?.team_id === match?.team1_id ? match?.team2 : match?.team1;
+  const battingTeam = currentInnings
+    ? (currentInnings.team_id === match?.team1_id ? match?.team1 : match?.team2)
+    : match?.team1;
+  const bowlingTeam = currentInnings
+    ? (currentInnings.team_id === match?.team1_id ? match?.team2 : match?.team1)
+    : match?.team2;
 
-  // Auto-open dialogs based on match state
-  if (match && match.status === "scheduled" && !showTossDialog) {
-    // This will be handled via effect in hook; keep for UI
-  }
+  const showTossDialog = match?.status === "scheduled" && !tossDialogDismissed;
+  const tossWinner = selectedTossWinner || match?.team1_id || "";
+
+  const dismissedPlayerIds = new Set(
+    currentInnings?.batting_performances
+      ?.filter((bp) => bp.is_out)
+      .map((bp) => bp.user_id) ?? [],
+  );
 
   const onScore = async (
     runs: number,
     extra?: { type: string; runs: number },
     shotZone?: string,
   ) => {
+    if (match?.status === "scheduled") {
+      setTossDialogDismissed(false);
+      toast.info("Please record the toss to start the match");
+      return;
+    }
     if (!currentBowlerId || !strikerId || !nonStrikerId) {
       if (!currentBowlerId) setShowSelectBowler(true);
       else setShowSelectBatsmen(true);
@@ -373,6 +385,16 @@ export default function ScoringPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {match.status === "scheduled" && isScorer && (
+              <Button
+                size="sm"
+                onClick={() => setTossDialogDismissed(false)}
+                className="h-8 px-2 sm:px-3"
+              >
+                <Play className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Start Match</span>
+              </Button>
+            )}
             {match.status === "live" && isScorer && (
               <DlsCalculatorModal match={match} canEdit={isScorer} />
             )}
@@ -400,6 +422,26 @@ export default function ScoringPage() {
 
       <div className="container mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
+          {match.status === "scheduled" && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary-950 dark:text-primary-100">
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Play className="h-4 w-4 text-primary" />
+                  Match Scheduled — Toss Required
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Record the toss winner and their decision to start the match and enable scoring.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setTossDialogDismissed(false)}
+                className="font-medium"
+              >
+                <Play className="mr-1.5 h-4 w-4" /> Conduct Toss & Start
+              </Button>
+            </div>
+          )}
           <Card>
             <CardContent className="p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -518,7 +560,14 @@ export default function ScoringPage() {
                   }
                 : null
             }
-            onSelectNewBatsman={() => setShowSelectBatsmen(true)}
+            onSelectNewBatsman={() => {
+              if (match.status === "scheduled") {
+                setTossDialogDismissed(false);
+                toast.info("Please record the toss to start the match");
+                return;
+              }
+              setShowSelectBatsmen(true);
+            }}
           />
 
           <CurrentBowler
@@ -536,7 +585,14 @@ export default function ScoringPage() {
                   }
                 : null
             }
-            onChangeBowler={() => setShowSelectBowler(true)}
+            onChangeBowler={() => {
+              if (match.status === "scheduled") {
+                setTossDialogDismissed(false);
+                toast.info("Please record the toss to start the match");
+                return;
+              }
+              setShowSelectBowler(true);
+            }}
           />
 
           <ScoringPanel
@@ -553,7 +609,7 @@ export default function ScoringPage() {
             currentOver={match.current_over}
             currentBall={match.current_ball}
             lastBalls={lastBalls}
-            disabled={!isScorer || isProcessing}
+            disabled={!isScorer || isProcessing || match.status !== "live"}
           />
 
           {match.status === "completed" &&
@@ -587,7 +643,8 @@ export default function ScoringPage() {
               <div className="space-y-3">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">
-                    {battingTeam?.name} — Batting
+                    {battingTeam?.name} —{" "}
+                    {match.status === "live" ? "Batting" : "Team 1"}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {battingTeamPlayers.map((p) => (
@@ -608,7 +665,8 @@ export default function ScoringPage() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">
-                    {bowlingTeam?.name} — Bowling
+                    {bowlingTeam?.name} —{" "}
+                    {match.status === "live" ? "Bowling" : "Team 2"}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {bowlingTeamPlayers.map((p) => (
@@ -643,15 +701,18 @@ export default function ScoringPage() {
 
       <TossDialog
         open={showTossDialog}
-        onOpenChange={setShowTossDialog}
+        onOpenChange={(open) => setTossDialogDismissed(!open)}
         match={match}
         tossWinner={tossWinner}
         tossDecision={tossDecision}
-        onTossWinnerChange={setTossWinner}
+        onTossWinnerChange={setSelectedTossWinner}
         onTossDecisionChange={(v) => setTossDecision(v as never)}
         onConfirm={async () => {
           const res = await handleStartMatch(tossWinner, tossDecision as never);
-          if (!res.error) setShowTossDialog(false);
+          if (!res.error) {
+            setTossDialogDismissed(true);
+            setShowSelectBatsmen(true);
+          }
         }}
         isProcessing={isProcessing}
       />
@@ -662,6 +723,7 @@ export default function ScoringPage() {
         battingTeamPlayers={battingTeamPlayers}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
+        dismissedPlayerIds={dismissedPlayerIds}
         onStrikerChange={setStrikerId}
         onNonStrikerChange={setNonStrikerId}
         onConfirm={async () => {
@@ -701,8 +763,8 @@ export default function ScoringPage() {
       <AddPlayerDialog
         open={showAddPlayerDialog}
         onOpenChange={setShowAddPlayerDialog}
-        teamName={battingTeam?.name}
-        bowlingTeamName={bowlingTeam?.name}
+        teamName={battingTeam?.name ?? match.team1?.name}
+        bowlingTeamName={bowlingTeam?.name ?? match.team2?.name}
         addPlayerTeam={addPlayerTeam}
         onTeamChange={setAddPlayerTeam}
         newPlayerName={newPlayerName}

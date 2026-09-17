@@ -25,6 +25,7 @@ interface BatsmenDialogProps {
   battingTeamPlayers: TeamPlayer[];
   strikerId: string | null;
   nonStrikerId: string | null;
+  dismissedPlayerIds?: Set<string>;
   onStrikerChange: (v: string) => void;
   onNonStrikerChange: (v: string) => void;
   onConfirm: () => void;
@@ -42,6 +43,7 @@ export function BatsmenDialog({
   battingTeamPlayers,
   strikerId,
   nonStrikerId,
+  dismissedPlayerIds,
   onStrikerChange,
   onNonStrikerChange,
   onConfirm,
@@ -52,6 +54,14 @@ export function BatsmenDialog({
   onAddPlayer,
   onAddPlayerTargetChange,
 }: BatsmenDialogProps) {
+  const uniquePlayers = Array.from(
+    new Map(
+      battingTeamPlayers
+        .filter((p) => p && p.user_id)
+        .map((p) => [p.user_id, p]),
+    ).values(),
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -70,13 +80,27 @@ export function BatsmenDialog({
                 <SelectValue placeholder="Select striker" />
               </SelectTrigger>
               <SelectContent>
-                {battingTeamPlayers
-                  .filter((p) => p.user_id !== nonStrikerId)
-                  .map((player) => (
-                    <SelectItem key={player.user_id} value={player.user_id}>
-                      {player.user?.full_name}
-                    </SelectItem>
-                  ))}
+                {uniquePlayers.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-muted-foreground">
+                    No players in squad yet. Add one below.
+                  </div>
+                ) : (
+                  uniquePlayers.map((player) => {
+                    const isNonStriker = player.user_id === nonStrikerId;
+                    const isOut = dismissedPlayerIds?.has(player.user_id);
+                    return (
+                      <SelectItem
+                        key={player.user_id}
+                        value={player.user_id}
+                        disabled={isNonStriker || isOut}
+                      >
+                        {player.user?.full_name ?? "Unknown"}
+                        {isNonStriker ? " (Non-Striker)" : ""}
+                        {isOut ? " (Out)" : ""}
+                      </SelectItem>
+                    );
+                  })
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -90,13 +114,27 @@ export function BatsmenDialog({
                 <SelectValue placeholder="Select non-striker" />
               </SelectTrigger>
               <SelectContent>
-                {battingTeamPlayers
-                  .filter((p) => p.user_id !== strikerId)
-                  .map((player) => (
-                    <SelectItem key={player.user_id} value={player.user_id}>
-                      {player.user?.full_name}
-                    </SelectItem>
-                  ))}
+                {uniquePlayers.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-muted-foreground">
+                    No players in squad yet. Add one below.
+                  </div>
+                ) : (
+                  uniquePlayers.map((player) => {
+                    const isStriker = player.user_id === strikerId;
+                    const isOut = dismissedPlayerIds?.has(player.user_id);
+                    return (
+                      <SelectItem
+                        key={player.user_id}
+                        value={player.user_id}
+                        disabled={isStriker || isOut}
+                      >
+                        {player.user?.full_name ?? "Unknown"}
+                        {isStriker ? " (Striker)" : ""}
+                        {isOut ? " (Out)" : ""}
+                      </SelectItem>
+                    );
+                  })
+                )}
               </SelectContent>
             </Select>
           </div>

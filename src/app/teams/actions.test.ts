@@ -92,3 +92,47 @@ describe("createTeamQuick", () => {
     });
   });
 });
+
+describe("createPlayerQuick", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns error if user is not authenticated", async () => {
+    const { createPlayerQuick } = await import("./actions");
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+    const result = await createPlayerQuick("team-1", "Virat Kohli");
+    expect(result).toEqual({
+      data: null,
+      error: "You must be logged in to add players",
+    });
+  });
+
+  it("calls create_team_player rpc and returns new player data", async () => {
+    const { createPlayerQuick } = await import("./actions");
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "user-scorer", email: "scorer@test.com" } },
+      error: null,
+    });
+    mockRpc
+      .mockResolvedValueOnce({ error: null }) // ensure_own_profile
+      .mockResolvedValueOnce({
+        data: { user_id: "user-new", full_name: "Virat Kohli", jersey_number: null },
+        error: null,
+      });
+
+    const result = await createPlayerQuick("team-1", "Virat Kohli");
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({
+      user_id: "user-new",
+      full_name: "Virat Kohli",
+      jersey_number: null,
+    });
+    expect(mockRpc).toHaveBeenCalledWith("create_team_player", {
+      p_team_id: "team-1",
+      p_full_name: "Virat Kohli",
+    });
+  });
+});
+

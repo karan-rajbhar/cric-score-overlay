@@ -54,6 +54,14 @@ export function BowlerDialog({
     currentBowlerId && lastOverBowlerId && currentBowlerId === lastOverBowlerId,
   );
 
+  const uniqueBowlingPlayers = Array.from(
+    new Map(
+      bowlingTeamPlayers
+        .filter((p) => p && p.user_id)
+        .map((p) => [p.user_id, p]),
+    ).values(),
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -78,21 +86,27 @@ export function BowlerDialog({
               <SelectValue placeholder="Select bowler" />
             </SelectTrigger>
             <SelectContent>
-              {bowlingTeamPlayers.map((player) => {
-                const isConsecutive = Boolean(
-                  lastOverBowlerId && player.user_id === lastOverBowlerId,
-                );
-                return (
-                  <SelectItem
-                    key={player.user_id}
-                    value={player.user_id}
-                    disabled={isConsecutive}
-                  >
-                    {player.user?.full_name ?? "Unknown"}
-                    {isConsecutive ? " (Cannot bowl consecutive overs)" : ""}
-                  </SelectItem>
-                );
-              })}
+              {uniqueBowlingPlayers.length === 0 ? (
+                <div className="p-3 text-center text-xs text-muted-foreground">
+                  No players in bowling squad yet. Add one below.
+                </div>
+              ) : (
+                uniqueBowlingPlayers.map((player) => {
+                  const isConsecutive = Boolean(
+                    lastOverBowlerId && player.user_id === lastOverBowlerId,
+                  );
+                  return (
+                    <SelectItem
+                      key={player.user_id}
+                      value={player.user_id}
+                      disabled={isConsecutive}
+                    >
+                      {player.user?.full_name ?? "Unknown"}
+                      {isConsecutive ? " (Cannot bowl consecutive overs)" : ""}
+                    </SelectItem>
+                  );
+                })
+              )}
             </SelectContent>
           </Select>
 
