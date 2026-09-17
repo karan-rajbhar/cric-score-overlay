@@ -69,9 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(session?.user ?? null);
           console.log("Auth initialized:", session?.user?.email || "no user");
-          if (session?.user) {
-            void supabase.rpc("ensure_own_profile");
-          }
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
@@ -87,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth state changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       console.log(
         "Auth state changed:",
         event,
@@ -98,23 +95,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Handle profile creation/sync for users
-      if (
-        (event === "SIGNED_IN" ||
-          event === "INITIAL_SESSION" ||
-          event === "USER_UPDATED" ||
-          event === "TOKEN_REFRESHED") &&
-        session?.user
-      ) {
-        try {
-          // Idempotent server-side bootstrap; safe to call on sign-in & session init.
-          const { error: rpcErr } = await supabase.rpc("ensure_own_profile");
-          if (rpcErr) {
-            console.error("Profile creation/sync error:", rpcErr);
-          }
-        } catch (error) {
-          console.error("Profile creation error:", error);
-        }
+      // Non-blocking deferred profile sync on actual sign in
+      if (event === "SIGNED_IN" && session?.user) {
+        setTimeout(() => {
+          void supabase.rpc("ensure_own_profile");
+        }, 0);
       }
     });
 

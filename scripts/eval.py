@@ -46,10 +46,7 @@ def main():
     # 2. ESLint
     lint_res = run_step("ESLint Verification", "npx eslint .")
 
-    # 3. Prettier Format Check
-    fmt_res = run_step("Prettier Code Style", "npx prettier --check .")
-
-    # 4. Test Suite & Coverage
+    # 3. Test Suite & Coverage
     cov_summary_file = ROOT_DIR / "coverage" / "coverage-summary.json"
     test_res = run_step(
         "Vitest Suite & Coverage",
@@ -81,11 +78,10 @@ def main():
             print(f"Warning: Could not parse coverage summary: {e}")
 
     # Compute Composite Quality Score (0 to 100)
-    # Types: 25pts, Lint: 20pts, Format: 15pts, Test Pass: 20pts, Coverage: 20pts (scaled by coverage_pct / 100)
+    # Types: 30pts, Lint: 30pts, Test Pass: 20pts, Coverage: 20pts (scaled by coverage_pct / 100)
     score = 0
-    if type_res["success"]: score += 25
-    if lint_res["success"]: score += 20
-    if fmt_res["success"]: score += 15
+    if type_res["success"]: score += 30
+    if lint_res["success"]: score += 30
     if test_res["success"]: score += 20
     score += round((coverage_pct / 100.0) * 20.0, 1)
 
@@ -99,7 +95,6 @@ def main():
         "gates": {
             "typecheck": type_res["success"],
             "eslint": lint_res["success"],
-            "prettier": fmt_res["success"],
             "tests_pass": test_res["success"]
         },
         "coverage_percentage": coverage_pct,

@@ -505,3 +505,64 @@ export async function getPartnerships(matchId: string) {
   }
   return { data, error: null };
 }
+
+export async function getMatchWizardData() {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
+    await Promise.all([
+      supabase
+        .from("teams")
+        .select(
+          "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
+        )
+        .order("name"),
+      supabase
+        .from("tournaments")
+        .select("id, name, match_format, custom_overs, created_by, club_id")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("clubs")
+        .select("id, name, short_name, owner_id")
+        .order("name"),
+      user
+        ? supabase.from("team_players").select("team_id").eq("user_id", user.id)
+        : Promise.resolve({ data: [] }),
+      user
+        ? supabase
+            .from("club_memberships")
+            .select("club_id")
+            .eq("user_id", user.id)
+            .in("role", ["owner", "admin"])
+            .eq("status", "active")
+        : Promise.resolve({ data: [] }),
+    ]);
+
+  const playerTeamIds = (myPlayersRes.data ?? [])
+    .map((r) => r.team_id)
+    .filter((id): id is string => Boolean(id));
+
+  const clubAdminIds = (myClubAdminRes.data ?? [])
+    .map((r) => r.club_id)
+    .filter((id): id is string => Boolean(id));
+
+  if (clubRes.data && user) {
+    for (const c of clubRes.data) {
+      if (c.owner_id === user.id) {
+        clubAdminIds.push(c.id);
+      }
+    }
+  }
+
+  return {
+    teams: teamRes.data ?? [],
+    tournaments: tournRes.data ?? [],
+    clubs: clubRes.data ?? [],
+    playerTeamIds,
+    clubAdminIds,
+    error: teamRes.error?.message || null,
+  };
+}

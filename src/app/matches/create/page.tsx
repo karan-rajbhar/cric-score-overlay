@@ -26,6 +26,7 @@ import {
 } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
 import { createMatch } from "../mutations";
+import { getMatchWizardData } from "../queries";
 import { createTeamQuick } from "../../teams/actions";
 import { useAuth } from "~/lib/auth";
 import { createClient } from "~/lib/supabase/client";
@@ -163,118 +164,65 @@ function CreateMatchWizard() {
       }, 15000);
 
       try {
-        const supabase = createClient();
-        const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
-          await Promise.all([
-            supabase
-              .from("teams")
-              .select(
-                "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
-              )
-              .order("name"),
-            supabase
-              .from("tournaments")
-              .select(
-                "id, name, match_format, custom_overs, created_by, club_id",
-              )
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("clubs")
-              .select("id, name, short_name, owner_id")
-              .order("name"),
-            supabase
-              .from("team_players")
-              .select("team_id")
-              .eq("user_id", user.id),
-            supabase
-              .from("club_memberships")
-              .select("club_id")
-              .eq("user_id", user.id)
-              .in("role", ["owner", "admin"])
-              .eq("status", "active"),
-          ]);
-
+        const wizardData = await getMatchWizardData();
         if (cancelled) return;
         if (timeoutId) clearTimeout(timeoutId);
 
-        const playerTeamIds = new Set<string>(
-          (myPlayersRes.data ?? [])
-            .map((r) => r.team_id)
-            .filter((id): id is string => Boolean(id)),
-        );
-        const clubAdminIds = new Set<string>(
-          (myClubAdminRes.data ?? [])
-            .map((r) => r.club_id)
-            .filter((id): id is string => Boolean(id)),
-        );
-        if (clubRes.data) {
-          for (const c of clubRes.data) {
-            if (c.owner_id === user.id) {
-              clubAdminIds.add(c.id);
-            }
-          }
+        if (wizardData.error) {
+          console.error("Error fetching match wizard data:", wizardData.error);
+          setTeamsLoadError(wizardData.error);
+          return;
         }
+
+        const playerTeamIds = new Set<string>(wizardData.playerTeamIds);
+        const clubAdminIds = new Set<string>(wizardData.clubAdminIds);
         setMyClubAdminIds(clubAdminIds);
 
-        if (teamRes.error) {
-          console.error("Error fetching teams:", teamRes.error);
-          setTeamsLoadError(teamRes.error.message || "Failed to load teams");
-        } else if (teamRes.data) {
-          setTeams(teamRes.data);
-          const mine = new Set<string>();
-          for (const t of teamRes.data) {
-            if (
-              t.created_by === user.id ||
-              t.captain_id === user.id ||
-              t.vice_captain_id === user.id ||
-              playerTeamIds.has(t.id) ||
-              (t.club_id && clubAdminIds.has(t.club_id))
-            ) {
-              mine.add(t.id);
-            }
+        setTeams(wizardData.teams);
+        const mine = new Set<string>();
+        for (const t of wizardData.teams) {
+          if (
+            t.created_by === user.id ||
+            t.captain_id === user.id ||
+            t.vice_captain_id === user.id ||
+            playerTeamIds.has(t.id) ||
+            (t.club_id && clubAdminIds.has(t.club_id))
+          ) {
+            mine.add(t.id);
           }
-          setMyTeamIds(mine);
         }
+        setMyTeamIds(mine);
 
-        if (tournRes.error) {
-          console.error("Error fetching tournaments:", tournRes.error);
-        } else if (tournRes.data) {
-          setTournaments(tournRes.data);
-          // If urlTournamentId matches, auto set format
-          if (urlTournamentId) {
-            const matchTourn = tournRes.data.find(
-              (t) => t.id === urlTournamentId,
-            );
-            if (matchTourn?.match_format === "ODI") {
-              setFormData((prev) => ({
-                ...prev,
-                matchFormat: "ODI",
-                oversPerInnings: 50,
-              }));
-            } else if (matchTourn?.match_format === "T20") {
-              setFormData((prev) => ({
-                ...prev,
-                matchFormat: "T20",
-                oversPerInnings: 20,
-              }));
-            } else if (
-              matchTourn?.match_format === "Custom" &&
-              matchTourn.custom_overs
-            ) {
-              setFormData((prev) => ({
-                ...prev,
-                matchFormat: "Custom",
-                oversPerInnings: matchTourn.custom_overs!,
-              }));
-            }
+        setTournaments(wizardData.tournaments);
+        if (urlTournamentId) {
+          const matchTourn = wizardData.tournaments.find(
+            (t) => t.id === urlTournamentId,
+          );
+          if (matchTourn?.match_format === "ODI") {
+            setFormData((prev) => ({
+              ...prev,
+              matchFormat: "ODI",
+              oversPerInnings: 50,
+            }));
+          } else if (matchTourn?.match_format === "T20") {
+            setFormData((prev) => ({
+              ...prev,
+              matchFormat: "T20",
+              oversPerInnings: 20,
+            }));
+          } else if (
+            matchTourn?.match_format === "Custom" &&
+            matchTourn.custom_overs
+          ) {
+            setFormData((prev) => ({
+              ...prev,
+              matchFormat: "Custom",
+              oversPerInnings: matchTourn.custom_overs!,
+            }));
           }
         }
 
-        if (clubRes.error) {
-          console.error("Error fetching clubs:", clubRes.error);
-        } else if (clubRes.data) {
-          setClubs(clubRes.data);
-        }
+        setClubs(wizardData.clubs);
       } catch (err) {
         console.error("Unexpected error loading match wizard data:", err);
         if (!cancelled) {

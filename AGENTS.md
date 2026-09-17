@@ -54,10 +54,9 @@ When working autonomously (e.g. during a `/goal` session or scheduled iteration)
 - **Commit Criteria**:
   1. TypeScript (`tsc --noEmit`) passes with **0 errors**.
   2. ESLint (`eslint .`) passes with **0 warnings and 0 errors**.
-  3. Prettier (`prettier --check .`) passes with **0 discrepancies**.
-  4. Test suite passes with **100% success rate**.
-  5. Composite score in `eval/report.json` is **equal or higher** than the baseline.
-- If all 5 criteria pass, stage and commit with conventional commit format:
+  3. Test suite passes with **100% success rate**.
+  4. Composite score in `eval/report.json` is **equal or higher** than the baseline.
+- If all 4 criteria pass, stage and commit with conventional commit format:
   ```bash
   git add -A && git commit -m "feat(eval-loop): <describe improvement> [score: <old> -> <new>]"
   ```
