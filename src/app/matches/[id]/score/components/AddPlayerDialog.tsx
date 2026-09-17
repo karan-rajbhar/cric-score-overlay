@@ -76,6 +76,9 @@ export function AddPlayerDialog({
           <div>
             <label className="text-sm font-medium">Player name</label>
             <Input
+              id="new-player-name"
+              name="playerName"
+              autoComplete="name"
               placeholder="e.g., Virat Kohli"
               value={newPlayerName}
               onChange={(e) => onNameChange(e.target.value)}

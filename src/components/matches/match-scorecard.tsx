@@ -90,7 +90,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             </Card>
 
             {/* Batting Card */}
-            <Card>
+            <Card className="content-visibility-auto">
               <CardHeader>
                 <CardTitle className="text-lg">Batting</CardTitle>
               </CardHeader>
@@ -194,7 +194,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             </Card>
 
             {/* Bowling Card */}
-            <Card>
+            <Card className="content-visibility-auto">
               <CardHeader>
                 <CardTitle className="text-lg">Bowling</CardTitle>
               </CardHeader>
@@ -254,7 +254,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
 
             {/* Fall of Wickets */}
             {innings.fall_of_wickets && innings.fall_of_wickets.length > 0 && (
-              <Card>
+              <Card className="content-visibility-auto">
                 <CardHeader>
                   <CardTitle className="text-lg">Fall of wickets</CardTitle>
                 </CardHeader>

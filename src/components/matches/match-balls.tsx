@@ -205,7 +205,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                     ).length;
 
                     return (
-                      <Card key={overNum}>
+                      <Card key={overNum} className="content-visibility-auto">
                         <CardHeader className="py-3">
                           <div className="flex items-center justify-between">
                             <CardTitle className="flex items-center gap-2 text-base">

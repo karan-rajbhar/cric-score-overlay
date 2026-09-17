@@ -7,9 +7,7 @@ import {
   X,
   Copy,
   Check,
-  LayoutTemplate,
   Palette,
-  Tag,
   Eye,
   EyeOff,
   Radio,
@@ -40,10 +38,7 @@ import { PresentationCards } from "~/components/overlay/presentation-cards";
 import { LowerThirdStraps } from "~/components/overlay/lower-third-straps";
 import { CornerWatermark } from "~/components/overlay/corner-watermark";
 import { NewsTicker } from "~/components/overlay/news-ticker";
-import {
-  BroadcastSuiteOverlay,
-  BROADCAST_VIEW_OPTIONS,
-} from "~/components/overlay/broadcast-suite-overlay";
+import { BroadcastSuiteOverlay } from "~/components/overlay/broadcast-suite-overlay";
 import {
   playFourFanfare,
   playSixExplosion,
@@ -411,7 +406,7 @@ export function OverlayClient({
   initialSponsor = "",
 }: OverlayClientProps) {
   const [state, setState] = useState<LiveMatchState | null>(initial);
-  const [matchData, setMatchData] = useState<Match | null>(initialMatch);
+  const [matchData] = useState<Match | null>(initialMatch);
   const [isConnected, setIsConnected] = useState(matchId === "test");
   const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -431,9 +426,9 @@ export function OverlayClient({
     accent: "#f59e0b",
   });
   const [marginOffsetPx, setMarginOffsetPx] = useState<number>(0);
-  const [showBalls, setShowBalls] = useState(true);
+  const [showBalls] = useState(true);
   const [showBug, setShowBug] = useState(true);
-  const [showWatermark, setShowWatermark] = useState(true);
+  const [showWatermark] = useState(true);
   const [showTicker, setShowTicker] = useState(false);
   const [tickerText, setTickerText] = useState(
     "Live Match Broadcast · Streaming in Full HD · Real-time score & commentary powered by CricScore Overlay",
@@ -442,7 +437,7 @@ export function OverlayClient({
   const [sponsorsList, setSponsorsList] = useState<SponsorItem[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [audioVolume, setAudioVolume] = useState(0.5);
-  const [showSafeZone, setShowSafeZone] = useState(false);
+  const [showSafeZone] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -452,7 +447,7 @@ export function OverlayClient({
   const [activeStrap, setActiveStrap] = useState<ActiveLowerThirdStrap | null>(
     null,
   );
-  const [autoStingsEnabled, setAutoStingsEnabled] = useState(true);
+  const [autoStingsEnabled] = useState(true);
 
   // Broadcast Suite overlay views state (29-view switcher dock)
   const [broadcastView, setBroadcastView] = useState<BroadcastViewId | null>(
@@ -499,7 +494,7 @@ export function OverlayClient({
     }
     prevRuns.current = state.total_runs;
     prevWickets.current = state.total_wickets;
-  }, [state?.total_runs, state?.total_wickets]);
+  }, [state]);
 
   const refetch = useCallback(async () => {
     if (!isRealUuid) return;
@@ -952,7 +947,15 @@ export function OverlayClient({
       : "BWL");
 
   return (
-    <div className="pointer-events-none fixed inset-0 select-none bg-transparent p-6 font-sans">
+    <div
+      style={
+        {
+          "--overlay-custom-primary": customColors.primary,
+          "--overlay-custom-accent": customColors.accent,
+        } as React.CSSProperties
+      }
+      className="pointer-events-none fixed inset-0 select-none bg-transparent p-6 font-sans"
+    >
       {/* 1. BROADCAST EVENT STINGS ANIMATION LAYER */}
       <EventStings
         sting={activeSting}

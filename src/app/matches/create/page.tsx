@@ -294,7 +294,7 @@ function CreateMatchWizard() {
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [urlTournamentId, refreshKey, user?.id, authLoading]);
+  }, [urlTournamentId, refreshKey, user, authLoading]);
 
   const handleRetry = () => {
     setRefreshKey((k) => k + 1);

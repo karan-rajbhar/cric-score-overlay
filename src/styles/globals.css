@@ -149,6 +149,24 @@
 @layer base {
   * {
     @apply border-border;
+    --scrollbar-thumb: hsl(var(--muted-foreground) / 0.3);
+    --scrollbar-track: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  @supports not (scrollbar-color: auto) {
+    *::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 9999px;
+    }
+    *::-webkit-scrollbar-track {
+      background: var(--scrollbar-track);
+    }
   }
 
   html {
@@ -156,20 +174,58 @@
     color-scheme: light dark;
   }
 
+  .dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
   }
 
-  /* Numeric alignment */
+  /* Modern Web Typography: balanced headings and clean paragraph wrapping */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Numeric alignment and tabular figures */
   .tabular {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
   }
 
   /* Condensed display type for scores and titles */
   .score-display {
     font-family: var(--font-score);
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
     letter-spacing: 0.01em;
+  }
+
+  /* Performance Containment & Deferred Off-Screen Rendering */
+  .content-visibility-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
+
+  .content-visibility-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 44px;
+  }
+
+  @supports not (content-visibility: auto) {
+    .content-visibility-auto,
+    .content-visibility-row {
+      contain: layout style paint;
+    }
   }
 
   *:focus-visible {

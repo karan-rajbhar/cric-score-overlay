@@ -358,7 +358,9 @@ function SignupPageInner() {
                     <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="fullName"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       placeholder="Enter your full name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
@@ -380,7 +382,10 @@ function SignupPageInner() {
                     <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
+                      inputMode="email"
                       placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -402,7 +407,9 @@ function SignupPageInner() {
                     <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="password"
+                      name="new-password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       placeholder="Create a password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -458,7 +465,9 @@ function SignupPageInner() {
                     <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="confirmPassword"
+                      name="confirm-password"
                       type={showConfirmPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       placeholder="Confirm your password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}

@@ -137,7 +137,10 @@ export function DlsCalculatorModal({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">1st Innings Runs</Label>
               <Input
+                id="dls-t1-runs"
+                name="t1Runs"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 value={t1Runs}
                 onChange={(e) => setT1Runs(Number(e.target.value) || 0)}
@@ -146,7 +149,10 @@ export function DlsCalculatorModal({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">1st Innings Overs</Label>
               <Input
+                id="dls-t1-overs"
+                name="t1Overs"
                 type="number"
+                inputMode="numeric"
                 min={5}
                 max={50}
                 value={t1Overs}

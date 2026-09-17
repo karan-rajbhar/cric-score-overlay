@@ -131,7 +131,7 @@ export function PlayerList({
     );
   }
   return (
-    <div className="w-full overflow-x-auto rounded-lg border">
+    <div className="data-table-container">
       <Table>
         <TableHeader>
           <TableRow>
@@ -145,7 +145,7 @@ export function PlayerList({
         </TableHeader>
         <TableBody>
           {players.map((player, idx) => (
-            <TableRow key={player.id}>
+            <TableRow key={player.id} className="content-visibility-row">
               <TableCell className="px-2 text-xs font-medium sm:px-4 sm:text-sm">
                 {idx + 1}
               </TableCell>

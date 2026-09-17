@@ -276,7 +276,10 @@ function LoginPageInner() {
                     <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
+                      inputMode="email"
                       placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -298,7 +301,9 @@ function LoginPageInner() {
                     <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -342,7 +347,7 @@ function LoginPageInner() {
                     </>
                   ) : (
                     <>
-                      Sign in with Email
+                      Sign in
                       <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </>
                   )}
@@ -365,7 +370,10 @@ function LoginPageInner() {
                     <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="phone"
+                      name="tel"
                       type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
                       placeholder="+1 (555) 123-4567"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -394,7 +402,11 @@ function LoginPageInner() {
                       <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
                       <Input
                         id="otp"
+                        name="one-time-code"
                         type="text"
+                        autoComplete="one-time-code"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         placeholder="Enter 6-digit code"
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}

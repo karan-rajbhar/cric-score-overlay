@@ -58,7 +58,11 @@ export default async function SearchPage({
       <form action="/search" method="GET" className="relative mt-6">
         <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
+          id="search-query"
           name="q"
+          type="search"
+          autoComplete="off"
+          enterKeyHint="search"
           defaultValue={q}
           placeholder="Search…"
           className="pl-9"
