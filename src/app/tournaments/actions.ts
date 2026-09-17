@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/supabase/server";
+import { ensureUserProfile } from "~/lib/supabase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -11,6 +12,8 @@ export async function createTournament(formData: FormData) {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  await ensureUserProfile(supabase, user);
 
   const name = (formData.get("name") as string)?.trim();
   if (!name) return { error: "Tournament name is required" };
@@ -167,6 +170,8 @@ export async function registerTeamForTournament(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in to register a team" };
+
+  await ensureUserProfile(supabase, user);
 
   const isTournAdmin = await checkTournamentAdminAuth(
     supabase,
@@ -387,6 +392,8 @@ export async function generateTournamentFixtures(tournamentId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be logged in" };
+
+  await ensureUserProfile(supabase, user);
 
   const isTournAdmin = await checkTournamentAdminAuth(
     supabase,

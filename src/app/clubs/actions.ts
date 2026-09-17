@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/supabase/server";
+import { ensureUserProfile } from "~/lib/supabase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -10,6 +11,8 @@ export async function createClub(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: "You must be logged in" };
+
+  await ensureUserProfile(supabase, user);
 
   const name = (formData.get("name") as string)?.trim();
   if (!name) return { error: "Club name is required" };
@@ -63,6 +66,8 @@ export async function joinClub(clubId: string) {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in to join a club" };
+
+  await ensureUserProfile(supabase, user);
 
   const { error } = await supabase.from("club_memberships").insert({
     club_id: clubId,
@@ -222,6 +227,8 @@ export async function inductHallOfFame(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  await ensureUserProfile(supabase, user);
 
   const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
   if (!canManage) {

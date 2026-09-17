@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/supabase/server";
+import { ensureUserProfile } from "~/lib/supabase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -136,6 +137,8 @@ export async function createTeam(formData: FormData) {
     return { error: "You must be logged in to create a team" };
   }
 
+  await ensureUserProfile(supabase, user);
+
   if (!name) {
     return { error: "Team name is required" };
   }
@@ -220,6 +223,8 @@ export async function createTeamQuick(name: string, shortName?: string) {
     return { data: null, error: "You must be logged in to create a team" };
   }
 
+  await ensureUserProfile(supabase, user);
+
   const trimmed = name.trim();
   if (!trimmed) {
     return { data: null, error: "Team name is required" };
@@ -261,6 +266,8 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
   if (!user) {
     return { data: null, error: "You must be logged in to add players" };
   }
+
+  await ensureUserProfile(supabase, user);
 
   const { data, error } = await supabase.rpc("create_team_player", {
     p_team_id: teamId,
@@ -383,6 +390,8 @@ export async function addPlayerToTeam(
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in to add players" };
+
+  await ensureUserProfile(supabase, user);
 
   const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
   if (!canManage) {

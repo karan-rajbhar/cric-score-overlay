@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/supabase/server";
+import { ensureUserProfile } from "~/lib/supabase/user-profile";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { friendlyError } from "./errors";
 import type {
@@ -20,6 +21,8 @@ export async function createMatch(formData: MatchFormData) {
   if (authError || !user) {
     return { data: null, error: "You must be logged in to create a match" };
   }
+
+  await ensureUserProfile(supabase, user);
 
   if (!formData.team1Id || !formData.team2Id) {
     return { data: null, error: "Both Team 1 and Team 2 must be selected" };

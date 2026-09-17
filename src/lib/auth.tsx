@@ -69,6 +69,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(session?.user ?? null);
           console.log("Auth initialized:", session?.user?.email || "no user");
+          if (session?.user) {
+            void supabase.rpc("ensure_own_profile");
+          }
         }
       } catch (error) {
         console.error("Auth initialization failed:", error);
@@ -95,11 +98,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Handle profile creation for new users
-      if (event === "SIGNED_IN" && session?.user) {
+      // Handle profile creation/sync for users
+      if (
+        (event === "SIGNED_IN" ||
+          event === "INITIAL_SESSION" ||
+          event === "USER_UPDATED" ||
+          event === "TOKEN_REFRESHED") &&
+        session?.user
+      ) {
         try {
-          // Idempotent server-side bootstrap; safe to call on every sign-in.
-          await supabase.rpc("ensure_own_profile");
+          // Idempotent server-side bootstrap; safe to call on sign-in & session init.
+          const { error: rpcErr } = await supabase.rpc("ensure_own_profile");
+          if (rpcErr) {
+            console.error("Profile creation/sync error:", rpcErr);
+          }
         } catch (error) {
           console.error("Profile creation error:", error);
         }
@@ -160,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -169,6 +181,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     });
+    if (!error && data?.session?.user) {
+      void supabase.rpc("ensure_own_profile");
+    }
     return { error };
   };
 
@@ -178,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fullName?: string,
   ) => {
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       phone,
       password,
       options: {
@@ -187,6 +202,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       },
     });
+    if (!error && data?.session?.user) {
+      void supabase.rpc("ensure_own_profile");
+    }
     return { error };
   };
 

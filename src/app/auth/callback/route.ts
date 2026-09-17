@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "~/env.js";
+import { ensureUserProfile } from "~/lib/supabase/user-profile";
 
 export async function GET(request: NextRequest) {
   console.log("OAuth callback received:", request.url);
@@ -67,30 +68,8 @@ export async function GET(request: NextRequest) {
 
     console.log("OAuth session created successfully:", data.session.user.email);
 
-    // Create profile if it doesn't exist
-    try {
-      const { data: existingUser } = await supabase
-        .from("users")
-        .select("id")
-        .eq("id", data.session.user.id)
-        .single();
-
-      if (!existingUser) {
-        console.log("Creating user record for new user");
-        await supabase.from("users").insert({
-          id: data.session.user.id,
-          email: data.session.user.email!,
-          full_name:
-            data.session.user.user_metadata?.full_name ||
-            data.session.user.user_metadata?.name ||
-            "Unknown",
-          avatar_url: data.session.user.user_metadata?.avatar_url || null,
-          phone: data.session.user.phone || null,
-        });
-      }
-    } catch (profileError) {
-      console.error("Profile creation error (non-fatal):", profileError);
-    }
+    // Ensure user profile exists (re-mapping email if needed)
+    await ensureUserProfile(supabase, data.session.user);
 
     console.log("Redirecting to dashboard with session cookies set");
     return response;

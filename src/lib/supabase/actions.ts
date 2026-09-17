@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createServerClient } from "./server";
+import { ensureUserProfile } from "./user-profile";
 
 /**
  * Schema for user profile updates
@@ -37,6 +38,8 @@ export async function updateProfile(formData: FormData) {
     if (authError || !user) {
       throw new Error("Unauthorized");
     }
+
+    await ensureUserProfile(supabase, user);
 
     // Validate input
     const validatedData = updateProfileSchema.parse({
