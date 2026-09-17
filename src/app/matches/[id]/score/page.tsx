@@ -531,35 +531,72 @@ export default function ScoringPage() {
 
           <CurrentBatsmen
             batsman1={
-              battingTeamPlayers.find((p) => p.user_id === strikerId)
+              strikerId
                 ? {
-                    id: strikerId!,
-                    name: battingTeamPlayers.find(
-                      (p) => p.user_id === strikerId,
-                    )!.user!.full_name,
-                    runs: 0,
-                    balls: 0,
-                    fours: 0,
-                    sixes: 0,
+                    id: strikerId,
+                    name:
+                      battingTeamPlayers.find((p) => p.user_id === strikerId)
+                        ?.user?.full_name ??
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === strikerId,
+                      )?.user?.full_name ??
+                      "Striker",
+                    runs:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === strikerId,
+                      )?.runs_scored ?? 0,
+                    balls:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === strikerId,
+                      )?.balls_faced ?? 0,
+                    fours:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === strikerId,
+                      )?.fours ?? 0,
+                    sixes:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === strikerId,
+                      )?.sixes ?? 0,
                     isStriker: true,
                   }
                 : null
             }
             batsman2={
-              battingTeamPlayers.find((p) => p.user_id === nonStrikerId)
+              nonStrikerId
                 ? {
-                    id: nonStrikerId!,
-                    name: battingTeamPlayers.find(
-                      (p) => p.user_id === nonStrikerId,
-                    )!.user!.full_name,
-                    runs: 0,
-                    balls: 0,
-                    fours: 0,
-                    sixes: 0,
+                    id: nonStrikerId,
+                    name:
+                      battingTeamPlayers.find((p) => p.user_id === nonStrikerId)
+                        ?.user?.full_name ??
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === nonStrikerId,
+                      )?.user?.full_name ??
+                      "Non-Striker",
+                    runs:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === nonStrikerId,
+                      )?.runs_scored ?? 0,
+                    balls:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === nonStrikerId,
+                      )?.balls_faced ?? 0,
+                    fours:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === nonStrikerId,
+                      )?.fours ?? 0,
+                    sixes:
+                      currentInnings?.batting_performances?.find(
+                        (bp) => bp.user_id === nonStrikerId,
+                      )?.sixes ?? 0,
                     isStriker: false,
                   }
                 : null
             }
+            onSwapStriker={() => {
+              if (strikerId && nonStrikerId && !isProcessing) {
+                void handleConfirmBatsmen(nonStrikerId, strikerId);
+              }
+            }}
             onSelectNewBatsman={() => {
               if (match.status === "scheduled") {
                 setTossDialogDismissed(false);
@@ -572,16 +609,33 @@ export default function ScoringPage() {
 
           <CurrentBowler
             bowler={
-              bowlingTeamPlayers.find((p) => p.user_id === currentBowlerId)
+              currentBowlerId
                 ? {
-                    id: currentBowlerId!,
-                    name: bowlingTeamPlayers.find(
-                      (p) => p.user_id === currentBowlerId,
-                    )!.user!.full_name,
-                    overs: 0,
-                    maidens: 0,
-                    runs: 0,
-                    wickets: 0,
+                    id: currentBowlerId,
+                    name:
+                      bowlingTeamPlayers.find(
+                        (p) => p.user_id === currentBowlerId,
+                      )?.user?.full_name ??
+                      currentInnings?.bowling_performances?.find(
+                        (bp) => bp.user_id === currentBowlerId,
+                      )?.user?.full_name ??
+                      "Bowler",
+                    overs:
+                      currentInnings?.bowling_performances?.find(
+                        (bp) => bp.user_id === currentBowlerId,
+                      )?.overs_bowled ?? 0,
+                    maidens:
+                      currentInnings?.bowling_performances?.find(
+                        (bp) => bp.user_id === currentBowlerId,
+                      )?.maidens ?? 0,
+                    runs:
+                      currentInnings?.bowling_performances?.find(
+                        (bp) => bp.user_id === currentBowlerId,
+                      )?.runs_conceded ?? 0,
+                    wickets:
+                      currentInnings?.bowling_performances?.find(
+                        (bp) => bp.user_id === currentBowlerId,
+                      )?.wickets_taken ?? 0,
                   }
                 : null
             }

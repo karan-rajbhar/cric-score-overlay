@@ -187,6 +187,54 @@ export function useScoring(matchId: string) {
   const applyState = (state: ScoringState) => {
     setStrikerId(state.striker_id);
     setNonStrikerId(state.non_striker_id);
+
+    // Optimistically update match state so UI components reflect scores immediately
+    setMatch((prev) => {
+      if (!prev) return prev;
+      const innings = prev.innings?.map((inn) => {
+        if (inn.innings_number !== state.current_innings) return inn;
+
+        const updatedBatting = inn.batting_performances?.map((bp) => {
+          if (state.striker_id && bp.user_id === state.striker_id) {
+            return {
+              ...bp,
+              runs_scored: state.striker_runs ?? bp.runs_scored,
+              balls_faced: state.striker_balls ?? bp.balls_faced,
+              is_current_batsman: true,
+              is_striker: true,
+            };
+          }
+          if (state.non_striker_id && bp.user_id === state.non_striker_id) {
+            return {
+              ...bp,
+              runs_scored: state.non_striker_runs ?? bp.runs_scored,
+              balls_faced: state.non_striker_balls ?? bp.balls_faced,
+              is_current_batsman: true,
+              is_striker: false,
+            };
+          }
+          return bp;
+        });
+
+        return {
+          ...inn,
+          total_runs: state.total_runs,
+          total_wickets: state.total_wickets,
+          total_balls: state.total_balls,
+          batting_performances: updatedBatting,
+        };
+      });
+
+      return {
+        ...prev,
+        status: (state.status as Match["status"]) ?? prev.status,
+        current_innings: state.current_innings,
+        current_over: state.current_over,
+        current_ball: state.current_ball,
+        innings,
+      };
+    });
+
     if (state.match_completed) {
       toast.info(state.result_description ?? "Match completed");
       void loadMatch();
