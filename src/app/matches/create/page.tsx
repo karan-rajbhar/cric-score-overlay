@@ -151,7 +151,7 @@ function CreateMatchWizard() {
       setTeamsLoading(true);
       setTeamsLoadError(null);
 
-      // Safety timeout fallback: if queries hang or take longer than 8 seconds,
+      // Safety timeout fallback: if queries hang or take longer than 15 seconds,
       // stop spinning and show the error message with retry button.
       timeoutId = setTimeout(() => {
         if (!cancelled) {
@@ -160,7 +160,7 @@ function CreateMatchWizard() {
             "Loading teams took longer than expected. Please check your connection and retry.",
           );
         }
-      }, 8000);
+      }, 15000);
 
       try {
         const supabase = createClient();

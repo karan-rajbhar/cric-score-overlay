@@ -1,0 +1,56 @@
+{
+  "version": "1.0.0",
+  "project": "cric-score-overlay",
+  "backlog": [
+    {
+      "id": "cov-nav-bar",
+      "category": "test_coverage",
+      "title": "Add Unit Tests for NavigationBar Component",
+      "target_file": "src/components/navigation-bar.tsx",
+      "test_file": "src/components/navigation-bar.test.tsx",
+      "priority": "high",
+      "status": "pending",
+      "description": "Currently 0% coverage. Write unit tests for desktop & mobile navigation links, auth status toggles, and search routing."
+    },
+    {
+      "id": "cov-brand",
+      "category": "test_coverage",
+      "title": "Add Unit Tests for Brand Component",
+      "target_file": "src/components/brand.tsx",
+      "test_file": "src/components/brand.test.tsx",
+      "priority": "medium",
+      "status": "pending",
+      "description": "Currently 0% coverage. Verify logo rendering, size variants (sm, md, lg), and href routing."
+    },
+    {
+      "id": "cov-protected-route",
+      "category": "test_coverage",
+      "title": "Add Tests for ProtectedRoute Component",
+      "target_file": "src/components/ProtectedRoute.tsx",
+      "test_file": "src/components/ProtectedRoute.test.tsx",
+      "priority": "high",
+      "status": "pending",
+      "description": "Currently 0% coverage. Verify redirection when unauthenticated and content rendering when user is logged in."
+    },
+    {
+      "id": "feat-scoring-penalty-runs",
+      "category": "scoring_engine",
+      "title": "Support 5-Run Penalty Awards in Live Scoring",
+      "target_file": "src/app/matches/[id]/score/useScoring.ts",
+      "test_file": "src/lib/cricket.test.ts",
+      "priority": "medium",
+      "status": "pending",
+      "description": "Support official MCC 5-run penalty awards (Law 41/42) directly from scoring panel with live score update."
+    },
+    {
+      "id": "feat-overlay-strap-auto-dismiss",
+      "category": "broadcast_overlay",
+      "title": "Configurable Auto-Dismiss Timers for Lower-Third Straps",
+      "target_file": "src/components/overlay/lower-third-straps.tsx",
+      "test_file": "src/components/overlay/lower-third-straps.test.tsx",
+      "priority": "medium",
+      "status": "pending",
+      "description": "Allow producer to set display duration (5s, 10s, infinite) for lower-third player info and tournament standings."
+    }
+  ]
+}

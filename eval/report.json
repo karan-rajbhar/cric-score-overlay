@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-09-17T18:22:54Z",
+  "composite_health_score": 82.6,
+  "gates": {
+    "typecheck": true,
+    "eslint": true,
+    "prettier": true,
+    "tests_pass": true
+  },
+  "coverage_percentage": 12.91,
+  "improvement_targets": [
+    {
+      "file": "src/components/ProtectedRoute.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/brand.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/navigation-bar.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/clubs/club-membership-button.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/clubs/hall-of-fame-dialog.tsx",
+      "coverage": 0
+    }
+  ]
+}

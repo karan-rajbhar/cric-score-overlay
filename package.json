@@ -13,6 +13,7 @@
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm run test",
+    "eval": "python3 scripts/eval.py",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
