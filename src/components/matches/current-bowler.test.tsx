@@ -26,6 +26,42 @@ describe("CurrentBowler component", () => {
     expect(screen.getByText(/Econ 5.60/)).toBeInTheDocument();
   });
 
+  it("updates live bowler figures when stats change after scoring a ball", () => {
+    const { rerender } = render(
+      <CurrentBowler
+        bowler={{
+          id: "bw1",
+          name: "Jasprit Bumrah",
+          overs: 0.5,
+          maidens: 0,
+          runs: 4,
+          wickets: 0,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("(0.5)")).toBeInTheDocument();
+
+    // After scoring ball 6 (dot ball, maiden over complete):
+    rerender(
+      <CurrentBowler
+        bowler={{
+          id: "bw1",
+          name: "Jasprit Bumrah",
+          overs: 1.0,
+          maidens: 1,
+          runs: 4,
+          wickets: 0,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("(1.0)")).toBeInTheDocument();
+    expect(screen.getByText("1 maiden")).toBeInTheDocument();
+    expect(screen.getByText(/Econ 4.00/)).toBeInTheDocument();
+  });
+
   it("renders empty state and allows selecting bowler", () => {
     const onChangeBowler = vi.fn();
     render(<CurrentBowler bowler={null} onChangeBowler={onChangeBowler} />);

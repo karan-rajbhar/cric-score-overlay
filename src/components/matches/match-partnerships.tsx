@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { getPartnerships } from "~/app/matches/queries";
+import { supabase } from "~/lib/supabase/client";
 import type { Match } from "~/lib/match-types";
 import { Loader2 } from "lucide-react";
 
@@ -30,7 +31,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    const fetchPartnerships = async () => {
       const result = await getPartnerships(match.id);
       if (cancelled) return;
       if (result.error || !result.data) {
@@ -60,10 +61,27 @@ export function MatchPartnerships({ match }: { match: Match }) {
           };
         }),
       );
-    })();
+    };
+
+    void fetchPartnerships();
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        match.id,
+      );
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    if (isUuid) {
+      channel = supabase
+        .channel(`match_partnerships_${match.id}`)
+        .on("broadcast", { event: "score_update" }, () => {
+          void fetchPartnerships();
+        })
+        .subscribe();
+    }
 
     return () => {
       cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [match]);
 

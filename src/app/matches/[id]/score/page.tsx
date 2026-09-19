@@ -118,7 +118,10 @@ export default function ScoringPage() {
     handleConfirmBowler,
     handleAddPlayerInline,
     handleEndInnings,
-  } = useScoring(matchId);
+  } = useScoring(matchId, {
+    onNeedsBowler: () => setShowSelectBowler(true),
+    onNeedsBatsman: () => setShowSelectBatsmen(true),
+  });
 
   // UI state only — scoring state lives in the hook
   const [tossDialogDismissed, setTossDialogDismissed] = useState(false);
@@ -183,12 +186,19 @@ export default function ScoringPage() {
       else setShowSelectBatsmen(true);
       return;
     }
-    await handleScore(currentBowlerId, strikerId, nonStrikerId, {
+    const res = await handleScore(currentBowlerId, strikerId, nonStrikerId, {
       runsScored: runs,
       extras: extra?.runs ?? 0,
       extraType: extra?.type as never,
       shotZone: shotZone ?? null,
     });
+    if (res?.data) {
+      if (res.data.over_completed || res.data.needs_bowler) {
+        setShowSelectBowler(true);
+      } else if (res.data.needs_batsman) {
+        setShowSelectBatsmen(true);
+      }
+    }
   };
 
   const openWicketDialog = (extraType?: string | null) => {
@@ -232,7 +242,7 @@ export default function ScoringPage() {
       extras = 0;
     }
 
-    await handleScore(currentBowlerId, strikerId, nonStrikerId, {
+    const res = await handleScore(currentBowlerId, strikerId, nonStrikerId, {
       runsScored,
       extras,
       extraType,
@@ -245,7 +255,16 @@ export default function ScoringPage() {
     setFielderId("");
     setWicketExtraType(null);
     setRunsCompletedBeforeRunOut(0);
+
+    if (res?.data) {
+      if (res.data.needs_batsman) {
+        setShowSelectBatsmen(true);
+      } else if (res.data.over_completed || res.data.needs_bowler) {
+        setShowSelectBowler(true);
+      }
+    }
   };
+
 
   const onAddPlayer = async () => {
     if (!newPlayerName.trim() || !addPlayerTarget) return;

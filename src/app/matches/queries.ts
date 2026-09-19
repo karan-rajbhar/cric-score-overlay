@@ -252,23 +252,28 @@ export async function getScoringState(matchId: string) {
   }> = [];
   let lastOverBowlerId: string | null = null;
   if (current) {
-    const ongoingOver = Math.floor((current.total_balls ?? 0) / 6);
+    const totalBalls = current.total_balls ?? 0;
+    const ongoingOver = Math.floor(totalBalls / 6);
+    const isOverBoundary = totalBalls > 0 && totalBalls % 6 === 0;
+    const displayOver = isOverBoundary ? ongoingOver - 1 : ongoingOver;
+
     const { data: balls } = await supabase
       .from("ball_by_ball")
       .select(
         "id, over_number, ball_number, runs_scored, extras, extra_type, is_wicket, dismissal_type, bowler_id, batsman_id, dismissed_player_id",
       )
       .eq("innings_id", current.id)
-      .eq("over_number", ongoingOver)
+      .eq("over_number", displayOver)
       .order("seq");
     thisOverDeliveries = balls ?? [];
 
-    if (ongoingOver > 0) {
+    if (ongoingOver > 0 || isOverBoundary) {
+      const overToCheck = isOverBoundary ? ongoingOver - 1 : ongoingOver - 1;
       const { data: lastOverBall } = await supabase
         .from("ball_by_ball")
         .select("bowler_id")
         .eq("innings_id", current.id)
-        .eq("over_number", ongoingOver - 1)
+        .eq("over_number", overToCheck)
         .order("seq", { ascending: false })
         .limit(1)
         .maybeSingle();

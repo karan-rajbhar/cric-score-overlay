@@ -28,7 +28,7 @@ export function MatchStats({ match }: MatchStatsProps) {
     return () => {
       cancelled = true;
     };
-  }, [match.id]);
+  }, [match]);
 
   const ballsForInnings = (inningsId: string): Ball[] =>
     (ballLog ?? []).filter((b) => b.innings_id === inningsId);

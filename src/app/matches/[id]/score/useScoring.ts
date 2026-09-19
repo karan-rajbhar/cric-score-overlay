@@ -48,7 +48,13 @@ function deliveryLabel(d: {
  * Single-responsibility hook: all scoring state + data fetching.
  * Page component now only handles rendering.
  */
-export function useScoring(matchId: string) {
+export function useScoring(
+  matchId: string,
+  options?: {
+    onNeedsBowler?: () => void;
+    onNeedsBatsman?: () => void;
+  },
+) {
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +167,10 @@ export function useScoring(matchId: string) {
     setLastOverBowlerId(lob ?? null);
     setRawDeliveries(thisOverDeliveries);
     setLastBalls(thisOverDeliveries.map(deliveryLabel));
-  }, [matchId]);
+    if (m.status === "live" && !b && s && ns) {
+      options?.onNeedsBowler?.();
+    }
+  }, [matchId, options]);
 
   const loadMatch = useCallback(async () => {
     const result = await getMatch(matchId);
@@ -187,6 +196,18 @@ export function useScoring(matchId: string) {
   const applyState = (state: ScoringState) => {
     setStrikerId(state.striker_id);
     setNonStrikerId(state.non_striker_id);
+
+    if (state.needs_bowler) {
+      setCurrentBowlerId(null);
+    } else if (state.bowler_id) {
+      setCurrentBowlerId(state.bowler_id);
+    }
+
+    if (state.last_over_bowler_id) {
+      setLastOverBowlerId(state.last_over_bowler_id);
+    } else if (state.needs_bowler && state.last_bowler_id) {
+      setLastOverBowlerId(state.last_bowler_id);
+    }
 
     // Optimistically update match state so UI components reflect scores immediately
     setMatch((prev) => {
@@ -216,12 +237,79 @@ export function useScoring(matchId: string) {
           return bp;
         });
 
+        const effectiveBowlerId =
+          state.bowler_id ?? state.last_bowler_id ?? currentBowlerId;
+        const effectiveOvers = state.bowler_overs ?? state.last_bowler_overs;
+        const effectiveMaidens =
+          state.bowler_maidens ?? state.last_bowler_maidens;
+        const effectiveRuns = state.bowler_runs ?? state.last_bowler_runs;
+        const effectiveWickets =
+          state.bowler_wickets ?? state.last_bowler_wickets;
+
+        let updatedBowling = inn.bowling_performances ?? [];
+        if (effectiveBowlerId) {
+          const exists = updatedBowling.some(
+            (bp) => bp.user_id === effectiveBowlerId,
+          );
+          if (exists) {
+            updatedBowling = updatedBowling.map((bp) => {
+              if (bp.user_id === effectiveBowlerId) {
+                return {
+                  ...bp,
+                  is_current_bowler:
+                    !state.needs_bowler && bp.user_id === state.bowler_id,
+                  overs_bowled: effectiveOvers ?? bp.overs_bowled,
+                  maidens: effectiveMaidens ?? bp.maidens,
+                  runs_conceded: effectiveRuns ?? bp.runs_conceded,
+                  wickets_taken: effectiveWickets ?? bp.wickets_taken,
+                };
+              }
+              return {
+                ...bp,
+                is_current_bowler:
+                  !state.needs_bowler && bp.user_id === state.bowler_id,
+              };
+            });
+          } else {
+            const bowlerPlayer = bowlingTeamPlayers.find(
+              (p) => p.user_id === effectiveBowlerId,
+            );
+            updatedBowling = [
+              ...updatedBowling,
+              {
+                id: effectiveBowlerId,
+                match_id: prev.id,
+                innings_id: inn.id,
+                user_id: effectiveBowlerId,
+                overs_bowled: effectiveOvers ?? 0,
+                balls_bowled: 0,
+                maidens: effectiveMaidens ?? 0,
+                runs_conceded: effectiveRuns ?? 0,
+                wickets_taken: effectiveWickets ?? 0,
+                wides: 0,
+                no_balls: 0,
+                is_current_bowler:
+                  !state.needs_bowler && effectiveBowlerId === state.bowler_id,
+                user: {
+                  id: effectiveBowlerId,
+                  full_name:
+                    state.bowler_name ??
+                    state.last_bowler_name ??
+                    bowlerPlayer?.user?.full_name ??
+                    "Bowler",
+                },
+              },
+            ];
+          }
+        }
+
         return {
           ...inn,
           total_runs: state.total_runs,
           total_wickets: state.total_wickets,
           total_balls: state.total_balls,
           batting_performances: updatedBatting,
+          bowling_performances: updatedBowling,
         };
       });
 
@@ -245,23 +333,30 @@ export function useScoring(matchId: string) {
       void syncFromDb();
       return;
     }
-    if (state.needs_batsman || state.needs_bowler) {
-      void syncFromDb();
-      return;
+
+    const delivery = state as unknown as {
+      runs_scored?: number;
+      extras?: number;
+      extra_type?: string;
+      is_wicket?: boolean;
+    };
+    if (
+      delivery.runs_scored !== undefined ||
+      delivery.extras !== undefined ||
+      delivery.is_wicket
+    ) {
+      setLastBalls((prev) =>
+        [...prev, deliveryLabel(delivery)].slice(-6),
+      );
     }
-    setLastBalls((prev) =>
-      [
-        ...prev,
-        deliveryLabel(
-          state as unknown as {
-            runs_scored: number;
-            extras: number;
-            extra_type: string;
-            is_wicket: boolean;
-          },
-        ),
-      ].slice(-6),
-    );
+
+    if (state.over_completed || state.needs_bowler) {
+      toast.info("Over complete! Please select the bowler for the next over.");
+      options?.onNeedsBowler?.();
+    } else if (state.needs_batsman) {
+      options?.onNeedsBatsman?.();
+    }
+
     void syncFromDb();
   };
 

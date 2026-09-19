@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { UserPlus, AlertCircle } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import type { TeamPlayer } from "~/lib/match-types";
 
 interface BowlerDialogProps {
@@ -68,19 +68,10 @@ export function BowlerDialog({
         <DialogHeader>
           <DialogTitle>Select Bowler</DialogTitle>
           <DialogDescription>
-            Choose the bowler to deliver the next over according to MCC cricket
-            laws.
+            Choose the bowler to deliver the next over.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">
-          {lastOverBowlerId && (
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              MCC Law 21.7: A bowler cannot bowl consecutive overs from opposite
-              ends.
-            </p>
-          )}
-
           <Select value={currentBowlerId || ""} onValueChange={onBowlerChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select bowler" />

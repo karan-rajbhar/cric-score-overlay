@@ -170,7 +170,7 @@ function MatchDetailsPageContent() {
   }, [clubId, tournamentId, playerId, match]);
 
   const refetchMatch = useCallback(async () => {
-    const result = await getMatch(matchId);
+    const result = await getMatch(matchId, { skipCache: true });
     if (result.data) {
       setMatch(result.data as Match);
     }

@@ -39,7 +39,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
     return () => {
       cancelled = true;
     };
-  }, [match.id]);
+  }, [match]);
 
   const getBallDisplay = (ball: Ball) => {
     if (ball.is_wicket) return "W";
