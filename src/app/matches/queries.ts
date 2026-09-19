@@ -602,38 +602,39 @@ export async function getPartnerships(matchId: string) {
 export async function getMatchWizardData() {
   try {
     const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const [userRes, teamRes, tournRes, clubRes] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase
+        .from("teams")
+        .select(
+          "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
+        )
+        .order("name"),
+      supabase
+        .from("tournaments")
+        .select("id, name, match_format, custom_overs, created_by, club_id")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("clubs")
+        .select("id, name, short_name, owner_id")
+        .order("name"),
+    ]);
 
-    const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
-      await Promise.all([
-        supabase
-          .from("teams")
-          .select(
-            "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
-          )
-          .order("name"),
-        supabase
-          .from("tournaments")
-          .select("id, name, match_format, custom_overs, created_by, club_id")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("clubs")
-          .select("id, name, short_name, owner_id")
-          .order("name"),
-        user
-          ? supabase.from("team_players").select("team_id").eq("user_id", user.id)
-          : Promise.resolve({ data: [] }),
-        user
-          ? supabase
-              .from("club_memberships")
-              .select("club_id")
-              .eq("user_id", user.id)
-              .in("role", ["owner", "admin"])
-              .eq("status", "active")
-          : Promise.resolve({ data: [] }),
-      ]);
+    const user = userRes.data?.user;
+
+    const [myPlayersRes, myClubAdminRes] = await Promise.all([
+      user
+        ? supabase.from("team_players").select("team_id").eq("user_id", user.id)
+        : Promise.resolve({ data: [] }),
+      user
+        ? supabase
+            .from("club_memberships")
+            .select("club_id")
+            .eq("user_id", user.id)
+            .in("role", ["owner", "admin"])
+            .eq("status", "active")
+        : Promise.resolve({ data: [] }),
+    ]);
 
     const playerTeamIds = (myPlayersRes.data ?? [])
       .map((r) => r.team_id)
