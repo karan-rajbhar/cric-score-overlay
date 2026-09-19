@@ -169,4 +169,55 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
     expect(onWicket).toHaveBeenCalledTimes(1);
   });
+
+  it("supports outdoor sunlight high-contrast mode toggle", () => {
+    render(<ScoringPanel {...defaultProps} />);
+    const sunBtn = screen.getByRole("button", { name: /sunlight mode/i });
+    expect(sunBtn).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(sunBtn);
+    expect(sunBtn).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("provides a prominent undo button in the scoring controls", () => {
+    const onUndo = vi.fn();
+    render(<ScoringPanel {...defaultProps} onUndo={onUndo} />);
+
+    const undoButtons = screen.getAllByRole("button", { name: /undo/i });
+    expect(undoButtons.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(undoButtons[0]!);
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders visible high-contrast extras buttons with no dark: background classes when sunlightMode is active", () => {
+    render(<ScoringPanel {...defaultProps} sunlightMode={true} />);
+    const wideButton = screen.getByRole("button", { name: "Wide" });
+    const noBallButton = screen.getByRole("button", { name: "No ball" });
+
+    expect(wideButton).toBeInTheDocument();
+    expect(wideButton.className).toContain("border-2 border-black");
+    expect(wideButton.className).toContain("bg-white");
+    expect(wideButton.className).toContain("text-black");
+    expect(wideButton.className).not.toContain("dark:bg-[#141a17]");
+
+    expect(noBallButton).toBeInTheDocument();
+    expect(noBallButton.className).toContain("border-2 border-black");
+    expect(noBallButton.className).toContain("bg-white");
+    expect(noBallButton.className).toContain("text-black");
+    expect(noBallButton.className).not.toContain("dark:bg-[#141a17]");
+  });
+
+  it("renders high-contrast active state for selected extra in sunlightMode", () => {
+    render(<ScoringPanel {...defaultProps} sunlightMode={true} />);
+    const wideButton = screen.getByRole("button", { name: "Wide" });
+    fireEvent.click(wideButton);
+
+    expect(wideButton).toHaveAttribute("aria-pressed", "true");
+    expect(wideButton.className).toContain("border-2 border-black");
+    expect(wideButton.className).toContain("bg-black");
+    expect(wideButton.className).toContain("text-white");
+    expect(
+      screen.getByText(/Tap runs to record delivery/i),
+    ).toBeInTheDocument();
+  });
 });

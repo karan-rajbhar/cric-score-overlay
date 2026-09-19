@@ -51,6 +51,10 @@ export default async function RootLayout({
                   where: { href_matches: "/matches/*" },
                   eagerness: "moderate",
                 },
+                {
+                  where: { href_matches: "/tournaments/*" },
+                  eagerness: "moderate",
+                },
               ],
             }),
           }}

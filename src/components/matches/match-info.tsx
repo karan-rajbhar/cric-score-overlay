@@ -54,7 +54,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
   return (
     <Tabs defaultValue="match-info" className="w-full">
-      <TabsList className="mb-4 grid h-auto w-full grid-cols-3 gap-1 p-1">
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-1 p-1">
         <TabsTrigger
           value="match-info"
           className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
@@ -68,14 +68,6 @@ export function MatchInfo({ match }: MatchInfoProps) {
         >
           <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
           <span className="truncate">Squads</span>
-        </TabsTrigger>
-        <TabsTrigger
-          value="head-to-head"
-          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-        >
-          <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-          <span className="sm:hidden">H2H</span>
-          <span className="hidden sm:inline">Head to Head</span>
         </TabsTrigger>
       </TabsList>
 
@@ -346,26 +338,6 @@ export function MatchInfo({ match }: MatchInfoProps) {
             </CardContent>
           </Card>
         </div>
-      </TabsContent>
-
-      {/* Head to Head Tab */}
-      <TabsContent value="head-to-head">
-        <Card>
-          <CardHeader>
-            <CardTitle>Head to Head</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="py-12 text-center">
-              <Trophy className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-              <h3 className="mb-2 text-lg font-semibold">Coming Soon</h3>
-              <p className="mx-auto max-w-md text-muted-foreground">
-                Historical head-to-head statistics between {match.team1.name}{" "}
-                and {match.team2.name} will be displayed here once more matches
-                are played.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </TabsContent>
     </Tabs>
   );

@@ -141,30 +141,43 @@ export function useScoring(
         getTeamPlayers(battingTeamId),
         getTeamPlayers(bowlingTeamId),
       ]);
-      if (battingResult.data) {
-        setBattingTeamPlayers((prev) => {
-          const fetched = battingResult.data as Player[];
-          const map = new Map(fetched.map((p) => [p.user_id, p]));
-          for (const p of prev) {
-            if (p.user_id && !map.has(p.user_id)) {
-              map.set(p.user_id, p);
-            }
+      const fetchedBatting = (
+        (battingResult.data as Player[]) || []
+      ).filter((p) => p && p.team_id === battingTeamId);
+
+      const fetchedBowling = (
+        (bowlingResult.data as Player[]) || []
+      ).filter((p) => p && p.team_id === bowlingTeamId);
+
+      const battingUserIds = new Set(fetchedBatting.map((p) => p.user_id));
+
+      setBattingTeamPlayers((prev) => {
+        const map = new Map(fetchedBatting.map((p) => [p.user_id, p]));
+        for (const p of prev) {
+          if (p.user_id && p.team_id === battingTeamId && !map.has(p.user_id)) {
+            map.set(p.user_id, p);
           }
-          return Array.from(map.values());
-        });
-      }
-      if (bowlingResult.data) {
-        setBowlingTeamPlayers((prev) => {
-          const fetched = bowlingResult.data as Player[];
-          const map = new Map(fetched.map((p) => [p.user_id, p]));
-          for (const p of prev) {
-            if (p.user_id && !map.has(p.user_id)) {
-              map.set(p.user_id, p);
-            }
+        }
+        return Array.from(map.values());
+      });
+
+      setBowlingTeamPlayers((prev) => {
+        const filteredBowling = fetchedBowling.filter(
+          (p) => !battingUserIds.has(p.user_id),
+        );
+        const map = new Map(filteredBowling.map((p) => [p.user_id, p]));
+        for (const p of prev) {
+          if (
+            p.user_id &&
+            p.team_id === bowlingTeamId &&
+            !battingUserIds.has(p.user_id) &&
+            !map.has(p.user_id)
+          ) {
+            map.set(p.user_id, p);
           }
-          return Array.from(map.values());
-        });
-      }
+        }
+        return Array.from(map.values());
+      });
     } catch (err) {
       console.error("Error loading squad players:", err);
     }
@@ -491,6 +504,22 @@ export function useScoring(
     nsId: string | null,
   ) => {
     if (!sId || !nsId) return { error: "Select both batsmen" };
+    if (sId === nsId) {
+      const err = "Striker and non-striker must be different players";
+      toast.error(err);
+      return { error: err };
+    }
+    if (currentBowlerId && (sId === currentBowlerId || nsId === currentBowlerId)) {
+      const err = "A batsman cannot be the current bowler";
+      toast.error(err);
+      return { error: err };
+    }
+    const bowlingPlayerIds = new Set(bowlingTeamPlayers.map((p) => p.user_id));
+    if (bowlingPlayerIds.has(sId) || bowlingPlayerIds.has(nsId)) {
+      const err = "Cannot select an opposing team player as a batsman";
+      toast.error(err);
+      return { error: err };
+    }
     setIsProcessing(true);
     const result = await setCurrentBatsmen(matchId, sId, nsId);
     if (result.error) {
@@ -508,6 +537,17 @@ export function useScoring(
 
   const handleConfirmBowler = async (bowlerId: string | null) => {
     if (!bowlerId) return { error: "Select a bowler" };
+    if (bowlerId === strikerId || bowlerId === nonStrikerId) {
+      const err = "The current batsman cannot be selected as bowler";
+      toast.error(err);
+      return { error: err };
+    }
+    const battingPlayerIds = new Set(battingTeamPlayers.map((p) => p.user_id));
+    if (battingPlayerIds.has(bowlerId)) {
+      const err = "Cannot select a batting team player as bowler";
+      toast.error(err);
+      return { error: err };
+    }
     setIsProcessing(true);
     const result = await setCurrentBowler(matchId, bowlerId);
     if (result.error) {
@@ -561,6 +601,9 @@ export function useScoring(
           if (prev.some((p) => p.user_id === newPlayer.user_id)) return prev;
           return [...prev, newPlayer];
         });
+        setBowlingTeamPlayers((prev) =>
+          prev.filter((p) => p.user_id !== newPlayer.user_id),
+        );
         if (!currentStriker) {
           setStrikerId(newPlayer.user_id);
         } else if (!currentNonStriker && currentStriker !== newPlayer.user_id) {
@@ -571,6 +614,9 @@ export function useScoring(
           if (prev.some((p) => p.user_id === newPlayer.user_id)) return prev;
           return [...prev, newPlayer];
         });
+        setBattingTeamPlayers((prev) =>
+          prev.filter((p) => p.user_id !== newPlayer.user_id),
+        );
         if (!currentBowler) setCurrentBowlerId(newPlayer.user_id);
       }
       toast.success(`${result.data.full_name} added to squad`);

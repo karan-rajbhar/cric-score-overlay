@@ -54,7 +54,7 @@ export default function Dashboard() {
       {/* Top Header Bar */}
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          <h1 className="score-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
             {user?.user_metadata?.full_name
               ? `Welcome back, ${user.user_metadata.full_name.split(" ")[0]}`
               : "Dashboard"}
@@ -92,29 +92,24 @@ export default function Dashboard() {
       {loading ? (
         <div className="h-56 animate-pulse rounded-2xl border border-border/70 bg-card/50" />
       ) : featuredLive ? (
-        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 p-4 shadow-sm sm:p-7">
+        <div className="card-hero relative overflow-hidden border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 p-4 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border/70 pb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="relative flex h-2.5 w-2.5" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75 motion-reduce:animate-none" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
               </span>
               <span className="text-xs font-bold tracking-tight text-red-600 dark:text-red-400">
                 Live match
               </span>
-              <span className="text-border">|</span>
-              <span className="text-xs font-medium text-muted-foreground">
-                {featuredLive.match_format}, {featuredLive.overs_per_innings}{" "}
+              <span
+                className="text-xs font-medium text-muted-foreground"
+                aria-label={`${featuredLive.match_format}, ${featuredLive.overs_per_innings} overs${featuredLive.venue ? ` at ${featuredLive.venue}` : ""}`}
+              >
+                {featuredLive.match_format} · {featuredLive.overs_per_innings}{" "}
                 overs
+                {featuredLive.venue && ` · ${featuredLive.venue}`}
               </span>
-              {featuredLive.venue && (
-                <>
-                  <span className="text-border">•</span>
-                  <span className="text-xs text-muted-foreground">
-                    {featuredLive.venue}
-                  </span>
-                </>
-              )}
             </div>
 
             {featuredLive.tournament && (
@@ -295,7 +290,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link
           href="/matches"
-          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 transition-colors hover:border-primary/50"
+          className="card-action group flex items-center justify-between p-4"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400">
@@ -319,7 +314,7 @@ export default function Dashboard() {
 
         <Link
           href="/tournaments"
-          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 transition-colors hover:border-primary/50"
+          className="card-action group flex items-center justify-between p-4"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -341,7 +336,7 @@ export default function Dashboard() {
 
         <Link
           href="/overlay/test"
-          className="group flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 transition-colors hover:border-primary/50"
+          className="card-action group flex items-center justify-between p-4"
         >
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">

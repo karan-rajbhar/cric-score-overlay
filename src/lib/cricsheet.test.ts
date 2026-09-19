@@ -313,7 +313,10 @@ describe("Cricsheet Exporter", () => {
     expect(toCricsheetDismissalKind("obstructing")).toBe(
       "obstructing the field",
     );
-    expect(toCricsheetDismissalKind("handled_ball")).toBe("hit the ball twice");
+    expect(toCricsheetDismissalKind("handled_ball")).toBe("handled the ball");
+    expect(toCricsheetDismissalKind("hit_the_ball_twice")).toBe(
+      "hit the ball twice",
+    );
     expect(toCricsheetDismissalKind("caught", true)).toBe("caught and bowled");
   });
 

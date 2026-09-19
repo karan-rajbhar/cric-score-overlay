@@ -138,9 +138,9 @@ export function AppSidebar() {
                     onClick={() => isMobile && setMobileOpen(false)}
                     title={collapsed && !isMobile ? item.label : undefined}
                     className={cn(
-                      "interactive-button group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                      "interactive-button group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
                       active
-                        ? "border border-primary/20 bg-primary/10 font-semibold text-primary shadow-sm"
+                        ? "bg-primary/10 font-semibold text-primary shadow-sm ring-1 ring-inset ring-primary/20"
                         : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                     )}
                   >

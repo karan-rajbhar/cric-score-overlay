@@ -32,6 +32,7 @@ import {
   calculatePlayerOfTheMatch,
   rankPlayersByImpact,
   calculateSuperstars,
+  formatMatchResult,
 } from "./cricket";
 import type { BowlingPerformance, FallOfWicket, Innings } from "./match-types";
 import { makeMatch } from "~/test/factories";
@@ -152,7 +153,7 @@ describe("cricket math & formatting utilities", () => {
       ).toBe("wd+1");
     });
 
-    it("formats no-balls with or without extra runs", () => {
+    it("formats no-balls from bat runs (scorer sends runs=r, extras=1)", () => {
       expect(
         deliveryLabel({
           is_wicket: false,
@@ -164,11 +165,19 @@ describe("cricket math & formatting utilities", () => {
       expect(
         deliveryLabel({
           is_wicket: false,
-          runs_scored: 0,
-          extras: 3,
+          runs_scored: 2,
+          extras: 1,
           extra_type: "no_ball",
         }),
       ).toBe("nb+2");
+      expect(
+        deliveryLabel({
+          is_wicket: false,
+          runs_scored: 4,
+          extras: 1,
+          extra_type: "no_ball",
+        }),
+      ).toBe("nb+4");
     });
 
     it("formats byes, leg-byes, and penalties", () => {
@@ -440,6 +449,27 @@ describe("cricket math & formatting utilities", () => {
         extras_penalties: 0,
       };
       expect(scoreLine(inn)).toBe("165/4 (20.0)");
+    });
+
+    it("falls back to total_overs when total_balls is missing", () => {
+      const inn: Innings = {
+        id: "inn1",
+        match_id: "m1",
+        team_id: "t1",
+        innings_number: 1,
+        total_runs: 120,
+        total_wickets: 4,
+        total_balls: 0,
+        total_overs: 12.3,
+        is_completed: true,
+        extras_total: 5,
+        extras_byes: 0,
+        extras_leg_byes: 0,
+        extras_wides: 4,
+        extras_no_balls: 1,
+        extras_penalties: 0,
+      };
+      expect(scoreLine(inn)).toBe("120/4 (12.3)");
     });
 
     it("resolves teamName from match", () => {
@@ -799,6 +829,52 @@ describe("cricket math & formatting utilities", () => {
       expect(potm?.playerName).toBe("Virat Kohli");
       expect(potm?.totalPoints).toBeGreaterThan(100);
       expect(potm?.summary).toContain("85* (48b)");
+    });
+
+    it("computes economy bonus on balls, not decimal-notation overs", () => {
+      // 3.5 in cricket notation = 23 balls; 19 runs => econ 4.96 (< 5 => +15).
+      // Dividing by the notation (19/3.5 = 5.43) would wrongly award +8.
+      const match = makeMatch({
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t1",
+            total_runs: 120,
+            total_wickets: 5,
+            total_balls: 110,
+            total_overs: 18.2,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [],
+            bowling_performances: [
+              {
+                id: "bowl-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-econ",
+                overs_bowled: 3.5,
+                balls_bowled: 0,
+                runs_conceded: 19,
+                wickets_taken: 0,
+                maidens: 0,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-econ", full_name: "Economy Bowler" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const ranked = rankPlayersByImpact(match);
+      expect(ranked[0]?.breakdown.bowling).toBe(15);
     });
 
     it("ranks a match-winning bowler with 4 wickets higher than a modest batter", () => {
@@ -1309,5 +1385,68 @@ describe("cricket math & formatting utilities", () => {
       }
     });
   });
+
+  describe("formatMatchResult", () => {
+    it("prepends the winning team name when result_description starts with 'Won by'", () => {
+      const result = formatMatchResult({
+        result_description: "Won by 9 wickets",
+        winning_team_id: "t2",
+        team1_id: "t1",
+        team2_id: "t2",
+        team1: { id: "t1", name: "Royal Tigers" },
+        team2: { id: "t2", name: "Coastal Kings" },
+      });
+      expect(result).toBe("Coastal Kings won by 9 wickets");
+    });
+
+    it("prepends team 1 when team 1 won by runs", () => {
+      const result = formatMatchResult({
+        result_description: "Won by 18 runs",
+        winning_team_id: "t1",
+        team1_id: "t1",
+        team2_id: "t2",
+        team1: { id: "t1", name: "Royal Tigers" },
+        team2: { id: "t2", name: "Coastal Kings" },
+      });
+      expect(result).toBe("Royal Tigers won by 18 runs");
+    });
+
+    it("leaves description intact if team name is already present", () => {
+      const result = formatMatchResult({
+        result_description: "Royal Tigers won by 18 runs",
+        winning_team_id: "t1",
+        team1: { id: "t1", name: "Royal Tigers" },
+        team2: { id: "t2", name: "Coastal Kings" },
+      });
+      expect(result).toBe("Royal Tigers won by 18 runs");
+    });
+
+    it("preserves non-win result descriptions like ties and super overs", () => {
+      expect(formatMatchResult({ result_description: "Match tied" })).toBe("Match tied");
+      expect(formatMatchResult({ result_description: "Super Over in progress" })).toBe(
+        "Super Over in progress",
+      );
+    });
+
+    it("infers winning team from innings scores if winning_team_id is missing", () => {
+      const result = formatMatchResult({
+        result_description: "Won by 6 wickets",
+        team1: { id: "t1", name: "Team Alpha" },
+        team2: { id: "t2", name: "Team Beta" },
+        innings: [
+          { team_id: "t1", total_runs: 140, total_wickets: 8 },
+          { team_id: "t2", total_runs: 144, total_wickets: 4 },
+        ],
+      });
+      expect(result).toBe("Team Beta won by 6 wickets");
+    });
+
+    it("returns Match completed fallback when completed without description", () => {
+      expect(formatMatchResult({ status: "completed", result_description: null })).toBe(
+        "Match completed",
+      );
+    });
+  });
 });
+
 

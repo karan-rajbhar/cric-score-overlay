@@ -90,11 +90,10 @@ export function NavigationBar() {
           <Link
             href="/"
             className="flex shrink-0 items-center gap-2 sm:gap-2.5"
+            aria-label="CricScore home"
           >
             <BrandMark />
-            <span className="hidden min-[400px]:inline-flex">
-              <BrandWordmark />
-            </span>
+            <BrandWordmark />
           </Link>
         </div>
 

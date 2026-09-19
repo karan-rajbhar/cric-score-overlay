@@ -56,9 +56,13 @@ const DlsCalculatorModal = dynamic(
   { ssr: false },
 );
 import { useScoring } from "./useScoring";
+import { oversFromBalls } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
+import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
+import { useWakeLock } from "~/lib/hooks/useWakeLock";
+import { cn } from "~/lib/utils";
 import {
   updateMatchSettings,
   reassignCurrentOverBowler,
@@ -94,6 +98,9 @@ export default function ScoringPage() {
     : authLoading
       ? null
       : false;
+
+  const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
+  const toggleSunlightMode = usePreferencesStore((s) => s.toggleSunlightMode);
 
   // UI state managed via Zustand store
   const {
@@ -171,6 +178,8 @@ export default function ScoringPage() {
     syncFromDb,
   } = useScoring(matchId, scoringOptions);
 
+  const { isLocked: isScreenAwake } = useWakeLock(match?.status === "live");
+
   const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
@@ -193,10 +202,24 @@ export default function ScoringPage() {
   const showTossDialog = match?.status === "scheduled" && !tossDialogDismissed;
   const tossWinner = selectedTossWinner || match?.team1_id || "";
 
-  const dismissedPlayerIds = new Set(
-    currentInnings?.batting_performances
-      ?.filter((bp) => bp.is_out)
-      .map((bp) => bp.user_id) ?? [],
+  const dismissedPlayerIds = useMemo(
+    () =>
+      new Set(
+        currentInnings?.batting_performances
+          ?.filter((bp) => bp.is_out)
+          .map((bp) => bp.user_id) ?? [],
+      ),
+    [currentInnings],
+  );
+
+  const battingTeamPlayerIds = useMemo(
+    () => new Set(battingTeamPlayers.map((p) => p.user_id)),
+    [battingTeamPlayers],
+  );
+
+  const bowlingTeamPlayerIds = useMemo(
+    () => new Set(bowlingTeamPlayers.map((p) => p.user_id)),
+    [bowlingTeamPlayers],
   );
 
   const onScore = async (
@@ -266,8 +289,29 @@ export default function ScoringPage() {
       extras = 1;
       extraType = "no_ball";
     } else if (dismissalType === "run_out") {
-      runsScored = runsCompletedBeforeRunOut;
+      if (
+        wicketExtraType === "bye" ||
+        wicketExtraType === "leg_bye" ||
+        wicketExtraType === "penalty"
+      ) {
+        // Completed runs are byes, not batter runs; bowler concedes 0.
+        runsScored = 0;
+        extras = runsCompletedBeforeRunOut;
+        extraType = wicketExtraType;
+      } else {
+        runsScored = runsCompletedBeforeRunOut;
+        extras = 0;
+      }
+    } else if (
+      wicketExtraType === "bye" ||
+      wicketExtraType === "leg_bye" ||
+      wicketExtraType === "penalty"
+    ) {
+      // Non-run-out dismissal on a bye ball: carry the extra type so the
+      // bowler isn't charged.
+      runsScored = 0;
       extras = 0;
+      extraType = wicketExtraType;
     }
 
     const res = await handleScore(currentBowlerId, strikerId, nonStrikerId, {
@@ -410,8 +454,19 @@ export default function ScoringPage() {
   const isScorer = isAuthorized;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-card">
+    <div
+      data-sunlight={sunlightMode ? "true" : "false"}
+      className={cn(
+        "min-h-screen bg-background",
+        sunlightMode && "sunlight-mode",
+      )}
+    >
+      <header
+        className={cn(
+          "sticky top-0 z-20 border-b bg-card",
+          sunlightMode && "border-b-2 border-black bg-white",
+        )}
+      >
         <div className="container mx-auto flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
           <div className="flex min-w-0 items-center gap-2">
             <Button variant="ghost" size="icon" className="shrink-0" asChild>
@@ -432,6 +487,19 @@ export default function ScoringPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {sunlightMode && (
+              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-black bg-black px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm">
+                ☀️ SUN
+              </span>
+            )}
+            {isScreenAwake && (
+              <span
+                title="Screen wake lock active to prevent display timeout"
+                className="hidden sm:inline-flex items-center gap-1 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]"
+              >
+                ⚡ AWAKE
+              </span>
+            )}
             {match.status === "scheduled" && isScorer && (
               <Button
                 size="sm"
@@ -450,7 +518,10 @@ export default function ScoringPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowMatchSettingsDialog(true)}
-                className="h-8 px-2 sm:px-3"
+                className={cn(
+                  "h-8 px-2 sm:px-3",
+                  sunlightMode && "border-2 border-black font-bold",
+                )}
                 title="Match Settings & Rules"
               >
                 <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
@@ -461,7 +532,10 @@ export default function ScoringPage() {
               variant="outline"
               size="sm"
               onClick={() => setShowAddPlayerDialog(true)}
-              className="h-8 px-2 sm:px-3"
+              className={cn(
+                "h-8 px-2 sm:px-3",
+                sunlightMode && "border-2 border-black font-bold",
+              )}
             >
               <UserPlus className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Add Player</span>
@@ -482,7 +556,7 @@ export default function ScoringPage() {
       <div className="container mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {match.status === "scheduled" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary-950 dark:text-primary-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary-950 dark:border-emerald-500/35 dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <Play className="h-4 w-4 text-primary" />
@@ -501,22 +575,39 @@ export default function ScoringPage() {
               </Button>
             </div>
           )}
-          <Card>
-            <CardContent className="p-4">
+          <Card
+            data-sunlight={sunlightMode ? "true" : "false"}
+            className={
+              sunlightMode
+                ? "border-2 border-black bg-white shadow-none"
+                : ""
+            }
+          >
+            <CardContent className="p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground sm:text-sm">
+                  <p
+                    className={cn(
+                      "text-xs font-bold sm:text-sm",
+                      sunlightMode ? "text-black" : "text-muted-foreground",
+                    )}
+                  >
                     {battingTeam?.name ?? "—"} batting
                   </p>
-                  <p className="score-display text-2xl font-bold sm:text-3xl">
-                    {currentInnings?.total_runs ?? 0}/
-                    {currentInnings?.total_wickets ?? 0}
-                    <span className="ml-2 text-base font-normal text-muted-foreground sm:text-lg">
-                      (
-                      {currentInnings
-                        ? `${Math.floor((currentInnings.total_balls ?? 0) / 6)}.${(currentInnings.total_balls ?? 0) % 6}`
-                        : "0.0"}{" "}
-                      ov)
+                  <p
+                    className={cn(
+                      "score-display text-3xl font-black sm:text-4xl tabular-nums tracking-tight",
+                      sunlightMode && "text-black",
+                    )}
+                  >
+                    {`${currentInnings?.total_runs ?? 0}/${currentInnings?.total_wickets ?? 0}`}
+                    <span
+                      className={cn(
+                        "ml-2 text-base font-bold sm:text-lg",
+                        sunlightMode ? "text-black" : "text-muted-foreground",
+                      )}
+                    >
+                      ({oversFromBalls(currentInnings?.total_balls)} ov)
                     </span>
                   </p>
                 </div>
@@ -526,6 +617,11 @@ export default function ScoringPage() {
                     size="sm"
                     onClick={() => handleUndo()}
                     disabled={isProcessing}
+                    className={
+                      sunlightMode
+                        ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
+                        : ""
+                    }
                   >
                     <Undo2 className="mr-1.5 h-4 w-4" /> Undo
                   </Button>
@@ -534,6 +630,11 @@ export default function ScoringPage() {
                     size="sm"
                     onClick={() => handleEndInnings()}
                     disabled={isProcessing}
+                    className={
+                      sunlightMode
+                        ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
+                        : ""
+                    }
                   >
                     End Inns
                   </Button>
@@ -545,7 +646,13 @@ export default function ScoringPage() {
                     <Badge
                       key={i}
                       variant={b === "W" ? "destructive" : "secondary"}
-                      className="tabular"
+                      className={cn(
+                        "tabular font-black",
+                        sunlightMode &&
+                          (b === "W"
+                            ? "border-2 border-black bg-red-600 text-white"
+                            : "border-2 border-black bg-white text-black"),
+                      )}
                     >
                       {b}
                     </Badge>
@@ -556,7 +663,7 @@ export default function ScoringPage() {
           </Card>
 
           {match.status === "completed" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:border-amber-500/35 dark:bg-amber-950/40 dark:text-amber-200 dark:shadow-[inset_0_1px_0_0_rgba(251,191,36,0.2)]">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <Award className="h-4 w-4 text-amber-500" />
@@ -580,7 +687,7 @@ export default function ScoringPage() {
           )}
 
           {!isScorer && (
-            <Card className="border-amber-500/30 bg-amber-500/5">
+            <Card className="border-amber-500/30 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-950/20">
               <CardContent className="p-3 text-sm text-amber-700 dark:text-amber-300">
                 You are viewing in spectator mode: only match administrators can
                 score.
@@ -680,9 +787,11 @@ export default function ScoringPage() {
               }
               setShowSelectBatsmen(true);
             }}
+            sunlightMode={sunlightMode}
           />
 
           <CurrentBowler
+            sunlightMode={sunlightMode}
             bowler={
               currentBowlerId
                 ? {
@@ -739,6 +848,8 @@ export default function ScoringPage() {
             currentBall={match.current_ball}
             lastBalls={lastBalls}
             disabled={!isScorer || isProcessing || match.status !== "live"}
+            sunlightMode={sunlightMode}
+            onToggleSunlightMode={toggleSunlightMode}
           />
 
           {match.status === "completed" &&
@@ -850,6 +961,8 @@ export default function ScoringPage() {
         open={showSelectBatsmen}
         onOpenChange={setShowSelectBatsmen}
         battingTeamPlayers={battingTeamPlayers}
+        bowlingTeamPlayerIds={bowlingTeamPlayerIds}
+        currentBowlerId={currentBowlerId}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         dismissedPlayerIds={dismissedPlayerIds}
@@ -879,6 +992,9 @@ export default function ScoringPage() {
         bowlingTeamPlayers={bowlingTeamPlayers}
         currentBowlerId={currentBowlerId}
         lastOverBowlerId={lastOverBowlerId}
+        strikerId={strikerId}
+        nonStrikerId={nonStrikerId}
+        battingTeamPlayerIds={battingTeamPlayerIds}
         currentBall={match.current_ball}
         reassignOverDeliveries={reassignOverDeliveries}
         onReassignOverDeliveriesChange={setReassignOverDeliveries}

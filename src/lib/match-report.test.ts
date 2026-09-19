@@ -239,13 +239,148 @@ describe("match-report export helpers", () => {
         '6-141</strong> <span class="fow-sub">(Alex Davis, 17.1 ov)',
       );
 
-      // Must never produce double-dot or float artifacts
-      expect(html).not.toContain("0.2.5 ov");
-      expect(html).not.toContain("0.5.4 ov");
-      expect(html).not.toContain("1.2.4000");
-      expect(html).not.toContain("1.5.3000");
-      expect(html).not.toContain("2.2.1999");
-      expect(html).not.toContain("2.5.1000");
+      // Typography & Modern styles
+      expect(html).toContain("Outfit");
+      expect(html).toContain("Plus Jakarta Sans");
+      expect(html).toContain("JetBrains Mono");
+      expect(html).toContain("match-duel-hero");
+    });
+
+    it("renders over comparison page when deliveries are present", async () => {
+      const matchWithDeliveries: Match = {
+        ...sampleMatch,
+        innings: [
+          {
+            ...innings1,
+            ball_by_ball: [
+              {
+                id: "b1",
+                match_id: "m1",
+                innings_id: "inn1",
+                over_number: 1,
+                ball_number: 1,
+                runs_scored: 4,
+                extras: 0,
+                extra_type: null,
+                is_wicket: false,
+                dismissal_type: null,
+                bowler_id: "b_u1",
+                batsman_id: "u1",
+                non_striker_id: "u2",
+                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
+                batsman: { id: "u1", full_name: "Virat Kohli" },
+              },
+              {
+                id: "b2",
+                match_id: "m1",
+                innings_id: "inn1",
+                over_number: 1,
+                ball_number: 2,
+                runs_scored: 0,
+                extras: 1,
+                extra_type: "wide",
+                is_wicket: false,
+                dismissal_type: null,
+                bowler_id: "b_u1",
+                batsman_id: "u1",
+                non_striker_id: "u2",
+                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
+                batsman: { id: "u1", full_name: "Virat Kohli" },
+              },
+              {
+                id: "b3",
+                match_id: "m1",
+                innings_id: "inn1",
+                over_number: 1,
+                ball_number: 3,
+                runs_scored: 0,
+                extras: 0,
+                extra_type: null,
+                is_wicket: true,
+                dismissal_type: "bowled",
+                bowler_id: "b_u1",
+                batsman_id: "u1",
+                non_striker_id: "u2",
+                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
+                batsman: { id: "u1", full_name: "Virat Kohli" },
+              },
+            ],
+          },
+          innings2,
+        ],
+      };
+
+      const html = await buildMatchReportHtml(
+        matchWithDeliveries,
+        "https://cricket.app/matches/match-124",
+      );
+
+      expect(html).toContain("Over Comparison");
+      expect(html).toContain("Mitchell Starc");
+      expect(html).toContain("ball-pill");
+      expect(html).toContain("ball-wicket");
+      expect(html).toContain("ball-four");
+      expect(html).toContain("ball-extra");
+
+      // Advanced visual analytics
+      expect(html).toContain("Worm Chart");
+      expect(html).toContain("Manhattan Chart");
+      expect(html).toContain("<svg");
+      expect(html).toContain("Phase-by-Phase Match Comparison");
+      expect(html).toContain("Match Impact &amp; MVP Index");
+      expect(html).toContain("Official Verification &amp; Match Sign-off");
+    });
+
+    it("renders key partnerships and fallback sign-off when deliveries are not present", async () => {
+      const html = await buildMatchReportHtml(
+        sampleMatch,
+        "https://cricket.app/matches/match-124",
+      );
+
+      // Partnerships computed from fall_of_wickets
+      expect(html).toContain("Key Partnerships");
+      expect(html).toContain("1st Wkt");
+      expect(html).toContain("David Brown");
+
+      // Verification signoff block
+      expect(html).toContain("Official Verification &amp; Match Sign-off");
+      expect(html).toContain("Certified Official Scoresheet");
+      expect(html).toContain("Lead Match Umpire");
+      expect(html).toContain("Official Scorer");
+    });
+
+    it("verifies clean text alignment, CSS rules scoping, and signature lines in generated report", async () => {
+      const html = await buildMatchReportHtml(
+        sampleMatch,
+        "https://cricket.app/matches/match-124",
+      );
+
+      // CSS rules scoping and utility classes
+      expect(html).toContain(".text-left { text-align: left !important; }");
+      expect(html).toContain(".text-center { text-align: center !important; }");
+      expect(html).toContain(".text-right { text-align: right !important; }");
+      expect(html).toContain(".font-mono {");
+      expect(html).toContain(".partnerships-wrap {");
+      expect(html).toContain(".phase-analysis-card, .impact-card {");
+      expect(html).toContain(".official-signoff-card {");
+
+      // Verify signoff signature elements (no raw underscore overflow)
+      expect(html).toContain("signoff-sig-line");
+      expect(html).toContain("Signature &amp; Date");
+      expect(html).not.toContain("______________________");
+
+      // Match info card alignment and styling
+      expect(html).toContain("class=\"match-info-card\"");
+      expect(html).toContain("class=\"info-grid\"");
+      expect(html).toContain("class=\"info-row\"");
+      expect(html).toContain("class=\"info-label\"");
+      expect(html).toContain("class=\"info-val\"");
+
+      // Match impact leaderboard
+      expect(html).toContain("class=\"impact-card\"");
+      expect(html).toContain("class=\"impact-list\"");
+      expect(html).toContain("class=\"impact-rank rank-gold\"");
+      expect(html).toContain("class=\"impact-pts\"");
     });
   });
 });

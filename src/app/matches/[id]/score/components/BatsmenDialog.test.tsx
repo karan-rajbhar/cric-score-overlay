@@ -131,4 +131,92 @@ describe("BatsmenDialog", () => {
     fireEvent.click(confirmButton);
     expect(handleConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it("disables Confirm button and filters or disables bowler when bowler or bowling player is selected", () => {
+    const bowlingTeamPlayerIds = new Set(["user-bowler-1"]);
+    const handleConfirm = vi.fn();
+
+    const { rerender } = render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={mockPlayers}
+        bowlingTeamPlayerIds={bowlingTeamPlayerIds}
+        currentBowlerId="user-1"
+        strikerId="user-1"
+        nonStrikerId="user-2"
+        onStrikerChange={vi.fn()}
+        onNonStrikerChange={vi.fn()}
+        onConfirm={handleConfirm}
+        isProcessing={false}
+        addPlayerTarget={null}
+        newPlayerName=""
+        onNewPlayerNameChange={vi.fn()}
+        onAddPlayer={vi.fn()}
+        onAddPlayerTargetChange={vi.fn()}
+      />,
+    );
+
+    // Confirm is disabled because striker is currentBowlerId
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+
+    // If striker is an opposing team player in bowlingTeamPlayerIds
+    rerender(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={mockPlayers}
+        bowlingTeamPlayerIds={bowlingTeamPlayerIds}
+        currentBowlerId={null}
+        strikerId="user-bowler-1"
+        nonStrikerId="user-2"
+        onStrikerChange={vi.fn()}
+        onNonStrikerChange={vi.fn()}
+        onConfirm={handleConfirm}
+        isProcessing={false}
+        addPlayerTarget={null}
+        newPlayerName=""
+        onNewPlayerNameChange={vi.fn()}
+        onAddPlayer={vi.fn()}
+        onAddPlayerTargetChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+  });
+
+  it("filters out opposing team players from selectable batting list when in bowlingTeamPlayerIds", () => {
+    const mixedPlayers: TeamPlayer[] = [
+      ...mockPlayers,
+      {
+        id: "tp-3",
+        team_id: "team-2",
+        user_id: "user-opp-3",
+        user: { id: "user-opp-3", full_name: "Opposing Bowler" },
+      },
+    ];
+
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={mixedPlayers}
+        bowlingTeamPlayerIds={new Set(["user-opp-3"])}
+        currentBowlerId={null}
+        strikerId={null}
+        nonStrikerId={null}
+        onStrikerChange={vi.fn()}
+        onNonStrikerChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+        addPlayerTarget={null}
+        newPlayerName=""
+        onNewPlayerNameChange={vi.fn()}
+        onAddPlayer={vi.fn()}
+        onAddPlayerTargetChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Opposing Bowler")).not.toBeInTheDocument();
+  });
 });

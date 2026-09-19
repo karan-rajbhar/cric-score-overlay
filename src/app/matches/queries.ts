@@ -366,7 +366,10 @@ export async function getBallByBall(matchId: string, inningsNumber?: number) {
       )
       .eq("match_id", matchId)
       .order("over_number", { ascending: true })
-      .order("ball_number", { ascending: true });
+      .order("ball_number", { ascending: true })
+      // Wides/no-balls reuse the legal ball's number — seq breaks the tie
+      // so a wide always sorts before the re-bowled delivery.
+      .order("seq", { ascending: true });
     if (inningsNumber) query = query.eq("innings.innings_number", inningsNumber);
     const { data, error } = await query;
     if (error) {
@@ -546,10 +549,24 @@ export async function getOverSummaries(matchId: string) {
     const supabase = await createServerClient();
     const { data, error } = await supabase
       .from("match_over_summaries")
-      .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
+      .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler, extras_total")
       .eq("match_id", matchId)
       .order("over_number");
     if (error) {
+      // Pre-migration DBs lack extras_total — retry without it; the chart
+      // falls back to extras_off_bat_and_bowler.
+      if (error.message.includes("extras_total")) {
+        const retry = await supabase
+          .from("match_over_summaries")
+          .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
+          .eq("match_id", matchId)
+          .order("over_number");
+        if (retry.error) {
+          console.error("Error fetching over summaries:", retry.error);
+          return { data: null, error: retry.error.message };
+        }
+        return { data: retry.data, error: null };
+      }
       console.error("Error fetching over summaries:", error);
       return { data: null, error: error.message };
     }

@@ -69,7 +69,7 @@ function BallChip({ label }: { label: string }) {
   let bg = "bg-slate-900 text-slate-100 border-slate-700/80";
   if (label === "W") {
     bg =
-      "bg-red-600 text-white border-red-400 font-black animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.9)]";
+      "bg-red-600 text-white border-red-400 font-black motion-reduce:animate-none animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.9)]";
   } else if (label === "4") {
     bg =
       "bg-sky-500 text-white border-sky-300 font-black shadow-[0_0_10px_rgba(14,165,233,0.85)]";
@@ -86,8 +86,21 @@ function BallChip({ label }: { label: string }) {
     bg = "bg-slate-950 text-slate-400 border-slate-800 font-medium";
   }
 
+  const ariaLabel =
+    label === "W"
+      ? "Wicket"
+      : label === "4"
+        ? "Four"
+        : label === "6"
+          ? "Six"
+          : label === "0" || label === "•"
+            ? "Dot ball"
+            : `${label} runs`;
+
   return (
     <span
+      role="img"
+      aria-label={ariaLabel}
       className={`skew-tile inline-flex h-6 min-w-[26px] items-center justify-center border px-1.5 font-score text-xs font-black tabular-nums shadow transition-transform ${bg}`}
     >
       <span className="skew-tile-content inline-block">
@@ -443,7 +456,11 @@ export function OverlayClient({
     setVolume: setAudioVolume,
     toggleSound,
   } = usePreferencesStore();
-  const [showSafeZone] = useState(false);
+  const [showSafeZone, setShowSafeZone] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("safe") === "true",
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -728,6 +745,8 @@ export function OverlayClient({
         setShowBroadcastDock((prev) => !prev);
       } else if (e.key === "t" || e.key === "T") {
         setShowTicker((prev) => !prev);
+      } else if (e.key === "g" || e.key === "G") {
+        setShowSafeZone((prev) => !prev);
       } else if (e.code === "Numpad1" || e.key === "1") {
         triggerManualSting("four");
       } else if (e.code === "Numpad2" || e.key === "2") {
@@ -1011,12 +1030,16 @@ export function OverlayClient({
 
       {/* 6. SAFE-ZONE GUIDE OVERLAY (CALIBRATION) */}
       {showSafeZone && (
-        <div className="pointer-events-none fixed inset-0 z-50">
+        <div
+          className="pointer-events-none fixed inset-0 z-50"
+          role="img"
+          aria-label="Broadcast safe-zone guides: action safe 90 percent, title safe 80 percent, 1920 by 1080 canvas"
+        >
           <div className="absolute inset-[5%] border border-dashed border-amber-400/50 p-2 font-mono text-[11px] text-amber-300">
-            Action Safe (90%)
+            Action Safe (90%) · 1920×1080
           </div>
           <div className="absolute inset-[10%] border border-dashed border-sky-400/50 p-2 font-mono text-[11px] text-sky-300">
-            Title Safe (80%)
+            Title Safe (80%) · keep score bug inside
           </div>
         </div>
       )}
@@ -1025,7 +1048,9 @@ export function OverlayClient({
       <div className="absolute right-5 top-5 flex items-center gap-2 rounded-md border border-white/10 bg-black/75 px-3 py-1.5 shadow-lg backdrop-blur-md">
         <span
           className={`h-2.5 w-2.5 rounded-full ${
-            isConnected ? "animate-pulse bg-emerald-400" : "bg-red-500"
+            isConnected
+              ? "motion-reduce:animate-none animate-pulse bg-emerald-400"
+              : "bg-red-500"
           }`}
         />
         <span className="font-score text-[11px] font-bold uppercase tracking-wider text-white">
@@ -1038,20 +1063,20 @@ export function OverlayClient({
         <span
           className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 font-score text-xs font-black uppercase tracking-widest text-white shadow-xl ${
             isLive
-              ? "animate-pulse bg-red-600"
+              ? "motion-reduce:animate-none animate-pulse bg-red-600"
               : isComplete
                 ? "bg-emerald-600"
                 : "bg-zinc-800"
           }`}
         >
           {isLive && (
-            <span className="h-2 w-2 animate-ping rounded-full bg-white" />
+            <span className="h-2 w-2 motion-reduce:animate-none animate-ping rounded-full bg-white" />
           )}
           {formatStatus(state.status)}
         </span>
 
         {isFreeHit && (
-          <span className="inline-flex animate-bounce items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 font-score text-xs font-black uppercase tracking-wider text-black shadow-xl">
+          <span className="inline-flex motion-reduce:animate-none animate-bounce items-center gap-1 rounded-md bg-amber-400 px-2.5 py-1 font-score text-xs font-black uppercase tracking-wider text-black shadow-xl">
             <Zap className="h-3.5 w-3.5 fill-black" />
             FREE HIT
           </span>
@@ -1140,6 +1165,23 @@ export function OverlayClient({
                 <span>{audioEnabled ? "SFX Audio Active" : "SFX Muted"}</span>
               </button>
             </div>
+
+            <button
+              onClick={() => setShowSafeZone((v) => !v)}
+              aria-pressed={showSafeZone}
+              className={`flex w-full items-center justify-center gap-1.5 rounded-xl border p-2.5 font-bold transition ${
+                showSafeZone
+                  ? "border-sky-500/50 bg-sky-600/30 text-sky-300"
+                  : "border-white/10 bg-white/5 text-white/60"
+              }`}
+              title="Toggle 1920×1080 safe-zone guides (G)"
+            >
+              <span>
+                {showSafeZone
+                  ? "Safe Guides ON (G) · 1920×1080"
+                  : "Safe Guides OFF (G)"}
+              </span>
+            </button>
 
             {/* Broadcast Theme Selector */}
             <div>

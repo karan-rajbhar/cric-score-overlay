@@ -7,7 +7,7 @@ import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { MapPin, CalendarDays, PlayCircle } from "lucide-react";
 import type { Team, Innings, Match } from "~/lib/match-types";
-import { formatStatus } from "~/lib/cricket";
+import { formatMatchResult, formatStatus } from "~/lib/cricket";
 
 interface MatchCardProps {
   match: Match;
@@ -105,9 +105,10 @@ export function MatchCard({
   return (
     <Link
       href={`/matches/${match.id}${contextQuery ? `?${contextQuery}` : ""}`}
-      className="group block"
+      className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      aria-label={`${match.team1.name} versus ${match.team2.name}, ${formatStatus(match.status)}`}
     >
-      <Card className="overflow-hidden rounded-2xl border-border/70 transition-all duration-200 group-hover:-translate-y-1 group-hover:border-emerald-500/40 group-hover:shadow-md">
+      <Card className="card-data overflow-hidden transition-colors duration-150 group-hover:border-primary/40 group-hover:shadow-md">
         <CardContent className="p-0">
           {/* Meta strip */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-2.5">
@@ -131,7 +132,7 @@ export function MatchCard({
           <div className="border-t border-border/80 px-4 py-2.5">
             {match.result_description ? (
               <p className="truncate text-sm font-semibold text-primary">
-                {match.result_description}
+                {formatMatchResult(match)}
               </p>
             ) : (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

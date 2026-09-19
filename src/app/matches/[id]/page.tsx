@@ -10,14 +10,18 @@ import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
 import { MatchBalls } from "~/components/matches/match-balls";
-import { MatchManhattan } from "~/components/matches/match-manhattan";
 import { MatchPartnerships } from "~/components/matches/match-partnerships";
 import { MatchInfo } from "~/components/matches/match-info";
 import {
   useMatchDetailQuery,
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
-import { formatDecimalOvers, formatStatus } from "~/lib/cricket";
+import {
+  formatStatus,
+  inningsBalls,
+  oversFromBalls,
+  formatMatchResult,
+} from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { supabase } from "~/lib/supabase";
@@ -495,7 +499,7 @@ function MatchDetailsPageContent() {
                   <p className="score-display tabular mt-0.5 text-3xl font-semibold leading-none">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
                     <span className="ml-2 font-score text-base font-medium text-muted-foreground">
-                      ({formatDecimalOvers(team1Innings.total_overs)})
+                      ({oversFromBalls(inningsBalls(team1Innings))} ov)
                     </span>
                   </p>
                 ) : (
@@ -533,7 +537,7 @@ function MatchDetailsPageContent() {
                   <p className="score-display tabular mt-0.5 text-3xl font-semibold leading-none">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
                     <span className="ml-2 font-score text-base font-medium text-muted-foreground">
-                      ({formatDecimalOvers(team2Innings.total_overs)})
+                      ({oversFromBalls(inningsBalls(team2Innings))} ov)
                     </span>
                   </p>
                 ) : (
@@ -564,7 +568,7 @@ function MatchDetailsPageContent() {
                   <p className="score-display tabular text-lg font-bold leading-none">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
                     <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
-                      ({formatDecimalOvers(team1Innings.total_overs)})
+                      ({oversFromBalls(inningsBalls(team1Innings))} ov)
                     </span>
                   </p>
                 ) : (
@@ -592,7 +596,7 @@ function MatchDetailsPageContent() {
                   <p className="score-display tabular text-lg font-bold leading-none">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
                     <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
-                      ({formatDecimalOvers(team2Innings.total_overs)})
+                      ({oversFromBalls(inningsBalls(team2Innings))} ov)
                     </span>
                   </p>
                 ) : (
@@ -607,7 +611,7 @@ function MatchDetailsPageContent() {
           {/* Result */}
           {match.status === "completed" && match.result_description && (
             <p className="mt-5 text-center text-base font-medium text-primary">
-              {match.result_description}
+              {formatMatchResult(match)}
             </p>
           )}
 
@@ -671,18 +675,18 @@ function MatchDetailsPageContent() {
               Summary
             </TabsTrigger>
             <TabsTrigger
-              value="superstars"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm font-semibold"
-            >
-              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
-              <span>Super Stars</span>
-            </TabsTrigger>
-            <TabsTrigger
               value="scorecard"
               className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Scorecard
+            </TabsTrigger>
+            <TabsTrigger
+              value="superstars"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+            >
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Super Stars</span>
             </TabsTrigger>
             <TabsTrigger
               value="stats"
@@ -719,18 +723,17 @@ function MatchDetailsPageContent() {
             <MatchSummary match={match} />
           </TabsContent>
 
-          <TabsContent value="superstars">
-            <MatchSuperstars match={match} />
-          </TabsContent>
-
           <TabsContent value="scorecard">
             <MatchScorecard match={match} />
           </TabsContent>
 
+          <TabsContent value="superstars">
+            <MatchSuperstars match={match} />
+          </TabsContent>
+
           <TabsContent value="stats" className="space-y-6">
-            <MatchManhattan match={match} />
-            <MatchPartnerships match={match} />
             <MatchStats match={match} />
+            <MatchPartnerships match={match} />
           </TabsContent>
 
           <TabsContent value="balls">

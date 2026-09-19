@@ -9,9 +9,14 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
     isLoading: false,
     error: null,
   }),
+  useOverSummariesQuery: () => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  }),
 }));
 
-describe("MatchStats Tab Ordering", () => {
+describe("MatchStats stacked layout", () => {
   const dummyMatch: Match = {
     id: "m-1",
     title: "Hawks vs Eagles",
@@ -29,20 +34,26 @@ describe("MatchStats Tab Ordering", () => {
     innings: [],
   };
 
-  it("renders Scoring Zones (Wagon Wheel) as the first and default tab", () => {
-    render(<MatchStats match={dummyMatch} />);
+  it("renders wagon wheel first, then worm, manhattan and breakdown one after another", () => {
+    const { container } = render(<MatchStats match={dummyMatch} />);
 
-    // Get all tab triggers
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs.length).toBeGreaterThanOrEqual(3);
+    // No inner tabs anymore — everything stacked
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
 
-    // First tab should be Scoring Zones
-    expect(tabs[0]).toHaveTextContent(/scoring zones|zones/i);
-    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
-
-    // Wagon Wheel component should be visible in the default tab
+    // Wagon wheel on top
     expect(
       screen.getByText(/360° circular wagon wheel/i),
     ).toBeInTheDocument();
+
+    // Sections follow in order: worm → manhattan → breakdown
+    const text = container.textContent ?? "";
+    const wagonIdx = text.indexOf("360");
+    const wormIdx = text.indexOf("Worm Chart");
+    const manhattanIdx = text.indexOf("Manhattan");
+    const breakdownIdx = text.indexOf("Delivery Breakdown");
+    expect(wagonIdx).toBeGreaterThanOrEqual(0);
+    expect(wormIdx).toBeGreaterThan(wagonIdx);
+    expect(manhattanIdx).toBeGreaterThan(wormIdx);
+    expect(breakdownIdx).toBeGreaterThan(manhattanIdx);
   });
 });

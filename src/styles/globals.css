@@ -79,70 +79,70 @@
   }
 
   .dark {
-    /* Dark theme - broadcast booth neutrals with calibrated WCAG 2.1 AA contrast */
-    --background: 220 25% 7%;
-    --foreground: 210 20% 98%;
-    --card: 220 22% 10%;
-    --card-foreground: 210 20% 98%;
-    --popover: 220 20% 12%;
-    --popover-foreground: 210 20% 98%;
+    /* Dark theme - Floodlit Nocturnal Stadium & Architectural Precision */
+    --background: 160 14% 6%;
+    --foreground: 150 10% 98%;
+    --card: 160 10% 9%;
+    --card-foreground: 150 10% 98%;
+    --popover: 160 10% 12%;
+    --popover-foreground: 150 10% 98%;
 
     /* Brand Pitch Emerald (Vibrant on Dark) */
-    --primary: 152 62% 42%;
+    --primary: 152 64% 45%;
     --primary-foreground: 152 72% 8%;
 
     /* Secondary & Muted Surfaces */
-    --secondary: 220 18% 15%;
-    --secondary-foreground: 215 16% 85%;
-    --muted: 220 18% 15%;
-    --muted-foreground: 215 14% 62%;
-    --accent: 220 18% 18%;
-    --accent-foreground: 210 20% 98%;
+    --secondary: 160 8% 14%;
+    --secondary-foreground: 150 8% 88%;
+    --muted: 160 8% 14%;
+    --muted-foreground: 150 6% 64%;
+    --accent: 160 10% 16%;
+    --accent-foreground: 150 10% 98%;
 
     /* Status Colors */
-    --destructive: 354 84% 54%;
+    --destructive: 354 84% 56%;
     --destructive-foreground: 0 0% 100%;
-    --ruby: 354 84% 54%;
+    --ruby: 354 84% 56%;
     --ruby-foreground: 0 0% 100%;
     --gold: 40 94% 56%;
     --gold-foreground: 40 95% 10%;
-    --sky: 200 85% 55%;
+    --sky: 200 85% 58%;
     --sky-foreground: 200 95% 10%;
-    --violet: 262 83% 66%;
+    --violet: 262 83% 68%;
     --violet-foreground: 0 0% 100%;
-    --magenta: 330 81% 66%;
+    --magenta: 330 81% 68%;
     --magenta-foreground: 0 0% 100%;
 
     /* Borders & Rings */
-    --border: 220 16% 18%;
-    --input: 220 16% 22%;
-    --ring: 152 62% 42%;
+    --border: 160 8% 18%;
+    --input: 160 8% 20%;
+    --ring: 152 64% 45%;
 
     /* Surfaces */
-    --surface-base: 220 25% 7%;
-    --surface-card: 220 22% 10%;
-    --surface-elevated: 220 20% 14%;
-    --surface-hover: 220 18% 18%;
+    --surface-base: 160 14% 6%;
+    --surface-card: 160 10% 9%;
+    --surface-elevated: 160 10% 12%;
+    --surface-hover: 160 10% 16%;
 
     /* Sidebar Tokens */
-    --sidebar-background: 220 24% 9%;
-    --sidebar-foreground: 210 20% 98%;
-    --sidebar-border: 220 16% 16%;
-    --sidebar-active: 152 60% 16%;
-    --sidebar-active-foreground: 152 60% 70%;
+    --sidebar-background: 160 12% 8%;
+    --sidebar-foreground: 150 10% 98%;
+    --sidebar-border: 160 8% 16%;
+    --sidebar-active: 152 50% 14%;
+    --sidebar-active-foreground: 152 60% 75%;
 
     /* Chart colors */
-    --chart-1: 152 62% 46%;
-    --chart-2: 200 85% 55%;
+    --chart-1: 152 64% 46%;
+    --chart-2: 200 85% 58%;
     --chart-3: 40 94% 56%;
-    --chart-4: 354 84% 60%;
-    --chart-5: 270 75% 65%;
+    --chart-4: 354 84% 62%;
+    --chart-5: 270 75% 68%;
 
     /* Legacy compatibility aliases */
-    --cricket-primary: 152 62% 42%;
-    --cricket-secondary: 152 54% 30%;
-    --cricket-accent: 354 84% 54%;
-    --cricket-neutral: 220 18% 15%;
+    --cricket-primary: 152 64% 45%;
+    --cricket-secondary: 152 54% 32%;
+    --cricket-accent: 354 84% 56%;
+    --cricket-neutral: 160 8% 14%;
   }
 }
 
@@ -259,13 +259,23 @@
     @apply border-b-0;
   }
 
-  /* Section heading with divider rule */
+  /* Section heading with divider rule — Barlow Condensed carries score identity */
   .section-heading {
     @apply flex items-center gap-3 text-lg font-bold tracking-tight text-foreground;
+    font-family: var(--font-score);
+    letter-spacing: 0.02em;
   }
   .section-heading::after {
     content: "";
     @apply h-px flex-1 bg-border/60;
+  }
+
+  /* Condensed display heading for page titles and figures */
+  .score-heading {
+    font-family: var(--font-score);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
   }
 
   /* Status pills */
@@ -273,21 +283,43 @@
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium;
   }
   .status-live {
-    @apply status-pill border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400;
+    @apply status-pill border-red-500/30 bg-red-500/10 text-red-600 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300 dark:shadow-[inset_0_1px_0_0_rgba(248,113,113,0.2)];
   }
   .status-completed {
-    @apply status-pill border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400;
+    @apply status-pill border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)];
   }
   .status-upcoming {
-    @apply status-pill border-border bg-muted/60 text-muted-foreground;
+    @apply status-pill border-border bg-muted/60 text-muted-foreground dark:border-[#29332e] dark:bg-[#151d18] dark:text-muted-foreground;
   }
 
-  /* Tactile interactive button states */
+  /* Tactile interactive button states — no lift, shadow only */
   .interactive-button {
-    @apply transition-all duration-150 active:scale-[0.98];
+    @apply transition-colors duration-150 active:scale-[0.98];
   }
 
-  /* Chromatic Joy: Sunlit Meadow Grid - subtle daylight texture inspired by the canvas artwork */
+  /* Card hierarchy: hero (feature), data (score), action (context link) */
+  .card-hero {
+    @apply rounded-3xl border border-border/70 bg-card shadow-sm;
+  }
+  .card-data {
+    @apply rounded-xl border border-border/70 bg-card shadow-none;
+  }
+  .card-action {
+    @apply rounded-xl border border-border/80 bg-card transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  /* Nocturnal stadium card specular rim lighting & micro-elevation */
+  .dark .card-hero,
+  .dark .card-data,
+  .dark .card-action,
+  .dark [data-slot="card"],
+  .dark .data-table-container {
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+      0 6px 24px -4px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Chromatic Joy: Sunlit Meadow Grid - daylight grass grid in light mode, nocturnal floodlit turf in dark mode */
   .sunlit-canvas {
     background-color: hsl(var(--background));
     background-image:
@@ -300,14 +332,137 @@
       48px 48px;
   }
 
+  .dark .sunlit-canvas {
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(hsla(152, 50%, 40%, 0.05) 1px, transparent 0),
+      linear-gradient(to right, hsla(160, 20%, 25%, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsla(160, 20%, 25%, 0.05) 1px, transparent 1px);
+    background-size:
+      24px 24px,
+      48px 48px,
+      48px 48px;
+  }
+
   /* Cheerful Pill Tag */
   .pill-bubble {
     @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm;
   }
 
-  /* Radiant Text Gradient */
+  /* Radiant Text Gradient — reserve for live moments only (6/W/milestone) */
   .gradient-joy-text {
     @apply bg-gradient-to-r from-emerald-600 via-amber-500 to-rose-500 bg-clip-text text-transparent dark:from-emerald-400 dark:via-amber-300 dark:to-rose-400;
+  }
+
+  /* High-contrast sunlight mode for outdoor scorers in direct sunlight */
+  .sunlight-mode,
+  [data-sunlight="true"],
+  .dark .sunlight-mode,
+  .dark [data-sunlight="true"] {
+    --background: 0 0% 100% !important;
+    --foreground: 0 0% 0% !important;
+    --card: 0 0% 100% !important;
+    --card-foreground: 0 0% 0% !important;
+    --popover: 0 0% 100% !important;
+    --popover-foreground: 0 0% 0% !important;
+    --muted: 0 0% 92% !important;
+    --muted-foreground: 0 0% 12% !important;
+    --border: 0 0% 0% !important;
+    --primary: 0 0% 0% !important;
+    --primary-foreground: 0 0% 100% !important;
+    --secondary: 0 0% 90% !important;
+    --secondary-foreground: 0 0% 0% !important;
+    --destructive: 0 84% 42% !important;
+    --destructive-foreground: 0 0% 100% !important;
+    color-scheme: light !important;
+  }
+
+  .sunlight-mode,
+  [data-sunlight="true"],
+  .dark .sunlight-mode,
+  .dark [data-sunlight="true"] {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .sunlight-mode .score-display,
+  .sunlight-mode .score-heading,
+  [data-sunlight="true"] .score-display,
+  [data-sunlight="true"] .score-heading,
+  .dark .sunlight-mode .score-display,
+  .dark .sunlight-mode .score-heading,
+  .dark [data-sunlight="true"] .score-display,
+  .dark [data-sunlight="true"] .score-heading {
+    font-weight: 900 !important;
+    color: #000000 !important;
+  }
+
+  .sunlight-mode .text-muted-foreground,
+  [data-sunlight="true"] .text-muted-foreground,
+  .dark .sunlight-mode .text-muted-foreground,
+  .dark [data-sunlight="true"] .text-muted-foreground {
+    color: #1a1a1a !important;
+    font-weight: 600 !important;
+  }
+
+  .sunlight-mode .touch-target,
+  [data-sunlight="true"] .touch-target,
+  .dark .sunlight-mode .touch-target,
+  .dark [data-sunlight="true"] .touch-target {
+    border-color: #000000 !important;
+  }
+
+  /* Reset any dark mode shadow washes in sunlight mode */
+  .dark .sunlight-mode .card-hero,
+  .dark .sunlight-mode .card-data,
+  .dark .sunlight-mode .card-action,
+  .dark [data-sunlight="true"] .card-hero,
+  .dark [data-sunlight="true"] .card-data,
+  .dark [data-sunlight="true"] .card-action,
+  .dark [data-sunlight="true"] [data-slot="card"] {
+    box-shadow: none !important;
+    border-color: #000000 !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Minimum 44px touch targets for scoring controls */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Deferred heavy charts (manhattan / worm / wagon) */
+  .chart-defer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 280px;
+  }
+}
+
+/* Respect reduced motion: kill infinite broadcast loops, keep state changes instant */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-marquee,
+  .animate-shockwave,
+  .animate-sparkle,
+  .animate-lightning-flash,
+  .animate-cosmic-orbit,
+  .animate-flame-flicker,
+  .animate-pulse-glow,
+  .animate-light-sweep,
+  .animate-score-pulse,
+  .animate-stinger-entry,
+  .animate-sub-bar-flip,
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
   }
 }
 

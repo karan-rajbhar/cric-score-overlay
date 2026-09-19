@@ -23,6 +23,8 @@ interface BatsmenDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   battingTeamPlayers: TeamPlayer[];
+  bowlingTeamPlayerIds?: Set<string>;
+  currentBowlerId?: string | null;
   strikerId: string | null;
   nonStrikerId: string | null;
   dismissedPlayerIds?: Set<string>;
@@ -41,6 +43,8 @@ export function BatsmenDialog({
   open,
   onOpenChange,
   battingTeamPlayers,
+  bowlingTeamPlayerIds,
+  currentBowlerId,
   strikerId,
   nonStrikerId,
   dismissedPlayerIds,
@@ -57,9 +61,23 @@ export function BatsmenDialog({
   const uniquePlayers = Array.from(
     new Map(
       battingTeamPlayers
-        .filter((p) => p && p.user_id)
+        .filter(
+          (p) =>
+            p &&
+            p.user_id &&
+            (!bowlingTeamPlayerIds || !bowlingTeamPlayerIds.has(p.user_id)),
+        )
         .map((p) => [p.user_id, p]),
     ).values(),
+  );
+
+  const isStrikerOpponent = Boolean(
+    (currentBowlerId && strikerId === currentBowlerId) ||
+      (strikerId && bowlingTeamPlayerIds?.has(strikerId)),
+  );
+  const isNonStrikerOpponent = Boolean(
+    (currentBowlerId && nonStrikerId === currentBowlerId) ||
+      (nonStrikerId && bowlingTeamPlayerIds?.has(nonStrikerId)),
   );
 
   return (
@@ -88,15 +106,20 @@ export function BatsmenDialog({
                   uniquePlayers.map((player) => {
                     const isNonStriker = player.user_id === nonStrikerId;
                     const isOut = dismissedPlayerIds?.has(player.user_id);
+                    const isOpponent = Boolean(
+                      (currentBowlerId && player.user_id === currentBowlerId) ||
+                        bowlingTeamPlayerIds?.has(player.user_id),
+                    );
                     return (
                       <SelectItem
                         key={player.user_id}
                         value={player.user_id}
-                        disabled={isNonStriker || isOut}
+                        disabled={isNonStriker || isOut || isOpponent}
                       >
                         {player.user?.full_name ?? "Unknown"}
                         {isNonStriker ? " (Non-Striker)" : ""}
                         {isOut ? " (Out)" : ""}
+                        {isOpponent ? " (Opposing Team / Bowling)" : ""}
                       </SelectItem>
                     );
                   })
@@ -122,15 +145,20 @@ export function BatsmenDialog({
                   uniquePlayers.map((player) => {
                     const isStriker = player.user_id === strikerId;
                     const isOut = dismissedPlayerIds?.has(player.user_id);
+                    const isOpponent = Boolean(
+                      (currentBowlerId && player.user_id === currentBowlerId) ||
+                        bowlingTeamPlayerIds?.has(player.user_id),
+                    );
                     return (
                       <SelectItem
                         key={player.user_id}
                         value={player.user_id}
-                        disabled={isStriker || isOut}
+                        disabled={isStriker || isOut || isOpponent}
                       >
                         {player.user?.full_name ?? "Unknown"}
                         {isStriker ? " (Striker)" : ""}
                         {isOut ? " (Out)" : ""}
+                        {isOpponent ? " (Opposing Team / Bowling)" : ""}
                       </SelectItem>
                     );
                   })
@@ -179,7 +207,14 @@ export function BatsmenDialog({
           <Button
             className="w-full"
             onClick={onConfirm}
-            disabled={!strikerId || !nonStrikerId || isProcessing}
+            disabled={
+              !strikerId ||
+              !nonStrikerId ||
+              strikerId === nonStrikerId ||
+              isStrikerOpponent ||
+              isNonStrikerOpponent ||
+              isProcessing
+            }
           >
             Confirm
           </Button>

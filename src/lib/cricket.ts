@@ -103,7 +103,8 @@ export function deliveryLabel(b: {
     case "wide":
       return `wd${(b.extras ?? 0) > 1 ? `+${(b.extras ?? 0) - 1}` : ""}`;
     case "no_ball":
-      return `nb${(b.extras ?? 0) > 1 ? `+${(b.extras ?? 0) - 1}` : ""}`;
+      // Scorer payload: runs_scored = bat runs, extras = 1 (the no-ball).
+      return `nb${(b.runs_scored ?? 0) > 0 ? `+${b.runs_scored}` : ""}`;
     case "bye":
       return `b${b.extras ?? 0}`;
     case "leg_bye":
@@ -357,7 +358,11 @@ export function topBowlers(
 /** "36/1 (6.0)" style score line for a team's innings. */
 export function scoreLine(innings: Innings | undefined): string {
   if (!innings) return "Yet to bat";
-  return `${innings.total_runs}/${innings.total_wickets} (${oversFromBalls(innings.total_balls ?? 0)})`;
+  const balls =
+    innings.total_balls != null && innings.total_balls > 0
+      ? innings.total_balls
+      : ballsFromOvers(innings.total_overs ?? 0);
+  return `${innings.total_runs}/${innings.total_wickets} (${oversFromBalls(balls)})`;
 }
 
 /** Resolve team name from match — replaces 6× duplicated ternaries. */
@@ -549,8 +554,10 @@ export function rankPlayersByImpact(match: Match): PlayerImpactScore[] {
 
       bowlPts += (bowl.maidens ?? 0) * 12;
 
-      if (bowl.overs_bowled >= 2) {
-        const econ = bowl.runs_conceded / bowl.overs_bowled;
+      if (bowlerBalls(bowl) >= 12) {
+        // overs_bowled is cricket notation (3.5 = 3 ov + 5 balls = 23
+        // balls), never a true decimal — divide by balls, not by notation.
+        const econ = (bowl.runs_conceded ?? 0) / (bowlerBalls(bowl) / 6);
         if (econ < 5.0) bowlPts += 15;
         else if (econ < 6.5) bowlPts += 8;
         else if (econ > 10.0) bowlPts -= 8;
@@ -816,4 +823,74 @@ export function calculateSuperstars(match: Match): SuperstarTeam {
     byRole,
   };
 }
+
+export interface MatchResultContext {
+  result_description?: string | null;
+  status?: string | null;
+  winning_team_id?: string | null;
+  win_margin?: number | null;
+  win_margin_type?: string | null;
+  team1_id?: string;
+  team2_id?: string;
+  team1?: { id?: string; name: string; short_name?: string | null } | null;
+  team2?: { id?: string; name: string; short_name?: string | null } | null;
+  innings?: Array<{
+    team_id?: string;
+    total_runs?: number | null;
+    total_wickets?: number | null;
+    is_completed?: boolean | null;
+  }> | null;
+}
+
+/**
+ * Returns a human-friendly match result string ensuring the winning team name is explicitly present.
+ * Solves the issue where legacy or engine results only stored "Won by 9 wickets" without the winning team.
+ */
+export function formatMatchResult(match: MatchResultContext): string {
+  const desc = match.result_description?.trim();
+
+  if (!desc) {
+    if (match.status === "completed") return "Match completed";
+    return "";
+  }
+
+  // If desc already includes team name, or is a tie/abandoned, return as is
+  if (!/^won by\s+/i.test(desc)) {
+    return desc;
+  }
+
+  // Desc is "Won by ..." without a team name!
+  let winnerName: string | null = null;
+  const t1Id = match.team1?.id ?? match.team1_id;
+  const t2Id = match.team2?.id ?? match.team2_id;
+
+  if (match.winning_team_id) {
+    if (match.winning_team_id === t1Id) {
+      winnerName = match.team1?.name ?? null;
+    } else if (match.winning_team_id === t2Id) {
+      winnerName = match.team2?.name ?? null;
+    }
+  }
+
+  // If winner wasn't resolved by winning_team_id, deduce from innings
+  if (!winnerName && match.innings && match.innings.length >= 2) {
+    const inn1 = match.innings.find((i) => i.team_id === t1Id) ?? match.innings[0];
+    const inn2 = match.innings.find((i) => i.team_id === t2Id) ?? match.innings[1];
+    const r1 = inn1?.total_runs ?? 0;
+    const r2 = inn2?.total_runs ?? 0;
+    if (r2 > r1) {
+      winnerName = inn2?.team_id === t1Id ? match.team1?.name ?? null : match.team2?.name ?? null;
+    } else if (r1 > r2) {
+      winnerName = inn1?.team_id === t1Id ? match.team1?.name ?? null : match.team2?.name ?? null;
+    }
+  }
+
+  if (winnerName) {
+    const suffix = desc.charAt(0).toLowerCase() + desc.slice(1);
+    return `${winnerName} ${suffix}`;
+  }
+
+  return desc;
+}
+
 

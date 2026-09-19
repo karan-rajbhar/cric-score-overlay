@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { UserPlus } from "lucide-react";
+import { cn } from "~/lib/utils";
 import type { TeamPlayer } from "~/lib/match-types";
 
 interface BowlerDialogProps {
@@ -25,6 +26,9 @@ interface BowlerDialogProps {
   bowlingTeamPlayers: TeamPlayer[];
   currentBowlerId: string | null;
   lastOverBowlerId?: string | null;
+  strikerId?: string | null;
+  nonStrikerId?: string | null;
+  battingTeamPlayerIds?: Set<string>;
   currentBall?: number;
   reassignOverDeliveries?: boolean;
   onReassignOverDeliveriesChange?: (val: boolean) => void;
@@ -44,6 +48,9 @@ export function BowlerDialog({
   bowlingTeamPlayers,
   currentBowlerId,
   lastOverBowlerId,
+  strikerId,
+  nonStrikerId,
+  battingTeamPlayerIds,
   currentBall,
   reassignOverDeliveries = false,
   onReassignOverDeliveriesChange,
@@ -60,10 +67,22 @@ export function BowlerDialog({
     currentBowlerId && lastOverBowlerId && currentBowlerId === lastOverBowlerId,
   );
 
+  const isSelectedBowlerBatting = Boolean(
+    currentBowlerId &&
+      ((strikerId && currentBowlerId === strikerId) ||
+        (nonStrikerId && currentBowlerId === nonStrikerId) ||
+        battingTeamPlayerIds?.has(currentBowlerId)),
+  );
+
   const uniqueBowlingPlayers = Array.from(
     new Map(
       bowlingTeamPlayers
-        .filter((p) => p && p.user_id)
+        .filter(
+          (p) =>
+            p &&
+            p.user_id &&
+            (!battingTeamPlayerIds || !battingTeamPlayerIds.has(p.user_id)),
+        )
         .map((p) => [p.user_id, p]),
     ).values(),
   );
@@ -79,6 +98,47 @@ export function BowlerDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">
+          {uniqueBowlingPlayers.length > 0 && (
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Quick Select Bowler
+              </label>
+              <div
+                className="mt-1.5 flex flex-wrap gap-1.5"
+                role="group"
+                aria-label="Quick Select Bowler"
+              >
+                {uniqueBowlingPlayers.map((player) => {
+                  const isConsecutive = Boolean(
+                    lastOverBowlerId && player.user_id === lastOverBowlerId,
+                  );
+                  const isBatting = Boolean(
+                    (strikerId && player.user_id === strikerId) ||
+                      (nonStrikerId && player.user_id === nonStrikerId) ||
+                      battingTeamPlayerIds?.has(player.user_id),
+                  );
+                  const isSelected = player.user_id === currentBowlerId;
+                  return (
+                    <button
+                      key={player.user_id}
+                      type="button"
+                      disabled={isConsecutive || isBatting}
+                      onClick={() => onBowlerChange(player.user_id)}
+                      className={cn(
+                        "touch-target flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-bold transition-all active:scale-95 disabled:pointer-events-none disabled:opacity-40",
+                        isSelected
+                          ? "border-black bg-black font-black text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
+                          : "border-border/80 bg-background text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {player.user?.full_name ?? "Unknown"}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <Select value={currentBowlerId || ""} onValueChange={onBowlerChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select bowler" />
@@ -93,14 +153,20 @@ export function BowlerDialog({
                   const isConsecutive = Boolean(
                     lastOverBowlerId && player.user_id === lastOverBowlerId,
                   );
+                  const isBatting = Boolean(
+                    (strikerId && player.user_id === strikerId) ||
+                      (nonStrikerId && player.user_id === nonStrikerId) ||
+                      battingTeamPlayerIds?.has(player.user_id),
+                  );
                   return (
                     <SelectItem
                       key={player.user_id}
                       value={player.user_id}
-                      disabled={isConsecutive}
+                      disabled={isConsecutive || isBatting}
                     >
                       {player.user?.full_name ?? "Unknown"}
                       {isConsecutive ? " (Cannot bowl consecutive overs)" : ""}
+                      {isBatting ? " (Opposing Team / Batting)" : ""}
                     </SelectItem>
                   );
                 })
@@ -112,6 +178,11 @@ export function BowlerDialog({
             <p className="text-xs text-destructive">
               This bowler completed the previous over. Please select a different
               bowler.
+            </p>
+          )}
+          {isSelectedBowlerBatting && (
+            <p className="text-xs text-destructive">
+              This player is currently batting for the opposing team and cannot bowl.
             </p>
           )}
 
@@ -177,7 +248,10 @@ export function BowlerDialog({
             className="w-full"
             onClick={onConfirm}
             disabled={
-              !currentBowlerId || isSelectedBowlerConsecutive || isProcessing
+              !currentBowlerId ||
+              isSelectedBowlerConsecutive ||
+              isSelectedBowlerBatting ||
+              isProcessing
             }
           >
             Confirm Bowler

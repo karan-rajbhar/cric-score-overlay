@@ -6,6 +6,7 @@ export interface PreferencesStoreState {
   soundEffectsEnabled: boolean;
   soundVolume: number;
   hapticFeedback: boolean;
+  sunlightMode: boolean;
   defaultMatchFormat: MatchFormat;
   defaultOvers: number;
 
@@ -15,6 +16,8 @@ export interface PreferencesStoreState {
   setVolume: (volume: number) => void;
   toggleHaptic: () => void;
   setHapticEnabled: (enabled: boolean) => void;
+  toggleSunlightMode: () => void;
+  setSunlightMode: (enabled: boolean) => void;
   setDefaultFormat: (format: MatchFormat, overs?: number) => void;
   resetPreferences: () => void;
 }
@@ -23,6 +26,7 @@ const DEFAULT_PREFERENCES = {
   soundEffectsEnabled: true,
   soundVolume: 0.8,
   hapticFeedback: true,
+  sunlightMode: false,
   defaultMatchFormat: "T20" as MatchFormat,
   defaultOvers: 20,
 };
@@ -46,6 +50,11 @@ export const usePreferencesStore = create<PreferencesStoreState>()(
         set((state) => ({ hapticFeedback: !state.hapticFeedback })),
 
       setHapticEnabled: (hapticFeedback) => set({ hapticFeedback }),
+
+      toggleSunlightMode: () =>
+        set((state) => ({ sunlightMode: !state.sunlightMode })),
+
+      setSunlightMode: (sunlightMode) => set({ sunlightMode }),
 
       setDefaultFormat: (defaultMatchFormat, overs) =>
         set({

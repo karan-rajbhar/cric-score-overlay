@@ -130,19 +130,30 @@ export function ScoreCard({ match }: ScoreCardProps) {
                 </span>
                 {over.split(" ").map((ball, ballIndex) => {
                   let cls =
-                    "bg-secondary text-secondary-foreground border-border";
-                  if (ball === "W")
-                    cls = "bg-red-600 text-white border-red-600";
-                  else if (ball === "4")
+                    "bg-secondary text-secondary-foreground border-border rounded-full";
+                  let label = `${ball} runs`;
+                  if (ball === "W") {
                     cls =
-                      "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/40";
-                  else if (ball === "6")
+                      "bg-red-600 text-white border-red-700 rounded-md outline outline-1 outline-offset-1 outline-red-800 font-bold";
+                    label = "Wicket";
+                  } else if (ball === "4") {
                     cls =
-                      "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/40";
+                      "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-600 rounded-full ring-2 ring-sky-500/30 font-bold";
+                    label = "Four";
+                  } else if (ball === "6") {
+                    cls =
+                      "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-600 rounded-full ring-2 ring-offset-1 ring-violet-500/40 ring-offset-card font-bold";
+                    label = "Six";
+                  } else if (ball === "0") {
+                    label = "Dot ball";
+                  }
                   return (
                     <span
                       key={ballIndex}
-                      className={`tabular inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1.5 text-xs font-semibold ${cls}`}
+                      role="img"
+                      aria-label={`Over ${overIndex + 1} ball ${ballIndex + 1}: ${label}`}
+                      title={`Over ${overIndex + 1} ball ${ballIndex + 1}: ${label}`}
+                      className={`tabular inline-flex h-7 min-w-7 items-center justify-center border px-1.5 text-xs font-semibold ${cls}`}
                     >
                       {ball}
                     </span>

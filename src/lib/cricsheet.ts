@@ -132,6 +132,7 @@ export function toCricsheetDismissalKind(
     case "obstructing_the_field":
       return "obstructing the field";
     case "handled_ball":
+      return "handled the ball";
     case "hit_the_ball_twice":
     case "hit_twice":
       return "hit the ball twice";

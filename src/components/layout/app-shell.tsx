@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { NavigationBar } from "~/components/navigation-bar";
@@ -37,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <footer
-          className={`border-t border-border/70 bg-card/40 transition-all duration-300 ${
+          className={`border-t border-border/70 bg-card/40 transition-colors duration-150 ${
             collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
           }`}
         >
@@ -47,17 +48,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 © 2026 CricScore. Live cricket scoring, tournament management
                 and broadcast engine.
               </p>
-              <div className="flex flex-wrap justify-center gap-4 sm:gap-5">
-                <a href="#" className="transition-colors hover:text-foreground">
-                  Privacy
-                </a>
-                <a href="#" className="transition-colors hover:text-foreground">
-                  Terms
-                </a>
-                <a href="#" className="transition-colors hover:text-foreground">
-                  Support
-                </a>
-              </div>
+              <nav
+                aria-label="Footer"
+                className="flex flex-wrap justify-center gap-4 sm:gap-5"
+              >
+                <Link
+                  href="/matches"
+                  className="transition-colors hover:text-foreground"
+                >
+                  Matches
+                </Link>
+                <Link
+                  href="/tournaments"
+                  className="transition-colors hover:text-foreground"
+                >
+                  Tournaments
+                </Link>
+                <Link
+                  href="/search"
+                  className="transition-colors hover:text-foreground"
+                >
+                  Search
+                </Link>
+              </nav>
             </div>
           </div>
         </footer>

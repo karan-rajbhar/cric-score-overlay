@@ -31,9 +31,12 @@ export function BrandMark({ className }: { className?: string }) {
 
 export function BrandWordmark() {
   return (
-    <span className="flex items-center gap-1 font-score text-xl font-extrabold tracking-tight text-foreground">
+    <span className="flex items-center gap-1.5 font-score text-xl font-extrabold tracking-tight text-foreground">
       <span>CricScore</span>
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+      <span
+        className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+        aria-hidden="true"
+      />
     </span>
   );
 }

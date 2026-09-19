@@ -6,6 +6,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   same_bowler_next_over:
     "This bowler just bowled the previous over. Choose a different bowler.",
   player_not_in_batting_team: "Selected player is not on the batting team.",
+  bowler_is_current_batsman: "This player is currently batting and cannot bowl.",
+  bowler_in_batting_team: "Selected bowler belongs to the batting team.",
+  batsman_is_current_bowler: "This player is currently bowling and cannot bat.",
   player_already_out: "That batsman is already dismissed.",
   too_many_batsmen: "All 11 batsmen have already batted.",
   match_not_live: "The match is not live.",

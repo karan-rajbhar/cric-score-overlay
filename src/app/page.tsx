@@ -37,21 +37,17 @@ export default function HomePage() {
   return (
     <div className="space-y-10 pb-16 sm:space-y-16">
       {/* Sunlit Hero Section */}
-      <section className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-b from-card via-card/90 to-emerald-500/5 px-4 py-10 text-center shadow-sm sm:rounded-3xl sm:px-12 sm:py-24">
-        {/* Playful Ambient Background Circles */}
+      <section className="card-hero relative overflow-hidden bg-gradient-to-b from-card via-card/90 to-emerald-500/5 px-4 py-10 text-center sm:px-12 sm:py-24">
+        {/* Single ambient wash — one memorable light, not two */}
         <div
           className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl"
-          aria-hidden="true"
-        />
-        <div
-          className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl"
           aria-hidden="true"
         />
 
         <div className="relative mx-auto max-w-4xl">
           <h1 className="text-balance text-3xl font-black tracking-tight text-foreground sm:text-5xl sm:leading-[1.15] md:text-6xl">
             Score &amp; Stream Cricket with{" "}
-            <span className="gradient-joy-text">Broadcast Precision</span>
+            <span className="text-primary">Broadcast Precision</span>
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-sm text-muted-foreground sm:mt-6 sm:text-lg">
@@ -111,12 +107,12 @@ export default function HomePage() {
       {/* Platform Capabilities */}
       <section className="space-y-6">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-primary" />
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Core Toolkit
+          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+          <span className="text-xs font-semibold tracking-normal text-muted-foreground">
+            Core toolkit
           </span>
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
+        <h2 className="score-heading text-2xl font-bold tracking-tight text-foreground">
           Engineered for Grassroots &amp; Broadcast Leagues
         </h2>
 
@@ -124,11 +120,11 @@ export default function HomePage() {
           {FEATURES.map(({ icon: Icon, badge, title, description }) => (
             <Card
               key={title}
-              className="group rounded-2xl border-border/70 transition-all duration-200 hover:-translate-y-1 hover:border-emerald-500/30 hover:shadow-lg"
+              className="card-data group transition-colors duration-150 hover:border-primary/40 hover:shadow-md"
             >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/80 bg-background text-primary shadow-sm transition-transform duration-200 group-hover:scale-110">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/80 bg-background text-primary shadow-sm">
                     <Icon className="h-5 w-5" />
                   </span>
                   <Badge variant="outline" className="text-[10.5px]">
@@ -146,12 +142,12 @@ export default function HomePage() {
       </section>
 
       {/* Matchday Walkthrough */}
-      <section className="rounded-2xl border border-border/80 bg-card p-4 sm:rounded-3xl sm:p-10">
+      <section className="card-hero p-4 sm:p-10">
         <div className="max-w-2xl">
           <Badge variant="success" className="mb-3">
-            Quick Start Guide
+            Quick start guide
           </Badge>
-          <h2 className="text-xl font-bold tracking-tight text-foreground sm:text-3xl">
+          <h2 className="score-heading text-xl font-bold tracking-tight text-foreground sm:text-3xl">
             Live in Under 3 Minutes
           </h2>
           <p className="mt-2 text-xs text-muted-foreground sm:text-sm">

@@ -147,12 +147,29 @@ export function usePartnershipsQuery(matchId: string) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`rt_partnerships_${matchId}`)
+      // NOTE: the scorer broadcasts on `match_detail_${matchId}` (see
+      // useScoring broadcastScoreUpdate) — subscribe to that topic, not a
+      // private rt_* topic nobody sends to.
+      .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
         void queryClient.invalidateQueries({
           queryKey: ["matchPartnerships", matchId],
         });
       })
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "partnerships",
+          filter: `match_id=eq.${matchId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ["matchPartnerships", matchId],
+          });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -190,12 +207,27 @@ export function useOverSummariesQuery(matchId: string) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`rt_manhattan_${matchId}`)
+      // Same shared topic the scorer broadcasts on (see useScoring).
+      .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
         void queryClient.invalidateQueries({
           queryKey: ["overSummaries", matchId],
         });
       })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ball_by_ball",
+          filter: `match_id=eq.${matchId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ["overSummaries", matchId],
+          });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -236,12 +268,27 @@ export function useMatchBallLogQuery(
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`rt_ball_log_${matchId}`)
+      // Same shared topic the scorer broadcasts on (see useScoring).
+      .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
         void queryClient.invalidateQueries({
           queryKey: ["matchBallLog", matchId],
         });
       })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "ball_by_ball",
+          filter: `match_id=eq.${matchId}`,
+        },
+        () => {
+          void queryClient.invalidateQueries({
+            queryKey: ["matchBallLog", matchId],
+          });
+        },
+      )
       .subscribe();
 
     return () => {

@@ -13,6 +13,19 @@ describe("usePreferencesStore", () => {
     expect(state.hapticFeedback).toBe(true);
     expect(state.defaultMatchFormat).toBe("T20");
     expect(state.defaultOvers).toBe(20);
+    expect(state.sunlightMode).toBe(false);
+  });
+
+  it("toggles sunlight mode and sets sunlight mode explicitly", () => {
+    const { toggleSunlightMode, setSunlightMode } = usePreferencesStore.getState();
+    toggleSunlightMode();
+    expect(usePreferencesStore.getState().sunlightMode).toBe(true);
+
+    toggleSunlightMode();
+    expect(usePreferencesStore.getState().sunlightMode).toBe(false);
+
+    setSunlightMode(true);
+    expect(usePreferencesStore.getState().sunlightMode).toBe(true);
   });
 
   it("toggles sound and updates volume", () => {

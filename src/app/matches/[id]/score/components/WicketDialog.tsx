@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { AlertTriangle } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 export const ALL_DISMISSAL_TYPES = [
   {
@@ -175,11 +176,33 @@ export function WicketDialog({
           )}
 
           <div>
-            <label className="text-sm font-medium">
+            <label className="text-sm font-bold text-foreground">
               How was the batsman out?
             </label>
+            {/* Rapid 1-Tap Dismissal Chips for outdoor scoring */}
+            <div
+              className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4"
+              role="group"
+              aria-label="Dismissal options"
+            >
+              {availableDismissals.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => onDismissalTypeChange(d.value)}
+                  className={cn(
+                    "touch-target flex h-10 items-center justify-center rounded-xl border text-xs font-bold transition-all active:scale-95",
+                    dismissalType === d.value
+                      ? "border-black bg-black text-white shadow-sm font-black dark:border-white dark:bg-white dark:text-black"
+                      : "border-border/80 bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
             <Select value={dismissalType} onValueChange={onDismissalTypeChange}>
-              <SelectTrigger className="mt-1.5">
+              <SelectTrigger className="mt-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

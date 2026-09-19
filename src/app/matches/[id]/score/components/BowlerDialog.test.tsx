@@ -185,5 +185,74 @@ describe("BowlerDialog", () => {
     fireEvent.click(checkbox);
     expect(handleReassignChange).toHaveBeenCalledWith(true);
   });
+
+  it("disables Confirm Bowler when currentBowlerId is batting (striker or non-striker)", () => {
+    const handleConfirm = vi.fn();
+    const { rerender } = render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        currentBowlerId="user-kishor"
+        strikerId="user-kishor"
+        nonStrikerId="user-other"
+        onBowlerChange={vi.fn()}
+        onConfirm={handleConfirm}
+        isProcessing={false}
+      />,
+    );
+
+    const confirmBtn = screen.getByRole("button", { name: "Confirm Bowler" });
+    expect(confirmBtn).toBeDisabled();
+    expect(
+      screen.getByText(
+        /This player is currently batting for the opposing team and cannot bowl./i,
+      ),
+    ).toBeInTheDocument();
+
+    // Also check non-striker
+    rerender(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        currentBowlerId="user-kishor"
+        strikerId="user-other"
+        nonStrikerId="user-kishor"
+        onBowlerChange={vi.fn()}
+        onConfirm={handleConfirm}
+        isProcessing={false}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Confirm Bowler" })).toBeDisabled();
+  });
+
+  it("filters out batting team players from selectable bowling list when in battingTeamPlayerIds", () => {
+    const mixedPlayers: TeamPlayer[] = [
+      ...mockPlayers,
+      {
+        id: "tp-batter",
+        team_id: "team-1",
+        user_id: "user-batter-1",
+        user: { id: "user-batter-1", full_name: "Opposing Batsman" },
+      },
+    ];
+
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mixedPlayers}
+        battingTeamPlayerIds={new Set(["user-batter-1"])}
+        currentBowlerId={null}
+        onBowlerChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+
+    expect(screen.queryByText("Opposing Batsman")).not.toBeInTheDocument();
+  });
 });
 
