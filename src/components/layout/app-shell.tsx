@@ -1,56 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React from "react";
 import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { NavigationBar } from "~/components/navigation-bar";
+import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
-interface SidebarContextType {
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
-  toggleCollapsed: () => void;
-  mobileOpen: boolean;
-  setMobileOpen: (open: boolean) => void;
-  toggleMobile: () => void;
-}
-
-const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
-
-export function useSidebar() {
-  const context = useContext(SidebarContext);
-  if (!context) {
-    throw new Error("useSidebar must be used within an AppShell");
-  }
-  return context;
-}
+export const useSidebar = useSidebarStore;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [collapsed, setCollapsedState] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("cric-sidebar-collapsed");
-      if (saved === "true") {
-        requestAnimationFrame(() => setCollapsedState(true));
-      }
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  const setCollapsed = (val: boolean) => {
-    setCollapsedState(val);
-    try {
-      localStorage.setItem("cric-sidebar-collapsed", String(val));
-    } catch {
-      // Ignore
-    }
-  };
-
-  const toggleCollapsed = () => setCollapsed(!collapsed);
-  const toggleMobile = () => setMobileOpen(!mobileOpen);
+  const { collapsed } = useSidebarStore();
 
   // If this is an OBS live overlay, render purely without navigation shell
   const isOverlay = pathname?.startsWith("/overlay");
@@ -59,17 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarContext.Provider
-      value={{
-        collapsed,
-        setCollapsed,
-        toggleCollapsed,
-        mobileOpen,
-        setMobileOpen,
-        toggleMobile,
-      }}
-    >
-      <div className="sunlit-canvas flex min-h-screen flex-col bg-background text-foreground">
+    <div className="sunlit-canvas flex min-h-screen flex-col bg-background text-foreground">
         <NavigationBar />
 
         <div className="flex flex-1">
@@ -112,6 +62,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </footer>
       </div>
-    </SidebarContext.Provider>
   );
 }

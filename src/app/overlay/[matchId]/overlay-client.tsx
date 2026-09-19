@@ -46,6 +46,7 @@ import {
   playMilestoneFanfare,
   playFreeHitAlert,
 } from "~/components/overlay/sound-effects";
+import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 
 export type { LiveMatchState, LayoutMode, OverlayTheme };
 
@@ -435,8 +436,13 @@ export function OverlayClient({
   );
   const [sponsor, setSponsor] = useState(initialSponsor);
   const [sponsorsList, setSponsorsList] = useState<SponsorItem[]>([]);
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [audioVolume, setAudioVolume] = useState(0.5);
+  const {
+    soundEffectsEnabled: audioEnabled,
+    soundVolume: audioVolume,
+    setSoundEnabled: setAudioEnabled,
+    setVolume: setAudioVolume,
+    toggleSound,
+  } = usePreferencesStore();
   const [showSafeZone] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -882,7 +888,14 @@ export function OverlayClient({
       clearInterval(poll);
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [isRealUuid, matchId, refetch, triggerManualSting]);
+  }, [
+    isRealUuid,
+    matchId,
+    refetch,
+    setAudioEnabled,
+    setAudioVolume,
+    triggerManualSting,
+  ]);
 
   const copyObsUrl = () => {
     if (typeof window === "undefined") return;
@@ -1108,7 +1121,7 @@ export function OverlayClient({
               </button>
 
               <button
-                onClick={() => setAudioEnabled((v) => !v)}
+                onClick={toggleSound}
                 className={`flex items-center justify-center gap-1.5 rounded-xl border p-2.5 font-bold transition ${
                   audioEnabled
                     ? "border-amber-500/50 bg-amber-600/30 text-amber-300"

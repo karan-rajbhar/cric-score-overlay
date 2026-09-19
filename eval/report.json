@@ -1,17 +1,13 @@
 {
-  "timestamp": "2026-09-19T02:58:06Z",
-  "composite_health_score": 82.9,
+  "timestamp": "2026-09-19T03:09:09Z",
+  "composite_health_score": 83.0,
   "gates": {
     "typecheck": true,
     "eslint": true,
     "tests_pass": true
   },
-  "coverage_percentage": 14.37,
+  "coverage_percentage": 14.76,
   "improvement_targets": [
-    {
-      "file": "src/components/ProtectedRoute.tsx",
-      "coverage": 0
-    },
     {
       "file": "src/components/brand.tsx",
       "coverage": 0
@@ -26,6 +22,10 @@
     },
     {
       "file": "src/components/clubs/hall-of-fame-dialog.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/clubs/member-role-action.tsx",
       "coverage": 0
     }
   ]
