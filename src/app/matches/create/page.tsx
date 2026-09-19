@@ -32,6 +32,7 @@ import {
   useMatchWizardDataQuery,
   useTournamentRegistrationsQuery,
 } from "~/lib/hooks/useMatchQueries";
+import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { deriveShortName } from "~/lib/utils";
@@ -105,10 +106,13 @@ function CreateMatchWizard() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const { defaultMatchFormat, defaultOvers, setDefaultFormat } =
+    usePreferencesStore();
+
   const [formData, setFormData] = useState<FormData>({
     title: "",
-    matchFormat: "T20",
-    oversPerInnings: 20,
+    matchFormat: defaultMatchFormat,
+    oversPerInnings: defaultOvers,
     team1Id: "",
     team2Id: "",
     venue: "",
@@ -227,11 +231,15 @@ function CreateMatchWizard() {
   // Auto-set overs when format changes (derived in the change handler, not an effect)
   const handleFormatChange = (format: MatchFormat) => {
     updateField("matchFormat", format);
+    let overs = 20;
     if (format === "T20") {
+      overs = 20;
       updateField("oversPerInnings", 20);
     } else if (format === "ODI") {
+      overs = 50;
       updateField("oversPerInnings", 50);
     }
+    setDefaultFormat(format, overs);
   };
 
   const handleSubmit = async () => {

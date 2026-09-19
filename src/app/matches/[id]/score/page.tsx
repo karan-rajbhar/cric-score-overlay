@@ -51,6 +51,7 @@ const DlsCalculatorModal = dynamic(
 import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
+import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
 import type { ExtraType } from "../../types";
 import { toast } from "sonner";
 import {
@@ -112,34 +113,44 @@ export default function ScoringPage() {
     onNeedsBatsman: () => setShowSelectBatsmen(true),
   });
 
-  // UI state only — scoring state lives in the hook
-  const [tossDialogDismissed, setTossDialogDismissed] = useState(false);
-  const [showSelectBatsmen, setShowSelectBatsmen] = useState(false);
-  const [showSelectBowler, setShowSelectBowler] = useState(false);
-  const [showWicketDialog, setShowWicketDialog] = useState(false);
+  // UI state managed via Zustand store
+  const {
+    tossDialogDismissed,
+    setTossDialogDismissed,
+    showBatsmenDialog: showSelectBatsmen,
+    setShowSelectBatsmen,
+    showBowlerDialog: showSelectBowler,
+    setShowSelectBowler,
+    showWicketDialog,
+    setShowWicketDialog,
+    showAddPlayerDialog,
+    setShowAddPlayerDialog,
+    showPotmDialog,
+    setShowPotmDialog,
+    addPlayerTeam,
+    setAddPlayerTeam,
+    dismissalType,
+    setDismissalType,
+    fielderId,
+    setFielderId,
+    wicketExtraType,
+    setWicketExtraType,
+    dismissedPlayerId,
+    setDismissedPlayerId,
+    runsCompletedBeforeRunOut,
+    setRunsCompletedBeforeRunOut,
+    addPlayerTarget,
+    setAddPlayerTarget,
+    newPlayerName,
+    setNewPlayerName,
+  } = useScoringUIStore();
+
+  const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
+  const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<DeliveryToEdit | null>(
     null,
   );
-  const [showAddPlayerDialog, setShowAddPlayerDialog] = useState(false);
-  const [showPotmDialog, setShowPotmDialog] = useState(false);
-  const [addPlayerTeam, setAddPlayerTeam] = useState<"batting" | "bowling">(
-    "batting",
-  );
-  const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
-  const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
-  const [dismissalType, setDismissalType] = useState("bowled");
-  const [fielderId, setFielderId] = useState<string>("");
-  const [wicketExtraType, setWicketExtraType] = useState<string | null>(null);
-  const [dismissedPlayerId, setDismissedPlayerId] = useState<string | null>(
-    null,
-  );
-  const [runsCompletedBeforeRunOut, setRunsCompletedBeforeRunOut] =
-    useState<number>(0);
-  const [addPlayerTarget, setAddPlayerTarget] = useState<
-    "batting" | "bowling" | null
-  >(null);
-  const [newPlayerName, setNewPlayerName] = useState("");
 
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,

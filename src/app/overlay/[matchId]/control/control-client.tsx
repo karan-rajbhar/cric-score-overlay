@@ -18,6 +18,7 @@ import { EventStings } from "~/components/overlay/event-stings";
 import { LowerThirdStraps } from "~/components/overlay/lower-third-straps";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 import type { Match } from "~/lib/match-types";
+import { useBroadcastStore } from "~/lib/stores/useBroadcastStore";
 import {
   playFourFanfare,
   playSixExplosion,
@@ -91,9 +92,6 @@ export function ControlClient({
   const [state, setState] = useState<LiveMatchState | null>(initialState);
   const [match] = useState<Match | null>(initialMatch);
   const [copiedObsUrl, setCopiedObsUrl] = useState(false);
-  const [lastAction, setLastAction] = useState<string>(
-    "Broadcast studio ready",
-  );
 
   // Fallback to rich demo data when no match state is in database
   const activeState = state ?? DEMO_MATCH_STATE;
@@ -101,28 +99,82 @@ export function ControlClient({
 
   // Monitor preview scaling
   const monitorRef = useRef<HTMLDivElement>(null);
-  const [monitorScale, setMonitorScale] = useState(0.5);
-  const [monitorBg, setMonitorBg] = useState<"stadium" | "grid">("stadium");
+  // Active broadcast state managed via Zustand store
+  const {
+    selectedBroadcastView,
+    selectedCategory,
+    selectedTheme,
+    audioEnabled,
+    marginOffsetPx,
+    strapDurationSecs,
+    customStrapText,
+    activeSting,
+    activeStrap,
+    activeTab,
+    monitorScale,
+    monitorBg,
+    lastAction,
+    setBroadcastView: setSelectedBroadcastView,
+    setSelectedCategory,
+    setSelectedTheme,
+    setAudioEnabled,
+    setMarginOffsetPx,
+    setStrapDurationSecs,
+    setCustomStrapText,
+    setActiveTab,
+    setMonitorScale,
+    setMonitorBg,
+    setLastAction,
+    clearSting,
+    clearStrap,
+  } = useBroadcastStore();
 
-  // Active broadcast state
-  const [selectedBroadcastView, setSelectedBroadcastView] =
-    useState<BroadcastViewId>("1");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedTheme, setSelectedTheme] =
-    useState<OverlayTheme>("starsports");
-  const [audioEnabled, setAudioEnabled] = useState(true);
-  const [marginOffsetPx, setMarginOffsetPx] = useState<number>(0);
-  const [strapDurationSecs, setStrapDurationSecs] = useState<number>(8);
-  const [customStrapText, setCustomStrapText] = useState("");
-
-  // Live in-monitor stings and straps preview
-  const [activeSting, setActiveSting] = useState<ActiveEventSting | null>(null);
-  const [activeStrap, setActiveStrap] = useState<ActiveLowerThirdStrap | null>(
-    null,
+  const setActiveSting = useCallback(
+    (
+      updater:
+        | ActiveEventSting
+        | null
+        | ((curr: ActiveEventSting | null) => ActiveEventSting | null),
+    ) => {
+      if (typeof updater === "function") {
+        const next = updater(useBroadcastStore.getState().activeSting);
+        if (!next) clearSting();
+        else useBroadcastStore.getState().triggerSting(next);
+      } else if (!updater) {
+        clearSting();
+      } else {
+        useBroadcastStore.getState().triggerSting(updater);
+      }
+    },
+    [clearSting],
   );
 
-  // Active action tab
-  const [activeTab, setActiveTab] = useState<"inplay" | "settings">("inplay");
+  const setActiveStrap = useCallback(
+    (
+      updater:
+        | ActiveLowerThirdStrap
+        | null
+        | ((curr: ActiveLowerThirdStrap | null) => ActiveLowerThirdStrap | null),
+    ) => {
+      if (typeof updater === "function") {
+        const next = updater(useBroadcastStore.getState().activeStrap);
+        if (!next) clearStrap();
+        else
+          useBroadcastStore.getState().triggerStrap({
+            ...next,
+            strapType: next.type,
+          });
+      } else if (!updater) {
+        clearStrap();
+      } else {
+        useBroadcastStore.getState().triggerStrap({
+          ...updater,
+          strapType: updater.type,
+        });
+      }
+    },
+    [clearStrap],
+  );
 
   const isRealUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -146,7 +198,7 @@ export function ControlClient({
     const ro = new ResizeObserver(updateScale);
     ro.observe(monitorRef.current);
     return () => ro.disconnect();
-  }, []);
+  }, [setMonitorScale]);
 
   // Initialize Supabase Realtime Broadcast Channel
   useEffect(() => {
@@ -245,7 +297,7 @@ export function ControlClient({
       sendCommand({ type: "TRIGGER_STING", stingType });
       setLastAction(`Triggered: ${titles[stingType]}`);
     },
-    [activeState, audioEnabled, sendCommand],
+    [activeState, audioEnabled, sendCommand, setActiveSting, setLastAction],
   );
 
   // Trigger in-play lower-third straps
@@ -257,39 +309,42 @@ export function ControlClient({
       let badge = "";
 
       if (type === "batsman") {
-        badge = "BATTING INNINGS";
+        badge = "BATSMAN STATS";
         title = activeState.striker_name ?? "Striker";
         subtitle = `${activeState.striker_runs ?? 0} runs off ${activeState.striker_balls ?? 0} balls`;
-        const sr = activeState.striker_balls
-          ? (
-              (activeState.striker_runs! * 100) /
-              activeState.striker_balls
-            ).toFixed(1)
-          : "0.0";
-        detail = `Strike Rate: ${sr} · ${activeState.batting_team_name ?? "Batting"}`;
+        const sr =
+          activeState.striker_balls && activeState.striker_balls > 0
+            ? (
+                ((activeState.striker_runs ?? 0) / activeState.striker_balls) *
+                100
+              ).toFixed(1)
+            : "0.0";
+        detail = `Strike Rate: ${sr}`;
       } else if (type === "bowler") {
-        badge = "BOWLING SPELL";
+        badge = "BOWLER STATS";
         title = activeState.current_bowler_name ?? "Bowler";
-        subtitle = `${activeState.bowler_wickets ?? 0} wickets for ${activeState.bowler_runs ?? 0} runs`;
-        detail = `${oversText(activeState.bowler_balls)} overs bowled`;
+        subtitle = `${activeState.bowler_wickets ?? 0}/${activeState.bowler_runs ?? 0} (${activeState.bowler_balls ? Math.floor(activeState.bowler_balls / 6) + "." + (activeState.bowler_balls % 6) : "0.0"} ov)`;
+        const econ =
+          activeState.bowler_balls && activeState.bowler_balls > 0
+            ? (
+                ((activeState.bowler_runs ?? 0) / activeState.bowler_balls) *
+                6
+              ).toFixed(2)
+            : "0.00";
+        detail = `Economy: ${econ}`;
       } else if (type === "partnership") {
         badge = "CURRENT PARTNERSHIP";
-        title = `${activeState.striker_name ?? "Batter 1"} & ${activeState.non_striker_name ?? "Batter 2"}`;
-        subtitle = `${activeState.partnership_runs ?? 0} runs`;
-        detail = `from ${activeState.partnership_balls ?? 0} balls`;
+        title = `${activeState.partnership_runs ?? 0} RUNS`;
+        subtitle = `${activeState.striker_name ?? "Batsman 1"} & ${activeState.non_striker_name ?? "Batsman 2"}`;
+        detail = `${activeState.partnership_balls ?? 0} balls faced`;
       } else if (type === "target") {
-        badge = "CHASE EQUATION";
-        title = `Target: ${activeState.target_runs ?? "—"}`;
+        badge = "TARGET REQUIREMENT";
+        title = `TARGET: ${activeState.target_runs ?? 0}`;
         subtitle = `Need ${activeState.runs_needed ?? 0} runs off ${activeState.balls_remaining ?? 0} balls`;
-        detail = `Required Run Rate: ${activeState.required_run_rate ?? "—"}`;
-      } else if (type === "powerplay") {
-        badge = "POWERPLAY 1";
-        title = "Field Restrictions Active";
-        subtitle = "Max 2 fielders outside 30-yard ring";
-        detail = "Overs 1 - 6";
+        detail = `Req RR: ${activeState.required_run_rate ?? "0.00"}`;
       }
 
-      const strapId = `strap-${Date.now()}`;
+      const strapId = `strap-${type}-${Date.now()}`;
       const strap: ActiveLowerThirdStrap = {
         id: strapId,
         type,
@@ -308,7 +363,13 @@ export function ControlClient({
       sendCommand({ type: "SHOW_STRAP", strap });
       setLastAction(`Strap: ${badge}`);
     },
-    [activeState, sendCommand, strapDurationSecs],
+    [
+      activeState,
+      sendCommand,
+      setActiveStrap,
+      setLastAction,
+      strapDurationSecs,
+    ],
   );
 
   // Custom alert strap
@@ -331,7 +392,14 @@ export function ControlClient({
     sendCommand({ type: "SHOW_STRAP", strap });
     setLastAction(`Alert: "${customStrapText.trim()}"`);
     setCustomStrapText("");
-  }, [customStrapText, sendCommand, strapDurationSecs]);
+  }, [
+    customStrapText,
+    sendCommand,
+    setActiveStrap,
+    setCustomStrapText,
+    setLastAction,
+    strapDurationSecs,
+  ]);
 
   // Panic clear
   const handlePanicClear = () => {
@@ -630,7 +698,7 @@ export function ControlClient({
             <div className="flex items-center gap-2">
               <button
                 onClick={() =>
-                  setMonitorBg((b) => (b === "stadium" ? "grid" : "stadium"))
+                  setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
                 }
                 className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
               >

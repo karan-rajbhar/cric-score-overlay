@@ -2,9 +2,11 @@
  * Shared form and scoring types — single source for all match actions.
  * Extracted from the 679-line God file to satisfy SRP.
  */
+export type MatchFormat = "T20" | "ODI" | "Custom";
+
 export interface MatchFormData {
   title: string;
-  matchFormat: "T20" | "ODI" | "Custom";
+  matchFormat: MatchFormat;
   oversPerInnings: number;
   team1Id: string;
   team2Id: string;
