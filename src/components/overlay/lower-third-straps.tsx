@@ -41,18 +41,19 @@ export function LowerThirdStraps({
   });
 
   const strapId = strap?.id;
+  const isInfinite = strap?.durationMs === -1 || strap?.durationMs === 0;
   const duration =
     strap?.durationMs && strap.durationMs > 0 ? strap.durationMs : 8000;
 
   useEffect(() => {
-    if (!strapId || strap?.type === "none") return;
+    if (!strapId || strap?.type === "none" || isInfinite) return;
 
     const timer = setTimeout(() => {
       onDismissRef.current();
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [strapId, strap?.type, duration]);
+  }, [strapId, strap?.type, duration, isInfinite]);
 
   if (!strap || strap.type === "none") return null;
 

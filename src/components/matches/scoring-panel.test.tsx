@@ -105,6 +105,31 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     );
   });
 
+  it("supports awarding 5 penalty runs via Penalty extra button", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} />);
+
+    // Click Penalty (+5)
+    const penaltyButton = screen.getByRole("button", { name: /penalty/i });
+    fireEvent.click(penaltyButton);
+
+    // Click 0 runs / dot ball
+    const dotButton = screen.getByRole("button", { name: /0 runs/i });
+    fireEvent.click(dotButton);
+
+    // Skip wagon wheel to record
+    const skipButton = screen.getByRole("button", {
+      name: /skip.*without zone/i,
+    });
+    fireEvent.click(skipButton);
+
+    expect(onScore).toHaveBeenCalledWith(
+      0,
+      { type: "penalty", runs: 5 },
+      undefined,
+    );
+  });
+
   it("allows toggling auto wagon wheel prompt off for direct 1-tap scoring", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);

@@ -1,21 +1,13 @@
 {
-  "timestamp": "2026-09-19T08:02:47Z",
-  "composite_health_score": 84.9,
+  "timestamp": "2026-09-19T08:14:23Z",
+  "composite_health_score": 85.0,
   "gates": {
     "typecheck": true,
     "eslint": true,
     "tests_pass": true
   },
-  "coverage_percentage": 24.3,
+  "coverage_percentage": 24.8,
   "improvement_targets": [
-    {
-      "file": "src/components/brand.tsx",
-      "coverage": 0
-    },
-    {
-      "file": "src/components/navigation-bar.tsx",
-      "coverage": 0
-    },
     {
       "file": "src/components/clubs/club-membership-button.tsx",
       "coverage": 0
@@ -26,6 +18,14 @@
     },
     {
       "file": "src/components/clubs/member-role-action.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/clubs/season-dialog.tsx",
+      "coverage": 0
+    },
+    {
+      "file": "src/components/layout/app-shell.tsx",
       "coverage": 0
     }
   ]

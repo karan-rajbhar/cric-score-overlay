@@ -112,4 +112,57 @@ describe("LowerThirdStraps Component", () => {
       screen.getByText("Physio on ground tending to batsman"),
     ).toBeInTheDocument();
   });
+
+  it("handles configurable auto-dismiss timers and infinite duration", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+
+    // 5000ms duration
+    const strap5s: ActiveLowerThirdStrap = {
+      id: "s-5s",
+      type: "batsman",
+      title: "",
+      durationMs: 5000,
+    };
+
+    const { unmount } = render(
+      <LowerThirdStraps
+        strap={strap5s}
+        state={DEMO_MATCH_STATE}
+        layout="bottom"
+        onDismiss={onDismiss}
+      />,
+    );
+
+    vi.advanceTimersByTime(4999);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+
+    unmount();
+    onDismiss.mockClear();
+
+    // Infinite duration (-1)
+    const strapInfinite: ActiveLowerThirdStrap = {
+      id: "s-inf",
+      type: "batsman",
+      title: "",
+      durationMs: -1,
+    };
+
+    render(
+      <LowerThirdStraps
+        strap={strapInfinite}
+        state={DEMO_MATCH_STATE}
+        layout="bottom"
+        onDismiss={onDismiss}
+      />,
+    );
+
+    vi.advanceTimersByTime(60000);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
+  });
 });
