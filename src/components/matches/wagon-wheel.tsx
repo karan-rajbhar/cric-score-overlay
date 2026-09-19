@@ -24,7 +24,7 @@ interface WagonWheelProps {
   match: Match;
 }
 
-interface SectorInfo {
+export interface SectorInfo {
   id: string;
   label: string;
   angleStart: number; // in degrees
@@ -32,7 +32,7 @@ interface SectorInfo {
   midAngle: number;
 }
 
-const SECTORS: SectorInfo[] = [
+export const SECTORS: SectorInfo[] = [
   {
     id: "third_man",
     label: "Third Man",

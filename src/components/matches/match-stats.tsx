@@ -76,8 +76,15 @@ export function MatchStats({ match }: MatchStatsProps) {
         );
 
   return (
-    <Tabs defaultValue="run-comparison" className="w-full">
+    <Tabs defaultValue="scoring-zones" className="w-full">
       <TabsList className="mb-4 grid h-auto w-full grid-cols-3 gap-1 p-1">
+        <TabsTrigger
+          value="scoring-zones"
+          className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+        >
+          <span className="sm:hidden">Zones</span>
+          <span className="hidden sm:inline">Scoring Zones</span>
+        </TabsTrigger>
         <TabsTrigger
           value="run-comparison"
           className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
@@ -91,14 +98,121 @@ export function MatchStats({ match }: MatchStatsProps) {
         >
           Run Rate
         </TabsTrigger>
-        <TabsTrigger
-          value="scoring-zones"
-          className="justify-center px-1.5 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
-        >
-          <span className="sm:hidden">Zones</span>
-          <span className="hidden sm:inline">Scoring Zones</span>
-        </TabsTrigger>
       </TabsList>
+
+      {/* Scoring Zones & Wagon Wheel */}
+      <TabsContent value="scoring-zones" className="space-y-6">
+        <WagonWheel match={match} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {sortedInnings.map((innings) => {
+                const balls = ballsForInnings(innings.id);
+                const dots = balls.filter(
+                  (b) => b.runs_scored === 0 && !b.extras && !b.is_wicket,
+                ).length;
+                const ones = balls.filter((b) => b.runs_scored === 1).length;
+                const twos = balls.filter((b) => b.runs_scored === 2).length;
+                const threes = balls.filter((b) => b.runs_scored === 3).length;
+                const fours = balls.filter((b) => b.runs_scored === 4).length;
+                const sixes = balls.filter((b) => b.runs_scored === 6).length;
+                const extras = balls.filter((b) => b.extras > 0).length;
+
+                return (
+                  <Card key={innings.id}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">
+                        {teamName(match, innings.team_id)}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="rounded-lg bg-muted p-3 text-center">
+                          <p className="text-2xl font-bold">{dots}</p>
+                          <p className="text-xs text-muted-foreground">Dots</p>
+                        </div>
+                        <div className="rounded-lg bg-muted p-3 text-center">
+                          <p className="text-2xl font-bold">{ones}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Singles
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted p-3 text-center">
+                          <p className="text-2xl font-bold">{twos}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Doubles
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-muted p-3 text-center">
+                          <p className="text-2xl font-bold">{threes}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Threes
+                          </p>
+                        </div>
+                        <div className="rounded-lg bg-cricket-secondary/20 p-3 text-center">
+                          <p className="text-2xl font-bold text-cricket-secondary">
+                            {fours}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Fours</p>
+                        </div>
+                        <div className="rounded-lg bg-cricket-primary/20 p-3 text-center">
+                          <p className="text-2xl font-bold text-cricket-primary">
+                            {sixes}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Sixes</p>
+                        </div>
+                        <div className="col-span-2 rounded-lg bg-yellow-500/20 p-3 text-center">
+                          <p className="text-2xl font-bold text-yellow-500">
+                            {extras}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Extras
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Boundary percentage */}
+                      <div className="mt-4">
+                        <div className="mb-1 flex justify-between text-sm">
+                          <span>Boundary %</span>
+                          <span className="font-medium">
+                            {balls.length > 0
+                              ? (
+                                  ((fours * 4 + sixes * 6) /
+                                    innings.total_runs) *
+                                  100
+                                ).toFixed(1)
+                              : 0}
+                            %
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full bg-gradient-to-r from-cricket-secondary to-cricket-primary"
+                            style={{
+                              width: `${
+                                balls.length > 0
+                                  ? ((fours * 4 + sixes * 6) /
+                                      innings.total_runs) *
+                                    100
+                                  : 0
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
       {/* Over Comparison */}
       <TabsContent value="run-comparison">
@@ -304,120 +418,6 @@ export function MatchStats({ match }: MatchStatsProps) {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
-      </TabsContent>
-
-      {/* Scoring Zones & Wagon Wheel */}
-      <TabsContent value="scoring-zones" className="space-y-6">
-        <WagonWheel match={match} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Delivery Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              {sortedInnings.map((innings) => {
-                const balls = ballsForInnings(innings.id);
-                const dots = balls.filter(
-                  (b) => b.runs_scored === 0 && !b.extras && !b.is_wicket,
-                ).length;
-                const ones = balls.filter((b) => b.runs_scored === 1).length;
-                const twos = balls.filter((b) => b.runs_scored === 2).length;
-                const threes = balls.filter((b) => b.runs_scored === 3).length;
-                const fours = balls.filter((b) => b.runs_scored === 4).length;
-                const sixes = balls.filter((b) => b.runs_scored === 6).length;
-                const extras = balls.filter((b) => b.extras > 0).length;
-
-                return (
-                  <Card key={innings.id}>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">
-                        {teamName(match, innings.team_id)}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="rounded-lg bg-muted p-3 text-center">
-                          <p className="text-2xl font-bold">{dots}</p>
-                          <p className="text-xs text-muted-foreground">Dots</p>
-                        </div>
-                        <div className="rounded-lg bg-muted p-3 text-center">
-                          <p className="text-2xl font-bold">{ones}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Singles
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-muted p-3 text-center">
-                          <p className="text-2xl font-bold">{twos}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Doubles
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-muted p-3 text-center">
-                          <p className="text-2xl font-bold">{threes}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Threes
-                          </p>
-                        </div>
-                        <div className="rounded-lg bg-cricket-secondary/20 p-3 text-center">
-                          <p className="text-2xl font-bold text-cricket-secondary">
-                            {fours}
-                          </p>
-                          <p className="text-xs text-muted-foreground">Fours</p>
-                        </div>
-                        <div className="rounded-lg bg-cricket-primary/20 p-3 text-center">
-                          <p className="text-2xl font-bold text-cricket-primary">
-                            {sixes}
-                          </p>
-                          <p className="text-xs text-muted-foreground">Sixes</p>
-                        </div>
-                        <div className="col-span-2 rounded-lg bg-yellow-500/20 p-3 text-center">
-                          <p className="text-2xl font-bold text-yellow-500">
-                            {extras}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Extras
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Boundary percentage */}
-                      <div className="mt-4">
-                        <div className="mb-1 flex justify-between text-sm">
-                          <span>Boundary %</span>
-                          <span className="font-medium">
-                            {balls.length > 0
-                              ? (
-                                  ((fours * 4 + sixes * 6) /
-                                    innings.total_runs) *
-                                  100
-                                ).toFixed(1)
-                              : 0}
-                            %
-                          </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-gradient-to-r from-cricket-secondary to-cricket-primary"
-                            style={{
-                              width: `${
-                                balls.length > 0
-                                  ? ((fours * 4 + sixes * 6) /
-                                      innings.total_runs) *
-                                    100
-                                  : 0
-                              }%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
           </CardContent>
         </Card>
       </TabsContent>

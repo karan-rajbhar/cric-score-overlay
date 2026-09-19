@@ -3,8 +3,17 @@
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
-import { X, RotateCcw, AlertTriangle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "~/components/ui/dialog";
+import { X, RotateCcw, AlertTriangle, Compass } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { WagonWheelSelector } from "./wagon-wheel-selector";
 
 interface ScoringPanelProps {
   onScore: (
@@ -33,6 +42,15 @@ export function ScoringPanel({
 }: ScoringPanelProps) {
   const [selectedExtra, setSelectedExtra] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [wagonWheelPrompt, setWagonWheelPrompt] = useState<boolean>(true);
+  const [isWagonWheelModalOpen, setIsWagonWheelModalOpen] =
+    useState<boolean>(false);
+  const [pendingScore, setPendingScore] = useState<{
+    runs: number;
+    extra?: { type: string; runs: number };
+    rawRuns: number;
+    extraType: string | null;
+  } | null>(null);
 
   const runButtons = [0, 1, 2, 3, 4, 6];
 
@@ -56,34 +74,66 @@ export function ScoringPanel({
     },
   ];
 
-  const handleRunClick = (runs: number) => {
-    const zone = selectedZone ?? undefined;
-    if (selectedExtra) {
-      if (selectedExtra === "wide") {
-        // In cricket, all runs on a wide are extras (striker gets 0 bat runs).
-        // If wide + boundary: 1 penalty + 4 boundary = 5 wides total.
-        onScore(0, { type: "wide", runs: 1 + runs }, zone);
-      } else if (selectedExtra === "no_ball") {
-        // 1 penalty run charged to bowler, plus runs off the bat credited to striker.
-        onScore(runs, { type: "no_ball", runs: 1 }, zone);
-      } else if (selectedExtra === "bye" || selectedExtra === "leg_bye") {
-        // Byes / Leg-byes are extras, 0 runs off the bat.
-        onScore(0, { type: selectedExtra, runs: runs === 0 ? 1 : runs }, zone);
-      } else if (selectedExtra === "penalty") {
-        // MCC Law 41/42/28: 5 penalty runs awarded to batting side
-        onScore(0, { type: "penalty", runs: runs === 0 ? 5 : runs }, zone);
+  const calculateScorePayload = (runs: number, extraType: string | null) => {
+    let effectiveRuns = runs;
+    let extra: { type: string; runs: number } | undefined = undefined;
+
+    if (extraType) {
+      if (extraType === "wide") {
+        effectiveRuns = 0;
+        extra = { type: "wide", runs: 1 + runs };
+      } else if (extraType === "no_ball") {
+        effectiveRuns = runs;
+        extra = { type: "no_ball", runs: 1 };
+      } else if (extraType === "bye" || extraType === "leg_bye") {
+        effectiveRuns = 0;
+        extra = { type: extraType, runs: runs === 0 ? 1 : runs };
+      } else if (extraType === "penalty") {
+        effectiveRuns = 0;
+        extra = { type: "penalty", runs: runs === 0 ? 5 : runs };
       } else {
-        onScore(
-          runs === 0 ? 0 : runs,
-          { type: selectedExtra, runs: runs === 0 ? 1 : runs },
-          zone,
-        );
+        effectiveRuns = runs === 0 ? 0 : runs;
+        extra = { type: extraType, runs: runs === 0 ? 1 : runs };
       }
-      setSelectedExtra(null);
-    } else {
-      onScore(runs, undefined, zone);
     }
+
+    return { effectiveRuns, extra };
+  };
+
+  const handleRunClick = (runs: number) => {
+    const { effectiveRuns, extra } = calculateScorePayload(runs, selectedExtra);
+
+    if (wagonWheelPrompt) {
+      setPendingScore({
+        runs: effectiveRuns,
+        extra,
+        rawRuns: runs,
+        extraType: selectedExtra,
+      });
+      setIsWagonWheelModalOpen(true);
+    } else {
+      onScore(effectiveRuns, extra, selectedZone ?? undefined);
+      setSelectedExtra(null);
+      setSelectedZone(null);
+    }
+  };
+
+  const handleConfirmScoreWithZone = (zone?: string | null) => {
+    if (!pendingScore) return;
+    onScore(pendingScore.runs, pendingScore.extra, zone ?? undefined);
+    setPendingScore(null);
+    setIsWagonWheelModalOpen(false);
+    setSelectedExtra(null);
     setSelectedZone(null);
+  };
+
+  const handleSkipZone = () => {
+    handleConfirmScoreWithZone(undefined);
+  };
+
+  const handleCancelModal = () => {
+    setPendingScore(null);
+    setIsWagonWheelModalOpen(false);
   };
 
   const handleExtraClick = (extraType: string) => {
@@ -114,6 +164,23 @@ export function ScoringPanel({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            {/* Toggle auto wagon wheel prompt */}
+            <button
+              type="button"
+              onClick={() => setWagonWheelPrompt((prev) => !prev)}
+              aria-label={`Toggle Wagon Wheel prompt on scoring (${wagonWheelPrompt ? "ON" : "OFF"})`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold transition-all duration-150 active:scale-95",
+                wagonWheelPrompt
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-sm"
+                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
+              )}
+              title="Toggle Wagon Wheel shot selector on scoring"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              <span>Wagon Wheel: {wagonWheelPrompt ? "ON" : "OFF"}</span>
+            </button>
+
             {onUndo && (
               <Button
                 variant="ghost"
@@ -180,72 +247,6 @@ export function ScoringPanel({
           </div>
         )}
 
-        {/* Optional Shot Zone (Wagon Wheel) Selector as Joyful Pills */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-semibold">
-              Shot zone (optional for live wagon radar)
-            </span>
-            {selectedZone && (
-              <button
-                type="button"
-                onClick={() => setSelectedZone(null)}
-                className="text-[10.5px] font-bold text-emerald-600 underline hover:text-emerald-700"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-8">
-            {[
-              { id: "third_man", label: "3rd Man", bg: "hover:border-sky-400" },
-              { id: "point", label: "Point", bg: "hover:border-amber-400" },
-              { id: "cover", label: "Cover", bg: "hover:border-emerald-400" },
-              {
-                id: "long_off",
-                label: "Long Off",
-                bg: "hover:border-purple-400",
-              },
-              {
-                id: "long_on",
-                label: "Long On",
-                bg: "hover:border-orange-400",
-              },
-              {
-                id: "mid_wicket",
-                label: "Mid Wkt",
-                bg: "hover:border-teal-400",
-              },
-              {
-                id: "square_leg",
-                label: "Sq Leg",
-                bg: "hover:border-rose-400",
-              },
-              {
-                id: "fine_leg",
-                label: "Fine Leg",
-                bg: "hover:border-indigo-400",
-              },
-            ].map((z) => (
-              <button
-                key={z.id}
-                type="button"
-                onClick={() =>
-                  setSelectedZone((prev) => (prev === z.id ? null : z.id))
-                }
-                className={cn(
-                  "truncate rounded-full border px-1.5 py-1 text-center text-[10px] font-bold transition-all duration-150 active:scale-95 sm:px-2 sm:text-xs",
-                  selectedZone === z.id
-                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400"
-                    : "border-border/70 bg-muted/40 text-muted-foreground hover:bg-muted/70",
-                  z.bg,
-                )}
-              >
-                {z.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* 6 Bouncy Run Buttons */}
         <div className="grid grid-cols-6 gap-1.5 sm:gap-2.5">
@@ -258,6 +259,15 @@ export function ScoringPanel({
                 key={runs}
                 type="button"
                 disabled={disabled}
+                aria-label={
+                  isDot
+                    ? "0 runs (dot ball)"
+                    : isFour
+                      ? "4 runs (four)"
+                      : isSix
+                        ? "6 runs (six)"
+                        : `${runs} run${runs > 1 ? "s" : ""}`
+                }
                 className={cn(
                   "score-display tabular flex h-14 flex-col items-center justify-center rounded-xl border-2 text-2xl font-black transition-all duration-150 hover:-translate-y-0.5 active:scale-90 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
                   isDot &&
@@ -330,6 +340,84 @@ export function ScoringPanel({
         >
           <span>⚡ WICKET DISMISSAL</span>
         </Button>
+
+        {/* Stumps App Style Wagon Wheel Selection Dialog */}
+        <Dialog
+          open={isWagonWheelModalOpen}
+          onOpenChange={(open) => {
+            if (!open) handleCancelModal();
+          }}
+        >
+          <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">
+            <DialogHeader className="text-center sm:text-center">
+              <div className="mx-auto flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <Compass className="h-4 w-4" />
+                </span>
+                <DialogTitle className="text-lg font-black tracking-tight">
+                  Select Shot Direction
+                </DialogTitle>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Tap the wagon wheel sector where the shot was played
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Pending Delivery Badge */}
+            {pendingScore && (
+              <div className="flex items-center justify-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-score text-sm font-extrabold text-emerald-800 dark:text-emerald-300">
+                  {pendingScore.extraType && (
+                    <span className="uppercase text-amber-600 dark:text-amber-400">
+                      {pendingScore.extraType.replace("_", " ")} +
+                    </span>
+                  )}
+                  <span>
+                    {pendingScore.rawRuns === 0 && !pendingScore.extraType
+                      ? "Dot Ball (0)"
+                      : `${pendingScore.rawRuns} ${pendingScore.rawRuns === 1 ? "Run" : "Runs"}`}
+                  </span>
+                  {pendingScore.rawRuns === 4 && <span>💥 FOUR</span>}
+                  {pendingScore.rawRuns === 6 && <span>✨ MAX</span>}
+                </span>
+              </div>
+            )}
+
+            {/* Interactive Wagon Wheel Selector */}
+            <div className="py-2">
+              <WagonWheelSelector
+                selectedZone={selectedZone}
+                onSelectZone={(zone) => {
+                  if (zone) {
+                    setSelectedZone(zone);
+                    handleConfirmScoreWithZone(zone);
+                  }
+                }}
+              />
+            </div>
+
+            <DialogFooter className="flex flex-row items-center justify-between gap-2 sm:justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelModal}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSkipZone}
+                className="text-xs font-semibold"
+              >
+                Skip (Score without zone)
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
