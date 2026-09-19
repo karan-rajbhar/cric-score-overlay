@@ -31,6 +31,7 @@ import {
   requiredRunRate,
   calculatePlayerOfTheMatch,
   rankPlayersByImpact,
+  calculateSuperstars,
 } from "./cricket";
 import type { BowlingPerformance, FallOfWicket, Innings } from "./match-types";
 import { makeMatch } from "~/test/factories";
@@ -1001,4 +1002,312 @@ describe("cricket math & formatting utilities", () => {
       expect(jadeja?.stats.catches).toBe(2);
     });
   });
+
+  describe("calculateSuperstars", () => {
+    it("returns empty superstar team if match has no performances", () => {
+      const match = makeMatch({
+        innings: [],
+      });
+      const team = calculateSuperstars(match);
+      expect(team.superstars).toHaveLength(0);
+      expect(team.captain).toBeNull();
+      expect(team.viceCaptain).toBeNull();
+      expect(team.team1Count).toBe(0);
+      expect(team.team2Count).toBe(0);
+    });
+
+    it("selects top 11 players across both teams, assigning Captain (1st) and Vice-Captain (2nd)", () => {
+      const match = makeMatch({
+        team1_id: "t1",
+        team2_id: "t2",
+        winning_team_id: "t1",
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t1",
+            total_runs: 180,
+            total_wickets: 5,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [
+              {
+                id: "bp-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-bat1",
+                runs_scored: 80,
+                balls_faced: 45,
+                fours: 8,
+                sixes: 4,
+                is_out: false,
+                user: { id: "u-bat1", full_name: "Top Batter 1" },
+              },
+              {
+                id: "bp-2",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-bat2",
+                runs_scored: 50,
+                balls_faced: 35,
+                fours: 5,
+                sixes: 1,
+                is_out: true,
+                user: { id: "u-bat2", full_name: "Batter 2" },
+              },
+              {
+                id: "bp-3",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-allround1",
+                runs_scored: 30,
+                balls_faced: 18,
+                fours: 3,
+                sixes: 1,
+                is_out: true,
+                user: { id: "u-allround1", full_name: "All Rounder 1" },
+              },
+              {
+                id: "bp-4",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-keeper1",
+                runs_scored: 25,
+                balls_faced: 15,
+                fours: 2,
+                sixes: 0,
+                is_out: false,
+                user: { id: "u-keeper1", full_name: "Keeper 1" },
+              },
+            ],
+            bowling_performances: [
+              {
+                id: "bowl-t2-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-bowl-t2-1",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 22,
+                wickets_taken: 3,
+                maidens: 1,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-bowl-t2-1", full_name: "Opp Bowler 1" },
+              },
+              {
+                id: "bowl-t2-2",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-bowl-t2-2",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 30,
+                wickets_taken: 2,
+                maidens: 0,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-bowl-t2-2", full_name: "Opp Bowler 2" },
+              },
+            ],
+            fall_of_wickets: [
+              {
+                id: "fow-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                wicket_number: 1,
+                runs_at_fall: 90,
+                overs_at_fall: 11.2,
+                batsman_out_id: "u-bat2",
+                fielder_id: "u-keeper2",
+                dismissal_type: "stumped",
+                fielder: { id: "u-keeper2", full_name: "Opp Keeper 2" },
+              },
+            ],
+          },
+          {
+            id: "inn-2",
+            match_id: "m1",
+            innings_number: 2,
+            team_id: "t2",
+            total_runs: 160,
+            total_wickets: 8,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [
+              {
+                id: "bp-t2-1",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat1",
+                runs_scored: 65,
+                balls_faced: 40,
+                fours: 6,
+                sixes: 2,
+                is_out: true,
+                user: { id: "u-t2-bat1", full_name: "Opp Top Batter" },
+              },
+              {
+                id: "bp-t2-2",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat2",
+                runs_scored: 40,
+                balls_faced: 30,
+                fours: 4,
+                sixes: 1,
+                is_out: true,
+                user: { id: "u-t2-bat2", full_name: "Opp Batter 2" },
+              },
+              {
+                id: "bp-t2-3",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat3",
+                runs_scored: 18,
+                balls_faced: 14,
+                fours: 1,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-t2-bat3", full_name: "Opp Batter 3" },
+              },
+              {
+                id: "bp-t2-4",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat4",
+                runs_scored: 12,
+                balls_faced: 10,
+                fours: 1,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-t2-bat4", full_name: "Opp Batter 4" },
+              },
+              {
+                id: "bp-t2-5",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat5",
+                runs_scored: 8,
+                balls_faced: 6,
+                fours: 0,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-t2-bat5", full_name: "Opp Batter 5" },
+              },
+              {
+                id: "bp-t2-6",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat6",
+                runs_scored: 4,
+                balls_faced: 4,
+                fours: 0,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-t2-bat6", full_name: "Opp Batter 6" },
+              },
+              {
+                id: "bp-t2-7",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-t2-bat7",
+                runs_scored: 2,
+                balls_faced: 3,
+                fours: 0,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-t2-bat7", full_name: "Opp Batter 7" },
+              },
+            ],
+            bowling_performances: [
+              {
+                id: "bowl-t1-1",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-allround1",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 24,
+                wickets_taken: 3,
+                maidens: 0,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-allround1", full_name: "All Rounder 1" },
+              },
+              {
+                id: "bowl-t1-2",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-spin1",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 20,
+                wickets_taken: 4,
+                maidens: 1,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-spin1", full_name: "Spinner 1" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const team = calculateSuperstars(match);
+
+      // Max 11 players
+      expect(team.superstars.length).toBeLessThanOrEqual(11);
+      expect(team.superstars.length).toBeGreaterThanOrEqual(10);
+
+      // Captain (rank 1) and Vice-Captain (rank 2)
+      expect(team.captain).not.toBeNull();
+      expect(team.captain?.rank).toBe(1);
+      expect(team.captain?.isCaptain).toBe(true);
+
+      expect(team.viceCaptain).not.toBeNull();
+      expect(team.viceCaptain?.rank).toBe(2);
+      expect(team.viceCaptain?.isViceCaptain).toBe(true);
+
+      // Total points matches sum of superstars
+      const sum = team.superstars.reduce((acc, p) => acc + p.totalPoints, 0);
+      expect(team.totalPoints).toBe(sum);
+
+      // Both teams are represented in team counts
+      expect(team.team1Count).toBeGreaterThan(0);
+      expect(team.team2Count).toBeGreaterThan(0);
+      expect(team.team1Count + team.team2Count).toBe(team.superstars.length);
+
+      // byRole grouping has players
+      expect(team.byRole.bat.length + team.byRole.bowl.length + team.byRole.ar.length + team.byRole.wk.length).toBe(
+        team.superstars.length,
+      );
+
+      // u-allround1 batted and took 3 wickets, should be AR
+      const allRounder = team.superstars.find((p) => p.playerId === "u-allround1");
+      expect(allRounder?.role).toBe("AR");
+
+      // u-keeper2 has a stumping, should be WK
+      const keeper = team.superstars.find((p) => p.playerId === "u-keeper2");
+      if (keeper) {
+        expect(keeper.role).toBe("WK");
+      }
+    });
+  });
 });
+

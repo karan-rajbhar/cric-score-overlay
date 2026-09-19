@@ -46,6 +46,13 @@ const HeadToHead = dynamic(
   () => import("~/components/matches/head-to-head").then((m) => m.HeadToHead),
   { ssr: false },
 );
+const MatchSuperstars = dynamic(
+  () =>
+    import("~/components/matches/match-superstars").then(
+      (m) => m.MatchSuperstars,
+    ),
+  { ssr: false },
+);
 import {
   ChevronLeft,
   ChevronRight,
@@ -61,6 +68,7 @@ import {
   AlertCircle,
   Trophy,
   Shield,
+  Sparkles,
 } from "lucide-react";
 
 function MatchDetailsPageContent() {
@@ -654,13 +662,20 @@ function MatchDetailsPageContent() {
       {/* Tabs Content */}
       <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
         <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-xl p-1 sm:grid-cols-6">
+          <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl p-1 sm:grid-cols-7">
             <TabsTrigger
               value="summary"
               className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Summary
+            </TabsTrigger>
+            <TabsTrigger
+              value="superstars"
+              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm font-semibold"
+            >
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
+              <span>Superstars</span>
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
@@ -702,6 +717,10 @@ function MatchDetailsPageContent() {
 
           <TabsContent value="summary">
             <MatchSummary match={match} />
+          </TabsContent>
+
+          <TabsContent value="superstars">
+            <MatchSuperstars match={match} />
           </TabsContent>
 
           <TabsContent value="scorecard">

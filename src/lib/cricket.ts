@@ -702,3 +702,118 @@ export function calculatePlayerOfTheMatch(
   const ranked = rankPlayersByImpact(match);
   return ranked[0] ?? null;
 }
+
+export type SuperstarRole = "WK" | "BAT" | "AR" | "BOWL";
+
+export interface SuperstarPlayer extends PlayerImpactScore {
+  rank: number; // 1 to 11
+  isCaptain: boolean; // Rank 1
+  isViceCaptain: boolean; // Rank 2
+  role: SuperstarRole;
+}
+
+export interface SuperstarTeam {
+  superstars: SuperstarPlayer[];
+  captain: SuperstarPlayer | null;
+  viceCaptain: SuperstarPlayer | null;
+  team1Count: number;
+  team2Count: number;
+  totalPoints: number;
+  byRole: {
+    wk: SuperstarPlayer[];
+    bat: SuperstarPlayer[];
+    ar: SuperstarPlayer[];
+    bowl: SuperstarPlayer[];
+  };
+}
+
+/**
+ * Classifies a player's primary match role based on their performance metrics.
+ */
+export function determinePlayerRole(p: PlayerImpactScore): SuperstarRole {
+  // If player performed stumpings or had 2+ catches with no overs bowled, classify as WK
+  if (p.stats.stumpings > 0) {
+    return "WK";
+  }
+
+  // An all-rounder contributes significantly in both batting and bowling
+  const hasBatting = p.stats.runs >= 15 || p.breakdown.batting >= 20;
+  const hasBowling =
+    p.stats.overs >= 1 || p.stats.wickets > 0 || p.breakdown.bowling >= 20;
+
+  if (hasBatting && hasBowling) {
+    return "AR";
+  }
+
+  // Primary bowler: more bowling points than batting points, and actually bowled
+  if (p.breakdown.bowling > p.breakdown.batting && p.stats.overs > 0) {
+    return "BOWL";
+  }
+
+  // Primary batter
+  return "BAT";
+}
+
+/**
+ * Calculates the Superstars Top 11 best players across both teams combined.
+ * Selects the top 11 players by overall performance impact score, designating
+ * Rank 1 as Captain (C) and Rank 2 as Vice-Captain (VC), categorizing their roles.
+ */
+export function calculateSuperstars(match: Match): SuperstarTeam {
+  const ranked = rankPlayersByImpact(match);
+  const top11 = ranked.slice(0, 11);
+
+  // Classify roles
+  const superstars: SuperstarPlayer[] = top11.map((p, index) => {
+    const rank = index + 1;
+    const role = determinePlayerRole(p);
+    return {
+      ...p,
+      rank,
+      isCaptain: rank === 1,
+      isViceCaptain: rank === 2,
+      role,
+    };
+  });
+
+  // Ensure at least one WK is recognized if anyone has fielding dismissals behind stumps
+  const hasWk = superstars.some((p) => p.role === "WK");
+  if (!hasWk && superstars.length > 0) {
+    const potentialKeeper = superstars.find(
+      (p) =>
+        (p.stats.catches > 0 || p.stats.stumpings > 0) && p.stats.overs === 0,
+    );
+    if (potentialKeeper) {
+      potentialKeeper.role = "WK";
+    }
+  }
+
+  const captain = superstars.find((p) => p.isCaptain) ?? null;
+  const viceCaptain = superstars.find((p) => p.isViceCaptain) ?? null;
+
+  const team1Count = superstars.filter(
+    (p) => p.teamId === match.team1_id,
+  ).length;
+  const team2Count = superstars.filter(
+    (p) => p.teamId === match.team2_id,
+  ).length;
+  const totalPoints = superstars.reduce((sum, p) => sum + p.totalPoints, 0);
+
+  const byRole = {
+    wk: superstars.filter((p) => p.role === "WK"),
+    bat: superstars.filter((p) => p.role === "BAT"),
+    ar: superstars.filter((p) => p.role === "AR"),
+    bowl: superstars.filter((p) => p.role === "BOWL"),
+  };
+
+  return {
+    superstars,
+    captain,
+    viceCaptain,
+    team1Count,
+    team2Count,
+    totalPoints,
+    byRole,
+  };
+}
+
