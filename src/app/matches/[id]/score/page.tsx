@@ -901,6 +901,7 @@ export default function ScoringPage() {
         onOpenChange={setShowPotmDialog}
         matchId={matchId}
         currentPotmId={match?.player_of_the_match_id}
+        match={match}
         players={[
           ...(battingTeamPlayers || []).map((p) => ({
             id: p.user_id,

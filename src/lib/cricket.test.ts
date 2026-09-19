@@ -29,6 +29,8 @@ import {
   inningsBalls,
   ballsRemaining,
   requiredRunRate,
+  calculatePlayerOfTheMatch,
+  rankPlayersByImpact,
 } from "./cricket";
 import type { BowlingPerformance, FallOfWicket, Innings } from "./match-types";
 import { makeMatch } from "~/test/factories";
@@ -729,6 +731,274 @@ describe("cricket math & formatting utilities", () => {
       expect(requiredRunRate(39, 38)).toBe("6.16");
       expect(requiredRunRate(36, 36)).toBe("6.00");
       expect(requiredRunRate(0, 38)).toBe("0.00");
+    });
+  });
+
+  describe("calculatePlayerOfTheMatch & rankPlayersByImpact", () => {
+    it("returns null/empty when match has no player performances", () => {
+      const match = makeMatch({ innings: [] });
+      expect(calculatePlayerOfTheMatch(match)).toBeNull();
+      expect(rankPlayersByImpact(match)).toEqual([]);
+    });
+
+    it("ranks a standout batter as Player of the Match", () => {
+      const match = makeMatch({
+        winning_team_id: "t1",
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t1",
+            total_runs: 180,
+            total_wickets: 3,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [
+              {
+                id: "bp-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-virat",
+                runs_scored: 85,
+                balls_faced: 48,
+                fours: 8,
+                sixes: 4,
+                is_out: false,
+                user: { id: "u-virat", full_name: "Virat Kohli" },
+              },
+              {
+                id: "bp-2",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-kl",
+                runs_scored: 24,
+                balls_faced: 20,
+                fours: 2,
+                sixes: 0,
+                is_out: true,
+                user: { id: "u-kl", full_name: "KL Rahul" },
+              },
+            ],
+            bowling_performances: [],
+          },
+        ],
+      });
+
+      const potm = calculatePlayerOfTheMatch(match);
+      expect(potm).not.toBeNull();
+      expect(potm?.playerId).toBe("u-virat");
+      expect(potm?.playerName).toBe("Virat Kohli");
+      expect(potm?.totalPoints).toBeGreaterThan(100);
+      expect(potm?.summary).toContain("85* (48b)");
+    });
+
+    it("ranks a match-winning bowler with 4 wickets higher than a modest batter", () => {
+      const match = makeMatch({
+        winning_team_id: "t2",
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t1",
+            total_runs: 120,
+            total_wickets: 10,
+            total_balls: 110,
+            total_overs: 18.2,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [
+              {
+                id: "bp-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-batter",
+                runs_scored: 42,
+                balls_faced: 35,
+                fours: 3,
+                sixes: 1,
+                is_out: true,
+                user: { id: "u-batter", full_name: "Good Batter" },
+              },
+            ],
+            bowling_performances: [
+              {
+                id: "bowl-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-bumrah",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 16,
+                wickets_taken: 4,
+                maidens: 1,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-bumrah", full_name: "Jasprit Bumrah" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const potm = calculatePlayerOfTheMatch(match);
+      expect(potm?.playerId).toBe("u-bumrah");
+      expect(potm?.playerName).toBe("Jasprit Bumrah");
+      expect(potm?.breakdown.bowling).toBeGreaterThanOrEqual(120);
+      expect(potm?.summary).toContain("4/16 (4.0 ov)");
+    });
+
+    it("combines batting and bowling for an all-round performance", () => {
+      const match = makeMatch({
+        winning_team_id: "t1",
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t1",
+            total_runs: 160,
+            total_wickets: 6,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [
+              {
+                id: "bp-hardik",
+                match_id: "m1",
+                innings_id: "inn-1",
+                user_id: "u-hardik",
+                runs_scored: 45,
+                balls_faced: 25,
+                fours: 4,
+                sixes: 2,
+                is_out: false,
+                user: { id: "u-hardik", full_name: "Hardik Pandya" },
+              },
+            ],
+            bowling_performances: [],
+          },
+          {
+            id: "inn-2",
+            match_id: "m1",
+            innings_number: 2,
+            team_id: "t2",
+            total_runs: 140,
+            total_wickets: 8,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            batting_performances: [],
+            bowling_performances: [
+              {
+                id: "bowl-hardik",
+                match_id: "m1",
+                innings_id: "inn-2",
+                user_id: "u-hardik",
+                overs_bowled: 4,
+                balls_bowled: 24,
+                runs_conceded: 24,
+                wickets_taken: 3,
+                maidens: 0,
+                wides: 0,
+                no_balls: 0,
+                user: { id: "u-hardik", full_name: "Hardik Pandya" },
+              },
+            ],
+          },
+        ],
+      });
+
+      const potm = calculatePlayerOfTheMatch(match);
+      expect(potm?.playerId).toBe("u-hardik");
+      expect(potm?.breakdown.batting).toBeGreaterThan(45);
+      expect(potm?.breakdown.bowling).toBeGreaterThan(75);
+      expect(potm?.summary).toContain("45* (25b)");
+      expect(potm?.summary).toContain("3/24");
+    });
+
+    it("awards fielding points for catches in fall_of_wickets", () => {
+      const match = makeMatch({
+        winning_team_id: "t1",
+        innings: [
+          {
+            id: "inn-1",
+            match_id: "m1",
+            innings_number: 1,
+            team_id: "t2",
+            total_runs: 130,
+            total_wickets: 5,
+            total_balls: 120,
+            total_overs: 20,
+            is_completed: true,
+            extras_total: 0,
+            extras_byes: 0,
+            extras_leg_byes: 0,
+            extras_wides: 0,
+            extras_no_balls: 0,
+            extras_penalties: 0,
+            fall_of_wickets: [
+              {
+                id: "fow-1",
+                match_id: "m1",
+                innings_id: "inn-1",
+                wicket_number: 1,
+                runs_at_fall: 10,
+                overs_at_fall: 1.2,
+                batsman_out_id: "u-out",
+                fielder_id: "u-jadeja",
+                dismissal_type: "caught",
+                fielder: { id: "u-jadeja", full_name: "Ravindra Jadeja" },
+              },
+              {
+                id: "fow-2",
+                match_id: "m1",
+                innings_id: "inn-1",
+                wicket_number: 2,
+                runs_at_fall: 25,
+                overs_at_fall: 3.4,
+                batsman_out_id: "u-out2",
+                fielder_id: "u-jadeja",
+                dismissal_type: "caught",
+                fielder: { id: "u-jadeja", full_name: "Ravindra Jadeja" },
+              },
+            ],
+            batting_performances: [],
+            bowling_performances: [],
+          },
+        ],
+      });
+
+      const ranked = rankPlayersByImpact(match);
+      const jadeja = ranked.find((p) => p.playerId === "u-jadeja");
+      expect(jadeja).toBeDefined();
+      expect(jadeja?.breakdown.fielding).toBe(20); // 2 catches * 10
+      expect(jadeja?.stats.catches).toBe(2);
     });
   });
 });

@@ -11,6 +11,9 @@ import type {
   ScoringState,
   ExtraType,
 } from "./types";
+import { getMatch } from "./queries";
+import { calculatePlayerOfTheMatch } from "~/lib/cricket";
+import type { Match } from "~/lib/match-types";
 
 export async function createMatch(formData: MatchFormData) {
   const supabase = await createServerClient();
@@ -414,6 +417,13 @@ export async function recordBall(params: {
         revalidatePath(`/clubs/${matchData.club_id}`);
         revalidatePath("/clubs");
       }
+
+      // Automatically determine and assign Player of the Match
+      try {
+        await autoAssignPlayerOfTheMatch(params.matchId);
+      } catch (potmErr) {
+        console.error("Auto POTM assignment failed:", potmErr);
+      }
     }
 
     if (params.event.shotZone) {
@@ -558,6 +568,13 @@ export async function endInnings(
         revalidatePath(`/clubs/${matchData.club_id}`);
         revalidatePath("/clubs");
       }
+
+      // Automatically determine and assign Player of the Match
+      try {
+        await autoAssignPlayerOfTheMatch(matchId);
+      } catch (potmErr) {
+        console.error("Auto POTM assignment failed:", potmErr);
+      }
     }
 
     return { data: data as ScoringState, error: null };
@@ -607,6 +624,61 @@ export async function setPlayerOfTheMatch(
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
   return { success: true, error: null };
+}
+
+/**
+ * Automatically calculates and awards Player of the Match using cricket analytics impact scoring.
+ */
+export async function autoAssignPlayerOfTheMatch(
+  matchId: string,
+): Promise<{ success: boolean; potmId: string | null; error: string | null }> {
+  try {
+    const matchRes = await getMatch(matchId, { skipCache: true });
+    if (matchRes.error || !matchRes.data) {
+      return {
+        success: false,
+        potmId: null,
+        error: matchRes.error ?? "Match not found",
+      };
+    }
+    const match = matchRes.data as Match;
+    const topPlayer = calculatePlayerOfTheMatch(match);
+    if (!topPlayer) {
+      return {
+        success: false,
+        potmId: null,
+        error: "No eligible players found",
+      };
+    }
+
+    const supabase = await createServerClient();
+    const { error } = await supabase
+      .from("matches")
+      .update({ player_of_the_match_id: topPlayer.playerId })
+      .eq("id", matchId);
+
+    if (error) {
+      console.error("autoAssignPlayerOfTheMatch failed:", error);
+      return {
+        success: false,
+        potmId: null,
+        error: friendlyError(error.message),
+      };
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { success: true, potmId: topPlayer.playerId, error: null };
+  } catch (err) {
+    console.error("autoAssignPlayerOfTheMatch unexpected error:", err);
+    return {
+      success: false,
+      potmId: null,
+      error: "Failed to automatically assign Player of the Match",
+    };
+  }
 }
 
 export async function updateDlsTarget(

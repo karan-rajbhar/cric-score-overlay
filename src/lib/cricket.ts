@@ -386,3 +386,319 @@ export const formatDecimalOvers = (
 /** Format Fall of Wicket overs notation (e.g., 2.5 -> "2.5"). */
 export const formatFowOvers = (overs: number | null | undefined): string =>
   formatDecimalOvers(overs);
+
+export interface PlayerImpactScore {
+  playerId: string;
+  playerName: string;
+  teamId: string;
+  teamName: string;
+  avatarUrl?: string | null;
+  totalPoints: number;
+  breakdown: {
+    batting: number;
+    bowling: number;
+    fielding: number;
+    winBonus: number;
+  };
+  stats: {
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    isOut: boolean;
+    wickets: number;
+    runsConceded: number;
+    overs: number;
+    catches: number;
+    stumpings: number;
+    runOuts: number;
+  };
+  summary: string;
+}
+
+/**
+ * Calculates impact scores for all players in a match using standard cricket MVP analytics:
+ * - Batting: Runs + boundary bonus + milestones (50/100) + strike rate impact + not out bonus
+ * - Bowling: Wickets (25 pts each) + 3w/5w hauls + maidens + economy control
+ * - Fielding: Catches (10 pts), Stumpings (15 pts), Run Outs (15 pts)
+ * - Winning Impact: 15% bonus + 5 pts for players on the winning team
+ */
+export function rankPlayersByImpact(match: Match): PlayerImpactScore[] {
+  const playerMap = new Map<
+    string,
+    {
+      playerId: string;
+      playerName: string;
+      teamId: string;
+      avatarUrl?: string | null;
+      battingPoints: number;
+      bowlingPoints: number;
+      fieldingPoints: number;
+      runs: number;
+      balls: number;
+      fours: number;
+      sixes: number;
+      isOut: boolean;
+      wickets: number;
+      runsConceded: number;
+      overs: number;
+      maidens: number;
+      catches: number;
+      stumpings: number;
+      runOuts: number;
+    }
+  >();
+
+  const getOrCreate = (
+    id: string,
+    name: string,
+    teamId: string,
+    avatarUrl?: string | null,
+  ) => {
+    let entry = playerMap.get(id);
+    if (!entry) {
+      entry = {
+        playerId: id,
+        playerName: name,
+        teamId,
+        avatarUrl,
+        battingPoints: 0,
+        bowlingPoints: 0,
+        fieldingPoints: 0,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        isOut: true,
+        wickets: 0,
+        runsConceded: 0,
+        overs: 0,
+        maidens: 0,
+        catches: 0,
+        stumpings: 0,
+        runOuts: 0,
+      };
+      playerMap.set(id, entry);
+    }
+    return entry;
+  };
+
+  for (const inn of match.innings ?? []) {
+    const battingTeamId = inn.team_id;
+    const bowlingTeamId =
+      battingTeamId === match.team1_id ? match.team2_id : match.team1_id;
+
+    // 1. Batting
+    for (const bp of inn.batting_performances ?? []) {
+      if (!bp.user_id) continue;
+      const name = bp.user?.full_name ?? "Player";
+      const p = getOrCreate(
+        bp.user_id,
+        name,
+        battingTeamId,
+        bp.user?.avatar_url,
+      );
+      p.runs += bp.runs_scored ?? 0;
+      p.balls += bp.balls_faced ?? 0;
+      p.fours += bp.fours ?? 0;
+      p.sixes += bp.sixes ?? 0;
+      p.isOut = bp.is_out;
+
+      let batPts = bp.runs_scored ?? 0;
+      batPts += (bp.fours ?? 0) * 1 + (bp.sixes ?? 0) * 2;
+
+      // Milestones
+      if (bp.runs_scored >= 100) batPts += 30;
+      else if (bp.runs_scored >= 50) batPts += 15;
+      else if (bp.runs_scored >= 30) batPts += 5;
+
+      // Strike Rate
+      if (bp.balls_faced >= 10) {
+        const sr = (bp.runs_scored / bp.balls_faced) * 100;
+        if (sr >= 200) batPts += 12;
+        else if (sr >= 150) batPts += 6;
+        else if (sr < 80) batPts -= 6;
+      }
+
+      // Not out bonus if substantial score
+      if (!bp.is_out && bp.runs_scored >= 20) {
+        batPts += 5;
+      }
+
+      p.battingPoints += batPts;
+    }
+
+    // 2. Bowling
+    for (const bowl of inn.bowling_performances ?? []) {
+      if (!bowl.user_id) continue;
+      const name = bowl.user?.full_name ?? "Player";
+      const p = getOrCreate(
+        bowl.user_id,
+        name,
+        bowlingTeamId,
+        bowl.user?.avatar_url,
+      );
+      p.wickets += bowl.wickets_taken ?? 0;
+      p.runsConceded += bowl.runs_conceded ?? 0;
+      p.overs += bowl.overs_bowled ?? 0;
+      p.maidens += bowl.maidens ?? 0;
+
+      let bowlPts = (bowl.wickets_taken ?? 0) * 25;
+      if (bowl.wickets_taken >= 5) bowlPts += 30;
+      else if (bowl.wickets_taken >= 3) bowlPts += 15;
+
+      bowlPts += (bowl.maidens ?? 0) * 12;
+
+      if (bowl.overs_bowled >= 2) {
+        const econ = bowl.runs_conceded / bowl.overs_bowled;
+        if (econ < 5.0) bowlPts += 15;
+        else if (econ < 6.5) bowlPts += 8;
+        else if (econ > 10.0) bowlPts -= 8;
+      }
+
+      p.bowlingPoints += bowlPts;
+    }
+
+    // 3. Fielding (Fall of Wickets)
+    for (const fow of inn.fall_of_wickets ?? []) {
+      if (fow.fielder_id) {
+        const name = fow.fielder?.full_name ?? "Fielder";
+        const p = getOrCreate(
+          fow.fielder_id,
+          name,
+          bowlingTeamId,
+          fow.fielder?.avatar_url,
+        );
+        const dtype = (fow.dismissal_type ?? "").toLowerCase();
+        if (dtype.includes("stump")) {
+          p.stumpings += 1;
+          p.fieldingPoints += 15;
+        } else if (dtype.includes("run")) {
+          p.runOuts += 1;
+          p.fieldingPoints += 15;
+        } else {
+          p.catches += 1;
+          p.fieldingPoints += 10;
+        }
+      }
+    }
+
+    // 4. Fielding (Ball by Ball) if fall_of_wickets is empty
+    if (!inn.fall_of_wickets || inn.fall_of_wickets.length === 0) {
+      for (const ball of inn.ball_by_ball ?? []) {
+        if (ball.is_wicket && ball.fielder_id) {
+          const name = ball.fielder?.full_name ?? "Fielder";
+          const p = getOrCreate(
+            ball.fielder_id,
+            name,
+            bowlingTeamId,
+            ball.fielder?.avatar_url,
+          );
+          const dtype = (ball.dismissal_type ?? "").toLowerCase();
+          if (dtype.includes("stump")) {
+            p.stumpings += 1;
+            p.fieldingPoints += 15;
+          } else if (dtype.includes("run")) {
+            p.runOuts += 1;
+            p.fieldingPoints += 15;
+          } else {
+            p.catches += 1;
+            p.fieldingPoints += 10;
+          }
+        }
+      }
+    }
+  }
+
+  const results: PlayerImpactScore[] = [];
+
+  for (const p of playerMap.values()) {
+    const hasParticipated =
+      p.runs > 0 ||
+      p.balls > 0 ||
+      p.wickets > 0 ||
+      p.overs > 0 ||
+      p.catches > 0 ||
+      p.stumpings > 0 ||
+      p.runOuts > 0;
+
+    if (!hasParticipated) continue;
+
+    const basePoints = p.battingPoints + p.bowlingPoints + p.fieldingPoints;
+    let winBonus = 0;
+    if (
+      match.winning_team_id &&
+      match.winning_team_id === p.teamId &&
+      basePoints > 0
+    ) {
+      winBonus = Math.round(basePoints * 0.15) + 5;
+    }
+
+    const totalPoints = basePoints + winBonus;
+    const tName =
+      p.teamId === match.team1_id ? match.team1.name : match.team2.name;
+
+    // Generate concise summary
+    const parts: string[] = [];
+    if (p.runs > 0 || p.balls > 0) {
+      parts.push(`${p.runs}${!p.isOut ? "*" : ""} (${p.balls}b)`);
+    }
+    if (p.wickets > 0 || p.overs > 0) {
+      parts.push(
+        `${p.wickets}/${p.runsConceded} (${formatDecimalOvers(p.overs)} ov)`,
+      );
+    }
+    if (p.catches > 0) {
+      parts.push(`${p.catches} ct`);
+    }
+    if (p.stumpings > 0) {
+      parts.push(`${p.stumpings} st`);
+    }
+    if (p.runOuts > 0) {
+      parts.push(`${p.runOuts} ro`);
+    }
+
+    const summary = parts.length > 0 ? parts.join(" & ") : "Played fixture";
+
+    results.push({
+      playerId: p.playerId,
+      playerName: p.playerName,
+      teamId: p.teamId,
+      teamName: tName,
+      avatarUrl: p.avatarUrl,
+      totalPoints,
+      breakdown: {
+        batting: p.battingPoints,
+        bowling: p.bowlingPoints,
+        fielding: p.fieldingPoints,
+        winBonus,
+      },
+      stats: {
+        runs: p.runs,
+        balls: p.balls,
+        fours: p.fours,
+        sixes: p.sixes,
+        isOut: p.isOut,
+        wickets: p.wickets,
+        runsConceded: p.runsConceded,
+        overs: p.overs,
+        catches: p.catches,
+        stumpings: p.stumpings,
+        runOuts: p.runOuts,
+      },
+      summary,
+    });
+  }
+
+  return results.sort((a, b) => b.totalPoints - a.totalPoints);
+}
+
+/**
+ * Automatically determines the standout Player of the Match based on MVP impact points.
+ */
+export function calculatePlayerOfTheMatch(
+  match: Match,
+): PlayerImpactScore | null {
+  const ranked = rankPlayersByImpact(match);
+  return ranked[0] ?? null;
+}
