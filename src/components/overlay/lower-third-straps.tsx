@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type {
   ActiveLowerThirdStrap,
   LayoutMode,
@@ -35,17 +35,24 @@ export function LowerThirdStraps({
   onDismiss,
   theme = "starsports",
 }: LowerThirdStrapsProps) {
+  const onDismissRef = useRef(onDismiss);
   useEffect(() => {
-    if (!strap || strap.type === "none") return;
+    onDismissRef.current = onDismiss;
+  });
 
-    const duration =
-      strap.durationMs && strap.durationMs > 0 ? strap.durationMs : 8000;
+  const strapId = strap?.id;
+  const duration =
+    strap?.durationMs && strap.durationMs > 0 ? strap.durationMs : 8000;
+
+  useEffect(() => {
+    if (!strapId || strap?.type === "none") return;
+
     const timer = setTimeout(() => {
-      onDismiss();
+      onDismissRef.current();
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [strap, onDismiss]);
+  }, [strapId, strap?.type, duration]);
 
   if (!strap || strap.type === "none") return null;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ActiveEventSting, OverlayTheme } from "./types";
 
 interface EventStingsProps {
@@ -14,15 +14,23 @@ export function EventStings({
   onDismiss,
   theme = "starsports",
 }: EventStingsProps) {
+  const onDismissRef = useRef(onDismiss);
   useEffect(() => {
-    if (!sting) return;
+    onDismissRef.current = onDismiss;
+  });
+
+  const stingId = sting?.id;
+  const duration = sting?.durationMs || 4500;
+
+  useEffect(() => {
+    if (!stingId) return;
 
     const timer = setTimeout(() => {
-      onDismiss();
-    }, sting.durationMs || 4500);
+      onDismissRef.current();
+    }, duration);
 
     return () => clearTimeout(timer);
-  }, [sting, onDismiss]);
+  }, [stingId, duration]);
 
   if (!sting) return null;
 

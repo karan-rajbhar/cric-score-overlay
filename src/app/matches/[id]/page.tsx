@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -98,30 +98,52 @@ function MatchDetailsPageContent() {
     playerName?: string;
   }>({});
 
+  const resolvedRef = useRef<{
+    clubId?: string;
+    tournamentId?: string;
+    playerId?: string;
+  }>({});
+
   useEffect(() => {
     let cancelled = false;
     async function resolveContext() {
       const updates: typeof contextNames = {};
 
-      if (clubId && match?.club?.id !== clubId) {
-        const { data } = await supabase
-          .from("clubs")
-          .select("name")
-          .eq("id", clubId)
-          .single();
-        if (!cancelled && data?.name) updates.clubName = data.name;
+      if (clubId && resolvedRef.current.clubId !== clubId) {
+        if (match?.club?.id === clubId && match.club.name) {
+          updates.clubName = match.club.name;
+          resolvedRef.current.clubId = clubId;
+        } else {
+          const { data } = await supabase
+            .from("clubs")
+            .select("name")
+            .eq("id", clubId)
+            .single();
+          if (!cancelled && data?.name) {
+            updates.clubName = data.name;
+            resolvedRef.current.clubId = clubId;
+          }
+        }
       }
 
-      if (tournamentId && match?.tournament?.id !== tournamentId) {
-        const { data } = await supabase
-          .from("tournaments")
-          .select("name")
-          .eq("id", tournamentId)
-          .single();
-        if (!cancelled && data?.name) updates.tournamentName = data.name;
+      if (tournamentId && resolvedRef.current.tournamentId !== tournamentId) {
+        if (match?.tournament?.id === tournamentId && match.tournament.name) {
+          updates.tournamentName = match.tournament.name;
+          resolvedRef.current.tournamentId = tournamentId;
+        } else {
+          const { data } = await supabase
+            .from("tournaments")
+            .select("name")
+            .eq("id", tournamentId)
+            .single();
+          if (!cancelled && data?.name) {
+            updates.tournamentName = data.name;
+            resolvedRef.current.tournamentId = tournamentId;
+          }
+        }
       }
 
-      if (playerId) {
+      if (playerId && resolvedRef.current.playerId !== playerId) {
         let foundName: string | undefined;
         match?.innings?.forEach((inn) => {
           inn.batting_performances?.forEach((bp) => {
@@ -137,14 +159,17 @@ function MatchDetailsPageContent() {
         });
         if (foundName) {
           updates.playerName = foundName;
+          resolvedRef.current.playerId = playerId;
         } else {
           const { data } = await supabase
             .from("users")
             .select("full_name")
             .eq("id", playerId)
             .single();
-          if (!cancelled && data?.full_name)
+          if (!cancelled && data?.full_name) {
             updates.playerName = data.full_name;
+            resolvedRef.current.playerId = playerId;
+          }
         }
       }
 

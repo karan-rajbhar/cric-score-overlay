@@ -55,6 +55,11 @@ export function useScoring(
     onNeedsBatsman?: () => void;
   },
 ) {
+  const optionsRef = useRef(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  });
+
   const [match, setMatch] = useState<Match | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +121,7 @@ export function useScoring(
     }
   }, [matchId]);
 
-  const loadPlayers = async (matchData: Match) => {
+  const loadPlayers = useCallback(async (matchData: Match) => {
     const currentInnings = matchData.innings?.find(
       (i) => i.innings_number === matchData.current_innings,
     );
@@ -163,7 +168,7 @@ export function useScoring(
     } catch (err) {
       console.error("Error loading squad players:", err);
     }
-  };
+  }, []);
 
   const syncFromDb = useCallback(async () => {
     const result = await getScoringState(matchId);
@@ -192,9 +197,9 @@ export function useScoring(
     setRawDeliveries(thisOverDeliveries);
     setLastBalls(thisOverDeliveries.map(deliveryLabel));
     if (m.status === "live" && !b && s && ns) {
-      options?.onNeedsBowler?.();
+      optionsRef.current?.onNeedsBowler?.();
     }
-  }, [matchId, options]);
+  }, [matchId, loadPlayers]);
 
   const loadMatch = useCallback(async () => {
     const result = await getMatch(matchId);
@@ -376,9 +381,9 @@ export function useScoring(
 
     if (state.over_completed || state.needs_bowler) {
       toast.info("Over complete! Please select the bowler for the next over.");
-      options?.onNeedsBowler?.();
+      optionsRef.current?.onNeedsBowler?.();
     } else if (state.needs_batsman) {
-      options?.onNeedsBatsman?.();
+      optionsRef.current?.onNeedsBatsman?.();
     }
 
     void syncFromDb();

@@ -694,6 +694,10 @@ export function OverlayClient({
     });
   }, []);
 
+  const handleDismissSting = useCallback(() => setActiveSting(null), []);
+  const handleDismissStrap = useCallback(() => setActiveStrap(null), []);
+  const handleDismissCard = useCallback(() => setActiveCard("none"), []);
+
   // Keyboard Shortcuts (Numpad 1-9, B, T, S, Space/Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -973,7 +977,7 @@ export function OverlayClient({
       <EventStings
         sting={activeSting}
         theme={theme}
-        onDismiss={() => setActiveSting(null)}
+        onDismiss={handleDismissSting}
       />
 
       {/* 2. FULL-SCREEN PRESENTATION CARDS */}
@@ -982,7 +986,7 @@ export function OverlayClient({
         state={state}
         match={matchData}
         theme={theme}
-        onClose={() => setActiveCard("none")}
+        onClose={handleDismissCard}
       />
 
       {/* 3. IN-PLAY LOWER-THIRD STRAPS */}
@@ -991,7 +995,7 @@ export function OverlayClient({
         state={state}
         layout={layout}
         theme={theme}
-        onDismiss={() => setActiveStrap(null)}
+        onDismiss={handleDismissStrap}
       />
 
       {/* 4. CORNER WATERMARK & ROTATING SPONSORS */}

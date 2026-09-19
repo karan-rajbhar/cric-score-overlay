@@ -1,8 +1,19 @@
 "use client";
 
+import { useMemo } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Trophy, Target, Clock, TrendingUp } from "lucide-react";
+import {
+  Trophy,
+  Target,
+  Clock,
+  TrendingUp,
+  Coins,
+  Flame,
+  Zap,
+  Flag,
+  Award,
+} from "lucide-react";
 import type { Innings, Match } from "~/lib/match-types";
 import {
   formatDecimalOvers,
@@ -64,6 +75,114 @@ export function MatchSummary({ match }: MatchSummaryProps) {
       innings.batting_performances[0],
     );
   };
+
+  const keyMoments = useMemo(() => {
+    const moments: Array<{
+      id: string;
+      badge: string;
+      title: string;
+      description?: string;
+      icon: React.ReactNode;
+    }> = [];
+
+    // 1. Toss
+    if (match.toss_winner_team_id) {
+      const tossWinner =
+        match.toss_winner_team_id === match.team1_id
+          ? match.team1
+          : match.toss_winner_team_id === match.team2_id
+            ? match.team2
+            : null;
+      if (tossWinner) {
+        moments.push({
+          id: "toss",
+          badge: "Toss",
+          title: `${tossWinner.name} won the toss and elected to ${match.toss_decision ?? "bat"} first`,
+          icon: <Coins className="h-4 w-4 text-amber-500" />,
+        });
+      }
+    }
+
+    // 2. Innings milestones and wickets
+    match.innings?.forEach((inn) => {
+      const innTeam =
+        inn.team_id === match.team1_id ? match.team1 : match.team2;
+
+      // Batting Milestones (50+)
+      inn.batting_performances?.forEach((bp) => {
+        if (bp.runs_scored >= 50) {
+          moments.push({
+            id: `milestone-${bp.id}`,
+            badge: bp.runs_scored >= 100 ? "Century" : "Fifty",
+            title: `${bp.user?.full_name ?? "Batter"} scored ${bp.runs_scored}${!bp.is_out ? "*" : ""} (${bp.balls_faced}b)`,
+            description: `${bp.fours} fours, ${bp.sixes} sixes for ${innTeam.name}`,
+            icon: <Flame className="h-4 w-4 text-orange-500" />,
+          });
+        }
+      });
+
+      // Bowling Feats (3+ wickets)
+      inn.bowling_performances?.forEach((bp) => {
+        if (bp.wickets_taken >= 3) {
+          moments.push({
+            id: `bowl-${bp.id}`,
+            badge: `${bp.wickets_taken} Wickets`,
+            title: `${bp.user?.full_name ?? "Bowler"} took ${bp.wickets_taken}/${bp.runs_conceded}`,
+            description: `in ${formatDecimalOvers(bp.overs_bowled)} overs`,
+            icon: <Target className="h-4 w-4 text-emerald-500" />,
+          });
+        }
+      });
+
+      // Fall of Wickets
+      inn.fall_of_wickets?.forEach((fow) => {
+        const batterName = fow.batsman?.full_name ?? "Batter";
+        const bowlerName = fow.bowler?.full_name
+          ? ` b ${fow.bowler.full_name}`
+          : "";
+        moments.push({
+          id: `fow-${fow.id}`,
+          badge: `Over ${formatDecimalOvers(fow.overs_at_fall)}`,
+          title: `Wicket ${fow.wicket_number}: ${batterName}${bowlerName} (${fow.runs_at_fall}/${fow.wicket_number})`,
+          description: fow.dismissal_type
+            ? `Dismissal: ${fow.dismissal_type}`
+            : undefined,
+          icon: <Zap className="h-4 w-4 text-red-500" />,
+        });
+      });
+
+      // Innings Conclusion
+      if (inn.is_completed) {
+        moments.push({
+          id: `inn-end-${inn.id}`,
+          badge: `Innings ${inn.innings_number}`,
+          title: `${innTeam.name} finished at ${inn.total_runs}/${inn.total_wickets} (${formatDecimalOvers(inn.total_overs)} ov)`,
+          icon: <Flag className="h-4 w-4 text-blue-500" />,
+        });
+      }
+    });
+
+    // 3. Match Completion & POTM
+    if (match.status === "completed" && match.result_description) {
+      moments.push({
+        id: "result",
+        badge: "Result",
+        title: match.result_description,
+        icon: <Trophy className="h-4 w-4 text-amber-500" />,
+      });
+    }
+
+    if (match.player_of_the_match?.full_name) {
+      moments.push({
+        id: "potm",
+        badge: "POTM",
+        title: `Player of the Match: ${match.player_of_the_match.full_name}`,
+        icon: <Award className="h-4 w-4 text-amber-500" />,
+      });
+    }
+
+    return moments;
+  }, [match]);
 
   return (
     <div className="space-y-6">
@@ -291,7 +410,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         </CardContent>
       </Card>
 
-      {/* Match Timeline/Key Moments - Placeholder */}
+      {/* Match Timeline / Key Moments */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -300,11 +419,50 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="py-8 text-center text-muted-foreground">
-            <p>
-              Key moments and highlights will appear here during live matches
-            </p>
-          </div>
+          {keyMoments.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <Clock className="mx-auto mb-2 h-8 w-8 opacity-40" />
+              <p className="font-medium text-foreground">
+                No key moments recorded yet
+              </p>
+              <p className="mt-1 text-xs">
+                Toss, milestones, wickets, and match turning points will appear
+                here during live scoring.
+              </p>
+            </div>
+          ) : (
+            <div className="relative space-y-3 pl-2 sm:pl-4">
+              <div className="absolute bottom-3 left-[17px] top-3 w-0.5 bg-border/60 sm:left-[25px]" />
+              {keyMoments.map((m) => (
+                <div
+                  key={m.id}
+                  className="group relative flex items-start gap-3 sm:gap-4"
+                >
+                  <div className="z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card shadow-sm sm:h-8 sm:w-8">
+                    {m.icon}
+                  </div>
+                  <div className="flex-1 rounded-xl border border-border/60 bg-muted/30 p-3 transition-colors hover:bg-muted/50">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
+                      >
+                        {m.badge}
+                      </Badge>
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {m.title}
+                      </h4>
+                    </div>
+                    {m.description && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {m.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

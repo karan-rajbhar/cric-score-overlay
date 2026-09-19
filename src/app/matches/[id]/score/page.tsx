@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -83,36 +83,6 @@ export default function ScoringPage() {
       ? null
       : false;
 
-  const {
-    match,
-    loading,
-    error,
-    battingTeamPlayers,
-    bowlingTeamPlayers,
-    strikerId,
-    nonStrikerId,
-    currentBowlerId,
-    lastOverBowlerId,
-    lastBalls,
-    rawDeliveries,
-    isProcessing,
-    setStrikerId,
-    setNonStrikerId,
-    setCurrentBowlerId,
-    handleStartMatch,
-    handleScore,
-    handleUndo,
-    handleUpdateBall,
-    handleStartSuperOver,
-    handleConfirmBatsmen,
-    handleConfirmBowler,
-    handleAddPlayerInline,
-    handleEndInnings,
-  } = useScoring(matchId, {
-    onNeedsBowler: () => setShowSelectBowler(true),
-    onNeedsBatsman: () => setShowSelectBatsmen(true),
-  });
-
   // UI state managed via Zustand store
   const {
     tossDialogDismissed,
@@ -144,6 +114,49 @@ export default function ScoringPage() {
     newPlayerName,
     setNewPlayerName,
   } = useScoringUIStore();
+
+  const handleNeedsBowler = useCallback(() => {
+    setShowSelectBowler(true);
+  }, [setShowSelectBowler]);
+
+  const handleNeedsBatsman = useCallback(() => {
+    setShowSelectBatsmen(true);
+  }, [setShowSelectBatsmen]);
+
+  const scoringOptions = useMemo(
+    () => ({
+      onNeedsBowler: handleNeedsBowler,
+      onNeedsBatsman: handleNeedsBatsman,
+    }),
+    [handleNeedsBowler, handleNeedsBatsman],
+  );
+
+  const {
+    match,
+    loading,
+    error,
+    battingTeamPlayers,
+    bowlingTeamPlayers,
+    strikerId,
+    nonStrikerId,
+    currentBowlerId,
+    lastOverBowlerId,
+    lastBalls,
+    rawDeliveries,
+    isProcessing,
+    setStrikerId,
+    setNonStrikerId,
+    setCurrentBowlerId,
+    handleStartMatch,
+    handleScore,
+    handleUndo,
+    handleUpdateBall,
+    handleStartSuperOver,
+    handleConfirmBatsmen,
+    handleConfirmBowler,
+    handleAddPlayerInline,
+    handleEndInnings,
+  } = useScoring(matchId, scoringOptions);
 
   const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");

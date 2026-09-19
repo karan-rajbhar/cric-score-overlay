@@ -1,6 +1,6 @@
 import { useAuth } from "~/lib/auth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface UseProtectedRouteOptions {
   redirectTo?: string;
@@ -12,6 +12,11 @@ export function useProtectedRoute(options: UseProtectedRouteOptions = {}) {
   const router = useRouter();
   const { redirectTo = "/auth/login", onUnauthenticated } = options;
 
+  const onUnauthenticatedRef = useRef(onUnauthenticated);
+  useEffect(() => {
+    onUnauthenticatedRef.current = onUnauthenticated;
+  });
+
   useEffect(() => {
     // Only redirect if we're sure there's no user and not loading
     if (!loading && !user) {
@@ -20,13 +25,13 @@ export function useProtectedRoute(options: UseProtectedRouteOptions = {}) {
         redirectTo,
       );
 
-      if (onUnauthenticated) {
-        onUnauthenticated();
+      if (onUnauthenticatedRef.current) {
+        onUnauthenticatedRef.current();
       } else {
         router.push(redirectTo);
       }
     }
-  }, [user, loading, router, redirectTo, onUnauthenticated]);
+  }, [user, loading, router, redirectTo]);
 
   return {
     user,

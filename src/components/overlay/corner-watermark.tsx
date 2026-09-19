@@ -22,14 +22,16 @@ export function CornerWatermark({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [fade, setFade] = useState(true);
 
+  const sponsorsLength = sponsors?.length ?? 0;
+
   useEffect(() => {
-    if (!sponsors || sponsors.length <= 1) return;
+    if (sponsorsLength <= 1) return;
 
     const timer = setInterval(
       () => {
         setFade(false);
         setTimeout(() => {
-          setCurrentIndex((prev) => (prev + 1) % sponsors.length);
+          setCurrentIndex((prev) => (prev + 1) % sponsorsLength);
           setFade(true);
         }, 300);
       },
@@ -37,7 +39,7 @@ export function CornerWatermark({
     );
 
     return () => clearInterval(timer);
-  }, [sponsors, intervalSecs]);
+  }, [sponsorsLength, intervalSecs]);
 
   if (!visible) return null;
 
