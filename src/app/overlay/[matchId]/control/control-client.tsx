@@ -27,6 +27,13 @@ import {
   playFreeHitAlert,
 } from "~/components/overlay/sound-effects";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "~/components/ui/dialog";
+import {
   Zap,
   Flame,
   AlertOctagon,
@@ -41,9 +48,18 @@ import {
   VolumeX,
   Activity,
   Send,
-  Sliders,
+  SlidersHorizontal,
   Landmark,
   Tv,
+  Undo2,
+  RotateCcw,
+  Keyboard,
+  Radio,
+  Sparkles,
+  Users,
+  Layers,
+  BarChart3,
+  Calendar,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 
@@ -57,35 +73,6 @@ function oversText(balls: number | null): string {
   if (!balls) return "0.0";
   return `${Math.floor(balls / 6)}.${balls % 6}`;
 }
-
-const VIEW_CATEGORIES = [
-  { id: "all", label: "All Views (29)" },
-  {
-    id: "scorebars",
-    label: "Scorebars & Straps",
-    views: ["1", "16", "17", "18", "19"],
-  },
-  {
-    id: "scorecards",
-    label: "Scorecards & Squads",
-    views: ["2", "3", "4", "5", "6", "7"],
-  },
-  {
-    id: "intervals",
-    label: "Breaks & Splashes",
-    views: ["13", "14", "15", "28"],
-  },
-  {
-    id: "analysis",
-    label: "Match Insights",
-    views: ["23", "8", "20", "21", "22", "29"],
-  },
-  {
-    id: "career",
-    label: "Career & Series",
-    views: ["24", "25", "26", "27", "36", "37", "38", "39"],
-  },
-];
 
 const THEME_OPTIONS: Array<{
   id: OverlayTheme;
@@ -173,25 +160,217 @@ const THEME_OPTIONS: Array<{
   },
 ];
 
+// Curated phase decks replacing the unorganized 29-button scroll
+const GRAPHIC_PHASE_DECKS: Array<{
+  id: string;
+  name: string;
+  description: string;
+  icon: typeof Layers;
+  views: Array<{ id: BroadcastViewId; label: string; desc: string }>;
+}> = [
+  {
+    id: "scorebars",
+    name: "Live Scorebars",
+    description: "In-play broadcast bugs anchored at the bottom of the feed",
+    icon: Layers,
+    views: [
+      {
+        id: "1",
+        label: "Standard Scorebar",
+        desc: "Batters, bowler, runs & match status",
+      },
+      {
+        id: "16",
+        label: "Striker Focus",
+        desc: "Expanded striker runs & ball-by-ball",
+      },
+      {
+        id: "17",
+        label: "Runner Focus",
+        desc: "Non-striker profile & boundary tally",
+      },
+      {
+        id: "18",
+        label: "Bowler Focus",
+        desc: "Current spell overs, maidens & wickets",
+      },
+      {
+        id: "19",
+        label: "Fall of Wicket Bug",
+        desc: "Recently dismissed batter details",
+      },
+    ],
+  },
+  {
+    id: "scorecards",
+    name: "Scorecards & Squads",
+    description: "Full-screen cards during fall of wickets or extended pauses",
+    icon: Users,
+    views: [
+      {
+        id: "2",
+        label: "Batting Team 1",
+        desc: "First innings batsman dismissal card",
+      },
+      {
+        id: "3",
+        label: "Bowling Team 1",
+        desc: "Bowling figures & economy rates",
+      },
+      {
+        id: "4",
+        label: "Batting Team 2",
+        desc: "Second innings chase card",
+      },
+      {
+        id: "5",
+        label: "Bowling Team 2",
+        desc: "Second innings bowling card",
+      },
+      {
+        id: "6",
+        label: "Team 1 Playing XI",
+        desc: "Squad list & captain/keeper badges",
+      },
+      {
+        id: "7",
+        label: "Team 2 Playing XI",
+        desc: "Opponent squad & playing roster",
+      },
+      {
+        id: "8",
+        label: "Match Summary",
+        desc: "Combined scores & match outcome",
+      },
+    ],
+  },
+  {
+    id: "breaks",
+    name: "Breaks & Stoppages",
+    description: "Full presentation screens for toss, innings break & weather",
+    icon: Calendar,
+    views: [
+      {
+        id: "13",
+        label: "Pre-Match Intro",
+        desc: "Tournament splash & stadium header",
+      },
+      {
+        id: "14",
+        label: "Innings Break",
+        desc: "Target requirement & 1st innings total",
+      },
+      {
+        id: "15",
+        label: "Drinks Break",
+        desc: "Mid-session pause & match equation",
+      },
+      {
+        id: "28",
+        label: "Rain Delay Notice",
+        desc: "Weather interruption announcement",
+      },
+    ],
+  },
+  {
+    id: "analytics",
+    name: "Analytics & Charts",
+    description: "In-depth graphs, match trends & tournament honours",
+    icon: BarChart3,
+    views: [
+      {
+        id: "22",
+        label: "Run Rate Worm",
+        desc: "Comparative innings trajectory chart",
+      },
+      {
+        id: "21",
+        label: "Over by Over Manhattan",
+        desc: "Runs scored bar chart per over",
+      },
+      {
+        id: "23",
+        label: "Partnership Graphic",
+        desc: "Current partnership contribution",
+      },
+      {
+        id: "20",
+        label: "Points Table",
+        desc: "Tournament standings & net run rate",
+      },
+      {
+        id: "29",
+        label: "Player of the Match",
+        desc: "Award winner spotlight & figures",
+      },
+      {
+        id: "24",
+        label: "Batter Career",
+        desc: "Milestones, averages & historical stats",
+      },
+      {
+        id: "26",
+        label: "Bowler Career",
+        desc: "Wicket milestones & economy profile",
+      },
+    ],
+  },
+];
+
+// 1-Click Broadcast Notice Presets for instant broadcast straps
+const NOTICE_PRESETS = [
+  {
+    id: "drinks",
+    label: "DRINKS BREAK",
+    text: "Drinks break in progress · Play resumes shortly",
+  },
+  {
+    id: "rain",
+    label: "RAIN DELAY",
+    text: "Rain stopped play · Ground staff covering the pitch",
+  },
+  {
+    id: "timeout",
+    label: "STRATEGIC TIMEOUT",
+    text: "2.5-minute strategic tactical timeout underway",
+  },
+  {
+    id: "innings",
+    label: "INNINGS BREAK",
+    text: "Change of innings in progress · Pitch preparation underway",
+  },
+  {
+    id: "drs",
+    label: "DRS REVIEW",
+    text: "Decision review in progress · Third umpire reviewing ball trajectory",
+  },
+  {
+    id: "inspection",
+    label: "PITCH INSPECTION",
+    text: "Next official umpires inspection scheduled in 15 minutes",
+  },
+];
+
 export function ControlClient({
   matchId,
   initialState,
   initialMatch,
 }: ControlClientProps) {
+  const isTestMode = matchId === "test";
+  const isRealUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      matchId,
+    );
+
+  // Live match state with fallback to demo data
   const [state, setState] = useState<LiveMatchState | null>(initialState);
   const [match] = useState<Match | null>(initialMatch);
   const [copiedObsUrl, setCopiedObsUrl] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Fallback to rich demo data when no match state is in database
-  const activeState = state ?? DEMO_MATCH_STATE;
-  const activeMatch = match ?? DEMO_MATCH_DETAILS;
-
-  // Monitor preview scaling
-  const monitorRef = useRef<HTMLDivElement>(null);
-  // Active broadcast state managed via Zustand store
+  // Active operational state from broadcast store
   const {
     selectedBroadcastView,
-    selectedCategory,
     selectedTheme,
     audioEnabled,
     marginOffsetPx,
@@ -199,18 +378,15 @@ export function ControlClient({
     customStrapText,
     activeSting,
     activeStrap,
-    activeTab,
     monitorScale,
     monitorBg,
     lastAction,
     setBroadcastView: setSelectedBroadcastView,
-    setSelectedCategory,
     setSelectedTheme,
     setAudioEnabled,
     setMarginOffsetPx,
     setStrapDurationSecs,
     setCustomStrapText,
-    setActiveTab,
     setMonitorScale,
     setMonitorBg,
     setLastAction,
@@ -218,61 +394,14 @@ export function ControlClient({
     clearStrap,
   } = useBroadcastStore();
 
-  const setActiveSting = useCallback(
-    (
-      updater:
-        | ActiveEventSting
-        | null
-        | ((curr: ActiveEventSting | null) => ActiveEventSting | null),
-    ) => {
-      if (typeof updater === "function") {
-        const next = updater(useBroadcastStore.getState().activeSting);
-        if (!next) clearSting();
-        else useBroadcastStore.getState().triggerSting(next);
-      } else if (!updater) {
-        clearSting();
-      } else {
-        useBroadcastStore.getState().triggerSting(updater);
-      }
-    },
-    [clearSting],
-  );
-
-  const setActiveStrap = useCallback(
-    (
-      updater:
-        | ActiveLowerThirdStrap
-        | null
-        | ((curr: ActiveLowerThirdStrap | null) => ActiveLowerThirdStrap | null),
-    ) => {
-      if (typeof updater === "function") {
-        const next = updater(useBroadcastStore.getState().activeStrap);
-        if (!next) clearStrap();
-        else
-          useBroadcastStore.getState().triggerStrap({
-            ...next,
-            strapType: next.type,
-          });
-      } else if (!updater) {
-        clearStrap();
-      } else {
-        useBroadcastStore.getState().triggerStrap({
-          ...updater,
-          strapType: updater.type,
-        });
-      }
-    },
-    [clearStrap],
-  );
-
-  const isRealUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      matchId,
-    );
-
+  const [activeDeckTab, setActiveDeckTab] = useState<string>("scorebars");
+  const monitorRef = useRef<HTMLDivElement>(null);
   const controlChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
     null,
   );
+
+  const activeState = state ?? DEMO_MATCH_STATE;
+  const activeMatch = match ?? DEMO_MATCH_DETAILS;
 
   // Measure monitor scale to fit 1920x1080 perfectly into 16:9 monitor
   useEffect(() => {
@@ -289,7 +418,7 @@ export function ControlClient({
     return () => ro.disconnect();
   }, [setMonitorScale]);
 
-  // Initialize Supabase Realtime Broadcast Channel
+  // Realtime Supabase broadcast channel
   useEffect(() => {
     const channel = supabase.channel(`overlay_control_${matchId}`);
     controlChannelRef.current = channel;
@@ -300,7 +429,7 @@ export function ControlClient({
     };
   }, [matchId]);
 
-  // Live match state polling / subscription
+  // Live database polling for real matches
   const refetch = useCallback(async () => {
     if (!isRealUuid) return;
     const { data } = await supabase
@@ -332,17 +461,52 @@ export function ControlClient({
     }
   }, []);
 
-  // Switch broadcast view
-  const handleSelectBroadcastView = (view: BroadcastViewId) => {
-    setSelectedBroadcastView(view);
+  const setActiveSting = useCallback(
+    (sting: ActiveEventSting | null) => {
+      if (!sting) clearSting();
+      else useBroadcastStore.getState().triggerSting(sting);
+    },
+    [clearSting],
+  );
+
+  const setActiveStrap = useCallback(
+    (strap: ActiveLowerThirdStrap | null) => {
+      if (!strap) clearStrap();
+      else
+        useBroadcastStore.getState().triggerStrap({
+          ...strap,
+          strapType: strap.type,
+        });
+    },
+    [clearStrap],
+  );
+
+  // Return to live scorebar (Take off full cards)
+  const handleReturnToScorebar = useCallback(() => {
+    setSelectedBroadcastView("1");
     setActiveSting(null);
+    setActiveStrap(null);
     sendCommand({
       type: "SET_BROADCAST_VIEW",
-      broadcastView: view,
+      broadcastView: "1",
     });
-    const opt = BROADCAST_VIEW_OPTIONS.find((o) => o.id === view);
-    setLastAction(`Switched to: ${opt?.label ?? view} (View ${view})`);
-  };
+    setLastAction("Live Scorebar On-Air (Scoreboard safe)");
+  }, [sendCommand, setActiveSting, setActiveStrap, setLastAction, setSelectedBroadcastView]);
+
+  // Switch broadcast view
+  const handleSelectBroadcastView = useCallback(
+    (view: BroadcastViewId) => {
+      setSelectedBroadcastView(view);
+      setActiveSting(null);
+      sendCommand({
+        type: "SET_BROADCAST_VIEW",
+        broadcastView: view,
+      });
+      const opt = BROADCAST_VIEW_OPTIONS.find((o) => o.id === view);
+      setLastAction(`Switched to: ${opt?.label ?? view} (View ${view})`);
+    },
+    [sendCommand, setActiveSting, setLastAction, setSelectedBroadcastView],
+  );
 
   // Trigger celebration stings
   const handleTriggerSting = useCallback(
@@ -356,11 +520,11 @@ export function ControlClient({
       }
 
       const titles: Record<string, string> = {
-        four: "BOUNDARY FOUR!",
-        six: "MAXIMUM SIX!",
-        wicket: "WICKET DOWN!",
-        milestone: "50 / 100 MILESTONE!",
-        free_hit: "FREE HIT CALL!",
+        four: "FOUR!",
+        six: "MAXIMUM!",
+        wicket: "WICKET!",
+        milestone: "50 / 100",
+        free_hit: "FREE HIT",
       };
 
       const stingId = `sting-${Date.now()}`;
@@ -380,11 +544,11 @@ export function ControlClient({
 
       setActiveSting(sting);
       setTimeout(() => {
-        setActiveSting((curr) => (curr?.id === sting.id ? null : curr));
+        setActiveSting(null);
       }, 4000);
 
       sendCommand({ type: "TRIGGER_STING", stingType });
-      setLastAction(`Triggered: ${titles[stingType]}`);
+      setLastAction(`Fired Sting: ${titles[stingType]}`);
     },
     [activeState, audioEnabled, sendCommand, setActiveSting, setLastAction],
   );
@@ -446,58 +610,101 @@ export function ControlClient({
 
       setActiveStrap(strap);
       setTimeout(() => {
-        setActiveStrap((curr) => (curr?.id === strap.id ? null : curr));
+        setActiveStrap(null);
       }, strapDurationSecs * 1000);
 
       sendCommand({ type: "SHOW_STRAP", strap });
-      setLastAction(`Strap: ${badge}`);
+      setLastAction(`Lower Third: ${badge}`);
+    },
+    [activeState, sendCommand, setActiveStrap, setLastAction, strapDurationSecs],
+  );
+
+  // Trigger custom alert strap
+  const handleSendCustomAlert = useCallback(
+    (customText?: string) => {
+      const text = (customText ?? customStrapText).trim();
+      if (!text) return;
+      const strapId = `custom-${Date.now()}`;
+      const strap: ActiveLowerThirdStrap = {
+        id: strapId,
+        type: "custom",
+        title: "OFFICIAL MATCH NOTICE",
+        subtitle: text,
+        badge: "LIVE NOTICE",
+        durationMs: strapDurationSecs * 1000,
+      };
+      setActiveStrap(strap);
+      setTimeout(() => {
+        setActiveStrap(null);
+      }, strapDurationSecs * 1000);
+
+      sendCommand({ type: "SHOW_STRAP", strap });
+      setLastAction(`Broadcast Alert: "${text}"`);
+      if (!customText) setCustomStrapText("");
     },
     [
-      activeState,
+      customStrapText,
       sendCommand,
       setActiveStrap,
+      setCustomStrapText,
       setLastAction,
       strapDurationSecs,
     ],
   );
 
-  // Custom alert strap
-  const handleSendCustomAlert = useCallback(() => {
-    if (!customStrapText.trim()) return;
-    const strapId = `custom-${Date.now()}`;
-    const strap: ActiveLowerThirdStrap = {
-      id: strapId,
-      type: "custom",
-      title: "OFFICIAL MATCH NOTICE",
-      subtitle: customStrapText.trim(),
-      badge: "LIVE NOTICE",
-      durationMs: strapDurationSecs * 1000,
-    };
-    setActiveStrap(strap);
-    setTimeout(() => {
-      setActiveStrap((curr) => (curr?.id === strap.id ? null : curr));
-    }, strapDurationSecs * 1000);
-
-    sendCommand({ type: "SHOW_STRAP", strap });
-    setLastAction(`Alert: "${customStrapText.trim()}"`);
-    setCustomStrapText("");
-  }, [
-    customStrapText,
-    sendCommand,
-    setActiveStrap,
-    setCustomStrapText,
-    setLastAction,
-    strapDurationSecs,
-  ]);
-
-  // Panic clear
-  const handlePanicClear = () => {
-    setActiveSting(null);
-    setActiveStrap(null);
-    setSelectedBroadcastView("1");
+  // Emergency Panic clear
+  const handlePanicClear = useCallback(() => {
+    handleReturnToScorebar();
     sendCommand({ type: "PANIC_CLEAR" });
-    setLastAction("Cleared all active graphics (Safe)");
-  };
+    setLastAction("Cleared all active graphics (Safety Cut)");
+  }, [handleReturnToScorebar, sendCommand, setLastAction]);
+
+  // Global keyboard shortcuts for live operators
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "4") {
+        e.preventDefault();
+        handleTriggerSting("four");
+      } else if (e.key === "6") {
+        e.preventDefault();
+        handleTriggerSting("six");
+      } else if (e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        handleTriggerSting("wicket");
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        handleTriggerSting("milestone");
+      } else if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        handleTriggerSting("free_hit");
+      } else if (e.key === " " || e.key === "Escape") {
+        e.preventDefault();
+        handleReturnToScorebar();
+      } else if (e.key === "b" || e.key === "B") {
+        e.preventDefault();
+        handleTriggerStrap("batsman");
+      } else if (e.key === "o" || e.key === "O") {
+        e.preventDefault();
+        handleTriggerStrap("bowler");
+      } else if (e.key === "p" || e.key === "P") {
+        e.preventDefault();
+        handleTriggerStrap("partnership");
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        handleTriggerStrap("target");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    handleTriggerSting,
+    handleReturnToScorebar,
+    handleTriggerStrap,
+  ]);
 
   // Audio toggle
   const handleToggleAudio = () => {
@@ -511,7 +718,7 @@ export function ControlClient({
   const handleSelectTheme = (thm: OverlayTheme) => {
     setSelectedTheme(thm);
     sendCommand({ type: "SET_THEME", theme: thm });
-    setLastAction(`Theme set to: ${thm.toUpperCase()}`);
+    setLastAction(`Broadcast Theme: ${thm.toUpperCase()}`);
   };
 
   // Margin offset
@@ -538,45 +745,152 @@ export function ControlClient({
     }
   };
 
-  // Filtered views based on category tab
-  const filteredViews = useMemo(() => {
-    if (selectedCategory === "all") return BROADCAST_VIEW_OPTIONS;
-    const cat = VIEW_CATEGORIES.find((c) => c.id === selectedCategory);
-    if (!cat?.views) return BROADCAST_VIEW_OPTIONS;
-    return BROADCAST_VIEW_OPTIONS.filter((o) => cat.views.includes(o.id));
-  }, [selectedCategory]);
+  // Simulator helper mutations (Test Mode Only)
+  const simulateScoreChange = (runsDelta: number, isWicket = false) => {
+    if (!isTestMode) return;
+    setState((prev) => {
+      const curr = prev ?? DEMO_MATCH_STATE;
+      const totalBalls = (curr.total_balls ?? 0) + 1;
+      const totalRuns = (curr.total_runs ?? 0) + runsDelta;
+      const totalWickets = isWicket
+        ? (curr.total_wickets ?? 0) + 1
+        : (curr.total_wickets ?? 0);
+      const strikerRuns = isWicket
+        ? curr.striker_runs
+        : (curr.striker_runs ?? 0) + runsDelta;
+      const strikerBalls = (curr.striker_balls ?? 0) + 1;
+      const runsNeeded =
+        curr.target_runs && curr.target_runs > totalRuns
+          ? curr.target_runs - totalRuns
+          : 0;
+      const ballsRemaining = Math.max(0, 120 - totalBalls);
+
+      return {
+        ...curr,
+        total_runs: totalRuns,
+        total_wickets: totalWickets,
+        total_balls: totalBalls,
+        current_over: Math.floor(totalBalls / 6),
+        current_ball: totalBalls % 6,
+        striker_runs: strikerRuns,
+        striker_balls: strikerBalls,
+        runs_needed: runsNeeded,
+        balls_remaining: ballsRemaining,
+        required_run_rate:
+          ballsRemaining > 0
+            ? Number(((runsNeeded / ballsRemaining) * 6).toFixed(2))
+            : 0,
+      };
+    });
+    setLastAction(
+      `Simulator: ${isWicket ? "WICKET!" : `+${runsDelta} Runs`} (Score: ${(activeState.total_runs ?? 0) + runsDelta}/${(activeState.total_wickets ?? 0) + (isWicket ? 1 : 0)})`,
+    );
+  };
+
+  const simulateStrikeRotation = () => {
+    if (!isTestMode) return;
+    setState((prev) => {
+      const curr = prev ?? DEMO_MATCH_STATE;
+      return {
+        ...curr,
+        striker_name: curr.non_striker_name,
+        striker_runs: curr.non_striker_runs,
+        striker_balls: curr.non_striker_balls,
+        non_striker_name: curr.striker_name,
+        non_striker_runs: curr.striker_runs,
+        non_striker_balls: curr.striker_balls,
+      };
+    });
+    setLastAction("Simulator: Rotated Strike");
+  };
+
+  const currentViewMeta = useMemo(() => {
+    return (
+      BROADCAST_VIEW_OPTIONS.find((o) => o.id === selectedBroadcastView) ?? {
+        id: selectedBroadcastView,
+        label: "Scorebar",
+      }
+    );
+  }, [selectedBroadcastView]);
+
+  const activeDeck = useMemo(() => {
+    return (
+      GRAPHIC_PHASE_DECKS.find((d) => d.id === activeDeckTab) ??
+      GRAPHIC_PHASE_DECKS[0]!
+    );
+  }, [activeDeckTab]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-amber-500 selection:text-black">
       {/* ============================================================= */}
-      {/* 1. STUDIO HEADER (CLEAN & PROFESSIONAL)                       */}
+      {/* 1. STUDIO HEADER & ON-AIR TALLY BAR                           */}
       {/* ============================================================= */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/90 px-3 py-2.5 shadow-lg backdrop-blur-xl sm:px-4 sm:py-3">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 sm:gap-3">
-          {/* Status & Match Summary */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-0.5 text-[11px] font-black text-red-400 sm:gap-2 sm:px-3 sm:py-1 sm:text-xs">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 px-3 py-2.5 shadow-xl backdrop-blur-xl sm:px-5 sm:py-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 sm:gap-4">
+          {/* Match & Live Studio Status */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5">
+            <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-1 text-xs font-black tracking-wider text-red-400">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
               <span>LIVE STUDIO</span>
             </div>
 
-            <div className="hidden sm:block">
-              <span className="text-sm font-black text-white">
-                {activeState.team1_short_name ?? "T1"} vs{" "}
-                {activeState.team2_short_name ?? "T2"}
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-black tracking-wide text-white">
+                {activeState.team1_name ?? activeState.team1_short_name ?? "T1"}{" "}
+                vs{" "}
+                {activeState.team2_name ?? activeState.team2_short_name ?? "T2"}
               </span>
-              <span className="ml-2 font-mono text-xs font-bold text-amber-400">
-                {activeState.total_runs ?? 0}/{activeState.total_wickets ?? 0} (
-                {oversText(activeState.total_balls)} ov)
+              <span className="font-mono text-xs font-bold tabular-nums text-amber-400">
+                {activeState.total_runs ?? 0}/{activeState.total_wickets ?? 0}{" "}
+                ({oversText(activeState.total_balls)} ov)
               </span>
             </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Live On-Air Tally Indicator & Return Button */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition",
+                selectedBroadcastView === "1"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-amber-500/50 bg-amber-500/20 text-amber-300 ring-2 ring-amber-500/30",
+              )}
+            >
+              <Radio
+                className={cn(
+                  "h-3.5 w-3.5 animate-pulse",
+                  selectedBroadcastView === "1"
+                    ? "text-emerald-400"
+                    : "text-amber-400",
+                )}
+              />
+              <span>
+                ON AIR:{" "}
+                <span className="font-black text-white">
+                  {currentViewMeta.label}
+                </span>
+              </span>
+            </div>
+
+            {selectedBroadcastView !== "1" && (
+              <button
+                onClick={handleReturnToScorebar}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-lg transition hover:bg-emerald-500 active:scale-95"
+                title="Return to Scorebar (Space / Esc)"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Cut to Scorebar</span>
+                <span className="sm:hidden">Cut</span>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Production Tools */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={copyObsUrl}
-              className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold shadow-sm transition sm:px-3.5 ${
+              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition ${
                 copiedObsUrl
                   ? "bg-emerald-600 text-white"
                   : "border border-white/10 bg-white/10 text-white hover:bg-white/20"
@@ -588,10 +902,7 @@ export function ControlClient({
                 <Copy className="h-3.5 w-3.5" />
               )}
               <span className="hidden sm:inline">
-                {copiedObsUrl ? "Copied OBS URL!" : "Copy OBS URL"}
-              </span>
-              <span className="sm:hidden">
-                {copiedObsUrl ? "Copied!" : "URL"}
+                {copiedObsUrl ? "Copied!" : "Copy OBS URL"}
               </span>
             </button>
 
@@ -599,540 +910,712 @@ export function ControlClient({
               href={obsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white sm:px-3"
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Open full transparent overlay in new window"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              <span>Popout</span>
+              <span className="hidden sm:inline">Popout</span>
             </a>
 
             <button
-              onClick={handlePanicClear}
-              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-2.5 py-1.5 text-xs font-black uppercase text-white shadow transition hover:bg-red-500 active:scale-95 sm:px-3.5"
-              title="Emergency Clear (Space/ESC)"
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              title="Configure Themes, Margins & Audio"
             >
-              <XCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">Clear Overlay</span>
-              <span className="sm:hidden">Clear</span>
+              <SlidersHorizontal className="h-3.5 w-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Settings</span>
+            </button>
+
+            <button
+              onClick={handlePanicClear}
+              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black uppercase text-white shadow-md transition hover:bg-red-500 active:scale-95"
+              title="Emergency Clear (Space / Esc)"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Clear</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* ============================================================= */}
-      {/* 2. MAIN PRODUCTION WORKSPACE                                  */}
+      {/* 2. MAIN 2-COLUMN BROADCAST CONTROL SUITE                      */}
       {/* ============================================================= */}
-      <main className="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6">
-        {/* Broadcast TV Themes Quick Switcher */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 shadow-lg backdrop-blur-md sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-amber-400" />
-            <span className="text-xs font-semibold text-slate-200">
-              TV Broadcast Theme:
-            </span>
-          </div>
-
-          {/* Mobile Theme Dropdown (Eliminates horizontal scroll on mobile) */}
-          <div className="w-full sm:hidden">
-            <select
-              value={selectedTheme}
-              onChange={(e) =>
-                handleSelectTheme(e.target.value as OverlayTheme)
-              }
-              className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-white focus:border-amber-400 focus:outline-none"
-            >
-              {THEME_OPTIONS.map((thm) => (
-                <option key={thm.id} value={thm.id}>
-                  {thm.label} ({thm.desc})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Desktop Theme Pills */}
-          <div className="hidden flex-wrap items-center gap-1.5 sm:flex">
-            {THEME_OPTIONS.map((thm) => (
-              <button
-                key={thm.id}
-                onClick={() => handleSelectTheme(thm.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
-                  selectedTheme === thm.id
-                    ? "scale-105 border-amber-400 bg-amber-500 font-black text-black shadow-lg ring-2 ring-amber-400/50"
-                    : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
-                }`}
-                title={thm.desc}
-              >
-                <span
-                  className={cn(
-                    "h-2.5 w-2.5 rounded-full bg-gradient-to-tr ring-1 ring-white/30 shrink-0",
-                    thm.swatch,
-                  )}
-                />
-                <span>{thm.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* =========================================================== */}
-        {/* LIVE PROGRAM MONITOR (16:9 1080P HERO PREVIEW)              */}
-        {/* =========================================================== */}
-        <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-3 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-4">
-          {/* Monitor Header */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-              <span className="font-mono text-xs font-semibold text-slate-200">
-                Program Feed (1920×1080 60fps)
-              </span>
-              <span className="rounded-md bg-amber-500 px-2 py-0.5 text-[11px] font-black text-black shadow-sm">
-                Active View:{" "}
-                {BROADCAST_VIEW_OPTIONS.find(
-                  (o) => o.id === selectedBroadcastView,
-                )?.label ?? selectedBroadcastView}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() =>
-                  setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
-                }
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
-              >
-                {monitorBg === "stadium" ? (
-                  <>
-                    <Landmark className="h-3 w-3 text-emerald-400" />
-                    <span>Stadium Cam</span>
-                  </>
-                ) : (
-                  <>
-                    <Tv className="h-3 w-3 text-amber-400" />
-                    <span>Studio Grid</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={handleToggleAudio}
-                className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
-                  audioEnabled
-                    ? "border-amber-500/40 bg-amber-500/20 text-amber-300"
-                    : "border-white/10 bg-white/5 text-slate-400"
-                }`}
-              >
-                {audioEnabled ? (
-                  <Volume2 className="h-3.5 w-3.5" />
-                ) : (
-                  <VolumeX className="h-3.5 w-3.5" />
-                )}
-                <span>{audioEnabled ? "SFX On" : "SFX Muted"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 16:9 Screen Frame */}
-          <div
-            ref={monitorRef}
-            className={`relative mt-3 aspect-video w-full overflow-hidden rounded-2xl border-2 border-white/10 shadow-2xl ${
-              monitorBg === "stadium"
-                ? "bg-cover bg-center"
-                : "bg-slate-950 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]"
-            }`}
-            style={{
-              backgroundImage:
-                monitorBg === "stadium"
-                  ? "radial-gradient(circle at 50% 30%, rgba(30, 58, 138, 0.4) 0%, rgba(2, 6, 23, 0.95) 100%), linear-gradient(180deg, rgba(2, 6, 23, 0.5) 0%, rgba(2, 6, 23, 0.92) 100%)"
-                  : undefined,
-            }}
-          >
-            {/* Scaled 1920x1080 Canvas */}
-            <div
-              style={{
-                width: "1920px",
-                height: "1080px",
-                transform: `scale(${monitorScale})`,
-                transformOrigin: "top left",
-              }}
-              className="pointer-events-none absolute left-0 top-0 select-none overflow-hidden"
-            >
-              <BroadcastSuiteOverlay
-                state={activeState}
-                match={activeMatch}
-                activeView={selectedBroadcastView}
-                theme={selectedTheme}
-              />
-              <EventStings
-                sting={activeSting}
-                theme={selectedTheme}
-                onDismiss={() => setActiveSting(null)}
-              />
-              <LowerThirdStraps
-                strap={activeStrap}
-                state={activeState}
-                theme={selectedTheme}
-                layout="bottom"
-                onDismiss={() => setActiveStrap(null)}
-              />
-            </div>
-          </div>
-
+      <main className="mx-auto max-w-7xl p-3 sm:p-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
           {/* ========================================================= */}
-          {/* THE 29-VIEW SWITCHER DOCK (FRONT & CENTER)                */}
+          {/* LEFT COLUMN: PROGRAM MONITOR & INSTANT EVENT HOTDECK      */}
           {/* ========================================================= */}
-          <div className="mt-4 border-t border-white/10 pt-3">
-            <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="grid grid-cols-2 items-center gap-1.5 text-xs min-[440px]:grid-cols-3 sm:flex sm:flex-wrap">
-                {VIEW_CATEGORIES.map((cat) => (
+          <div className="space-y-4 lg:col-span-6 xl:col-span-6">
+            {/* 16:9 Live Preview Screen Card */}
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+              {/* Monitor Titlebar */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-2.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                  <span className="font-semibold text-slate-200">
+                    Program Feed
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    1920×1080 · 60fps
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
                   <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`rounded-full px-3 py-1 text-center text-xs font-bold transition ${
-                      selectedCategory === cat.id
-                        ? "bg-amber-500 font-black text-black shadow-md"
-                        : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                    }`}
+                    onClick={() =>
+                      setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
+                    title="Toggle preview backdrop between stadium cam and transparency grid"
                   >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-              <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">
-                Click any view to switch live stream
-              </span>
-            </div>
-
-            {/* Mobile View Selector (Zero horizontal scroll needed) */}
-            <div className="mt-2 sm:hidden">
-              <label className="mb-1 block text-[11px] font-semibold text-slate-400">
-                Select Broadcast Overlay View ({filteredViews.length} views):
-              </label>
-              <select
-                value={selectedBroadcastView}
-                onChange={(e) =>
-                  handleSelectBroadcastView(e.target.value as BroadcastViewId)
-                }
-                className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-amber-300 focus:border-amber-400 focus:outline-none"
-              >
-                {filteredViews.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    View {opt.id}: {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Desktop Switcher Bar */}
-            <div className="premiumBtns hidden sm:flex" id="premiumBtns">
-              {filteredViews.map((opt, idx) => (
-                <button
-                  key={opt.id}
-                  data-view={opt.id}
-                  onClick={() => handleSelectBroadcastView(opt.id)}
-                  className={`btn btn-premium switcher ${idx === 0 ? "first" : ""} ${
-                    selectedBroadcastView === opt.id ? "active" : ""
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              <div className="placeholder" />
-            </div>
-          </div>
-        </div>
-
-        {/* ============================================================= */}
-        {/* 3. CLEAN PRODUCER ACTION DECKS                                */}
-        {/* ============================================================= */}
-        <div className="space-y-4 rounded-2xl border border-white/10 bg-slate-900/60 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-5">
-          {/* Tabs Selector */}
-          <div className="flex flex-col gap-2 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto">
-              <button
-                onClick={() => setActiveTab("inplay")}
-                className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-4 ${
-                  activeTab === "inplay"
-                    ? "bg-amber-500 font-bold text-black shadow-md"
-                    : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Zap className="h-4 w-4" />
-                <span>In-Play Actions</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab("settings")}
-                className={`flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition sm:px-4 ${
-                  activeTab === "settings"
-                    ? "bg-amber-500 font-bold text-black shadow-md"
-                    : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <Sliders className="h-4 w-4" />
-                <span>Theme & Settings</span>
-              </button>
-            </div>
-
-            <span className="hidden font-mono text-xs font-bold text-emerald-400 sm:block">
-              {lastAction}
-            </span>
-          </div>
-
-          {/* TAB 1: IN-PLAY ACTIONS */}
-          {activeTab === "inplay" && (
-            <div className="space-y-5 pt-1">
-              {/* Event Celebration Stings */}
-              <div>
-                <label className="mb-2 block text-xs font-bold text-slate-300">
-                  Instant Celebration Stings (Triggers Sound Fanfare +
-                  Full-Screen Flare)
-                </label>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
-                  <button
-                    onClick={() => handleTriggerSting("four")}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-sky-500/50 bg-gradient-to-b from-sky-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:from-sky-600/50 active:scale-95"
-                  >
-                    <Zap className="h-5 w-5 text-sky-400" />
-                    <span className="text-lg">FOUR!</span>
-                    <span className="text-[10px] uppercase text-sky-200/60">
-                      Boundary
-                    </span>
+                    {monitorBg === "stadium" ? (
+                      <>
+                        <Landmark className="h-3 w-3 text-emerald-400" />
+                        <span>Stadium</span>
+                      </>
+                    ) : (
+                      <>
+                        <Tv className="h-3 w-3 text-amber-400" />
+                        <span>Grid</span>
+                      </>
+                    )}
                   </button>
 
                   <button
-                    onClick={() => handleTriggerSting("six")}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-purple-500/50 bg-gradient-to-b from-purple-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:from-purple-600/50 active:scale-95"
+                    onClick={handleToggleAudio}
+                    className={cn(
+                      "flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition",
+                      audioEnabled
+                        ? "border-amber-500/40 bg-amber-500/20 text-amber-300"
+                        : "border-white/10 bg-white/5 text-slate-400",
+                    )}
+                    title="Toggle celebration sting audio fanfares"
                   >
-                    <Flame className="h-5 w-5 text-amber-400" />
-                    <span className="text-lg text-amber-300">MAXIMUM!</span>
-                    <span className="text-[10px] uppercase text-amber-200/60">
-                      Six
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerSting("wicket")}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-red-500/50 bg-gradient-to-b from-red-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:from-red-600/50 active:scale-95"
-                  >
-                    <AlertOctagon className="h-5 w-5 text-red-400" />
-                    <span className="text-lg text-red-300">WICKET!</span>
-                    <span className="text-[10px] uppercase text-red-200/60">
-                      Out
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerSting("milestone")}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-amber-500/50 bg-gradient-to-b from-amber-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:from-amber-600/50 active:scale-95"
-                  >
-                    <Trophy className="h-5 w-5 text-yellow-300" />
-                    <span className="text-lg text-yellow-300">50 / 100</span>
-                    <span className="text-[10px] uppercase text-yellow-200/60">
-                      Milestone
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => handleTriggerSting("free_hit")}
-                    className="flex flex-col items-center justify-center gap-1 rounded-2xl border border-yellow-500/50 bg-gradient-to-b from-yellow-500/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:from-yellow-500/50 active:scale-95"
-                  >
-                    <ShieldAlert className="h-5 w-5 text-yellow-400" />
-                    <span className="text-lg text-yellow-400">FREE HIT</span>
-                    <span className="text-[10px] uppercase text-yellow-200/60">
-                      No-Ball Call
-                    </span>
+                    {audioEnabled ? (
+                      <Volume2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <VolumeX className="h-3.5 w-3.5" />
+                    )}
+                    <span>{audioEnabled ? "SFX On" : "Muted"}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Lower-Third Quick Straps */}
-              <div className="border-t border-white/10 pt-2">
+              {/* 16:9 Scaled Monitor Viewport */}
+              <div
+                ref={monitorRef}
+                className={cn(
+                  "relative mt-3 aspect-video w-full overflow-hidden rounded-xl border-2 border-white/10 shadow-2xl sm:rounded-2xl",
+                  monitorBg === "stadium"
+                    ? "bg-cover bg-center"
+                    : "bg-slate-950 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]",
+                )}
+                style={{
+                  backgroundImage:
+                    monitorBg === "stadium"
+                      ? "radial-gradient(circle at 50% 30%, rgba(30, 58, 138, 0.4) 0%, rgba(2, 6, 23, 0.95) 100%), linear-gradient(180deg, rgba(2, 6, 23, 0.5) 0%, rgba(2, 6, 23, 0.92) 100%)"
+                      : undefined,
+                }}
+              >
+                {/* 1920x1080 Scaled Canvas */}
+                <div
+                  style={{
+                    width: "1920px",
+                    height: "1080px",
+                    transform: `scale(${monitorScale})`,
+                    transformOrigin: "top left",
+                  }}
+                  className="pointer-events-none absolute left-0 top-0 select-none overflow-hidden"
+                >
+                  <BroadcastSuiteOverlay
+                    state={activeState}
+                    match={activeMatch}
+                    activeView={selectedBroadcastView}
+                    theme={selectedTheme}
+                  />
+                  <EventStings
+                    sting={activeSting}
+                    theme={selectedTheme}
+                    onDismiss={() => setActiveSting(null)}
+                  />
+                  <LowerThirdStraps
+                    strap={activeStrap}
+                    state={activeState}
+                    theme={selectedTheme}
+                    layout="bottom"
+                    onDismiss={() => setActiveStrap(null)}
+                  />
+                </div>
+              </div>
+
+              {/* Active Layers Status HUD */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/40 px-3 py-2 text-[11px]">
+                <div className="flex items-center gap-3">
+                  <span className="text-slate-400">Layer Stack:</span>
+                  <span className="font-semibold text-emerald-400">
+                    Base: {currentViewMeta.label}
+                  </span>
+                  <span className="text-slate-600">•</span>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      activeStrap ? "text-sky-300" : "text-slate-500",
+                    )}
+                  >
+                    Strap: {activeStrap ? activeStrap.badge ?? "Active" : "None"}
+                  </span>
+                  <span className="text-slate-600">•</span>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      activeSting ? "text-amber-300" : "text-slate-500",
+                    )}
+                  >
+                    Sting: {activeSting ? activeSting.title : "Idle"}
+                  </span>
+                </div>
+
+                <span className="font-mono text-xs font-bold text-slate-400">
+                  {lastAction}
+                </span>
+              </div>
+            </div>
+
+            {/* Stream-Deck Instant Event Celebration Hotdeck */}
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Instant Event Celebration Stings
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  Click or use hotkeys
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <button
+                  onClick={() => handleTriggerSting("four")}
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-sky-500/40 bg-gradient-to-b from-sky-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-sky-600/50 active:scale-95"
+                >
+                  <span className="absolute right-2 top-2 rounded bg-sky-500/30 px-1 py-0.5 text-[9px] font-mono text-sky-300">
+                    [4]
+                  </span>
+                  <Zap className="h-5 w-5 text-sky-400 transition group-hover:scale-110" />
+                  <span className="text-lg">FOUR!</span>
+                  <span className="text-[10px] uppercase text-sky-200/70">
+                    Boundary
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleTriggerSting("six")}
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-purple-600/50 active:scale-95"
+                >
+                  <span className="absolute right-2 top-2 rounded bg-purple-500/30 px-1 py-0.5 text-[9px] font-mono text-purple-300">
+                    [6]
+                  </span>
+                  <Flame className="h-5 w-5 text-amber-400 transition group-hover:scale-110" />
+                  <span className="text-lg text-amber-300">MAXIMUM!</span>
+                  <span className="text-[10px] uppercase text-amber-200/70">
+                    Six
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleTriggerSting("wicket")}
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-red-500/40 bg-gradient-to-b from-red-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-red-600/50 active:scale-95"
+                >
+                  <span className="absolute right-2 top-2 rounded bg-red-500/30 px-1 py-0.5 text-[9px] font-mono text-red-300">
+                    [W]
+                  </span>
+                  <AlertOctagon className="h-5 w-5 text-red-400 transition group-hover:scale-110" />
+                  <span className="text-lg text-red-300">WICKET!</span>
+                  <span className="text-[10px] uppercase text-red-200/70">
+                    Out
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleTriggerSting("milestone")}
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-amber-600/50 active:scale-95"
+                >
+                  <span className="absolute right-2 top-2 rounded bg-amber-500/30 px-1 py-0.5 text-[9px] font-mono text-amber-300">
+                    [M]
+                  </span>
+                  <Trophy className="h-5 w-5 text-yellow-300 transition group-hover:scale-110" />
+                  <span className="text-lg text-yellow-300">50 / 100</span>
+                  <span className="text-[10px] uppercase text-yellow-200/70">
+                    Milestone
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => handleTriggerSting("free_hit")}
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-yellow-500/40 bg-gradient-to-b from-yellow-500/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-yellow-500/50 active:scale-95 col-span-2 sm:col-span-1"
+                >
+                  <span className="absolute right-2 top-2 rounded bg-yellow-500/30 px-1 py-0.5 text-[9px] font-mono text-yellow-300">
+                    [F]
+                  </span>
+                  <ShieldAlert className="h-5 w-5 text-yellow-400 transition group-hover:scale-110" />
+                  <span className="text-lg text-yellow-400">FREE HIT</span>
+                  <span className="text-[10px] uppercase text-yellow-200/70">
+                    No-Ball
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* In-Play Lower-Third Popups Deck */}
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Activity className="h-4 w-4 text-sky-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    In-Play Lower-Third Popups
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">Duration:</span>
+                  <select
+                    value={strapDurationSecs}
+                    onChange={(e) =>
+                      setStrapDurationSecs(Number(e.target.value))
+                    }
+                    className="rounded-lg border border-white/10 bg-slate-800 px-2 py-0.5 text-xs text-white"
+                  >
+                    <option value={5}>5s</option>
+                    <option value={8}>8s</option>
+                    <option value={10}>10s</option>
+                    <option value={15}>15s</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  {
+                    id: "batsman",
+                    label: "Striker Stats",
+                    hotkey: "B",
+                    desc: "Runs, balls & strike rate",
+                  },
+                  {
+                    id: "bowler",
+                    label: "Bowler Spell",
+                    hotkey: "O",
+                    desc: "Overs, maidens & wickets",
+                  },
+                  {
+                    id: "partnership",
+                    label: "Partnership",
+                    hotkey: "P",
+                    desc: "Active pair contribution",
+                  },
+                  {
+                    id: "target",
+                    label: "Chase Equation",
+                    hotkey: "T",
+                    desc: "Runs needed from balls",
+                  },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() =>
+                      handleTriggerStrap(s.id as ActiveLowerThirdStrap["type"])
+                    }
+                    className="flex flex-col justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-amber-500/40 hover:bg-white/10 active:scale-95"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">
+                        {s.label}
+                      </span>
+                      <span className="rounded bg-white/10 px-1 text-[9px] font-mono text-slate-300">
+                        [{s.hotkey}]
+                      </span>
+                    </div>
+                    <span className="mt-1 text-[10px] text-slate-400">
+                      {s.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Test Match Simulator (Only active on /overlay/test/control) */}
+            {isTestMode && (
+              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
-                    <Activity className="h-3.5 w-3.5 text-sky-400" />
-                    In-Play Lower-Third Popups (Discreet {strapDurationSecs}s
-                    Straps)
-                  </label>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-400">Duration:</span>
-                    <select
-                      value={strapDurationSecs}
-                      onChange={(e) =>
-                        setStrapDurationSecs(Number(e.target.value))
-                      }
-                      className="rounded-lg border border-white/10 bg-slate-800 px-2 py-0.5 text-xs text-white"
+                  <div className="flex items-center gap-1.5 font-bold text-amber-400 text-xs">
+                    <Radio className="h-4 w-4" />
+                    <span>Match Simulator (Test Cockpit)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    Instant match state QA
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    onClick={() => simulateScoreChange(4)}
+                    className="rounded-lg border border-sky-500/40 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-300 hover:bg-sky-500/30 active:scale-95"
+                  >
+                    +4 Runs
+                  </button>
+                  <button
+                    onClick={() => simulateScoreChange(6)}
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/30 active:scale-95"
+                  >
+                    +6 Runs
+                  </button>
+                  <button
+                    onClick={() => simulateScoreChange(0, true)}
+                    className="rounded-lg border border-red-500/40 bg-red-500/20 px-2.5 py-1 text-xs font-bold text-red-300 hover:bg-red-500/30 active:scale-95"
+                  >
+                    +Wkt
+                  </button>
+                  <button
+                    onClick={simulateStrikeRotation}
+                    className="rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-xs font-bold text-purple-300 hover:bg-purple-500/30 active:scale-95"
+                  >
+                    Rotate Strike
+                  </button>
+                  <button
+                    onClick={() => {
+                      setState(DEMO_MATCH_STATE);
+                      setLastAction("Simulator: Reset to Demo State");
+                    }}
+                    className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 active:scale-95"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Reset</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ========================================================= */}
+          {/* RIGHT COLUMN: PHASE-DRIVEN GRAPHICS DECKS & NOTICE PRESETS */}
+          {/* ========================================================= */}
+          <div className="space-y-4 lg:col-span-6 xl:col-span-6">
+            {/* Phase Graphics Switcher Deck */}
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-5">
+              <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Broadcast Graphic Decks
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  Select graphic to push live
+                </span>
+              </div>
+
+              {/* 4 Clean Phase Navigation Tabs */}
+              <div
+                role="tablist"
+                className="grid grid-cols-2 gap-1.5 rounded-xl bg-black/40 p-1 min-[480px]:grid-cols-4"
+              >
+                {GRAPHIC_PHASE_DECKS.map((deck) => {
+                  const Icon = deck.icon;
+                  const isActive = activeDeckTab === deck.id;
+                  return (
+                    <button
+                      key={deck.id}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveDeckTab(deck.id)}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition",
+                        isActive
+                          ? "bg-amber-500 text-black shadow-md"
+                          : "text-slate-400 hover:bg-white/5 hover:text-white",
+                      )}
                     >
-                      <option value={5}>5s</option>
-                      <option value={8}>8s</option>
-                      <option value={10}>10s</option>
-                      <option value={15}>15s</option>
-                    </select>
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{deck.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Views Grid for Active Phase */}
+              <div className="mt-3.5 space-y-2">
+                <p className="text-[11px] text-slate-400">
+                  {activeDeck.description}:
+                </p>
+
+                <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2">
+                  {activeDeck.views.map((v) => {
+                    const isLive = selectedBroadcastView === v.id;
+                    return (
+                      <button
+                        key={v.id}
+                        onClick={() => handleSelectBroadcastView(v.id)}
+                        className={cn(
+                          "flex flex-col justify-between rounded-xl border p-3 text-left transition",
+                          isLive
+                            ? "border-amber-400 bg-amber-500/20 shadow-md ring-2 ring-amber-400/40"
+                            : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10",
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={cn(
+                              "text-xs font-bold",
+                              isLive ? "text-amber-300" : "text-white",
+                            )}
+                          >
+                            {v.label}
+                          </span>
+                          {isLive ? (
+                            <span className="flex items-center gap-1 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-black">
+                              <Radio className="h-2.5 w-2.5" />
+                              <span>LIVE</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono text-slate-500">
+                              v{v.id}
+                            </span>
+                          )}
+                        </div>
+                        <span className="mt-1 text-[11px] text-slate-400">
+                          {v.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 1-Click Broadcast Notice Presets & Custom Ticker */}
+            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Radio className="h-4 w-4 text-sky-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                    Live Broadcast Notices & Alerts
+                  </span>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  1-Click Presets
+                </span>
+              </div>
+
+              {/* 1-Click Notice Badges */}
+              <div className="flex flex-wrap gap-1.5">
+                {NOTICE_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSendCustomAlert(p.text)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300 active:scale-95"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Ticker Input Box */}
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={customStrapText}
+                  onChange={(e) => setCustomStrapText(e.target.value)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleSendCustomAlert()
+                  }
+                  placeholder="Custom broadcast alert (e.g. 'Match inspection at 3:30 PM')"
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                />
+                <button
+                  onClick={() => handleSendCustomAlert()}
+                  className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400 active:scale-95"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>Send Alert</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* ============================================================= */}
+      {/* 3. UNIFIED THEME & BROADCAST SETTINGS DIALOG (NO REDUNDANCY)  */}
+      {/* ============================================================= */}
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-white/10 bg-slate-900 text-white shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-black text-white">
+              <SlidersHorizontal className="h-5 w-5 text-amber-400" />
+              <span>Broadcast Production Settings</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Customize visual broadcast theme, OBS safe-zone margins, sound
+              fanfares, and review operator hotkeys.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            {/* TV Broadcast Themes */}
+            <div>
+              <label className="mb-2 block flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+                <Palette className="h-4 w-4 text-amber-400" />
+                <span>TV Broadcast Visual Theme</span>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {THEME_OPTIONS.map((thm) => {
+                  const isSelected = selectedTheme === thm.id;
+                  return (
+                    <button
+                      key={thm.id}
+                      onClick={() => handleSelectTheme(thm.id)}
+                      className={cn(
+                        "flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition",
+                        isSelected
+                          ? "border-amber-400 bg-amber-500/20 ring-1 ring-amber-400"
+                          : "border-white/10 bg-white/5 hover:bg-white/10",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-3 w-3 shrink-0 rounded-full bg-gradient-to-tr ring-1 ring-white/30",
+                          thm.swatch,
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-bold text-white">
+                          {thm.label}
+                        </div>
+                        <div className="truncate text-[10px] text-slate-400">
+                          {thm.desc}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* OBS Safe-Zone Margin Offset */}
+            <div className="border-t border-white/10 pt-4">
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-300">
+                OBS Safe-Zone Margin Offset
+              </label>
+              <p className="mb-2 text-xs text-slate-400">
+                Lifts the bottom scorebar above YouTube/Twitch live chat or
+                mobile portrait safe areas.
+              </p>
+
+              <div className="flex gap-2">
+                {[0, 16, 32, 48].map((px) => (
+                  <button
+                    key={px}
+                    onClick={() => handleSetMarginOffset(px)}
+                    className={cn(
+                      "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition",
+                      marginOffsetPx === px
+                        ? "border-amber-400 bg-amber-500 font-black text-black shadow-md"
+                        : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                    )}
+                  >
+                    +{px}px
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Keyboard Hotkeys Guide */}
+            <div className="border-t border-white/10 pt-4">
+              <label className="mb-2 block flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+                <Keyboard className="h-4 w-4 text-sky-400" />
+                <span>Operator Keyboard Shortcuts</span>
+              </label>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
+                  <div className="font-bold text-amber-300 text-[11px] uppercase">
+                    Celebration Stings
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Boundary Four:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [4]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Maximum Six:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [6]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Wicket Down:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [W]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Milestone 50/100:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [M]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Free Hit Call:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [F]
+                    </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    {
-                      id: "batsman",
-                      label: "Active Batter Inning",
-                      desc: "Runs, balls & strike rate",
-                    },
-                    {
-                      id: "bowler",
-                      label: "Current Bowler Spell",
-                      desc: "Overs, maidens, runs, wickets",
-                    },
-                    {
-                      id: "partnership",
-                      label: "Partnership Stand",
-                      desc: "Active batters contribution",
-                    },
-                    {
-                      id: "target",
-                      label: "Chase Equation",
-                      desc: "Runs needed from balls",
-                    },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() =>
-                        handleTriggerStrap(
-                          s.id as ActiveLowerThirdStrap["type"],
-                        )
-                      }
-                      className="flex flex-col justify-between rounded-xl border border-white/10 bg-white/5 p-3 text-left transition hover:border-amber-500/40 hover:bg-white/10"
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {s.label}
-                      </span>
-                      <span className="mt-0.5 text-[11px] text-slate-400">
-                        {s.desc}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Impromptu Notice Box */}
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    type="text"
-                    value={customStrapText}
-                    onChange={(e) => setCustomStrapText(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" && handleSendCustomAlert()
-                    }
-                    placeholder="Broadcast custom alert (e.g. 'Physio on ground' / 'Play delayed 10 mins')"
-                    className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
-                  />
-                  <button
-                    onClick={handleSendCustomAlert}
-                    className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    <span>Send Alert</span>
-                  </button>
+                <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
+                  <div className="font-bold text-sky-300 text-[11px] uppercase">
+                    Production Navigation
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Return to Scorebar:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [Space / Esc]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Striker Stats:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [B]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Bowler Figures:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [O]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Partnership Stand:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [P]
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-300">
+                    <span>Target Chase:</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                      [T]
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          )}
-
-          {/* TAB 2: BROADCAST THEMES & STREAM SETTINGS */}
-          {activeTab === "settings" && (
-            <div className="space-y-4 pt-1">
-              <div>
-                <label className="mb-2 block flex items-center gap-1.5 text-xs font-bold text-slate-300">
-                  <Palette className="h-4 w-4 text-amber-400" />
-                  Broadcast TV Themes (Authentic Visual Styling & Score Motifs)
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    {
-                      id: "starsports",
-                      label: "Star Sports",
-                      sub: "Official IPL Gold & Blue",
-                    },
-                    {
-                      id: "sonysports",
-                      label: "Sony Sports",
-                      sub: "LIV Championship Red",
-                    },
-                    {
-                      id: "foxcricket",
-                      label: "Fox Cricket",
-                      sub: "Australian Prime Orange",
-                    },
-                    {
-                      id: "skysports",
-                      label: "Sky Sports",
-                      sub: "UK Ashes Crimson & White",
-                    },
-                    { id: "apex", label: "Apex 24K", sub: "Luxury Gold Bevel" },
-                    {
-                      id: "volt",
-                      label: "Volt Tech",
-                      sub: "High-Velocity Cyber Lime",
-                    },
-                    {
-                      id: "agni",
-                      label: "Agni Inferno",
-                      sub: "Volcanic Magma Flames",
-                    },
-                    {
-                      id: "thehundred",
-                      label: "The Hundred",
-                      sub: "Pop Neon & Vertical Ranks",
-                    },
-                  ].map((thm) => (
-                    <button
-                      key={thm.id}
-                      onClick={() => handleSelectTheme(thm.id as OverlayTheme)}
-                      className={`flex flex-col rounded-xl border p-3 text-left transition ${
-                        selectedTheme === thm.id
-                          ? "border-amber-400 bg-amber-500/20 shadow-md ring-1 ring-amber-400"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <span className="text-sm font-bold text-white">
-                        {thm.label}
-                      </span>
-                      <span className="mt-0.5 text-[11px] text-slate-400">
-                        {thm.sub}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Safe-Zone Bottom Margin */}
-              <div className="flex flex-col items-start justify-between gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-center">
-                <div>
-                  <span className="block text-xs font-bold text-slate-300">
-                    OBS Safe-Zone Margin Offset
-                  </span>
-                  <p className="text-[11px] text-slate-400">
-                    Raises the scorebar above mobile comments or YouTube chat
-                  </p>
-                </div>
-                <div className="flex gap-1.5">
-                  {[0, 16, 32, 48].map((px) => (
-                    <button
-                      key={px}
-                      onClick={() => handleSetMarginOffset(px)}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
-                        marginOffsetPx === px
-                          ? "border-amber-400 bg-amber-500 font-black text-black"
-                          : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-                      }`}
-                    >
-                      +{px}px
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
