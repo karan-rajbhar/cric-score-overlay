@@ -130,7 +130,7 @@ function battingRows(inn: InningsRow): string {
       const isCentury = runs >= 100;
       const isFifty = runs >= 50 && runs < 100;
       const runBadge = isCentury
-        ? `<span class="milestone-badge century">${runs} ★</span>`
+        ? `<span class="milestone-badge century">${runs} <svg class="inline h-2.5 w-2.5 fill-current" viewBox="0 0 24 24" width="10" height="10" style="display:inline-block;vertical-align:-1px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
         : isFifty
           ? `<span class="milestone-badge fifty">${runs}</span>`
           : `<span class="run-val font-bold">${runs}</span>`;
@@ -222,7 +222,7 @@ function bowlingRows(inn: InningsRow): string {
       const wkts = b.wickets_taken ?? 0;
       const wktBadge =
         wkts >= 5
-          ? `<span class="milestone-badge century">${wkts} ★</span>`
+          ? `<span class="milestone-badge century">${wkts} <svg class="inline h-2.5 w-2.5 fill-current" viewBox="0 0 24 24" width="10" height="10" style="display:inline-block;vertical-align:-1px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
           : wkts >= 3
             ? `<span class="milestone-badge three-wkt">${wkts}</span>`
             : `<strong>${wkts}</strong>`;
@@ -1384,7 +1384,7 @@ function renderSignoffBlock(match: Match): string {
     <div class="official-signoff-card">
         <div class="signoff-top-bar">
             <div class="signoff-brand-seal">
-                <span class="seal-icon">✓</span>
+                <span class="seal-icon"><svg class="inline" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;"><polyline points="20 6 9 17 4 12"/></svg></span>
                 <span class="seal-title">Official Verification &amp; Match Sign-off</span>
             </div>
             <div class="signoff-auth-stamp">Certified Official Scoresheet &bull; Laws of Cricket</div>
@@ -2900,7 +2900,7 @@ export async function buildMatchReportHtml(
 <body>
     <div id="screen-toolbar">
         <div class="toolbar-info">
-            <span>⚡ CricScore Match Report &bull; Print Preview</span>
+            <span><svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore Match Report &bull; Print Preview</span>
         </div>
         <div class="toolbar-actions">
             <button class="btn-print" onclick="window.print()">
@@ -2917,13 +2917,13 @@ export async function buildMatchReportHtml(
         <div class="page-inner">
             <header class="report-top-header">
                 <div class="brand-mark">
-                    <span>⚡ CricScore</span>
+                    <span><svg style="width:16px;height:16px;display:inline-block;vertical-align:-3px;margin-right:5px;color:#10b981;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore</span>
                     <span style="font-weight: normal; color: #cbd5e1;">|</span>
                     <span class="badge-sub">Official Match Record</span>
                 </div>
                 <div class="org-badges">
-                    ${match.tournament ? `<span class="badge badge-tournament">🏆 ${esc(match.tournament.name)}</span>` : ""}
-                    ${match.club ? `<span class="badge badge-club">🛡️ ${esc(match.club.name)}</span>` : ""}
+                    ${match.tournament ? `<span class="badge badge-tournament"><svg style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>${esc(match.tournament.name)}</span>` : ""}
+                    ${match.club ? `<span class="badge badge-club"><svg style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>${esc(match.club.name)}</span>` : ""}
                 </div>
             </header>
 

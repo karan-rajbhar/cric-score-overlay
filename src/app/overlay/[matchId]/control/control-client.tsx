@@ -42,7 +42,10 @@ import {
   Activity,
   Send,
   Sliders,
+  Landmark,
+  Tv,
 } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 interface ControlClientProps {
   matchId: string;
@@ -81,6 +84,92 @@ const VIEW_CATEGORIES = [
     id: "career",
     label: "Career & Series",
     views: ["24", "25", "26", "27", "36", "37", "38", "39"],
+  },
+];
+
+const THEME_OPTIONS: Array<{
+  id: OverlayTheme;
+  label: string;
+  desc: string;
+  swatch: string;
+}> = [
+  {
+    id: "starsports",
+    label: "Star Sports",
+    desc: "IPL Gold & Blue",
+    swatch: "from-amber-400 to-blue-600",
+  },
+  {
+    id: "sonysports",
+    label: "Sony Sports",
+    desc: "LIV Crimson Red",
+    swatch: "from-red-600 to-rose-950",
+  },
+  {
+    id: "foxcricket",
+    label: "Fox Cricket",
+    desc: "Aussie BBL Orange",
+    swatch: "from-amber-500 to-orange-600",
+  },
+  {
+    id: "apex",
+    label: "Apex 24K",
+    desc: "Mirror Gold",
+    swatch: "from-yellow-300 via-amber-400 to-yellow-600",
+  },
+  {
+    id: "volt",
+    label: "Volt Tech",
+    desc: "Cyber Lime",
+    swatch: "from-lime-400 to-emerald-500",
+  },
+  {
+    id: "agni",
+    label: "Agni Inferno",
+    desc: "Volcanic Magma",
+    swatch: "from-orange-500 to-red-600",
+  },
+  {
+    id: "skysports",
+    label: "Sky Sports",
+    desc: "Ashes Red & Navy",
+    swatch: "from-red-600 to-blue-900",
+  },
+  {
+    id: "thehundred",
+    label: "The Hundred",
+    desc: "Hot Pink & Cyan",
+    swatch: "from-pink-500 to-cyan-400",
+  },
+  {
+    id: "dharma",
+    label: "Dharma",
+    desc: "Royal Vedic Gold",
+    swatch: "from-amber-500 to-orange-700",
+  },
+  {
+    id: "thunder",
+    label: "Thunder",
+    desc: "Electric Cyan & Indigo",
+    swatch: "from-cyan-400 to-indigo-600",
+  },
+  {
+    id: "nakshatra",
+    label: "Nakshatra",
+    desc: "Cosmic Purple & Gold",
+    swatch: "from-purple-500 to-amber-400",
+  },
+  {
+    id: "emerald",
+    label: "Emerald",
+    desc: "Pitch Green & Gold",
+    swatch: "from-emerald-500 to-green-800",
+  },
+  {
+    id: "dark",
+    label: "Dark Titanium",
+    desc: "Carbon Titanium",
+    swatch: "from-zinc-700 to-neutral-900",
   },
 ];
 
@@ -552,26 +641,9 @@ export function ControlClient({
               }
               className="w-full rounded-xl border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-white focus:border-amber-400 focus:outline-none"
             >
-              {[
-                { id: "starsports", label: "⭐ Star Sports (IPL Gold & Blue)" },
-                { id: "sonysports", label: "🔴 Sony Sports (LIV Crimson Red)" },
-                {
-                  id: "foxcricket",
-                  label: "🦊 Fox Cricket (Aussie BBL Orange)",
-                },
-                { id: "skysports", label: "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Sky Sports (Ashes Red & Navy)" },
-                { id: "apex", label: "👑 Apex 24K (Mirror Gold)" },
-                { id: "volt", label: "⚡ Volt Tech (Cyber Lime)" },
-                { id: "agni", label: "🔥 Agni Inferno (Volcanic Magma)" },
-                { id: "thehundred", label: "🦄 The Hundred (Hot Pink & Cyan)" },
-                { id: "dharma", label: "🕉️ Dharma (Royal Vedic Gold)" },
-                { id: "thunder", label: "⚡ Thunder (Electric Cyan)" },
-                { id: "nakshatra", label: "✨ Nakshatra (Cosmic Purple)" },
-                { id: "emerald", label: "🏏 Emerald (Pitch Green)" },
-                { id: "dark", label: "🖤 Dark Titanium (Carbon)" },
-              ].map((thm) => (
+              {THEME_OPTIONS.map((thm) => (
                 <option key={thm.id} value={thm.id}>
-                  {thm.label}
+                  {thm.label} ({thm.desc})
                 </option>
               ))}
             </select>
@@ -579,97 +651,23 @@ export function ControlClient({
 
           {/* Desktop Theme Pills */}
           <div className="hidden flex-wrap items-center gap-1.5 sm:flex">
-            {[
-              {
-                id: "starsports",
-                label: "Star Sports",
-                icon: "⭐",
-                desc: "IPL Gold & Blue",
-              },
-              {
-                id: "sonysports",
-                label: "Sony Sports",
-                icon: "🔴",
-                desc: "LIV Crimson Red",
-              },
-              {
-                id: "foxcricket",
-                label: "Fox Cricket",
-                icon: "🦊",
-                desc: "Aussie BBL Orange",
-              },
-              {
-                id: "apex",
-                label: "Apex 24K",
-                icon: "👑",
-                desc: "Mirror Gold",
-              },
-              {
-                id: "volt",
-                label: "Volt Tech",
-                icon: "⚡",
-                desc: "Cyber Lime",
-              },
-              {
-                id: "agni",
-                label: "Agni Inferno",
-                icon: "🔥",
-                desc: "Volcanic Magma",
-              },
-              {
-                id: "skysports",
-                label: "Sky Sports",
-                icon: "🏴󠁧󠁢󠁥󠁮󠁧󠁿",
-                desc: "Ashes Red & Navy",
-              },
-              {
-                id: "thehundred",
-                label: "The Hundred",
-                icon: "🦄",
-                desc: "Hot Pink & Cyan",
-              },
-              {
-                id: "dharma",
-                label: "Dharma",
-                icon: "🕉️",
-                desc: "Royal Vedic Gold",
-              },
-              {
-                id: "thunder",
-                label: "Thunder",
-                icon: "⚡",
-                desc: "Electric Cyan & Indigo",
-              },
-              {
-                id: "nakshatra",
-                label: "Nakshatra",
-                icon: "✨",
-                desc: "Cosmic Purple & Gold",
-              },
-              {
-                id: "emerald",
-                label: "Emerald",
-                icon: "🏏",
-                desc: "Pitch Green & Gold",
-              },
-              {
-                id: "dark",
-                label: "Dark Titanium",
-                icon: "🖤",
-                desc: "Carbon Titanium",
-              },
-            ].map((thm) => (
+            {THEME_OPTIONS.map((thm) => (
               <button
                 key={thm.id}
-                onClick={() => handleSelectTheme(thm.id as OverlayTheme)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                onClick={() => handleSelectTheme(thm.id)}
+                className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
                   selectedTheme === thm.id
                     ? "scale-105 border-amber-400 bg-amber-500 font-black text-black shadow-lg ring-2 ring-amber-400/50"
                     : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
                 }`}
                 title={thm.desc}
               >
-                <span>{thm.icon}</span>
+                <span
+                  className={cn(
+                    "h-2.5 w-2.5 rounded-full bg-gradient-to-tr ring-1 ring-white/30 shrink-0",
+                    thm.swatch,
+                  )}
+                />
                 <span>{thm.label}</span>
               </button>
             ))}
@@ -700,9 +698,19 @@ export function ControlClient({
                 onClick={() =>
                   setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
                 }
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
               >
-                {monitorBg === "stadium" ? "🏟️ Stadium Cam" : "🏁 Studio Grid"}
+                {monitorBg === "stadium" ? (
+                  <>
+                    <Landmark className="h-3 w-3 text-emerald-400" />
+                    <span>Stadium Cam</span>
+                  </>
+                ) : (
+                  <>
+                    <Tv className="h-3 w-3 text-amber-400" />
+                    <span>Studio Grid</span>
+                  </>
+                )}
               </button>
 
               <button

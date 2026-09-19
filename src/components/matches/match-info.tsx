@@ -19,6 +19,8 @@ import {
   Clock,
   CircleDot,
   Layers,
+  CloudSun,
+  Landmark,
 } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import { formatPlayerRole } from "~/lib/cricket";
@@ -176,7 +178,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.weather_conditions && (
                 <div className="flex items-start gap-3">
-                  <span className="text-lg">🌤️</span>
+                  <CloudSun className="mt-0.5 h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Weather</p>
                     <p className="font-medium">{match.weather_conditions}</p>
@@ -186,7 +188,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.pitch_conditions && (
                 <div className="flex items-start gap-3">
-                  <span className="text-lg">🏟️</span>
+                  <Landmark className="mt-0.5 h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Pitch</p>
                     <p className="font-medium">{match.pitch_conditions}</p>

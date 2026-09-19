@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  Trophy,
+  Crown,
+  Zap,
+  Flame,
+  Sparkles,
+  Rocket,
+  Sun,
+  AlertTriangle,
+  Star,
+} from "lucide-react";
 import type { ActiveEventSting, OverlayTheme } from "./types";
 
 interface EventStingsProps {
@@ -619,11 +630,11 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center bg-black px-8 py-6">
                 <div className="flex items-center justify-center gap-3">
-                  <span className="text-4xl text-pink-500">⚡</span>
+                  <Zap className="h-8 w-8 fill-pink-500 text-pink-500" />
                   <h2 className="text-8xl font-black italic tracking-tighter text-cyan-300 drop-shadow-[5px_5px_0px_#ec4899] md:text-9xl">
                     FOUR!
                   </h2>
-                  <span className="text-4xl text-pink-500">⚡</span>
+                  <Zap className="h-8 w-8 fill-pink-500 text-pink-500" />
                 </div>
 
                 {sting.subtitle && (
@@ -757,7 +768,7 @@ export function EventStings({
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-black text-black">✦</span>
+                  <Sparkles className="h-3.5 w-3.5 text-black" />
                   <span>APEX BROADCAST · 24K GOLD BOUNDARY</span>
                 </div>
                 <div className="flex items-center gap-1.5 font-black">
@@ -768,15 +779,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-sparkle text-3xl font-black text-amber-300">
-                    ✦
-                  </span>
+                  <Sparkles className="h-8 w-8 text-amber-300 animate-sparkle" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-amber-400 to-yellow-100 bg-clip-text text-7xl font-black tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(245,158,11,0.95)] md:text-8xl">
                     APEX 4!
                   </h2>
-                  <span className="animate-sparkle text-3xl font-black text-amber-300 [animation-delay:0.5s]">
-                    ✦
-                  </span>
+                  <Sparkles className="h-8 w-8 text-amber-300 animate-sparkle [animation-delay:0.5s]" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-widest text-amber-200 drop-shadow">
@@ -803,7 +810,7 @@ export function EventStings({
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-yellow-200/40 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🏆</span>
+                  <Trophy className="h-4 w-4 text-black" />
                   <span>APEX FRANCHISE · MAXIMUM IMPACT</span>
                 </div>
                 <div className="flex items-center gap-1.5 font-black">
@@ -814,15 +821,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-sparkle text-4xl text-yellow-300">
-                    ★
-                  </span>
+                  <Sparkles className="h-8 w-8 text-yellow-300 animate-sparkle" />
                   <h2 className="bg-gradient-to-r from-yellow-100 via-amber-300 to-yellow-200 bg-clip-text text-7xl font-black tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(250,204,21,1)] md:text-9xl">
                     MAXIMUM!
                   </h2>
-                  <span className="animate-sparkle text-4xl text-yellow-300 [animation-delay:0.7s]">
-                    ★
-                  </span>
+                  <Sparkles className="h-8 w-8 text-yellow-300 animate-sparkle [animation-delay:0.7s]" />
                 </div>
                 <p className="mt-1 text-2xl font-black uppercase tracking-widest text-amber-300 drop-shadow">
                   MONSTER SIX INTO THE TOP TIER!
@@ -889,18 +892,18 @@ export function EventStings({
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">👑</span>
+                  <Crown className="h-4 w-4 text-black" />
                   <span>APEX GOLD · MILESTONE HONOURS</span>
                 </div>
                 <div className="font-black">WORLD CLASS KNOCK</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-8 w-8 text-amber-300" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-white to-amber-300 bg-clip-text text-6xl font-black tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(245,158,11,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-8 w-8 text-amber-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-amber-200 drop-shadow">
@@ -933,11 +936,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_4px_30px_rgba(250,204,21,0.95)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                 </div>
                 <p className="mt-1 text-base font-black uppercase tracking-widest text-white/90">
                   Free Hit Awarded · Striker Cannot Be Dismissed
@@ -1026,15 +1029,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/80 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="font-mono text-3xl font-black text-lime-400">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-lime-400 text-lime-400" />
                   <h2 className="bg-gradient-to-r from-cyan-300 via-lime-300 to-white bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_45px_rgba(0,240,255,1)] md:text-9xl">
                     MAXIMUM!
                   </h2>
-                  <span className="font-mono text-3xl font-black text-lime-400">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-lime-400 text-lime-400" />
                 </div>
                 <p className="mt-1 font-mono text-2xl font-black uppercase tracking-widest text-lime-300 drop-shadow">
                   OVER THE STADIUM ROOF!
@@ -1104,7 +1103,7 @@ export function EventStings({
             <div className="bg-[#030905]/98 clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 shadow-[0_0_90px_rgba(0,255,102,0.6)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-lime-400">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">⚡</span>
+                  <Zap className="h-4 w-4 text-lime-400" />
                   <span>VOLT HIGH SCORE · BATSMAN TELEMETRY</span>
                 </div>
                 <div className="font-bold text-cyan-300">
@@ -1113,15 +1112,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-black/80 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="font-mono text-3xl font-black text-lime-400">
-                    ✦
-                  </span>
+                  <Sparkles className="h-8 w-8 text-lime-400" />
                   <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-6xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_35px_rgba(0,255,102,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="font-mono text-3xl font-black text-lime-400">
-                    ✦
-                  </span>
+                  <Sparkles className="h-8 w-8 text-lime-400" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 font-mono text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1154,15 +1149,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="font-mono text-3xl font-black text-yellow-400">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="font-mono text-3xl font-black text-yellow-400">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                 </div>
                 <p className="mt-1 font-mono text-sm font-bold uppercase tracking-widest text-white/90">
                   Bowler Exceeded Line · Free Swing Authorized
@@ -1189,7 +1180,7 @@ export function EventStings({
             <div className="from-[#030a24]/98 via-[#091a4f]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-blue-400 bg-gradient-to-r shadow-[0_0_80px_rgba(59,130,246,0.6)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-blue-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
-                  <span className="text-yellow-300">⚡</span>
+                  <Zap className="h-3.5 w-3.5 fill-yellow-300 text-yellow-300" />
                   <span>THUNDER VELOCITY · LIGHTNING FOUR</span>
                 </div>
                 <div className="font-black text-yellow-300">
@@ -1198,15 +1189,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl font-black text-yellow-300">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-300 text-yellow-300" />
                   <h2 className="bg-gradient-to-r from-yellow-300 via-white to-blue-300 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(59,130,246,1)] md:text-9xl">
                     FOUR!
                   </h2>
-                  <span className="text-3xl font-black text-yellow-300">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-300 text-yellow-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wider text-white drop-shadow">
@@ -1232,22 +1219,18 @@ export function EventStings({
             <div className="from-[#030a24]/98 via-[#0c2266]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 bg-gradient-to-r shadow-[0_0_100px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">⚡</span>
+                  <Zap className="h-4 w-4 text-black" />
                   <span>THUNDER VELOCITY · MAXIMUM BLAST</span>
                 </div>
                 <div className="font-black">OUT OF THE STADIUM</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-bounce text-4xl text-yellow-300">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-300 text-yellow-300 animate-bounce" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-white to-yellow-400 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_40px_rgba(250,204,21,1)] md:text-9xl">
                     MAXIMUM!
                   </h2>
-                  <span className="animate-bounce text-4xl text-yellow-300">
-                    ⚡
-                  </span>
+                  <Zap className="h-8 w-8 fill-yellow-300 text-yellow-300 animate-bounce" />
                 </div>
                 <p className="mt-1 text-2xl font-black uppercase tracking-widest text-yellow-300 drop-shadow">
                   MONSTER THUNDERBOLT SIX!
@@ -1273,7 +1256,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="bg-[#0e0204]/98 relative w-full overflow-hidden rounded-2xl border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.8)] backdrop-blur-2xl">
+            <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.7)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-red-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-white" />
@@ -1283,11 +1266,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-black/70 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl font-black text-red-500">⚡</span>
+                  <Zap className="h-8 w-8 fill-red-500 text-red-500" />
                   <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(239,68,68,1)] md:text-9xl">
                     WICKET!
                   </h2>
-                  <span className="text-4xl font-black text-red-500">⚡</span>
+                  <Zap className="h-8 w-8 fill-red-500 text-red-500" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1313,18 +1296,18 @@ export function EventStings({
             <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 shadow-[0_0_90px_rgba(250,204,21,0.7)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">👑</span>
+                  <Crown className="h-4 w-4 text-black" />
                   <span>THUNDER VELOCITY · MILESTONE KNOCK</span>
                 </div>
                 <div className="font-black">SENSATIONAL INNINGS</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-yellow-400">♛</span>
+                  <Crown className="h-8 w-8 text-yellow-400" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-white to-yellow-400 bg-clip-text text-6xl font-black tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(250,204,21,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="text-4xl text-yellow-400">♛</span>
+                  <Crown className="h-8 w-8 text-yellow-400" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1357,11 +1340,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
                 </div>
                 <p className="mt-1 text-base font-black uppercase tracking-widest text-white/90">
                   Unrestricted Strike · Batsman Free to Attack
@@ -1385,18 +1368,18 @@ export function EventStings({
             <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400/90 bg-gradient-to-r from-[#200508] via-[#380911] to-[#200508] shadow-[0_0_70px_rgba(153,27,27,0.7)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">⚜</span>
+                  <Crown className="h-4 w-4 text-black" />
                   <span>DHARMA HERITAGE · ROYAL BOUNDARY</span>
                 </div>
                 <div className="font-black">RAJASTHAN FOUR</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl text-amber-300">⚜</span>
+                  <Crown className="h-8 w-8 text-amber-300" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-100 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(245,158,11,0.95)] md:text-9xl">
                     FOUR!
                   </h2>
-                  <span className="text-3xl text-amber-300">⚜</span>
+                  <Crown className="h-8 w-8 text-amber-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wider text-amber-200 drop-shadow">
@@ -1422,18 +1405,18 @@ export function EventStings({
             <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_0_90px_rgba(245,158,11,0.8)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">👑</span>
+                  <Crown className="h-4 w-4 text-black" />
                   <span>DHARMA HERITAGE · MAHARAJA SIX</span>
                 </div>
                 <div className="font-black">MAGNIFICENT MAXIMUM</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-9 w-9 text-amber-300" />
                   <h2 className="bg-gradient-to-r from-yellow-100 via-amber-300 to-yellow-200 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(250,204,21,1)] md:text-9xl">
                     MAXIMUM!
                   </h2>
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-9 w-9 text-amber-300" />
                 </div>
                 <p className="mt-1 text-2xl font-black uppercase tracking-widest text-amber-300 drop-shadow">
                   ROYAL SHOT INTO THE HEAVENS!
@@ -1499,18 +1482,18 @@ export function EventStings({
             <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_0_90px_rgba(245,158,11,0.8)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">👑</span>
+                  <Crown className="h-4 w-4 text-black" />
                   <span>DHARMA HERITAGE · CENTURY HONOURS</span>
                 </div>
                 <div className="font-black">ROYAL PERFORMANCE</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-9 w-9 text-amber-300" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-white to-amber-300 bg-clip-text text-6xl font-black tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(245,158,11,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="text-4xl text-amber-300">♛</span>
+                  <Crown className="h-9 w-9 text-amber-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-amber-200 drop-shadow">
@@ -1543,11 +1526,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-yellow-400">⚠</span>
+                  <AlertTriangle className="h-9 w-9 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="text-4xl text-yellow-400">⚠</span>
+                  <AlertTriangle className="h-9 w-9 text-yellow-400" />
                 </div>
                 <p className="mt-1 text-base font-black uppercase tracking-widest text-white/90">
                   Free Delivery Granted By Umpire
@@ -1574,18 +1557,18 @@ export function EventStings({
             <div className="from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-500/80 bg-gradient-to-r shadow-[0_0_80px_rgba(168,85,247,0.6)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
-                  <span className="text-cyan-300">✦</span>
+                  <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
                   <span>NAKSHATRA ASTRAL · STELLAR BOUNDARY</span>
                 </div>
                 <div className="font-black text-cyan-300">COSMIC 4</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl text-purple-300">✦</span>
+                  <Sparkles className="h-8 w-8 text-purple-300" />
                   <h2 className="bg-gradient-to-r from-purple-300 via-white to-cyan-300 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(168,85,247,1)] md:text-9xl">
                     FOUR!
                   </h2>
-                  <span className="text-3xl text-purple-300">✦</span>
+                  <Sparkles className="h-8 w-8 text-purple-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wider text-cyan-200 drop-shadow">
@@ -1611,7 +1594,7 @@ export function EventStings({
             <div className="from-[#07031e]/98 via-[#1f0a5c]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-cyan-400 bg-gradient-to-r shadow-[0_0_100px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🚀</span>
+                  <Rocket className="h-4 w-4 text-white" />
                   <span>NAKSHATRA ASTRAL · LAUNCHED INTO ORBIT</span>
                 </div>
                 <div className="font-black text-cyan-200">
@@ -1620,11 +1603,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-cyan-300">★</span>
+                  <Star className="h-9 w-9 fill-cyan-300 text-cyan-300" />
                   <h2 className="bg-gradient-to-r from-cyan-200 via-white to-purple-300 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_40px_rgba(56,189,248,1)] md:text-9xl">
                     MAXIMUM!
                   </h2>
-                  <span className="text-4xl text-cyan-300">★</span>
+                  <Star className="h-9 w-9 fill-cyan-300 text-cyan-300" />
                 </div>
                 <p className="mt-1 text-2xl font-black uppercase tracking-widest text-cyan-300 drop-shadow">
                   SUPERNOVA HIT INTO DEEP SPACE!
@@ -1660,11 +1643,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-black/70 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl font-black text-red-500">✦</span>
+                  <Sparkles className="h-9 w-9 text-red-500" />
                   <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_35px_rgba(239,68,68,1)] md:text-9xl">
                     WICKET!
                   </h2>
-                  <span className="text-4xl font-black text-red-500">✦</span>
+                  <Sparkles className="h-9 w-9 text-red-500" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1690,18 +1673,18 @@ export function EventStings({
             <div className="from-[#07031e]/98 via-[#1c0852]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-400 bg-gradient-to-r shadow-[0_0_90px_rgba(168,85,247,0.7)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-fuchsia-600 to-purple-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">✦</span>
+                  <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
                   <span>NAKSHATRA ASTRAL · STELLAR MILESTONE</span>
                 </div>
                 <div className="font-black text-cyan-200">ASTRAL CENTURY</div>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-purple-300">♛</span>
+                  <Crown className="h-9 w-9 text-purple-300" />
                   <h2 className="bg-gradient-to-r from-purple-200 via-white to-cyan-300 bg-clip-text text-6xl font-black tracking-widest text-transparent drop-shadow-[0_4px_30px_rgba(168,85,247,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="text-4xl text-purple-300">♛</span>
+                  <Crown className="h-9 w-9 text-purple-300" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-cyan-200 drop-shadow">
@@ -1734,11 +1717,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-9 w-9 fill-yellow-400 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="text-4xl text-yellow-400">⚡</span>
+                  <Zap className="h-9 w-9 fill-yellow-400 text-yellow-400" />
                 </div>
                 <p className="mt-1 text-base font-black uppercase tracking-widest text-white/90">
                   Bowler Overstepped · Batter Free to Launch
@@ -1760,7 +1743,7 @@ export function EventStings({
               <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-gradient-to-r from-orange-500/10 via-red-500/20 to-amber-500/10" />
               <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="animate-flame-flicker text-base">🔥</span>
+                  <Flame className="h-4 w-4 fill-black text-black animate-flame-flicker" />
                   <span>AGNI INFERNO · BLAZING BOUNDARY</span>
                 </div>
                 <div className="flex items-center gap-2 font-black">
@@ -1771,13 +1754,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-flame-flicker text-3xl">🔥</span>
+                  <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-orange-400 to-red-500 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_0_35px_rgba(255,69,0,1)] md:text-9xl">
                     BLAZING 4!
                   </h2>
-                  <span className="animate-flame-flicker text-3xl [animation-delay:0.4s]">
-                    🔥
-                  </span>
+                  <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400 [animation-delay:0.4s]" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-amber-200 drop-shadow">
@@ -1804,7 +1785,7 @@ export function EventStings({
               <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-gradient-to-r from-red-600/15 via-orange-500/25 to-yellow-500/15" />
               <div className="flex items-center justify-between bg-gradient-to-r from-orange-600 via-red-600 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🌋</span>
+                  <Flame className="h-4 w-4 fill-black text-black" />
                   <span>AGNI INFERNO · MAXIMUM VOLCANIC BLAST</span>
                 </div>
                 <div className="flex items-center gap-2 font-black text-black">
@@ -1815,13 +1796,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-flame-flicker text-4xl">🔥</span>
+                  <Flame className="h-9 w-9 animate-flame-flicker fill-orange-400 text-orange-400" />
                   <h2 className="bg-gradient-to-r from-yellow-100 via-amber-300 to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_50px_rgba(255,69,0,1)] md:text-9xl">
                     MAXIMUM 6!
                   </h2>
-                  <span className="animate-flame-flicker text-4xl [animation-delay:0.5s]">
-                    🔥
-                  </span>
+                  <Flame className="h-9 w-9 animate-flame-flicker fill-orange-400 text-orange-400 [animation-delay:0.5s]" />
                 </div>
                 <p className="mt-1 text-2xl font-black uppercase tracking-widest text-orange-300 drop-shadow">
                   BLOWN TO ASHES OVER THE STANDS!
@@ -1862,11 +1841,11 @@ export function EventStings({
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/75 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl text-red-500">💥</span>
+                  <Sparkles className="h-8 w-8 text-red-500" />
                   <h2 className="bg-gradient-to-r from-red-400 via-orange-200 to-red-600 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_40px_rgba(239,68,68,1)] md:text-9xl">
                     WICKET!
                   </h2>
-                  <span className="text-3xl text-red-500">💥</span>
+                  <Sparkles className="h-8 w-8 text-red-500" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1893,20 +1872,18 @@ export function EventStings({
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/25 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">☀️</span>
+                  <Sun className="h-4 w-4 text-black" />
                   <span>AGNI INFERNO · SOLAR MILESTONE</span>
                 </div>
                 <span>BLAZING ACHIEVEMENT</span>
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-flame-flicker text-3xl">☀️</span>
+                  <Sun className="h-8 w-8 animate-flame-flicker text-amber-300" />
                   <h2 className="bg-gradient-to-r from-yellow-200 via-amber-400 to-orange-400 bg-clip-text text-6xl font-black tracking-wider text-transparent drop-shadow-[0_0_35px_rgba(245,158,11,0.95)] md:text-8xl">
                     {sting.title}
                   </h2>
-                  <span className="animate-flame-flicker text-3xl [animation-delay:0.5s]">
-                    ☀️
-                  </span>
+                  <Sun className="h-8 w-8 animate-flame-flicker text-amber-300 [animation-delay:0.5s]" />
                 </div>
                 {sting.subtitle && (
                   <p className="mt-1 text-2xl font-black uppercase tracking-wide text-white drop-shadow">
@@ -1932,18 +1909,18 @@ export function EventStings({
             <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-orange-400 shadow-[0_0_90px_rgba(255,140,0,0.8)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-orange-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
-                  <span className="animate-flame-flicker text-base">🔥</span>
+                  <Flame className="h-4 w-4 fill-black text-black animate-flame-flicker" />
                   <span>AGNI INFERNO · UMPIRE PENALTY PROTOCOL</span>
                 </div>
                 <span>FREE HIT DELIVERED</span>
               </div>
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/75 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-flame-flicker text-3xl">🔥</span>
+                  <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-wider text-orange-300 drop-shadow-[0_0_35px_rgba(255,140,0,1)] md:text-9xl">
                     FREE HIT!
                   </h2>
-                  <span className="animate-flame-flicker text-3xl">🔥</span>
+                  <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
                 </div>
                 <p className="mt-2 text-sm font-black uppercase tracking-widest text-white/90 md:text-base">
                   Bowler Overstepped · Unleash The Magma Blast
@@ -2034,14 +2011,18 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center px-8 py-5">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="animate-pulse text-3xl font-black italic tracking-tighter text-amber-400">
-                    ★ ★ ★
+                  <span className="flex items-center gap-1">
+                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                    <Star className="h-7 w-7 fill-amber-300 text-amber-300 animate-pulse" />
+                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
                   </span>
                   <h2 className="bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-400 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_28px_rgba(245,158,11,0.95)] md:text-8xl">
                     MAXIMUM!
                   </h2>
-                  <span className="animate-pulse text-3xl font-black italic tracking-tighter text-amber-400">
-                    ★ ★ ★
+                  <span className="flex items-center gap-1">
+                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                    <Star className="h-7 w-7 fill-amber-300 text-amber-300 animate-pulse" />
+                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
                   </span>
                 </div>
 
@@ -2136,11 +2117,11 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center px-8 py-5">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl font-black text-amber-400">♛</span>
+                  <Crown className="h-8 w-8 text-amber-400" />
                   <h2 className="bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-400 bg-clip-text text-6xl font-black tracking-wider text-transparent drop-shadow-[0_4px_24px_rgba(245,158,11,0.9)] md:text-7xl">
                     {sting.title}
                   </h2>
-                  <span className="text-3xl font-black text-amber-400">♛</span>
+                  <Crown className="h-8 w-8 text-amber-400" />
                 </div>
 
                 {sting.subtitle && (
@@ -2180,15 +2161,11 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="text-3xl font-black text-yellow-400">
-                    ⚠
-                  </span>
+                  <AlertTriangle className="h-8 w-8 text-yellow-400" />
                   <h2 className="animate-pulse text-7xl font-black italic tracking-wider text-yellow-300 drop-shadow-[0_4px_24px_rgba(250,204,21,0.9)] md:text-8xl">
                     FREE HIT!
                   </h2>
-                  <span className="text-3xl font-black text-yellow-400">
-                    ⚠
-                  </span>
+                  <AlertTriangle className="h-8 w-8 text-yellow-400" />
                 </div>
 
                 <p className="mt-2 text-sm font-black uppercase tracking-widest text-white/90 md:text-base">

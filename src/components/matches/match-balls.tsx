@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, Zap } from "lucide-react";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
 import { teamName, formatDismissalType, formatExtraType } from "~/lib/cricket";
@@ -115,17 +115,19 @@ export function MatchBalls({ match }: MatchBallsProps) {
         </Badge>
         <Badge
           variant={filter === "boundaries" ? "magenta" : "outline"}
-          className="cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
           onClick={() => setFilter("boundaries")}
         >
-          Boundaries (4s &amp; 6s) 💥
+          <Sparkles className="h-3.5 w-3.5" />
+          Boundaries (4s &amp; 6s)
         </Badge>
         <Badge
           variant={filter === "wickets" ? "destructive" : "outline"}
-          className="cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
           onClick={() => setFilter("wickets")}
         >
-          Wickets ⚡
+          <Zap className="h-3.5 w-3.5" />
+          Wickets
         </Badge>
       </div>
 

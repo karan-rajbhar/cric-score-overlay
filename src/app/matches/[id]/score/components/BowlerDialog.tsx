@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { UserPlus } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { cn } from "~/lib/utils";
 import type { TeamPlayer } from "~/lib/match-types";
 
@@ -210,7 +210,7 @@ export function BowlerDialog({
                 aria-label="Cancel adding bowler"
                 onClick={() => onAddPlayerTargetChange?.(null)}
               >
-                ✕
+                <X className="h-4 w-4" />
               </Button>
             </div>
           ) : (

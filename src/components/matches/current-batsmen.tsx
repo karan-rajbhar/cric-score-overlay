@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "~/components/ui/card";
-import { ArrowLeftRight, UserPlus, Users, Pencil } from "lucide-react";
+import { ArrowLeftRight, UserPlus, Users, Pencil, Radio } from "lucide-react";
 
 interface Batsman {
   id: string;
@@ -105,11 +105,12 @@ function BatsmanRow({
             <span
               className={
                 sunlightMode
-                  ? "inline-flex items-center rounded-full border border-black bg-black px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white"
-                  : "inline-flex items-center rounded-full bg-emerald-500/25 px-2 py-0.5 text-[9px] font-black tracking-wider text-emerald-800 dark:border dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300"
+                  ? "inline-flex items-center gap-1 rounded-full border border-black bg-black px-2.5 py-0.5 text-[10px] font-black tracking-wider text-white"
+                  : "inline-flex items-center gap-1 rounded-full bg-emerald-500/25 px-2 py-0.5 text-[9px] font-black tracking-wider text-emerald-800 dark:border dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300"
               }
             >
-              🏏 STRIKE
+              <Radio className="h-2.5 w-2.5 animate-pulse text-emerald-700 dark:text-emerald-400" />
+              STRIKE
             </span>
           )}
           {onChangeBatter && (

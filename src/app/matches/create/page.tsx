@@ -47,6 +47,7 @@ import {
   Shield,
   RotateCcw,
   Users,
+  Star,
 } from "lucide-react";
 
 interface Team {
@@ -664,8 +665,8 @@ function CreateMatchWizard() {
                     <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
                       <div className="flex items-center gap-1.5 font-medium text-amber-500">
                         <Trophy className="h-3.5 w-3.5" />
-                        <span>
-                          Teams marked with ★ are registered in{" "}
+                        <span className="inline-flex items-center gap-1">
+                          Teams with <Star className="inline h-3 w-3 fill-amber-500 text-amber-500" /> are registered in{" "}
                           {selectedTournament.name}
                         </span>
                       </div>
@@ -780,10 +781,16 @@ function CreateMatchWizard() {
                                             key={team.id}
                                             value={team.id}
                                           >
-                                            {isReg ? "★ " : ""}
-                                            {team.name}
-                                            {team.short_name &&
-                                              ` (${team.short_name})`}
+                                            <span className="flex items-center gap-1.5">
+                                              {isReg && (
+                                                <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                              )}
+                                              <span>
+                                                {team.name}
+                                                {team.short_name &&
+                                                  ` (${team.short_name})`}
+                                              </span>
+                                            </span>
                                           </SelectItem>
                                         );
                                       })}
@@ -804,9 +811,14 @@ function CreateMatchWizard() {
                                             key={team.id}
                                             value={team.id}
                                           >
-                                            ★ {team.name}
-                                            {team.short_name &&
-                                              ` (${team.short_name})`}
+                                            <span className="flex items-center gap-1.5">
+                                              <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                              <span>
+                                                {team.name}
+                                                {team.short_name &&
+                                                  ` (${team.short_name})`}
+                                              </span>
+                                            </span>
                                           </SelectItem>
                                         ))}
                                       </SelectGroup>
@@ -832,10 +844,16 @@ function CreateMatchWizard() {
                                               key={team.id}
                                               value={team.id}
                                             >
-                                              {isReg ? "★ " : ""}
-                                              {team.name}
-                                              {team.short_name &&
-                                                ` (${team.short_name})`}
+                                              <span className="flex items-center gap-1.5">
+                                                {isReg && (
+                                                  <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                                )}
+                                                <span>
+                                                  {team.name}
+                                                  {team.short_name &&
+                                                    ` (${team.short_name})`}
+                                                </span>
+                                              </span>
                                             </SelectItem>
                                           );
                                         })}
@@ -896,9 +914,14 @@ function CreateMatchWizard() {
                                     <SelectLabel>Tournament Teams</SelectLabel>
                                     {team2TournamentTeams.map((team) => (
                                       <SelectItem key={team.id} value={team.id}>
-                                        ★ {team.name}
-                                        {team.short_name &&
-                                          ` (${team.short_name})`}
+                                        <span className="flex items-center gap-1.5">
+                                          <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                          <span>
+                                            {team.name}
+                                            {team.short_name &&
+                                              ` (${team.short_name})`}
+                                          </span>
+                                        </span>
                                       </SelectItem>
                                     ))}
                                   </SelectGroup>

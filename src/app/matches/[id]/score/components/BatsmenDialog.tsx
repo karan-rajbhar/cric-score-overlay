@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { UserPlus } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import type { TeamPlayer } from "~/lib/match-types";
 
 interface BatsmenDialogProps {
@@ -191,7 +191,7 @@ export function BatsmenDialog({
                 aria-label="Cancel adding player"
                 onClick={() => onAddPlayerTargetChange(null)}
               >
-                ✕
+                <X className="h-4 w-4" />
               </Button>
             </div>
           ) : (

@@ -25,9 +25,17 @@ export function NewsTicker({
 
       {/* Marquee scrolling container */}
       <div className="relative flex w-full overflow-hidden whitespace-nowrap">
-        <div className="animate-marquee inline-block text-xs font-semibold tracking-wide text-slate-200">
-          <span className="mx-6">★ {text} ★</span>
-          <span className="mx-6">★ {text} ★</span>
+        <div className="animate-marquee inline-flex items-center text-xs font-semibold tracking-wide text-slate-200">
+          <span className="mx-6 inline-flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            {text}
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          </span>
+          <span className="mx-6 inline-flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            {text}
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+          </span>
         </div>
       </div>
     </div>

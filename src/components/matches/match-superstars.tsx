@@ -17,6 +17,10 @@ import {
   List,
   Flame,
   Info,
+  Star,
+  Activity,
+  Target,
+  Shield,
 } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import {
@@ -216,11 +220,11 @@ function SuperstarPlayerNode({
           number={jerseyNumber}
         />
 
-        {/* Top-Left Rating Pill (Green badge with gold star ⭐ for #1) */}
-        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-black text-white shadow-md ring-1 ring-white/30">
+        {/* Top-Left Rating Pill (Green badge with gold star for #1) */}
+        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-black text-white shadow-md ring-1 ring-white/30">
           <span>{rating}</span>
           {isTopRanked && (
-            <span className="text-yellow-300 text-[11px] leading-none">⭐</span>
+            <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300" />
           )}
         </div>
 
@@ -337,7 +341,7 @@ function SuperstarPointsDialog({
             <div className="space-y-1.5 text-xs">
               <div className="flex items-center justify-between py-1 border-b border-border/50">
                 <span className="flex items-center gap-1.5 font-medium">
-                  🏏 Batting Points
+                  <Activity className="h-3.5 w-3.5 text-emerald-500" /> Batting Points
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -351,7 +355,7 @@ function SuperstarPointsDialog({
 
               <div className="flex items-center justify-between py-1 border-b border-border/50">
                 <span className="flex items-center gap-1.5 font-medium">
-                  🎯 Bowling Points
+                  <Target className="h-3.5 w-3.5 text-sky-500" /> Bowling Points
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -365,7 +369,7 @@ function SuperstarPointsDialog({
 
               <div className="flex items-center justify-between py-1">
                 <span className="flex items-center gap-1.5 font-medium">
-                  🧤 Fielding & Dismissals
+                  <Shield className="h-3.5 w-3.5 text-indigo-500" /> Fielding & Dismissals
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -413,7 +417,9 @@ function SuperstarInfoDialog({
 
         <div className="space-y-3 pt-2 text-xs text-muted-foreground">
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="font-bold text-foreground">🏏 Batting Points</p>
+            <p className="flex items-center gap-1.5 font-bold text-foreground">
+              <Activity className="h-4 w-4 text-emerald-500" /> Batting Points
+            </p>
             <p>• 1 Point per Run scored</p>
             <p>• +1 Bonus point per Boundary (4s)</p>
             <p>• +2 Bonus points per Maximum (6s)</p>
@@ -421,7 +427,9 @@ function SuperstarInfoDialog({
           </div>
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="font-bold text-foreground">🎯 Bowling Points</p>
+            <p className="flex items-center gap-1.5 font-bold text-foreground">
+              <Target className="h-4 w-4 text-sky-500" /> Bowling Points
+            </p>
             <p>• 25 Points per Wicket taken (excluding run-outs)</p>
             <p>• 12 Points per Maiden Over</p>
             <p>• +4 Bonus for 3-Wicket haul, +8 for 4-Wicket haul, +16 for 5-Wicket haul</p>
@@ -429,13 +437,17 @@ function SuperstarInfoDialog({
           </div>
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="font-bold text-foreground">🧤 Fielding Points</p>
+            <p className="flex items-center gap-1.5 font-bold text-foreground">
+              <Shield className="h-4 w-4 text-indigo-500" /> Fielding Points
+            </p>
             <p>• 8 Points per Catch</p>
             <p>• 12 Points per Stumping / Direct Hit Run-out</p>
           </div>
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="font-bold text-foreground">⭐ Star Multipliers</p>
+            <p className="flex items-center gap-1.5 font-bold text-foreground">
+              <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> Star Multipliers
+            </p>
             <p>• Captain (Top Performer): 2X Points</p>
             <p>• Vice-Captain (2nd Top Performer): 1.5X Points</p>
           </div>
@@ -731,8 +743,11 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
 
                   <div className="text-right">
                     <div className="flex items-center gap-1 justify-end font-black text-sm text-foreground">
-                      <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                        {rating} {player.rank === 1 && "⭐"}
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
+                        <span>{rating}</span>
+                        {player.rank === 1 && (
+                          <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300" />
+                        )}
                       </span>
                     </div>
                     <span className="text-[10px] text-muted-foreground">

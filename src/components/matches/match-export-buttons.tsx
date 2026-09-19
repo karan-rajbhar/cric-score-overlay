@@ -15,7 +15,6 @@ import {
 import type { Match } from "~/lib/match-types";
 import {
   CANVAS,
-  COLORS,
   generateQRImage,
   createCanvas,
   downloadCanvas,
@@ -31,6 +30,169 @@ export type {
 } from "~/lib/match-report";
 
 const { W, H } = CANVAS.MATCH_SUMMARY;
+
+function drawZapIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.translate(x, y);
+  const s = size / 24;
+  ctx.beginPath();
+  ctx.moveTo(13 * s, 2 * s);
+  ctx.lineTo(4 * s, 13 * s);
+  ctx.lineTo(11 * s, 13 * s);
+  ctx.lineTo(10 * s, 22 * s);
+  ctx.lineTo(20 * s, 9 * s);
+  ctx.lineTo(13 * s, 9 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTrophyIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, size / 14);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.translate(x, y);
+  const s = size / 24;
+
+  ctx.beginPath();
+  ctx.moveTo(6 * s, 4 * s);
+  ctx.lineTo(18 * s, 4 * s);
+  ctx.lineTo(18 * s, 11 * s);
+  ctx.bezierCurveTo(18 * s, 16 * s, 15 * s, 17.5 * s, 12 * s, 17.5 * s);
+  ctx.bezierCurveTo(9 * s, 17.5 * s, 6 * s, 16 * s, 6 * s, 11 * s);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillRect(10.5 * s, 17.5 * s, 3 * s, 2.5 * s);
+  ctx.fillRect(7 * s, 20 * s, 10 * s, 2 * s);
+
+  ctx.beginPath();
+  ctx.arc(6 * s, 8 * s, 3.5 * s, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(18 * s, 8 * s, 3.5 * s, -Math.PI * 0.5, Math.PI * 0.5);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawStarIcon(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    ctx.lineTo(
+      Math.cos(((18 + i * 72) * Math.PI) / 180) * r + cx,
+      -Math.sin(((18 + i * 72) * Math.PI) / 180) * r + cy,
+    );
+    ctx.lineTo(
+      Math.cos(((54 + i * 72) * Math.PI) / 180) * (r * 0.45) + cx,
+      -Math.sin(((54 + i * 72) * Math.PI) / 180) * (r * 0.45) + cy,
+    );
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawMapPinIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.75;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const s = size / 24;
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.arc(12 * s, 9 * s, 5.5 * s, Math.PI * 0.8, Math.PI * 0.2);
+  ctx.lineTo(12 * s, 21 * s);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(12 * s, 9 * s, 2 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCalendarIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.75;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const s = size / 24;
+  ctx.translate(x, y);
+  roundRect(ctx, 4 * s, 5 * s, 16 * s, 15 * s, 2.5 * s);
+  ctx.stroke();
+  ctx.fillRect(4 * s, 5 * s, 16 * s, 4 * s);
+  ctx.fillRect(7.5 * s, 2 * s, 2 * s, 3.5 * s);
+  ctx.fillRect(14.5 * s, 2 * s, 2 * s, 3.5 * s);
+  ctx.restore();
+}
+
+function drawLinkIcon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  color: string,
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.75;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const s = size / 24;
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.arc(9 * s, 15 * s, 3.5 * s, Math.PI * 0.25, Math.PI * 1.25);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(15 * s, 9 * s, 3.5 * s, -Math.PI * 0.75, Math.PI * 0.25);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(10.5 * s, 13.5 * s);
+  ctx.lineTo(13.5 * s, 10.5 * s);
+  ctx.stroke();
+  ctx.restore();
+}
 
 export function drawSummary(
   ctx: CanvasRenderingContext2D,
@@ -93,15 +255,16 @@ export function drawSummary(
   // 2. Header Bar (y: 24 to 82)
   // Left: Brand Badge
   ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
-  roundRect(ctx, 56, 24, 138, 26, 6);
+  roundRect(ctx, 56, 24, 130, 26, 6);
   ctx.fill();
   ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
   ctx.lineWidth = 1;
   ctx.stroke();
 
+  drawZapIcon(ctx, 66, 30, 14, "#34d399");
   ctx.fillStyle = "#34d399";
   ctx.font = `bold 11px ${fontSans}`;
-  ctx.fillText("⚡ CRIC PLATFORM", 68, 30);
+  ctx.fillText("CRIC PLATFORM", 84, 30);
 
   // Match Title
   ctx.fillStyle = "#ffffff";
@@ -251,7 +414,11 @@ export function drawSummary(
         const isMilestone = b.runs >= 50;
         ctx.fillStyle = isMilestone ? "#fbbf24" : "#ffffff";
         ctx.font = `800 14px ${fontScore}`;
-        ctx.fillText(`${isMilestone ? "★ " : ""}${b.runs}`, cardX + 370, ry - 1);
+        ctx.fillText(String(b.runs), cardX + 370, ry - 1);
+        if (isMilestone) {
+          const runW = ctx.measureText(String(b.runs)).width;
+          drawStarIcon(ctx, cardX + 370 - runW - 7, ry + 7, 4.5, "#fbbf24");
+        }
 
         ctx.fillStyle = "#94a3b8";
         ctx.font = `12px ${fontSans}`;
@@ -324,28 +491,29 @@ export function drawSummary(
   ctx.stroke();
 
   // Winner Announcement
+  drawTrophyIcon(ctx, cardX + 16, bannerY + 14, 20, "#34d399");
   ctx.fillStyle = "#ecfdf5";
   ctx.font = `800 16px ${fontScore}`;
-  const resultStr = `🏆 ${s.result.toUpperCase()}`;
-  ctx.fillText(resultStr, cardX + 18, bannerY + 14);
+  ctx.fillText(s.result.toUpperCase(), cardX + 44, bannerY + 15);
 
   // Player of the Match Jewel Pill (Right)
   if (s.playerOfTheMatch) {
-    ctx.textAlign = "right";
-    const potmLabel = `⭐ POTM: ${s.playerOfTheMatch}`;
-    const potmW = ctx.measureText(potmLabel).width + 32;
+    ctx.font = `bold 12px ${fontSans}`;
+    const potmLabel = `POTM: ${s.playerOfTheMatch}`;
+    const potmW = ctx.measureText(potmLabel).width + 36;
+    const pillX = cardX + cardW - potmW - 12;
 
     ctx.fillStyle = "rgba(234, 179, 8, 0.18)";
-    roundRect(ctx, cardX + cardW - potmW - 12, bannerY + 9, potmW, 30, 6);
+    roundRect(ctx, pillX, bannerY + 9, potmW, 30, 6);
     ctx.fill();
     ctx.strokeStyle = "rgba(234, 179, 8, 0.45)";
     ctx.lineWidth = 1;
     ctx.stroke();
 
+    drawStarIcon(ctx, pillX + 14, bannerY + 24, 5, "#fbbf24");
+
     ctx.fillStyle = "#fef08a";
-    ctx.font = `bold 12px ${fontSans}`;
-    ctx.fillText(potmLabel, cardX + cardW - 24, bannerY + 16);
-    ctx.textAlign = "left";
+    ctx.fillText(potmLabel, pillX + 24, bannerY + 16);
   }
 
   // 5. Footer: Match Metadata & Optical QR Card (y: 536 to 650)
@@ -353,22 +521,25 @@ export function drawSummary(
 
   // Venue Strip
   if (s.venue) {
+    drawMapPinIcon(ctx, cardX, footY + 1, 14, "#94a3b8");
     ctx.fillStyle = "#cbd5e1";
     ctx.font = `bold 13px ${fontSans}`;
-    ctx.fillText(`📍 ${s.venue}`, cardX, footY);
+    ctx.fillText(s.venue, cardX + 20, footY);
   }
 
   // Scheduled / Played At
   if (s.playedAt) {
+    drawCalendarIcon(ctx, cardX, footY + 23, 14, "#94a3b8");
     ctx.fillStyle = "#94a3b8";
     ctx.font = `12px ${fontSans}`;
-    ctx.fillText(`📅 ${s.playedAt}`, cardX, footY + 22);
+    ctx.fillText(s.playedAt, cardX + 20, footY + 22);
   }
 
   // URL
+  drawLinkIcon(ctx, cardX, footY + 45, 14, "#34d399");
   ctx.fillStyle = "#34d399";
   ctx.font = `bold 12px ${fontSans}`;
-  ctx.fillText(`🔗 ${s.matchUrl}`, cardX, footY + 44);
+  ctx.fillText(s.matchUrl, cardX + 20, footY + 44);
 
   // Optical White QR Card (Right side)
   if (qrImage) {

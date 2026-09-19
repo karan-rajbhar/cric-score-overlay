@@ -81,6 +81,8 @@ import {
   ShieldAlert,
   Play,
   SlidersHorizontal,
+  Sun,
+  Zap,
 } from "lucide-react";
 
 export default function ScoringPage() {
@@ -488,16 +490,16 @@ export default function ScoringPage() {
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             {sunlightMode && (
-              <span className="hidden sm:inline-flex items-center gap-1 rounded-full border border-black bg-black px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm">
-                ☀️ SUN
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm">
+                <Sun className="h-3 w-3" /> SUN
               </span>
             )}
             {isScreenAwake && (
               <span
                 title="Screen wake lock active to prevent display timeout"
-                className="hidden sm:inline-flex items-center gap-1 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]"
               >
-                ⚡ AWAKE
+                <Zap className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> AWAKE
               </span>
             )}
             {match.status === "scheduled" && isScorer && (

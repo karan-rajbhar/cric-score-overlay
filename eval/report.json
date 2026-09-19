@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-09-19T12:29:34Z",
-  "composite_health_score": 86.8,
+  "timestamp": "2026-09-19T12:51:04Z",
+  "composite_health_score": 87.0,
   "gates": {
     "typecheck": true,
     "eslint": true,
     "tests_pass": true
   },
-  "coverage_percentage": 33.9,
+  "coverage_percentage": 34.81,
   "improvement_targets": [
     {
       "file": "src/components/clubs/club-membership-button.tsx",

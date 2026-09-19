@@ -18,6 +18,8 @@ import {
   VolumeX,
   Trophy,
   Activity,
+  Flame,
+  Crown,
 } from "lucide-react";
 import { formatStatus } from "~/lib/cricket";
 import type {
@@ -2063,7 +2065,7 @@ export function OverlayClient({
                         {/* Top Gold & Carbon Header Strip */}
                         <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-black">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs">🏆</span>
+                            <Trophy className="h-3.5 w-3.5 text-black" />
                             <span>
                               APEX BROADCAST · 24K FRANCHISE GOLD ·{" "}
                               {state.tournament_name ??
@@ -2136,9 +2138,7 @@ export function OverlayClient({
                             {state.striker_name && (
                               <div className="px-4 py-1.5 leading-tight">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="animate-pulse text-xs font-black text-amber-400">
-                                    ✦
-                                  </span>
+                                  <Sparkles className="h-3 w-3 animate-pulse text-amber-400" />
                                   <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                     {state.striker_name} *
                                   </span>
@@ -2481,9 +2481,7 @@ export function OverlayClient({
                         {/* Top Thunder Blue Bar */}
                         <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
                           <div className="flex items-center gap-2">
-                            <span className="font-black text-yellow-300">
-                              ⚡
-                            </span>
+                            <Zap className="h-3.5 w-3.5 fill-yellow-300 text-yellow-300" />
                             <span>
                               THUNDER VELOCITY ·{" "}
                               {state.tournament_name ??
@@ -2501,9 +2499,7 @@ export function OverlayClient({
                         <div className="flex items-stretch border-t border-blue-400/30">
                           {/* Left Team Block */}
                           <div className="flex shrink-0 items-center gap-3 border-r border-blue-400/50 bg-blue-600 px-5 py-2.5 text-white">
-                            <span className="text-xl font-black text-yellow-300">
-                              ⚡
-                            </span>
+                            <Zap className="h-6 w-6 fill-yellow-300 text-yellow-300" />
                             {state.team1_logo_url && (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -2559,9 +2555,7 @@ export function OverlayClient({
                             {state.striker_name && (
                               <div className="px-4 py-1.5 leading-tight">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="animate-pulse text-xs text-yellow-300">
-                                    ⚡
-                                  </span>
+                                  <Zap className="h-3 w-3 animate-pulse fill-yellow-300 text-yellow-300" />
                                   <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                     {state.striker_name} *
                                   </span>
@@ -2695,7 +2689,7 @@ export function OverlayClient({
                         {/* Top Dharma Saffron Gold Header */}
                         <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-5 py-1 text-[11px] font-black uppercase tracking-widest text-black">
                           <div className="flex items-center gap-2">
-                            <span>⚜</span>
+                            <Crown className="h-3.5 w-3.5 text-black" />
                             <span>
                               DHARMA HERITAGE · RAJASTHAN ROYALE ·{" "}
                               {state.tournament_name ??
@@ -2766,9 +2760,7 @@ export function OverlayClient({
                             {state.striker_name && (
                               <div className="px-4 py-1.5 leading-tight">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-amber-400">
-                                    ⚜
-                                  </span>
+                                  <Crown className="h-3 w-3 text-amber-400" />
                                   <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                     {state.striker_name} *
                                   </span>
@@ -2902,7 +2894,7 @@ export function OverlayClient({
                         {/* Top Cosmic Nebula Header */}
                         <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
                           <div className="flex items-center gap-2">
-                            <span className="text-cyan-300">✦</span>
+                            <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
                             <span>
                               NAKSHATRA ASTRAL · COSMIC CRICKET ·{" "}
                               {state.tournament_name ??
@@ -2975,9 +2967,7 @@ export function OverlayClient({
                             {state.striker_name && (
                               <div className="px-4 py-1.5 leading-tight">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="animate-pulse text-xs text-cyan-300">
-                                    ✦
-                                  </span>
+                                  <Sparkles className="h-3 w-3 animate-pulse text-cyan-300" />
                                   <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                     {state.striker_name} *
                                   </span>
@@ -3113,9 +3103,7 @@ export function OverlayClient({
                         {/* Top Header: Agni Inferno Match Heat */}
                         <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-black">
                           <div className="flex items-center gap-2">
-                            <span className="animate-flame-flicker text-xs">
-                              🔥
-                            </span>
+                            <Flame className="h-3.5 w-3.5 animate-flame-flicker fill-black text-black" />
                             <span>
                               AGNI INFERNO · BLAZING PASSION ·{" "}
                               {state.tournament_name ??
@@ -3188,9 +3176,7 @@ export function OverlayClient({
                             {state.striker_name && (
                               <div className="px-4 py-1.5 leading-tight">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="animate-flame-flicker text-xs text-orange-400">
-                                    🔥
-                                  </span>
+                                  <Flame className="h-3.5 w-3.5 animate-flame-flicker fill-orange-400 text-orange-400" />
                                   <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                     {state.striker_name} *
                                   </span>

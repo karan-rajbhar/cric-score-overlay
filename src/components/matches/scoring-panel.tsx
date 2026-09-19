@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "~/components/ui/dialog";
-import { X, RotateCcw, AlertTriangle, Compass, Sun, Zap } from "lucide-react";
+import { X, RotateCcw, AlertTriangle, Compass, Sun, Zap, Flame, Sparkles } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { WagonWheelSelector } from "./wagon-wheel-selector";
 import {
@@ -654,8 +654,16 @@ export function ScoringPanel({
                       ? "Dot Ball (0)"
                       : `${pendingScore.rawRuns} ${pendingScore.rawRuns === 1 ? "Run" : "Runs"}`}
                   </span>
-                  {pendingScore.rawRuns === 4 && <span>💥 FOUR</span>}
-                  {pendingScore.rawRuns === 6 && <span>✨ MAX</span>}
+                  {pendingScore.rawRuns === 4 && (
+                    <span className="inline-flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
+                      <Flame className="h-3.5 w-3.5" /> FOUR
+                    </span>
+                  )}
+                  {pendingScore.rawRuns === 6 && (
+                    <span className="inline-flex items-center gap-1 font-bold text-purple-600 dark:text-purple-400">
+                      <Sparkles className="h-3.5 w-3.5" /> MAX
+                    </span>
+                  )}
                 </span>
               </div>
             )}
