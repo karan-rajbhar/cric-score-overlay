@@ -41,6 +41,13 @@ const PotmDialog = dynamic(
   () => import("./components/PotmDialog").then((m) => m.PotmDialog),
   { ssr: false },
 );
+const MatchSettingsDialog = dynamic(
+  () =>
+    import("./components/MatchSettingsDialog").then(
+      (m) => m.MatchSettingsDialog,
+    ),
+  { ssr: false },
+);
 const DlsCalculatorModal = dynamic(
   () =>
     import("~/components/matches/dls-calculator-modal").then(
@@ -52,6 +59,10 @@ import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
+import {
+  updateMatchSettings,
+  reassignCurrentOverBowler,
+} from "../../mutations";
 import type { ExtraType } from "../../types";
 import { toast } from "sonner";
 import {
@@ -65,6 +76,7 @@ import {
   Award,
   ShieldAlert,
   Play,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export default function ScoringPage() {
@@ -156,11 +168,14 @@ export default function ScoringPage() {
     handleConfirmBowler,
     handleAddPlayerInline,
     handleEndInnings,
+    syncFromDb,
   } = useScoring(matchId, scoringOptions);
 
   const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
+  const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
+  const [reassignOverDeliveries, setReassignOverDeliveries] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<DeliveryToEdit | null>(
     null,
   );
@@ -430,6 +445,18 @@ export default function ScoringPage() {
             {match.status === "live" && isScorer && (
               <DlsCalculatorModal match={match} canEdit={isScorer} />
             )}
+            {isScorer && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMatchSettingsDialog(true)}
+                className="h-8 px-2 sm:px-3"
+                title="Match Settings & Rules"
+              >
+                <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">Settings</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -628,6 +655,22 @@ export default function ScoringPage() {
               if (strikerId && nonStrikerId && !isProcessing) {
                 void handleConfirmBatsmen(nonStrikerId, strikerId);
               }
+            }}
+            onChangeStriker={() => {
+              if (match.status === "scheduled") {
+                setTossDialogDismissed(false);
+                toast.info("Please record the toss to start the match");
+                return;
+              }
+              setShowSelectBatsmen(true);
+            }}
+            onChangeNonStriker={() => {
+              if (match.status === "scheduled") {
+                setTossDialogDismissed(false);
+                toast.info("Please record the toss to start the match");
+                return;
+              }
+              setShowSelectBatsmen(true);
             }}
             onSelectNewBatsman={() => {
               if (match.status === "scheduled") {
@@ -829,14 +872,44 @@ export default function ScoringPage() {
 
       <BowlerDialog
         open={showSelectBowler}
-        onOpenChange={setShowSelectBowler}
+        onOpenChange={(open) => {
+          setShowSelectBowler(open);
+          if (!open) setReassignOverDeliveries(false);
+        }}
         bowlingTeamPlayers={bowlingTeamPlayers}
         currentBowlerId={currentBowlerId}
         lastOverBowlerId={lastOverBowlerId}
+        currentBall={match.current_ball}
+        reassignOverDeliveries={reassignOverDeliveries}
+        onReassignOverDeliveriesChange={setReassignOverDeliveries}
         onBowlerChange={setCurrentBowlerId}
         onConfirm={async () => {
-          const res = await handleConfirmBowler(currentBowlerId);
-          if (!res.error) setShowSelectBowler(false);
+          if (
+            reassignOverDeliveries &&
+            currentBowlerId &&
+            (match.current_ball ?? 0) > 0
+          ) {
+            const res = await reassignCurrentOverBowler(
+              match.id,
+              currentBowlerId,
+            );
+            if (res.error) {
+              toast.error(res.error);
+            } else {
+              toast.success(
+                "Bowler updated and current over deliveries reassigned",
+              );
+              setShowSelectBowler(false);
+              setReassignOverDeliveries(false);
+              await syncFromDb();
+            }
+          } else {
+            const res = await handleConfirmBowler(currentBowlerId);
+            if (!res.error) {
+              setShowSelectBowler(false);
+              setReassignOverDeliveries(false);
+            }
+          }
         }}
         isProcessing={isProcessing}
         addPlayerTarget={addPlayerTarget}
@@ -890,6 +963,8 @@ export default function ScoringPage() {
         open={showEditBallDialog}
         onOpenChange={setShowEditBallDialog}
         delivery={editingDelivery}
+        battingTeamPlayers={battingTeamPlayers}
+        bowlingTeamPlayers={bowlingTeamPlayers}
         onSave={async (params) => {
           await handleUpdateBall(params);
         }}
@@ -916,6 +991,23 @@ export default function ScoringPage() {
             teamName: bowlingTeam?.name ?? "Team 2",
           })),
         ]}
+      />
+
+      <MatchSettingsDialog
+        open={showMatchSettingsDialog}
+        onOpenChange={setShowMatchSettingsDialog}
+        match={match}
+        onSave={async (settings) => {
+          const res = await updateMatchSettings(match.id, settings);
+          if (res.error) {
+            toast.error(res.error);
+          } else {
+            toast.success("Match settings updated");
+            setShowMatchSettingsDialog(false);
+            await syncFromDb();
+          }
+        }}
+        isProcessing={isProcessing}
       />
     </div>
   );

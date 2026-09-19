@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/select";
 import { ALL_DISMISSAL_TYPES } from "./WicketDialog";
 import type { ExtraType } from "~/app/matches/types";
+import type { TeamPlayer } from "~/lib/match-types";
 
 export interface DeliveryToEdit {
   id: string;
@@ -46,8 +47,12 @@ interface EditBallDialogProps {
     extraType: ExtraType | null;
     isWicket: boolean;
     dismissalType: string | null;
+    batsmanId?: string | null;
+    bowlerId?: string | null;
   }) => Promise<void>;
   isProcessing: boolean;
+  battingTeamPlayers?: TeamPlayer[];
+  bowlingTeamPlayers?: TeamPlayer[];
 }
 
 export function EditBallDialog({
@@ -56,6 +61,8 @@ export function EditBallDialog({
   delivery,
   onSave,
   isProcessing,
+  battingTeamPlayers = [],
+  bowlingTeamPlayers = [],
 }: EditBallDialogProps) {
   const [prevDeliveryId, setPrevDeliveryId] = useState<string | null>(
     delivery?.id ?? null,
@@ -73,6 +80,12 @@ export function EditBallDialog({
   const [dismissalType, setDismissalType] = useState<string>(
     delivery?.dismissal_type ?? "bowled",
   );
+  const [batsmanId, setBatsmanId] = useState<string | null>(
+    delivery?.batsman_id ?? null,
+  );
+  const [bowlerId, setBowlerId] = useState<string | null>(
+    delivery?.bowler_id ?? null,
+  );
 
   if (delivery && delivery.id !== prevDeliveryId) {
     setPrevDeliveryId(delivery.id);
@@ -81,6 +94,8 @@ export function EditBallDialog({
     setExtraType(delivery.extra_type ?? "none");
     setIsWicket(Boolean(delivery.is_wicket));
     setDismissalType(delivery.dismissal_type ?? "bowled");
+    setBatsmanId(delivery.batsman_id ?? null);
+    setBowlerId(delivery.bowler_id ?? null);
   }
 
   if (!delivery) return null;
@@ -93,6 +108,8 @@ export function EditBallDialog({
       extraType: extraType === "none" ? null : (extraType as ExtraType),
       isWicket,
       dismissalType: isWicket ? dismissalType : null,
+      batsmanId,
+      bowlerId,
     });
     onOpenChange(false);
   };
@@ -194,6 +211,55 @@ export function EditBallDialog({
               </Select>
             </div>
           )}
+
+          {/* Player Attribution (Correct wrong batter or bowler) */}
+          <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/20 p-3">
+            <Label className="text-xs font-bold text-muted-foreground">
+              Player Attribution (Correct wrong batter or bowler)
+            </Label>
+
+            {battingTeamPlayers.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Batsman (Striker)</Label>
+                <Select
+                  value={batsmanId || ""}
+                  onValueChange={(val) => setBatsmanId(val || null)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select batsman" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {battingTeamPlayers.map((p) => (
+                      <SelectItem key={p.user_id} value={p.user_id} className="text-xs">
+                        {p.user?.full_name ?? "Unknown"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {bowlingTeamPlayers.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold">Bowler</Label>
+                <Select
+                  value={bowlerId || ""}
+                  onValueChange={(val) => setBowlerId(val || null)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select bowler" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bowlingTeamPlayers.map((p) => (
+                      <SelectItem key={p.user_id} value={p.user_id} className="text-xs">
+                        {p.user?.full_name ?? "Unknown"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
 
           <Button
             className="mt-3 w-full"

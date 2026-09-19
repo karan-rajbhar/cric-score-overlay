@@ -1,5 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { friendlyError, ERROR_MESSAGES } from "./errors";
+
+vi.mock("server-only", () => ({}));
+vi.mock("~/lib/supabase/server", () => ({
+  createServerClient: vi.fn(async () => ({
+    auth: {
+      getUser: vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null })),
+    },
+    from: vi.fn(() => ({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(() => ({ data: { id: "m1" }, error: null })),
+          })),
+        })),
+      })),
+    })),
+  })),
+}));
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+vi.mock("~/lib/match-cache", () => ({
+  invalidateMatchCache: vi.fn(),
+}));
 
 describe("mutations error formatting", () => {
   it("translates direct error keys into user-friendly messages", () => {
@@ -82,3 +106,14 @@ describe("mutations error formatting", () => {
     expect(Object.keys(ERROR_MESSAGES)).toContain("non_striker_mismatch");
   });
 });
+
+describe("updateMatchSettings error handling", () => {
+  it("rejects invalid overs per innings", async () => {
+    const { updateMatchSettings } = await import("./mutations");
+    const res = await updateMatchSettings("invalid-id", {
+      oversPerInnings: 0,
+    });
+    expect(res.error).toMatch(/overs per innings must be at least 1/i);
+  });
+});
+

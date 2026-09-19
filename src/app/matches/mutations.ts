@@ -731,9 +731,22 @@ export async function updateBall(params: {
   dismissalType?: string | null;
   fielderId?: string | null;
   dismissedPlayerId?: string | null;
+  batsmanId?: string | null;
+  bowlerId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+
+    if (params.batsmanId || params.bowlerId) {
+      const playerUpdates: Record<string, string> = {};
+      if (params.batsmanId) playerUpdates.batsman_id = params.batsmanId;
+      if (params.bowlerId) playerUpdates.bowler_id = params.bowlerId;
+      await supabase
+        .from("ball_by_ball")
+        .update(playerUpdates)
+        .eq("id", params.ballId);
+    }
+
     const { data, error } = await supabase.rpc("update_ball", {
       p_match_id: params.matchId,
       p_ball_id: params.ballId,
@@ -796,3 +809,181 @@ export async function startSuperOver(
     };
   }
 }
+
+export interface MatchSettingsUpdate {
+  matchFormat?: string;
+  oversPerInnings?: number;
+  targetRuns?: number | null;
+  wicketsPerInnings?: number;
+  lastManStands?: boolean;
+  goldenBall?: boolean;
+  title?: string;
+}
+
+export async function updateMatchSettings(
+  matchId: string,
+  settings: MatchSettingsUpdate,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    if (
+      settings.oversPerInnings !== undefined &&
+      settings.oversPerInnings < 1
+    ) {
+      return {
+        success: false,
+        error: "Overs per innings must be at least 1",
+      };
+    }
+
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "You must be logged in to update match settings",
+      };
+    }
+
+    const matchUpdates: Record<string, unknown> = {};
+    if (settings.matchFormat !== undefined)
+      matchUpdates.match_format = settings.matchFormat;
+    if (settings.oversPerInnings !== undefined)
+      matchUpdates.overs_per_innings = settings.oversPerInnings;
+    if (settings.wicketsPerInnings !== undefined)
+      matchUpdates.wickets_per_innings = settings.wicketsPerInnings;
+    if (settings.lastManStands !== undefined)
+      matchUpdates.last_man_stands = settings.lastManStands;
+    if (settings.goldenBall !== undefined)
+      matchUpdates.golden_ball = settings.goldenBall;
+    if (settings.title !== undefined) matchUpdates.title = settings.title;
+
+    if (Object.keys(matchUpdates).length > 0) {
+      const { error: matchErr } = await supabase
+        .from("matches")
+        .update(matchUpdates)
+        .eq("id", matchId);
+      if (matchErr) {
+        console.error("updateMatchSettings failed on matches:", matchErr);
+        return { success: false, error: friendlyError(matchErr.message) };
+      }
+    }
+
+    if (settings.targetRuns !== undefined) {
+      const { data: matchData } = await supabase
+        .from("matches")
+        .select("current_innings")
+        .eq("id", matchId)
+        .single();
+
+      const currentInningsNum = matchData?.current_innings ?? 2;
+      const { error: innErr } = await supabase
+        .from("innings")
+        .update({ target_runs: settings.targetRuns })
+        .eq("match_id", matchId)
+        .eq("innings_number", currentInningsNum);
+
+      if (innErr) {
+        console.error(
+          "updateMatchSettings failed on innings target_runs:",
+          innErr,
+        );
+      }
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in updateMatchSettings:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to update match settings",
+      ),
+    };
+  }
+}
+
+export async function reassignCurrentOverBowler(
+  matchId: string,
+  newBowlerId: string,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return {
+        success: false,
+        error: "You must be logged in to modify bowler",
+      };
+    }
+
+    const { data: matchData, error: matchErr } = await supabase
+      .from("matches")
+      .select("current_innings, current_over, current_ball")
+      .eq("id", matchId)
+      .single();
+
+    if (matchErr || !matchData) {
+      return { success: false, error: "Match not found" };
+    }
+
+    const { data: innData } = await supabase
+      .from("innings")
+      .select("id")
+      .eq("match_id", matchId)
+      .eq("innings_number", matchData.current_innings)
+      .single();
+
+    if (!innData) {
+      return { success: false, error: "Innings not found" };
+    }
+
+    await supabase.rpc("set_current_bowler", {
+      p_match_id: matchId,
+      p_bowler_id: newBowlerId,
+    });
+
+    const { error: ballUpdateErr } = await supabase
+      .from("ball_by_ball")
+      .update({ bowler_id: newBowlerId })
+      .eq("innings_id", innData.id)
+      .eq("over_number", matchData.current_over);
+
+    if (ballUpdateErr) {
+      console.error(
+        "Failed to reassign ball_by_ball to new bowler:",
+        ballUpdateErr,
+      );
+    }
+
+    await supabase.rpc("recompute_innings", {
+      p_innings_id: innData.id,
+    });
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in reassignCurrentOverBowler:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error
+          ? err.message
+          : "Failed to reassign current over bowler",
+      ),
+    };
+  }
+}
+

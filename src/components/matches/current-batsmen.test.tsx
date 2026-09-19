@@ -100,4 +100,58 @@ describe("CurrentBatsmen ('At the Crease' component)", () => {
     fireEvent.click(swapButton);
     expect(onSwapStriker).toHaveBeenCalledTimes(1);
   });
+
+  it("supports changing/replacing striker and non-striker mid-game if wrong player was selected", () => {
+    const onChangeStriker = vi.fn();
+    const onChangeNonStriker = vi.fn();
+    const onChangeBatsmen = vi.fn();
+
+    render(
+      <CurrentBatsmen
+        batsman1={{
+          id: "b1",
+          name: "Virat Kohli",
+          runs: 10,
+          balls: 5,
+          fours: 1,
+          sixes: 0,
+          isStriker: true,
+        }}
+        batsman2={{
+          id: "b2",
+          name: "Rohit Sharma",
+          runs: 5,
+          balls: 4,
+          fours: 0,
+          sixes: 0,
+          isStriker: false,
+        }}
+        onChangeStriker={onChangeStriker}
+        onChangeNonStriker={onChangeNonStriker}
+        onSelectNewBatsman={onChangeBatsmen}
+      />,
+    );
+
+    // Change Striker button on striker row
+    const changeStrikerBtn = screen.getByRole("button", {
+      name: /change striker|replace striker/i,
+    });
+    fireEvent.click(changeStrikerBtn);
+    expect(onChangeStriker).toHaveBeenCalledTimes(1);
+
+    // Change Non-Striker button on non-striker row
+    const changeNonStrikerBtn = screen.getByRole("button", {
+      name: /change non-striker|replace non-striker/i,
+    });
+    fireEvent.click(changeNonStrikerBtn);
+    expect(onChangeNonStriker).toHaveBeenCalledTimes(1);
+
+    // Change Batters button in header
+    const changeBattersBtn = screen.getByRole("button", {
+      name: /change batters/i,
+    });
+    fireEvent.click(changeBattersBtn);
+    expect(onChangeBatsmen).toHaveBeenCalledTimes(1);
+  });
 });
+

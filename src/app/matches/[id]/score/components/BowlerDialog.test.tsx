@@ -38,9 +38,11 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    expect(screen.getByText("Select Bowler")).toBeInTheDocument();
     expect(
-      screen.getByText(/Choose the bowler to deliver the next over/i),
+      screen.getByRole("heading", { name: /Bowler/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Choose the bowler/i),
     ).toBeInTheDocument();
     expect(screen.getByText("New player? Add to squad")).toBeInTheDocument();
   });
@@ -154,4 +156,34 @@ describe("BowlerDialog", () => {
     fireEvent.click(addBtn);
     expect(handleAddPlayer).toHaveBeenCalledTimes(1);
   });
+
+  it("renders reassign deliveries checkbox when currentBall > 0", () => {
+    const handleReassignChange = vi.fn();
+
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        currentBowlerId="user-rahul"
+        lastOverBowlerId="user-kishor"
+        currentBall={3}
+        reassignOverDeliveries={false}
+        onReassignOverDeliveriesChange={handleReassignChange}
+        onBowlerChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeInTheDocument();
+    expect(
+      screen.getByText(/Correct wrong bowler selection/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(checkbox);
+    expect(handleReassignChange).toHaveBeenCalledWith(true);
+  });
 });
+

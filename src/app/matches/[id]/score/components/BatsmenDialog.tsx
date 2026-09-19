@@ -66,10 +66,10 @@ export function BatsmenDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Select Batsmen</DialogTitle>
+          <DialogTitle>Select / Change Batsmen</DialogTitle>
           <DialogDescription>
-            Assign the striker and non-striker at the crease to continue
-            scoring.
+            Assign or replace the striker and non-striker at the crease. You
+            can correct wrong player selections at any point mid-game.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">

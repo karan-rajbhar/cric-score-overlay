@@ -451,6 +451,8 @@ export function useScoring(
     extraType: ExtraType | null;
     isWicket: boolean;
     dismissalType: string | null;
+    batsmanId?: string | null;
+    bowlerId?: string | null;
   }) => {
     setIsProcessing(true);
     const result = await updateBall({

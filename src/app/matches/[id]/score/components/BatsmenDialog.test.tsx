@@ -39,7 +39,7 @@ describe("BatsmenDialog", () => {
       />,
     );
 
-    expect(screen.getByText("Select Batsmen")).toBeInTheDocument();
+    expect(screen.getByText(/Select.*Batsmen/i)).toBeInTheDocument();
     expect(screen.getByText("Striker")).toBeInTheDocument();
     expect(screen.getByText("Non-Striker")).toBeInTheDocument();
     expect(screen.getByText("New player? Add to squad")).toBeInTheDocument();

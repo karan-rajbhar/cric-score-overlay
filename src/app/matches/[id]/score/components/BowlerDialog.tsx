@@ -25,14 +25,17 @@ interface BowlerDialogProps {
   bowlingTeamPlayers: TeamPlayer[];
   currentBowlerId: string | null;
   lastOverBowlerId?: string | null;
+  currentBall?: number;
+  reassignOverDeliveries?: boolean;
+  onReassignOverDeliveriesChange?: (val: boolean) => void;
   onBowlerChange: (v: string) => void;
   onConfirm: () => void;
   isProcessing: boolean;
-  addPlayerTarget: string | null;
-  newPlayerName: string;
-  onNewPlayerNameChange: (v: string) => void;
-  onAddPlayer: () => void;
-  onAddPlayerTargetChange: (v: "batting" | "bowling" | null) => void;
+  addPlayerTarget?: string | null;
+  newPlayerName?: string;
+  onNewPlayerNameChange?: (v: string) => void;
+  onAddPlayer?: () => void;
+  onAddPlayerTargetChange?: (v: "batting" | "bowling" | null) => void;
 }
 
 export function BowlerDialog({
@@ -41,11 +44,14 @@ export function BowlerDialog({
   bowlingTeamPlayers,
   currentBowlerId,
   lastOverBowlerId,
+  currentBall,
+  reassignOverDeliveries = false,
+  onReassignOverDeliveriesChange,
   onBowlerChange,
   onConfirm,
   isProcessing,
-  addPlayerTarget,
-  newPlayerName,
+  addPlayerTarget = null,
+  newPlayerName = "",
   onNewPlayerNameChange,
   onAddPlayer,
   onAddPlayerTargetChange,
@@ -66,9 +72,10 @@ export function BowlerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Select Bowler</DialogTitle>
+          <DialogTitle>Select / Change Bowler</DialogTitle>
           <DialogDescription>
-            Choose the bowler to deliver the next over.
+            Choose the bowler. If the wrong bowler was selected mid-game, you
+            can reassign the over deliveries to the correct bowler.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-4">
@@ -113,14 +120,14 @@ export function BowlerDialog({
               <Input
                 placeholder="Player name"
                 value={newPlayerName}
-                onChange={(e) => onNewPlayerNameChange(e.target.value)}
+                onChange={(e) => onNewPlayerNameChange?.(e.target.value)}
                 autoFocus
-                onKeyDown={(e) => e.key === "Enter" && void onAddPlayer()}
+                onKeyDown={(e) => e.key === "Enter" && void onAddPlayer?.()}
               />
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => void onAddPlayer()}
+                onClick={() => void onAddPlayer?.()}
                 disabled={!newPlayerName.trim() || isProcessing}
               >
                 Add
@@ -130,7 +137,7 @@ export function BowlerDialog({
                 variant="ghost"
                 size="icon"
                 aria-label="Cancel adding bowler"
-                onClick={() => onAddPlayerTargetChange(null)}
+                onClick={() => onAddPlayerTargetChange?.(null)}
               >
                 ✕
               </Button>
@@ -138,11 +145,32 @@ export function BowlerDialog({
           ) : (
             <button
               type="button"
-              onClick={() => onAddPlayerTargetChange("bowling")}
+              onClick={() => onAddPlayerTargetChange?.("bowling")}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               <UserPlus className="h-3.5 w-3.5" /> New player? Add to squad
             </button>
+          )}
+
+          {currentBall !== undefined && currentBall > 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3">
+              <input
+                id="reassign-bowler-over"
+                type="checkbox"
+                checked={reassignOverDeliveries}
+                onChange={(e) =>
+                  onReassignOverDeliveriesChange?.(e.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+              />
+              <label
+                htmlFor="reassign-bowler-over"
+                className="cursor-pointer text-xs font-semibold text-sky-950 dark:text-sky-200"
+              >
+                Reassign {currentBall} ball{currentBall > 1 ? "s" : ""} bowled in
+                this over to this bowler (Correct wrong bowler selection)
+              </label>
+            </div>
           )}
 
           <Button
