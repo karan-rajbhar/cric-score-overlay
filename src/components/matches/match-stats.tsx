@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { cn } from "~/lib/utils";
 import { Loader2 } from "lucide-react";
-import { getMatchBallLog } from "~/app/matches/queries";
+import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
 import { teamName, runRate, inningsBalls } from "~/lib/cricket";
 import { WagonWheel } from "./wagon-wheel";
@@ -17,18 +16,8 @@ interface MatchStatsProps {
 }
 
 export function MatchStats({ match }: MatchStatsProps) {
-  const [ballLog, setBallLog] = useState<Ball[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const result = await getMatchBallLog(match.id);
-      if (!cancelled) setBallLog((result.data as Ball[]) ?? []);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [match]);
+  const { data } = useMatchBallLogQuery(match.id);
+  const ballLog = (data ?? null) as Ball[] | null;
 
   const ballsForInnings = (inningsId: string): Ball[] =>
     (ballLog ?? []).filter((b) => b.innings_id === inningsId);

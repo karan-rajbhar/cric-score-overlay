@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { MatchCard } from "~/components/matches/match-card";
-import { getMatches } from "./queries";
+import {
+  useMatchesQuery,
+  useUserAdminClubIdsQuery,
+} from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Plus, Search, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
 import { cn } from "~/lib/utils";
 import type { Match } from "~/lib/match-types";
 
@@ -24,66 +26,27 @@ const statusOptions = [
 
 export default function MatchesPage() {
   const { user, loading: authLoading } = useAuth();
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [myClubAdminIds, setMyClubAdminIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const fetchAdminClubs = async () => {
-      const supabaseClient = createClient();
-      const [{ data: owned }, { data: mems }] = await Promise.all([
-        supabaseClient.from("clubs").select("id").eq("owner_id", user.id),
-        supabaseClient
-          .from("club_memberships")
-          .select("club_id")
-          .eq("user_id", user.id)
-          .in("role", ["owner", "admin"])
-          .eq("status", "active"),
-      ]);
-      if (cancelled) return;
-      const set = new Set<string>();
-      (owned ?? []).forEach((c) => set.add(c.id));
-      (mems ?? []).forEach((m) => {
-        if (m.club_id) set.add(m.club_id);
-      });
-      setMyClubAdminIds(set);
-    };
-    void fetchAdminClubs();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  const {
+    data: matchesData,
+    isLoading: matchesLoading,
+    error: matchesQueryError,
+    refetch,
+  } = useMatchesQuery({
+    status: statusFilter === "all" ? undefined : statusFilter,
+  });
+  const { data: adminClubsSet } = useUserAdminClubIdsQuery(user?.id);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchMatches = async () => {
-      setLoading(true);
-      const filters: { status?: string } = {};
-      if (statusFilter !== "all") {
-        filters.status = statusFilter;
-      }
-
-      const result = await getMatches(filters);
-      if (cancelled) return;
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setMatches((result.data ?? []) as unknown as Match[]);
-      }
-      setLoading(false);
-    };
-
-    void fetchMatches();
-    return () => {
-      cancelled = true;
-    };
-  }, [statusFilter]);
+  const matches = matchesData ?? [];
+  const loading = matchesLoading && matches.length === 0;
+  const error = matchesQueryError
+    ? matchesQueryError instanceof Error
+      ? matchesQueryError.message
+      : String(matchesQueryError)
+    : null;
+  const myClubAdminIds = adminClubsSet ?? new Set<string>();
 
   const filteredMatches = matches.filter((match) => {
     if (!searchQuery) return true;
@@ -227,7 +190,7 @@ export default function MatchesPage() {
               <p className="text-sm font-medium text-destructive">{error}</p>
               <Button
                 size="sm"
-                onClick={() => setStatusFilter(statusFilter)}
+                onClick={() => void refetch()}
                 className="interactive-button gap-2"
               >
                 <RotateCcw className="h-3.5 w-3.5" />

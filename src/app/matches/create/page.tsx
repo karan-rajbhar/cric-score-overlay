@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -28,8 +28,10 @@ import { Badge } from "~/components/ui/badge";
 import { createMatch } from "../mutations";
 import { createTeamQuick } from "../../teams/actions";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
-import { useMatchWizardDataQuery } from "~/lib/hooks/useMatchQueries";
+import {
+  useMatchWizardDataQuery,
+  useTournamentRegistrationsQuery,
+} from "~/lib/hooks/useMatchQueries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { deriveShortName } from "~/lib/utils";
@@ -98,9 +100,6 @@ function CreateMatchWizard() {
   const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
   const [createdTeams, setCreatedTeams] = useState<Team[]>([]);
-  const [tournamentTeamIds, setTournamentTeamIds] = useState<Set<string>>(
-    new Set(),
-  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,42 +215,14 @@ function CreateMatchWizard() {
     void refetchWizardData();
   };
 
-  // When tournamentId changes, fetch registered teams for filtering/badging
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchTournamentRegistrations = async () => {
-      if (!formData.tournamentId) {
-        if (!cancelled) setTournamentTeamIds(new Set());
-        return;
-      }
-
-      try {
-        const supabase = createClient();
-        const { data, error: regError } = await supabase
-          .from("tournament_registrations")
-          .select("team_id")
-          .eq("tournament_id", formData.tournamentId);
-
-        if (!cancelled && data && !regError) {
-          setTournamentTeamIds(
-            new Set(
-              data
-                .map((r) => r.team_id)
-                .filter((id): id is string => Boolean(id)),
-            ),
-          );
-        }
-      } catch (err) {
-        console.error("Error fetching tournament registrations:", err);
-      }
-    };
-
-    void fetchTournamentRegistrations();
-    return () => {
-      cancelled = true;
-    };
-  }, [formData.tournamentId]);
+  // When tournamentId changes, fetch registered teams for filtering/badging via cached query
+  const { data: registeredSet } = useTournamentRegistrationsQuery(
+    formData.tournamentId,
+  );
+  const tournamentTeamIds = useMemo(
+    () => registeredSet ?? new Set<string>(),
+    [registeredSet],
+  );
 
   // Auto-set overs when format changes (derived in the change handler, not an effect)
   const handleFormatChange = (format: MatchFormat) => {

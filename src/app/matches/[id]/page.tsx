@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, Suspense } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -13,8 +13,10 @@ import { MatchBalls } from "~/components/matches/match-balls";
 import { MatchManhattan } from "~/components/matches/match-manhattan";
 import { MatchPartnerships } from "~/components/matches/match-partnerships";
 import { MatchInfo } from "~/components/matches/match-info";
-import { getMatch } from "../queries";
-import type { Match } from "~/lib/match-types";
+import {
+  useMatchDetailQuery,
+  useMatchAdminQuery,
+} from "~/lib/hooks/useMatchQueries";
 import { formatDecimalOvers, formatStatus } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -67,33 +69,21 @@ function MatchDetailsPageContent() {
   const router = useRouter();
   const matchId = params.id as string;
   const { user } = useAuth();
-  const [match, setMatch] = useState<Match | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const isConnectedRef = useRef(false);
-  const [isScorerRole, setIsScorerRole] = useState<boolean>(false);
-  const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    data: matchData,
+    isLoading: loading,
+    error: matchQueryError,
+    refetch: refetchQuery,
+    isConnected,
+  } = useMatchDetailQuery(matchId);
+  const match = matchData ?? null;
+  const error = matchQueryError ? matchQueryError.message : null;
+  const refetchMatch = useCallback(() => {
+    void refetchQuery();
+  }, [refetchQuery]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const checkScorer = async () => {
-      if (!user || !matchId) {
-        setIsScorerRole(false);
-        return;
-      }
-      const { data } = await supabase.rpc("is_match_admin", {
-        p_match_id: matchId,
-      });
-      if (!cancelled) {
-        setIsScorerRole(Boolean(data));
-      }
-    };
-    void checkScorer();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, matchId]);
+  const { data: isScorerAdmin } = useMatchAdminQuery(matchId, user?.id);
+  const isScorerRole = Boolean(isScorerAdmin);
 
   const clubId = searchParams.get("clubId");
   const tournamentId = searchParams.get("tournamentId");
@@ -169,105 +159,7 @@ function MatchDetailsPageContent() {
     };
   }, [clubId, tournamentId, playerId, match]);
 
-  const refetchMatch = useCallback(async () => {
-    const result = await getMatch(matchId, { skipCache: true });
-    if (result.data) {
-      setMatch(result.data as Match);
-    }
-  }, [matchId]);
 
-  // Initial load
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchInitialMatch() {
-      const result = await getMatch(matchId);
-      if (cancelled) return;
-      if (result.error) {
-        setError(result.error);
-      } else {
-        setMatch(result.data as Match);
-      }
-      setLoading(false);
-    }
-    void fetchInitialMatch();
-    return () => {
-      cancelled = true;
-    };
-  }, [matchId]);
-
-  // Realtime subscription + polling fallback when live
-  useEffect(() => {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
-
-    const scheduleRefetch = () => {
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
-      fetchTimer.current = setTimeout(() => void refetchMatch(), 250);
-    };
-
-    const channel = supabase
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, scheduleRefetch)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches",
-          filter: `id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "innings",
-          filter: `match_id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .subscribe((status) => {
-        const connected = status === "SUBSCRIBED";
-        setIsConnected(connected);
-        isConnectedRef.current = connected;
-      });
-
-    // Fallback polling: if live and WebSocket disconnects, poll every 15s.
-    // If healthy & connected, poll very gently every 60s as a passive heartbeat.
-    const poll = setInterval(() => {
-      if (match?.status === "live" && !isConnectedRef.current) {
-        void refetchMatch();
-      }
-    }, 15000);
-
-    const heartbeat = setInterval(() => {
-      if (match?.status === "live" && isConnectedRef.current) {
-        void refetchMatch();
-      }
-    }, 60000);
-
-    return () => {
-      void supabase.removeChannel(channel);
-      clearInterval(poll);
-      clearInterval(heartbeat);
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
-    };
-  }, [matchId, refetchMatch, match?.status]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -10,7 +9,7 @@ import {
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Swords, Trophy, Calendar, MapPin, Loader2 } from "lucide-react";
-import { createClient } from "~/lib/supabase/client";
+import { useHeadToHeadQuery } from "~/lib/hooks/useMatchQueries";
 import type { MatchTeam } from "~/lib/match-types";
 import Link from "next/link";
 
@@ -39,43 +38,12 @@ interface HistoricalMatch {
 }
 
 export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
-  const [matches, setMatches] = useState<HistoricalMatch[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchH2H = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("matches")
-        .select(
-          `
-                    id,
-                    title,
-                    scheduled_at,
-                    venue,
-                    winning_team_id,
-                    result_type,
-                    result_description,
-                    team1_id,
-                    team2_id,
-                    innings(team_id, total_runs, total_wickets, total_overs)
-                `,
-        )
-        .eq("status", "completed")
-        .neq("id", currentMatchId)
-        .or(
-          `and(team1_id.eq.${team1.id},team2_id.eq.${team2.id}),and(team1_id.eq.${team2.id},team2_id.eq.${team1.id})`,
-        )
-        .order("scheduled_at", { ascending: false });
-
-      if (data) {
-        setMatches(data as unknown as HistoricalMatch[]);
-      }
-      setLoading(false);
-    };
-
-    void fetchH2H();
-  }, [team1.id, team2.id, currentMatchId]);
+  const { data, isLoading: loading } = useHeadToHeadQuery(
+    team1.id,
+    team2.id,
+    currentMatchId,
+  );
+  const matches = (data ?? []) as unknown as HistoricalMatch[];
 
   const total = matches.length;
   const team1Wins = matches.filter(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
@@ -17,14 +17,8 @@ import {
 } from "~/components/ui/select";
 import { createTournament } from "../actions";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
+import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
 import { ChevronLeft, Loader2, Shield } from "lucide-react";
-
-interface ClubOption {
-  id: string;
-  name: string;
-  short_name?: string | null;
-}
 
 function CreateTournamentForm() {
   const searchParams = useSearchParams();
@@ -32,62 +26,12 @@ function CreateTournamentForm() {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clubs, setClubs] = useState<ClubOption[]>([]);
+  const { data: clubsData } = useUserManagedClubsQuery(
+    user?.id,
+    prefilledClubId,
+  );
+  const clubs = clubsData ?? [];
   const [selectedClubId, setSelectedClubId] = useState<string>(prefilledClubId);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchClubs = async () => {
-      if (!user) return;
-      const supabase = createClient();
-      const [ownedClubsRes, memberClubsRes] = await Promise.all([
-        supabase
-          .from("clubs")
-          .select("id, name, short_name")
-          .eq("owner_id", user.id)
-          .order("name"),
-        supabase
-          .from("club_memberships")
-          .select("club:clubs(id, name, short_name)")
-          .eq("user_id", user.id)
-          .in("role", ["owner", "admin"])
-          .eq("status", "active"),
-      ]);
-
-      if (cancelled) return;
-
-      const clubMap = new Map<string, ClubOption>();
-      (ownedClubsRes.data ?? []).forEach((c) => {
-        clubMap.set(c.id, c);
-      });
-      (memberClubsRes.data ?? []).forEach((m) => {
-        const c = Array.isArray(m.club) ? m.club[0] : m.club;
-        if (c) clubMap.set(c.id, c);
-      });
-
-      if (prefilledClubId && !clubMap.has(prefilledClubId)) {
-        const { data: prefClub } = await supabase
-          .from("clubs")
-          .select("id, name, short_name")
-          .eq("id", prefilledClubId)
-          .single();
-        if (prefClub) clubMap.set(prefClub.id, prefClub);
-      }
-
-      const available = Array.from(clubMap.values()).sort((a, b) =>
-        a.name.localeCompare(b.name),
-      );
-      setClubs(available);
-      if (prefilledClubId) {
-        setSelectedClubId(prefilledClubId);
-      }
-    };
-
-    void fetchClubs();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, prefilledClubId]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

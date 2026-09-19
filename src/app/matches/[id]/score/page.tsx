@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -50,7 +50,7 @@ const DlsCalculatorModal = dynamic(
 );
 import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
+import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import type { ExtraType } from "../../types";
 import { toast } from "sonner";
 import {
@@ -70,28 +70,17 @@ export default function ScoringPage() {
   const params = useParams();
   const matchId = params.id as string;
   const { user, loading: authLoading } = useAuth();
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const checkAuth = async () => {
-      if (!user || !matchId) {
-        if (!authLoading && !cancelled) setIsAuthorized(false);
-        return;
-      }
-      const supabaseClient = createClient();
-      const { data } = await supabaseClient.rpc("is_match_admin", {
-        p_match_id: matchId,
-      });
-      if (!cancelled) {
-        setIsAuthorized(Boolean(data));
-      }
-    };
-    void checkAuth();
-    return () => {
-      cancelled = true;
-    };
-  }, [user, matchId, authLoading]);
+  const { data: isAdminData, isLoading: authCheckLoading } = useMatchAdminQuery(
+    matchId,
+    user?.id,
+  );
+  const isAuthorized = user
+    ? authCheckLoading
+      ? null
+      : Boolean(isAdminData)
+    : authLoading
+      ? null
+      : false;
 
   const {
     match,

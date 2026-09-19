@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
 import { Button } from "~/components/ui/button";
 import { MatchCard } from "~/components/matches/match-card";
 import { TeamLogo } from "~/components/teams/team-logo";
-import { useMatchesQuery } from "~/lib/hooks/useMatchQueries";
+import {
+  useMatchesQuery,
+  useUserAdminClubIdsQuery,
+} from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Plus, Radio, Tv, Trophy, Shield } from "lucide-react";
@@ -22,41 +23,14 @@ export default function Dashboard() {
     status: "completed",
     limit: 6,
   });
+  const { data: adminClubsSet } = useUserAdminClubIdsQuery(user?.id);
   const liveMatches = liveData ?? [];
   const recentMatches = recentData ?? [];
   const loading =
     (liveLoading || recentLoading) &&
     liveMatches.length === 0 &&
     recentMatches.length === 0;
-  const [myClubAdminIds, setMyClubAdminIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const fetchAdminClubs = async () => {
-      const supabaseClient = createClient();
-      const [{ data: owned }, { data: mems }] = await Promise.all([
-        supabaseClient.from("clubs").select("id").eq("owner_id", user.id),
-        supabaseClient
-          .from("club_memberships")
-          .select("club_id")
-          .eq("user_id", user.id)
-          .in("role", ["owner", "admin"])
-          .eq("status", "active"),
-      ]);
-      if (cancelled) return;
-      const set = new Set<string>();
-      (owned ?? []).forEach((c) => set.add(c.id));
-      (mems ?? []).forEach((m) => {
-        if (m.club_id) set.add(m.club_id);
-      });
-      setMyClubAdminIds(set);
-    };
-    void fetchAdminClubs();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  const myClubAdminIds = adminClubsSet ?? new Set<string>();
 
   const canScoreMatch = (match: Match) => {
     if (!user) return false;
