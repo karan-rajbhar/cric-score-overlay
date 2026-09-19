@@ -18,6 +18,22 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This player already has a record in this innings.",
   "violates foreign key constraint":
     "The referenced player, team, or match could not be found.",
+  "fetch failed":
+    "Database connection error. Please check your connection and retry.",
+  "connection refused":
+    "Database server is unreachable. Please verify connection and retry.",
+  "statement timeout":
+    "The database query timed out. Please retry.",
+  "canceling statement due to statement timeout":
+    "The database query timed out. Please retry.",
+  "JWT expired":
+    "Your session has expired. Please sign in again.",
+  "token expired":
+    "Your session has expired. Please sign in again.",
+  "team_not_found":
+    "The selected team could not be found.",
+  "name_required":
+    "Please enter a player name.",
 };
 
 export function friendlyError(message: string): string {

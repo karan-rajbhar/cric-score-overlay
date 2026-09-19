@@ -257,40 +257,48 @@ export async function createTeamQuick(name: string, shortName?: string) {
  * and squad entry in one step via create_team_player().
  */
 export async function createPlayerQuick(teamId: string, fullName: string) {
-  const supabase = await createServerClient();
+  try {
+    const supabase = await createServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { data: null, error: "You must be logged in to add players" };
-  }
-
-  await ensureUserProfile(supabase, user);
-
-  const { data, error } = await supabase.rpc("create_team_player", {
-    p_team_id: teamId,
-    p_full_name: fullName,
-  });
-
-  if (error) {
-    console.error("Error creating player:", error);
-    if (error.message.includes("not_authorized")) {
-      return {
-        data: null,
-        error:
-          "Only team captains, club admins, or match admins can add players",
-      };
+    if (!user) {
+      return { data: null, error: "You must be logged in to add players" };
     }
-    if (error.message.includes("team_not_found")) {
-      return { data: null, error: "Team no longer exists" };
-    }
-    return { data: null, error: error.message };
-  }
 
-  revalidatePath(`/teams/${teamId}`);
-  return { data: data as { user_id: string; full_name: string }, error: null };
+    await ensureUserProfile(supabase, user);
+
+    const { data, error } = await supabase.rpc("create_team_player", {
+      p_team_id: teamId,
+      p_full_name: fullName,
+    });
+
+    if (error) {
+      console.error("Error creating player:", error);
+      if (error.message.includes("not_authorized")) {
+        return {
+          data: null,
+          error:
+            "Only team captains, club admins, or match admins can add players",
+        };
+      }
+      if (error.message.includes("team_not_found")) {
+        return { data: null, error: "Team no longer exists" };
+      }
+      return { data: null, error: error.message };
+    }
+
+    revalidatePath(`/teams/${teamId}`);
+    return { data: data as { user_id: string; full_name: string }, error: null };
+  } catch (err) {
+    console.error("Unexpected error in createPlayerQuick:", err);
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : "Failed to create player",
+    };
+  }
 }
 
 async function checkTeamManageAuth(

@@ -131,14 +131,38 @@ export function useScoring(
 
     if (!battingTeamId || !bowlingTeamId) return;
 
-    const [battingResult, bowlingResult] = await Promise.all([
-      getTeamPlayers(battingTeamId),
-      getTeamPlayers(bowlingTeamId),
-    ]);
-    if (battingResult.data)
-      setBattingTeamPlayers(battingResult.data as Player[]);
-    if (bowlingResult.data)
-      setBowlingTeamPlayers(bowlingResult.data as Player[]);
+    try {
+      const [battingResult, bowlingResult] = await Promise.all([
+        getTeamPlayers(battingTeamId),
+        getTeamPlayers(bowlingTeamId),
+      ]);
+      if (battingResult.data) {
+        setBattingTeamPlayers((prev) => {
+          const fetched = battingResult.data as Player[];
+          const map = new Map(fetched.map((p) => [p.user_id, p]));
+          for (const p of prev) {
+            if (p.user_id && !map.has(p.user_id)) {
+              map.set(p.user_id, p);
+            }
+          }
+          return Array.from(map.values());
+        });
+      }
+      if (bowlingResult.data) {
+        setBowlingTeamPlayers((prev) => {
+          const fetched = bowlingResult.data as Player[];
+          const map = new Map(fetched.map((p) => [p.user_id, p]));
+          for (const p of prev) {
+            if (p.user_id && !map.has(p.user_id)) {
+              map.set(p.user_id, p);
+            }
+          }
+          return Array.from(map.values());
+        });
+      }
+    } catch (err) {
+      console.error("Error loading squad players:", err);
+    }
   };
 
   const syncFromDb = useCallback(async () => {

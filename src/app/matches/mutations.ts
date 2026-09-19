@@ -487,82 +487,102 @@ export async function recordBall(params: {
   nonStrikerId: string;
   event: BallEvent;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("record_ball", {
-    p_match_id: params.matchId,
-    p_bowler_id: params.bowlerId,
-    p_batsman_id: params.batsmanId,
-    p_non_striker_id: params.nonStrikerId,
-    p_runs_scored: params.event.runsScored ?? 0,
-    p_extras: params.event.extras ?? 0,
-    p_extra_type: params.event.extraType ?? null,
-    p_is_wicket: params.event.isWicket ?? false,
-    p_dismissal_type: params.event.dismissalType ?? null,
-    p_fielder_id: params.event.fielderId ?? null,
-    p_commentary: params.event.commentary ?? null,
-    p_dismissed_player_id: params.event.dismissedPlayerId ?? null,
-  });
-  if (error) {
-    console.error("record_ball failed:", error);
-    return { data: null, error: friendlyError(error.message) };
-  }
-  invalidateMatchCache(params.matchId);
-  revalidatePath(`/matches/${params.matchId}`);
-  revalidatePath(`/matches/${params.matchId}/score`);
-  revalidatePath(`/overlay/${params.matchId}`);
-
-  if ((data as ScoringState)?.match_completed) {
-    const { data: matchData } = await supabase
-      .from("matches")
-      .select("tournament_id, club_id")
-      .eq("id", params.matchId)
-      .single();
-
-    if (matchData?.tournament_id) {
-      revalidatePath(`/tournaments/${matchData.tournament_id}`);
-      revalidatePath("/tournaments");
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("record_ball", {
+      p_match_id: params.matchId,
+      p_bowler_id: params.bowlerId,
+      p_batsman_id: params.batsmanId,
+      p_non_striker_id: params.nonStrikerId,
+      p_runs_scored: params.event.runsScored ?? 0,
+      p_extras: params.event.extras ?? 0,
+      p_extra_type: params.event.extraType ?? null,
+      p_is_wicket: params.event.isWicket ?? false,
+      p_dismissal_type: params.event.dismissalType ?? null,
+      p_fielder_id: params.event.fielderId ?? null,
+      p_commentary: params.event.commentary ?? null,
+      p_dismissed_player_id: params.event.dismissedPlayerId ?? null,
+    });
+    if (error) {
+      console.error("record_ball failed:", error);
+      return { data: null, error: friendlyError(error.message) };
     }
-    if (matchData?.club_id) {
-      revalidatePath(`/clubs/${matchData.club_id}`);
-      revalidatePath("/clubs");
-    }
-  }
+    invalidateMatchCache(params.matchId);
+    revalidatePath(`/matches/${params.matchId}`);
+    revalidatePath(`/matches/${params.matchId}/score`);
+    revalidatePath(`/overlay/${params.matchId}`);
 
-  if (params.event.shotZone) {
-    const { data: latestBall } = await supabase
-      .from("ball_by_ball")
-      .select("id")
-      .eq("match_id", params.matchId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
-    if (latestBall?.id) {
-      await supabase
+    if ((data as ScoringState)?.match_completed) {
+      const { data: matchData } = await supabase
+        .from("matches")
+        .select("tournament_id, club_id")
+        .eq("id", params.matchId)
+        .single();
+
+      if (matchData?.tournament_id) {
+        revalidatePath(`/tournaments/${matchData.tournament_id}`);
+        revalidatePath("/tournaments");
+      }
+      if (matchData?.club_id) {
+        revalidatePath(`/clubs/${matchData.club_id}`);
+        revalidatePath("/clubs");
+      }
+    }
+
+    if (params.event.shotZone) {
+      const { data: latestBall } = await supabase
         .from("ball_by_ball")
-        .update({ shot_zone: params.event.shotZone })
-        .eq("id", latestBall.id);
+        .select("id")
+        .eq("match_id", params.matchId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (latestBall?.id) {
+        await supabase
+          .from("ball_by_ball")
+          .update({ shot_zone: params.event.shotZone })
+          .eq("id", latestBall.id);
+      }
     }
-  }
 
-  return { data: data as ScoringState, error: null };
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error("Unexpected error in recordBall:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to record delivery",
+      ),
+    };
+  }
 }
 
 export async function undoLastBall(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("undo_last_ball", {
-    p_match_id: matchId,
-  });
-  if (error) {
-    console.error("undo_last_ball failed:", error);
-    return { data: null, error: friendlyError(error.message) };
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("undo_last_ball", {
+      p_match_id: matchId,
+    });
+    if (error) {
+      console.error("undo_last_ball failed:", error);
+      return { data: null, error: friendlyError(error.message) };
+    }
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error("Unexpected error in undoLastBall:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to undo last ball",
+      ),
+    };
   }
-  invalidateMatchCache(matchId);
-  revalidatePath(`/matches/${matchId}`);
-  revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
-  return { data: data as ScoringState, error: null };
 }
 
 export async function setCurrentBatsmen(
@@ -570,77 +590,105 @@ export async function setCurrentBatsmen(
   strikerId: string,
   nonStrikerId: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createServerClient();
-  const { error } = await supabase.rpc("set_current_batsmen", {
-    p_match_id: matchId,
-    p_striker_id: strikerId,
-    p_non_striker_id: nonStrikerId,
-  });
-  if (error) {
-    console.error("set_current_batsmen failed:", error);
-    return { error: friendlyError(error.message) };
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.rpc("set_current_batsmen", {
+      p_match_id: matchId,
+      p_striker_id: strikerId,
+      p_non_striker_id: nonStrikerId,
+    });
+    if (error) {
+      console.error("set_current_batsmen failed:", error);
+      return { error: friendlyError(error.message) };
+    }
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { error: null };
+  } catch (err) {
+    console.error("Unexpected error in setCurrentBatsmen:", err);
+    return {
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to set current batsmen",
+      ),
+    };
   }
-  invalidateMatchCache(matchId);
-  revalidatePath(`/matches/${matchId}`);
-  revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
-  return { error: null };
 }
 
 export async function setCurrentBowler(
   matchId: string,
   bowlerId: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createServerClient();
-  const { error } = await supabase.rpc("set_current_bowler", {
-    p_match_id: matchId,
-    p_bowler_id: bowlerId,
-  });
-  if (error) {
-    console.error("set_current_bowler failed:", error);
-    return { error: friendlyError(error.message) };
+  try {
+    const supabase = await createServerClient();
+    const { error } = await supabase.rpc("set_current_bowler", {
+      p_match_id: matchId,
+      p_bowler_id: bowlerId,
+    });
+    if (error) {
+      console.error("set_current_bowler failed:", error);
+      return { error: friendlyError(error.message) };
+    }
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { error: null };
+  } catch (err) {
+    console.error("Unexpected error in setCurrentBowler:", err);
+    return {
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to set current bowler",
+      ),
+    };
   }
-  invalidateMatchCache(matchId);
-  revalidatePath(`/matches/${matchId}`);
-  revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
-  return { error: null };
 }
 
 export async function endInnings(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("end_innings", {
-    p_match_id: matchId,
-  });
-  if (error) {
-    console.error("end_innings failed:", error);
-    return { data: null, error: friendlyError(error.message) };
-  }
-  invalidateMatchCache(matchId);
-  revalidatePath(`/matches/${matchId}`);
-  revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
-
-  if ((data as ScoringState)?.match_completed) {
-    const { data: matchData } = await supabase
-      .from("matches")
-      .select("tournament_id, club_id")
-      .eq("id", matchId)
-      .single();
-
-    if (matchData?.tournament_id) {
-      revalidatePath(`/tournaments/${matchData.tournament_id}`);
-      revalidatePath("/tournaments");
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("end_innings", {
+      p_match_id: matchId,
+    });
+    if (error) {
+      console.error("end_innings failed:", error);
+      return { data: null, error: friendlyError(error.message) };
     }
-    if (matchData?.club_id) {
-      revalidatePath(`/clubs/${matchData.club_id}`);
-      revalidatePath("/clubs");
-    }
-  }
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
 
-  return { data: data as ScoringState, error: null };
+    if ((data as ScoringState)?.match_completed) {
+      const { data: matchData } = await supabase
+        .from("matches")
+        .select("tournament_id, club_id")
+        .eq("id", matchId)
+        .single();
+
+      if (matchData?.tournament_id) {
+        revalidatePath(`/tournaments/${matchData.tournament_id}`);
+        revalidatePath("/tournaments");
+      }
+      if (matchData?.club_id) {
+        revalidatePath(`/clubs/${matchData.club_id}`);
+        revalidatePath("/clubs");
+      }
+    }
+
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error("Unexpected error in endInnings:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to end innings",
+      ),
+    };
+  }
 }
 
 export async function setPlayerOfTheMatch(
@@ -731,47 +779,67 @@ export async function updateBall(params: {
   fielderId?: string | null;
   dismissedPlayerId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("update_ball", {
-    p_match_id: params.matchId,
-    p_ball_id: params.ballId,
-    p_runs_scored: params.runsScored ?? 0,
-    p_extras: params.extras ?? 0,
-    p_extra_type: params.extraType ?? null,
-    p_is_wicket: params.isWicket ?? false,
-    p_dismissal_type: params.dismissalType ?? null,
-    p_fielder_id: params.fielderId ?? null,
-    p_dismissed_player_id: params.dismissedPlayerId ?? null,
-  });
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("update_ball", {
+      p_match_id: params.matchId,
+      p_ball_id: params.ballId,
+      p_runs_scored: params.runsScored ?? 0,
+      p_extras: params.extras ?? 0,
+      p_extra_type: params.extraType ?? null,
+      p_is_wicket: params.isWicket ?? false,
+      p_dismissal_type: params.dismissalType ?? null,
+      p_fielder_id: params.fielderId ?? null,
+      p_dismissed_player_id: params.dismissedPlayerId ?? null,
+    });
 
-  if (error) {
-    console.error("update_ball failed:", error);
-    return { data: null, error: friendlyError(error.message) };
+    if (error) {
+      console.error("update_ball failed:", error);
+      return { data: null, error: friendlyError(error.message) };
+    }
+
+    invalidateMatchCache(params.matchId);
+    revalidatePath(`/matches/${params.matchId}`);
+    revalidatePath(`/matches/${params.matchId}/score`);
+    revalidatePath(`/overlay/${params.matchId}`);
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error("Unexpected error in updateBall:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to update delivery",
+      ),
+    };
   }
-
-  invalidateMatchCache(params.matchId);
-  revalidatePath(`/matches/${params.matchId}`);
-  revalidatePath(`/matches/${params.matchId}/score`);
-  revalidatePath(`/overlay/${params.matchId}`);
-  return { data: data as ScoringState, error: null };
 }
 
 export async function startSuperOver(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
-  const supabase = await createServerClient();
-  const { data, error } = await supabase.rpc("start_super_over", {
-    p_match_id: matchId,
-  });
+  try {
+    const supabase = await createServerClient();
+    const { data, error } = await supabase.rpc("start_super_over", {
+      p_match_id: matchId,
+    });
 
-  if (error) {
-    console.error("start_super_over failed:", error);
-    return { data: null, error: friendlyError(error.message) };
+    if (error) {
+      console.error("start_super_over failed:", error);
+      return { data: null, error: friendlyError(error.message) };
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/overlay/${matchId}`);
+    return { data: data as ScoringState, error: null };
+  } catch (err) {
+    console.error("Unexpected error in startSuperOver:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to start super over",
+      ),
+    };
   }
-
-  invalidateMatchCache(matchId);
-  revalidatePath(`/matches/${matchId}`);
-  revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
-  return { data: data as ScoringState, error: null };
 }

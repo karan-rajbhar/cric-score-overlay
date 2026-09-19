@@ -152,8 +152,70 @@ function CreateMatchWizard() {
       setTeamsLoading(true);
       setTeamsLoadError(null);
 
-      // Safety timeout fallback: if queries hang or take longer than 15 seconds,
-      // stop spinning and show the error message with retry button.
+      // Fast client-side loader as immediate fallback
+      const loadFromClient = async () => {
+        const supabase = createClient();
+        const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
+          await Promise.all([
+            supabase
+              .from("teams")
+              .select(
+                "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
+              )
+              .order("name"),
+            supabase
+              .from("tournaments")
+              .select(
+                "id, name, match_format, custom_overs, created_by, club_id",
+              )
+              .order("created_at", { ascending: false }),
+            supabase
+              .from("clubs")
+              .select("id, name, short_name, owner_id")
+              .order("name"),
+            user
+              ? supabase
+                  .from("team_players")
+                  .select("team_id")
+                  .eq("user_id", user.id)
+              : Promise.resolve({ data: [] }),
+            user
+              ? supabase
+                  .from("club_memberships")
+                  .select("club_id")
+                  .eq("user_id", user.id)
+                  .in("role", ["owner", "admin"])
+                  .eq("status", "active")
+              : Promise.resolve({ data: [] }),
+          ]);
+
+        const playerTeamIds = (myPlayersRes.data ?? [])
+          .map((r: { team_id: string | null }) => r.team_id)
+          .filter((id): id is string => Boolean(id));
+
+        const clubAdminIds = (myClubAdminRes.data ?? [])
+          .map((r: { club_id: string | null }) => r.club_id)
+          .filter((id): id is string => Boolean(id));
+
+        if (clubRes.data && user) {
+          for (const c of clubRes.data) {
+            if (c.owner_id === user.id) {
+              clubAdminIds.push(c.id);
+            }
+          }
+        }
+
+        return {
+          teams: (teamRes.data ?? []) as Team[],
+          tournaments: (tournRes.data ?? []) as TournamentOption[],
+          clubs: (clubRes.data ?? []) as ClubOption[],
+          playerTeamIds,
+          clubAdminIds,
+          error: teamRes.error?.message || null,
+        };
+      };
+
+      // Safety fallback: if queries hang > 12 seconds, display clean retry
       timeoutId = setTimeout(() => {
         if (!cancelled) {
           setTeamsLoading(false);
@@ -161,10 +223,28 @@ function CreateMatchWizard() {
             "Loading teams took longer than expected. Please check your connection and retry.",
           );
         }
-      }, 15000);
+      }, 12000);
 
       try {
-        const wizardData = await getMatchWizardData();
+        // Attempt server action with 3-second deadline, seamlessly falling back to client Supabase
+        let wizardData: Awaited<ReturnType<typeof loadFromClient>> | null = null;
+        try {
+          const serverPromise = getMatchWizardData();
+          const fallbackTimer = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 3000),
+          );
+          const res = await Promise.race([serverPromise, fallbackTimer]);
+          if (res && !res.error && res.teams) {
+            wizardData = res as Awaited<ReturnType<typeof loadFromClient>>;
+          }
+        } catch {
+          wizardData = null;
+        }
+
+        if (!wizardData || wizardData.error) {
+          wizardData = await loadFromClient();
+        }
+
         if (cancelled) return;
         if (timeoutId) clearTimeout(timeoutId);
 
@@ -174,6 +254,7 @@ function CreateMatchWizard() {
           return;
         }
 
+        setTeamsLoadError(null);
         const playerTeamIds = new Set<string>(wizardData.playerTeamIds);
         const clubAdminIds = new Set<string>(wizardData.clubAdminIds);
         setMyClubAdminIds(clubAdminIds);
