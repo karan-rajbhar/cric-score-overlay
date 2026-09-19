@@ -675,7 +675,7 @@ function MatchDetailsPageContent() {
               className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm font-semibold"
             >
               <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500" />
-              <span>Superstars</span>
+              <span>Super Stars</span>
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"

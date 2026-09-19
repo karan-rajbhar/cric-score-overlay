@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import React, { useMemo, useState } from "react";
+import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -13,11 +13,10 @@ import {
 } from "~/components/ui/dialog";
 import {
   Sparkles,
-  Crown,
-  Star,
   Layers,
   List,
   Flame,
+  Info,
 } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import {
@@ -26,17 +25,10 @@ import {
   type SuperstarRole,
 } from "~/lib/cricket";
 import Image from "next/image";
+import { cn } from "~/lib/utils";
 
 interface MatchSuperstarsProps {
   match: Match;
-}
-
-function formatDream11Name(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length <= 1) return fullName;
-  const firstName = parts[0];
-  const rest = parts.slice(1).join(" ");
-  return `${firstName?.[0]?.toUpperCase() || ""}. ${rest}`;
 }
 
 function RoleBadge({ role }: { role: SuperstarRole }) {
@@ -81,170 +73,182 @@ function RoleBadge({ role }: { role: SuperstarRole }) {
 }
 
 /**
- * Dream11 Signature Vector Cricket Jersey
+ * Realistic Vector Cricket Jersey matching the reference Stumps screenshot
  */
-function Dream11JerseySvg({
-  primaryColor = "#1e40af",
-  secondaryColor = "#3b82f6",
-  accentColor = "#fbbf24",
-  teamCode = "T1",
-  number,
+function CricketJerseySvg({
+  isTeam1 = true,
+  number = 1,
 }: {
-  primaryColor?: string;
-  secondaryColor?: string;
-  accentColor?: string;
-  teamCode?: string;
+  isTeam1?: boolean;
   number?: number;
 }) {
+  const gradientId = isTeam1 ? "jerseyRedGrad" : "jerseyBlueGrad";
+  const trimColor = isTeam1 ? "#7f1d1d" : "#1e3a8a";
+
   return (
     <svg
-      viewBox="0 0 100 86"
-      className="h-10 w-11 drop-shadow-[0_4px_6px_rgba(0,0,0,0.3)] transition-transform group-hover:scale-110 sm:h-12 sm:w-13"
+      viewBox="0 0 100 105"
+      className="h-14 w-14 drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)] transition-transform duration-200 group-hover:scale-110 sm:h-16 sm:w-16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* Main Jersey Body */}
+      <defs>
+        {/* Red Jersey Gradient for Team 1 */}
+        <linearGradient id="jerseyRedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ef4444" />
+          <stop offset="35%" stopColor="#b91c1c" />
+          <stop offset="100%" stopColor="#7f1d1d" />
+        </linearGradient>
+
+        {/* Blue Jersey Gradient for Team 2 */}
+        <linearGradient
+          id="jerseyBlueGrad"
+          x1="0%" y1="0%"
+          x2="100%"
+          y2="100%"
+        >
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="35%" stopColor="#1d4ed8" />
+          <stop offset="100%" stopColor="#1e3a8a" />
+        </linearGradient>
+
+        {/* Fabric Folds Shadow Overlay */}
+        <linearGradient id="fabricFolds" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#000000" stopOpacity="0.25" />
+          <stop offset="25%" stopColor="#ffffff" stopOpacity="0.1" />
+          <stop offset="50%" stopColor="#000000" stopOpacity="0.15" />
+          <stop offset="75%" stopColor="#ffffff" stopOpacity="0.1" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
+        </linearGradient>
+      </defs>
+
+      {/* Jersey Body & Sleeves */}
       <path
-        d="M26 14 L12 32 L23 41 L29 32 L29 80 L71 80 L71 32 L77 41 L88 32 L74 14 L59 14 C57 23 43 23 41 14 Z"
-        fill={primaryColor}
-        stroke="rgba(255,255,255,0.35)"
-        strokeWidth="1.5"
+        d="M 28 16 L 8 36 L 22 46 L 28 38 L 28 98 L 72 98 L 72 38 L 78 46 L 92 36 L 72 16 L 58 16 C 56 26 44 26 42 16 Z"
+        fill={`url(#${gradientId})`}
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth="1.2"
       />
-      {/* Sleeve Trim Left */}
-      <path d="M12 32 L19 37 L22 33 L16 28 Z" fill={secondaryColor} />
-      {/* Sleeve Trim Right */}
-      <path d="M88 32 L81 37 L78 33 L84 28 Z" fill={secondaryColor} />
-      {/* Collar Accent */}
+
+      {/* Vertical Fabric Texture Folds */}
       <path
-        d="M41 14 C43 23 57 23 59 14 L65 14 C63 27 37 27 35 14 Z"
-        fill={accentColor}
+        d="M 28 38 L 28 98 L 72 98 L 72 38 Z"
+        fill="url(#fabricFolds)"
       />
-      {/* Center Side Panel */}
+
+      {/* Sleeve Hem Left */}
       <path
-        d="M47 28 L53 28 L53 78 L47 78 Z"
-        fill={secondaryColor}
+        d="M 8 36 L 15 42 L 22 46 L 15 40 Z"
+        fill={trimColor}
+        opacity="0.8"
+      />
+      {/* Sleeve Hem Right */}
+      <path
+        d="M 92 36 L 85 42 L 78 46 L 85 40 Z"
+        fill={trimColor}
+        opacity="0.8"
+      />
+
+      {/* Collar Detail */}
+      <path
+        d="M 42 16 C 44 26 56 26 58 16 L 62 16 C 60 29 40 29 38 16 Z"
+        fill="#0f172a"
         opacity="0.6"
       />
-      {/* Team Code on Chest */}
+
+      {/* Jersey Number on Chest */}
       <text
         x="50"
-        y="50"
+        y="66"
         textAnchor="middle"
+        dominantBaseline="central"
         fill="#ffffff"
-        fontSize="13"
+        fontSize="24"
         fontWeight="900"
         letterSpacing="0.5"
+        className="font-sans select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
       >
-        {teamCode}
+        {number}
       </text>
-      {number !== undefined && (
-        <text
-          x="50"
-          y="68"
-          textAnchor="middle"
-          fill={accentColor}
-          fontSize="11"
-          fontWeight="800"
-        >
-          {number}
-        </text>
-      )}
     </svg>
   );
 }
 
 /**
- * Dream11-style Player Pitch Node
+ * Player Pitch Card Node matching the Stumps Superstars reference screenshot
  */
-function Dream11PlayerNode({
+function SuperstarPlayerNode({
   player,
   isTeam1,
-  teamCode,
+  jerseyNumber,
   onClick,
 }: {
   player: SuperstarPlayer;
   isTeam1: boolean;
-  teamCode: string;
+  jerseyNumber: number;
   onClick: () => void;
 }) {
-  const primaryColor = isTeam1 ? "#1d4ed8" : "#b91c1c";
-  const secondaryColor = isTeam1 ? "#60a5fa" : "#f87171";
-  const accentColor = isTeam1 ? "#fbbf24" : "#fef08a";
+  // Impact rating formatted to 1 decimal place (e.g. 12.6, 9.2, 4.0)
+  const rating = (player.totalPoints / 10).toFixed(1);
+  const isTopRanked = player.rank === 1;
 
-  const formattedName = formatDream11Name(player.playerName);
+  // Milestone badge calculation (e.g. 50 runs, 100 runs, 3w wickets, 2c catches)
+  const milestone = useMemo(() => {
+    if (player.stats.runs >= 100) return "100";
+    if (player.stats.runs >= 50) return "50";
+    if (player.stats.wickets >= 3) return `${player.stats.wickets}w`;
+    if (player.stats.catches >= 2) return `${player.stats.catches}c`;
+    if (player.stats.runs >= 30) return `${player.stats.runs}`;
+    return null;
+  }, [player.stats]);
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex flex-col items-center text-center cursor-pointer focus:outline-none"
+      className="group relative flex flex-col items-center text-center cursor-pointer focus:outline-none transition-transform active:scale-95"
       title={`Click to view ${player.playerName} points breakdown`}
     >
-      {/* Jersey Container with C / VC badges */}
+      {/* Jersey with floating badges */}
       <div className="relative">
-        <Dream11JerseySvg
-          primaryColor={primaryColor}
-          secondaryColor={secondaryColor}
-          accentColor={accentColor}
-          teamCode={teamCode.slice(0, 3).toUpperCase()}
-          number={player.rank}
+        <CricketJerseySvg
+          isTeam1={isTeam1}
+          number={jerseyNumber}
         />
 
-        {/* Dream11 Signature Captain Badge */}
-        {player.isCaptain && (
-          <div
-            title="Captain (2X Points)"
-            className="absolute -right-2 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white shadow-md ring-2 ring-white"
-          >
-            C
-          </div>
-        )}
+        {/* Top-Left Rating Pill (Green badge with gold star ⭐ for #1) */}
+        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-0.5 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-black text-white shadow-md ring-1 ring-white/30">
+          <span>{rating}</span>
+          {isTopRanked && (
+            <span className="text-yellow-300 text-[11px] leading-none">⭐</span>
+          )}
+        </div>
 
-        {/* Dream11 Signature Vice-Captain Badge */}
-        {player.isViceCaptain && (
+        {/* Top-Right Key Milestone Badge (e.g. 50 runs, 3w wickets) */}
+        {milestone && (
           <div
-            title="Vice-Captain (1.5X Points)"
-            className="absolute -right-2 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[10px] font-black text-white shadow-md ring-2 ring-white"
+            title={`Milestone: ${milestone}`}
+            className="absolute -right-2 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-300 px-1 text-[9.5px] font-black text-slate-900 shadow-md ring-1 ring-white/40"
           >
-            VC
+            {milestone}
           </div>
         )}
       </div>
 
-      {/* Dream11 Name & Points Plate */}
-      <div className="mt-1 flex flex-col items-center">
-        {/* Dark Name Bar */}
-        <div className="flex max-w-[85px] items-center justify-center rounded bg-[#111827]/95 px-1.5 py-0.5 text-white shadow-md border border-white/10 sm:max-w-[105px]">
-          <span className="truncate text-[10px] font-bold leading-tight sm:text-[11px]">
-            {formattedName}
-          </span>
-        </div>
-
-        {/* White/Yellow Points Bar */}
-        <div className="mt-0.5 flex items-center gap-1 rounded bg-white/95 px-1.5 py-0.2 shadow-sm dark:bg-slate-900/90 border border-black/10 dark:border-white/10">
-          <span className="tabular text-[9px] font-black text-slate-950 dark:text-amber-300 sm:text-[10px]">
-            {player.totalPoints} Pts
-          </span>
-          {player.isCaptain && (
-            <span className="rounded bg-red-600 px-0.5 text-[8px] font-extrabold text-white">
-              2X
-            </span>
-          )}
-          {player.isViceCaptain && (
-            <span className="rounded bg-slate-700 px-0.5 text-[8px] font-extrabold text-white">
-              1.5X
-            </span>
-          )}
-        </div>
+      {/* Player Name Glassmorphism Tag */}
+      <div className="mt-1 flex max-w-[95px] items-center justify-center rounded-lg bg-black/45 px-2 py-0.5 text-white shadow-md backdrop-blur-sm border border-white/10 sm:max-w-[115px]">
+        <span className="truncate text-[10.5px] font-semibold tracking-tight sm:text-[11.5px]">
+          {player.playerName}
+        </span>
       </div>
     </button>
   );
 }
 
 /**
- * Dream11 Player Points Breakdown Modal
+ * Points Breakdown & Rules Modal
  */
-function PlayerPointsDialog({
+function SuperstarPointsDialog({
   player,
   open,
   onOpenChange,
@@ -289,7 +293,7 @@ function PlayerPointsDialog({
                 )}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {player.teamName} • Rank #{player.rank} in Superstars XI
+                {player.teamName} • Rank #{player.rank} in Superstar 11
               </DialogDescription>
             </div>
           </div>
@@ -302,10 +306,13 @@ function PlayerPointsDialog({
               <Flame className="h-5 w-5 text-amber-500" />
               <div>
                 <p className="text-xs font-semibold text-muted-foreground">
-                  Match Impact Points
+                  Superstar Impact Rating
                 </p>
                 <p className="text-xl font-black text-foreground">
-                  {player.totalPoints} PTS
+                  {(player.totalPoints / 10).toFixed(1)}{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    ({player.totalPoints} pts)
+                  </span>
                 </p>
               </div>
             </div>
@@ -348,44 +355,90 @@ function PlayerPointsDialog({
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
-                    {player.stats.wickets}w / {player.stats.runsConceded}r ({player.stats.overs} ov)
+                    {player.stats.wickets}w • {player.stats.overs}ov ({player.stats.runsConceded}r)
                   </span>
-                  <span className="font-bold tabular text-purple-600 dark:text-purple-400">
+                  <span className="font-bold tabular text-primary">
                     +{player.breakdown.bowling} pts
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between py-1 border-b border-border/50">
+              <div className="flex items-center justify-between py-1">
                 <span className="flex items-center gap-1.5 font-medium">
-                  🧤 Fielding Points
+                  🧤 Fielding & Dismissals
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
-                    {player.stats.catches} ct • {player.stats.stumpings} st • {player.stats.runOuts} ro
+                    {player.stats.catches} catches • {player.stats.stumpings} stumpings • {player.stats.runOuts} run outs
                   </span>
-                  <span className="font-bold tabular text-sky-600 dark:text-sky-400">
+                  <span className="font-bold tabular text-primary">
                     +{player.breakdown.fielding} pts
                   </span>
                 </div>
               </div>
-
-              {player.breakdown.winBonus > 0 && (
-                <div className="flex items-center justify-between py-1">
-                  <span className="flex items-center gap-1.5 font-medium">
-                    🏆 Match Winning Team Bonus
-                  </span>
-                  <span className="font-bold tabular text-emerald-600 dark:text-emerald-400">
-                    +{player.breakdown.winBonus} pts
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
-          <p className="text-[11px] text-muted-foreground text-center">
-            Points calculated using international Dream11 & Stumps cricket fantasy standards.
-          </p>
+          <div className="rounded-xl bg-slate-100 p-3 text-[11px] text-muted-foreground dark:bg-slate-900 border border-border/60">
+            Points and ratings calculated dynamically using international cricket fantasy and match impact standards.
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Scoring Rules Info Dialog
+ */
+function SuperstarInfoDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-amber-500" />
+            Superstar 11 Impact System
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            How player impact ratings are calculated across both teams
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 pt-2 text-xs text-muted-foreground">
+          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
+            <p className="font-bold text-foreground">🏏 Batting Points</p>
+            <p>• 1 Point per Run scored</p>
+            <p>• +1 Bonus point per Boundary (4s)</p>
+            <p>• +2 Bonus points per Maximum (6s)</p>
+            <p>• +8 Bonus for 30+ runs, +16 for 50+ Half-Century, +32 for Century</p>
+          </div>
+
+          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
+            <p className="font-bold text-foreground">🎯 Bowling Points</p>
+            <p>• 25 Points per Wicket taken (excluding run-outs)</p>
+            <p>• 12 Points per Maiden Over</p>
+            <p>• +4 Bonus for 3-Wicket haul, +8 for 4-Wicket haul, +16 for 5-Wicket haul</p>
+            <p>• Economy rate bonus for disciplined spells</p>
+          </div>
+
+          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
+            <p className="font-bold text-foreground">🧤 Fielding Points</p>
+            <p>• 8 Points per Catch</p>
+            <p>• 12 Points per Stumping / Direct Hit Run-out</p>
+          </div>
+
+          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
+            <p className="font-bold text-foreground">⭐ Star Multipliers</p>
+            <p>• Captain (Top Performer): 2X Points</p>
+            <p>• Vice-Captain (2nd Top Performer): 1.5X Points</p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -397,6 +450,10 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
   const [selectedPlayer, setSelectedPlayer] = useState<SuperstarPlayer | null>(
     null,
   );
+  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
+  const [teamFilter, setTeamFilter] = useState<"all" | "team1" | "team2">(
+    "all",
+  );
 
   const superstarData = useMemo(() => {
     return calculateSuperstars(match);
@@ -404,20 +461,39 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
 
   const {
     superstars,
-    captain,
-    viceCaptain,
-    team1Count,
-    team2Count,
     totalPoints,
-    byRole,
   } = superstarData;
 
-  const team1Short = match.team1.short_name || match.team1.name.slice(0, 3).toUpperCase();
-  const team2Short = match.team2.short_name || match.team2.name.slice(0, 3).toUpperCase();
+  // Filtered superstars based on selected team filter
+  const displayedSuperstars = useMemo(() => {
+    if (teamFilter === "team1") {
+      return superstars.filter((p) => p.teamId === match.team1_id);
+    }
+    if (teamFilter === "team2") {
+      return superstars.filter((p) => p.teamId === match.team2_id);
+    }
+    return superstars;
+  }, [superstars, teamFilter, match.team1_id, match.team2_id]);
 
-  const maxPoints = useMemo(() => {
-    return superstars[0]?.totalPoints || 1;
-  }, [superstars]);
+  // Arrange players into standard visual cricket formations:
+  // Row 1: Wicketkeeper / Opener (1 player)
+  // Row 2: Top Batters (2 players)
+  // Row 3: Middle Order / All-rounders (3 players)
+  // Row 4: Bowlers (2-3 players)
+  // Row 5: Tailenders / Bowlers (remaining)
+  const formationRows = useMemo(() => {
+    const list = displayedSuperstars;
+    if (list.length === 0) return [];
+    if (list.length <= 4) {
+      return [list];
+    }
+    const r1 = list.slice(0, 1);
+    const r2 = list.slice(1, 3);
+    const r3 = list.slice(3, 6);
+    const r4 = list.slice(6, 8);
+    const r5 = list.slice(8, 11);
+    return [r1, r2, r3, r4, r5].filter((r) => r.length > 0);
+  }, [displayedSuperstars]);
 
   if (superstars.length === 0) {
     return (
@@ -437,393 +513,250 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Dream11 Top Match Status & Distribution Bar */}
-      <Card className="overflow-hidden border-slate-800 bg-slate-950 text-white shadow-xl">
-        <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {/* Left: Dream11 Match Logo & Superstars title */}
-            <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 shadow-md">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-black tracking-tight sm:text-lg">
-                    Superstars XI
-                  </h2>
-                  <span className="rounded bg-red-600/90 px-1.5 py-0.5 text-[10px] font-black uppercase text-white shadow-sm">
-                    Dream11 Best XI
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Top 11 performers combined from {match.team1.name} & {match.team2.name}
-                </p>
-              </div>
-            </div>
+    <div className="space-y-3">
+      {/* Top Header & Team Filter Bar matching Stumps screenshot */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        {/* Team Filter Pills */}
+        <div className="flex items-center overflow-hidden rounded-xl border border-border/80 bg-slate-900/90 p-1 shadow-sm w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setTeamFilter("all")}
+            className={cn(
+              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-center",
+              teamFilter === "all"
+                ? "bg-[#3e7250] text-white shadow-sm"
+                : "text-slate-300 hover:text-white",
+            )}
+          >
+            All Players
+          </button>
+          <button
+            type="button"
+            onClick={() => setTeamFilter("team1")}
+            className={cn(
+              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 text-center",
+              teamFilter === "team1"
+                ? "bg-slate-800 text-white shadow-sm ring-1 ring-red-500/50"
+                : "text-slate-300 hover:text-white",
+            )}
+          >
+            <span className="w-1 h-3.5 bg-red-600 rounded-full inline-block" />
+            <span className="truncate uppercase">{match.team1.name}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTeamFilter("team2")}
+            className={cn(
+              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 text-center",
+              teamFilter === "team2"
+                ? "bg-slate-800 text-white shadow-sm ring-1 ring-blue-500/50"
+                : "text-slate-300 hover:text-white",
+            )}
+          >
+            <span className="w-1 h-3.5 bg-blue-600 rounded-full inline-block" />
+            <span className="truncate uppercase">{match.team2.name}</span>
+          </button>
+        </div>
 
-            {/* Right: Team Distribution Pill and View Mode */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Team Ratio Bar (Dream11 style: e.g. MT 6 : 5 DW) */}
-              <div className="flex items-center overflow-hidden rounded-xl border border-white/10 bg-slate-900/90 shadow-inner">
-                <div className="flex items-center gap-1.5 bg-blue-600/80 px-2.5 py-1 text-xs font-black text-white">
-                  <span>{team1Short}</span>
-                  <span className="rounded-full bg-black/30 px-1 text-[11px]">
-                    {team1Count}
-                  </span>
-                </div>
-                <span className="px-1 text-xs font-extrabold text-slate-500">
-                  :
-                </span>
-                <div className="flex items-center gap-1.5 bg-red-600/80 px-2.5 py-1 text-xs font-black text-white">
-                  <span className="rounded-full bg-black/30 px-1 text-[11px]">
-                    {team2Count}
-                  </span>
-                  <span>{team2Short}</span>
-                </div>
-              </div>
-
-              {/* View Switcher */}
-              <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-slate-900 p-1">
-                <Button
-                  variant={viewMode === "pitch" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("pitch")}
-                  className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>Pitch</span>
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
-                >
-                  <List className="h-3.5 w-3.5" />
-                  <span>List</span>
-                </Button>
-              </div>
-            </div>
+        {/* View Switcher & Title */}
+        <div className="flex items-center justify-between sm:justify-end gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-muted-foreground sm:inline hidden">
+              Superstar 11
+            </span>
+            <Badge variant="outline" className="text-[11px] font-bold">
+              {superstars.length} / 11 Players
+            </Badge>
           </div>
 
-          {/* Dream11 Secondary Info Bar */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-2.5 text-xs text-slate-400">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <span className="font-semibold text-slate-300">
-                11 / 11 Players Selected
-              </span>
-              <span>•</span>
-              <span className="font-bold text-amber-400">
-                Total Fantasy Points: {totalPoints} PTS
-              </span>
-            </div>
-
-            {/* Captain & VC indicators */}
-            <div className="flex items-center gap-3">
-              {captain && (
-                <div className="flex items-center gap-1">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white">
-                    C
-                  </span>
-                  <span className="text-xs font-bold text-slate-200">
-                    {captain.playerName} (2X)
-                  </span>
-                </div>
-              )}
-              {viceCaptain && (
-                <div className="flex items-center gap-1">
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-700 text-[9px] font-black text-white">
-                    VC
-                  </span>
-                  <span className="text-xs font-bold text-slate-200">
-                    {viceCaptain.playerName} (1.5X)
-                  </span>
-                </div>
-              )}
-            </div>
+          <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-slate-900 p-1">
+            <Button
+              variant={viewMode === "pitch" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("pitch")}
+              className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Pitch</span>
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
+            >
+              <List className="h-3.5 w-3.5" />
+              <span>List</span>
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Pitch View: Dream11 Authentic Cricket Ground */}
+      {/* Pitch View: Stumps-style Cricket Ground Field */}
       {viewMode === "pitch" ? (
-        <Card className="overflow-hidden border-border/80 shadow-2xl">
-          <div className="relative min-h-[580px] w-full overflow-hidden bg-[repeating-linear-gradient(0deg,#15421c,#15421c_28px,#194c20_28px,#194c20_56px)] p-3 sm:min-h-[640px] sm:p-5">
-            {/* Outer Oval Boundary Line */}
-            <div className="pointer-events-none absolute inset-3 rounded-[46%] border-2 border-dashed border-white/20 sm:inset-5" />
+        <Card className="overflow-hidden border-border/80 shadow-xl">
+          <div className="relative min-h-[640px] sm:min-h-[700px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,#2f855a_0%,#276749_65%,#1c4532_100%)] p-4 sm:p-6">
+            {/* Info Icon Button (top-right of grass) */}
+            <button
+              type="button"
+              onClick={() => setIsInfoOpen(true)}
+              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/50 hover:text-white focus:outline-none"
+              title="Superstar 11 Points Rules"
+              aria-label="Superstar 11 Points Rules"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+
+            {/* Stadium Curved Boundary Line */}
+            <div className="pointer-events-none absolute inset-3 sm:inset-5 rounded-[48px] sm:rounded-[64px] border-2 border-dashed border-white/25" />
 
             {/* 30-Yard Inner Circle Line */}
-            <div className="pointer-events-none absolute inset-10 rounded-[50%] border border-white/15 sm:inset-14" />
+            <div className="pointer-events-none absolute inset-10 sm:inset-14 rounded-[50%] border border-white/15" />
 
             {/* Center Beige Pitch Rectangle */}
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-52 w-16 -translate-x-1/2 -translate-y-1/2 rounded border border-amber-900/40 bg-[#c2ad82]/85 shadow-inner backdrop-blur-[1px]">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-16 -translate-x-1/2 -translate-y-1/2 rounded border border-amber-900/30 bg-[#c2ad82]/70 shadow-inner backdrop-blur-[1px]">
               {/* Bowling Crease Lines */}
-              <div className="absolute top-5 left-1 right-1 h-[2px] bg-white/90" />
-              <div className="absolute bottom-5 left-1 right-1 h-[2px] bg-white/90" />
+              <div className="absolute top-6 left-1 right-1 h-[1.5px] bg-white/80" />
+              <div className="absolute bottom-6 left-1 right-1 h-[1.5px] bg-white/80" />
 
               {/* Stumps */}
               <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-0.5">
-                <div className="h-1.5 w-1 rounded-full bg-white" />
-                <div className="h-1.5 w-1 rounded-full bg-white" />
-                <div className="h-1.5 w-1 rounded-full bg-white" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
               </div>
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-0.5">
-                <div className="h-1.5 w-1 rounded-full bg-white" />
-                <div className="h-1.5 w-1 rounded-full bg-white" />
-                <div className="h-1.5 w-1 rounded-full bg-white" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
+                <div className="h-1.5 w-1 rounded-full bg-red-600" />
               </div>
             </div>
 
-            {/* Field Players Formations */}
-            <div className="relative z-10 flex h-full flex-col justify-between space-y-5">
-              {/* 1. WICKET-KEEPERS */}
-              <div className="flex flex-col items-center">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                  <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-emerald-200 backdrop-blur-sm sm:text-[10px]">
-                    WICKET-KEEPERS ({byRole.wk.length})
-                  </span>
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8">
-                  {byRole.wk.length > 0 ? (
-                    byRole.wk.map((p) => (
-                      <Dream11PlayerNode
-                        key={p.playerId}
-                        player={p}
-                        isTeam1={p.teamId === match.team1_id}
-                        teamCode={
-                          p.teamId === match.team1_id ? team1Short : team2Short
-                        }
-                        onClick={() => setSelectedPlayer(p)}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-emerald-100/60 font-medium">
-                      No wicket-keeper
-                    </span>
-                  )}
-                </div>
-              </div>
+            {/* Field Players Formations (5 Distinct Rows) */}
+            <div className="relative z-10 flex h-full flex-col justify-between space-y-6 sm:space-y-8 py-2">
+              {formationRows.map((rowPlayers, rowIndex) => (
+                <div
+                  key={`row-${rowIndex}`}
+                  className="flex items-center justify-center gap-4 sm:gap-10 flex-wrap"
+                >
+                  {rowPlayers.map((player) => {
+                    const isTeam1 = player.teamId === match.team1_id;
+                    // Realistic jersey number derived from batting position or rank
+                    const jerseyNum =
+                      player.rank * 7 + (isTeam1 ? 13 : 2) % 99 || player.rank;
 
-              {/* 2. BATTERS */}
-              <div className="flex flex-col items-center">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                  <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-emerald-200 backdrop-blur-sm sm:text-[10px]">
-                    BATTERS ({byRole.bat.length})
-                  </span>
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8">
-                  {byRole.bat.length > 0 ? (
-                    byRole.bat.map((p) => (
-                      <Dream11PlayerNode
-                        key={p.playerId}
-                        player={p}
-                        isTeam1={p.teamId === match.team1_id}
-                        teamCode={
-                          p.teamId === match.team1_id ? team1Short : team2Short
-                        }
-                        onClick={() => setSelectedPlayer(p)}
+                    return (
+                      <SuperstarPlayerNode
+                        key={player.playerId}
+                        player={player}
+                        isTeam1={isTeam1}
+                        jerseyNumber={jerseyNum}
+                        onClick={() => setSelectedPlayer(player)}
                       />
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-emerald-100/60 font-medium">
-                      No specialist batters
-                    </span>
-                  )}
+                    );
+                  })}
                 </div>
-              </div>
-
-              {/* 3. ALL-ROUNDERS */}
-              <div className="flex flex-col items-center">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                  <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-emerald-200 backdrop-blur-sm sm:text-[10px]">
-                    ALL-ROUNDERS ({byRole.ar.length})
-                  </span>
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8">
-                  {byRole.ar.length > 0 ? (
-                    byRole.ar.map((p) => (
-                      <Dream11PlayerNode
-                        key={p.playerId}
-                        player={p}
-                        isTeam1={p.teamId === match.team1_id}
-                        teamCode={
-                          p.teamId === match.team1_id ? team1Short : team2Short
-                        }
-                        onClick={() => setSelectedPlayer(p)}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-emerald-100/60 font-medium">
-                      No all-rounders
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* 4. BOWLERS */}
-              <div className="flex flex-col items-center">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                  <span className="rounded-full bg-black/40 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-emerald-200 backdrop-blur-sm sm:text-[10px]">
-                    BOWLERS ({byRole.bowl.length})
-                  </span>
-                  <div className="h-[1px] w-12 bg-white/20 sm:w-20" />
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8">
-                  {byRole.bowl.length > 0 ? (
-                    byRole.bowl.map((p) => (
-                      <Dream11PlayerNode
-                        key={p.playerId}
-                        player={p}
-                        isTeam1={p.teamId === match.team1_id}
-                        teamCode={
-                          p.teamId === match.team1_id ? team1Short : team2Short
-                        }
-                        onClick={() => setSelectedPlayer(p)}
-                      />
-                    ))
-                  ) : (
-                    <span className="text-[11px] text-emerald-100/60 font-medium">
-                      No specialist bowlers
-                    </span>
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </Card>
       ) : (
-        /* List View (Detailed Dream11 Points Table) */
-        <Card className="border-border/70">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-bold flex items-center justify-between">
-              <span>Superstars Performance Rankings</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                Ranked by Total Impact Points
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5 p-3 sm:p-5">
-            {superstars.map((p) => {
-              const isTeam1 = p.teamId === match.team1_id;
-              const pointPct = Math.round((p.totalPoints / maxPoints) * 100);
+        /* List View (Detailed Superstar 11 Performance Table) */
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between border-b pb-2">
+            <span className="text-sm font-bold">
+              Superstars Performance Rankings
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Total Points: {totalPoints} PTS
+            </span>
+          </div>
+
+          <div className="grid gap-2">
+            {displayedSuperstars.map((player) => {
+              const isTeam1 = player.teamId === match.team1_id;
+              const rating = (player.totalPoints / 10).toFixed(1);
 
               return (
                 <div
-                  key={p.playerId}
-                  onClick={() => setSelectedPlayer(p)}
-                  className="flex flex-col gap-2 rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:bg-muted/30 cursor-pointer sm:flex-row sm:items-center sm:justify-between"
+                  key={player.playerId}
+                  onClick={() => setSelectedPlayer(player)}
+                  className="flex cursor-pointer items-center justify-between rounded-xl border border-border/70 bg-card p-3 transition-all hover:bg-muted/50"
                 >
                   <div className="flex items-center gap-3">
-                    {/* Rank Badge */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-muted font-black text-sm">
-                      {p.rank === 1 ? (
-                        <Crown className="h-4 w-4 text-amber-500" />
-                      ) : p.rank === 2 ? (
-                        <Star className="h-4 w-4 text-slate-400" />
-                      ) : (
-                        <span className="tabular text-muted-foreground">
-                          {p.rank}
-                        </span>
+                    <span
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white",
+                        player.rank === 1
+                          ? "bg-amber-500"
+                          : player.rank === 2
+                            ? "bg-slate-500"
+                            : player.rank === 3
+                              ? "bg-amber-700"
+                              : "bg-muted text-muted-foreground font-bold",
                       )}
-                    </div>
+                    >
+                      {player.rank}
+                    </span>
 
-                    {/* Player Info */}
-                    <div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-foreground">
-                          {p.playerName}
-                        </span>
-                        <RoleBadge role={p.role} />
-                        {p.isCaptain && (
-                          <Badge className="bg-red-600 text-[10px] font-black text-white hover:bg-red-600">
-                            CAPTAIN (2X)
-                          </Badge>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-2 w-2 rounded-full",
+                          isTeam1 ? "bg-red-600" : "bg-blue-600",
                         )}
-                        {p.isViceCaptain && (
-                          <Badge className="bg-slate-800 text-[10px] font-black text-white hover:bg-slate-800">
-                            VICE-CAPTAIN (1.5X)
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span
-                          className={`font-semibold ${
-                            isTeam1
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-amber-600 dark:text-amber-400"
-                          }`}
-                        >
-                          {p.teamName}
-                        </span>
-                        <span>•</span>
-                        <span>{p.summary}</span>
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm">
+                          <span>{player.playerName}</span>
+                          <RoleBadge role={player.role} />
+                          {player.isCaptain && (
+                            <span className="rounded bg-red-600 px-1 py-0.2 text-[9px] font-black text-white">
+                              C (2X)
+                            </span>
+                          )}
+                          {player.isViceCaptain && (
+                            <span className="rounded bg-slate-800 px-1 py-0.2 text-[9px] font-black text-white">
+                              VC (1.5X)
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {player.teamName} • {player.stats.runs} runs (
+                          {player.stats.balls}b) • {player.stats.wickets} wkts
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Impact Breakdown and Points */}
-                  <div className="flex flex-col sm:items-end gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <span title="Batting points">
-                          🏏 {p.breakdown.batting}
-                        </span>
-                        <span>•</span>
-                        <span title="Bowling points">
-                          🎯 {p.breakdown.bowling}
-                        </span>
-                        <span>•</span>
-                        <span title="Fielding points">
-                          🧤 {p.breakdown.fielding}
-                        </span>
-                        {p.breakdown.winBonus > 0 && (
-                          <>
-                            <span>•</span>
-                            <span
-                              title="Match winning bonus"
-                              className="text-emerald-600 dark:text-emerald-400"
-                            >
-                              🏆 +{p.breakdown.winBonus}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="tabular text-base font-black text-primary sm:text-lg">
-                        {p.totalPoints}{" "}
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          pts
-                        </span>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1 justify-end font-black text-sm text-foreground">
+                      <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
+                        {rating} {player.rank === 1 && "⭐"}
                       </span>
                     </div>
-
-                    {/* Progress Bar */}
-                    <div className="h-1.5 w-full sm:w-36 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-amber-500 to-primary transition-all duration-300"
-                        style={{ width: `${Math.max(pointPct, 5)}%` }}
-                      />
-                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {player.totalPoints} pts
+                    </span>
                   </div>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Interactive Points Dialog */}
-      <PlayerPointsDialog
+      {/* Player Points Breakdown Dialog */}
+      <SuperstarPointsDialog
         player={selectedPlayer}
-        open={Boolean(selectedPlayer)}
+        open={!!selectedPlayer}
         onOpenChange={(open) => !open && setSelectedPlayer(null)}
+      />
+
+      {/* Rules Info Dialog */}
+      <SuperstarInfoDialog
+        open={isInfoOpen}
+        onOpenChange={setIsInfoOpen}
       />
     </div>
   );

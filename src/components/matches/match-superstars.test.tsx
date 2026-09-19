@@ -18,7 +18,7 @@ describe("MatchSuperstars", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Top 11 superstars with Captain, Vice-Captain, and team distribution", () => {
+  it("renders the Top 11 superstars with team filter bar, ratings, and milestone badges", () => {
     const match = makeMatch({
       team1_id: "t1",
       team2_id: "t2",
@@ -100,16 +100,19 @@ describe("MatchSuperstars", () => {
     render(<MatchSuperstars match={match} />);
 
     // Header title and team tags
-    expect(screen.getByText("Superstars XI")).toBeInTheDocument();
-    expect(screen.getByText(/Mumbai Titans/i)).toBeInTheDocument();
+    expect(screen.getByText("Superstar 11")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /all players/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mumbai titans/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /delhi warriors/i })).toBeInTheDocument();
 
-    // Captain and Vice Captain badges
-    expect(screen.getAllByText("C").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("VC").length).toBeGreaterThanOrEqual(1);
+    // Top performers names
+    expect(screen.getAllByText(/Virat Kohli/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Jasprit Bumrah/i).length).toBeGreaterThanOrEqual(1);
 
-    // Top performers names (full or Dream11 formatted)
-    expect(screen.getAllByText(/Virat Kohli|V\. Kohli/i).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/Jasprit Bumrah|J\. Bumrah/i).length).toBeGreaterThanOrEqual(1);
+    // Filter by team
+    const team1Filter = screen.getByRole("button", { name: /mumbai titans/i });
+    fireEvent.click(team1Filter);
+    expect(screen.getAllByText(/Virat Kohli/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it("toggles between Pitch View and List View", () => {
@@ -169,6 +172,6 @@ describe("MatchSuperstars", () => {
 
     // Switch back to Pitch view
     fireEvent.click(pitchBtn);
-    expect(screen.getAllByText(/Surya Yadav|S\. Yadav/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Surya Yadav/i).length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -41,7 +41,7 @@ describe("WagonWheelSelector", () => {
     expect(midWicketButton).toBeInTheDocument();
   });
 
-  it("calls onSelectZone with sector ID when a sector wedge is clicked", () => {
+  it("calls onSelectZone with sector ID when a sector button is clicked", () => {
     const onSelect = vi.fn();
     render(
       <WagonWheelSelector
@@ -53,6 +53,32 @@ describe("WagonWheelSelector", () => {
     const coverButton = screen.getByRole("button", { name: /cover/i });
     fireEvent.click(coverButton);
     expect(onSelect).toHaveBeenCalledWith("cover");
+  });
+
+  it("allows selecting inside the boundary on the turf as well as at the boundary", () => {
+    const onSelect = vi.fn();
+    render(
+      <WagonWheelSelector
+        selectedZone={null}
+        onSelectZone={onSelect}
+      />,
+    );
+
+    const midWicketBtn = screen.getByRole("button", { name: /mid wicket/i });
+    // Inside the button, there are two paths: the inner turf wedge and the outer donut segment
+    const paths = midWicketBtn.querySelectorAll("path");
+    expect(paths.length).toBe(2);
+
+    const innerTurfWedge = paths[0]!; // Inside boundary wedge
+    const outerBoundarySegment = paths[1]!; // At boundary donut segment
+
+    // Clicking inside the boundary on the turf selects the sector
+    fireEvent.click(innerTurfWedge);
+    expect(onSelect).toHaveBeenCalledWith("mid_wicket");
+
+    // Clicking at the boundary selects the sector
+    fireEvent.click(outerBoundarySegment);
+    expect(onSelect).toHaveBeenCalledWith("mid_wicket");
   });
 
   it("indicates the currently selected sector with aria-pressed and visual state", () => {

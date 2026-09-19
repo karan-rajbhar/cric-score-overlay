@@ -47,6 +47,23 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(onScore).toHaveBeenCalledWith(4, undefined, "cover");
   });
 
+  it("scores delivery when clicking inside the boundary on the grass turf", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} />);
+
+    // Click 2 runs
+    const twoButton = screen.getByRole("button", { name: /2.*runs/i });
+    fireEvent.click(twoButton);
+
+    // Modal is open; find Point button and click its inside-boundary turf wedge
+    const pointSector = screen.getByRole("button", { name: /point/i });
+    const paths = pointSector.querySelectorAll("path");
+    const insideBoundaryTurf = paths[0]!; // Inside boundary turf wedge
+    fireEvent.click(insideBoundaryTurf);
+
+    expect(onScore).toHaveBeenCalledWith(2, undefined, "point");
+  });
+
   it("allows skipping shot direction in wagon wheel modal to score directly", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);
