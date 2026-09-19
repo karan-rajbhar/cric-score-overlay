@@ -31,217 +31,114 @@ export async function createMatch(formData: MatchFormData) {
     return { data: null, error: "Team 1 and Team 2 must be different teams" };
   }
 
-  // Fetch Team 1 details to verify ownership and authorization
-  const { data: team1, error: team1Err } = await supabase
-    .from("teams")
-    .select("id, name, created_by, captain_id, vice_captain_id, club_id")
-    .eq("id", formData.team1Id)
-    .single();
+  // Parallel fetch of Team 1, Team 2, and optional tournament/registration context
+  const [
+    teamsRes,
+    tournamentRes,
+    playerMembershipsRes,
+    tournRegsRes,
+  ] = await Promise.all([
+    supabase
+      .from("teams")
+      .select("id, name, created_by, captain_id, vice_captain_id, club_id")
+      .in("id", [formData.team1Id, formData.team2Id]),
+    formData.tournamentId
+      ? supabase
+          .from("tournaments")
+          .select("id, created_by, club_id")
+          .eq("id", formData.tournamentId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from("team_players")
+      .select("team_id")
+      .eq("user_id", user.id)
+      .in("team_id", [formData.team1Id, formData.team2Id]),
+    formData.tournamentId
+      ? supabase
+          .from("tournament_registrations")
+          .select("team_id")
+          .eq("tournament_id", formData.tournamentId)
+          .in("team_id", [formData.team1Id, formData.team2Id])
+      : Promise.resolve({ data: null, error: null }),
+  ]);
 
-  if (team1Err || !team1) {
+  const teams = teamsRes.data ?? [];
+  const team1 = teams.find((t) => t.id === formData.team1Id);
+  const team2 = teams.find((t) => t.id === formData.team2Id);
+
+  if (!team1) {
     return { data: null, error: "Selected Team 1 does not exist" };
   }
+  if (!team2) {
+    return { data: null, error: "Selected opponent team does not exist" };
+  }
 
-  // Authorization check for Team 1:
-  // User is authorized if:
-  // 1. User created the team or is captain/vice-captain
-  // 2. OR user is on team squad
-  // 3. OR user is admin/owner of team's club
-  // 4. OR user is organizer/admin of the linked tournament
-  // 5. OR user is admin/owner of the linked club (and team belongs to that club)
-  let isAuthorized =
+  // Collect relevant club IDs to check admin / ownership in one batch
+  const relevantClubIds = Array.from(
+    new Set(
+      [
+        team1.club_id,
+        team2.club_id,
+        formData.clubId,
+        tournamentRes.data?.club_id,
+      ].filter((id): id is string => Boolean(id)),
+    ),
+  );
+
+  const [clubsRes, clubMembershipsRes] =
+    relevantClubIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("clubs")
+            .select("id, owner_id")
+            .in("id", relevantClubIds),
+          supabase
+            .from("club_memberships")
+            .select("club_id")
+            .eq("user_id", user.id)
+            .in("club_id", relevantClubIds)
+            .in("role", ["owner", "admin"])
+            .eq("status", "active"),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+  const adminClubIds = new Set<string>();
+  for (const c of clubsRes.data ?? []) {
+    if (c.owner_id === user.id) adminClubIds.add(c.id);
+  }
+  for (const m of clubMembershipsRes.data ?? []) {
+    if (m.club_id) adminClubIds.add(m.club_id);
+  }
+  const isClubAdmin = (clubId?: string | null) =>
+    Boolean(clubId && adminClubIds.has(clubId));
+
+  const myTeamIds = new Set(
+    (playerMembershipsRes.data ?? [])
+      .map((p) => p.team_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  // Authorization check for Team 1
+  const isTeam1Mine =
     team1.created_by === user.id ||
     team1.captain_id === user.id ||
     team1.vice_captain_id === user.id;
 
-  if (!isAuthorized) {
-    const { data: playerMembership } = await supabase
-      .from("team_players")
-      .select("id")
-      .eq("team_id", formData.team1Id)
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
+  const isTournamentAdmin = Boolean(
+    tournamentRes.data &&
+      (tournamentRes.data.created_by === user.id ||
+        isClubAdmin(tournamentRes.data.club_id)),
+  );
 
-    if (playerMembership) {
-      isAuthorized = true;
-    }
-  }
-
-  if (!isAuthorized && team1.club_id) {
-    const { data: club } = await supabase
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", team1.club_id)
-      .single();
-
-    if (club?.owner_id === user.id) {
-      isAuthorized = true;
-    } else {
-      const { data: membership } = await supabase
-        .from("club_memberships")
-        .select("id")
-        .eq("club_id", team1.club_id)
-        .eq("user_id", user.id)
-        .in("role", ["owner", "admin"])
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
-
-      if (membership) {
-        isAuthorized = true;
-      }
-    }
-  }
-
-  if (!isAuthorized && formData.tournamentId) {
-    const { data: tournament } = await supabase
-      .from("tournaments")
-      .select("id, created_by, club_id")
-      .eq("id", formData.tournamentId)
-      .single();
-
-    if (tournament) {
-      if (tournament.created_by === user.id) {
-        isAuthorized = true;
-      } else if (tournament.club_id) {
-        const { data: club } = await supabase
-          .from("clubs")
-          .select("owner_id")
-          .eq("id", tournament.club_id)
-          .single();
-
-        if (club?.owner_id === user.id) {
-          isAuthorized = true;
-        } else {
-          const { data: membership } = await supabase
-            .from("club_memberships")
-            .select("id")
-            .eq("club_id", tournament.club_id)
-            .eq("user_id", user.id)
-            .in("role", ["owner", "admin"])
-            .eq("status", "active")
-            .limit(1)
-            .maybeSingle();
-
-          if (membership) {
-            isAuthorized = true;
-          }
-        }
-      }
-    }
-  }
-
-  if (!isAuthorized && formData.clubId && team1.club_id === formData.clubId) {
-    const { data: club } = await supabase
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", formData.clubId)
-      .single();
-
-    if (club?.owner_id === user.id) {
-      isAuthorized = true;
-    } else {
-      const { data: membership } = await supabase
-        .from("club_memberships")
-        .select("id")
-        .eq("club_id", formData.clubId)
-        .eq("user_id", user.id)
-        .in("role", ["owner", "admin"])
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
-
-      if (membership) {
-        isAuthorized = true;
-      }
-    }
-  }
-
-  // Validate tournamentId association if provided
-  if (formData.tournamentId) {
-    const { data: tournament } = await supabase
-      .from("tournaments")
-      .select("id, created_by, club_id")
-      .eq("id", formData.tournamentId)
-      .single();
-
-    if (!tournament) {
-      return { data: null, error: "Selected tournament does not exist" };
-    }
-
-    let isTournamentOrganizer = tournament.created_by === user.id;
-    if (!isTournamentOrganizer && tournament.club_id) {
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("owner_id")
-        .eq("id", tournament.club_id)
-        .single();
-      if (club?.owner_id === user.id) {
-        isTournamentOrganizer = true;
-      } else {
-        const { data: mem } = await supabase
-          .from("club_memberships")
-          .select("id")
-          .eq("club_id", tournament.club_id)
-          .eq("user_id", user.id)
-          .in("role", ["owner", "admin"])
-          .eq("status", "active")
-          .maybeSingle();
-        if (mem) isTournamentOrganizer = true;
-      }
-    }
-
-    if (!isTournamentOrganizer) {
-      const { data: regs } = await supabase
-        .from("tournament_registrations")
-        .select("team_id")
-        .eq("tournament_id", formData.tournamentId)
-        .in("team_id", [formData.team1Id, formData.team2Id]);
-
-      if (!regs || regs.length === 0) {
-        return {
-          data: null,
-          error:
-            "Neither team is registered in the selected tournament, and you are not an organizer of this tournament.",
-        };
-      }
-    }
-  }
-
-  // Validate clubId association if provided
-  if (formData.clubId) {
-    const { data: club } = await supabase
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", formData.clubId)
-      .single();
-
-    if (!club) {
-      return { data: null, error: "Selected club does not exist" };
-    }
-
-    let isClubAdmin = club.owner_id === user.id;
-    if (!isClubAdmin) {
-      const { data: mem } = await supabase
-        .from("club_memberships")
-        .select("id")
-        .eq("club_id", formData.clubId)
-        .eq("user_id", user.id)
-        .in("role", ["owner", "admin"])
-        .eq("status", "active")
-        .maybeSingle();
-      if (mem) isClubAdmin = true;
-    }
-
-    if (!isClubAdmin && team1.club_id !== formData.clubId) {
-      return {
-        data: null,
-        error:
-          "You can only link matches to a club you manage or that your team belongs to.",
-      };
-    }
-  }
+  const isAuthorized =
+    isTeam1Mine ||
+    myTeamIds.has(team1.id) ||
+    isClubAdmin(team1.club_id) ||
+    isTournamentAdmin ||
+    (formData.clubId &&
+      team1.club_id === formData.clubId &&
+      isClubAdmin(formData.clubId));
 
   if (!isAuthorized) {
     return {
@@ -251,93 +148,85 @@ export async function createMatch(formData: MatchFormData) {
     };
   }
 
-  // Validate Team 2 (Opponent) eligibility under Option 1:
+  // Validate tournamentId association if provided
   if (formData.tournamentId) {
-    // 1. In tournament matches, opponent must be registered in the tournament
-    const { data: reg2 } = await supabase
-      .from("tournament_registrations")
-      .select("team_id")
-      .eq("tournament_id", formData.tournamentId)
-      .eq("team_id", formData.team2Id)
-      .maybeSingle();
+    const tournament = tournamentRes.data;
+    if (!tournament) {
+      return { data: null, error: "Selected tournament does not exist" };
+    }
 
-    if (!reg2) {
+    const registeredTeamIds = new Set(
+      (tournRegsRes.data ?? []).map((r) => r.team_id),
+    );
+
+    if (
+      !isTournamentAdmin &&
+      !registeredTeamIds.has(formData.team1Id) &&
+      !registeredTeamIds.has(formData.team2Id)
+    ) {
       return {
         data: null,
         error:
-          "The selected opponent team is not registered in this tournament.",
+          "Neither team is registered in the selected tournament, and you are not an organizer of this tournament.",
       };
     }
-  } else if (formData.clubId) {
-    // 2. In club matches, opponent must belong to the club or user must have access
-    const { data: team2 } = await supabase
-      .from("teams")
-      .select("id, club_id, created_by, captain_id, vice_captain_id")
-      .eq("id", formData.team2Id)
-      .single();
 
-    if (!team2) {
-      return { data: null, error: "Opponent team does not exist." };
+    if (!registeredTeamIds.has(formData.team2Id)) {
+      return {
+        data: null,
+        error: "The selected opponent team is not registered in this tournament.",
+      };
+    }
+  }
+
+  // Validate clubId association if provided
+  if (formData.clubId) {
+    const club = (clubsRes.data ?? []).find((c) => c.id === formData.clubId);
+    if (!club) {
+      return { data: null, error: "Selected club does not exist" };
     }
 
-    const isTeam2InClub = team2.club_id === formData.clubId;
-    const isTeam2Mine =
-      team2.created_by === user.id ||
-      team2.captain_id === user.id ||
-      team2.vice_captain_id === user.id;
-
-    if (!isTeam2InClub && !isTeam2Mine) {
+    if (!isClubAdmin(formData.clubId) && team1.club_id !== formData.clubId) {
       return {
         data: null,
         error:
-          "For club matches, the opponent team must belong to the club or be a squad you manage.",
+          "You can only link matches to a club you manage or that your team belongs to.",
       };
     }
-  } else {
-    // 3. In independent matches, opponent must be managed/created by user
-    const { data: team2 } = await supabase
-      .from("teams")
-      .select("id, club_id, created_by, captain_id, vice_captain_id")
-      .eq("id", formData.team2Id)
-      .single();
+  }
 
-    if (!team2) {
-      return { data: null, error: "Opponent team does not exist." };
-    }
+  // Validate Team 2 (Opponent) eligibility under Option 1
+  if (!formData.tournamentId) {
+    if (formData.clubId) {
+      const isTeam2InClub = team2.club_id === formData.clubId;
+      const isTeam2Mine =
+        team2.created_by === user.id ||
+        team2.captain_id === user.id ||
+        team2.vice_captain_id === user.id;
 
-    let isTeam2Authorized =
-      team2.created_by === user.id ||
-      team2.captain_id === user.id ||
-      team2.vice_captain_id === user.id;
+      if (!isTeam2InClub && !isTeam2Mine) {
+        return {
+          data: null,
+          error:
+            "For club matches, the opponent team must belong to the club or be a squad you manage.",
+        };
+      }
+    } else {
+      // Independent match: opponent must be managed/created by user
+      const isTeam2Authorized =
+        team2.created_by === user.id ||
+        team2.captain_id === user.id ||
+        team2.vice_captain_id === user.id ||
+        isClubAdmin(team2.club_id) ||
+        myTeamIds.has(formData.team2Id);
 
-    if (!isTeam2Authorized && team2.club_id) {
-      const { data: mem } = await supabase
-        .from("club_memberships")
-        .select("id")
-        .eq("club_id", team2.club_id)
-        .eq("user_id", user.id)
-        .in("role", ["owner", "admin"])
-        .eq("status", "active")
-        .maybeSingle();
-      if (mem) isTeam2Authorized = true;
-    }
-
-    if (!isTeam2Authorized) {
-      const { data: playerOnTeam2 } = await supabase
-        .from("team_players")
-        .select("id")
-        .eq("team_id", formData.team2Id)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (playerOnTeam2) isTeam2Authorized = true;
-    }
-
-    if (!isTeam2Authorized) {
-      return {
-        data: null,
-        error:
-          "You can only select an opponent team you manage, or create a new opponent team for this match. You cannot schedule matches against other clubs' official teams without authorization.",
-      };
+      if (!isTeam2Authorized) {
+        return {
+          data: null,
+          error:
+            "You can only select an opponent team you manage, or create a new opponent team for this match. You cannot schedule matches against other clubs' official teams without authorization.",
+        };
+      }
     }
   }
 
@@ -509,8 +398,6 @@ export async function recordBall(params: {
     }
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
-    revalidatePath(`/matches/${params.matchId}/score`);
-    revalidatePath(`/overlay/${params.matchId}`);
 
     if ((data as ScoringState)?.match_completed) {
       const { data: matchData } = await supabase
@@ -571,8 +458,6 @@ export async function undoLastBall(
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { data: data as ScoringState, error: null };
   } catch (err) {
     console.error("Unexpected error in undoLastBall:", err);
@@ -603,8 +488,6 @@ export async function setCurrentBatsmen(
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { error: null };
   } catch (err) {
     console.error("Unexpected error in setCurrentBatsmen:", err);
@@ -632,8 +515,6 @@ export async function setCurrentBowler(
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { error: null };
   } catch (err) {
     console.error("Unexpected error in setCurrentBowler:", err);

@@ -26,10 +26,11 @@ import {
 } from "~/components/ui/select";
 import { Badge } from "~/components/ui/badge";
 import { createMatch } from "../mutations";
-import { getMatchWizardData } from "../queries";
 import { createTeamQuick } from "../../teams/actions";
 import { useAuth } from "~/lib/auth";
 import { createClient } from "~/lib/supabase/client";
+import { useMatchWizardDataQuery } from "~/lib/hooks/useMatchQueries";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { deriveShortName } from "~/lib/utils";
 import {
@@ -96,18 +97,12 @@ function CreateMatchWizard() {
 
   const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(1);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
-  const [clubs, setClubs] = useState<ClubOption[]>([]);
+  const [createdTeams, setCreatedTeams] = useState<Team[]>([]);
   const [tournamentTeamIds, setTournamentTeamIds] = useState<Set<string>>(
     new Set(),
   );
-  const [myTeamIds, setMyTeamIds] = useState<Set<string>>(new Set());
-  const [myClubAdminIds, setMyClubAdminIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(false);
-  const [teamsLoading, setTeamsLoading] = useState(true);
-  const [teamsLoadError, setTeamsLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -132,201 +127,93 @@ function CreateMatchWizard() {
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamSaving, setNewTeamSaving] = useState(false);
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
+  const {
+    data: wizardData,
+    isLoading: wizardLoading,
+    error: wizardQueryError,
+    refetch: refetchWizardData,
+  } = useMatchWizardDataQuery(user?.id);
 
-  useEffect(() => {
-    // If auth is still initializing, don't run loadData prematurely.
-    if (authLoading) {
-      return;
-    }
+  const teams = useMemo(() => {
+    const remoteTeams = (wizardData?.teams ?? []) as Team[];
+    return [...createdTeams, ...remoteTeams];
+  }, [createdTeams, wizardData?.teams]);
 
-    // If user is not authenticated, early return as auth guard screen will be rendered.
-    if (!user) {
-      return;
-    }
+  const tournaments = useMemo(() => {
+    return (wizardData?.tournaments ?? []) as TournamentOption[];
+  }, [wizardData?.tournaments]);
 
-    let cancelled = false;
-    let timeoutId: NodeJS.Timeout | null = null;
+  const clubs = useMemo(() => {
+    return (wizardData?.clubs ?? []) as ClubOption[];
+  }, [wizardData?.clubs]);
 
-    const loadData = async () => {
-      setTeamsLoading(true);
-      setTeamsLoadError(null);
+  const myClubAdminIds = useMemo(() => {
+    return new Set<string>(wizardData?.clubAdminIds ?? []);
+  }, [wizardData?.clubAdminIds]);
 
-      // Fast client-side loader as immediate fallback
-      const loadFromClient = async () => {
-        const supabase = createClient();
-        const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
-          await Promise.all([
-            supabase
-              .from("teams")
-              .select(
-                "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
-              )
-              .order("name"),
-            supabase
-              .from("tournaments")
-              .select(
-                "id, name, match_format, custom_overs, created_by, club_id",
-              )
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("clubs")
-              .select("id, name, short_name, owner_id")
-              .order("name"),
-            user
-              ? supabase
-                  .from("team_players")
-                  .select("team_id")
-                  .eq("user_id", user.id)
-              : Promise.resolve({ data: [] }),
-            user
-              ? supabase
-                  .from("club_memberships")
-                  .select("club_id")
-                  .eq("user_id", user.id)
-                  .in("role", ["owner", "admin"])
-                  .eq("status", "active")
-              : Promise.resolve({ data: [] }),
-          ]);
+  const myTeamIds = useMemo(() => {
+    const mine = new Set<string>();
+    if (!wizardData || !user) return mine;
+    const playerTeamIds = new Set<string>(wizardData.playerTeamIds);
+    const clubAdminIds = new Set<string>(wizardData.clubAdminIds);
 
-        const playerTeamIds = (myPlayersRes.data ?? [])
-          .map((r: { team_id: string | null }) => r.team_id)
-          .filter((id): id is string => Boolean(id));
-
-        const clubAdminIds = (myClubAdminRes.data ?? [])
-          .map((r: { club_id: string | null }) => r.club_id)
-          .filter((id): id is string => Boolean(id));
-
-        if (clubRes.data && user) {
-          for (const c of clubRes.data) {
-            if (c.owner_id === user.id) {
-              clubAdminIds.push(c.id);
-            }
-          }
-        }
-
-        return {
-          teams: (teamRes.data ?? []) as Team[],
-          tournaments: (tournRes.data ?? []) as TournamentOption[],
-          clubs: (clubRes.data ?? []) as ClubOption[],
-          playerTeamIds,
-          clubAdminIds,
-          error: teamRes.error?.message || null,
-        };
-      };
-
-      // Safety fallback: if queries hang > 12 seconds, display clean retry
-      timeoutId = setTimeout(() => {
-        if (!cancelled) {
-          setTeamsLoading(false);
-          setTeamsLoadError(
-            "Loading teams took longer than expected. Please check your connection and retry.",
-          );
-        }
-      }, 12000);
-
-      try {
-        // Attempt server action with 3-second deadline, seamlessly falling back to client Supabase
-        let wizardData: Awaited<ReturnType<typeof loadFromClient>> | null = null;
-        try {
-          const serverPromise = getMatchWizardData();
-          const fallbackTimer = new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), 3000),
-          );
-          const res = await Promise.race([serverPromise, fallbackTimer]);
-          if (res && !res.error && res.teams) {
-            wizardData = res as Awaited<ReturnType<typeof loadFromClient>>;
-          }
-        } catch {
-          wizardData = null;
-        }
-
-        if (!wizardData || wizardData.error) {
-          wizardData = await loadFromClient();
-        }
-
-        if (cancelled) return;
-        if (timeoutId) clearTimeout(timeoutId);
-
-        if (wizardData.error) {
-          console.error("Error fetching match wizard data:", wizardData.error);
-          setTeamsLoadError(wizardData.error);
-          return;
-        }
-
-        setTeamsLoadError(null);
-        const playerTeamIds = new Set<string>(wizardData.playerTeamIds);
-        const clubAdminIds = new Set<string>(wizardData.clubAdminIds);
-        setMyClubAdminIds(clubAdminIds);
-
-        setTeams(wizardData.teams);
-        const mine = new Set<string>();
-        for (const t of wizardData.teams) {
-          if (
-            t.created_by === user.id ||
-            t.captain_id === user.id ||
-            t.vice_captain_id === user.id ||
-            playerTeamIds.has(t.id) ||
-            (t.club_id && clubAdminIds.has(t.club_id))
-          ) {
-            mine.add(t.id);
-          }
-        }
-        setMyTeamIds(mine);
-
-        setTournaments(wizardData.tournaments);
-        if (urlTournamentId) {
-          const matchTourn = wizardData.tournaments.find(
-            (t) => t.id === urlTournamentId,
-          );
-          if (matchTourn?.match_format === "ODI") {
-            setFormData((prev) => ({
-              ...prev,
-              matchFormat: "ODI",
-              oversPerInnings: 50,
-            }));
-          } else if (matchTourn?.match_format === "T20") {
-            setFormData((prev) => ({
-              ...prev,
-              matchFormat: "T20",
-              oversPerInnings: 20,
-            }));
-          } else if (
-            matchTourn?.match_format === "Custom" &&
-            matchTourn.custom_overs
-          ) {
-            setFormData((prev) => ({
-              ...prev,
-              matchFormat: "Custom",
-              oversPerInnings: matchTourn.custom_overs!,
-            }));
-          }
-        }
-
-        setClubs(wizardData.clubs);
-      } catch (err) {
-        console.error("Unexpected error loading match wizard data:", err);
-        if (!cancelled) {
-          setTeamsLoadError(
-            err instanceof Error ? err.message : "Failed to load data",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setTeamsLoading(false);
-        }
+    for (const t of teams) {
+      if (
+        t.created_by === user.id ||
+        t.captain_id === user.id ||
+        t.vice_captain_id === user.id ||
+        playerTeamIds.has(t.id) ||
+        (t.club_id && clubAdminIds.has(t.club_id))
+      ) {
+        mine.add(t.id);
       }
-    };
+    }
+    return mine;
+  }, [wizardData, user, teams]);
 
-    void loadData();
-    return () => {
-      cancelled = true;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [urlTournamentId, refreshKey, user, authLoading]);
+  const teamsLoading = (wizardLoading || authLoading) && teams.length === 0;
+  const teamsLoadError =
+    (wizardQueryError instanceof Error ? wizardQueryError.message : null) ||
+    wizardData?.error ||
+    null;
+
+  const [appliedUrlTournId, setAppliedUrlTournId] = useState("");
+  if (
+    urlTournamentId &&
+    appliedUrlTournId !== urlTournamentId &&
+    tournaments.length > 0
+  ) {
+    setAppliedUrlTournId(urlTournamentId);
+    const matchTourn = tournaments.find((t) => t.id === urlTournamentId);
+    if (matchTourn) {
+      if (matchTourn.match_format === "ODI") {
+        setFormData((prev) => ({
+          ...prev,
+          matchFormat: "ODI",
+          oversPerInnings: 50,
+        }));
+      } else if (matchTourn.match_format === "T20") {
+        setFormData((prev) => ({
+          ...prev,
+          matchFormat: "T20",
+          oversPerInnings: 20,
+        }));
+      } else if (
+        matchTourn.match_format === "Custom" &&
+        matchTourn.custom_overs
+      ) {
+        setFormData((prev) => ({
+          ...prev,
+          matchFormat: "Custom",
+          oversPerInnings: matchTourn.custom_overs!,
+        }));
+      }
+    }
+  }
 
   const handleRetry = () => {
-    setRefreshKey((k) => k + 1);
+    void refetchWizardData();
   };
 
   // When tournamentId changes, fetch registered teams for filtering/badging
@@ -584,10 +471,8 @@ function CreateMatchWizard() {
       created_by: user?.id,
     };
 
-    setTeams((prev) => [created, ...prev]);
-    if (user) {
-      setMyTeamIds((prev) => new Set([...prev, created.id]));
-    }
+    setCreatedTeams((prev) => [created, ...prev]);
+    void queryClient.invalidateQueries({ queryKey: ["matchWizardData"] });
     updateField(newTeamFor, created.id);
     toast.success(`Team "${created.name}" created`);
     setNewTeamSaving(false);

@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 import { Inter, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
+import { QueryProvider } from "~/providers/query-provider";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { AppShell } from "~/components/layout/app-shell";
 import type { Metadata, Viewport } from "next";
@@ -60,8 +61,10 @@ export default async function RootLayout({
       >
         <ThemeProvider defaultTheme="light">
           <AuthProvider>
-            <AppShell>{children}</AppShell>
-            <Toaster richColors position="top-center" />
+            <QueryProvider>
+              <AppShell>{children}</AppShell>
+              <Toaster richColors position="top-center" />
+            </QueryProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

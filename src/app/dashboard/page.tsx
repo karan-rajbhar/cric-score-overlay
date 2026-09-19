@@ -7,7 +7,7 @@ import { createClient } from "~/lib/supabase/client";
 import { Button } from "~/components/ui/button";
 import { MatchCard } from "~/components/matches/match-card";
 import { TeamLogo } from "~/components/teams/team-logo";
-import { getMatches } from "~/app/matches/queries";
+import { useMatchesQuery } from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Plus, Radio, Tv, Trophy, Shield } from "lucide-react";
@@ -15,9 +15,19 @@ import type { Match } from "~/lib/match-types";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [liveMatches, setLiveMatches] = useState<Match[]>([]);
-  const [recentMatches, setRecentMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
+    status: "live",
+  });
+  const { data: recentData, isLoading: recentLoading } = useMatchesQuery({
+    status: "completed",
+    limit: 6,
+  });
+  const liveMatches = liveData ?? [];
+  const recentMatches = recentData ?? [];
+  const loading =
+    (liveLoading || recentLoading) &&
+    liveMatches.length === 0 &&
+    recentMatches.length === 0;
   const [myClubAdminIds, setMyClubAdminIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -55,27 +65,6 @@ export default function Dashboard() {
     const clubId = match.club_id || match.club?.id;
     return Boolean(clubId && myClubAdminIds.has(clubId));
   };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      const [liveResult, recentResult] = await Promise.all([
-        getMatches({ status: "live" }),
-        getMatches({ status: "completed", limit: 6 }),
-      ]);
-      if (cancelled) return;
-      setLiveMatches((liveResult.data ?? []) as unknown as Match[]);
-      setRecentMatches((recentResult.data ?? []) as unknown as Match[]);
-      setLoading(false);
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const featuredLive = liveMatches[0];
   const otherLiveMatches = liveMatches.slice(1);

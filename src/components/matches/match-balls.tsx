@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
 import { Loader2 } from "lucide-react";
-import { getMatchBallLog } from "~/app/matches/queries";
+import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
 import { teamName, formatDismissalType, formatExtraType } from "~/lib/cricket";
 
@@ -18,28 +18,13 @@ interface MatchBallsProps {
 
 export function MatchBalls({ match }: MatchBallsProps) {
   const [filter, setFilter] = useState<"all" | "boundaries" | "wickets">("all");
-  // Ball log is fetched lazily — the main match payload no longer hauls it.
-  const [ballLog, setBallLog] = useState<Ball[] | null>(null);
-  const [logError, setLogError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      const result = await getMatchBallLog(match.id);
-      if (cancelled) return;
-      if (result.error || !result.data) {
-        setLogError(result.error ?? "Could not load ball log");
-        setBallLog([]);
-        return;
-      }
-      setBallLog(result.data as Ball[]);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [match]);
+  const { data, error } = useMatchBallLogQuery(match.id);
+  const ballLog = (data ?? null) as Ball[] | null;
+  const logError = error
+    ? error instanceof Error
+      ? error.message
+      : String(error)
+    : null;
 
   const getBallDisplay = (ball: Ball) => {
     if (ball.is_wicket) return "W";

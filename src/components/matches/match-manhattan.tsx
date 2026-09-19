@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { getOverSummaries } from "~/app/matches/queries";
+import { useOverSummariesQuery } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
 import { Loader2 } from "lucide-react";
 
@@ -13,62 +13,36 @@ interface OverRow {
   wickets: number;
 }
 
-interface InningsBars {
-  inningsId: string;
-  teamName: string;
-  overs: OverRow[];
-  max: number;
-}
-
 /**
  * Manhattan chart: per-over runs as native DB aggregation
  * (match_over_summaries view) — no ball-log joins.
  */
 export function MatchManhattan({ match }: { match: Match }) {
-  const [inningsBars, setInningsBars] = useState<InningsBars[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error } = useOverSummariesQuery(match.id);
 
-  useEffect(() => {
-    let cancelled = false;
+  const inningsBars = useMemo(() => {
+    if (!data) return null;
 
-    (async () => {
-      const result = await getOverSummaries(match.id);
-      if (cancelled) return;
-      if (result.error || !result.data) {
-        setError(result.error ?? "Could not load chart");
-        setInningsBars([]);
-        return;
-      }
+    const rows = data as OverRow[];
+    const byInnings = new Map<string, OverRow[]>();
+    for (const r of rows) {
+      if (!byInnings.has(r.innings_id)) byInnings.set(r.innings_id, []);
+      byInnings.get(r.innings_id)!.push(r);
+    }
 
-      const rows = result.data as OverRow[];
-      const byInnings = new Map<string, OverRow[]>();
-      for (const r of rows) {
-        if (!byInnings.has(r.innings_id)) byInnings.set(r.innings_id, []);
-        byInnings.get(r.innings_id)!.push(r);
-      }
-
-      const bars: InningsBars[] = [...byInnings.entries()].map(
-        ([inningsId, overs]) => ({
-          inningsId,
-          teamName:
-            inningsId === match.innings?.find((i) => i.id === inningsId)?.id
-              ? match.innings?.find((i) => i.id === inningsId)?.team_id ===
-                match.team1_id
-                ? match.team1.name
-                : match.team2.name
-              : "—",
-          overs: overs.sort((a, b) => a.over_number - b.over_number),
-          max: Math.max(...overs.map((o) => o.runs), 1),
-        }),
-      );
-
-      setInningsBars(bars);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [match]);
+    return [...byInnings.entries()].map(([inningsId, overs]) => ({
+      inningsId,
+      teamName:
+        inningsId === match.innings?.find((i) => i.id === inningsId)?.id
+          ? match.innings?.find((i) => i.id === inningsId)?.team_id ===
+            match.team1_id
+            ? match.team1.name
+            : match.team2.name
+          : "—",
+      overs: overs.sort((a, b) => a.over_number - b.over_number),
+      max: Math.max(...overs.map((o) => o.runs), 1),
+    }));
+  }, [data, match]);
 
   return (
     <Card>
@@ -81,7 +55,9 @@ export function MatchManhattan({ match }: { match: Match }) {
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <p className="text-sm text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : String(error)}
+          </p>
         ) : inningsBars.length === 0 ? (
           <p className="text-sm text-muted-foreground">No overs bowled yet.</p>
         ) : (
