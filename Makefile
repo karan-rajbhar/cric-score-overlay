@@ -1,6 +1,6 @@
 # Cricket Platform Development Makefile
 
-.PHONY: help docker-check install dev server db-start db-stop db-migrate db-reset db-studio build test test-watch coverage check lint format clean setup stop restart types
+.PHONY: help docker-check install dev server tunnel db-start db-stop db-migrate db-reset db-studio build test test-watch coverage check lint format clean setup stop restart types
 
 help: ## Show this help message
 	@echo "Cricket Platform Development Commands"
@@ -27,22 +27,26 @@ docker-check: ## Verify Docker daemon is reachable (Supabase runs in Docker)
 	fi; \
 	echo "✅  Docker is running"
 
-dev: docker-check ## Start full development environment (database + server)
+dev: docker-check ## Start full development environment (database + server + mobile tunnel)
 	@echo "🚀 Starting full development environment..."
 	@echo "🗄️  Starting Supabase..."
 	@npx supabase start
 	@echo "✅ Supabase started!"
 	@echo "📦 Applying pending database migrations (if any)..."
 	@-npx supabase migration up
-	@echo "🚀 Starting Next.js development server (hot reload enabled)..."
-	@npm run dev
+	@echo "🚀 Starting Next.js development server with Cloudflare tunnel..."
+	@./scripts/dev-tunnel.sh
 
-server: ## Start only the Next.js development server
-	@echo "🚀 Starting Next.js development server..."
-	@npm run dev
+server: ## Start only the Next.js development server with Cloudflare tunnel
+	@echo "🚀 Starting Next.js development server with Cloudflare tunnel..."
+	@./scripts/dev-tunnel.sh
+
+tunnel: ## Start only the Cloudflare mobile tunnel for port 3001
+	@./scripts/dev-tunnel.sh tunnel-only
 
 stop: ## Stop all development services
 	@echo "🛑 Stopping all services..."
+	@-pkill -f "cloudflared tunnel" 2>/dev/null || true
 	@npx supabase stop
 	@echo "✅ All services stopped."
 
