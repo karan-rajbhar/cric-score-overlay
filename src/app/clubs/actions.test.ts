@@ -51,12 +51,60 @@ describe("Clubs Server Actions", () => {
       expect(res).toEqual({ error: "You must be logged in to join a club" });
     });
 
-    it("inserts membership successfully for logged in user", async () => {
+    it("returns success if user is already an active member", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: { id: "u-123" } },
       });
+      const mockMaybeSingle = vi.fn().mockResolvedValueOnce({
+        data: { id: "mem-1", status: "active", role: "member" },
+      });
+      const mockEq2 = vi.fn().mockReturnValueOnce({ maybeSingle: mockMaybeSingle });
+      const mockEq1 = vi.fn().mockReturnValueOnce({ eq: mockEq2 });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq1 });
+      mockFrom.mockReturnValueOnce({ select: mockSelect });
+
+      const res = await joinClub("club-1");
+      expect(res).toEqual({ success: true });
+    });
+
+    it("reactivates membership if user previously had inactive membership", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-123" } },
+      });
+      const mockMaybeSingle = vi.fn().mockResolvedValueOnce({
+        data: { id: "mem-1", status: "inactive", role: "member" },
+      });
+      const mockEq2 = vi.fn().mockReturnValueOnce({ maybeSingle: mockMaybeSingle });
+      const mockEq1 = vi.fn().mockReturnValueOnce({ eq: mockEq2 });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq1 });
+
+      const mockUpdateEq = vi.fn().mockResolvedValueOnce({ error: null });
+      const mockUpdate = vi.fn().mockReturnValueOnce({ eq: mockUpdateEq });
+
+      mockFrom
+        .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce({ update: mockUpdate });
+
+      const res = await joinClub("club-1");
+      expect(res).toEqual({ success: true });
+      expect(mockUpdate).toHaveBeenCalledWith({ status: "active", role: "member" });
+      expect(mockUpdateEq).toHaveBeenCalledWith("id", "mem-1");
+    });
+
+    it("inserts membership successfully for new member", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-123" } },
+      });
+      const mockMaybeSingle = vi.fn().mockResolvedValueOnce({ data: null });
+      const mockEq2 = vi.fn().mockReturnValueOnce({ maybeSingle: mockMaybeSingle });
+      const mockEq1 = vi.fn().mockReturnValueOnce({ eq: mockEq2 });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq1 });
+
       const mockInsert = vi.fn().mockResolvedValueOnce({ error: null });
-      mockFrom.mockReturnValueOnce({ insert: mockInsert });
+
+      mockFrom
+        .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce({ insert: mockInsert });
 
       const res = await joinClub("club-1");
       expect(res).toEqual({ success: true });
@@ -67,6 +115,27 @@ describe("Clubs Server Actions", () => {
         status: "active",
       });
     });
+
+    it("returns error message when insert fails", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-123" } },
+      });
+      const mockMaybeSingle = vi.fn().mockResolvedValueOnce({ data: null });
+      const mockEq2 = vi.fn().mockReturnValueOnce({ maybeSingle: mockMaybeSingle });
+      const mockEq1 = vi.fn().mockReturnValueOnce({ eq: mockEq2 });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq1 });
+
+      const mockInsert = vi.fn().mockResolvedValueOnce({
+        error: { message: "Database insert error" },
+      });
+
+      mockFrom
+        .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce({ insert: mockInsert });
+
+      const res = await joinClub("club-1");
+      expect(res).toEqual({ error: "Database insert error" });
+    });
   });
 
   describe("leaveClub", () => {
@@ -76,17 +145,45 @@ describe("Clubs Server Actions", () => {
       expect(res).toEqual({ error: "You must be logged in" });
     });
 
-    it("deletes membership for current user", async () => {
+    it("prevents club owner from leaving their own club", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "owner-1" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "owner-1" },
+      });
+      const mockEq = vi.fn().mockReturnValueOnce({ single: mockSingle });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq });
+      mockFrom.mockReturnValueOnce({ select: mockSelect });
+
+      const res = await leaveClub("club-1");
+      expect(res).toEqual({
+        error:
+          "Club owners cannot leave their own club. You can delete the club or transfer ownership instead.",
+      });
+    });
+
+    it("deletes membership for regular member", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: { id: "u-123" } },
       });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "owner-someone-else" },
+      });
+      const mockEq = vi.fn().mockReturnValueOnce({ single: mockSingle });
+      const mockSelect = vi.fn().mockReturnValueOnce({ eq: mockEq });
+
       const mockEq2 = vi.fn().mockResolvedValueOnce({ error: null });
       const mockEq1 = vi.fn().mockReturnValueOnce({ eq: mockEq2 });
       const mockDelete = vi.fn().mockReturnValueOnce({ eq: mockEq1 });
-      mockFrom.mockReturnValueOnce({ delete: mockDelete });
+
+      mockFrom
+        .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce({ delete: mockDelete });
 
       const res = await leaveClub("club-1");
       expect(res).toEqual({ success: true });
+      expect(mockDelete).toHaveBeenCalled();
     });
   });
 

@@ -69,6 +69,31 @@ export async function joinClub(clubId: string) {
 
   await ensureUserProfile(supabase, user);
 
+  // Check if membership record already exists
+  const { data: existing } = await supabase
+    .from("club_memberships")
+    .select("id, status, role")
+    .eq("club_id", clubId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.status === "active") {
+      return { success: true };
+    }
+    const { error: updateError } = await supabase
+      .from("club_memberships")
+      .update({ status: "active", role: "member" })
+      .eq("id", existing.id);
+
+    if (updateError) {
+      console.error("joinClub reactivate error:", updateError);
+      return { error: updateError.message };
+    }
+    revalidatePath(`/clubs/${clubId}`);
+    return { success: true };
+  }
+
   const { error } = await supabase.from("club_memberships").insert({
     club_id: clubId,
     user_id: user.id,
@@ -92,6 +117,20 @@ export async function leaveClub(clubId: string) {
   } = await supabase.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
+
+  // Check if user is the club owner
+  const { data: club } = await supabase
+    .from("clubs")
+    .select("owner_id")
+    .eq("id", clubId)
+    .single();
+
+  if (club?.owner_id === user.id) {
+    return {
+      error:
+        "Club owners cannot leave their own club. You can delete the club or transfer ownership instead.",
+    };
+  }
 
   const { error } = await supabase
     .from("club_memberships")
