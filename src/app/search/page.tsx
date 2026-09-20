@@ -156,9 +156,13 @@ export default async function SearchPage({
               id: string;
               full_name: string;
               avatar_url: string | null;
+              username?: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/players/${x.id}`}>
+                <Link
+                  key={x.id}
+                  href={`/players/${x.username ? `@${x.username}` : x.id}`}
+                >
                   <Card className="transition-colors hover:border-primary/40">
                     <CardContent className="flex items-center gap-3 p-4">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -166,8 +170,8 @@ export default async function SearchPage({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{x.full_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Player Profile
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {x.username ? `@${x.username}` : "Player Profile"}
                         </p>
                       </div>
                     </CardContent>

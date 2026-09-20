@@ -16,8 +16,10 @@ import {
   Users,
   Shield,
   Menu,
+  User as UserIcon,
 } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
+import { createClient } from "~/lib/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +35,29 @@ export function NavigationBar() {
   const router = useRouter();
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
+  const username =
+    !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
   const { toggleCollapsed, toggleMobile } = useSidebar();
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let isMounted = true;
+    const supabase = createClient();
+    void supabase
+      .from("users")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (isMounted && data?.username) {
+          setFetchedUsername(data.username);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   const handleSignOut = async () => {
     if (signOutLoading) return;
@@ -222,6 +246,11 @@ export function NavigationBar() {
                   <div className="truncate text-xs font-semibold text-foreground">
                     {user.user_metadata?.full_name || "CricScore User"}
                   </div>
+                  {username && (
+                    <div className="font-mono text-xs font-semibold text-primary">
+                      @{username}
+                    </div>
+                  )}
                   <div className="truncate text-[11px] text-muted-foreground">
                     {user.email}
                   </div>
@@ -229,6 +258,15 @@ export function NavigationBar() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
                   <Link href="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                  <Link
+                    href={`/players/${username ? `@${username}` : user.id}`}
+                    className="flex items-center gap-2"
+                  >
+                    <UserIcon className="h-3.5 w-3.5 text-primary" />
+                    <span>My Profile</span>
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
                   <Link href="/teams">My Teams</Link>

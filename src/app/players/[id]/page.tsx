@@ -13,6 +13,7 @@ import {
   type PlayerBowlingPerformance,
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
+import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -38,33 +39,53 @@ export default async function PlayerPage({
     tab?: string;
   }>;
 }) {
-  const { id } = await params;
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  ) {
+  const { id: rawId } = await params;
+  const cleanParam = decodeURIComponent(rawId).replace(/^@/, "").trim().toLowerCase();
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      cleanParam,
+    );
+  const isValidHandle = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/.test(cleanParam);
+
+  if (!isUuid && !isValidHandle) {
     notFound();
   }
+
   const resolvedSearchParams = await searchParams;
   const { teamId, tournamentId, matchId, clubId, tab } =
     resolvedSearchParams ?? {};
 
   const supabase = await createServerClient();
 
-  // Concurrently fetch current user, user profile, career stats, teams, batting performances, and bowling performances
+  // Find user by UUID or by @username handle
+  const userQuery = isUuid
+    ? supabase
+        .from("users")
+        .select("id, full_name, avatar_url, email, username")
+        .eq("id", cleanParam)
+        .maybeSingle()
+    : supabase
+        .from("users")
+        .select("id, full_name, avatar_url, email, username")
+        .ilike("username", cleanParam)
+        .maybeSingle();
+
+  const { data: user } = await userQuery;
+  if (!user) {
+    notFound();
+  }
+
+  const id = user.id;
+
+  // Concurrently fetch current user, career stats, teams, batting performances, and bowling performances
   const [
     { data: currentUserData },
-    { data: user },
     { data: stats },
     { data: teamPlayersData },
     { data: battingData },
     { data: bowlingData },
   ] = await Promise.all([
     supabase.auth.getUser(),
-    supabase
-      .from("users")
-      .select("id, full_name, avatar_url, email")
-      .eq("id", id)
-      .single(),
     supabase.from("player_career_stats").select("*").eq("user_id", id).single(),
     supabase
       .from("team_players")
@@ -350,11 +371,21 @@ export default async function PlayerPage({
             {user.full_name.slice(0, 2).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
-              {user.full_name}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+                {user.full_name}
+              </h1>
+              {user.username && (
+                <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-primary shadow-xs">
+                  @{user.username}
+                </span>
+              )}
+              {isSelf && (
+                <EditUsernameDialog currentUsername={user.username ?? ""} />
+              )}
+            </div>
             {isSelf && user.email && (
-              <p className="truncate text-xs text-muted-foreground sm:text-sm">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
                 {user.email}
               </p>
             )}

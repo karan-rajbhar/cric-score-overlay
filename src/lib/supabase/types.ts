@@ -1772,6 +1772,7 @@ export type Database = {
           location: string | null
           phone: string | null
           updated_at: string | null
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -1783,6 +1784,7 @@ export type Database = {
           location?: string | null
           phone?: string | null
           updated_at?: string | null
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -1794,6 +1796,7 @@ export type Database = {
           location?: string | null
           phone?: string | null
           updated_at?: string | null
+          username?: string | null
         }
         Relationships: []
       }
@@ -1917,6 +1920,10 @@ export type Database = {
         Args: { p_completed_innings_id: string; p_match_id: string }
         Returns: undefined
       }
+      check_username_available: {
+        Args: { p_username: string; p_current_user_id?: string }
+        Returns: Json
+      }
       complete_innings: {
         Args: { p_completed_innings_id: string; p_match_id: string }
         Returns: undefined
@@ -2001,6 +2008,12 @@ export type Database = {
           p_is_wicket?: boolean
           p_match_id: string
           p_runs_scored?: number
+        }
+        Returns: Json
+      }
+      update_own_username: {
+        Args: {
+          p_username: string
         }
         Returns: Json
       }

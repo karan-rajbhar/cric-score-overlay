@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useAuth } from "~/lib/auth";
+import { createClient } from "~/lib/supabase/client";
 import { Button } from "~/components/ui/button";
 import { MatchCard } from "~/components/matches/match-card";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -16,6 +18,28 @@ import type { Match } from "~/lib/match-types";
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
+  const username =
+    !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let isMounted = true;
+    const supabase = createClient();
+    void supabase
+      .from("users")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (isMounted && data?.username) {
+          setFetchedUsername(data.username);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
   const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
     status: "live",
   });
@@ -54,11 +78,18 @@ export default function Dashboard() {
       {/* Top Header Bar */}
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="score-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            {user?.user_metadata?.full_name
-              ? `Welcome back, ${user.user_metadata.full_name.split(" ")[0]}`
-              : "Dashboard"}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="score-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+              {user?.user_metadata?.full_name
+                ? `Welcome back, ${user.user_metadata.full_name.split(" ")[0]}`
+                : "Dashboard"}
+            </h1>
+            {username && (
+              <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 font-mono text-xs font-semibold text-primary">
+                @{username}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
             Live pitch updates, tournament tables, and broadcast controls
           </p>

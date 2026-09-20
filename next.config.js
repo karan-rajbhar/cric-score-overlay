@@ -29,6 +29,10 @@ const config = {
         source: "/api/supabase/:path*",
         destination: `${supabaseUrl}/:path*`,
       },
+      {
+        source: "/:handle(@[a-zA-Z0-9_]{3,30})",
+        destination: "/players/:handle",
+      },
     ];
   },
 };

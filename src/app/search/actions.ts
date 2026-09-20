@@ -10,7 +10,12 @@ export interface GlobalSearchResult {
     venue: string | null;
   }>;
   teams: Array<{ id: string; name: string; short_name: string | null }>;
-  players: Array<{ id: string; full_name: string; avatar_url: string | null }>;
+  players: Array<{
+    id: string;
+    full_name: string;
+    avatar_url: string | null;
+    username: string | null;
+  }>;
   clubs: Array<{ id: string; name: string; location: string | null }>;
   tournaments: Array<{ id: string; name: string; status: string | null }>;
 }
@@ -30,6 +35,7 @@ export async function globalSearch(
 
   const supabase = await createServerClient();
   const like = `%${q}%`;
+  const cleanUserQ = q.replace(/^@/, "");
 
   const [matchesRes, teamsRes, playersRes, clubsRes, tournamentsRes] =
     await Promise.all([
@@ -45,8 +51,8 @@ export async function globalSearch(
         .limit(5),
       supabase
         .from("users")
-        .select("id, full_name, avatar_url")
-        .ilike("full_name", like)
+        .select("id, full_name, avatar_url, username")
+        .or(`full_name.ilike.%${cleanUserQ}%,username.ilike.%${cleanUserQ}%`)
         .limit(5),
       supabase
         .from("clubs")

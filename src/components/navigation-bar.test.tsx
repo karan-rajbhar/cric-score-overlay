@@ -16,6 +16,18 @@ vi.mock("~/lib/auth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+vi.mock("~/lib/supabase/client", () => ({
+  createClient: () => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: vi.fn().mockResolvedValue({ data: { username: "karan_scorer" } }),
+        }),
+      }),
+    }),
+  }),
+}));
+
 const mockToggleCollapsed = vi.fn();
 const mockToggleMobile = vi.fn();
 
