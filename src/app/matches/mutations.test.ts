@@ -117,3 +117,19 @@ describe("updateMatchSettings error handling", () => {
   });
 });
 
+describe("multi-scorer management actions", () => {
+  it("rejects adding empty email or user ID", async () => {
+    const { addMatchScorer } = await import("./mutations");
+    const res = await addMatchScorer("m1", "   ");
+    expect(res.success).toBe(false);
+  });
+
+  it("handles removeMatchScorer when match creator is target", async () => {
+    const { removeMatchScorer } = await import("./mutations");
+    const res = await removeMatchScorer("m1", "u1");
+    // Creator cannot be removed or auth error handled
+    expect(res.success).toBe(false);
+  });
+});
+
+

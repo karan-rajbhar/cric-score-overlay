@@ -55,6 +55,13 @@ const DlsCalculatorModal = dynamic(
     ),
   { ssr: false },
 );
+const MatchScorersDialog = dynamic(
+  () =>
+    import("~/components/matches/match-scorers-dialog").then(
+      (m) => m.MatchScorersDialog,
+    ),
+  { ssr: false },
+);
 import { useScoring } from "./useScoring";
 import { oversFromBalls } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
@@ -542,6 +549,12 @@ export default function ScoringPage() {
               <UserPlus className="h-4 w-4 sm:mr-1.5" />
               <span className="hidden sm:inline">Add Player</span>
             </Button>
+            {isScorer && (
+              <MatchScorersDialog
+                matchId={match.id}
+                isCreator={match.created_by === user?.id}
+              />
+            )}
             <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
               <Link
                 href={`/overlay/${match.id}`}

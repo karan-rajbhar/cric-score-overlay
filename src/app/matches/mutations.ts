@@ -987,3 +987,240 @@ export async function reassignCurrentOverBowler(
   }
 }
 
+export interface MatchScorerUser {
+  id: string;
+  full_name: string;
+  email: string | null;
+  avatar_url: string | null;
+}
+
+export async function getMatchScorers(matchId: string): Promise<{
+  data: {
+    createdBy: MatchScorerUser | null;
+    matchAdmins: MatchScorerUser[];
+  } | null;
+  error: string | null;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const { data: match, error: matchErr } = await supabase
+      .from("matches")
+      .select("created_by, match_admins")
+      .eq("id", matchId)
+      .single();
+
+    if (matchErr || !match) {
+      return { data: null, error: matchErr?.message || "Match not found" };
+    }
+
+    const allUserIds = Array.from(
+      new Set(
+        [match.created_by, ...(match.match_admins ?? [])].filter(
+          (id): id is string => Boolean(id),
+        ),
+      ),
+    );
+
+    if (allUserIds.length === 0) {
+      return { data: { createdBy: null, matchAdmins: [] }, error: null };
+    }
+
+    const { data: users, error: userErr } = await supabase
+      .from("users")
+      .select("id, full_name, email, avatar_url")
+      .in("id", allUserIds);
+
+    if (userErr) {
+      return { data: null, error: userErr.message };
+    }
+
+    const userMap = new Map(
+      (users ?? []).map((u) => [u.id, u as MatchScorerUser]),
+    );
+    const createdBy = userMap.get(match.created_by) ?? null;
+    const matchAdmins = (match.match_admins ?? [])
+      .map((id: string) => userMap.get(id))
+      .filter((u: MatchScorerUser | undefined): u is MatchScorerUser =>
+        Boolean(u),
+      );
+
+    return { data: { createdBy, matchAdmins }, error: null };
+  } catch (err) {
+    console.error("getMatchScorers error:", err);
+    return { data: null, error: "Failed to fetch scorers" };
+  }
+}
+
+export async function addMatchScorer(
+  matchId: string,
+  emailOrUserId: string,
+): Promise<{
+  success: boolean;
+  user?: MatchScorerUser;
+  error: string | null;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (!currentUser) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const authorized = await checkMatchAdminAuth(
+      supabase,
+      matchId,
+      currentUser.id,
+    );
+    if (!authorized) {
+      return {
+        success: false,
+        error: "Only authorized match scorers can invite additional scorers",
+      };
+    }
+
+    const queryTarget = emailOrUserId.trim();
+    if (!queryTarget) {
+      return { success: false, error: "Please provide a user email or ID" };
+    }
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        queryTarget,
+      );
+
+    let query = supabase
+      .from("users")
+      .select("id, full_name, email, avatar_url");
+    if (isUuid) {
+      query = query.eq("id", queryTarget);
+    } else {
+      query = query.ilike("email", queryTarget);
+    }
+
+    const { data: targetUsers, error: userFindErr } = await query.limit(1);
+    if (userFindErr) {
+      return { success: false, error: userFindErr.message };
+    }
+
+    const targetUser = targetUsers?.[0] as MatchScorerUser | undefined;
+    if (!targetUser) {
+      return {
+        success: false,
+        error: `No registered player found with ${isUuid ? "ID" : "email"} "${queryTarget}"`,
+      };
+    }
+
+    const { data: match, error: matchErr } = await supabase
+      .from("matches")
+      .select("created_by, match_admins")
+      .eq("id", matchId)
+      .single();
+
+    if (matchErr || !match) {
+      return { success: false, error: matchErr?.message || "Match not found" };
+    }
+
+    const existingAdmins = match.match_admins ?? [];
+    if (
+      match.created_by === targetUser.id ||
+      existingAdmins.includes(targetUser.id)
+    ) {
+      return {
+        success: false,
+        error: `${targetUser.full_name} is already an authorized scorer for this match`,
+      };
+    }
+
+    const updatedAdmins = [...existingAdmins, targetUser.id];
+    const { error: updateErr } = await supabase
+      .from("matches")
+      .update({ match_admins: updatedAdmins })
+      .eq("id", matchId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, user: targetUser, error: null };
+  } catch (err) {
+    console.error("addMatchScorer error:", err);
+    return { success: false, error: "Failed to add scorer" };
+  }
+}
+
+export async function removeMatchScorer(
+  matchId: string,
+  scorerUserId: string,
+): Promise<{
+  success: boolean;
+  error: string | null;
+}> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+
+    if (!currentUser) {
+      return { success: false, error: "You must be logged in" };
+    }
+
+    const authorized = await checkMatchAdminAuth(
+      supabase,
+      matchId,
+      currentUser.id,
+    );
+    if (!authorized) {
+      return {
+        success: false,
+        error: "Not authorized to manage match scorers",
+      };
+    }
+
+    const { data: match, error: matchErr } = await supabase
+      .from("matches")
+      .select("created_by, match_admins")
+      .eq("id", matchId)
+      .single();
+
+    if (matchErr || !match) {
+      return { success: false, error: matchErr?.message || "Match not found" };
+    }
+
+    if (match.created_by === scorerUserId) {
+      return {
+        success: false,
+        error: "Cannot remove match creator from scorers",
+      };
+    }
+
+    const updatedAdmins = (match.match_admins ?? []).filter(
+      (id: string) => id !== scorerUserId,
+    );
+
+    const { error: updateErr } = await supabase
+      .from("matches")
+      .update({ match_admins: updatedAdmins })
+      .eq("id", matchId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("removeMatchScorer error:", err);
+    return { success: false, error: "Failed to remove scorer" };
+  }
+}
+
+

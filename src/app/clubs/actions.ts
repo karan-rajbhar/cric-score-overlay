@@ -287,3 +287,274 @@ export async function updateClubSocialLinks(
   revalidatePath(`/clubs/${clubId}`);
   return { success: true };
 }
+
+export async function updateClub(clubId: string, formData: FormData) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to update this club" };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return { error: "Club name is required" };
+
+  const short_name = (formData.get("short_name") as string)?.trim() || null;
+  const location = (formData.get("location") as string)?.trim() || null;
+  const description = (formData.get("description") as string)?.trim() || null;
+  const contact_email =
+    (formData.get("contact_email") as string)?.trim() || null;
+  const contact_phone =
+    (formData.get("contact_phone") as string)?.trim() || null;
+  const website_url = (formData.get("website_url") as string)?.trim() || null;
+  const founded_year_raw = formData.get("founded_year");
+  const founded_year = founded_year_raw
+    ? parseInt(founded_year_raw as string, 10)
+    : null;
+  const clubType = (formData.get("club_type") as string) || "community";
+  const validTypes = ["community", "corporate", "school", "professional"];
+  const safeType = validTypes.includes(clubType) ? clubType : "community";
+  const is_public = formData.get("is_public") !== "false";
+
+  const { error } = await supabase
+    .from("clubs")
+    .update({
+      name,
+      short_name,
+      location,
+      description,
+      contact_email,
+      contact_phone,
+      website_url,
+      founded_year,
+      club_type: safeType,
+      is_public,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", clubId);
+
+  if (error) {
+    console.error("updateClub error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath("/clubs");
+  return { success: true };
+}
+
+export async function removeMember(clubId: string, membershipId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const isOwner = await checkClubAdminAuth(supabase, clubId, user.id, true);
+  const isAdmin = await checkClubAdminAuth(supabase, clubId, user.id, false);
+
+  if (!isAdmin) {
+    return { error: "You are not authorized to remove members from this club" };
+  }
+
+  const { data: targetMembership, error: fetchErr } = await supabase
+    .from("club_memberships")
+    .select("id, role, user_id")
+    .eq("id", membershipId)
+    .eq("club_id", clubId)
+    .single();
+
+  if (fetchErr || !targetMembership) {
+    return { error: "Member record not found" };
+  }
+
+  if (targetMembership.role === "owner") {
+    return { error: "Cannot remove the club owner" };
+  }
+
+  if (!isOwner && targetMembership.role === "admin") {
+    return { error: "Only the club owner can remove club administrators" };
+  }
+
+  const { error } = await supabase
+    .from("club_memberships")
+    .delete()
+    .eq("id", membershipId)
+    .eq("club_id", clubId);
+
+  if (error) {
+    console.error("removeMember error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  return { success: true };
+}
+
+export async function inviteClubMember(clubId: string, email: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to invite members to this club" };
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return { error: "A valid email address is required" };
+  }
+
+  const { data: existingUser } = await supabase
+    .from("users")
+    .select("id")
+    .eq("email", cleanEmail)
+    .maybeSingle();
+
+  if (existingUser) {
+    const { data: existingMember } = await supabase
+      .from("club_memberships")
+      .select("id, status")
+      .eq("club_id", clubId)
+      .eq("user_id", existingUser.id)
+      .maybeSingle();
+
+    if (existingMember && existingMember.status === "active") {
+      return { error: "This user is already an active member of the club" };
+    }
+  }
+
+  const { error } = await supabase.from("club_invitations").insert({
+    club_id: clubId,
+    invited_by: user.id,
+    email: cleanEmail,
+    user_id: existingUser?.id ?? null,
+    status: "pending",
+  });
+
+  if (error) {
+    console.error("inviteClubMember error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  return { success: true };
+}
+
+export async function updateSeason(
+  seasonId: string,
+  clubId: string,
+  name: string,
+  startDate?: string,
+  endDate?: string,
+  isCurrent?: boolean,
+) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to manage seasons for this club" };
+  }
+
+  const trimmedName = name.trim();
+  if (!trimmedName) return { error: "Season name is required" };
+
+  if (isCurrent) {
+    await supabase
+      .from("club_seasons")
+      .update({ is_current: false })
+      .eq("club_id", clubId);
+  }
+
+  const { error } = await supabase
+    .from("club_seasons")
+    .update({
+      name: trimmedName,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      is_current: isCurrent ?? false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", seasonId)
+    .eq("club_id", clubId);
+
+  if (error) {
+    console.error("updateSeason error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  return { success: true };
+}
+
+export async function deleteSeason(seasonId: string, clubId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to manage seasons for this club" };
+  }
+
+  const { error } = await supabase
+    .from("club_seasons")
+    .delete()
+    .eq("id", seasonId)
+    .eq("club_id", clubId);
+
+  if (error) {
+    console.error("deleteSeason error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  return { success: true };
+}
+
+export async function removeHallOfFame(hallOfFameId: string, clubId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return { error: "You are not authorized to manage the Hall of Fame" };
+  }
+
+  const { error } = await supabase
+    .from("club_hall_of_fame")
+    .delete()
+    .eq("id", hallOfFameId)
+    .eq("club_id", clubId);
+
+  if (error) {
+    console.error("removeHallOfFame error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  return { success: true };
+}
+

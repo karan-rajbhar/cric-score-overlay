@@ -483,3 +483,134 @@ export async function generateTournamentFixtures(tournamentId: string) {
   revalidatePath(`/tournaments/${tournamentId}`);
   return { success: true, count: matchesToInsert.length };
 }
+
+export async function updateTournament(
+  tournamentId: string,
+  formData: FormData,
+) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error: "Only tournament organizers or club admins can edit this tournament",
+    };
+  }
+
+  const name = (formData.get("name") as string)?.trim();
+  if (!name) return { error: "Tournament name is required" };
+
+  const description = (formData.get("description") as string)?.trim() || null;
+  const tournament_format =
+    (formData.get("tournament_format") as string) || "league";
+  const match_format = (formData.get("match_format") as string) || "T20";
+  const venue = (formData.get("venue") as string)?.trim() || null;
+  const start_date = (formData.get("start_date") as string) || null;
+  const end_date = (formData.get("end_date") as string) || null;
+  const season_id = (formData.get("season_id") as string) || null;
+  const is_public = formData.get("is_public") !== "false";
+
+  const oversRaw = formData.get("overs_per_innings");
+  const overs_per_innings = oversRaw ? parseInt(oversRaw as string, 10) : 20;
+
+  const wicketsRaw = formData.get("wickets_per_innings");
+  const wickets_per_innings = wicketsRaw
+    ? parseInt(wicketsRaw as string, 10)
+    : 10;
+
+  const last_man_stands = formData.get("last_man_stands") === "true";
+  const golden_ball = formData.get("golden_ball") === "true";
+
+  const { data: currentTourn } = await supabase
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
+  const { error } = await supabase
+    .from("tournaments")
+    .update({
+      name,
+      description,
+      tournament_format,
+      match_format,
+      overs_per_innings,
+      wickets_per_innings,
+      last_man_stands,
+      golden_ball,
+      venue,
+      start_date,
+      end_date,
+      season_id: season_id && season_id !== "none" ? season_id : null,
+      is_public,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tournamentId);
+
+  if (error) {
+    console.error("updateTournament error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/tournaments/${tournamentId}`);
+  revalidatePath("/tournaments");
+  if (currentTourn?.club_id) {
+    revalidatePath(`/clubs/${currentTourn.club_id}`);
+  }
+
+  return { success: true };
+}
+
+export async function deleteTournament(tournamentId: string) {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { error: "You must be logged in" };
+
+  const isTournAdmin = await checkTournamentAdminAuth(
+    supabase,
+    tournamentId,
+    user.id,
+  );
+  if (!isTournAdmin) {
+    return {
+      error:
+        "Only tournament organizers or club admins can delete this tournament",
+    };
+  }
+
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
+  const { error } = await supabase
+    .from("tournaments")
+    .delete()
+    .eq("id", tournamentId);
+
+  if (error) {
+    console.error("deleteTournament error:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/tournaments");
+  if (tournament?.club_id) {
+    revalidatePath(`/clubs/${tournament.club_id}`);
+  }
+
+  return { success: true };
+}
+

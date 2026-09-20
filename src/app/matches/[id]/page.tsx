@@ -57,6 +57,13 @@ const MatchSuperstars = dynamic(
     ),
   { ssr: false },
 );
+const MatchScorersDialog = dynamic(
+  () =>
+    import("~/components/matches/match-scorers-dialog").then(
+      (m) => m.MatchScorersDialog,
+    ),
+  { ssr: false },
+);
 import {
   ChevronLeft,
   ChevronRight,
@@ -652,6 +659,12 @@ function MatchDetailsPageContent() {
             )}
             {match.status === "live" && (
               <DlsCalculatorModal match={match} canEdit={isScorer} />
+            )}
+            {isScorer && (
+              <MatchScorersDialog
+                matchId={match.id}
+                isCreator={match.created_by === user?.id}
+              />
             )}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/overlay/${match.id}`} target="_blank">

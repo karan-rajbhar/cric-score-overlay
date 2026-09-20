@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
-import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
-import { updateMemberRole } from "~/app/clubs/actions";
+import { ShieldCheck, ShieldAlert, Loader2, Trash2 } from "lucide-react";
+import { updateMemberRole, removeMember } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 interface MemberRoleActionProps {
@@ -73,3 +73,52 @@ export function MemberRoleAction({
     </Button>
   );
 }
+
+export function RemoveMemberButton({
+  clubId,
+  membershipId,
+  userName,
+}: {
+  clubId: string;
+  membershipId: string;
+  userName: string;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleRemove = async () => {
+    if (!confirm(`Remove ${userName} from this club?`)) return;
+
+    setLoading(true);
+    try {
+      const res = await removeMember(clubId, membershipId);
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Removed ${userName} from the club`);
+      }
+    } catch (err) {
+      console.error("Failed to remove member:", err);
+      toast.error("Failed to remove member");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      disabled={loading}
+      onClick={handleRemove}
+      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+      title={`Remove ${userName} from club`}
+    >
+      {loading ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="h-3.5 w-3.5" />
+      )}
+    </Button>
+  );
+}
+

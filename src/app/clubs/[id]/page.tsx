@@ -28,9 +28,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ClubMembershipButton } from "~/components/clubs/club-membership-button";
-import { MemberRoleAction } from "~/components/clubs/member-role-action";
+import {
+  MemberRoleAction,
+  RemoveMemberButton,
+} from "~/components/clubs/member-role-action";
 import { HallOfFameDialog } from "~/components/clubs/hall-of-fame-dialog";
 import { SeasonDialog } from "~/components/clubs/season-dialog";
+import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
+import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   formatStatus,
@@ -364,6 +369,7 @@ export default async function ClubPage({
 
           {/* Quick Action Buttons */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            {isAdmin && <ClubSettingsDialog club={club} />}
             {isAdmin && <SeasonDialog clubId={club.id} />}
             <ClubMembershipButton
               clubId={club.id}
@@ -915,12 +921,15 @@ export default async function ClubPage({
                 Owners, administrators, coaches, and registered players.
               </p>
             </div>
-            <ClubMembershipButton
-              clubId={club.id}
-              isMember={isMember}
-              isOwner={isOwner}
-              isAuthenticated={!!user}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && <InviteMemberDialog clubId={club.id} />}
+              <ClubMembershipButton
+                clubId={club.id}
+                isMember={isMember}
+                isOwner={isOwner}
+                isAuthenticated={!!user}
+              />
+            </div>
           </div>
 
           <Card>
@@ -957,7 +966,7 @@ export default async function ClubPage({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <Badge
                             variant={
                               isClubOwner
@@ -978,6 +987,14 @@ export default async function ClubPage({
                               userName={m.user?.full_name ?? "Member"}
                             />
                           )}
+                          {(isOwner || (isAdmin && !isClubAdmin)) &&
+                            !isClubOwner && (
+                              <RemoveMemberButton
+                                clubId={club.id}
+                                membershipId={m.id}
+                                userName={m.user?.full_name ?? "Member"}
+                              />
+                            )}
                         </div>
                       </div>
                     );

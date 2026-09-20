@@ -1,11 +1,12 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { MemberRoleAction } from "./member-role-action";
-import { updateMemberRole } from "~/app/clubs/actions";
+import { MemberRoleAction, RemoveMemberButton } from "./member-role-action";
+import { updateMemberRole, removeMember } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 vi.mock("~/app/clubs/actions", () => ({
   updateMemberRole: vi.fn(),
+  removeMember: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -156,3 +157,80 @@ describe("MemberRoleAction Component", () => {
     consoleSpy.mockRestore();
   });
 });
+
+describe("RemoveMemberButton Component", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders remove button with title", () => {
+    render(
+      <RemoveMemberButton
+        clubId="club-1"
+        membershipId="mem-1"
+        userName="Bob"
+      />
+    );
+
+    const button = screen.getByRole("button", {
+      name: "Remove Bob from club",
+    });
+    expect(button).toHaveAttribute("title", "Remove Bob from club");
+  });
+
+  it("removes member when user confirms dialog", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(removeMember).mockResolvedValueOnce({ success: true } as never);
+
+    render(
+      <RemoveMemberButton
+        clubId="club-1"
+        membershipId="mem-1"
+        userName="Bob"
+      />
+    );
+
+    fireEvent.click(screen.getByTitle("Remove Bob from club"));
+
+    await waitFor(() => {
+      expect(removeMember).toHaveBeenCalledWith("club-1", "mem-1");
+      expect(toast.success).toHaveBeenCalledWith("Removed Bob from the club");
+    });
+  });
+
+  it("aborts removal when user cancels confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(
+      <RemoveMemberButton
+        clubId="club-1"
+        membershipId="mem-1"
+        userName="Bob"
+      />
+    );
+
+    fireEvent.click(screen.getByTitle("Remove Bob from club"));
+
+    expect(removeMember).not.toHaveBeenCalled();
+  });
+
+  it("displays error toast when removeMember returns error", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(removeMember).mockResolvedValueOnce({ error: "Cannot remove owner" } as never);
+
+    render(
+      <RemoveMemberButton
+        clubId="club-1"
+        membershipId="mem-1"
+        userName="Bob"
+      />
+    );
+
+    fireEvent.click(screen.getByTitle("Remove Bob from club"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Cannot remove owner");
+    });
+  });
+});
+
