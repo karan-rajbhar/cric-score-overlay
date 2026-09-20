@@ -104,7 +104,7 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByText("Wkts")).toBeInTheDocument();
     expect(screen.getByText("BBI")).toBeInTheDocument();
     expect(screen.getByText("Econ")).toBeInTheDocument();
-    expect(screen.getByText("5/18")).toBeInTheDocument();
+    expect(screen.getAllByText("5/18").length).toBeGreaterThan(0);
   });
 
   it("allows switching to Fielding tab and shows catches and stumpings", () => {
@@ -113,10 +113,10 @@ describe("LeaderboardView Component", () => {
     const fieldingTabTrigger = screen.getByRole("tab", { name: /fielding/i });
     fireEvent.click(fieldingTabTrigger);
 
-    expect(screen.getByText("Ravindra Jadeja")).toBeInTheDocument();
-    expect(screen.getByText("MS Dhoni")).toBeInTheDocument();
-    expect(screen.getByText("Catches (Ct)")).toBeInTheDocument();
-    expect(screen.getByText("Stumpings (St)")).toBeInTheDocument();
+    expect(screen.getAllByText("Ravindra Jadeja").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MS Dhoni").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Catches (Ct)").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Stumpings (St)").length).toBeGreaterThan(0);
   });
 
   it("allows switching to MVP tab and shows impact points", () => {
@@ -140,7 +140,31 @@ describe("LeaderboardView Component", () => {
     const searchInput = screen.getByPlaceholderText(/search player name/i);
     fireEvent.change(searchInput, { target: { value: "Kohli" } });
 
-    expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
+    expect(screen.getAllByText("Virat Kohli").length).toBeGreaterThan(0);
     expect(screen.queryByText("Rohit Sharma")).not.toBeInTheDocument();
+  });
+
+  it("updates spotlight banner and details when changing sort metrics", () => {
+    render(<LeaderboardView data={mockData} />);
+
+    const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
+    fireEvent.click(battingTabTrigger);
+
+    // Default is Most Runs
+    expect(screen.getByText(/Batting Leaderboard • Most Runs/i)).toBeInTheDocument();
+
+    // Click Highest Score
+    const hsButton = screen.getByRole("button", { name: /highest score/i });
+    fireEvent.click(hsButton);
+
+    expect(screen.getByText(/Batting Leaderboard • Highest Score/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ranked by Highest Individual Score/i)).toBeInTheDocument();
+
+    // Click Batting Avg
+    const avgButton = screen.getByRole("button", { name: /batting avg/i });
+    fireEvent.click(avgButton);
+
+    expect(screen.getByText(/Batting Leaderboard • Batting Avg/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ranked by Batting Average/i)).toBeInTheDocument();
   });
 });

@@ -60,6 +60,8 @@ export interface BestBowlingFigures {
   wickets: number;
   runs: number;
   display: string;
+  overs?: string;
+  economy?: string;
 }
 
 export interface BattingLeaderboardEntry {
@@ -76,6 +78,10 @@ export interface BattingLeaderboardEntry {
   highestScore: number;
   isHighestNotOut: boolean;
   highestScoreDisplay: string;
+  highestScoreBalls?: number;
+  highestScoreFours?: number;
+  highestScoreSixes?: number;
+  highestScoreStrikeRateDisplay?: string;
   average: number | null;
   averageDisplay: string;
   strikeRate: number;
@@ -266,6 +272,9 @@ export function buildLeaderboardData(params: {
       notOuts: number;
       highestScore: number;
       isHighestNotOut: boolean;
+      highestScoreBalls: number;
+      highestScoreFours: number;
+      highestScoreSixes: number;
       centuries: number;
       fifties: number;
       battingPoints: number;
@@ -286,6 +295,9 @@ export function buildLeaderboardData(params: {
       notOuts: 0,
       highestScore: 0,
       isHighestNotOut: false,
+      highestScoreBalls: 0,
+      highestScoreFours: 0,
+      highestScoreSixes: 0,
       centuries: 0,
       fifties: 0,
       battingPoints: 0,
@@ -310,8 +322,23 @@ export function buildLeaderboardData(params: {
     if (runs > stats.highestScore) {
       stats.highestScore = runs;
       stats.isHighestNotOut = !isOut;
-    } else if (runs === stats.highestScore && !isOut) {
-      stats.isHighestNotOut = true;
+      stats.highestScoreBalls = balls;
+      stats.highestScoreFours = fours;
+      stats.highestScoreSixes = sixes;
+    } else if (runs === stats.highestScore) {
+      if (!isOut && !stats.isHighestNotOut) {
+        stats.isHighestNotOut = true;
+        stats.highestScoreBalls = balls;
+        stats.highestScoreFours = fours;
+        stats.highestScoreSixes = sixes;
+      } else if (
+        balls > 0 &&
+        (stats.highestScoreBalls === 0 || balls < stats.highestScoreBalls)
+      ) {
+        stats.highestScoreBalls = balls;
+        stats.highestScoreFours = fours;
+        stats.highestScoreSixes = sixes;
+      }
     }
 
     if (runs >= 100) {
@@ -352,6 +379,9 @@ export function buildLeaderboardData(params: {
       const boundaryRuns = s.fours * 4 + s.sixes * 6;
       const boundaryPct =
         s.runs > 0 ? ((boundaryRuns / s.runs) * 100).toFixed(1) + "%" : "0.0%";
+      const hsBalls = s.highestScoreBalls ?? 0;
+      const hsSr =
+        hsBalls > 0 ? ((s.highestScore / hsBalls) * 100).toFixed(2) : "—";
 
       return {
         userId,
@@ -367,6 +397,10 @@ export function buildLeaderboardData(params: {
         highestScore: s.highestScore,
         isHighestNotOut: s.isHighestNotOut,
         highestScoreDisplay: `${s.highestScore}${s.isHighestNotOut ? "*" : ""}`,
+        highestScoreBalls: hsBalls,
+        highestScoreFours: s.highestScoreFours,
+        highestScoreSixes: s.highestScoreSixes,
+        highestScoreStrikeRateDisplay: hsSr,
         average: avg,
         averageDisplay:
           avg !== null ? avg.toFixed(2) : s.runs > 0 ? `${s.runs}*` : "—",
@@ -406,7 +440,13 @@ export function buildLeaderboardData(params: {
       runsConceded: 0,
       wickets: 0,
       innings: 0,
-      bestBowling: { wickets: 0, runs: 9999, display: "0/0" },
+      bestBowling: {
+        wickets: 0,
+        runs: 9999,
+        display: "0/0",
+        overs: "0.0",
+        economy: "0.00",
+      },
       threeWickets: 0,
       fiveWickets: 0,
       bowlingPoints: 0,
@@ -425,6 +465,9 @@ export function buildLeaderboardData(params: {
 
     // Track best bowling in an innings
     const currentBest = stats.bestBowling;
+    const spellOvers = formatOvers(deliveries);
+    const spellEcon =
+      deliveries > 0 ? (runs / (deliveries / 6)).toFixed(2) : "0.00";
     if (
       wkts > currentBest.wickets ||
       (wkts === currentBest.wickets && runs < currentBest.runs) ||
@@ -434,6 +477,8 @@ export function buildLeaderboardData(params: {
         wickets: wkts,
         runs,
         display: `${wkts}/${runs}`,
+        overs: spellOvers,
+        economy: spellEcon,
       };
     }
 
@@ -480,9 +525,16 @@ export function buildLeaderboardData(params: {
         maidens: s.maidens,
         runsConceded: s.runsConceded,
         wickets: s.wickets,
-        bestBowling: s.bestBowling.display === "0/0" && s.wickets === 0
-          ? { wickets: 0, runs: s.runsConceded, display: `0/${s.runsConceded}` }
-          : s.bestBowling,
+        bestBowling:
+          s.bestBowling.display === "0/0" && s.wickets === 0
+            ? {
+                wickets: 0,
+                runs: s.runsConceded,
+                display: `0/${s.runsConceded}`,
+                overs: formatOvers(s.balls),
+                economy: econ.toFixed(2),
+              }
+            : s.bestBowling,
         average: avg,
         averageDisplay: avg !== null ? avg.toFixed(2) : "—",
         economy: econ,
