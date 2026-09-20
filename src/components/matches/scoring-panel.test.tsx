@@ -220,4 +220,21 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
       screen.getByText(/Tap runs to record delivery/i),
     ).toBeInTheDocument();
   });
+
+  it("scores directly in 1-tap with zero modals when wagonWheelPrompt is false", () => {
+    const onScore = vi.fn();
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
+
+    const fourBtn = screen.getByRole("button", { name: /4.*four/i });
+    fireEvent.click(fourBtn);
+
+    expect(onScore).toHaveBeenCalledWith(4, undefined, undefined);
+    expect(screen.queryByText(/select shot direction/i)).not.toBeInTheDocument();
+  });
 });

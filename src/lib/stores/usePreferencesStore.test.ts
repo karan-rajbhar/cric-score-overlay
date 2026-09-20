@@ -14,6 +14,20 @@ describe("usePreferencesStore", () => {
     expect(state.defaultMatchFormat).toBe("T20");
     expect(state.defaultOvers).toBe(20);
     expect(state.sunlightMode).toBe(false);
+    expect(state.wagonWheelPrompt).toBe(false);
+  });
+
+  it("toggles wagon wheel prompt and sets explicitly", () => {
+    const { toggleWagonWheelPrompt, setWagonWheelPrompt } =
+      usePreferencesStore.getState();
+    toggleWagonWheelPrompt();
+    expect(usePreferencesStore.getState().wagonWheelPrompt).toBe(true);
+
+    toggleWagonWheelPrompt();
+    expect(usePreferencesStore.getState().wagonWheelPrompt).toBe(false);
+
+    setWagonWheelPrompt(true);
+    expect(usePreferencesStore.getState().wagonWheelPrompt).toBe(true);
   });
 
   it("toggles sunlight mode and sets sunlight mode explicitly", () => {

@@ -37,6 +37,8 @@ interface ScoringPanelProps {
   disabled?: boolean;
   sunlightMode?: boolean;
   onToggleSunlightMode?: () => void;
+  wagonWheelPrompt?: boolean;
+  onToggleWagonWheelPrompt?: () => void;
 }
 
 export function ScoringPanel({
@@ -50,6 +52,8 @@ export function ScoringPanel({
   disabled = false,
   sunlightMode: propSunlightMode,
   onToggleSunlightMode,
+  wagonWheelPrompt: propWagonWheelPrompt,
+  onToggleWagonWheelPrompt,
 }: ScoringPanelProps) {
   const storeSunlightMode = usePreferencesStore((s) => s.sunlightMode);
   const toggleStoreSunlightMode = usePreferencesStore(
@@ -59,12 +63,26 @@ export function ScoringPanel({
     boolean | null
   >(null);
 
+  const toggleStoreWagonWheelPrompt = usePreferencesStore(
+    (s) => s.toggleWagonWheelPrompt,
+  );
+  const [internalWagonWheelPrompt, setInternalWagonWheelPrompt] = useState<
+    boolean | null
+  >(null);
+
   const sunlightMode =
     propSunlightMode !== undefined
       ? propSunlightMode
       : internalSunlightMode !== null
         ? internalSunlightMode
         : storeSunlightMode;
+
+  const wagonWheelPrompt =
+    propWagonWheelPrompt !== undefined
+      ? propWagonWheelPrompt
+      : internalWagonWheelPrompt !== null
+        ? internalWagonWheelPrompt
+        : true;
 
   const handleToggleSunlight = () => {
     if (onToggleSunlightMode) {
@@ -77,9 +95,19 @@ export function ScoringPanel({
     }
   };
 
+  const handleToggleWagonWheel = () => {
+    if (onToggleWagonWheelPrompt) {
+      onToggleWagonWheelPrompt();
+    } else {
+      toggleStoreWagonWheelPrompt();
+      setInternalWagonWheelPrompt((prev) =>
+        prev === null ? !wagonWheelPrompt : !prev,
+      );
+    }
+  };
+
   const [selectedExtra, setSelectedExtra] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const [wagonWheelPrompt, setWagonWheelPrompt] = useState<boolean>(true);
   const [isWagonWheelModalOpen, setIsWagonWheelModalOpen] =
     useState<boolean>(false);
   const [pendingScore, setPendingScore] = useState<{
@@ -312,7 +340,7 @@ export function ScoringPanel({
             {/* Toggle auto wagon wheel prompt */}
             <button
               type="button"
-              onClick={() => setWagonWheelPrompt((prev) => !prev)}
+              onClick={handleToggleWagonWheel}
               aria-label={`Toggle Wagon Wheel prompt on scoring (${wagonWheelPrompt ? "ON" : "OFF"})`}
               aria-pressed={wagonWheelPrompt}
               className={cn(
@@ -622,7 +650,7 @@ export function ScoringPanel({
         <Dialog
           open={isWagonWheelModalOpen}
           onOpenChange={(open) => {
-            if (!open) handleCancelModal();
+            if (!open) handleSkipZone();
           }}
         >
           <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">
@@ -636,7 +664,7 @@ export function ScoringPanel({
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground">
-                Tap the wagon wheel sector where the shot was played
+                Tap the wagon wheel sector where the shot was played, or tap Score Directly
               </DialogDescription>
             </DialogHeader>
 
@@ -681,22 +709,22 @@ export function ScoringPanel({
               />
             </div>
 
-            <DialogFooter className="flex flex-row items-center justify-between gap-2 sm:justify-between">
+            <DialogFooter className="flex flex-col-reverse sm:flex-row items-center justify-between gap-2">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={handleCancelModal}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="text-xs text-muted-foreground hover:text-destructive"
               >
-                Cancel
+                Cancel Delivery (Discard)
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={handleSkipZone}
-                className="text-xs font-semibold"
+                className="w-full sm:w-auto text-xs font-bold"
               >
                 Skip (Score without zone)
               </Button>

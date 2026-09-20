@@ -7,6 +7,7 @@ export interface PreferencesStoreState {
   soundVolume: number;
   hapticFeedback: boolean;
   sunlightMode: boolean;
+  wagonWheelPrompt: boolean;
   defaultMatchFormat: MatchFormat;
   defaultOvers: number;
 
@@ -18,6 +19,8 @@ export interface PreferencesStoreState {
   setHapticEnabled: (enabled: boolean) => void;
   toggleSunlightMode: () => void;
   setSunlightMode: (enabled: boolean) => void;
+  toggleWagonWheelPrompt: () => void;
+  setWagonWheelPrompt: (enabled: boolean) => void;
   setDefaultFormat: (format: MatchFormat, overs?: number) => void;
   resetPreferences: () => void;
 }
@@ -27,6 +30,7 @@ const DEFAULT_PREFERENCES = {
   soundVolume: 0.8,
   hapticFeedback: true,
   sunlightMode: false,
+  wagonWheelPrompt: false,
   defaultMatchFormat: "T20" as MatchFormat,
   defaultOvers: 20,
 };
@@ -55,6 +59,11 @@ export const usePreferencesStore = create<PreferencesStoreState>()(
         set((state) => ({ sunlightMode: !state.sunlightMode })),
 
       setSunlightMode: (sunlightMode) => set({ sunlightMode }),
+
+      toggleWagonWheelPrompt: () =>
+        set((state) => ({ wagonWheelPrompt: !state.wagonWheelPrompt })),
+
+      setWagonWheelPrompt: (wagonWheelPrompt) => set({ wagonWheelPrompt }),
 
       setDefaultFormat: (defaultMatchFormat, overs) =>
         set({

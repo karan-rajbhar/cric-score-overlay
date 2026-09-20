@@ -7,8 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { ScoringPanel } from "~/components/matches/scoring-panel";
-import { CurrentBatsmen } from "~/components/matches/current-batsmen";
-import { CurrentBowler } from "~/components/matches/current-bowler";
+import { LiveMatchHUD } from "~/components/matches/live-match-hud";
 import dynamic from "next/dynamic";
 import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
@@ -110,6 +109,10 @@ export default function ScoringPage() {
 
   const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
   const toggleSunlightMode = usePreferencesStore((s) => s.toggleSunlightMode);
+  const wagonWheelPrompt = usePreferencesStore((s) => s.wagonWheelPrompt);
+  const toggleWagonWheelPrompt = usePreferencesStore(
+    (s) => s.toggleWagonWheelPrompt,
+  );
 
   // UI state managed via Zustand store
   const {
@@ -230,6 +233,56 @@ export default function ScoringPage() {
     () => new Set(bowlingTeamPlayers.map((p) => p.user_id)),
     [bowlingTeamPlayers],
   );
+
+  const strikerDisplay = useMemo(() => {
+    if (!strikerId) return null;
+    const player = battingTeamPlayers.find((p) => p.user_id === strikerId);
+    const perf = currentInnings?.batting_performances?.find(
+      (bp) => bp.user_id === strikerId,
+    );
+    return {
+      id: strikerId,
+      name: player?.user?.full_name ?? perf?.user?.full_name ?? "Striker",
+      runs: perf?.runs_scored ?? 0,
+      balls: perf?.balls_faced ?? 0,
+      fours: perf?.fours ?? 0,
+      sixes: perf?.sixes ?? 0,
+      isStriker: true,
+    };
+  }, [strikerId, battingTeamPlayers, currentInnings]);
+
+  const nonStrikerDisplay = useMemo(() => {
+    if (!nonStrikerId) return null;
+    const player = battingTeamPlayers.find((p) => p.user_id === nonStrikerId);
+    const perf = currentInnings?.batting_performances?.find(
+      (bp) => bp.user_id === nonStrikerId,
+    );
+    return {
+      id: nonStrikerId,
+      name: player?.user?.full_name ?? perf?.user?.full_name ?? "Non-Striker",
+      runs: perf?.runs_scored ?? 0,
+      balls: perf?.balls_faced ?? 0,
+      fours: perf?.fours ?? 0,
+      sixes: perf?.sixes ?? 0,
+      isStriker: false,
+    };
+  }, [nonStrikerId, battingTeamPlayers, currentInnings]);
+
+  const bowlerDisplay = useMemo(() => {
+    if (!currentBowlerId) return null;
+    const player = bowlingTeamPlayers.find((p) => p.user_id === currentBowlerId);
+    const perf = currentInnings?.bowling_performances?.find(
+      (bp) => bp.user_id === currentBowlerId,
+    );
+    return {
+      id: currentBowlerId,
+      name: player?.user?.full_name ?? perf?.user?.full_name ?? "Bowler",
+      overs: perf?.overs_bowled ?? 0,
+      maidens: perf?.maidens ?? 0,
+      runs: perf?.runs_conceded ?? 0,
+      wickets: perf?.wickets_taken ?? 0,
+    };
+  }, [currentBowlerId, bowlingTeamPlayers, currentInnings]);
 
   const onScore = async (
     runs: number,
@@ -712,69 +765,14 @@ export default function ScoringPage() {
             </Card>
           )}
 
-          <CurrentBatsmen
-            batsman1={
-              strikerId
-                ? {
-                    id: strikerId,
-                    name:
-                      battingTeamPlayers.find((p) => p.user_id === strikerId)
-                        ?.user?.full_name ??
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === strikerId,
-                      )?.user?.full_name ??
-                      "Striker",
-                    runs:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === strikerId,
-                      )?.runs_scored ?? 0,
-                    balls:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === strikerId,
-                      )?.balls_faced ?? 0,
-                    fours:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === strikerId,
-                      )?.fours ?? 0,
-                    sixes:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === strikerId,
-                      )?.sixes ?? 0,
-                    isStriker: true,
-                  }
-                : null
-            }
-            batsman2={
-              nonStrikerId
-                ? {
-                    id: nonStrikerId,
-                    name:
-                      battingTeamPlayers.find((p) => p.user_id === nonStrikerId)
-                        ?.user?.full_name ??
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === nonStrikerId,
-                      )?.user?.full_name ??
-                      "Non-Striker",
-                    runs:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === nonStrikerId,
-                      )?.runs_scored ?? 0,
-                    balls:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === nonStrikerId,
-                      )?.balls_faced ?? 0,
-                    fours:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === nonStrikerId,
-                      )?.fours ?? 0,
-                    sixes:
-                      currentInnings?.batting_performances?.find(
-                        (bp) => bp.user_id === nonStrikerId,
-                      )?.sixes ?? 0,
-                    isStriker: false,
-                  }
-                : null
-            }
+          <LiveMatchHUD
+            match={match}
+            currentInnings={currentInnings}
+            striker={strikerDisplay}
+            nonStriker={nonStrikerDisplay}
+            bowler={bowlerDisplay}
+            lastBalls={lastBalls}
+            rawDeliveries={rawDeliveries}
             onSwapStriker={() => {
               if (strikerId && nonStrikerId && !isProcessing) {
                 void handleConfirmBatsmen(nonStrikerId, strikerId);
@@ -796,50 +794,6 @@ export default function ScoringPage() {
               }
               setShowSelectBatsmen(true);
             }}
-            onSelectNewBatsman={() => {
-              if (match.status === "scheduled") {
-                setTossDialogDismissed(false);
-                toast.info("Please record the toss to start the match");
-                return;
-              }
-              setShowSelectBatsmen(true);
-            }}
-            sunlightMode={sunlightMode}
-          />
-
-          <CurrentBowler
-            sunlightMode={sunlightMode}
-            bowler={
-              currentBowlerId
-                ? {
-                    id: currentBowlerId,
-                    name:
-                      bowlingTeamPlayers.find(
-                        (p) => p.user_id === currentBowlerId,
-                      )?.user?.full_name ??
-                      currentInnings?.bowling_performances?.find(
-                        (bp) => bp.user_id === currentBowlerId,
-                      )?.user?.full_name ??
-                      "Bowler",
-                    overs:
-                      currentInnings?.bowling_performances?.find(
-                        (bp) => bp.user_id === currentBowlerId,
-                      )?.overs_bowled ?? 0,
-                    maidens:
-                      currentInnings?.bowling_performances?.find(
-                        (bp) => bp.user_id === currentBowlerId,
-                      )?.maidens ?? 0,
-                    runs:
-                      currentInnings?.bowling_performances?.find(
-                        (bp) => bp.user_id === currentBowlerId,
-                      )?.runs_conceded ?? 0,
-                    wickets:
-                      currentInnings?.bowling_performances?.find(
-                        (bp) => bp.user_id === currentBowlerId,
-                      )?.wickets_taken ?? 0,
-                  }
-                : null
-            }
             onChangeBowler={() => {
               if (match.status === "scheduled") {
                 setTossDialogDismissed(false);
@@ -848,6 +802,14 @@ export default function ScoringPage() {
               }
               setShowSelectBowler(true);
             }}
+            onSelectBall={(idx) => {
+              const d = rawDeliveries[idx];
+              if (d) {
+                setEditingDelivery(d);
+                setShowEditBallDialog(true);
+              }
+            }}
+            sunlightMode={sunlightMode}
           />
 
           <ScoringPanel
@@ -867,6 +829,8 @@ export default function ScoringPage() {
             disabled={!isScorer || isProcessing || match.status !== "live"}
             sunlightMode={sunlightMode}
             onToggleSunlightMode={toggleSunlightMode}
+            wagonWheelPrompt={wagonWheelPrompt}
+            onToggleWagonWheelPrompt={toggleWagonWheelPrompt}
           />
 
           {match.status === "completed" &&
