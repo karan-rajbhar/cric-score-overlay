@@ -13,8 +13,8 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Calendar, Plus } from "lucide-react";
-import { createSeason } from "~/app/clubs/actions";
+import { Calendar, Plus, Trash2, Loader2 } from "lucide-react";
+import { createSeason, deleteSeason } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 interface SeasonDialogProps {
@@ -145,3 +145,54 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
     </Dialog>
   );
 }
+
+export function DeleteSeasonButton({
+  clubId,
+  seasonId,
+  seasonName,
+}: {
+  clubId: string;
+  seasonId: string;
+  seasonName: string;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete season "${seasonName}"?`)) return;
+
+    setLoading(true);
+    try {
+      const res = await deleteSeason(seasonId, clubId);
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Deleted season "${seasonName}"`);
+      }
+    } catch (err) {
+      console.error("Failed to delete season:", err);
+      toast.error("Failed to delete season");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      disabled={loading}
+      onClick={handleDelete}
+      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+      title={`Delete season "${seasonName}"`}
+    >
+      {loading ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Trash2 className="h-3.5 w-3.5" />
+      )}
+    </Button>
+  );
+}
+

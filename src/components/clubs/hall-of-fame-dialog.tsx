@@ -21,8 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Plus, Trophy } from "lucide-react";
-import { inductHallOfFame } from "~/app/clubs/actions";
+import { Plus, Trophy, Trash2, Loader2 } from "lucide-react";
+import { inductHallOfFame, removeHallOfFame } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
 interface MemberOption {
@@ -205,3 +205,54 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
     </Dialog>
   );
 }
+
+export function RemoveHallOfFameButton({
+  clubId,
+  hallOfFameId,
+  playerName,
+}: {
+  clubId: string;
+  hallOfFameId: string;
+  playerName: string;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleRemove = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Remove ${playerName} from the Club Hall of Fame?`)) return;
+
+    setLoading(true);
+    try {
+      const res = await removeHallOfFame(hallOfFameId, clubId);
+      if (res?.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Removed ${playerName} from Hall of Fame`);
+      }
+    } catch (err) {
+      console.error("Failed to remove Hall of Fame inductee:", err);
+      toast.error("Failed to remove inductee");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      disabled={loading}
+      onClick={handleRemove}
+      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+      title={`Remove ${playerName} from Hall of Fame`}
+    >
+      {loading ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <Trash2 className="h-3.5 w-3.5" />
+      )}
+    </Button>
+  );
+}
+

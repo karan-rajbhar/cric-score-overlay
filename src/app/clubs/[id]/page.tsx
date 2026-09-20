@@ -32,8 +32,14 @@ import {
   MemberRoleAction,
   RemoveMemberButton,
 } from "~/components/clubs/member-role-action";
-import { HallOfFameDialog } from "~/components/clubs/hall-of-fame-dialog";
-import { SeasonDialog } from "~/components/clubs/season-dialog";
+import {
+  HallOfFameDialog,
+  RemoveHallOfFameButton,
+} from "~/components/clubs/hall-of-fame-dialog";
+import {
+  SeasonDialog,
+  DeleteSeasonButton,
+} from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -223,8 +229,6 @@ export default async function ClubPage({
   const isAdmin = isOwner || myMembership?.role === "admin";
   const isMember = !!myMembership;
 
-  const currentSeason =
-    typedSeasons.find((s) => s.is_current) ?? typedSeasons[0];
   const socialLinks =
     (club.social_links as Record<string, string> | null) ?? {};
 
@@ -266,15 +270,28 @@ export default async function ClubPage({
                     {club.short_name}
                   </Badge>
                 )}
-                {currentSeason && (
+                {typedSeasons.map((s) => (
                   <Badge
-                    variant="outline"
-                    className="gap-1 border-primary/20 bg-primary/5 text-primary"
+                    key={s.id}
+                    variant={s.is_current ? "default" : "outline"}
+                    className="gap-1 text-xs"
                   >
                     <Calendar className="h-3 w-3" />
-                    Season: {currentSeason.name}
+                    <span>{s.name}</span>
+                    {s.is_current && (
+                      <span className="text-[10px] font-normal opacity-80">
+                        (Active)
+                      </span>
+                    )}
+                    {isAdmin && !s.is_current && (
+                      <DeleteSeasonButton
+                        clubId={club.id}
+                        seasonId={s.id}
+                        seasonName={s.name}
+                      />
+                    )}
                   </Badge>
-                )}
+                ))}
               </div>
 
               <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
@@ -860,11 +877,22 @@ export default async function ClubPage({
                           >
                             {entry.category.replace(/_/g, " ")}
                           </Badge>
-                          {entry.season_or_year && (
-                            <span className="font-mono text-[11px] text-muted-foreground">
-                              {entry.season_or_year}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {entry.season_or_year && (
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                {entry.season_or_year}
+                              </span>
+                            )}
+                            {isAdmin && (
+                              <RemoveHallOfFameButton
+                                clubId={club.id}
+                                hallOfFameId={entry.id}
+                                playerName={
+                                  entry.player?.full_name ?? "Honored Member"
+                                }
+                              />
+                            )}
+                          </div>
                         </div>
 
                         <div className="mb-3 flex items-center gap-3">
