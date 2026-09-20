@@ -5,6 +5,7 @@ import {
   getMatchScorers,
   addMatchScorer,
   removeMatchScorer,
+  searchScorers,
 } from "~/app/matches/mutations";
 import { toast } from "sonner";
 
@@ -12,6 +13,7 @@ vi.mock("~/app/matches/mutations", () => ({
   getMatchScorers: vi.fn(),
   addMatchScorer: vi.fn(),
   removeMatchScorer: vi.fn(),
+  searchScorers: vi.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
 vi.mock("sonner", () => ({
@@ -43,6 +45,10 @@ describe("MatchScorersDialog Component", () => {
     vi.clearAllMocks();
     vi.mocked(getMatchScorers).mockResolvedValue({
       data: mockScorersData,
+      error: null,
+    });
+    vi.mocked(searchScorers).mockResolvedValue({
+      data: [],
       error: null,
     });
   });
@@ -79,17 +85,23 @@ describe("MatchScorersDialog Component", () => {
         writeText: writeTextSpy,
       },
     });
+    Object.defineProperty(window, "isSecureContext", {
+      value: true,
+      configurable: true,
+    });
 
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const copyBtn = screen.getByRole("button", { name: /copy link/i });
+    const copyBtn = screen.getByRole("button", { name: /copy/i });
     fireEvent.click(copyBtn);
 
-    expect(writeTextSpy).toHaveBeenCalledWith(
-      expect.stringContaining("/matches/match-1/score")
-    );
-    expect(toast.success).toHaveBeenCalledWith("Scoring link copied to clipboard");
+    await waitFor(() => {
+      expect(writeTextSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/matches/match-1/score")
+      );
+      expect(toast.success).toHaveBeenCalledWith("Scoring link copied to clipboard");
+    });
   });
 
   it("submits new scorer and updates list", async () => {
@@ -107,7 +119,7 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/scorer email or player uuid/i);
+    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
     fireEvent.change(input, { target: { value: "new@test.com" } });
 
     const addBtn = screen.getByRole("button", { name: /^add$/i });
@@ -130,13 +142,54 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/scorer email or player uuid/i);
+    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
     fireEvent.change(input, { target: { value: "unknown@test.com" } });
 
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("User not found with email");
+    });
+  });
+
+  it("shows search autocomplete results and allows 1-click addition", async () => {
+    vi.mocked(searchScorers).mockResolvedValueOnce({
+      data: [
+        {
+          id: "u-searched-1",
+          full_name: "Virat Kohli",
+          email: "virat@cricket.com",
+          avatar_url: null,
+        },
+      ],
+      error: null,
+    });
+    vi.mocked(addMatchScorer).mockResolvedValueOnce({
+      success: true,
+      user: {
+        id: "u-searched-1",
+        full_name: "Virat Kohli",
+        email: "virat@cricket.com",
+        avatar_url: null,
+      },
+      error: null,
+    });
+
+    render(<MatchScorersDialog matchId="match-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
+
+    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    fireEvent.change(input, { target: { value: "virat" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
+    });
+
+    const addQuickBtn = screen.getByRole("button", { name: /\+ add/i });
+    fireEvent.click(addQuickBtn);
+
+    await waitFor(() => {
+      expect(addMatchScorer).toHaveBeenCalledWith("match-1", "u-searched-1");
     });
   });
 

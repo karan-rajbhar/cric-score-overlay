@@ -144,6 +144,15 @@ describe("multi-scorer management actions", () => {
     // Creator cannot be removed or auth error handled
     expect(res.success).toBe(false);
   });
+
+  it("handles searchScorers for short and valid queries", async () => {
+    const { searchScorers } = await import("./mutations");
+    const shortRes = await searchScorers("a");
+    expect(shortRes.data).toEqual([]);
+
+    const emptyRes = await searchScorers("   ");
+    expect(emptyRes.data).toEqual([]);
+  });
 });
 
 

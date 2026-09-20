@@ -1212,6 +1212,7 @@ export async function getMatchScorers(matchId: string): Promise<{
     );
     const createdBy = userMap.get(match.created_by) ?? null;
     const matchAdmins = (match.match_admins ?? [])
+      .filter((id: string) => id !== match.created_by)
       .map((id: string) => userMap.get(id))
       .filter((u: MatchScorerUser | undefined): u is MatchScorerUser =>
         Boolean(u),
@@ -1221,6 +1222,45 @@ export async function getMatchScorers(matchId: string): Promise<{
   } catch (err) {
     console.error("getMatchScorers error:", err);
     return { data: null, error: "Failed to fetch scorers" };
+  }
+}
+
+export async function searchScorers(
+  query: string,
+): Promise<{ data: MatchScorerUser[]; error: string | null }> {
+  try {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
+      return { data: [], error: null };
+    }
+
+    const supabase = await createServerClient();
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        trimmed,
+      );
+
+    let q = supabase
+      .from("users")
+      .select("id, full_name, email, avatar_url");
+
+    if (isUuid) {
+      q = q.eq("id", trimmed);
+    } else if (trimmed.includes("@")) {
+      q = q.or(`email.ilike.%${trimmed}%,email.eq.${trimmed}`);
+    } else {
+      q = q.or(`full_name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`);
+    }
+
+    const { data, error } = await q.limit(6);
+    if (error) {
+      return { data: [], error: error.message };
+    }
+
+    return { data: (data ?? []) as MatchScorerUser[], error: null };
+  } catch (err) {
+    console.error("searchScorers error:", err);
+    return { data: [], error: "Search failed" };
   }
 }
 
@@ -1256,7 +1296,7 @@ export async function addMatchScorer(
 
     const queryTarget = emailOrUserId.trim();
     if (!queryTarget) {
-      return { success: false, error: "Please provide a user email or ID" };
+      return { success: false, error: "Please enter a user name, email, or ID" };
     }
 
     const isUuid =
@@ -1269,8 +1309,12 @@ export async function addMatchScorer(
       .select("id, full_name, email, avatar_url");
     if (isUuid) {
       query = query.eq("id", queryTarget);
+    } else if (queryTarget.includes("@")) {
+      query = query.or(`email.ilike.%${queryTarget}%,email.eq.${queryTarget}`);
     } else {
-      query = query.ilike("email", queryTarget);
+      query = query.or(
+        `full_name.ilike.%${queryTarget}%,email.ilike.%${queryTarget}%`,
+      );
     }
 
     const { data: targetUsers, error: userFindErr } = await query.limit(1);
