@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/supabase/server";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "~/components/ui/card";
+import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
@@ -22,10 +16,9 @@ import {
   Trophy,
   Shield,
   Plus,
-  Radio,
-  ExternalLink,
   Award,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { ClubMembershipButton } from "~/components/clubs/club-membership-button";
 import {
@@ -42,10 +35,16 @@ import {
 } from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
+import { ClubTournamentsTab } from "~/components/clubs/club-tournaments-tab";
+import { ClubMatchesTab } from "~/components/clubs/club-matches-tab";
+import {
+  ClubStatsTab,
+  ClubBatterLeader,
+  ClubBowlerLeader,
+  ClubMilestones,
+} from "~/components/clubs/club-stats-tab";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
-  formatStatus,
-  formatTournamentFormat,
   formatClubType,
   formatTeamType,
 } from "~/lib/cricket";
@@ -71,6 +70,8 @@ interface TournamentRow {
   start_date: string | null;
   end_date: string | null;
   venue: string | null;
+  season_id: string | null;
+  overs_per_innings?: number | null;
 }
 
 interface MatchRow {
@@ -78,13 +79,14 @@ interface MatchRow {
   title: string;
   match_format: string | null;
   overs_per_innings: number | null;
-  status: string | null;
+  status: string;
   venue: string | null;
   scheduled_at: string | null;
   result_type: string | null;
   win_margin: number | null;
   win_margin_type: string | null;
   result_description: string | null;
+  season_id: string | null;
   team1: { id: string; name: string; short_name: string | null } | null;
   team2: { id: string; name: string; short_name: string | null } | null;
   innings?: Array<{
@@ -174,7 +176,7 @@ export default async function ClubPage({
     supabase
       .from("tournaments")
       .select(
-        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue",
+        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings",
       )
       .eq("club_id", id)
       .order("start_date", { ascending: false }),
@@ -183,7 +185,7 @@ export default async function ClubPage({
       .select(
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-                result_type, win_margin, win_margin_type, result_description,
+                result_type, win_margin, win_margin_type, result_description, season_id,
                 team1:teams!matches_team1_id_fkey(id, name, short_name),
                 team2:teams!matches_team2_id_fkey(id, name, short_name),
                 innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
@@ -238,6 +240,181 @@ export default async function ClubPage({
       id: m.user!.id,
       name: m.user!.full_name,
     }));
+
+  // Aggregate Club Statistics
+  const matchIds = typedMatches.map((m) => m.id);
+  let battingLeaders: ClubBatterLeader[] = [];
+  let bowlingLeaders: ClubBowlerLeader[] = [];
+  let totalRuns = 0;
+  let totalWickets = 0;
+  let highestTeamScore: {
+    runs: number;
+    wickets: number;
+    overs: number;
+    teamName?: string;
+  } | null = null;
+
+  typedMatches.forEach((m) => {
+    m.innings?.forEach((inn) => {
+      const runs = inn.total_runs ?? 0;
+      const wickets = inn.total_wickets ?? 0;
+      const overs = inn.total_overs ?? 0;
+      totalRuns += runs;
+      totalWickets += wickets;
+
+      if (!highestTeamScore || runs > highestTeamScore.runs) {
+        const team =
+          inn.team_id === m.team1?.id
+            ? m.team1
+            : inn.team_id === m.team2?.id
+              ? m.team2
+              : null;
+        highestTeamScore = {
+          runs,
+          wickets,
+          overs,
+          teamName: team?.name ?? undefined,
+        };
+      }
+    });
+  });
+
+  if (matchIds.length > 0) {
+    const [{ data: batting }, { data: bowling }] = await Promise.all([
+      supabase
+        .from("batting_performances")
+        .select(
+          "user_id, runs_scored, balls_faced, fours, sixes, user:users(id, full_name, avatar_url)",
+        )
+        .in("match_id", matchIds),
+      supabase
+        .from("bowling_performances")
+        .select(
+          "user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, user:users(id, full_name, avatar_url)",
+        )
+        .in("match_id", matchIds),
+    ]);
+
+    type UserJoined = { id?: string; full_name?: string; avatar_url?: string | null };
+    const resolveUser = (raw: unknown): { name: string; avatar: string | null } => {
+      if (!raw) return { name: "Player", avatar: null };
+      const u = Array.isArray(raw)
+        ? (raw[0] as UserJoined | undefined)
+        : (raw as UserJoined);
+      return {
+        name: u?.full_name ?? "Player",
+        avatar: u?.avatar_url ?? null,
+      };
+    };
+
+    const batMap = new Map<
+      string,
+      {
+        name: string;
+        avatar?: string | null;
+        runs: number;
+        balls: number;
+        fours: number;
+        sixes: number;
+        innings: number;
+        highestScore: number;
+      }
+    >();
+
+    for (const b of batting ?? []) {
+      const userInfo = resolveUser(b.user);
+      const current = batMap.get(b.user_id) ?? {
+        name: userInfo.name,
+        avatar: userInfo.avatar,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        innings: 0,
+        highestScore: 0,
+      };
+      current.runs += b.runs_scored ?? 0;
+      current.balls += b.balls_faced ?? 0;
+      current.fours += b.fours ?? 0;
+      current.sixes += b.sixes ?? 0;
+      current.innings += 1;
+      if ((b.runs_scored ?? 0) > current.highestScore) {
+        current.highestScore = b.runs_scored ?? 0;
+      }
+      batMap.set(b.user_id, current);
+    }
+
+    battingLeaders = Array.from(batMap.entries())
+      .map(([userId, stats]) => ({
+        userId,
+        name: stats.name,
+        avatar: stats.avatar,
+        runs: stats.runs,
+        balls: stats.balls,
+        fours: stats.fours,
+        sixes: stats.sixes,
+        inningsCount: stats.innings,
+        highestScore: stats.highestScore,
+        strikeRate:
+          stats.balls > 0
+            ? ((stats.runs / stats.balls) * 100).toFixed(1)
+            : "0.0",
+      }))
+      .sort((a, b) => b.runs - a.runs);
+
+    const bowlMap = new Map<
+      string,
+      {
+        name: string;
+        avatar?: string | null;
+        wickets: number;
+        balls: number;
+        runs: number;
+      }
+    >();
+
+    for (const b of bowling ?? []) {
+      const userInfo = resolveUser(b.user);
+      const current = bowlMap.get(b.user_id) ?? {
+        name: userInfo.name,
+        avatar: userInfo.avatar,
+        wickets: 0,
+        balls: 0,
+        runs: 0,
+      };
+      current.wickets += b.wickets_taken ?? 0;
+      current.balls += b.balls_bowled ?? 0;
+      current.runs += b.runs_conceded ?? 0;
+      bowlMap.set(b.user_id, current);
+    }
+
+    bowlingLeaders = Array.from(bowlMap.entries())
+      .map(([userId, stats]) => {
+        const oversNum = Math.floor(stats.balls / 6) + (stats.balls % 6) / 10;
+        const totalOversDec = stats.balls / 6;
+        return {
+          userId,
+          name: stats.name,
+          avatar: stats.avatar,
+          wickets: stats.wickets,
+          overs: oversNum.toFixed(1),
+          runs: stats.runs,
+          economy:
+            totalOversDec > 0
+              ? (stats.runs / totalOversDec).toFixed(2)
+              : "0.00",
+        };
+      })
+      .sort((a, b) => b.wickets - a.wickets);
+  }
+
+  const milestones: ClubMilestones = {
+    totalMatches: typedMatches.length,
+    completedMatches: typedMatches.filter((m) => m.status === "completed").length,
+    totalRuns,
+    totalWickets,
+    highestTeamScore,
+  };
 
   return (
     <div className="container mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
@@ -460,7 +637,7 @@ export default async function ClubPage({
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="grid h-auto w-full max-w-2xl grid-cols-2 gap-1 p-1 min-[540px]:grid-cols-3 sm:grid-cols-5">
+        <TabsList className="grid h-auto w-full max-w-3xl grid-cols-2 gap-1 p-1 min-[540px]:grid-cols-3 sm:grid-cols-6">
           <TabsTrigger
             value="teams"
             className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
@@ -483,6 +660,13 @@ export default async function ClubPage({
             Matches ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
+            value="stats"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+          >
+            <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            Stats & Records
+          </TabsTrigger>
+          <TabsTrigger
             value="hall-of-fame"
             className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
           >
@@ -491,7 +675,7 @@ export default async function ClubPage({
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="col-span-2 gap-1.5 px-2 py-1.5 text-xs min-[540px]:col-span-2 sm:col-span-1 sm:px-3 sm:text-sm"
+            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Members ({typedMembers.length})
@@ -572,231 +756,35 @@ export default async function ClubPage({
         </TabsContent>
 
         {/* TAB 2: CLUB TOURNAMENTS */}
-        <TabsContent value="tournaments" className="mt-4 space-y-6 sm:mt-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-bold sm:text-lg">
-                Hosted Tournaments
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Cricket leagues, knockout tournaments, and events organized by
-                this club.
-              </p>
-            </div>
-            {isAdmin && (
-              <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
-                <Link href={`/tournaments/create?clubId=${club.id}`}>
-                  <Plus className="h-4 w-4" />
-                  Host Tournament
-                </Link>
-              </Button>
-            )}
-          </div>
-
-          {typedTournaments.length === 0 ? (
-            <EmptyState
-              icon={Trophy}
-              title="No Tournaments Hosted Yet"
-              description="Organize a tournament under your club with automated points tables, fixtures, and leaderboards."
-              primaryAction={
-                isAdmin
-                  ? {
-                      label: "Host Tournament",
-                      href: `/tournaments/create?clubId=${club.id}`,
-                      icon: Plus,
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {typedTournaments.map((t) => (
-                <Link
-                  key={t.id}
-                  href={`/tournaments/${t.id}?clubId=${club.id}`}
-                >
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base font-bold transition-colors hover:text-primary">
-                          {t.name}
-                        </CardTitle>
-                        <Badge variant="outline">
-                          {formatStatus(t.status)}
-                        </Badge>
-                      </div>
-                      <CardDescription className="text-xs">
-                        {formatTournamentFormat(t.tournament_format)} format,{" "}
-                        {t.match_format ?? "T20"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-xs text-muted-foreground">
-                      {t.venue && (
-                        <div className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-primary" />
-                          <span>{t.venue}</span>
-                        </div>
-                      )}
-                      {(t.start_date || t.end_date) && (
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 text-primary" />
-                          <span>
-                            {t.start_date ?? "TBD"}
-                            {t.end_date ? ` to ${t.end_date}` : ""}
-                          </span>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          )}
+        <TabsContent value="tournaments" className="mt-4 sm:mt-6">
+          <ClubTournamentsTab
+            clubId={club.id}
+            clubName={club.name}
+            tournaments={typedTournaments}
+            seasons={typedSeasons}
+            teams={typedTeams}
+            isAdmin={isAdmin}
+          />
         </TabsContent>
 
         {/* TAB 3: CLUB MATCHES */}
-        <TabsContent value="matches" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold">Club Matches</h2>
-              <p className="text-xs text-muted-foreground">
-                Live scores, schedules, and past results for matches hosted by
-                this club.
-              </p>
-            </div>
-            {isAdmin && (
-              <Button asChild size="sm" className="gap-1.5">
-                <Link href={`/matches/create?clubId=${club.id}`}>
-                  <Plus className="h-4 w-4" />
-                  Schedule Match
-                </Link>
-              </Button>
-            )}
-          </div>
+        <TabsContent value="matches" className="mt-4 sm:mt-6">
+          <ClubMatchesTab
+            clubId={club.id}
+            matches={typedMatches}
+            seasons={typedSeasons}
+            isAdmin={isAdmin}
+          />
+        </TabsContent>
 
-          {typedMatches.length === 0 ? (
-            <EmptyState
-              icon={Calendar}
-              title="No Matches Scheduled"
-              description="Schedule club matches to start tracking live scores, wagon wheels, and broadcast overlays."
-              primaryAction={
-                isAdmin
-                  ? {
-                      label: "Schedule Match",
-                      href: `/matches/create?clubId=${club.id}`,
-                      icon: Plus,
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {typedMatches.map((m) => {
-                const isLive = m.status === "live";
-                const isCompleted = m.status === "completed";
-                const inn1 = m.innings?.find((i) => i.team_id === m.team1?.id);
-                const inn2 = m.innings?.find((i) => i.team_id === m.team2?.id);
-                return (
-                  <Card
-                    key={m.id}
-                    className={`transition-colors hover:border-primary/40 ${
-                      isLive ? "border-emerald-500/50 bg-emerald-500/5" : ""
-                    }`}
-                  >
-                    <CardContent className="p-5">
-                      <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{m.venue ?? "Venue TBD"}</span>
-                        <Badge
-                          variant={
-                            isLive
-                              ? "default"
-                              : isCompleted
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {isLive && (
-                            <Radio className="mr-1 h-3 w-3 animate-pulse text-emerald-400" />
-                          )}
-                          {formatStatus(m.status)}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">
-                            {m.team1?.name ?? "Team 1"}
-                          </span>
-                          {inn1?.total_runs !== undefined &&
-                          inn1.total_runs !== null ? (
-                            <span className="tabular text-sm font-bold">
-                              {inn1.total_runs}/{inn1.total_wickets ?? 0}
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                ({inn1.total_overs ?? 0} ov)
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              —
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">
-                            {m.team2?.name ?? "Team 2"}
-                          </span>
-                          {inn2?.total_runs !== undefined &&
-                          inn2.total_runs !== null ? (
-                            <span className="tabular text-sm font-bold">
-                              {inn2.total_runs}/{inn2.total_wickets ?? 0}
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                ({inn2.total_overs ?? 0} ov)
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              —
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {m.result_description && (
-                        <div className="mt-3 rounded-md bg-muted/60 p-2 text-xs font-medium text-primary">
-                          {m.result_description}
-                        </div>
-                      )}
-
-                      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                          className="h-7 gap-1 text-xs"
-                        >
-                          <Link href={`/overlay/${m.id}`} target="_blank">
-                            <ExternalLink className="h-3 w-3" />
-                            Overlay
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          asChild
-                          className="h-7 text-xs"
-                        >
-                          <Link href={`/matches/${m.id}?clubId=${club.id}`}>
-                            {isLive ? "Match Center" : "View Scorecard"}
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+        {/* TAB 4: CLUB STATS & RECORDS */}
+        <TabsContent value="stats" className="mt-4 sm:mt-6">
+          <ClubStatsTab
+            clubName={club.name}
+            milestones={milestones}
+            battingLeaders={battingLeaders}
+            bowlingLeaders={bowlingLeaders}
+          />
         </TabsContent>
 
         {/* TAB 4: HALL OF FAME */}

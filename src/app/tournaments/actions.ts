@@ -206,7 +206,16 @@ export async function registerTeamForTournament(
     p_tournament_id: tournamentId,
   });
 
+  const { data: tourn } = await supabase
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
   revalidatePath(`/tournaments/${tournamentId}`);
+  if (tourn?.club_id) {
+    revalidatePath(`/clubs/${tourn.club_id}`);
+  }
   return { success: true };
 }
 
@@ -253,7 +262,16 @@ export async function removeTeamFromTournament(
     .eq("tournament_id", tournamentId)
     .eq("team_id", teamId);
 
+  const { data: tourn } = await supabase
+    .from("tournaments")
+    .select("club_id")
+    .eq("id", tournamentId)
+    .single();
+
   revalidatePath(`/tournaments/${tournamentId}`);
+  if (tourn?.club_id) {
+    revalidatePath(`/clubs/${tourn.club_id}`);
+  }
   return { success: true };
 }
 
