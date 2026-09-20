@@ -8,6 +8,10 @@ await import("./src/env.js");
 const config = {
   output: "standalone",
   reactStrictMode: true,
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "*.loca.lt",
+  ],
   images: {
     remotePatterns: [
       {
