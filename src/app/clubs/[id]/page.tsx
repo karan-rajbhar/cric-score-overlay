@@ -631,7 +631,7 @@ export default async function ClubPage({
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Members ({typedMembers.length})

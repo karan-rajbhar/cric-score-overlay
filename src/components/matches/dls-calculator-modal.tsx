@@ -112,7 +112,7 @@ export function DlsCalculatorModal({
         <Button
           variant="outline"
           size="sm"
-          className="gap-1.5 text-xs font-medium"
+          className="h-9 min-h-[36px] gap-1.5 text-xs font-medium"
         >
           <CloudRain className="h-3.5 w-3.5 text-sky-500" />
           <span className="hidden sm:inline">DLS Rain Calc</span>
@@ -229,7 +229,7 @@ export function DlsCalculatorModal({
                   max={9}
                   value={wicketsLost}
                   onChange={(e) => setWicketsLost(Number(e.target.value) || 0)}
-                  className="h-8 text-xs"
+                  className="h-10 sm:h-9 text-base sm:text-xs"
                 />
               </div>
             </div>
@@ -245,7 +245,7 @@ export function DlsCalculatorModal({
 
           {canEdit && inn2 && (
             <Button
-              className="w-full gap-2"
+              className="w-full gap-2 h-11 min-h-[44px] text-sm font-semibold"
               onClick={() => void handleApplyTarget()}
               disabled={isApplying}
             >

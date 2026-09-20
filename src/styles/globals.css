@@ -237,6 +237,7 @@
   /* Standardized Data Table Container */
   .data-table-container {
     @apply w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm;
+    -webkit-overflow-scrolling: touch;
   }
 
   .data-table {

@@ -173,7 +173,7 @@ export function TournamentManageDialog({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 text-xs"
+            className="h-9 min-h-[36px] gap-1.5 text-xs"
             aria-label="Manage tournament settings"
           >
             <Settings2 className="h-3.5 w-3.5" />
@@ -193,14 +193,14 @@ export function TournamentManageDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details" className="gap-1.5 text-xs">
+          <TabsList className="grid w-full grid-cols-2 h-10">
+            <TabsTrigger value="details" className="gap-1.5 text-xs min-h-[36px]">
               <Layers className="h-3.5 w-3.5" />
               Settings
             </TabsTrigger>
             <TabsTrigger
               value="danger"
-              className="gap-1.5 text-xs text-destructive data-[state=active]:text-destructive"
+              className="gap-1.5 text-xs min-h-[36px] text-destructive data-[state=active]:text-destructive"
             >
               <AlertTriangle className="h-3.5 w-3.5" />
               Danger Zone
@@ -360,17 +360,23 @@ export function TournamentManageDialog({
                 </div>
               </div>
 
-              <DialogFooter className="pt-2">
+              <DialogFooter className="pt-2 gap-2 sm:gap-0">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setOpen(false)}
                   disabled={isUpdating}
+                  className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={isUpdating}>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isUpdating}
+                  className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
+                >
                   {isUpdating ? (
                     <>
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -402,7 +408,7 @@ export function TournamentManageDialog({
                   value={confirmDeleteText}
                   onChange={(e) => setConfirmDeleteText(e.target.value)}
                   placeholder={tournament.name}
-                  className="text-xs"
+                  className="h-10 sm:h-9 text-base sm:text-xs"
                 />
               </div>
               <div className="mt-4 flex justify-end">
@@ -411,7 +417,7 @@ export function TournamentManageDialog({
                   size="sm"
                   disabled={confirmDeleteText !== tournament.name || isDeleting}
                   onClick={handleDelete}
-                  className="gap-1.5 text-xs"
+                  className="gap-1.5 text-xs h-10 min-h-[40px] sm:h-9 font-semibold"
                 >
                   {isDeleting ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

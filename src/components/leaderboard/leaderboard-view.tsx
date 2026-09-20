@@ -686,17 +686,17 @@ export function LeaderboardView({
 
       {/* Main Tabs Navigation */}
       <div className="space-y-6">
-        <div className="overflow-x-auto pb-1">
+        <div className="overflow-x-auto pb-1 no-scrollbar">
           <div
             role="tablist"
-            className="inline-flex h-9 w-full justify-start rounded-lg bg-muted/80 p-1 sm:w-auto"
+            className="inline-flex h-10 w-full min-w-max justify-start gap-1 rounded-xl bg-muted/80 p-1 sm:w-auto"
           >
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "overview"}
               onClick={() => setActiveTab("overview")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "overview"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -710,7 +710,7 @@ export function LeaderboardView({
               role="tab"
               aria-selected={activeTab === "batting"}
               onClick={() => setActiveTab("batting")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "batting"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -727,7 +727,7 @@ export function LeaderboardView({
               role="tab"
               aria-selected={activeTab === "bowling"}
               onClick={() => setActiveTab("bowling")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "bowling"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -744,7 +744,7 @@ export function LeaderboardView({
               role="tab"
               aria-selected={activeTab === "fielding"}
               onClick={() => setActiveTab("fielding")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "fielding"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -761,7 +761,7 @@ export function LeaderboardView({
               role="tab"
               aria-selected={activeTab === "mvp"}
               onClick={() => setActiveTab("mvp")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                 activeTab === "mvp"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -1128,8 +1128,8 @@ export function LeaderboardView({
           <div className="space-y-4">
             {/* Filter & Sort Chips + Table View Mode Toggle */}
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
                   Rank by:
                 </span>
                 {(
@@ -1150,7 +1150,7 @@ export function LeaderboardView({
                     variant={battingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBattingSort(chip.id)}
-                    className="h-7 text-[11px]"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1160,11 +1160,11 @@ export function LeaderboardView({
               {/* View Toggle: Focused Perspective vs All Columns */}
               {battingSort !== "runs" && (
                 <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("focused")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -1175,7 +1175,7 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("all")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -1585,8 +1585,8 @@ export function LeaderboardView({
           <div className="space-y-4">
             {/* Filter & Sort Chips + Table View Mode Toggle */}
             <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-xs font-semibold text-muted-foreground">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
                   Rank by:
                 </span>
                 {(
@@ -1606,7 +1606,7 @@ export function LeaderboardView({
                     variant={bowlingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBowlingSort(chip.id)}
-                    className="h-7 text-[11px]"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1616,11 +1616,11 @@ export function LeaderboardView({
               {/* View Toggle for Bowling */}
               {bowlingSort === "bestBowling" && (
                 <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("focused")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -1631,7 +1631,7 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("all")}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
@@ -2022,8 +2022,8 @@ export function LeaderboardView({
         {activeTab === "fielding" && (
           <div className="space-y-4">
             {/* Filter & Sort Chips */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs font-semibold text-muted-foreground">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
                 Rank by:
               </span>
               {(
@@ -2039,7 +2039,7 @@ export function LeaderboardView({
                   variant={fieldingSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setFieldingSort(chip.id)}
-                  className="h-7 text-[11px]"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
                 >
                   {chip.label}
                 </Button>
@@ -2263,8 +2263,8 @@ export function LeaderboardView({
         {activeTab === "mvp" && (
           <div className="space-y-4">
             {/* Filter & Sort Chips */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs font-semibold text-muted-foreground">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+              <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
                 Rank by:
               </span>
               {(
@@ -2280,7 +2280,7 @@ export function LeaderboardView({
                   variant={mvpSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setMvpSort(chip.id)}
-                  className="h-7 text-[11px]"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
                 >
                   {chip.label}
                 </Button>

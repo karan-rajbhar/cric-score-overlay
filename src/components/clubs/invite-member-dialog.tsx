@@ -55,7 +55,7 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+        <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
           <UserPlus className="h-3.5 w-3.5" />
           <span>Invite Member</span>
         </Button>
@@ -93,10 +93,15 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !email.trim()}>
+            <Button
+              type="submit"
+              disabled={loading || !email.trim()}
+              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />

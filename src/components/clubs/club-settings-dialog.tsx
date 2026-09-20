@@ -117,7 +117,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+        <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
           <Settings className="h-3.5 w-3.5" />
           <span>Club Settings</span>
         </Button>
@@ -157,7 +157,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs"
+                className="h-8 min-h-[32px] text-xs"
               >
                 Edit Branding
               </Button>
@@ -328,22 +328,28 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                   value={youtube}
                   onChange={(e) => setYoutube(e.target.value)}
                   placeholder="channel link"
-                  className="h-8 text-xs"
+                  className="h-10 sm:h-8 text-base sm:text-xs"
                 />
               </div>
             </div>
           </div>
 
-          <DialogFooter className="border-t border-border/60 pt-3">
+          <DialogFooter className="border-t border-border/60 pt-3 gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setOpen(false)}
+              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
             >
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={saving}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={saving}
+              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
+            >
               {saving ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />

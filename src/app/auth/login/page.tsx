@@ -234,7 +234,7 @@ function LoginPageInner() {
                   setError(null);
                   setOtpSent(false);
                 }}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
                   loginMethod === "email"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -250,7 +250,7 @@ function LoginPageInner() {
                   setError(null);
                   setOtpSent(false);
                 }}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
                   loginMethod === "phone"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -313,7 +313,7 @@ function LoginPageInner() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transform text-muted-foreground transition-colors hover:text-foreground"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />

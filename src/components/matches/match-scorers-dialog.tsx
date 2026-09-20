@@ -238,7 +238,7 @@ export function MatchScorersDialog({
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1.5 px-2 text-xs sm:px-3"
+            className="h-9 min-h-[36px] gap-1.5 px-2 text-xs sm:px-3"
             title="Invite co-scorers to record balls live"
           >
             <UserPlus className="h-3.5 w-3.5" />
@@ -276,7 +276,7 @@ export function MatchScorersDialog({
                 size="sm"
                 variant="ghost"
                 onClick={copyScoringLink}
-                className="h-8 gap-1 px-2.5 text-xs"
+                className="h-9 min-h-[36px] gap-1 px-2.5 text-xs"
               >
                 {copied ? (
                   <>
@@ -295,7 +295,7 @@ export function MatchScorersDialog({
                   size="sm"
                   variant="ghost"
                   onClick={handleShare}
-                  className="h-8 gap-1 px-2 text-xs"
+                  className="h-9 min-h-[36px] gap-1 px-2 text-xs"
                   title="Share scoring link"
                 >
                   <Share2 className="h-3.5 w-3.5" />
@@ -331,7 +331,7 @@ export function MatchScorersDialog({
               type="submit"
               disabled={submitting || !query.trim()}
               size="sm"
-              className="gap-1 px-3.5 whitespace-nowrap"
+              className="gap-1 px-3.5 whitespace-nowrap h-10 min-h-[40px]"
             >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -385,7 +385,7 @@ export function MatchScorersDialog({
                         variant="secondary"
                         disabled={submitting}
                         onClick={() => handleAddScorerTarget(user.id)}
-                        className="h-7 text-xs px-2.5 shrink-0"
+                        className="h-8 min-h-[32px] text-xs px-2.5 shrink-0"
                       >
                         + Add
                       </Button>
@@ -472,7 +472,7 @@ export function MatchScorersDialog({
                         onClick={() =>
                           handleRemoveScorer(admin.id, admin.full_name)
                         }
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        className="h-8 w-8 min-h-[32px] min-w-[32px] flex items-center justify-center text-muted-foreground hover:text-destructive"
                         title="Remove scorer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
