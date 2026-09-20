@@ -50,6 +50,7 @@ import {
   formatClubType,
   formatTeamType,
 } from "~/lib/cricket";
+import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
 
 export const dynamic = "force-dynamic";
 
@@ -247,6 +248,7 @@ export default async function ClubPage({
   const matchIds = typedMatches.map((m) => m.id);
   let battingLeaders: ClubBatterLeader[] = [];
   let bowlingLeaders: ClubBowlerLeader[] = [];
+  let leaderboardData: LeaderboardData | null = null;
   let totalRuns = 0;
   let totalWickets = 0;
   let highestTeamScore: {
@@ -282,132 +284,56 @@ export default async function ClubPage({
   });
 
   if (matchIds.length > 0) {
-    const [{ data: batting }, { data: bowling }] = await Promise.all([
-      supabase
-        .from("batting_performances")
-        .select(
-          "user_id, runs_scored, balls_faced, fours, sixes, user:users(id, full_name, avatar_url)",
-        )
-        .in("match_id", matchIds),
-      supabase
-        .from("bowling_performances")
-        .select(
-          "user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, user:users(id, full_name, avatar_url)",
-        )
-        .in("match_id", matchIds),
-    ]);
+    const [{ data: batting }, { data: bowling }, { data: fallOfWickets }] =
+      await Promise.all([
+        supabase
+          .from("batting_performances")
+          .select(
+            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+        supabase
+          .from("bowling_performances")
+          .select(
+            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+        supabase
+          .from("fall_of_wickets")
+          .select(
+            "match_id, innings_id, batsman_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+      ]);
 
-    type UserJoined = { id?: string; full_name?: string; avatar_url?: string | null };
-    const resolveUser = (raw: unknown): { name: string; avatar: string | null } => {
-      if (!raw) return { name: "Player", avatar: null };
-      const u = Array.isArray(raw)
-        ? (raw[0] as UserJoined | undefined)
-        : (raw as UserJoined);
-      return {
-        name: u?.full_name ?? "Player",
-        avatar: u?.avatar_url ?? null,
-      };
-    };
+    leaderboardData = buildLeaderboardData({
+      batting,
+      bowling,
+      fallOfWickets,
+    });
 
-    const batMap = new Map<
-      string,
-      {
-        name: string;
-        avatar?: string | null;
-        runs: number;
-        balls: number;
-        fours: number;
-        sixes: number;
-        innings: number;
-        highestScore: number;
-      }
-    >();
+    battingLeaders = leaderboardData.batting.map((b) => ({
+      userId: b.userId,
+      name: b.name,
+      avatar: b.avatar,
+      runs: b.runs,
+      balls: b.balls,
+      fours: b.fours,
+      sixes: b.sixes,
+      inningsCount: b.innings,
+      highestScore: b.highestScore,
+      strikeRate: b.strikeRateDisplay,
+    }));
 
-    for (const b of batting ?? []) {
-      const userInfo = resolveUser(b.user);
-      const current = batMap.get(b.user_id) ?? {
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        runs: 0,
-        balls: 0,
-        fours: 0,
-        sixes: 0,
-        innings: 0,
-        highestScore: 0,
-      };
-      current.runs += b.runs_scored ?? 0;
-      current.balls += b.balls_faced ?? 0;
-      current.fours += b.fours ?? 0;
-      current.sixes += b.sixes ?? 0;
-      current.innings += 1;
-      if ((b.runs_scored ?? 0) > current.highestScore) {
-        current.highestScore = b.runs_scored ?? 0;
-      }
-      batMap.set(b.user_id, current);
-    }
-
-    battingLeaders = Array.from(batMap.entries())
-      .map(([userId, stats]) => ({
-        userId,
-        name: stats.name,
-        avatar: stats.avatar,
-        runs: stats.runs,
-        balls: stats.balls,
-        fours: stats.fours,
-        sixes: stats.sixes,
-        inningsCount: stats.innings,
-        highestScore: stats.highestScore,
-        strikeRate:
-          stats.balls > 0
-            ? ((stats.runs / stats.balls) * 100).toFixed(1)
-            : "0.0",
-      }))
-      .sort((a, b) => b.runs - a.runs);
-
-    const bowlMap = new Map<
-      string,
-      {
-        name: string;
-        avatar?: string | null;
-        wickets: number;
-        balls: number;
-        runs: number;
-      }
-    >();
-
-    for (const b of bowling ?? []) {
-      const userInfo = resolveUser(b.user);
-      const current = bowlMap.get(b.user_id) ?? {
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        wickets: 0,
-        balls: 0,
-        runs: 0,
-      };
-      current.wickets += b.wickets_taken ?? 0;
-      current.balls += b.balls_bowled ?? 0;
-      current.runs += b.runs_conceded ?? 0;
-      bowlMap.set(b.user_id, current);
-    }
-
-    bowlingLeaders = Array.from(bowlMap.entries())
-      .map(([userId, stats]) => {
-        const oversNum = Math.floor(stats.balls / 6) + (stats.balls % 6) / 10;
-        const totalOversDec = stats.balls / 6;
-        return {
-          userId,
-          name: stats.name,
-          avatar: stats.avatar,
-          wickets: stats.wickets,
-          overs: oversNum.toFixed(1),
-          runs: stats.runs,
-          economy:
-            totalOversDec > 0
-              ? (stats.runs / totalOversDec).toFixed(2)
-              : "0.00",
-        };
-      })
-      .sort((a, b) => b.wickets - a.wickets);
+    bowlingLeaders = leaderboardData.bowling.map((bw) => ({
+      userId: bw.userId,
+      name: bw.name,
+      avatar: bw.avatar,
+      wickets: bw.wickets,
+      overs: bw.overs,
+      runs: bw.runsConceded,
+      economy: bw.economyDisplay,
+    }));
   }
 
   const milestones: ClubMilestones = {
@@ -804,6 +730,7 @@ export default async function ClubPage({
             milestones={milestones}
             battingLeaders={battingLeaders}
             bowlingLeaders={bowlingLeaders}
+            leaderboardData={leaderboardData}
           />
         </TabsContent>
 

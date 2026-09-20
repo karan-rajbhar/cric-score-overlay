@@ -74,23 +74,58 @@ describe("ClubStatsTab Component", () => {
     expect(screen.getByText("15")).toBeInTheDocument();
   });
 
-  it("renders empty state when no statistics are recorded", () => {
+  it("renders LeaderboardView when leaderboardData is provided", () => {
+    const mockLbData = {
+      batting: [
+        {
+          userId: "u-1",
+          name: "Alice Smith",
+          avatar: null,
+          matches: 5,
+          innings: 5,
+          notOuts: 1,
+          runs: 340,
+          balls: 210,
+          fours: 32,
+          sixes: 12,
+          highestScore: 88,
+          isHighestNotOut: true,
+          highestScoreDisplay: "88*",
+          average: 85,
+          averageDisplay: "85.00",
+          strikeRate: 161.9,
+          strikeRateDisplay: "161.90",
+          centuries: 0,
+          fifties: 3,
+          boundaryPercent: "68.2%",
+        },
+      ],
+      bowling: [],
+      fielding: [],
+      mvp: [],
+      highlights: {
+        orangeCap: null,
+        purpleCap: null,
+        mvpLeader: null,
+        mostSixes: null,
+        mostFours: null,
+        highestScore: null,
+        bestBowling: null,
+        bestEconomy: null,
+        topFielder: null,
+      },
+    };
+
     render(
       <ClubStatsTab
-        clubName="Empty CC"
-        milestones={{
-          totalMatches: 0,
-          completedMatches: 0,
-          totalRuns: 0,
-          totalWickets: 0,
-        }}
+        clubName="Metro CC"
+        milestones={dummyMilestones}
         battingLeaders={[]}
         bowlingLeaders={[]}
+        leaderboardData={mockLbData}
       />,
     );
 
-    expect(
-      screen.getByText(/no club statistics recorded/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Club Player Leaderboards")).toBeInTheDocument();
   });
 });

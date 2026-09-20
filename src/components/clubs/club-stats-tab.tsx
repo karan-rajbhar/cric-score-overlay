@@ -9,6 +9,8 @@ import {
   Activity,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
+import { LeaderboardData } from "~/lib/leaderboard";
 
 export interface ClubBatterLeader {
   userId: string;
@@ -51,6 +53,7 @@ interface ClubStatsTabProps {
   milestones: ClubMilestones;
   battingLeaders: ClubBatterLeader[];
   bowlingLeaders: ClubBowlerLeader[];
+  leaderboardData?: LeaderboardData | null;
 }
 
 export function ClubStatsTab({
@@ -58,11 +61,16 @@ export function ClubStatsTab({
   milestones,
   battingLeaders,
   bowlingLeaders,
+  leaderboardData,
 }: ClubStatsTabProps) {
   const hasData =
     milestones.totalMatches > 0 ||
     battingLeaders.length > 0 ||
-    bowlingLeaders.length > 0;
+    bowlingLeaders.length > 0 ||
+    (leaderboardData &&
+      (leaderboardData.batting.length > 0 ||
+        leaderboardData.bowling.length > 0 ||
+        leaderboardData.fielding.length > 0));
 
   if (!hasData) {
     return (
@@ -151,123 +159,133 @@ export function ClubStatsTab({
         </Card>
       </div>
 
-      {/* Leaderboards Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Top Batters */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                <Flame className="h-4 w-4 text-amber-500" />
-                Leading Run Scorers
-              </CardTitle>
-              <Badge variant="secondary" className="text-[10px]">
-                Top Batters
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {battingLeaders.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground">
-                No batting scorecards available yet.
+      {/* Leaderboards */}
+      {leaderboardData ? (
+        <LeaderboardView
+          title="Club Player Leaderboards"
+          subtitle={`All-time batting, bowling, fielding, and MVP statistics for ${clubName}`}
+          data={leaderboardData}
+          showHighlights={true}
+        />
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Top Batters */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                  <Flame className="h-4 w-4 text-amber-500" />
+                  Leading Run Scorers
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">
+                  Top Batters
+                </Badge>
               </div>
-            ) : (
-              <div className="divide-y divide-border text-xs">
-                {battingLeaders.slice(0, 5).map((b, idx) => (
-                  <div
-                    key={b.userId}
-                    className="flex items-center justify-between p-3.5"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
-                        {idx + 1}
-                      </span>
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
-                        {(b.name ?? "P")[0]?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          {b.name}
+            </CardHeader>
+            <CardContent className="p-0">
+              {battingLeaders.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No batting scorecards available yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-border text-xs">
+                  {battingLeaders.slice(0, 5).map((b, idx) => (
+                    <div
+                      key={b.userId}
+                      className="flex items-center justify-between p-3.5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                          {idx + 1}
+                        </span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
+                          {(b.name ?? "P")[0]?.toUpperCase()}
                         </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {b.inningsCount} inn • HS: {b.highestScore} • SR:{" "}
-                          {b.strikeRate}
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            {b.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {b.inningsCount} inn • HS: {b.highestScore} • SR:{" "}
+                            {b.strikeRate}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="text-right">
-                      <div className="font-bold text-sm tabular-nums text-foreground">
-                        {b.runs}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {b.fours} 4s, {b.sixes} 6s
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Top Bowlers */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                <Target className="h-4 w-4 text-emerald-500" />
-                Leading Wicket Takers
-              </CardTitle>
-              <Badge variant="secondary" className="text-[10px]">
-                Top Bowlers
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {bowlingLeaders.length === 0 ? (
-              <div className="p-6 text-center text-xs text-muted-foreground">
-                No bowling scorecards available yet.
-              </div>
-            ) : (
-              <div className="divide-y divide-border text-xs">
-                {bowlingLeaders.slice(0, 5).map((bw, idx) => (
-                  <div
-                    key={bw.userId}
-                    className="flex items-center justify-between p-3.5"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
-                        {idx + 1}
-                      </span>
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
-                        {(bw.name ?? "B")[0]?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          {bw.name}
+                      <div className="text-right">
+                        <div className="font-bold text-sm tabular-nums text-foreground">
+                          {b.runs}
                         </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {bw.overs} ov • Econ: {bw.economy}
+                        <div className="text-[10px] text-muted-foreground">
+                          {b.fours} 4s, {b.sixes} 6s
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-                    <div className="text-right">
-                      <div className="font-bold text-sm tabular-nums text-foreground">
-                        {bw.wickets} <span className="text-xs font-normal">wkts</span>
+          {/* Top Bowlers */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                  <Target className="h-4 w-4 text-emerald-500" />
+                  Leading Wicket Takers
+                </CardTitle>
+                <Badge variant="secondary" className="text-[10px]">
+                  Top Bowlers
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {bowlingLeaders.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">
+                  No bowling scorecards available yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-border text-xs">
+                  {bowlingLeaders.slice(0, 5).map((bw, idx) => (
+                    <div
+                      key={bw.userId}
+                      className="flex items-center justify-between p-3.5"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                          {idx + 1}
+                        </span>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
+                          {(bw.name ?? "B")[0]?.toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            {bw.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {bw.overs} ov • Econ: {bw.economy}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {bw.runs} runs conceded
+
+                      <div className="text-right">
+                        <div className="font-bold text-sm tabular-nums text-foreground">
+                          {bw.wickets}{" "}
+                          <span className="text-xs font-normal">wkts</span>
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {bw.runs} runs conceded
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

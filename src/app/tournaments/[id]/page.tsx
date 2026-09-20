@@ -18,11 +18,8 @@ import {
   MapPin,
   Trophy,
   Users,
-  Flame,
-  Award,
   Plus,
   Radio,
-  Sparkles,
   Shield,
   ExternalLink,
 } from "lucide-react";
@@ -39,6 +36,8 @@ import {
   RegistrationApprovalActions,
 } from "~/components/tournaments/tournament-admin-actions";
 import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
+import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
+import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
 
 export const dynamic = "force-dynamic";
 
@@ -139,157 +138,36 @@ export default async function TournamentPage({
   const matchIds = ((matches ?? []) as unknown as MatchRow[]).map((m) => m.id);
 
   // Super Stars & Leaderboards computation
-  let battingLeaders: Array<{
-    userId: string;
-    name: string;
-    avatar?: string | null;
-    runs: number;
-    balls: number;
-    fours: number;
-    sixes: number;
-    inningsCount: number;
-    strikeRate: string;
-  }> = [];
-
-  let bowlingLeaders: Array<{
-    userId: string;
-    name: string;
-    avatar?: string | null;
-    wickets: number;
-    overs: string;
-    runs: number;
-    economy: string;
-  }> = [];
-
-  interface UserJoined {
-    full_name?: string | null;
-    avatar_url?: string | null;
-  }
-
-  const resolveUser = (
-    raw: unknown,
-  ): { name: string; avatar?: string | null } => {
-    if (!raw) return { name: "Player" };
-    const u = Array.isArray(raw)
-      ? (raw[0] as UserJoined | undefined)
-      : (raw as UserJoined);
-    return {
-      name: u?.full_name ?? "Player",
-      avatar: u?.avatar_url ?? null,
-    };
-  };
+  let leaderboardData: LeaderboardData = buildLeaderboardData({});
 
   if (matchIds.length > 0) {
-    const [{ data: batting }, { data: bowling }] = await Promise.all([
-      supabase
-        .from("batting_performances")
-        .select(
-          "user_id, runs_scored, balls_faced, fours, sixes, user:users(id, full_name, avatar_url)",
-        )
-        .in("match_id", matchIds),
-      supabase
-        .from("bowling_performances")
-        .select(
-          "user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, user:users(id, full_name, avatar_url)",
-        )
-        .in("match_id", matchIds),
-    ]);
+    const [{ data: batting }, { data: bowling }, { data: fallOfWickets }] =
+      await Promise.all([
+        supabase
+          .from("batting_performances")
+          .select(
+            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+        supabase
+          .from("bowling_performances")
+          .select(
+            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+        supabase
+          .from("fall_of_wickets")
+          .select(
+            "match_id, innings_id, batsman_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
+          )
+          .in("match_id", matchIds),
+      ]);
 
-    // Aggregate batting
-    const batMap = new Map<
-      string,
-      {
-        name: string;
-        avatar?: string | null;
-        runs: number;
-        balls: number;
-        fours: number;
-        sixes: number;
-        innings: number;
-      }
-    >();
-
-    for (const b of batting ?? []) {
-      const userInfo = resolveUser(b.user);
-      const current = batMap.get(b.user_id) ?? {
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        runs: 0,
-        balls: 0,
-        fours: 0,
-        sixes: 0,
-        innings: 0,
-      };
-      current.runs += b.runs_scored ?? 0;
-      current.balls += b.balls_faced ?? 0;
-      current.fours += b.fours ?? 0;
-      current.sixes += b.sixes ?? 0;
-      current.innings += 1;
-      batMap.set(b.user_id, current);
-    }
-
-    battingLeaders = Array.from(batMap.entries())
-      .map(([userId, stats]) => ({
-        userId,
-        name: stats.name,
-        avatar: stats.avatar,
-        runs: stats.runs,
-        balls: stats.balls,
-        fours: stats.fours,
-        sixes: stats.sixes,
-        inningsCount: stats.innings,
-        strikeRate:
-          stats.balls > 0
-            ? ((stats.runs / stats.balls) * 100).toFixed(1)
-            : "0.0",
-      }))
-      .sort((a, b) => b.runs - a.runs);
-
-    // Aggregate bowling
-    const bowlMap = new Map<
-      string,
-      {
-        name: string;
-        avatar?: string | null;
-        wickets: number;
-        balls: number;
-        runs: number;
-      }
-    >();
-
-    for (const b of bowling ?? []) {
-      const userInfo = resolveUser(b.user);
-      const current = bowlMap.get(b.user_id) ?? {
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        wickets: 0,
-        balls: 0,
-        runs: 0,
-      };
-      current.wickets += b.wickets_taken ?? 0;
-      current.balls += b.balls_bowled ?? 0;
-      current.runs += b.runs_conceded ?? 0;
-      bowlMap.set(b.user_id, current);
-    }
-
-    bowlingLeaders = Array.from(bowlMap.entries())
-      .map(([userId, stats]) => {
-        const oversNum = Math.floor(stats.balls / 6) + (stats.balls % 6) / 10;
-        const totalOversDec = stats.balls / 6;
-        return {
-          userId,
-          name: stats.name,
-          avatar: stats.avatar,
-          wickets: stats.wickets,
-          overs: oversNum.toFixed(1),
-          runs: stats.runs,
-          economy:
-            totalOversDec > 0
-              ? (stats.runs / totalOversDec).toFixed(2)
-              : "0.00",
-        };
-      })
-      .sort((a, b) => b.wickets - a.wickets);
+    leaderboardData = buildLeaderboardData({
+      batting,
+      bowling,
+      fallOfWickets,
+    });
   }
 
   const {
@@ -422,9 +300,6 @@ export default async function TournamentPage({
   const liveMatches = typedMatches.filter((m) => m.status === "live");
   const upcomingMatches = typedMatches.filter((m) => m.status === "scheduled");
   const completedMatches = typedMatches.filter((m) => m.status === "completed");
-
-  const topBatter = battingLeaders[0];
-  const topBowler = bowlingLeaders[0];
 
   const targetClubId = resolvedSearchParams?.clubId;
   const clubInfo = tournament.club as { id: string; name: string } | null;
@@ -603,8 +478,8 @@ export default async function TournamentPage({
             value="analysis"
             className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
           >
-            <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            Super Stars
+            <Trophy className="h-3.5 w-3.5 text-amber-500 sm:h-4 sm:w-4" />
+            Leaderboard & Stats
           </TabsTrigger>
         </TabsList>
 
@@ -1011,227 +886,14 @@ export default async function TournamentPage({
           )}
         </TabsContent>
 
-        {/* TAB 4: SUPER STARS & LEADERBOARDS (STUMPS ANALYSIS) */}
+        {/* TAB 4: SUPER STARS & LEADERBOARDS */}
         <TabsContent value="analysis" className="mt-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-bold">
-                <Sparkles className="h-5 w-5 text-amber-400" />
-                Tournament Super Stars & Insights
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Top performers, Orange Cap (Most Runs), and Purple Cap (Most
-                Wickets) across all matches.
-              </p>
-            </div>
-          </div>
-
-          {/* Cap Highlights */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Orange Cap Leader */}
-            <Card className="border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-card to-card">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <Badge className="gap-1 bg-amber-500 text-black hover:bg-amber-400">
-                    <Flame className="h-3.5 w-3.5 fill-current" />
-                    Orange Cap leader
-                  </Badge>
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                    Top run scorer
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!topBatter ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    Batting statistics will appear once tournament matches are
-                    played.
-                  </p>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-black tracking-tight">
-                        {topBatter.name}
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {topBatter.inningsCount} innings, SR{" "}
-                        {topBatter.strikeRate}
-                      </p>
-                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>
-                          Fours:{" "}
-                          <strong className="text-foreground">
-                            {topBatter.fours}
-                          </strong>
-                        </span>
-                        <span>
-                          Sixes:{" "}
-                          <strong className="text-foreground">
-                            {topBatter.sixes}
-                          </strong>
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="tabular text-4xl font-black text-amber-500">
-                        {topBatter.runs}
-                      </div>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Runs
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Purple Cap Leader */}
-            <Card className="border-purple-500/40 bg-gradient-to-br from-purple-500/10 via-card to-card">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <Badge className="gap-1 bg-purple-600 text-white hover:bg-purple-500">
-                    <Award className="h-3.5 w-3.5 fill-current" />
-                    Purple Cap leader
-                  </Badge>
-                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
-                    Top wicket taker
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {!topBowler ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    Bowling statistics will appear once tournament matches are
-                    played.
-                  </p>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-2xl font-black tracking-tight">
-                        {topBowler.name}
-                      </h3>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {topBowler.overs} overs bowled, Econ {topBowler.economy}
-                      </p>
-                      <div className="mt-3 text-xs text-muted-foreground">
-                        Runs Conceded:{" "}
-                        <strong className="text-foreground">
-                          {topBowler.runs}
-                        </strong>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="tabular text-4xl font-black text-purple-400">
-                        {topBowler.wickets}
-                      </div>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Wickets
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Detailed Leaderboard Tables */}
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Batting Leaderboard */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Trophy className="h-4 w-4 text-amber-500" />
-                  Most Runs
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {battingLeaders.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-muted-foreground">
-                    No batting records yet.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-border text-sm">
-                    {battingLeaders.slice(0, 5).map((player, idx) => (
-                      <div
-                        key={player.userId}
-                        className="flex items-center justify-between py-2.5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-4 text-xs font-bold text-muted-foreground">
-                            {idx + 1}
-                          </span>
-                          <div>
-                            <div className="font-semibold text-foreground">
-                              {player.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {player.balls} balls, SR {player.strikeRate}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="tabular text-base font-bold text-foreground">
-                            {player.runs}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {player.fours}×4, {player.sixes}×6
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Bowling Leaderboard */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Trophy className="h-4 w-4 text-purple-500" />
-                  Most wickets
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {bowlingLeaders.length === 0 ? (
-                  <p className="py-4 text-center text-xs text-muted-foreground">
-                    No bowling records yet.
-                  </p>
-                ) : (
-                  <div className="divide-y divide-border text-sm">
-                    {bowlingLeaders.slice(0, 5).map((player, idx) => (
-                      <div
-                        key={player.userId}
-                        className="flex items-center justify-between py-2.5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-4 text-xs font-bold text-muted-foreground">
-                            {idx + 1}
-                          </span>
-                          <div>
-                            <div className="font-semibold text-foreground">
-                              {player.name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {player.overs} ov, Econ {player.economy}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-base font-bold text-foreground">
-                            {player.wickets} wkt
-                          </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {player.runs} runs
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <LeaderboardView
+            title="Tournament Super Stars & Leaderboards"
+            subtitle={`Complete player statistics, Orange & Purple caps, and MVP rankings for ${tournament.name}`}
+            data={leaderboardData}
+            showHighlights={true}
+          />
         </TabsContent>
       </Tabs>
     </div>
