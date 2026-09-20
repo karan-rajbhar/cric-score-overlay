@@ -8,6 +8,20 @@ vi.mock("~/lib/supabase/server", () => ({
       getUser: vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null })),
     },
     from: vi.fn(() => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn(async () => ({
+            data: {
+              id: "m1",
+              created_by: "u1",
+              match_admins: [],
+              club_id: null,
+              tournament_id: null,
+            },
+            error: null,
+          })),
+        })),
+      })),
       update: vi.fn(() => ({
         eq: vi.fn(() => ({
           select: vi.fn(() => ({

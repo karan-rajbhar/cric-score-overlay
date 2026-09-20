@@ -272,7 +272,7 @@ async function checkMatchAdminAuth(
 ): Promise<boolean> {
   const { data: match } = await supabase
     .from("matches")
-    .select("created_by, match_admins, club_id")
+    .select("created_by, match_admins, club_id, tournament_id")
     .eq("id", matchId)
     .single();
 
@@ -299,6 +299,37 @@ async function checkMatchAdminAuth(
       .maybeSingle();
 
     if (mem) return true;
+  }
+
+  if (match.tournament_id) {
+    const { data: tournament } = await supabase
+      .from("tournaments")
+      .select("created_by, club_id")
+      .eq("id", match.tournament_id)
+      .single();
+
+    if (tournament?.created_by === userId) return true;
+
+    if (tournament?.club_id) {
+      const { data: club } = await supabase
+        .from("clubs")
+        .select("owner_id")
+        .eq("id", tournament.club_id)
+        .single();
+
+      if (club?.owner_id === userId) return true;
+
+      const { data: mem } = await supabase
+        .from("club_memberships")
+        .select("id")
+        .eq("club_id", tournament.club_id)
+        .eq("user_id", userId)
+        .in("role", ["owner", "admin"])
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (mem) return true;
+    }
   }
 
   return false;
@@ -381,6 +412,27 @@ export async function recordBall(params: {
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { data: null, error: "You must be logged in to record scores" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(
+      supabase,
+      params.matchId,
+      user.id,
+    );
+    if (!isAuthorized) {
+      return {
+        data: null,
+        error:
+          "You do not have permission to score this match. Only the match creator, designated scorers, or club administrators can record scores.",
+      };
+    }
+
     const { data, error } = await supabase.rpc("record_ball", {
       p_match_id: params.matchId,
       p_bowler_id: params.bowlerId,
@@ -459,6 +511,23 @@ export async function undoLastBall(
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { data: null, error: "You must be logged in to undo deliveries" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isAuthorized) {
+      return {
+        data: null,
+        error:
+          "Only match administrators or designated scorers can undo deliveries",
+      };
+    }
+
     const { data, error } = await supabase.rpc("undo_last_ball", {
       p_match_id: matchId,
     });
@@ -487,6 +556,22 @@ export async function setCurrentBatsmen(
 ): Promise<{ error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "You must be logged in to set batsmen" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isAuthorized) {
+      return {
+        error:
+          "Only match administrators or designated scorers can set batsmen",
+      };
+    }
+
     const { error } = await supabase.rpc("set_current_batsmen", {
       p_match_id: matchId,
       p_striker_id: strikerId,
@@ -515,6 +600,22 @@ export async function setCurrentBowler(
 ): Promise<{ error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "You must be logged in to set bowler" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isAuthorized) {
+      return {
+        error:
+          "Only match administrators or designated scorers can set bowler",
+      };
+    }
+
     const { error } = await supabase.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: bowlerId,
@@ -541,6 +642,23 @@ export async function endInnings(
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { data: null, error: "You must be logged in to end innings" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isAuthorized) {
+      return {
+        data: null,
+        error:
+          "Only match administrators or designated scorers can end innings",
+      };
+    }
+
     const { data, error } = await supabase.rpc("end_innings", {
       p_match_id: matchId,
     });
@@ -736,6 +854,26 @@ export async function updateBall(params: {
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { data: null, error: "You must be logged in to edit deliveries" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(
+      supabase,
+      params.matchId,
+      user.id,
+    );
+    if (!isAuthorized) {
+      return {
+        data: null,
+        error:
+          "Only match administrators or designated scorers can edit deliveries",
+      };
+    }
 
     if (params.batsmanId || params.bowlerId) {
       const playerUpdates: Record<string, string> = {};
@@ -785,6 +923,23 @@ export async function startSuperOver(
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { data: null, error: "You must be logged in to start a super over" };
+    }
+
+    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isAuthorized) {
+      return {
+        data: null,
+        error:
+          "Only match administrators or designated scorers can start a super over",
+      };
+    }
+
     const { data, error } = await supabase.rpc("start_super_over", {
       p_match_id: matchId,
     });
@@ -844,6 +999,15 @@ export async function updateMatchSettings(
       return {
         success: false,
         error: "You must be logged in to update match settings",
+      };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error:
+          "Only match administrators or designated scorers can update match settings",
       };
     }
 
@@ -923,6 +1087,15 @@ export async function reassignCurrentOverBowler(
       return {
         success: false,
         error: "You must be logged in to modify bowler",
+      };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error:
+          "Only match administrators or designated scorers can reassign bowler",
       };
     }
 
