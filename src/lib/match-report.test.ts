@@ -382,5 +382,60 @@ describe("match-report export helpers", () => {
       expect(html).toContain("class=\"impact-rank rank-gold\"");
       expect(html).toContain("class=\"impact-pts\"");
     });
+
+    it("verifies mobile responsive CSS and table-responsive containers", async () => {
+      const html = await buildMatchReportHtml(
+        sampleMatch,
+        "https://cricket.app/matches/match-124",
+      );
+
+      // Mobile responsive queries and wrapper classes
+      expect(html).toContain("@media screen and (max-width: 768px)");
+      expect(html).toContain("@media screen and (max-width: 640px)");
+      expect(html).toContain(".table-responsive {");
+      expect(html).toContain("overflow-x: auto;");
+      expect(html).toContain("-webkit-overflow-scrolling: touch;");
+      expect(html).toContain("class=\"table-responsive\"");
+
+      // Avoid page-break cuts mid-card
+      expect(html).toContain("break-inside: avoid !important;");
+      expect(html).toContain("break-after: avoid !important;");
+    });
+
+    it("flows 1st innings directly on Page 1 to eliminate wasted space and splits 2nd innings on Page 2", async () => {
+      const html = await buildMatchReportHtml(
+        sampleMatch,
+        "https://cricket.app/matches/match-124",
+      );
+
+      // 1st innings is directly inside Page 1 (match-overview-page)
+      const page1Index = html.indexOf('class="report-page match-overview-page"');
+      const inn1Index = html.indexOf('1st Innings Scorecard');
+      const page2Index = html.indexOf('class="report-page page-break innings-page-2"');
+      const inn2Index = html.indexOf('2nd Innings Scorecard');
+
+      expect(page1Index).toBeGreaterThan(-1);
+      expect(inn1Index).toBeGreaterThan(page1Index);
+      expect(page2Index).toBeGreaterThan(inn1Index);
+      expect(inn2Index).toBeGreaterThan(page2Index);
+    });
+
+    it("renders single innings match cleanly on Page 1 with signoff and footer", async () => {
+      const singleInningsMatch: Match = {
+        ...sampleMatch,
+        innings: [innings1],
+      };
+
+      const html = await buildMatchReportHtml(
+        singleInningsMatch,
+        "https://cricket.app/matches/match-124",
+      );
+
+      expect(html).toContain("1st Innings Scorecard");
+      expect(html).not.toContain("2nd Innings Scorecard");
+      expect(html).not.toContain("innings-page-2");
+      expect(html).toContain("Official Verification &amp; Match Sign-off");
+      expect(html).toContain("data:image/png;base64,"); // QR code
+    });
   });
 });

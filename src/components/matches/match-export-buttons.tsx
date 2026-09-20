@@ -607,7 +607,13 @@ export function MatchExportButtons({ match }: { match: Match }) {
         }
       }
       const html = await buildMatchReportHtml(exportMatch, summary.matchUrl);
-      const w = window.open("", "_blank", "width=860,height=950");
+      const isMobile =
+        typeof window !== "undefined" && window.innerWidth < 768;
+      const w = window.open(
+        "",
+        "_blank",
+        isMobile ? undefined : "width=860,height=950",
+      );
       if (!w) {
         toast.error("Allow pop-ups to export the PDF");
         return;

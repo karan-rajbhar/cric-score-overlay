@@ -479,21 +479,21 @@ function inningsSection(
       : "0.0";
 
   return `
-    <div class="report-page page-break innings-page">
-        <div class="page-inner">
-            <div class="section-badge-header">
-                <div class="section-title-wrap">
-                    <h2 class="section-page-title">${index === 0 ? "1st Innings Scorecard" : "2nd Innings Scorecard"}</h2>
-                    <span class="innings-team-pill">${esc(team.name)}</span>
-                </div>
-                <div class="innings-score-pill">
-                    <span class="score-main">${total}</span>
-                    <span class="score-details">(${overs} ov &bull; RR: ${rr}${inn.is_completed ? "" : ", in progress"})</span>
-                </div>
+    <div class="innings-scorecard-wrap">
+        <div class="section-badge-header">
+            <div class="section-title-wrap">
+                <h2 class="section-page-title">${index === 0 ? "1st Innings Scorecard" : "2nd Innings Scorecard"}</h2>
+                <span class="innings-team-pill">${esc(team.name)}</span>
             </div>
+            <div class="innings-score-pill">
+                <span class="score-main">${total}</span>
+                <span class="score-details">(${overs} ov &bull; RR: ${rr}${inn.is_completed ? "" : ", in progress"})</span>
+            </div>
+        </div>
 
-            <section class="innings">
-                <div class="table-subheading">Batting Performance</div>
+        <section class="innings">
+            <div class="table-subheading">Batting Performance</div>
+            <div class="table-responsive">
                 <table class="score-table batting-table">
                     <thead>
                         <tr>
@@ -517,13 +517,15 @@ function inningsSection(
                         </tr>
                     </tbody>
                 </table>
+            </div>
 
-                ${didNotBat(inn, team)}
-                ${fowRow(inn)}
-                ${renderPartnerships(inn)}
+            ${didNotBat(inn, team)}
+            ${fowRow(inn)}
+            ${renderPartnerships(inn)}
 
-                <div class="bowling-wrap">
-                    <div class="table-subheading">Bowling Performance</div>
+            <div class="bowling-wrap">
+                <div class="table-subheading">Bowling Performance</div>
+                <div class="table-responsive">
                     <table class="score-table bowling-table">
                         <thead>
                             <tr>
@@ -545,13 +547,8 @@ function inningsSection(
                         </tbody>
                     </table>
                 </div>
-            </section>
-        </div>
-
-        <footer class="mini-footer">
-            <span>Official Scorecard &bull; Innings ${index + 1}</span>
-            <span>CricScore Platform &bull; Match Verification</span>
-        </footer>
+            </div>
+        </section>
     </div>`;
 }
 
@@ -914,17 +911,19 @@ function renderPhaseAnalysis(match: Match): string {
   return `
     <div class="phase-analysis-card">
         <div class="section-title">Phase-by-Phase Match Comparison</div>
-        <table class="phase-table">
-            <thead>
-                <tr>
-                    <th class="text-left" style="width: 28%;">Game Phase</th>
-                    <th class="text-center" style="width: 24%;">${t1Header}</th>
-                    <th class="text-center" style="width: 24%;">${t2Header}</th>
-                    <th class="text-right" style="width: 24%;">Advantage</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="phase-table">
+                <thead>
+                    <tr>
+                        <th class="text-left" style="width: 28%;">Game Phase</th>
+                        <th class="text-center" style="width: 24%;">${t1Header}</th>
+                        <th class="text-center" style="width: 24%;">${t2Header}</th>
+                        <th class="text-right" style="width: 24%;">Advantage</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
     </div>`;
 }
 
@@ -1468,48 +1467,38 @@ function buildOverComparisonSection(match: Match): string {
   }
 
   return `
-    <div class="report-page page-break over-comparison-page">
-        <div class="page-inner">
-            <div class="section-badge-header">
-                <div class="section-title-wrap">
-                    <h2 class="section-page-title">Over Comparison &amp; Visual Analytics</h2>
-                    <span class="innings-team-pill">Delivery Timeline Analysis</span>
-                </div>
+    <div class="over-comparison-block">
+        <div class="section-badge-header">
+            <div class="section-title-wrap">
+                <h2 class="section-page-title">Over Comparison &amp; Visual Analytics</h2>
+                <span class="innings-team-pill">Delivery Timeline Analysis</span>
             </div>
-
-            <!-- Charts Duo Grid -->
-            <div class="charts-duo-grid">
-                <div class="chart-panel">
-                    <div class="chart-panel-title">Worm Chart &bull; Cumulative Run Progression</div>
-                    ${generateWormChartSvg(match)}
-                </div>
-                <div class="chart-panel">
-                    <div class="chart-panel-title">Manhattan Chart &bull; Over-by-Over Runs &amp; Wickets</div>
-                    ${generateManhattanChartSvg(match)}
-                </div>
-            </div>
-
-            <div class="over-comparison-headers">
-                <div class="comp-head comp-head-left">
-                    <span class="comp-team-label">${esc(team1Name)}</span>
-                </div>
-                <div class="comp-head comp-head-right">
-                    <span class="comp-team-label">${esc(team2Name)}</span>
-                </div>
-            </div>
-
-            <div class="over-comparison-grid">
-                ${rows.join("")}
-            </div>
-
-            <!-- Official Signoff & Verification -->
-            ${renderSignoffBlock(match)}
         </div>
 
-        <footer class="mini-footer">
-            <span>Over Comparison &bull; Stumps Compatible Log</span>
-            <span>CricScore Platform &bull; Match Verification</span>
-        </footer>
+        <!-- Charts Duo Grid -->
+        <div class="charts-duo-grid">
+            <div class="chart-panel">
+                <div class="chart-panel-title">Worm Chart &bull; Cumulative Run Progression</div>
+                ${generateWormChartSvg(match)}
+            </div>
+            <div class="chart-panel">
+                <div class="chart-panel-title">Manhattan Chart &bull; Over-by-Over Runs &amp; Wickets</div>
+                ${generateManhattanChartSvg(match)}
+            </div>
+        </div>
+
+        <div class="over-comparison-headers">
+            <div class="comp-head comp-head-left">
+                <span class="comp-team-label">${esc(team1Name)}</span>
+            </div>
+            <div class="comp-head comp-head-right">
+                <span class="comp-team-label">${esc(team2Name)}</span>
+            </div>
+        </div>
+
+        <div class="over-comparison-grid">
+            ${rows.join("")}
+        </div>
     </div>`;
 }
 
@@ -1651,14 +1640,24 @@ export async function buildMatchReportHtml(
   if (match.last_man_stands) rulesList.push("Last Man Stands");
   if (match.golden_ball) rulesList.push("Golden Ball Tiebreaker");
 
-  const inningsSectionsHtml = (match.innings ?? [])
+  const sortedInnings = (match.innings ?? [])
     .slice()
-    .sort((a, b) => a.innings_number - b.innings_number)
-    .map((inn, i) => {
-      const team = inn.team_id === match.team1_id ? match.team1 : match.team2;
-      return inningsSection(inn, i, team);
-    })
-    .join("");
+    .sort((a, b) => a.innings_number - b.innings_number);
+  const inn1Obj = sortedInnings[0];
+  const inn2Obj = sortedInnings[1];
+  const inn1Team = inn1Obj
+    ? inn1Obj.team_id === match.team1_id
+      ? match.team1
+      : match.team2
+    : match.team1;
+  const inn2Team = inn2Obj
+    ? inn2Obj.team_id === match.team1_id
+      ? match.team1
+      : match.team2
+    : match.team2;
+
+  const innings1Html = inn1Obj ? inningsSection(inn1Obj, 0, inn1Team) : "";
+  const innings2Html = inn2Obj ? inningsSection(inn2Obj, 1, inn2Team) : "";
 
   const phaseHtml = renderPhaseAnalysis(match);
   const impactHtml = renderImpactLeaderboard(match);
@@ -1753,6 +1752,8 @@ export async function buildMatchReportHtml(
         justify-content: space-between;
         align-items: center;
         box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+        width: 100%;
+        box-sizing: border-box;
     }
     #screen-toolbar .toolbar-info {
         font-family: 'Outfit', sans-serif;
@@ -1793,10 +1794,28 @@ export async function buildMatchReportHtml(
         transform: translateY(-1px);
     }
 
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     @media print {
         #screen-toolbar { display: none !important; }
-        body { background: #ffffff !important; padding: 0 !important; }
-        .page-break { page-break-before: always; break-before: page; }
+        .screen-hide-when-multi { display: none !important; }
+        body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        @page {
+            size: A4 portrait;
+            margin: 8mm 10mm 10mm 10mm;
+        }
+        .page-break {
+            page-break-before: always !important;
+            break-before: page !important;
+        }
         .report-page {
             box-shadow: none !important;
             margin: 0 !important;
@@ -1804,6 +1823,169 @@ export async function buildMatchReportHtml(
             width: 100% !important;
             max-width: 100% !important;
             min-height: auto !important;
+            border-radius: 0 !important;
+        }
+        .match-duel-hero,
+        .tactical-narrative-grid,
+        .match-info-card,
+        .innings,
+        .partnerships-wrap,
+        .charts-duo-grid,
+        .official-signoff-card,
+        .report-footer,
+        .bowling-wrap {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        .section-title,
+        .section-badge-header,
+        .report-main-title {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+    }
+
+    @media screen and (max-width: 768px) {
+        body {
+            background: #e2e8f0;
+            overflow-x: hidden;
+        }
+        .report-page {
+            margin: 8px auto;
+            padding: 16px 14px;
+            max-width: 100%;
+            min-height: auto !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .tactical-narrative-grid.duo-col {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+    }
+
+    @media screen and (max-width: 640px) {
+        #screen-toolbar {
+            padding: 8px 12px;
+            gap: 8px;
+        }
+        #screen-toolbar .toolbar-info {
+            font-size: 11px;
+        }
+        #screen-toolbar button {
+            padding: 6px 12px;
+            font-size: 11px;
+        }
+        .report-page {
+            margin: 0 0 12px 0;
+            padding: 14px 10px;
+            border-radius: 0;
+        }
+        .match-duel-hero {
+            grid-template-columns: 1fr;
+            padding: 12px 14px;
+            gap: 12px;
+        }
+        .duel-outcome-col {
+            border-left: none;
+            border-top: 1px dashed #cbd5e1;
+            padding-left: 0;
+            padding-top: 10px;
+        }
+        .duel-team-name {
+            font-size: 13.5px;
+        }
+        .headline-score {
+            font-size: 13.5px;
+        }
+        .match-info-card {
+            padding: 12px 14px;
+        }
+        .info-grid {
+            grid-template-columns: 1fr;
+            row-gap: 6px;
+        }
+        .info-row {
+            grid-column: span 1 !important;
+            font-size: 10.5px;
+            padding-bottom: 3px;
+        }
+        .info-label {
+            font-size: 10px;
+        }
+        .info-val {
+            font-size: 10.5px;
+        }
+        .score-table {
+            min-width: 480px;
+            font-size: 10px;
+        }
+        .score-table th, .score-table td {
+            padding: 4px 6px;
+        }
+        .player-name {
+            font-size: 10.5px;
+        }
+        .table-subheading {
+            padding: 5px 8px;
+            font-size: 9px;
+        }
+        .fow {
+            padding: 6px 8px;
+            font-size: 9.5px;
+        }
+        .dnb-strip {
+            padding: 5px 8px;
+            font-size: 9.5px;
+        }
+        .partnerships-grid {
+            grid-template-columns: 1fr;
+            gap: 6px;
+            padding: 6px 8px;
+        }
+        .charts-duo-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .over-comparison-headers {
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        .comparison-row {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .signoff-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .signoff-box {
+            padding: 8px 10px;
+            min-height: 70px;
+        }
+        .report-footer {
+            flex-direction: column-reverse;
+            align-items: center;
+            text-align: center;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 10px;
+        }
+        .footer-qr-block {
+            flex-direction: column;
+            gap: 6px;
+        }
+        .footer-qr-caption {
+            text-align: center;
+            max-width: 200px;
+            font-size: 9px;
+        }
+        .footer-title {
+            font-size: 10.5px;
+        }
+        .footer-url {
+            font-size: 9.5px;
+            word-break: break-all;
         }
     }
 
@@ -3021,12 +3203,50 @@ export async function buildMatchReportHtml(
                 </div>
             </div>
 
-            <!-- Match Summary (Top Performers by Team) -->
+            <!-- Match Summary or 1st Innings Scorecard -->
+            ${inn1Obj ? innings1Html : `
             <div class="section-title">Match Summary</div>
             <div class="summary-card">
                 ${renderTeamPerformers(match.team1, match.team2, inn1)}
                 ${renderTeamPerformers(match.team2, match.team1, inn2)}
             </div>
+            `}
+
+            ${!inn2Obj ? `
+            ${overComparisonHtml}
+            ${renderSignoffBlock(match)}
+            ` : ""}
+        </div>
+
+        ${!inn2Obj ? `
+        <footer class="report-footer">
+            <div class="footer-left-meta">
+                <div class="footer-title">Interactive Digital Scorecard &bull; CricScore Official Archive</div>
+                <div class="footer-url">${esc(matchUrl)}</div>
+                <div class="footer-stamp">Download CricScore App &bull; Verified Electronic Record</div>
+            </div>
+            <div class="footer-qr-block">
+                <div class="footer-qr-caption">Scan to view live ball log &amp; wagon wheel</div>
+                <img src="${qrDataUrl}" alt="QR code" />
+            </div>
+        </footer>
+        ` : `
+        <footer class="mini-footer screen-hide-when-multi">
+            <span>Official Scorecard &bull; Page 1</span>
+            <span>CricScore Official Archive</span>
+        </footer>
+        `}
+    </div>
+
+    ${inn2Obj ? `
+    <!-- PAGE 2: Second Innings Scorecard, Analytics & Official Verification -->
+    <div class="report-page page-break innings-page-2">
+        <div class="page-inner">
+            ${innings2Html}
+
+            ${overComparisonHtml}
+
+            ${renderSignoffBlock(match)}
         </div>
 
         <footer class="report-footer">
@@ -3041,29 +3261,7 @@ export async function buildMatchReportHtml(
             </div>
         </footer>
     </div>
-
-    <!-- INNINGS SCORECARDS (Pages 2 & 3) -->
-    ${inningsSectionsHtml}
-
-    <!-- OVER COMPARISON (Page 4, if delivery ball log exists) -->
-    ${overComparisonHtml || `
-    <!-- Fallback Signoff Page if no delivery logs -->
-    <div class="report-page page-break signoff-page">
-        <div class="page-inner">
-            <div class="section-badge-header">
-                <div class="section-title-wrap">
-                    <h2 class="section-page-title">Match Certification &amp; Sign-off</h2>
-                    <span class="innings-team-pill">Official Verification</span>
-                </div>
-            </div>
-            ${renderSignoffBlock(match)}
-        </div>
-        <footer class="mini-footer">
-            <span>Official Scorecard &bull; Certified Record</span>
-            <span>CricScore Platform &bull; Match Verification</span>
-        </footer>
-    </div>
-    `}
+    ` : ""}
 </body>
 </html>`;
 }
