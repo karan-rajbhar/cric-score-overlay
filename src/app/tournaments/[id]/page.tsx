@@ -141,32 +141,42 @@ export default async function TournamentPage({
   let leaderboardData: LeaderboardData = buildLeaderboardData({});
 
   if (matchIds.length > 0) {
-    const [{ data: batting }, { data: bowling }, { data: fallOfWickets }] =
+    const [battingRes, bowlingRes, fowRes] =
       await Promise.all([
         supabase
           .from("batting_performances")
           .select(
-            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
+            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
         supabase
           .from("bowling_performances")
           .select(
-            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users(id, full_name, avatar_url)",
+            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
         supabase
           .from("fall_of_wickets")
           .select(
-            "match_id, innings_id, batsman_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
+            "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
       ]);
 
+    if (battingRes.error) {
+      console.error("Error fetching tournament batting performances:", battingRes.error);
+    }
+    if (bowlingRes.error) {
+      console.error("Error fetching tournament bowling performances:", bowlingRes.error);
+    }
+    if (fowRes.error) {
+      console.error("Error fetching tournament fall of wickets:", fowRes.error);
+    }
+
     leaderboardData = buildLeaderboardData({
-      batting,
-      bowling,
-      fallOfWickets,
+      batting: battingRes.data,
+      bowling: bowlingRes.data,
+      fallOfWickets: fowRes.data,
     });
   }
 

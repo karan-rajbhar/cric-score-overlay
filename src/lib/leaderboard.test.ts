@@ -330,5 +330,42 @@ describe("leaderboard calculation engine", () => {
       const sortedByField = sortMvpEntries(data.mvp, "fieldingPoints");
       expect(sortedByField[0]!.userId).toBe("allrounder");
     });
+
+    it("handles batsman_out_id in fall_of_wickets and array-shaped user joins", () => {
+      const data = buildLeaderboardData({
+        batting: [
+          {
+            match_id: "m-fow",
+            user_id: "u-bat",
+            runs_scored: 42,
+            balls_faced: 25,
+            fours: 4,
+            sixes: 2,
+            is_out: true,
+            user: [{ full_name: "Array Batter", avatar_url: null }],
+          },
+        ],
+        fallOfWickets: [
+          {
+            match_id: "m-fow",
+            batsman_out_id: "u-bat",
+            bowler_id: "u-bowl",
+            fielder_id: "u-field",
+            dismissal_type: "caught",
+            fielder: [{ full_name: "Array Fielder", avatar_url: "https://example.com/f.jpg" }],
+          },
+        ],
+      });
+
+      expect(data.batting.length).toBe(1);
+      expect(data.batting[0]!.name).toBe("Array Batter");
+      expect(data.batting[0]!.runs).toBe(42);
+
+      expect(data.fielding.length).toBe(1);
+      expect(data.fielding[0]!.name).toBe("Array Fielder");
+      expect(data.fielding[0]!.catches).toBe(1);
+      expect(data.fielding[0]!.avatar).toBe("https://example.com/f.jpg");
+    });
   });
 });
+

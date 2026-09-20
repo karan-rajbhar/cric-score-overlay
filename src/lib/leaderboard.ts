@@ -46,6 +46,7 @@ export interface RawFallOfWicketRecord {
   match_id: string;
   innings_id?: string | null;
   batsman_id?: string | null;
+  batsman_out_id?: string | null;
   bowler_id?: string | null;
   fielder_id?: string | null;
   dismissal_type?: string | null;
@@ -542,7 +543,8 @@ export function buildLeaderboardData(params: {
   for (const fow of fowRecords) {
     if (fow.fielder_id) {
       const user = resolveUserInfo(fow.fielder, "Fielder");
-      const key = `${fow.match_id}_${fow.batsman_id ?? ""}_${fow.fielder_id}`;
+      const batsmanId = fow.batsman_out_id ?? fow.batsman_id ?? "";
+      const key = `${fow.match_id}_${batsmanId}_${fow.fielder_id}`;
       processedFowKeys.add(key);
       recordFieldingEvent(fow.fielder_id, fow.dismissal_type, fow.match_id, user);
     }
