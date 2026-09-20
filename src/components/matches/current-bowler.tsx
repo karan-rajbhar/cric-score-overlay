@@ -59,8 +59,8 @@ export function CurrentBowler({
               onClick={onChangeBowler}
               className={
                 sunlightMode
-                  ? "inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-white px-3 py-1 text-xs font-black text-black active:scale-95"
-                  : "inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-2.5 py-1 text-xs font-bold text-foreground transition-transform hover:bg-muted active:scale-95"
+                  ? "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border-2 border-black bg-white px-3 py-1.5 text-xs font-black text-black active:scale-95"
+                  : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-3 py-1.5 text-xs font-bold text-foreground transition-transform hover:bg-muted active:scale-95"
               }
             >
               <Repeat className="h-3.5 w-3.5 text-sky-600" />
@@ -92,8 +92,8 @@ export function CurrentBowler({
                 onClick={onChangeBowler}
                 className={
                   sunlightMode
-                    ? "inline-flex items-center gap-1.5 rounded-full border-2 border-black bg-black px-3.5 py-1 text-xs font-black text-white active:scale-95"
-                    : "inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-bold text-sky-700 transition-all hover:bg-sky-500/20 active:scale-95 dark:text-sky-300"
+                    ? "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border-2 border-black bg-black px-3.5 py-1.5 text-xs font-black text-white active:scale-95"
+                    : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3.5 py-1.5 text-xs font-bold text-sky-700 transition-all hover:bg-sky-500/20 active:scale-95 dark:text-sky-300"
                 }
               >
                 Select Bowler

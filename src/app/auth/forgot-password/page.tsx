@@ -102,12 +102,16 @@ export default function ForgotPasswordPage() {
                       placeholder="scorer@club.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pl-9"
+                      className="h-11 pl-10 text-base sm:text-sm"
                     />
                   </div>
                 </div>
 
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="h-11 min-h-[44px] w-full text-sm font-bold shadow-md"
+                >
                   {loading ? "Sending reset link..." : "Send reset link"}
                 </Button>
 

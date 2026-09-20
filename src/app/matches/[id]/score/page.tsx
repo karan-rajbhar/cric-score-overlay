@@ -513,7 +513,7 @@ export default function ScoringPage() {
               <Button
                 size="sm"
                 onClick={() => setTossDialogDismissed(false)}
-                className="h-8 px-2 sm:px-3"
+                className="h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-bold"
               >
                 <Play className="h-4 w-4 sm:mr-1.5" />
                 <span className="hidden sm:inline">Start Match</span>
@@ -528,7 +528,7 @@ export default function ScoringPage() {
                 size="sm"
                 onClick={() => setShowMatchSettingsDialog(true)}
                 className={cn(
-                  "h-8 px-2 sm:px-3",
+                  "h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-semibold",
                   sunlightMode && "border-2 border-black font-bold",
                 )}
                 title="Match Settings & Rules"
@@ -542,7 +542,7 @@ export default function ScoringPage() {
               size="sm"
               onClick={() => setShowAddPlayerDialog(true)}
               className={cn(
-                "h-8 px-2 sm:px-3",
+                "h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-semibold",
                 sunlightMode && "border-2 border-black font-bold",
               )}
             >
@@ -555,7 +555,7 @@ export default function ScoringPage() {
                 isCreator={match.created_by === user?.id}
               />
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 min-h-[36px] min-w-[36px] sm:h-8 sm:w-8" asChild>
               <Link
                 href={`/overlay/${match.id}`}
                 target="_blank"
@@ -632,11 +632,12 @@ export default function ScoringPage() {
                     size="sm"
                     onClick={() => handleUndo()}
                     disabled={isProcessing}
-                    className={
+                    className={cn(
+                      "h-10 min-h-[40px] px-3.5 text-xs font-bold sm:h-9 sm:min-h-0 sm:font-semibold",
                       sunlightMode
                         ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
-                        : ""
-                    }
+                        : "",
+                    )}
                   >
                     <Undo2 className="mr-1.5 h-4 w-4" /> Undo
                   </Button>
@@ -645,11 +646,12 @@ export default function ScoringPage() {
                     size="sm"
                     onClick={() => handleEndInnings()}
                     disabled={isProcessing}
-                    className={
+                    className={cn(
+                      "h-10 min-h-[40px] px-3.5 text-xs font-bold sm:h-9 sm:min-h-0 sm:font-semibold",
                       sunlightMode
                         ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
-                        : ""
-                    }
+                        : "",
+                    )}
                   >
                     End Inns
                   </Button>

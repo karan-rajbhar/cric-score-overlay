@@ -890,7 +890,7 @@ export function ControlClient({
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={copyObsUrl}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition ${
+              className={`flex min-h-[36px] items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition ${
                 copiedObsUrl
                   ? "bg-emerald-600 text-white"
                   : "border border-white/10 bg-white/10 text-white hover:bg-white/20"
@@ -910,7 +910,7 @@ export function ControlClient({
               href={obsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Open full transparent overlay in new window"
             >
               <ExternalLink className="h-3.5 w-3.5" />
@@ -919,7 +919,7 @@ export function ControlClient({
 
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Configure Themes, Margins & Audio"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 text-amber-400" />
@@ -928,7 +928,7 @@ export function ControlClient({
 
             <button
               onClick={handlePanicClear}
-              className="flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black uppercase text-white shadow-md transition hover:bg-red-500 active:scale-95"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black uppercase text-white shadow-md transition hover:bg-red-500 active:scale-95"
               title="Emergency Clear (Space / Esc)"
             >
               <XCircle className="h-3.5 w-3.5" />
@@ -1319,7 +1319,7 @@ export function ControlClient({
               {/* 4 Clean Phase Navigation Tabs */}
               <div
                 role="tablist"
-                className="grid grid-cols-2 gap-1.5 rounded-xl bg-black/40 p-1 min-[480px]:grid-cols-4"
+                className="flex items-center gap-1.5 overflow-x-auto no-scrollbar rounded-xl bg-black/40 p-1"
               >
                 {GRAPHIC_PHASE_DECKS.map((deck) => {
                   const Icon = deck.icon;
@@ -1331,7 +1331,7 @@ export function ControlClient({
                       aria-selected={isActive}
                       onClick={() => setActiveDeckTab(deck.id)}
                       className={cn(
-                        "flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition",
+                        "flex shrink-0 whitespace-nowrap items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] flex-1",
                         isActive
                           ? "bg-amber-500 text-black shadow-md"
                           : "text-slate-400 hover:bg-white/5 hover:text-white",
@@ -1431,11 +1431,11 @@ export function ControlClient({
                     e.key === "Enter" && handleSendCustomAlert()
                   }
                   placeholder="Custom broadcast alert (e.g. 'Match inspection at 3:30 PM')"
-                  className="w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  className="w-full min-h-[44px] sm:min-h-0 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-base sm:text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
                 />
                 <button
                   onClick={() => handleSendCustomAlert()}
-                  className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400 active:scale-95"
+                  className="flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400 active:scale-95"
                 >
                   <Send className="h-3.5 w-3.5" />
                   <span>Send Alert</span>

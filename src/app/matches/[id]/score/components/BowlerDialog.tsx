@@ -245,7 +245,7 @@ export function BowlerDialog({
           )}
 
           <Button
-            className="w-full"
+            className="w-full h-11 min-h-[44px] text-sm font-bold shadow-md"
             onClick={onConfirm}
             disabled={
               !currentBowlerId ||

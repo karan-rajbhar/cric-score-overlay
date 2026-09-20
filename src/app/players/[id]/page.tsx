@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border bg-card p-3 text-center">
-      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-xl font-bold tabular-nums sm:text-2xl">{value}</div>
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
     </div>
   );
@@ -333,7 +333,7 @@ export default async function PlayerPage({
           variant="ghost"
           size="sm"
           asChild
-          className="interactive-button w-fit pl-0"
+          className="interactive-button min-h-[36px] w-fit pl-0"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1.5 h-4 w-4" />
@@ -396,13 +396,13 @@ export default async function PlayerPage({
         {/* Quick Highlights Pill */}
         <div className="flex items-center justify-around gap-4 border-t pt-4 sm:justify-start sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
           <div className="text-center">
-            <div className="text-xl font-bold">{totalMatches}</div>
+            <div className="text-xl font-bold tabular-nums">{totalMatches}</div>
             <div className="text-xs font-medium text-muted-foreground">
               Matches
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+            <div className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
               {totalRuns}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -410,7 +410,7 @@ export default async function PlayerPage({
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+            <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
               {totalWickets}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
