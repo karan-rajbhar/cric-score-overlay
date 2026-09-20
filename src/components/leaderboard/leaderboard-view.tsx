@@ -13,6 +13,7 @@ import {
   Search,
   Activity,
   Sparkles,
+  SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -39,25 +40,24 @@ interface LeaderboardViewProps {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration Records for Metric Spotlights, Tooltips, and Formats
+// Metric Configuration Records with Unambiguous Contextual Data
 // ---------------------------------------------------------------------------
 
-const BATTING_CONFIGS: Record<
-  BattingSortOption,
-  {
-    label: string;
-    description: string;
-    heroLabel: string;
-    getHeroStat: (b: BattingLeaderboardEntry) => { value: string; label: string };
-    getContextStats: (b: BattingLeaderboardEntry) => { label: string; value: string }[];
-  }
-> = {
+interface MetricConfig<T> {
+  label: string;
+  description: string;
+  heroLabel: string;
+  getHeroStat: (item: T) => { value: string; label: string };
+  getContextStats: (item: T) => { label: string; value: string }[];
+}
+
+const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboardEntry>> = {
   runs: {
     label: "Most Runs",
     description:
-      "Ranked by Total Runs Scored. Displays runs, innings batted, batting average, and strike rate.",
-    heroLabel: "Runs Scored",
-    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Total Runs Scored" }),
+      "Ranked by Total Runs Scored. Displays overall tournament aggregate figures including innings, average, and strike rate.",
+    heroLabel: "Total Runs Scored",
+    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Tournament Runs" }),
     getContextStats: (b) => [
       { label: "Innings", value: `${b.innings}` },
       { label: "Batting Avg", value: b.averageDisplay },
@@ -68,71 +68,80 @@ const BATTING_CONFIGS: Record<
   highestScore: {
     label: "Highest Score",
     description:
-      "Ranked by Highest Individual Score in a single knock. Displays the peak innings with runs, balls faced, boundaries, and strike rate.",
-    heroLabel: "Highest Knock",
+      "Ranked by Highest Individual Score in a single knock. Every column in this view focuses strictly on that peak innings.",
+    heroLabel: "Peak Innings Knock",
     getHeroStat: (b) => ({
       value: b.highestScoreDisplay,
       label: b.highestScoreBalls
-        ? `${b.highestScoreBalls} balls • SR ${b.highestScoreStrikeRateDisplay}`
+        ? `${b.highestScoreBalls} balls in knock • SR ${b.highestScoreStrikeRateDisplay}`
         : "Highest Innings",
     }),
     getContextStats: (b) => [
       {
+        label: "Balls in Knock",
+        value: b.highestScoreBalls ? `${b.highestScoreBalls}` : "—",
+      },
+      {
+        label: "Knock Strike Rate",
+        value: b.highestScoreStrikeRateDisplay ?? "—",
+      },
+      {
         label: "Knock Boundaries",
         value: `${b.highestScoreFours ?? 0}×4, ${b.highestScoreSixes ?? 0}×6`,
       },
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings", value: `${b.innings}` },
-      { label: "Overall Avg", value: b.averageDisplay },
+      { label: "Tournament Runs", value: `${b.runs} (${b.innings} inn)` },
     ],
   },
   average: {
     label: "Batting Avg",
     description:
-      "Ranked by Batting Average (runs scored divided by dismissals). Displays average, total runs, and not-outs.",
+      "Ranked by Batting Average (Total Runs divided by Number of Times Dismissed). Demonstrates run consistency.",
     heroLabel: "Batting Average",
-    getHeroStat: (b) => ({ value: b.averageDisplay, label: "Batting Average" }),
+    getHeroStat: (b) => ({ value: b.averageDisplay, label: "Runs Per Dismissal" }),
     getContextStats: (b) => [
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings (NO)", value: `${b.innings} (${b.notOuts} NO)` },
-      { label: "Times Out", value: `${Math.max(0, b.innings - b.notOuts)}` },
+      { label: "Tournament Runs", value: `${b.runs}` },
+      {
+        label: "Times Dismissed",
+        value: `${Math.max(0, b.innings - b.notOuts)}`,
+      },
+      { label: "Innings (Not Outs)", value: `${b.innings} (${b.notOuts} NO)` },
       { label: "Strike Rate", value: b.strikeRateDisplay },
     ],
   },
   strikeRate: {
     label: "Strike Rate",
     description:
-      "Ranked by Batting Strike Rate. Displays scoring speed per 100 balls, runs scored, and boundary percentage.",
-    heroLabel: "Strike Rate",
-    getHeroStat: (b) => ({ value: b.strikeRateDisplay, label: "Strike Rate" }),
+      "Ranked by Batting Strike Rate. Measures scoring velocity in runs scored per 100 balls faced.",
+    heroLabel: "Batting Strike Rate",
+    getHeroStat: (b) => ({ value: b.strikeRateDisplay, label: "Runs / 100 Balls" }),
     getContextStats: (b) => [
       { label: "Runs Scored", value: `${b.runs}` },
       { label: "Balls Faced", value: `${b.balls}` },
       { label: "Boundary %", value: b.boundaryPercent },
-      { label: "4s / 6s", value: `${b.fours} / ${b.sixes}` },
+      { label: "Boundaries", value: `${b.fours}×4, ${b.sixes}×6` },
     ],
   },
   centuries: {
     label: "100s",
     description:
-      "Ranked by Most Centuries (100+ run innings). Displays century milestones, half-centuries, and highest score.",
-    heroLabel: "Centuries",
+      "Ranked by Centuries (100+ run innings). Highlights match-defining individual centuries.",
+    heroLabel: "Centuries Scored",
     getHeroStat: (b) => ({
       value: `${b.centuries}`,
       label: b.centuries === 1 ? "Century" : "Centuries",
     }),
     getContextStats: (b) => [
-      { label: "Fifties (50s)", value: `${b.fifties}` },
+      { label: "Half-Centuries (50s)", value: `${b.fifties}` },
       { label: "Highest Score", value: b.highestScoreDisplay },
       { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings", value: `${b.innings}` },
+      { label: "Innings Batted", value: `${b.innings}` },
     ],
   },
   fifties: {
     label: "50s",
     description:
-      "Ranked by Most Half-Centuries (50-99 run innings). Displays fifties milestones, 100s, and total runs.",
-    heroLabel: "Fifties",
+      "Ranked by Half-Centuries (50-99 run innings). Displays consistent half-century milestones.",
+    heroLabel: "Half-Centuries",
     getHeroStat: (b) => ({
       value: `${b.fifties}`,
       label: b.fifties === 1 ? "Half-Century" : "Half-Centuries",
@@ -141,20 +150,20 @@ const BATTING_CONFIGS: Record<
       { label: "Centuries (100s)", value: `${b.centuries}` },
       { label: "Highest Score", value: b.highestScoreDisplay },
       { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings", value: `${b.innings}` },
+      { label: "Innings Batted", value: `${b.innings}` },
     ],
   },
   sixes: {
     label: "Most 6s",
     description:
-      "Ranked by Most Sixes hit. Displays maximums struck, runs from sixes, and boundary count.",
-    heroLabel: "Sixes Hit",
+      "Ranked by Total Sixes struck across all fixtures. Quantifies maximum boundary power.",
+    heroLabel: "Sixes Struck",
     getHeroStat: (b) => ({
       value: `${b.sixes}`,
       label: b.sixes === 1 ? "Six Hit" : "Sixes Hit",
     }),
     getContextStats: (b) => [
-      { label: "Runs from 6s", value: `${b.sixes * 6}` },
+      { label: "Runs from Sixes", value: `${b.sixes * 6}` },
       { label: "Fours Hit", value: `${b.fours}` },
       { label: "Total Runs", value: `${b.runs}` },
       { label: "Strike Rate", value: b.strikeRateDisplay },
@@ -163,14 +172,14 @@ const BATTING_CONFIGS: Record<
   fours: {
     label: "Most 4s",
     description:
-      "Ranked by Most Fours struck. Displays boundaries hit, runs from fours, and balls faced.",
-    heroLabel: "Fours Hit",
+      "Ranked by Total Fours struck across all fixtures. Quantifies boundary accumulation.",
+    heroLabel: "Fours Struck",
     getHeroStat: (b) => ({
       value: `${b.fours}`,
       label: b.fours === 1 ? "Four Hit" : "Fours Hit",
     }),
     getContextStats: (b) => [
-      { label: "Runs from 4s", value: `${b.fours * 4}` },
+      { label: "Runs from Fours", value: `${b.fours * 4}` },
       { label: "Sixes Hit", value: `${b.sixes}` },
       { label: "Total Runs", value: `${b.runs}` },
       { label: "Balls Faced", value: `${b.balls}` },
@@ -179,49 +188,40 @@ const BATTING_CONFIGS: Record<
   balls: {
     label: "Balls Faced",
     description:
-      "Ranked by Deliveries Faced at the crease. Displays total balls, overs faced, runs, and strike rate.",
-    heroLabel: "Balls Faced",
+      "Ranked by Deliveries Faced at the crease. Quantifies occupation of the crease.",
+    heroLabel: "Deliveries Faced",
     getHeroStat: (b) => ({ value: `${b.balls}`, label: "Balls Faced" }),
     getContextStats: (b) => [
-      { label: "Runs Scored", value: `${b.runs}` },
       { label: "Overs Faced", value: `${(b.balls / 6).toFixed(1)}` },
+      { label: "Runs Scored", value: `${b.runs}` },
       { label: "Strike Rate", value: b.strikeRateDisplay },
       { label: "Innings", value: `${b.innings}` },
     ],
   },
 };
 
-const BOWLING_CONFIGS: Record<
-  BowlingSortOption,
-  {
-    label: string;
-    description: string;
-    heroLabel: string;
-    getHeroStat: (bw: BowlingLeaderboardEntry) => { value: string; label: string };
-    getContextStats: (bw: BowlingLeaderboardEntry) => { label: string; value: string }[];
-  }
-> = {
+const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboardEntry>> = {
   wickets: {
     label: "Most Wickets",
     description:
-      "Ranked by Total Wickets Taken. Displays overs bowled, bowling average, economy, and best spell.",
+      "Ranked by Total Wickets Taken. Displays overall tournament aggregate bowling figures.",
     heroLabel: "Wickets Taken",
     getHeroStat: (bw) => ({
       value: `${bw.wickets}`,
-      label: bw.wickets === 1 ? "Wicket Taken" : "Wickets Taken",
+      label: bw.wickets === 1 ? "Wicket" : "Wickets Taken",
     }),
     getContextStats: (bw) => [
-      { label: "Overs", value: bw.overs },
+      { label: "Overs Bowled", value: bw.overs },
       { label: "Bowling Avg", value: bw.averageDisplay },
       { label: "Economy Rate", value: bw.economyDisplay },
-      { label: "Best Bowling", value: bw.bestBowling.display },
+      { label: "Best Match Spell", value: bw.bestBowling.display },
     ],
   },
   bestBowling: {
     label: "Best Bowling (BBI)",
     description:
-      "Ranked by Best Bowling Figures in a single innings. Displays the peak match spell with wickets, runs conceded, and economy.",
-    heroLabel: "Best Figures",
+      "Ranked by Best Bowling Figures in a single innings. Focuses strictly on that peak match spell.",
+    heroLabel: "Best Match Spell",
     getHeroStat: (bw) => ({
       value: bw.bestBowling.display,
       label: bw.bestBowling.overs
@@ -229,18 +229,24 @@ const BOWLING_CONFIGS: Record<
         : "Best Match Spell",
     }),
     getContextStats: (bw) => [
-      { label: "Total Wickets", value: `${bw.wickets}` },
-      { label: "Overall Overs", value: bw.overs },
-      { label: "Overall Economy", value: bw.economyDisplay },
-      { label: "Bowling Avg", value: bw.averageDisplay },
+      {
+        label: "Overs in Spell",
+        value: bw.bestBowling.overs ? `${bw.bestBowling.overs}` : "—",
+      },
+      {
+        label: "Spell Economy",
+        value: bw.bestBowling.economy ? `${bw.bestBowling.economy}` : "—",
+      },
+      { label: "Tournament Wkts", value: `${bw.wickets}` },
+      { label: "Tournament Overs", value: bw.overs },
     ],
   },
   average: {
     label: "Bowling Avg",
     description:
-      "Ranked by Bowling Average (runs conceded per wicket taken). Displays efficiency, wickets, and runs conceded.",
+      "Ranked by Bowling Average (Runs Conceded divided by Wickets Taken). Demonstrates breakthrough efficiency.",
     heroLabel: "Bowling Average",
-    getHeroStat: (bw) => ({ value: bw.averageDisplay, label: "Bowling Average" }),
+    getHeroStat: (bw) => ({ value: bw.averageDisplay, label: "Runs / Wicket" }),
     getContextStats: (bw) => [
       { label: "Runs Conceded", value: `${bw.runsConceded}` },
       { label: "Wickets Taken", value: `${bw.wickets}` },
@@ -251,20 +257,20 @@ const BOWLING_CONFIGS: Record<
   economy: {
     label: "Economy Rate",
     description:
-      "Ranked by Economy Rate (runs conceded per over bowled). Displays run prevention, overs, and wickets.",
+      "Ranked by Economy Rate (Runs Conceded per Over Bowled). Measures run containment.",
     heroLabel: "Economy Rate",
-    getHeroStat: (bw) => ({ value: bw.economyDisplay, label: "Economy (RPO)" }),
+    getHeroStat: (bw) => ({ value: bw.economyDisplay, label: "Runs / Over (RPO)" }),
     getContextStats: (bw) => [
       { label: "Overs Bowled", value: bw.overs },
       { label: "Runs Conceded", value: `${bw.runsConceded}` },
       { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Maidens", value: `${bw.maidens}` },
+      { label: "Maiden Overs", value: `${bw.maidens}` },
     ],
   },
   maidens: {
     label: "Maidens",
     description:
-      "Ranked by Maiden Overs (overs with 0 runs conceded). Displays dot ball control and overall economy.",
+      "Ranked by Maiden Overs (overs with 0 runs conceded). Demonstrates sustained pressure.",
     heroLabel: "Maiden Overs",
     getHeroStat: (bw) => ({
       value: `${bw.maidens}`,
@@ -280,7 +286,7 @@ const BOWLING_CONFIGS: Record<
   threeWickets: {
     label: "3-Wkt Hauls",
     description:
-      "Ranked by Most 3-Wicket Hauls in an innings. Displays multi-wicket breakthroughs and best spell.",
+      "Ranked by Most 3-Wicket Hauls in an innings. Shows multi-wicket match impact.",
     heroLabel: "3-Wkt Hauls",
     getHeroStat: (bw) => ({
       value: `${bw.threeWickets}`,
@@ -289,14 +295,14 @@ const BOWLING_CONFIGS: Record<
     getContextStats: (bw) => [
       { label: "5-Wkt Hauls", value: `${bw.fiveWickets}` },
       { label: "Total Wickets", value: `${bw.wickets}` },
-      { label: "Best Figures", value: bw.bestBowling.display },
+      { label: "Best Match Spell", value: bw.bestBowling.display },
       { label: "Innings Bowled", value: `${bw.innings}` },
     ],
   },
   fiveWickets: {
     label: "5-Wkt Hauls",
     description:
-      "Ranked by Most 5-Wicket Hauls in an innings. Displays match-winning bowling spells.",
+      "Ranked by Most 5-Wicket Hauls in an innings. Celebrates dominant bowling performances.",
     heroLabel: "5-Wkt Hauls",
     getHeroStat: (bw) => ({
       value: `${bw.fiveWickets}`,
@@ -305,43 +311,34 @@ const BOWLING_CONFIGS: Record<
     getContextStats: (bw) => [
       { label: "3-Wkt Hauls", value: `${bw.threeWickets}` },
       { label: "Total Wickets", value: `${bw.wickets}` },
-      { label: "Best Figures", value: bw.bestBowling.display },
+      { label: "Best Match Spell", value: bw.bestBowling.display },
       { label: "Bowling Avg", value: bw.averageDisplay },
     ],
   },
   balls: {
     label: "Balls Bowled",
     description:
-      "Ranked by Total Legal Deliveries Bowled across fixtures. Displays workload, overs, and wickets.",
-    heroLabel: "Balls Bowled",
+      "Ranked by Legal Deliveries Bowled. Quantifies overall bowling workload.",
+    heroLabel: "Deliveries Bowled",
     getHeroStat: (bw) => ({
       value: `${bw.balls}`,
       label: `${bw.overs} Overs Bowled`,
     }),
     getContextStats: (bw) => [
-      { label: "Overs", value: bw.overs },
+      { label: "Overs Bowled", value: bw.overs },
       { label: "Runs Conceded", value: `${bw.runsConceded}` },
       { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Economy", value: bw.economyDisplay },
+      { label: "Economy Rate", value: bw.economyDisplay },
     ],
   },
 };
 
-const FIELDING_CONFIGS: Record<
-  FieldingSortOption,
-  {
-    label: string;
-    description: string;
-    heroLabel: string;
-    getHeroStat: (f: FieldingLeaderboardEntry) => { value: string; label: string };
-    getContextStats: (f: FieldingLeaderboardEntry) => { label: string; value: string }[];
-  }
-> = {
+const FIELDING_CONFIGS: Record<FieldingSortOption, MetricConfig<FieldingLeaderboardEntry>> = {
   totalDismissals: {
     label: "Total Dismissals",
     description:
       "Ranked by Combined Fielding Dismissals (Catches + Stumpings + Run Outs).",
-    heroLabel: "Dismissals",
+    heroLabel: "Total Dismissals",
     getHeroStat: (f) => ({
       value: `${f.totalDismissals}`,
       label: f.totalDismissals === 1 ? "Dismissal" : "Total Dismissals",
@@ -357,13 +354,13 @@ const FIELDING_CONFIGS: Record<
     label: "Catches",
     description:
       "Ranked by Most Catches Taken in the outfield or behind the stumps.",
-    heroLabel: "Catches",
+    heroLabel: "Catches Taken",
     getHeroStat: (f) => ({
       value: `${f.catches}`,
       label: f.catches === 1 ? "Catch" : "Catches",
     }),
     getContextStats: (f) => [
-      { label: "Matches", value: `${f.matches}` },
+      { label: "Matches Played", value: `${f.matches}` },
       { label: "Total Dismissals", value: `${f.totalDismissals}` },
       { label: "Stumpings", value: `${f.stumpings}` },
       { label: "Run Outs", value: `${f.runOuts}` },
@@ -372,43 +369,34 @@ const FIELDING_CONFIGS: Record<
   stumpings: {
     label: "Stumpings",
     description: "Ranked by Most Wicketkeeper Stumpings executed.",
-    heroLabel: "Stumpings",
+    heroLabel: "Stumpings Executed",
     getHeroStat: (f) => ({
       value: `${f.stumpings}`,
       label: f.stumpings === 1 ? "Stumping" : "Stumpings",
     }),
     getContextStats: (f) => [
-      { label: "Matches", value: `${f.matches}` },
-      { label: "Catches", value: `${f.catches}` },
+      { label: "Matches Played", value: `${f.matches}` },
+      { label: "Catches Taken", value: `${f.catches}` },
       { label: "Total Dismissals", value: `${f.totalDismissals}` },
     ],
   },
   runOuts: {
     label: "Run Outs",
     description: "Ranked by Direct Hit and Assisted Fielding Run Outs.",
-    heroLabel: "Run Outs",
+    heroLabel: "Run Outs Executed",
     getHeroStat: (f) => ({
       value: `${f.runOuts}`,
       label: f.runOuts === 1 ? "Run Out" : "Run Outs",
     }),
     getContextStats: (f) => [
-      { label: "Matches", value: `${f.matches}` },
-      { label: "Catches", value: `${f.catches}` },
+      { label: "Matches Played", value: `${f.matches}` },
+      { label: "Catches Taken", value: `${f.catches}` },
       { label: "Total Dismissals", value: `${f.totalDismissals}` },
     ],
   },
 };
 
-const MVP_CONFIGS: Record<
-  MvpSortOption,
-  {
-    label: string;
-    description: string;
-    heroLabel: string;
-    getHeroStat: (m: MvpLeaderboardEntry) => { value: string; label: string };
-    getContextStats: (m: MvpLeaderboardEntry) => { label: string; value: string }[];
-  }
-> = {
+const MVP_CONFIGS: Record<MvpSortOption, MetricConfig<MvpLeaderboardEntry>> = {
   totalPoints: {
     label: "Total MVP Points",
     description:
@@ -429,7 +417,7 @@ const MVP_CONFIGS: Record<
     label: "Batting Impact",
     description:
       "Ranked by MVP Points earned through Batting performance and milestones.",
-    heroLabel: "Batting Pts",
+    heroLabel: "Batting Points",
     getHeroStat: (m) => ({
       value: `${m.battingPoints}`,
       label: "Batting Impact Points",
@@ -444,7 +432,7 @@ const MVP_CONFIGS: Record<
     label: "Bowling Impact",
     description:
       "Ranked by MVP Points earned through Wickets, Economy, and Maidens.",
-    heroLabel: "Bowling Pts",
+    heroLabel: "Bowling Points",
     getHeroStat: (m) => ({
       value: `${m.bowlingPoints}`,
       label: "Bowling Impact Points",
@@ -459,7 +447,7 @@ const MVP_CONFIGS: Record<
     label: "Fielding Impact",
     description:
       "Ranked by MVP Points earned through Catches, Stumpings, and Run Outs.",
-    heroLabel: "Fielding Pts",
+    heroLabel: "Fielding Points",
     getHeroStat: (m) => ({
       value: `${m.fieldingPoints}`,
       label: "Fielding Impact Points",
@@ -531,7 +519,7 @@ function LeaderSpotlightBanner({
 
   return (
     <div
-      className={`rounded-xl border ${colorMap.border} bg-gradient-to-br ${colorMap.bg} p-4 shadow-sm`}
+      className={`rounded-xl border ${colorMap.border} bg-gradient-to-br ${colorMap.bg} p-4 shadow-xs`}
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: Description & Category Header */}
@@ -549,7 +537,7 @@ function LeaderSpotlightBanner({
 
         {/* Right: #1 Leader Spotlight Card */}
         {leader && heroValue && (
-          <div className="flex items-center gap-3 self-start sm:self-auto rounded-lg border border-border/60 bg-card/90 p-2.5 sm:min-w-[280px]">
+          <div className="flex items-center gap-3 self-start sm:self-auto rounded-lg border border-border/60 bg-card/90 p-2.5 sm:min-w-[290px]">
             <div className="relative shrink-0">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
                 {(leader.name ?? "P")[0]?.toUpperCase()}
@@ -562,7 +550,7 @@ function LeaderSpotlightBanner({
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-bold text-foreground">
                   {leader.name}
                 </span>
@@ -576,7 +564,7 @@ function LeaderSpotlightBanner({
                 {heroLabel}
               </div>
               {contextStats && contextStats.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground border-t border-border/40 pt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground border-t border-border/40 pt-1">
                   {contextStats.slice(0, 3).map((st) => (
                     <span key={st.label} className="truncate">
                       <span className="font-semibold text-foreground tabular-nums">
@@ -616,6 +604,14 @@ export function LeaderboardView({
   const [fieldingSort, setFieldingSort] =
     useState<FieldingSortOption>("totalDismissals");
   const [mvpSort, setMvpSort] = useState<MvpSortOption>("totalPoints");
+
+  // Table Presentation Mode: 'focused' (contextual columns for active stat) vs 'all' (complete standard sheet)
+  const [battingTableMode, setBattingTableMode] = useState<"focused" | "all">(
+    "focused",
+  );
+  const [bowlingTableMode, setBowlingTableMode] = useState<"focused" | "all">(
+    "focused",
+  );
 
   const hasAnyData =
     data.batting.length > 0 ||
@@ -702,7 +698,7 @@ export function LeaderboardView({
               onClick={() => setActiveTab("overview")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 activeTab === "overview"
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -716,7 +712,7 @@ export function LeaderboardView({
               onClick={() => setActiveTab("batting")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 activeTab === "batting"
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -733,7 +729,7 @@ export function LeaderboardView({
               onClick={() => setActiveTab("bowling")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 activeTab === "bowling"
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -750,7 +746,7 @@ export function LeaderboardView({
               onClick={() => setActiveTab("fielding")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 activeTab === "fielding"
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -767,7 +763,7 @@ export function LeaderboardView({
               onClick={() => setActiveTab("mvp")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all ${
                 activeTab === "mvp"
-                  ? "bg-card text-foreground shadow-sm"
+                  ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -1130,34 +1126,65 @@ export function LeaderboardView({
         {/* 2. BATTING TAB */}
         {activeTab === "batting" && (
           <div className="space-y-4">
-            {/* Filter & Sort Chips */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs font-semibold text-muted-foreground">
-                Rank by:
-              </span>
-              {(
-                [
-                  { id: "runs", label: "Most Runs" },
-                  { id: "centuries", label: "100s" },
-                  { id: "fifties", label: "50s" },
-                  { id: "highestScore", label: "Highest Score" },
-                  { id: "average", label: "Batting Avg" },
-                  { id: "strikeRate", label: "Strike Rate" },
-                  { id: "sixes", label: "Most 6s" },
-                  { id: "fours", label: "Most 4s" },
-                  { id: "balls", label: "Balls Faced" },
-                ] as const
-              ).map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant={battingSort === chip.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setBattingSort(chip.id)}
-                  className="h-7 text-[11px]"
-                >
-                  {chip.label}
-                </Button>
-              ))}
+            {/* Filter & Sort Chips + Table View Mode Toggle */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-semibold text-muted-foreground">
+                  Rank by:
+                </span>
+                {(
+                  [
+                    { id: "runs", label: "Most Runs" },
+                    { id: "centuries", label: "100s" },
+                    { id: "fifties", label: "50s" },
+                    { id: "highestScore", label: "Highest Score" },
+                    { id: "average", label: "Batting Avg" },
+                    { id: "strikeRate", label: "Strike Rate" },
+                    { id: "sixes", label: "Most 6s" },
+                    { id: "fours", label: "Most 4s" },
+                    { id: "balls", label: "Balls Faced" },
+                  ] as const
+                ).map((chip) => (
+                  <Button
+                    key={chip.id}
+                    variant={battingSort === chip.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setBattingSort(chip.id)}
+                    className="h-7 text-[11px]"
+                  >
+                    {chip.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* View Toggle: Focused Perspective vs All Columns */}
+              {battingSort !== "runs" && (
+                <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
+                  <button
+                    type="button"
+                    onClick={() => setBattingTableMode("focused")}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                      battingTableMode === "focused"
+                        ? "bg-card text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Focused Knock View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBattingTableMode("all")}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                      battingTableMode === "all"
+                        ? "bg-card text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    All Columns
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Active Metric Leader Spotlight Banner */}
@@ -1240,113 +1267,32 @@ export function LeaderboardView({
               )}
             </div>
 
-            {/* Full Batting Table for Desktop (>= md) */}
-            <Card className="hidden md:block">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2.5 w-10 text-center">#</th>
-                        <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                        <th className="px-2.5 py-2.5 text-center">Mat</th>
-                        <th className="px-2.5 py-2.5 text-center">Inn</th>
-                        <th className="px-2.5 py-2.5 text-center">NO</th>
-                        <th
-                          className={`px-3 py-2.5 text-right transition-colors ${
-                            battingSort === "runs"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : "font-bold text-foreground"
-                          }`}
-                        >
-                          Runs
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-center transition-colors ${
-                            battingSort === "highestScore"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          HS
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-right transition-colors ${
-                            battingSort === "average"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          Avg
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-right transition-colors ${
-                            battingSort === "balls"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          BF
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-right transition-colors ${
-                            battingSort === "strikeRate"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          SR
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            battingSort === "centuries"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          100
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            battingSort === "fifties"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          50
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            battingSort === "fours"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          4s
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            battingSort === "sixes"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
-                              : ""
-                          }`}
-                        >
-                          6s
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredBatting.length === 0 ? (
+            {/* Desktop Table: Focused Knock Perspective for Highest Score */}
+            {battingSort === "highestScore" && battingTableMode === "focused" ? (
+              <Card className="hidden md:block">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
                         <tr>
-                          <td
-                            colSpan={14}
-                            className="py-8 text-center text-xs text-muted-foreground"
-                          >
-                            No batting records found matching your search.
-                          </td>
+                          <th className="px-3 py-2.5 w-10 text-center">#</th>
+                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                          <th className="px-3 py-2.5 text-center bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30">
+                            High Score (HS)
+                          </th>
+                          <th className="px-3 py-2.5 text-center">Balls (Knock)</th>
+                          <th className="px-3 py-2.5 text-right">SR (Knock)</th>
+                          <th className="px-3 py-2.5 text-center">Knock 4s</th>
+                          <th className="px-3 py-2.5 text-center">Knock 6s</th>
+                          <th className="px-3 py-2.5 text-center">Innings</th>
+                          <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                            Total Tournament Runs
+                          </th>
+                          <th className="px-3 py-2.5 text-right">Overall Avg</th>
                         </tr>
-                      ) : (
-                        filteredBatting.map((b, idx) => (
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredBatting.map((b, idx) => (
                           <tr
                             key={b.userId}
                             className="hover:bg-muted/40 transition-colors"
@@ -1370,184 +1316,331 @@ export function LeaderboardView({
                                 </span>
                               </div>
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                              {b.matches}
+                            <td className="px-3 py-2 text-center tabular-nums font-black text-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20">
+                              {b.highestScoreDisplay}
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                              {b.highestScoreBalls ? `${b.highestScoreBalls} balls` : "—"}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">
+                              {b.highestScoreStrikeRateDisplay ?? "—"}
+                            </td>
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                              {b.highestScoreFours ?? 0}
+                            </td>
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                              {b.highestScoreSixes ?? 0}
+                            </td>
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
                               {b.innings}
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                              {b.notOuts}
+                            <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                              {b.runs}
                             </td>
-                            <td
-                              className={`px-3 py-2 text-right tabular-nums ${
-                                battingSort === "runs"
-                                  ? "bg-amber-500/10 font-black text-sm text-foreground border-x border-amber-500/20"
-                                  : "font-black text-sm text-foreground"
-                              }`}
-                            >
-                              <div>{b.runs}</div>
-                              {battingSort === "runs" && (
-                                <div className="text-[10px] text-muted-foreground font-normal">
-                                  Avg {b.averageDisplay}
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-center tabular-nums ${
-                                battingSort === "highestScore"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : "font-semibold"
-                              }`}
-                            >
-                              <div>{b.highestScoreDisplay}</div>
-                              {battingSort === "highestScore" &&
-                                b.highestScoreBalls !== undefined &&
-                                b.highestScoreBalls > 0 && (
-                                  <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                    {b.highestScoreBalls}b • SR {b.highestScoreStrikeRateDisplay}
-                                  </div>
-                                )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right tabular-nums ${
-                                battingSort === "average"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : ""
-                              }`}
-                            >
-                              <div>{b.averageDisplay}</div>
-                              {battingSort === "average" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {b.runs}r / {Math.max(0, b.innings - b.notOuts)} outs
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right tabular-nums ${
-                                battingSort === "balls"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <div>{b.balls}</div>
-                              {battingSort === "balls" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {(b.balls / 6).toFixed(1)} ov
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right tabular-nums ${
-                                battingSort === "strikeRate"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : "font-medium"
-                              }`}
-                            >
-                              <div>{b.strikeRateDisplay}</div>
-                              {battingSort === "strikeRate" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {b.runs}r off {b.balls}b
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                battingSort === "centuries"
-                                  ? "bg-amber-500/10 font-black text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
-                                  : "font-semibold text-amber-600 dark:text-amber-400"
-                              }`}
-                            >
-                              <div>{b.centuries}</div>
-                              {battingSort === "centuries" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {b.innings} inn
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                battingSort === "fifties"
-                                  ? "bg-amber-500/10 font-black text-blue-600 dark:text-blue-400 border-x border-amber-500/20"
-                                  : "font-semibold text-blue-600 dark:text-blue-400"
-                              }`}
-                            >
-                              <div>{b.fifties}</div>
-                              {battingSort === "fifties" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {b.innings} inn
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                battingSort === "fours"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <div>{b.fours}</div>
-                              {battingSort === "fours" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {b.fours * 4} runs
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                battingSort === "sixes"
-                                  ? "bg-amber-500/10 font-black text-foreground border-x border-amber-500/20"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <div>{b.sixes}</div>
-                              {battingSort === "sixes" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {b.sixes * 6} runs
-                                </div>
-                              )}
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {b.averageDisplay}
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              /* Full Batting Table for Desktop (>= md) */
+              <Card className="hidden md:block">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2.5 w-10 text-center">#</th>
+                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                          <th className="px-2.5 py-2.5 text-center">Mat</th>
+                          <th className="px-2.5 py-2.5 text-center">Inn</th>
+                          <th className="px-2.5 py-2.5 text-center">NO</th>
+                          <th
+                            className={`px-3 py-2.5 text-right transition-colors ${
+                              battingSort === "runs"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : "font-bold text-foreground"
+                            }`}
+                          >
+                            Runs
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-center transition-colors ${
+                              battingSort === "highestScore"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            HS
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-right transition-colors ${
+                              battingSort === "average"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            Avg
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-right transition-colors ${
+                              battingSort === "balls"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            BF
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-right transition-colors ${
+                              battingSort === "strikeRate"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            SR
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              battingSort === "centuries"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            100
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              battingSort === "fifties"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            50
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              battingSort === "fours"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            4s
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              battingSort === "sixes"
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                : ""
+                            }`}
+                          >
+                            6s
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredBatting.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={14}
+                              className="py-8 text-center text-xs text-muted-foreground"
+                            >
+                              No batting records found matching your search.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredBatting.map((b, idx) => (
+                            <tr
+                              key={b.userId}
+                              className="hover:bg-muted/40 transition-colors"
+                            >
+                              <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                                {idx === 0 ? (
+                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                                    1
+                                  </span>
+                                ) : (
+                                  idx + 1
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
+                                    {(b.name ?? "P")[0]?.toUpperCase()}
+                                  </div>
+                                  <span className="font-semibold text-foreground truncate max-w-[160px]">
+                                    {b.name}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                                {b.matches}
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                                {b.innings}
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                                {b.notOuts}
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                                  battingSort === "runs"
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                {b.runs}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                                  battingSort === "highestScore"
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
+                                    : ""
+                                }`}
+                              >
+                                {b.highestScoreDisplay}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-right tabular-nums ${
+                                  battingSort === "average"
+                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    : ""
+                                }`}
+                              >
+                                {b.averageDisplay}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-right tabular-nums ${
+                                  battingSort === "balls"
+                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {b.balls}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-right tabular-nums ${
+                                  battingSort === "strikeRate"
+                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    : "font-medium"
+                                }`}
+                              >
+                                {b.strikeRateDisplay}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  battingSort === "centuries"
+                                    ? "bg-amber-500/10 font-black text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
+                                    : "font-semibold text-amber-600 dark:text-amber-400"
+                                }`}
+                              >
+                                {b.centuries}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  battingSort === "fifties"
+                                    ? "bg-amber-500/10 font-black text-blue-600 dark:text-blue-400 border-x border-amber-500/20"
+                                    : "font-semibold text-blue-600 dark:text-blue-400"
+                                }`}
+                              >
+                                {b.fifties}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  battingSort === "fours"
+                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {b.fours}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  battingSort === "sixes"
+                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {b.sixes}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
         {/* 3. BOWLING TAB */}
         {activeTab === "bowling" && (
           <div className="space-y-4">
-            {/* Filter & Sort Chips */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="mr-1 text-xs font-semibold text-muted-foreground">
-                Rank by:
-              </span>
-              {(
-                [
-                  { id: "wickets", label: "Most Wickets" },
-                  { id: "bestBowling", label: "Best Bowling (BBI)" },
-                  { id: "average", label: "Bowling Avg" },
-                  { id: "economy", label: "Economy Rate" },
-                  { id: "maidens", label: "Maidens" },
-                  { id: "threeWickets", label: "3-Wkt Hauls" },
-                  { id: "fiveWickets", label: "5-Wkt Hauls" },
-                  { id: "balls", label: "Balls Bowled" },
-                ] as const
-              ).map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant={bowlingSort === chip.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setBowlingSort(chip.id)}
-                  className="h-7 text-[11px]"
-                >
-                  {chip.label}
-                </Button>
-              ))}
+            {/* Filter & Sort Chips + Table View Mode Toggle */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-semibold text-muted-foreground">
+                  Rank by:
+                </span>
+                {(
+                  [
+                    { id: "wickets", label: "Most Wickets" },
+                    { id: "bestBowling", label: "Best Bowling (BBI)" },
+                    { id: "average", label: "Bowling Avg" },
+                    { id: "economy", label: "Economy Rate" },
+                    { id: "maidens", label: "Maidens" },
+                    { id: "threeWickets", label: "3-Wkt Hauls" },
+                    { id: "fiveWickets", label: "5-Wkt Hauls" },
+                    { id: "balls", label: "Balls Bowled" },
+                  ] as const
+                ).map((chip) => (
+                  <Button
+                    key={chip.id}
+                    variant={bowlingSort === chip.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setBowlingSort(chip.id)}
+                    className="h-7 text-[11px]"
+                  >
+                    {chip.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* View Toggle for Bowling */}
+              {bowlingSort === "bestBowling" && (
+                <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
+                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1" />
+                  <button
+                    type="button"
+                    onClick={() => setBowlingTableMode("focused")}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                      bowlingTableMode === "focused"
+                        ? "bg-card text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Focused Spell View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBowlingTableMode("all")}
+                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-all ${
+                      bowlingTableMode === "all"
+                        ? "bg-card text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    All Columns
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Active Metric Leader Spotlight Banner */}
@@ -1630,105 +1723,31 @@ export function LeaderboardView({
               )}
             </div>
 
-            {/* Full Bowling Table for Desktop (>= md) */}
-            <Card className="hidden md:block">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2.5 w-10 text-center">#</th>
-                        <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                        <th className="px-2.5 py-2.5 text-center">Mat</th>
-                        <th className="px-2.5 py-2.5 text-center">Inn</th>
-                        <th className="px-2.5 py-2.5 text-center">Overs</th>
-                        <th
-                          className={`px-2.5 py-2.5 text-center transition-colors ${
-                            bowlingSort === "balls"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          Balls
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-center transition-colors ${
-                            bowlingSort === "maidens"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          Mdns
-                        </th>
-                        <th className="px-2.5 py-2.5 text-right">Runs</th>
-                        <th
-                          className={`px-3 py-2.5 text-right transition-colors ${
-                            bowlingSort === "wickets"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : "font-bold text-foreground"
-                          }`}
-                        >
-                          Wkts
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-center transition-colors ${
-                            bowlingSort === "bestBowling"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          BBI
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-right transition-colors ${
-                            bowlingSort === "average"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          Avg
-                        </th>
-                        <th
-                          className={`px-2.5 py-2.5 text-right transition-colors ${
-                            bowlingSort === "economy"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          Econ
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            bowlingSort === "threeWickets"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          3w
-                        </th>
-                        <th
-                          className={`px-2 py-2.5 text-center transition-colors ${
-                            bowlingSort === "fiveWickets"
-                              ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
-                              : ""
-                          }`}
-                        >
-                          5w
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredBowling.length === 0 ? (
+            {/* Desktop Table: Focused Spell View for Best Bowling (BBI) */}
+            {bowlingSort === "bestBowling" && bowlingTableMode === "focused" ? (
+              <Card className="hidden md:block">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
                         <tr>
-                          <td
-                            colSpan={14}
-                            className="py-8 text-center text-xs text-muted-foreground"
-                          >
-                            No bowling records found matching your search.
-                          </td>
+                          <th className="px-3 py-2.5 w-10 text-center">#</th>
+                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                          <th className="px-3 py-2.5 text-center bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30">
+                            Best Figures (BBI)
+                          </th>
+                          <th className="px-3 py-2.5 text-center">Overs in Spell</th>
+                          <th className="px-3 py-2.5 text-right">Spell Economy</th>
+                          <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                            Total Tournament Wkts
+                          </th>
+                          <th className="px-3 py-2.5 text-center">Total Overs</th>
+                          <th className="px-3 py-2.5 text-right">Overall Econ</th>
+                          <th className="px-3 py-2.5 text-right">Bowling Avg</th>
                         </tr>
-                      ) : (
-                        filteredBowling.map((bw, idx) => (
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredBowling.map((bw, idx) => (
                           <tr
                             key={bw.userId}
                             className="hover:bg-muted/40 transition-colors"
@@ -1752,139 +1771,250 @@ export function LeaderboardView({
                                 </span>
                               </div>
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                              {bw.matches}
+                            <td className="px-3 py-2 text-center tabular-nums font-black text-sm bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20">
+                              {bw.bestBowling.display}
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                              {bw.innings}
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                              {bw.bestBowling.overs ? `${bw.bestBowling.overs} ov` : "—"}
                             </td>
-                            <td className="px-2.5 py-2 text-center tabular-nums font-medium">
+                            <td className="px-3 py-2 text-right tabular-nums font-medium">
+                              {bw.bestBowling.economy ?? "—"}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                              {bw.wickets}
+                            </td>
+                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
                               {bw.overs}
                             </td>
-                            <td
-                              className={`px-2.5 py-2 text-center tabular-nums ${
-                                bowlingSort === "balls"
-                                  ? "bg-purple-500/10 font-black text-foreground border-x border-purple-500/20"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <div>{bw.balls}</div>
-                              {bowlingSort === "balls" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {bw.overs} ov
-                                </div>
-                              )}
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {bw.economyDisplay}
                             </td>
-                            <td
-                              className={`px-2.5 py-2 text-center tabular-nums ${
-                                bowlingSort === "maidens"
-                                  ? "bg-purple-500/10 font-black text-foreground border-x border-purple-500/20"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              <div>{bw.maidens}</div>
-                              {bowlingSort === "maidens" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {bw.overs} ov
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-2 text-right tabular-nums text-muted-foreground">
-                              {bw.runsConceded}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right tabular-nums ${
-                                bowlingSort === "wickets"
-                                  ? "bg-purple-500/10 font-black text-sm text-foreground border-x border-purple-500/20"
-                                  : "font-black text-sm text-foreground"
-                              }`}
-                            >
-                              <div>{bw.wickets}</div>
-                              {bowlingSort === "wickets" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  Avg {bw.averageDisplay}
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-center tabular-nums ${
-                                bowlingSort === "bestBowling"
-                                  ? "bg-purple-500/10 font-black text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
-                                  : "font-semibold text-purple-600 dark:text-purple-400"
-                              }`}
-                            >
-                              <div>{bw.bestBowling.display}</div>
-                              {bowlingSort === "bestBowling" &&
-                                bw.bestBowling.overs && (
-                                  <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                    {bw.bestBowling.overs} ov • {bw.bestBowling.economy} econ
-                                  </div>
-                                )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right tabular-nums ${
-                                bowlingSort === "average"
-                                  ? "bg-purple-500/10 font-black text-foreground border-x border-purple-500/20"
-                                  : ""
-                              }`}
-                            >
-                              <div>{bw.averageDisplay}</div>
-                              {bowlingSort === "average" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {bw.runsConceded}r / {bw.wickets}w
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2.5 py-2 text-right tabular-nums ${
-                                bowlingSort === "economy"
-                                  ? "bg-purple-500/10 font-black text-foreground border-x border-purple-500/20"
-                                  : "font-medium"
-                              }`}
-                            >
-                              <div>{bw.economyDisplay}</div>
-                              {bowlingSort === "economy" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {bw.runsConceded}r in {bw.overs} ov
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                bowlingSort === "threeWickets"
-                                  ? "bg-purple-500/10 font-black text-foreground border-x border-purple-500/20"
-                                  : "font-semibold text-muted-foreground"
-                              }`}
-                            >
-                              <div>{bw.threeWickets}</div>
-                              {bowlingSort === "threeWickets" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  3w+ hauls
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-center tabular-nums ${
-                                bowlingSort === "fiveWickets"
-                                  ? "bg-purple-500/10 font-black text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
-                                  : "font-semibold text-purple-500"
-                              }`}
-                            >
-                              <div>{bw.fiveWickets}</div>
-                              {bowlingSort === "fiveWickets" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  5w hauls
-                                </div>
-                              )}
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {bw.averageDisplay}
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              /* Full Bowling Table for Desktop (>= md) */
+              <Card className="hidden md:block">
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2.5 w-10 text-center">#</th>
+                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                          <th className="px-2.5 py-2.5 text-center">Mat</th>
+                          <th className="px-2.5 py-2.5 text-center">Inn</th>
+                          <th className="px-2.5 py-2.5 text-center">Overs</th>
+                          <th
+                            className={`px-2.5 py-2.5 text-center transition-colors ${
+                              bowlingSort === "balls"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            Balls
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-center transition-colors ${
+                              bowlingSort === "maidens"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            Mdns
+                          </th>
+                          <th className="px-2.5 py-2.5 text-right">Runs</th>
+                          <th
+                            className={`px-3 py-2.5 text-right transition-colors ${
+                              bowlingSort === "wickets"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : "font-bold text-foreground"
+                            }`}
+                          >
+                            Wkts
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-center transition-colors ${
+                              bowlingSort === "bestBowling"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            BBI
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-right transition-colors ${
+                              bowlingSort === "average"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            Avg
+                          </th>
+                          <th
+                            className={`px-2.5 py-2.5 text-right transition-colors ${
+                              bowlingSort === "economy"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            Econ
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              bowlingSort === "threeWickets"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            3w
+                          </th>
+                          <th
+                            className={`px-2 py-2.5 text-center transition-colors ${
+                              bowlingSort === "fiveWickets"
+                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                : ""
+                            }`}
+                          >
+                            5w
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {filteredBowling.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={14}
+                              className="py-8 text-center text-xs text-muted-foreground"
+                            >
+                              No bowling records found matching your search.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredBowling.map((bw, idx) => (
+                            <tr
+                              key={bw.userId}
+                              className="hover:bg-muted/40 transition-colors"
+                            >
+                              <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                                {idx === 0 ? (
+                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold">
+                                    1
+                                  </span>
+                                ) : (
+                                  idx + 1
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
+                                    {(bw.name ?? "B")[0]?.toUpperCase()}
+                                  </div>
+                                  <span className="font-semibold text-foreground truncate max-w-[160px]">
+                                    {bw.name}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                                {bw.matches}
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                                {bw.innings}
+                              </td>
+                              <td className="px-2.5 py-2 text-center tabular-nums font-medium">
+                                {bw.overs}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-center tabular-nums ${
+                                  bowlingSort === "balls"
+                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {bw.balls}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-center tabular-nums ${
+                                  bowlingSort === "maidens"
+                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {bw.maidens}
+                              </td>
+                              <td className="px-2.5 py-2 text-right tabular-nums text-muted-foreground">
+                                {bw.runsConceded}
+                              </td>
+                              <td
+                                className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                                  bowlingSort === "wickets"
+                                    ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
+                                    : "text-foreground"
+                                }`}
+                              >
+                                {bw.wickets}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                                  bowlingSort === "bestBowling"
+                                    ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
+                                    : "text-purple-600 dark:text-purple-400"
+                                }`}
+                              >
+                                {bw.bestBowling.display}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-right tabular-nums ${
+                                  bowlingSort === "average"
+                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    : ""
+                                }`}
+                              >
+                                {bw.averageDisplay}
+                              </td>
+                              <td
+                                className={`px-2.5 py-2 text-right tabular-nums ${
+                                  bowlingSort === "economy"
+                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    : "font-medium"
+                                }`}
+                              >
+                                {bw.economyDisplay}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  bowlingSort === "threeWickets"
+                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    : "font-semibold text-muted-foreground"
+                                }`}
+                              >
+                                {bw.threeWickets}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-center tabular-nums ${
+                                  bowlingSort === "fiveWickets"
+                                    ? "bg-purple-500/10 font-bold text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
+                                    : "font-semibold text-purple-500"
+                                }`}
+                              >
+                                {bw.fiveWickets}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
@@ -2083,60 +2213,40 @@ export function LeaderboardView({
                               {f.matches}
                             </td>
                             <td
-                              className={`px-3 py-2 text-right tabular-nums ${
+                              className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
                                 fieldingSort === "totalDismissals"
-                                  ? "bg-cyan-500/10 font-black text-sm text-cyan-600 dark:text-cyan-400 border-x border-cyan-500/20"
-                                  : "font-black text-sm text-cyan-600 dark:text-cyan-400"
+                                  ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-x border-cyan-500/20"
+                                  : "text-cyan-600 dark:text-cyan-400"
                               }`}
                             >
-                              <div>{f.totalDismissals}</div>
-                              {fieldingSort === "totalDismissals" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  {f.catches}c • {f.stumpings}s • {f.runOuts}ro
-                                </div>
-                              )}
+                              {f.totalDismissals}
                             </td>
                             <td
-                              className={`px-3 py-2 text-center tabular-nums ${
+                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "catches"
-                                  ? "bg-cyan-500/10 font-black text-foreground border-x border-cyan-500/20"
-                                  : "font-semibold"
+                                  ? "bg-cyan-500/10 text-foreground border-x border-cyan-500/20"
+                                  : ""
                               }`}
                             >
-                              <div>{f.catches}</div>
-                              {fieldingSort === "catches" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {f.matches} mat
-                                </div>
-                              )}
+                              {f.catches}
                             </td>
                             <td
-                              className={`px-3 py-2 text-center tabular-nums ${
+                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "stumpings"
-                                  ? "bg-cyan-500/10 font-black text-purple-600 dark:text-purple-400 border-x border-cyan-500/20"
-                                  : "font-semibold text-purple-600 dark:text-purple-400"
+                                  ? "bg-cyan-500/10 text-purple-600 dark:text-purple-400 border-x border-cyan-500/20"
+                                  : "text-purple-600 dark:text-purple-400"
                               }`}
                             >
-                              <div>{f.stumpings}</div>
-                              {fieldingSort === "stumpings" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {f.matches} mat
-                                </div>
-                              )}
+                              {f.stumpings}
                             </td>
                             <td
-                              className={`px-3 py-2 text-center tabular-nums ${
+                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "runOuts"
-                                  ? "bg-cyan-500/10 font-black text-amber-600 dark:text-amber-400 border-x border-cyan-500/20"
-                                  : "font-semibold text-amber-600 dark:text-amber-400"
+                                  ? "bg-cyan-500/10 text-amber-600 dark:text-amber-400 border-x border-cyan-500/20"
+                                  : "text-amber-600 dark:text-amber-400"
                               }`}
                             >
-                              <div>{f.runOuts}</div>
-                              {fieldingSort === "runOuts" && (
-                                <div className="text-[10px] text-muted-foreground font-normal whitespace-nowrap">
-                                  in {f.matches} mat
-                                </div>
-                              )}
+                              {f.runOuts}
                             </td>
                           </tr>
                         ))
@@ -2345,10 +2455,10 @@ export function LeaderboardView({
                               {m.matches}
                             </td>
                             <td
-                              className={`px-3 py-2 text-right tabular-nums ${
+                              className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
                                 mvpSort === "totalPoints"
-                                  ? "bg-emerald-500/10 font-black text-sm text-emerald-600 dark:text-emerald-400 border-x border-emerald-500/20"
-                                  : "font-black text-sm text-emerald-600 dark:text-emerald-400"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-x border-emerald-500/20"
+                                  : "text-emerald-600 dark:text-emerald-400"
                               }`}
                             >
                               {m.totalPoints}
@@ -2365,7 +2475,7 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums ${
                                 mvpSort === "bowlingPoints"
-                                  ? "bg-emerald-500/10 font-bold text-purple-600 dark:text-purple-400 border-x border-emerald-500/20"
+                                  ? "bg-emerald-500/10 font-bold text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
                                   : "font-medium text-purple-600 dark:text-purple-400"
                               }`}
                             >

@@ -167,4 +167,59 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByText(/Batting Leaderboard • Batting Avg/i)).toBeInTheDocument();
     expect(screen.getByText(/Ranked by Batting Average/i)).toBeInTheDocument();
   });
+
+  it("shows focused knock view for Highest Score and allows toggling to all columns", () => {
+    render(<LeaderboardView data={mockData} />);
+
+    const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
+    fireEvent.click(battingTabTrigger);
+
+    // Switch to Highest Score
+    const hsButton = screen.getByRole("button", { name: /highest score/i });
+    fireEvent.click(hsButton);
+
+    // Verify focused knock table headers / elements
+    expect(screen.getByRole("columnheader", { name: /high score \(hs\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /balls \(knock\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /sr \(knock\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /knock 4s/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /knock 6s/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /total tournament runs/i })).toBeInTheDocument();
+
+    // Toggle to All Columns view
+    const allColsButton = screen.getByRole("button", { name: /all columns/i });
+    fireEvent.click(allColsButton);
+
+    // Should now show standard columns
+    expect(screen.getByRole("columnheader", { name: /^runs$/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^hs$/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^avg$/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^sr$/i })).toBeInTheDocument();
+  });
+
+  it("shows focused spell view for Best Bowling and allows toggling", () => {
+    render(<LeaderboardView data={mockData} />);
+
+    const bowlingTabTrigger = screen.getByRole("tab", { name: /bowling/i });
+    fireEvent.click(bowlingTabTrigger);
+
+    // Switch to Best Bowling
+    const bbiButton = screen.getByRole("button", { name: /best bowling/i });
+    fireEvent.click(bbiButton);
+
+    // Verify focused spell table column headers
+    expect(screen.getByRole("columnheader", { name: /best figures \(bbi\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /overs in spell/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /spell economy/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /total tournament wkts/i })).toBeInTheDocument();
+
+    // Toggle to All Columns view
+    const allColsButton = screen.getByRole("button", { name: /all columns/i });
+    fireEvent.click(allColsButton);
+
+    // Should now show standard bowling columns
+    expect(screen.getByRole("columnheader", { name: /^wkts$/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^bbi$/i })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /^econ$/i })).toBeInTheDocument();
+  });
 });
