@@ -65,13 +65,18 @@ function LoginPageInner() {
   })();
   const displayError = error ?? urlError;
 
-  // Redirect authenticated users to dashboard (side effects belong in effects,
+  // Redirect authenticated users to destination or dashboard (side effects belong in effects,
   // never in render).
   useEffect(() => {
     if (user) {
-      router.push("/dashboard");
+      const redirect =
+        searchParams.get("redirect") ??
+        searchParams.get("next") ??
+        "/dashboard";
+      router.push(redirect);
+      router.refresh();
     }
-  }, [user, router]);
+  }, [user, router, searchParams]);
 
   // Show loading while auth is initializing
   if (loading) {

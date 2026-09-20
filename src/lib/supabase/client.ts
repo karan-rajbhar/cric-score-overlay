@@ -9,6 +9,10 @@ import "client-only"; // This ensures this file is never used server-side
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./types";
 import { env } from "~/env.js";
+import {
+  SUPABASE_AUTH_COOKIE_NAME,
+  migrateLegacyBrowserCookies,
+} from "./cookies";
 
 let clientInstance:
   | ReturnType<typeof createBrowserClient<Database>>
@@ -43,13 +47,24 @@ export const createClient = () => {
     return createBrowserClient<Database>(
       supabaseUrl,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookieOptions: {
+          name: SUPABASE_AUTH_COOKIE_NAME,
+        },
+      },
     );
   }
 
   if (!clientInstance) {
+    migrateLegacyBrowserCookies();
     clientInstance = createBrowserClient<Database>(
       supabaseUrl,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookieOptions: {
+          name: SUPABASE_AUTH_COOKIE_NAME,
+        },
+      },
     );
   }
 

@@ -66,13 +66,18 @@ function SignupPageInner() {
   })();
   const displayError = error ?? urlError;
 
-  // Redirect authenticated users to dashboard, but not while the signup
+  // Redirect authenticated users to destination or dashboard, but not while the signup
   // confirmation screen is showing. Effects only — no setState during render.
   useEffect(() => {
     if (user && !success) {
-      router.push("/dashboard");
+      const redirect =
+        searchParams.get("redirect") ??
+        searchParams.get("next") ??
+        "/dashboard";
+      router.push(redirect);
+      router.refresh();
     }
-  }, [user, success, router]);
+  }, [user, success, router, searchParams]);
 
   // Show loading while auth is initializing
   if (loading && !success) {

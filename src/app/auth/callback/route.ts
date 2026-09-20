@@ -2,6 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "~/env.js";
 import { ensureUserProfile } from "~/lib/supabase/user-profile";
+import {
+  SUPABASE_AUTH_COOKIE_NAME,
+  resolveAuthCookies,
+} from "~/lib/supabase/cookies";
 
 export async function GET(request: NextRequest) {
   console.log("OAuth callback received:", request.url);
@@ -34,9 +38,12 @@ export async function GET(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      cookieOptions: {
+        name: SUPABASE_AUTH_COOKIE_NAME,
+      },
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          return resolveAuthCookies(request.cookies.getAll());
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {

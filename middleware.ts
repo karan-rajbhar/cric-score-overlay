@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "~/env.js";
+import {
+  SUPABASE_AUTH_COOKIE_NAME,
+  resolveAuthCookies,
+} from "~/lib/supabase/cookies";
 
 export async function middleware(request: NextRequest) {
   // Create response early to handle cookies properly
@@ -32,9 +36,12 @@ export async function middleware(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      cookieOptions: {
+        name: SUPABASE_AUTH_COOKIE_NAME,
+      },
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          return resolveAuthCookies(request.cookies.getAll());
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {

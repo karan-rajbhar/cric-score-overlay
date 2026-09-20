@@ -9,6 +9,10 @@ import "server-only"; // This ensures this file is never bundled client-side
 import { createServerClient as createSupabaseServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { env } from "~/env.js";
+import {
+  SUPABASE_AUTH_COOKIE_NAME,
+  resolveAuthCookies,
+} from "./cookies";
 
 /**
  * Creates a Supabase client with cookie management for server components
@@ -22,9 +26,12 @@ export const createServerClient = async () => {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
+      cookieOptions: {
+        name: SUPABASE_AUTH_COOKIE_NAME,
+      },
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return resolveAuthCookies(cookieStore.getAll());
         },
         setAll(cookiesToSet) {
           try {
