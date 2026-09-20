@@ -240,7 +240,7 @@ export function PlayerActivityTabs({
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="border-b border-border/70 pb-4">
-        <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto">
           <TabsTrigger
             value="batting"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"

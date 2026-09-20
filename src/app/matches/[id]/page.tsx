@@ -679,7 +679,7 @@ function MatchDetailsPageContent() {
       {/* Tabs Content */}
       <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
         <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-7">
+          <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-7 sm:justify-stretch">
             <TabsTrigger
               value="summary"
               className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"

@@ -462,7 +462,7 @@ export default async function TournamentPage({
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-4 sm:max-w-xl">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-4 sm:max-w-xl sm:justify-stretch">
           <TabsTrigger
             value="standings"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
