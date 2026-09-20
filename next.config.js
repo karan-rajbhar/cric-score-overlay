@@ -21,6 +21,16 @@ const config = {
       },
     ],
   },
+  async rewrites() {
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321";
+    return [
+      {
+        source: "/api/supabase/:path*",
+        destination: `${supabaseUrl}/:path*`,
+      },
+    ];
+  },
 };
 
 export default config;

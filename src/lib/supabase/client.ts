@@ -15,21 +15,40 @@ let clientInstance:
   | undefined;
 
 /**
+ * Resolves the Supabase URL for client components.
+ * On local desktop (localhost/127.0.0.1), uses direct Supabase URL.
+ * When accessed from mobile devices, tunnels, or LAN IPs, routes through
+ * Next.js reverse proxy (/api/supabase) to avoid mixed-content (HTTPS->HTTP)
+ * and unreachable 127.0.0.1 errors on mobile devices.
+ */
+function getClientSupabaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return `${window.location.origin}/api/supabase`;
+    }
+  }
+  return env.NEXT_PUBLIC_SUPABASE_URL;
+}
+
+/**
  * Creates a Supabase client for use in client components
  *
  * @returns Supabase client instance
  */
 export const createClient = () => {
+  const supabaseUrl = getClientSupabaseUrl();
+
   if (typeof window === "undefined") {
     return createBrowserClient<Database>(
-      env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseUrl,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     );
   }
 
   if (!clientInstance) {
     clientInstance = createBrowserClient<Database>(
-      env.NEXT_PUBLIC_SUPABASE_URL,
+      supabaseUrl,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     );
   }
@@ -39,6 +58,12 @@ export const createClient = () => {
 
 /**
  * Legacy client for backward compatibility
+ * Proxied dynamically to always use the active browser client
  * @deprecated Use createClient() instead for better error handling
  */
-export const supabase = createClient();
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_target, prop) {
+    const client = createClient();
+    return (client as unknown as Record<string, unknown>)[prop as string];
+  },
+});
