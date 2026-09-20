@@ -1877,6 +1877,7 @@ export type Database = {
         Row: {
           bowler_id: string | null
           extras_off_bat_and_bowler: number | null
+          extras_total: number | null
           innings_id: string | null
           legal_deliveries: number | null
           match_id: string | null
@@ -1913,6 +1914,10 @@ export type Database = {
     }
     Functions: {
       _advance_after_innings: {
+        Args: { p_completed_innings_id: string; p_match_id: string }
+        Returns: undefined
+      }
+      complete_innings: {
         Args: { p_completed_innings_id: string; p_match_id: string }
         Returns: undefined
       }
