@@ -239,11 +239,11 @@ export function PlayerActivityTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="border-b pb-4">
-        <TabsList className="grid h-auto w-full max-w-md grid-cols-2 gap-1 p-1 sm:inline-flex sm:w-auto">
+      <div className="border-b border-border/70 pb-4">
+        <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto">
           <TabsTrigger
             value="batting"
-            className="gap-1.5 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
             <Flame className="h-4 w-4 text-orange-500" />
             <span>Batting</span>
@@ -256,7 +256,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="bowling"
-            className="gap-1.5 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
             <Activity className="h-4 w-4 text-blue-500" />
             <span>Bowling</span>
@@ -269,7 +269,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="matches"
-            className="gap-1.5 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
             <Swords className="h-4 w-4 text-emerald-500" />
             <span>Matches</span>
@@ -282,7 +282,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="teams"
-            className="gap-1.5 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
             <Users className="h-4 w-4 text-purple-500" />
             <span>Teams</span>

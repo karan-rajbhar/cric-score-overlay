@@ -122,7 +122,7 @@ export default async function ClubsPage() {
           </p>
         </div>
         {user && (
-          <Button asChild size="sm" className="w-full sm:w-auto">
+          <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
             <Link href="/clubs/create">
               <Plus className="mr-1.5 h-4 w-4" />
               Create club

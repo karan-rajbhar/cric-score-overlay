@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
             }`}
           >
-            <div className="mx-auto max-w-[1440px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+            <div className="mx-auto max-w-[1440px] px-3.5 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
               {children}
             </div>
           </main>

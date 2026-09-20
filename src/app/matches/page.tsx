@@ -154,14 +154,14 @@ export default function MatchesPage() {
           />
         </div>
 
-        <div className="grid w-full grid-cols-4 gap-1 rounded-xl border border-border/80 bg-muted/40 p-1 sm:flex sm:w-auto">
+        <div className="flex w-full overflow-x-auto no-scrollbar gap-1.5 rounded-xl border border-border/80 bg-muted/40 p-1 sm:w-auto">
           {statusOptions.map((option) => (
             <button
               key={option.value}
               type="button"
               onClick={() => setStatusFilter(option.value)}
               className={cn(
-                "interactive-button flex-1 rounded-lg px-2 py-1.5 text-center text-xs font-semibold transition-all sm:flex-initial sm:px-3",
+                "interactive-button shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-center text-xs font-semibold min-h-[38px] transition-all sm:px-3 sm:py-1.5 sm:min-h-0",
                 statusFilter === option.value
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/60 hover:text-foreground",

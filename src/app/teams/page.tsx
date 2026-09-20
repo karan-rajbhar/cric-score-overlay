@@ -52,7 +52,7 @@ export default async function TeamsPage({
               : "Every team on the platform"}
           </p>
         </div>
-        <Button asChild className="w-full sm:w-auto">
+        <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
           <Link href="/teams/create">
             <Plus className="mr-2 h-4 w-4" />
             Create team
@@ -64,7 +64,7 @@ export default async function TeamsPage({
         <div className="inline-flex w-full rounded-lg border border-border p-0.5 sm:w-auto">
           <Link
             href={buildHref("mine")}
-            className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors sm:flex-none ${
+            className={`flex flex-1 items-center justify-center rounded-md px-3.5 py-2 text-center text-sm font-semibold min-h-[40px] transition-colors sm:flex-none sm:py-1.5 sm:min-h-0 ${
               view === "mine"
                 ? "bg-secondary text-secondary-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -74,7 +74,7 @@ export default async function TeamsPage({
           </Link>
           <Link
             href={buildHref("all")}
-            className={`flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors sm:flex-none ${
+            className={`flex flex-1 items-center justify-center rounded-md px-3.5 py-2 text-center text-sm font-semibold min-h-[40px] transition-colors sm:flex-none sm:py-1.5 sm:min-h-0 ${
               view === "all"
                 ? "bg-secondary text-secondary-foreground"
                 : "text-muted-foreground hover:text-foreground"

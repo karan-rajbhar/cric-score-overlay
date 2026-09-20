@@ -68,7 +68,7 @@ export default function Dashboard() {
             asChild
             size="sm"
             variant="outline"
-            className="interactive-button flex-1 justify-center gap-1.5 sm:flex-none"
+            className="interactive-button h-10 flex-1 justify-center gap-1.5 text-xs font-semibold sm:h-9 sm:flex-none sm:text-sm"
           >
             <Link href="/teams">
               <Shield className="h-4 w-4" />
@@ -78,7 +78,7 @@ export default function Dashboard() {
           <Button
             asChild
             size="sm"
-            className="interactive-button flex-1 justify-center gap-1.5 font-semibold sm:flex-none"
+            className="interactive-button h-10 flex-1 justify-center gap-1.5 text-xs font-semibold sm:h-9 sm:flex-none sm:text-sm"
           >
             <Link href="/matches/create">
               <Plus className="h-4 w-4" />
@@ -210,7 +210,7 @@ export default function Dashboard() {
               <Button
                 asChild
                 size="sm"
-                className="w-full justify-center gap-2 font-semibold sm:w-auto"
+                className="h-10 w-full justify-center gap-2 text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm"
               >
                 <Link href={`/matches/${featuredLive.id}/score`}>
                   <Radio className="h-4 w-4" />
@@ -222,7 +222,7 @@ export default function Dashboard() {
               asChild
               size="sm"
               variant="outline"
-              className="w-full justify-center gap-2 sm:w-auto"
+              className="h-10 w-full justify-center gap-2 text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm"
             >
               <Link href={`/matches/${featuredLive.id}`}>View scorecard</Link>
             </Button>
@@ -230,7 +230,7 @@ export default function Dashboard() {
               asChild
               size="sm"
               variant="ghost"
-              className="w-full justify-center gap-2 text-muted-foreground hover:text-foreground sm:w-auto"
+              className="h-10 w-full justify-center gap-2 text-xs text-muted-foreground hover:text-foreground sm:h-9 sm:w-auto sm:text-sm"
             >
               <Link href={`/overlay/${featuredLive.id}`} target="_blank">
                 <Tv className="h-4 w-4" />

@@ -1277,11 +1277,12 @@ function CreateMatchWizard() {
             )}
 
             {/* Navigation */}
-            <div className="mt-8 flex justify-between border-t pt-6">
+            <div className="mt-8 flex justify-between border-t border-border/70 pt-6">
               <Button
                 variant="outline"
                 onClick={() => setStep((s) => Math.max(1, s - 1))}
                 disabled={step === 1}
+                className="h-11 min-h-[44px] px-5 text-sm font-semibold"
               >
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Back
@@ -1295,6 +1296,7 @@ function CreateMatchWizard() {
                     (step === 2 && !canProceedStep2) ||
                     (step === 3 && !canProceedStep3)
                   }
+                  className="h-11 min-h-[44px] px-6 text-sm font-bold"
                 >
                   Next
                   <ChevronRight className="ml-2 h-4 w-4" />
@@ -1303,6 +1305,7 @@ function CreateMatchWizard() {
                 <Button
                   onClick={handleSubmit}
                   disabled={loading || !isMatchValidForSubmission}
+                  className="h-11 min-h-[44px] px-6 text-sm font-bold"
                 >
                   {loading ? (
                     <>

@@ -452,7 +452,7 @@ export default async function TeamDetailsPage({
               <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:w-auto">
                 <TabsTrigger
                   value="matches"
-                  className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm"
+                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Swords className="h-4 w-4" />
                   Matches
@@ -465,7 +465,7 @@ export default async function TeamDetailsPage({
                 </TabsTrigger>
                 <TabsTrigger
                   value="squad"
-                  className="gap-1.5 px-3 py-1.5 text-xs sm:text-sm"
+                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Users className="h-4 w-4" />
                   Squad

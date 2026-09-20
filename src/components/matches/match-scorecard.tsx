@@ -54,7 +54,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="flex min-w-0 items-center justify-center px-2 py-1.5 text-xs font-semibold sm:px-3 sm:text-sm"
+              className="flex min-w-0 items-center justify-center px-2.5 py-2 text-xs font-semibold min-h-[40px] sm:px-3 sm:text-sm"
             >
               <span className="truncate">
                 {shortName} {innings.total_runs}/{innings.total_wickets}
@@ -175,14 +175,14 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
 
             {/* Extras */}
             <Card>
-              <CardContent className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Extras</span>
-                  <div className="flex items-center gap-4">
-                    <span className="tabular font-semibold">
+              <CardContent className="py-3 px-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Extras</span>
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <span className="tabular text-base font-bold text-foreground">
                       {innings.extras_total || 0}
                     </span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-xs text-muted-foreground sm:text-sm">
                       (wd {innings.extras_wides || 0}, nb{" "}
                       {innings.extras_no_balls || 0}, b{" "}
                       {innings.extras_byes || 0}, lb{" "}

@@ -558,56 +558,56 @@ function MatchDetailsPageContent() {
 
           {/* Mobile Score View (< sm) */}
           <div className="space-y-2 sm:hidden">
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <TeamLogo
                   name={match.team1.name}
                   shortName={match.team1.short_name}
                   logoUrl={match.team1.logo_url}
-                  className="h-8 w-8 shrink-0 text-xs"
+                  className="h-9 w-9 shrink-0 text-xs"
                 />
-                <p className="truncate text-sm font-semibold text-foreground">
+                <p className="truncate text-sm font-bold text-foreground">
                   {match.team1.name}
                 </p>
               </div>
               <div className="shrink-0 text-right">
                 {team1Innings ? (
-                  <p className="score-display tabular text-lg font-bold leading-none">
+                  <p className="score-display tabular text-xl font-black leading-none">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
-                    <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
+                    <span className="tabular ml-1.5 text-xs font-medium text-muted-foreground">
                       ({oversFromBalls(inningsBalls(team1Innings))} ov)
                     </span>
                   </p>
                 ) : (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     Yet to bat
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-2.5">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/20 p-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <TeamLogo
                   name={match.team2.name}
                   shortName={match.team2.short_name}
                   logoUrl={match.team2.logo_url}
-                  className="h-8 w-8 shrink-0 text-xs"
+                  className="h-9 w-9 shrink-0 text-xs"
                 />
-                <p className="truncate text-sm font-semibold text-foreground">
+                <p className="truncate text-sm font-bold text-foreground">
                   {match.team2.name}
                 </p>
               </div>
               <div className="shrink-0 text-right">
                 {team2Innings ? (
-                  <p className="score-display tabular text-lg font-bold leading-none">
+                  <p className="score-display tabular text-xl font-black leading-none">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
-                    <span className="tabular ml-1 text-xs font-normal text-muted-foreground">
+                    <span className="tabular ml-1.5 text-xs font-medium text-muted-foreground">
                       ({oversFromBalls(inningsBalls(team2Innings))} ov)
                     </span>
                   </p>
                 ) : (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     Yet to bat
                   </span>
                 )}
@@ -617,7 +617,7 @@ function MatchDetailsPageContent() {
 
           {/* Result */}
           {match.status === "completed" && match.result_description && (
-            <p className="mt-5 text-center text-base font-medium text-primary">
+            <p className="mt-5 text-center text-base font-semibold text-primary">
               {formatMatchResult(match)}
             </p>
           )}
@@ -639,7 +639,7 @@ function MatchDetailsPageContent() {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
             {isScorer &&
               (match.status === "scheduled" || match.status === "live") && (
-                <Button asChild size="sm" className="interactive-button">
+                <Button asChild size="sm" className="interactive-button h-10 px-4 text-xs font-bold sm:h-9 sm:text-sm">
                   <Link
                     href={`/matches/${match.id}/score${
                       searchParams.toString()
@@ -666,7 +666,7 @@ function MatchDetailsPageContent() {
                 isCreator={match.created_by === user?.id}
               />
             )}
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="h-10 px-4 text-xs font-semibold sm:h-9 sm:text-sm">
               <Link href={`/overlay/${match.id}`} target="_blank">
                 <Tv className="mr-1.5 h-4 w-4" />
                 OBS overlay
@@ -679,56 +679,55 @@ function MatchDetailsPageContent() {
       {/* Tabs Content */}
       <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
         <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl p-1 sm:grid-cols-7">
+          <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-7">
             <TabsTrigger
               value="summary"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Summary
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Scorecard
             </TabsTrigger>
             <TabsTrigger
               value="superstars"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Super Stars</span>
             </TabsTrigger>
             <TabsTrigger
               value="stats"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Stats
             </TabsTrigger>
             <TabsTrigger
               value="balls"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Balls
             </TabsTrigger>
             <TabsTrigger
               value="info"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Info
             </TabsTrigger>
             <TabsTrigger
               value="h2h"
-              className="gap-1 px-2 py-2 text-xs sm:gap-1.5 sm:px-3 sm:text-sm"
+              className="shrink-0 whitespace-nowrap gap-1 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:gap-1.5 sm:px-3 sm:text-sm"
             >
               <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="sm:hidden">H2H</span>
-              <span className="hidden sm:inline">Head-to-Head</span>
+              <span>Head to Head</span>
             </TabsTrigger>
           </TabsList>
 

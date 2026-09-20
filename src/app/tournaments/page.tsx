@@ -24,7 +24,7 @@ export default async function TournamentsPage() {
         <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
           Tournaments
         </h1>
-        <Button asChild size="sm" className="w-full sm:w-auto">
+        <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
           <Link href="/tournaments/create">
             <Plus className="mr-1.5 h-4 w-4" />
             New tournament

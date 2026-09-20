@@ -593,38 +593,38 @@ export default async function ClubPage({
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="grid h-auto w-full max-w-3xl grid-cols-2 gap-1 p-1 min-[540px]:grid-cols-3 sm:grid-cols-6">
+        <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-6 sm:max-w-3xl">
           <TabsTrigger
             value="teams"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Teams ({typedTeams.length})
           </TabsTrigger>
           <TabsTrigger
             value="tournaments"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Tournaments ({typedTournaments.length})
           </TabsTrigger>
           <TabsTrigger
             value="matches"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Matches ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="stats"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Stats & Records
           </TabsTrigger>
           <TabsTrigger
             value="hall-of-fame"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Hall of Fame ({typedHallOfFame.length})

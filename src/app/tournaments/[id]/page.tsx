@@ -462,31 +462,31 @@ export default async function TournamentPage({
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="grid h-auto w-full max-w-xl grid-cols-2 gap-1 p-1 sm:grid-cols-4">
+        <TabsList className="flex h-auto w-full overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-4 sm:max-w-xl">
           <TabsTrigger
             value="standings"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Points Table
           </TabsTrigger>
           <TabsTrigger
             value="fixtures"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Fixtures ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="teams"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Teams ({(registrations ?? []).length})
           </TabsTrigger>
           <TabsTrigger
             value="analysis"
-            className="gap-1.5 px-2 py-1.5 text-xs sm:px-3 sm:text-sm"
+            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 text-amber-500 sm:h-4 sm:w-4" />
             Leaderboard & Stats
@@ -956,7 +956,7 @@ function MatchCard({
               {match.team1?.name ?? "Team 1"}
             </span>
             {inn1?.total_runs !== undefined && inn1.total_runs !== null ? (
-              <span className="tabular text-sm font-bold">
+              <span className="tabular text-base font-bold">
                 {inn1.total_runs}/{inn1.total_wickets ?? 0}
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({inn1.total_overs ?? 0} ov)
@@ -973,7 +973,7 @@ function MatchCard({
               {match.team2?.name ?? "Team 2"}
             </span>
             {inn2?.total_runs !== undefined && inn2.total_runs !== null ? (
-              <span className="tabular text-sm font-bold">
+              <span className="tabular text-base font-bold">
                 {inn2.total_runs}/{inn2.total_wickets ?? 0}
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({inn2.total_overs ?? 0} ov)

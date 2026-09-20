@@ -139,6 +139,7 @@ export function AppSidebar() {
                     title={collapsed && !isMobile ? item.label : undefined}
                     className={cn(
                       "interactive-button group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+                      isMobile && "min-h-[44px]",
                       active
                         ? "bg-primary/10 font-semibold text-primary shadow-sm ring-1 ring-inset ring-primary/20"
                         : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",

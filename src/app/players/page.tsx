@@ -48,7 +48,7 @@ export default async function PlayersPage({
           name="q"
           defaultValue={q}
           placeholder="Search players…"
-          className="pl-9"
+          className="h-10 pl-9 text-sm"
         />
       </form>
 

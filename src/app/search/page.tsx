@@ -56,7 +56,7 @@ export default async function SearchPage({
       </p>
 
       <form action="/search" method="GET" className="relative mt-6">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
         <Input
           id="search-query"
           name="q"
@@ -64,8 +64,8 @@ export default async function SearchPage({
           autoComplete="off"
           enterKeyHint="search"
           defaultValue={q}
-          placeholder="Search…"
-          className="pl-9"
+          placeholder="Search matches, teams, players, clubs, tournaments…"
+          className="h-11 pl-10 text-base sm:text-sm"
           autoFocus
         />
       </form>

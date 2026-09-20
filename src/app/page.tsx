@@ -62,7 +62,7 @@ export default function HomePage() {
                 <Button
                   asChild
                   size="lg"
-                  className="interactive-button h-11 w-full rounded-xl bg-primary px-7 font-bold shadow-md hover:bg-primary/90 sm:w-auto"
+                  className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/matches/create" className="gap-2">
                     <Zap className="h-4 w-4" />
@@ -73,7 +73,7 @@ export default function HomePage() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="interactive-button h-11 w-full rounded-xl border-border/80 px-7 font-semibold sm:w-auto"
+                  className="interactive-button h-12 w-full rounded-xl border-border/80 px-7 text-base font-semibold sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/dashboard">Go to Dashboard</Link>
                 </Button>
@@ -83,7 +83,7 @@ export default function HomePage() {
                 <Button
                   asChild
                   size="lg"
-                  className="interactive-button h-11 w-full rounded-xl bg-primary px-7 font-bold shadow-md hover:bg-primary/90 sm:w-auto"
+                  className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/auth/signup" className="gap-2">
                     <Sparkles className="h-4 w-4" />
@@ -94,7 +94,7 @@ export default function HomePage() {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="interactive-button h-11 w-full rounded-xl border-border/80 px-7 font-semibold sm:w-auto"
+                  className="interactive-button h-12 w-full rounded-xl border-border/80 px-7 text-base font-semibold sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/matches">Browse Live Matches</Link>
                 </Button>

@@ -68,7 +68,7 @@ export function NavigationBar() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground md:hidden"
+            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground active:scale-95 md:hidden"
             onClick={toggleMobile}
             aria-label="Open navigation drawer"
           >
@@ -130,7 +130,7 @@ export function NavigationBar() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground lg:hidden"
+            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground active:scale-95 lg:hidden"
             title="Search"
             aria-label="Search"
           >
@@ -206,7 +206,7 @@ export function NavigationBar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs font-bold text-primary transition-all hover:bg-primary/20"
+                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs font-bold text-primary transition-all hover:bg-primary/20 active:scale-95"
                   aria-label="User menu"
                 >
                   {(user.user_metadata?.full_name ||
