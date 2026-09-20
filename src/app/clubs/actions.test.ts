@@ -7,11 +7,16 @@ import {
   inviteClubMember,
   deleteSeason,
   removeHallOfFame,
+  updateClubLogo,
+  removeClubLogo,
+  updateClubBanner,
+  removeClubBanner,
 } from "./actions";
 
 const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockRpc = vi.fn();
+const mockStorageFrom = vi.fn();
 
 vi.mock("~/lib/supabase/server", () => ({
   createServerClient: vi.fn(async () => ({
@@ -19,6 +24,9 @@ vi.mock("~/lib/supabase/server", () => ({
       getUser: mockGetUser,
     },
     from: mockFrom,
+    storage: {
+      from: mockStorageFrom,
+    },
     rpc: mockRpc,
   })),
 }));
@@ -259,6 +267,166 @@ describe("Clubs Server Actions", () => {
 
       const res = await removeHallOfFame("hof-1", "club-1");
       expect(res).toEqual({ success: true });
+    });
+  });
+
+  describe("Club Branding: Logo & Banner Uploads", () => {
+    const fakeLogo = new File(["test-image-content"], "logo.png", {
+      type: "image/png",
+    });
+    const fakeBanner = new File(["test-banner-content"], "banner.jpg", {
+      type: "image/jpeg",
+    });
+
+    it("rejects logo upload when unauthenticated", async () => {
+      mockGetUser.mockResolvedValueOnce({ data: { user: null } });
+      const res = await updateClubLogo("club-1", fakeLogo);
+      expect(res).toEqual({ data: null, error: "You must be logged in" });
+    });
+
+    it("rejects logo upload when user is not admin or owner", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-random" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "u-owner" },
+      });
+      const mockMaybeSingle = vi.fn().mockResolvedValueOnce({ data: null });
+      mockFrom
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValueOnce({
+            eq: vi.fn().mockReturnValueOnce({ single: mockSingle }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValueOnce({
+            eq: vi.fn().mockReturnValueOnce({
+              eq: vi.fn().mockReturnValueOnce({
+                eq: vi.fn().mockReturnValueOnce({ maybeSingle: mockMaybeSingle }),
+              }),
+            }),
+          }),
+        });
+
+      const res = await updateClubLogo("club-1", fakeLogo);
+      expect(res).toEqual({
+        data: null,
+        error: "You are not authorized to update this club's logo",
+      });
+    });
+
+    it("uploads club logo successfully for authorized admin", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-owner" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "u-owner" },
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({ single: mockSingle }),
+        }),
+      });
+
+      const mockUpload = vi.fn().mockResolvedValueOnce({ error: null });
+      const mockGetPublicUrl = vi.fn().mockReturnValueOnce({
+        data: { publicUrl: "https://example.com/club-assets/club-1/logo.png" },
+      });
+      mockStorageFrom.mockReturnValue({
+        upload: mockUpload,
+        getPublicUrl: mockGetPublicUrl,
+      });
+
+      const mockUpdate = vi.fn().mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValueOnce({ error: null }),
+      });
+      mockFrom.mockReturnValueOnce({ update: mockUpdate });
+
+      const res = await updateClubLogo("club-1", fakeLogo);
+      expect(res.error).toBeNull();
+      expect(res.data).toBe("https://example.com/club-assets/club-1/logo.png");
+    });
+
+    it("removes club logo successfully for authorized admin", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-owner" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "u-owner" },
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({ single: mockSingle }),
+        }),
+      });
+
+      const mockUpdate = vi.fn().mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValueOnce({ error: null }),
+      });
+      mockFrom.mockReturnValueOnce({ update: mockUpdate });
+
+      const res = await removeClubLogo("club-1");
+      expect(res).toEqual({ success: true, error: null });
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ logo_url: null }),
+      );
+    });
+
+    it("uploads club banner successfully for authorized admin", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-owner" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "u-owner" },
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({ single: mockSingle }),
+        }),
+      });
+
+      const mockUpload = vi.fn().mockResolvedValueOnce({ error: null });
+      const mockGetPublicUrl = vi.fn().mockReturnValueOnce({
+        data: { publicUrl: "https://example.com/club-assets/club-1/banner.jpg" },
+      });
+      mockStorageFrom.mockReturnValue({
+        upload: mockUpload,
+        getPublicUrl: mockGetPublicUrl,
+      });
+
+      const mockUpdate = vi.fn().mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValueOnce({ error: null }),
+      });
+      mockFrom.mockReturnValueOnce({ update: mockUpdate });
+
+      const res = await updateClubBanner("club-1", fakeBanner);
+      expect(res.error).toBeNull();
+      expect(res.data).toBe("https://example.com/club-assets/club-1/banner.jpg");
+    });
+
+    it("removes club banner successfully for authorized admin", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-owner" } },
+      });
+      const mockSingle = vi.fn().mockResolvedValueOnce({
+        data: { owner_id: "u-owner" },
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({ single: mockSingle }),
+        }),
+      });
+
+      const mockUpdate = vi.fn().mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValueOnce({ error: null }),
+      });
+      mockFrom.mockReturnValueOnce({ update: mockUpdate });
+
+      const res = await removeClubBanner("club-1");
+      expect(res).toEqual({ success: true, error: null });
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ banner_url: null }),
+      );
     });
   });
 });

@@ -23,6 +23,8 @@ import {
 } from "~/components/ui/select";
 import { Settings, Loader2, Globe, Mail, Phone } from "lucide-react";
 import { updateClub, updateClubSocialLinks } from "~/app/clubs/actions";
+import { ClubLogo } from "~/components/clubs/club-logo";
+import { ClubMediaDialog } from "~/components/clubs/club-media-dialog";
 import { toast } from "sonner";
 
 interface ClubData {
@@ -38,6 +40,8 @@ interface ClubData {
   founded_year?: number | null;
   is_public?: boolean | null;
   social_links?: Record<string, string> | null;
+  logo_url?: string | null;
+  banner_url?: string | null;
 }
 
 interface ClubSettingsDialogProps {
@@ -126,6 +130,40 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
             links.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <ClubLogo
+              name={club.name}
+              shortName={club.short_name}
+              logoUrl={club.logo_url}
+              className="h-9 w-9 rounded-lg text-xs"
+            />
+            <div>
+              <p className="text-xs font-semibold">Club Emblem & Banner</p>
+              <p className="text-[11px] text-muted-foreground">
+                Manage custom crest logo and hero cover
+              </p>
+            </div>
+          </div>
+          <ClubMediaDialog
+            clubId={club.id}
+            clubName={club.name}
+            shortName={club.short_name}
+            initialLogoUrl={club.logo_url}
+            initialBannerUrl={club.banner_url}
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+              >
+                Edit Branding
+              </Button>
+            }
+          />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2 text-sm">
           <div className="grid grid-cols-3 gap-3">

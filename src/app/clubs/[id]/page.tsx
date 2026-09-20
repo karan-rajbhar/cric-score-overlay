@@ -35,6 +35,8 @@ import {
 } from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
+import { ClubLogo } from "~/components/clubs/club-logo";
+import { ClubMediaDialog } from "~/components/clubs/club-media-dialog";
 import { ClubTournamentsTab } from "~/components/clubs/club-tournaments-tab";
 import { ClubMatchesTab } from "~/components/clubs/club-matches-tab";
 import {
@@ -427,11 +429,20 @@ export default async function ClubPage({
 
       {/* Club Hero Banner */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/90 to-primary/10 p-4 shadow-sm sm:p-6 md:p-8">
-        <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-start md:justify-between">
+        {club.banner_url && (
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-25 dark:opacity-20 pointer-events-none"
+            style={{ backgroundImage: `url(${club.banner_url})` }}
+          />
+        )}
+        <div className="relative z-10 flex flex-col gap-4 sm:gap-6 md:flex-row md:items-start md:justify-between">
           <div className="flex items-start gap-3 sm:gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner sm:h-16 sm:w-16">
-              <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
-            </div>
+            <ClubLogo
+              name={club.name}
+              shortName={club.short_name}
+              logoUrl={club.logo_url}
+              className="h-12 w-12 sm:h-16 sm:w-16 text-lg sm:text-2xl rounded-2xl"
+            />
             <div>
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {club.club_type && (
@@ -563,6 +574,15 @@ export default async function ClubPage({
 
           {/* Quick Action Buttons */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            {isAdmin && (
+              <ClubMediaDialog
+                clubId={club.id}
+                clubName={club.name}
+                shortName={club.short_name}
+                initialLogoUrl={club.logo_url}
+                initialBannerUrl={club.banner_url}
+              />
+            )}
             {isAdmin && <ClubSettingsDialog club={club} />}
             {isAdmin && <SeasonDialog clubId={club.id} />}
             <ClubMembershipButton

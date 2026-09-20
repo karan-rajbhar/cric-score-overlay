@@ -558,3 +558,216 @@ export async function removeHallOfFame(hallOfFameId: string, clubId: string) {
   return { success: true };
 }
 
+const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
+const ALLOWED_LOGO_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+];
+
+const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_BANNER_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+];
+
+export async function updateClubLogo(
+  clubId: string,
+  file: File,
+): Promise<{ data: string | null; error: string | null }> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return {
+      data: null,
+      error: "You are not authorized to update this club's logo",
+    };
+  }
+
+  if (file.size > MAX_LOGO_BYTES) {
+    return { data: null, error: "Logo must be under 2 MB" };
+  }
+  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+    return { data: null, error: "Use PNG, JPG, WebP, or SVG for club logos" };
+  }
+
+  const ext =
+    file.type === "image/svg+xml"
+      ? "svg"
+      : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
+  const path = `${clubId}/logo-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("club-assets")
+    .upload(path, file, { contentType: file.type, upsert: true });
+
+  if (uploadError) {
+    console.error("Club logo upload failed:", uploadError);
+    return {
+      data: null,
+      error: uploadError.message || "Failed to upload club logo",
+    };
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("club-assets")
+    .getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from("clubs")
+    .update({
+      logo_url: urlData.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", clubId);
+
+  if (updateError) {
+    console.error("Error saving club logo URL:", updateError);
+    return { data: null, error: updateError.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath("/clubs");
+  return { data: urlData.publicUrl, error: null };
+}
+
+export async function removeClubLogo(
+  clubId: string,
+): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return {
+      success: false,
+      error: "You are not authorized to update this club's logo",
+    };
+  }
+
+  const { error } = await supabase
+    .from("clubs")
+    .update({
+      logo_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", clubId);
+
+  if (error) {
+    console.error("removeClubLogo error:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath("/clubs");
+  return { success: true, error: null };
+}
+
+export async function updateClubBanner(
+  clubId: string,
+  file: File,
+): Promise<{ data: string | null; error: string | null }> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return {
+      data: null,
+      error: "You are not authorized to update this club's banner",
+    };
+  }
+
+  if (file.size > MAX_BANNER_BYTES) {
+    return { data: null, error: "Banner image must be under 5 MB" };
+  }
+  if (!ALLOWED_BANNER_TYPES.includes(file.type)) {
+    return { data: null, error: "Use PNG, JPG, or WebP for banner images" };
+  }
+
+  const ext = (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
+  const path = `${clubId}/banner-${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("club-assets")
+    .upload(path, file, { contentType: file.type, upsert: true });
+
+  if (uploadError) {
+    console.error("Club banner upload failed:", uploadError);
+    return {
+      data: null,
+      error: uploadError.message || "Failed to upload club banner",
+    };
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("club-assets")
+    .getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from("clubs")
+    .update({
+      banner_url: urlData.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", clubId);
+
+  if (updateError) {
+    console.error("Error saving club banner URL:", updateError);
+    return { data: null, error: updateError.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath("/clubs");
+  return { data: urlData.publicUrl, error: null };
+}
+
+export async function removeClubBanner(
+  clubId: string,
+): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "You must be logged in" };
+
+  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  if (!canManage) {
+    return {
+      success: false,
+      error: "You are not authorized to update this club's banner",
+    };
+  }
+
+  const { error } = await supabase
+    .from("clubs")
+    .update({
+      banner_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", clubId);
+
+  if (error) {
+    console.error("removeClubBanner error:", error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/clubs/${clubId}`);
+  revalidatePath("/clubs");
+  return { success: true, error: null };
+}
+
+

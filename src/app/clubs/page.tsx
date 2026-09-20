@@ -5,6 +5,7 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Shield, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ClubLogo } from "~/components/clubs/club-logo";
 import { formatClubType } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ interface ClubRow {
   short_name: string | null;
   location: string | null;
   club_type: string | null;
+  logo_url?: string | null;
   is_public: boolean | null;
   teams: { count: number }[];
 }
@@ -25,20 +27,28 @@ function ClubCard({ club }: { club: ClubRow }) {
     <Link href={`/clubs/${club.id}`} className="group">
       <Card className="transition-colors group-hover:border-primary/50">
         <CardContent className="p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <ClubLogo
+              name={club.name}
+              shortName={club.short_name}
+              logoUrl={club.logo_url}
+              className="h-10 w-10 text-sm rounded-xl"
+            />
             <div className="min-w-0 flex-1">
-              <h2 className="truncate font-semibold">{club.name}</h2>
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="truncate font-semibold">{club.name}</h2>
+                {club.short_name && (
+                  <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-xs font-bold text-secondary-foreground">
+                    {club.short_name}
+                  </span>
+                )}
+              </div>
               <p className="truncate text-sm text-muted-foreground">
                 {club.location ?? "—"}
               </p>
             </div>
-            {club.short_name && (
-              <span className="shrink-0 rounded-md bg-secondary px-2 py-1 text-xs font-bold text-secondary-foreground">
-                {club.short_name}
-              </span>
-            )}
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
             {club.club_type && (
               <Badge variant="outline">{formatClubType(club.club_type)}</Badge>
             )}
@@ -54,11 +64,11 @@ function ClubCard({ club }: { club: ClubRow }) {
 
 export default async function ClubsPage() {
   const supabase = await createServerClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // If logged in, fetch clubs where user is owner or member
   let myClubIds: string[] = [];
   if (user) {
     const [{ data: mems }, { data: owned }] = await Promise.all([
@@ -76,13 +86,12 @@ export default async function ClubsPage() {
     );
   }
 
-  // My clubs: owned or a member of (only when logged in).
   const myClubs =
     myClubIds.length > 0
       ? ((await supabase
           .from("clubs")
           .select(
-            "id, name, short_name, location, club_type, is_public, teams(count)",
+            "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",
           )
           .in("id", myClubIds)
           .order("name")
@@ -93,7 +102,7 @@ export default async function ClubsPage() {
   const { data: publicClubs } = (await supabase
     .from("clubs")
     .select(
-      "id, name, short_name, location, club_type, is_public, teams(count)",
+      "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",
     )
     .eq("is_public", true)
     .order("name")) as { data: ClubRow[] | null };
