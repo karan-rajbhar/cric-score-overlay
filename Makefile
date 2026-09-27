@@ -1,6 +1,6 @@
 # Cricket Platform Development Makefile
 
-.PHONY: help docker-check install dev server tunnel db-start db-stop db-migrate db-reset db-studio build test test-watch coverage check lint format clean setup stop restart types
+.PHONY: help docker-check install dev server tunnel db-start db-stop db-migrate db-reset db-studio build test test-watch coverage lint format clean setup stop restart types
 
 help: ## Show this help message
 	@echo "Cricket Platform Development Commands"
@@ -124,10 +124,6 @@ test-watch: ## Run tests in watch mode
 coverage: ## Generate test coverage report
 	@echo "📊 Generating coverage..."
 	@npm run test:coverage
-
-check: ## Run lint + typecheck + tests (quality gate)
-	@echo "🔍 Running quality checks..."
-	@npm run check
 
 lint: ## Run code linter
 	@echo "🔍 Running linter..."

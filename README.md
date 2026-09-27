@@ -54,7 +54,6 @@ Copy `.env.example` to `.env.local` for cloud Supabase; local dev works with def
 | `npm run build`      | Production build                        |
 | `npm run lint`       | ESLint                                  |
 | `npm run typecheck`  | `tsc --noEmit`                          |
-| `npm run check`      | Lint + typecheck + tests (quality gate) |
 | `npm test`           | Run tests once (Vitest)                 |
 | `npm run test:watch` | Tests in watch mode                     |
 | `npm run format`     | Format everything with Prettier         |
