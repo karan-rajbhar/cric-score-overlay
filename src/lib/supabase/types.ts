@@ -1921,7 +1921,7 @@ export type Database = {
         Returns: undefined
       }
       check_username_available: {
-        Args: { p_username: string; p_current_user_id?: string }
+        Args: { p_current_user_id?: string; p_username: string }
         Returns: Json
       }
       complete_innings: {
@@ -1938,6 +1938,10 @@ export type Database = {
       }
       end_innings: { Args: { p_match_id: string }; Returns: Json }
       ensure_own_profile: { Args: never; Returns: Json }
+      generate_unique_username: {
+        Args: { p_email?: string; p_full_name: string; p_user_id?: string }
+        Returns: string
+      }
       is_club_admin: {
         Args: { p_club_id: string; p_user_id?: string }
         Returns: boolean
@@ -1963,23 +1967,42 @@ export type Database = {
         Returns: undefined
       }
       recompute_innings: { Args: { p_innings_id: string }; Returns: undefined }
-      record_ball: {
-        Args: {
-          p_batsman_id: string
-          p_bowler_id: string
-          p_commentary?: string
-          p_dismissal_type?: string
-          p_dismissed_player_id?: string
-          p_extra_type?: string
-          p_extras?: number
-          p_fielder_id?: string
-          p_is_wicket?: boolean
-          p_match_id: string
-          p_non_striker_id: string
-          p_runs_scored?: number
-        }
-        Returns: Json
-      }
+      record_ball:
+        | {
+            Args: {
+              p_batsman_id: string
+              p_bowler_id: string
+              p_commentary?: string
+              p_dismissal_type?: string
+              p_dismissed_player_id?: string
+              p_extra_type?: string
+              p_extras?: number
+              p_fielder_id?: string
+              p_is_wicket?: boolean
+              p_match_id: string
+              p_non_striker_id: string
+              p_runs_scored?: number
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_batsman_id: string
+              p_bowler_id: string
+              p_commentary?: string
+              p_dismissal_type?: string
+              p_dismissed_player_id?: string
+              p_extra_type?: string
+              p_extras?: number
+              p_fielder_id?: string
+              p_is_wicket?: boolean
+              p_match_id: string
+              p_non_striker_id: string
+              p_runs_scored?: number
+              p_shot_zone?: string
+            }
+            Returns: Json
+          }
       record_state: { Args: { p_match_id: string }; Returns: Json }
       set_current_batsmen: {
         Args: {
@@ -2011,12 +2034,7 @@ export type Database = {
         }
         Returns: Json
       }
-      update_own_username: {
-        Args: {
-          p_username: string
-        }
-        Returns: Json
-      }
+      update_own_username: { Args: { p_username: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

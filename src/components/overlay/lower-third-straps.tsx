@@ -231,7 +231,7 @@ export function LowerThirdStraps({
       <div
         className={`relative flex items-stretch overflow-hidden backdrop-blur-2xl ${
           theme === "foxcricket"
-            ? "clip-slant-right border-2 border-lime-400 bg-[#060a06]/95 font-mono shadow-[0_0_35px_rgba(0,255,102,0.35)]"
+            ? "clip-slant-right border-2 border-lime-400 bg-[#060a06]/95 font-mono shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
             : theme === "sonysports"
               ? "rounded-2xl border-2 border-red-600/70 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_12px_45px_rgba(220,38,38,0.4)]"
               : theme === "skysports"
@@ -239,17 +239,17 @@ export function LowerThirdStraps({
                 : theme === "thehundred"
                   ? "border-2 border-pink-500 bg-[#100118] shadow-[0_10px_35px_rgba(236,72,153,0.4)]"
                   : theme === "apex"
-                    ? "clip-chamfer-both carbon-matrix border-2 border-amber-400/90 text-white shadow-[0_0_45px_rgba(245,158,11,0.4)]"
+                    ? "clip-chamfer-both carbon-matrix border-2 border-amber-400/90 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                     : theme === "volt"
-                      ? "clip-slant-right border-2 border-lime-400 bg-[#020904]/95 font-mono text-white shadow-[0_0_40px_rgba(0,255,102,0.4)]"
+                      ? "clip-slant-right border-2 border-lime-400 bg-[#020904]/95 font-mono text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                       : theme === "agni"
-                        ? "clip-notch-card magma-matrix border-2 border-orange-500 text-white shadow-[0_0_45px_rgba(255,69,0,0.5)]"
+                        ? "clip-notch-card magma-matrix border-2 border-orange-500 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                         : theme === "thunder"
-                          ? "rounded-2xl border-2 border-blue-400 bg-[#030a24]/95 text-white shadow-[0_0_45px_rgba(59,130,246,0.45)]"
+                          ? "rounded-2xl border-2 border-blue-400 bg-[#030a24]/95 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                           : theme === "dharma"
-                            ? "from-[#200508]/98 via-[#380911]/98 to-[#200508]/98 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-r font-serif text-white shadow-[0_0_45px_rgba(180,83,9,0.4)]"
+                            ? "from-[#200508]/98 via-[#380911]/98 to-[#200508]/98 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-r font-serif text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                             : theme === "nakshatra"
-                              ? "from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 rounded-2xl border-2 border-purple-500/80 bg-gradient-to-r text-white shadow-[0_0_45px_rgba(168,85,247,0.4)]"
+                              ? "from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 rounded-2xl border-2 border-purple-500/80 bg-gradient-to-r text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
                               : `border ${borderColor} from-[#03091e]/98 via-[#061435]/98 to-[#03091e]/98 broadcast-bevel bg-gradient-to-r shadow-[0_12px_40px_rgba(0,0,0,0.9)]`
         }`}
       >

@@ -13,6 +13,11 @@ import {
   endInnings,
   startSuperOver,
 } from "../../mutations";
+import {
+  enqueuePendingBall,
+  hasPendingBalls,
+  flushPendingBalls,
+} from "~/lib/offline-queue";
 import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
@@ -235,6 +240,23 @@ export function useScoring(
     };
   }, [syncFromDb]);
 
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (hasPendingBalls(matchId)) {
+        toast.info("Connection restored. Syncing offline deliveries...");
+        const res = await flushPendingBalls(matchId, (ball) => recordBall(ball));
+        if (res.synced > 0) {
+          toast.success(
+            `Synced ${res.synced} offline delivery${res.synced > 1 ? "ies" : ""}`,
+          );
+          await syncFromDb();
+        }
+      }
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [matchId, syncFromDb]);
+
   const applyState = (state: ScoringState) => {
     setStrikerId(state.striker_id);
     setNonStrikerId(state.non_striker_id);
@@ -425,21 +447,62 @@ export function useScoring(
     event: BallEvent,
   ) => {
     setIsProcessing(true);
-    const result = await recordBall({
-      matchId,
-      bowlerId,
-      batsmanId,
-      nonStrikerId: nonStriker,
-      event,
-    });
-    if (result.error) {
-      toast.error(result.error);
-    } else if (result.data) {
-      broadcastScoreUpdate();
-      applyState(result.data);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueuePendingBall({
+        matchId,
+        bowlerId,
+        batsmanId,
+        nonStrikerId: nonStriker,
+        event,
+      });
+      toast.info("Offline: Ball saved locally and queued for auto-sync.");
+      setIsProcessing(false);
+      return { data: null, error: null };
     }
-    setIsProcessing(false);
-    return result;
+
+    try {
+      if (hasPendingBalls(matchId)) {
+        await flushPendingBalls(matchId, (ball) => recordBall(ball));
+      }
+
+      const result = await recordBall({
+        matchId,
+        bowlerId,
+        batsmanId,
+        nonStrikerId: nonStriker,
+        event,
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        broadcastScoreUpdate();
+        applyState(result.data);
+      }
+      setIsProcessing(false);
+      return result;
+    } catch (err: unknown) {
+      const isNetwork =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        (err instanceof Error &&
+          (err.message.includes("fetch") || err.name === "NetworkError"));
+      if (isNetwork) {
+        enqueuePendingBall({
+          matchId,
+          bowlerId,
+          batsmanId,
+          nonStrikerId: nonStriker,
+          event,
+        });
+        toast.info("Connection lost: Ball queued for auto-sync.");
+        setIsProcessing(false);
+        return { data: null, error: null };
+      }
+      console.error("handleScore error:", err);
+      toast.error("Failed to record ball");
+      setIsProcessing(false);
+      return { data: null, error: "Failed to record ball" };
+    }
   };
 
   const handleUndo = async () => {

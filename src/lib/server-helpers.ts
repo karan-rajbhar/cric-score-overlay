@@ -39,7 +39,6 @@ export function handleSupabaseError(
 export function revalidateScoring(matchId: string) {
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
 }
 
 export function revalidateTeam(teamId: string) {

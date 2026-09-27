@@ -8,6 +8,17 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
+import type { Tables } from "~/lib/supabase/types";
+
+export type DbMatch = Tables<"matches">;
+export type DbInnings = Tables<"innings">;
+export type DbBall = Tables<"ball_by_ball">;
+export type DbTeam = Tables<"teams">;
+export type DbBattingPerformance = Tables<"batting_performances">;
+export type DbBowlingPerformance = Tables<"bowling_performances">;
+export type DbFallOfWicket = Tables<"fall_of_wickets">;
+export type DbTeamPlayer = Tables<"team_players">;
+
 export interface UserRef {
   id: string;
   full_name: string;

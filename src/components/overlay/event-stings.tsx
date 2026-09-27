@@ -54,7 +54,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-[#050905]/95 shadow-[0_0_70px_rgba(0,255,102,0.5)] backdrop-blur-2xl">
+            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-[#050905]/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-lime-400">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 bg-lime-400" />
@@ -72,13 +72,13 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-gradient-to-b from-black/80 via-neutral-950 to-black/80 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <span className="font-mono text-2xl font-black tracking-tighter text-lime-400">
-                    [// FOX 4 //]
+                    FOX 4
                   </span>
-                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_0_35px_rgba(163,230,53,0.95)] md:text-8xl">
+                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     FOUR!
                   </h2>
                   <span className="font-mono text-2xl font-black tracking-tighter text-lime-400">
-                    [// FOX 4 //]
+                    FOX 4
                   </span>
                 </div>
 
@@ -104,10 +104,10 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-[#050905]/95 shadow-[0_0_80px_rgba(0,255,102,0.6)] backdrop-blur-2xl">
+            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-[#050905]/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-lime-400">
                 <div className="flex items-center gap-2">
-                  <span className="inline-block h-2.5 w-2.5 rotate-45 animate-spin bg-lime-400" />
+                  <span className="inline-block h-2.5 w-2.5 rotate-45 bg-lime-400" />
                   <span>FOX CRICKET · FOX SPORTS LAB</span>
                 </div>
                 <div className="flex items-center gap-2 text-cyan-300">
@@ -122,13 +122,13 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-gradient-to-b from-black via-neutral-950 to-black px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <span className="font-mono text-3xl font-black text-cyan-400">
-                    &lt; 6 &gt;
+                    SIX
                   </span>
-                  <h2 className="bg-gradient-to-r from-lime-300 via-yellow-200 to-cyan-300 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_40px_rgba(0,255,102,0.95)] md:text-8xl">
+                  <h2 className="bg-gradient-to-r from-lime-300 via-yellow-200 to-cyan-300 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     MAXIMUM!
                   </h2>
                   <span className="font-mono text-3xl font-black text-cyan-400">
-                    &lt; 6 &gt;
+                    SIX
                   </span>
                 </div>
 
@@ -158,7 +158,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-red-500 bg-[#0c0202]/95 shadow-[0_0_80px_rgba(239,68,68,0.7)] backdrop-blur-2xl">
+            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-red-500 bg-[#0c0202]/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-red-500/40 bg-black px-6 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-red-400">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 animate-ping bg-red-500" />
@@ -174,7 +174,7 @@ export function EventStings({
                   <span className="font-mono text-3xl font-black text-red-500">
                     {"/// OUT ///"}
                   </span>
-                  <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_35px_rgba(239,68,68,0.95)] md:text-8xl">
+                  <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     WICKET!
                   </h2>
                   <span className="font-mono text-3xl font-black text-red-500">
@@ -204,13 +204,13 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-black/95 shadow-[0_0_70px_rgba(163,230,53,0.6)] backdrop-blur-2xl">
+            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-bold uppercase tracking-widest text-lime-400">
                 <span>FOX CRICKET · BATTER TELEMETRY MILESTONE</span>
                 <span>ACHIEVEMENT UNLOCKED</span>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
-                <h2 className="font-mono text-6xl font-black tracking-wider text-lime-400 drop-shadow-[0_0_30px_rgba(163,230,53,0.9)] md:text-7xl">
+                <h2 className="font-mono text-6xl font-black tracking-wider text-lime-400 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-7xl">
                   {sting.title}
                 </h2>
                 {sting.subtitle && (
@@ -234,13 +234,13 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-cyan-400 bg-black/95 shadow-[0_0_60px_rgba(6,182,212,0.8)] backdrop-blur-2xl">
+            <div className="clip-slant-right relative w-full overflow-hidden border-2 border-cyan-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-cyan-400 px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-black">
                 <span>FOX CRICKET · UMPIRE CAUTION PROTOCOL</span>
                 <span>PENALTY DELIVERY</span>
               </div>
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
-                <h2 className="animate-pulse font-mono text-7xl font-black italic tracking-wider text-cyan-300 drop-shadow-[0_0_30px_rgba(6,182,212,0.9)] md:text-8xl">
+                <h2 className="animate-pulse font-mono text-7xl font-black italic tracking-wider text-cyan-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                   FREE HIT!
                 </h2>
                 <p className="mt-2 font-mono text-sm font-black uppercase tracking-widest text-white/90 md:text-base">
@@ -264,7 +264,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600/80 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_0_70px_rgba(220,38,38,0.7)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600/80 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
@@ -275,7 +275,7 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-3xl font-black text-white shadow-[0_0_20px_#ef4444]">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-3xl font-black text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
                     4
                   </span>
                   <h2 className="bg-gradient-to-r from-red-200 via-white to-rose-400 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_4px_24px_rgba(220,38,38,0.9)] md:text-8xl">
@@ -305,7 +305,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-500/80 bg-gradient-to-r from-zinc-950 via-red-950/80 to-zinc-950 shadow-[0_0_80px_rgba(239,68,68,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-500/80 bg-gradient-to-r from-zinc-950 via-red-950/80 to-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
@@ -316,7 +316,7 @@ export function EventStings({
 
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-red-600 to-rose-600 text-3xl font-black text-white shadow-[0_0_25px_#f59e0b]">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-amber-500 via-red-600 to-rose-600 text-3xl font-black text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
                     6
                   </span>
                   <h2 className="bg-gradient-to-r from-amber-200 via-white to-red-400 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_4px_28px_rgba(239,68,68,0.95)] md:text-8xl">
@@ -350,7 +350,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_0_80px_rgba(220,38,38,0.9)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-red-700 via-red-600 to-red-800 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 animate-ping rounded-full bg-white" />
@@ -386,7 +386,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-zinc-950 via-amber-950/40 to-zinc-950 shadow-[0_0_70px_rgba(245,158,11,0.6)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-zinc-950 via-amber-950/40 to-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-black">
                 <span>SONY SPORTS NETWORK · MILESTONE MOMENT</span>
                 <span>BATTING GLORY</span>
@@ -416,7 +416,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_0_60px_rgba(250,204,21,0.6)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-amber-400 px-6 py-1.5 text-xs font-black uppercase tracking-widest text-black">
                 <span>SONY SPORTS NETWORK · UMPIRE CALL</span>
                 <span>PENALTY DELIVERY</span>
@@ -622,7 +622,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="relative w-full overflow-hidden border-4 border-pink-500 bg-[#0d0114] text-white shadow-[0_0_70px_rgba(236,72,153,0.7)]">
+            <div className="relative w-full overflow-hidden border-4 border-pink-500 bg-[#0d0114] text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between bg-pink-600 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-white">
                 <span>THE HUNDRED · BALLS COUNTDOWN CRICKET</span>
                 <span>OH YEAH! 4 RUNS!</span>
@@ -654,7 +654,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="relative w-full overflow-hidden border-4 border-yellow-400 bg-[#0d0114] text-white shadow-[0_0_80px_rgba(250,204,21,0.8)]">
+            <div className="relative w-full overflow-hidden border-4 border-yellow-400 bg-[#0d0114] text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-black">
                 <span>THE HUNDRED · MAXIMUM OVER THE ROPES</span>
                 <span>6 RUNS!</span>
@@ -686,7 +686,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="relative w-full overflow-hidden border-4 border-pink-600 bg-black text-white shadow-[0_0_80px_rgba(236,72,153,0.8)]">
+            <div className="relative w-full overflow-hidden border-4 border-pink-600 bg-black text-white shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
               <div className="flex items-center justify-between bg-pink-600 px-6 py-1.5 text-xs font-black uppercase tracking-wider text-white">
                 <span>THE HUNDRED · OUT!</span>
                 <span>BATTER WALKS</span>
@@ -764,7 +764,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-amber-400/90 shadow-[0_0_80px_rgba(245,158,11,0.5)] backdrop-blur-2xl">
+            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-amber-400/90 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -806,7 +806,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-yellow-400 shadow-[0_0_100px_rgba(234,179,8,0.7)] backdrop-blur-2xl">
+            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-yellow-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-yellow-200/40 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -851,7 +851,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.7)] backdrop-blur-2xl">
+            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-red-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-white" />
@@ -888,7 +888,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-amber-400 shadow-[0_0_90px_rgba(245,158,11,0.7)] backdrop-blur-2xl">
+            <div className="clip-chamfer-both carbon-matrix relative w-full overflow-hidden border-2 border-amber-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/30 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -926,7 +926,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="clip-chamfer-both relative w-full overflow-hidden border-2 border-yellow-400 bg-black/95 shadow-[0_0_80px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="clip-chamfer-both relative w-full overflow-hidden border-2 border-yellow-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-black" />
@@ -958,7 +958,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4 font-mono">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="bg-[#020904]/98 clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 shadow-[0_0_80px_rgba(0,255,102,0.5)] backdrop-blur-2xl">
+            <div className="bg-[#020904]/98 clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-lightning-flash pointer-events-none absolute inset-0 bg-gradient-to-r from-lime-500/10 via-cyan-400/20 to-lime-500/10" />
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-lime-400">
                 <div className="flex items-center gap-2">
@@ -981,7 +981,7 @@ export function EventStings({
                   <span className="font-mono text-2xl font-black text-cyan-400">
                     &lt;// VOLT //&gt;
                   </span>
-                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_0_40px_rgba(0,255,102,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     FOUR!
                   </h2>
                   <span className="font-mono text-2xl font-black text-cyan-400">
@@ -1009,7 +1009,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="bg-[#01080d]/98 clip-slant-right relative w-full overflow-hidden border-2 border-cyan-400 shadow-[0_0_90px_rgba(0,240,255,0.6)] backdrop-blur-2xl">
+            <div className="bg-[#01080d]/98 clip-slant-right relative w-full overflow-hidden border-2 border-cyan-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-lightning-flash pointer-events-none absolute inset-0 bg-gradient-to-r from-cyan-500/15 via-lime-400/25 to-cyan-500/15" />
               <div className="flex items-center justify-between border-b border-cyan-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-cyan-400">
                 <div className="flex items-center gap-2">
@@ -1030,7 +1030,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/80 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
                   <Zap className="h-8 w-8 fill-lime-400 text-lime-400" />
-                  <h2 className="bg-gradient-to-r from-cyan-300 via-lime-300 to-white bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_45px_rgba(0,240,255,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-cyan-300 via-lime-300 to-white bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     MAXIMUM!
                   </h2>
                   <Zap className="h-8 w-8 fill-lime-400 text-lime-400" />
@@ -1059,7 +1059,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="bg-[#0d0202]/98 clip-slant-right relative w-full overflow-hidden border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.7)] backdrop-blur-2xl">
+            <div className="bg-[#0d0202]/98 clip-slant-right relative w-full overflow-hidden border-2 border-red-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-red-500/40 bg-black px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-red-400">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 animate-ping bg-red-500" />
@@ -1072,7 +1072,7 @@ export function EventStings({
                   <span className="font-mono text-3xl font-black text-red-500">
                     [// OUT //]
                   </span>
-                  <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_40px_rgba(239,68,68,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-red-400 via-white to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     WICKET!
                   </h2>
                   <span className="font-mono text-3xl font-black text-red-500">
@@ -1100,7 +1100,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="bg-[#030905]/98 clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 shadow-[0_0_90px_rgba(0,255,102,0.6)] backdrop-blur-2xl">
+            <div className="bg-[#030905]/98 clip-slant-right relative w-full overflow-hidden border-2 border-lime-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-lime-400">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-lime-400" />
@@ -1113,7 +1113,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-black/80 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Sparkles className="h-8 w-8 text-lime-400" />
-                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-6xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_35px_rgba(0,255,102,0.95)] md:text-8xl">
+                  <h2 className="bg-gradient-to-r from-lime-300 via-white to-cyan-300 bg-clip-text text-6xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     {sting.title}
                   </h2>
                   <Sparkles className="h-8 w-8 text-lime-400" />
@@ -1139,7 +1139,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="bg-black/98 clip-slant-right relative w-full overflow-hidden border-2 border-yellow-400 shadow-[0_0_80px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="bg-black/98 clip-slant-right relative w-full overflow-hidden border-2 border-yellow-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 font-mono text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-black" />
@@ -1150,7 +1150,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
-                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
+                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     FREE HIT!
                   </h2>
                   <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
@@ -1177,7 +1177,7 @@ export function EventStings({
 
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="from-[#030a24]/98 via-[#091a4f]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-blue-400 bg-gradient-to-r shadow-[0_0_80px_rgba(59,130,246,0.6)] backdrop-blur-2xl">
+            <div className="from-[#030a24]/98 via-[#091a4f]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-blue-400 bg-gradient-to-r shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-blue-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <Zap className="h-3.5 w-3.5 fill-yellow-300 text-yellow-300" />
@@ -1216,7 +1216,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="from-[#030a24]/98 via-[#0c2266]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 bg-gradient-to-r shadow-[0_0_100px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="from-[#030a24]/98 via-[#0c2266]/98 to-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 bg-gradient-to-r shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-black" />
@@ -1256,7 +1256,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.7)] backdrop-blur-2xl">
+            <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-red-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-red-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-white" />
@@ -1293,7 +1293,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 shadow-[0_0_90px_rgba(250,204,21,0.7)] backdrop-blur-2xl">
+            <div className="bg-[#030a24]/98 relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Crown className="h-4 w-4 text-black" />
@@ -1330,7 +1330,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 bg-black/95 shadow-[0_0_80px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-2xl border-2 border-yellow-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-black" />
@@ -1341,7 +1341,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
-                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
+                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     FREE HIT!
                   </h2>
                   <Zap className="h-8 w-8 fill-yellow-400 text-yellow-400" />
@@ -1365,7 +1365,7 @@ export function EventStings({
 
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400/90 bg-gradient-to-r from-[#200508] via-[#380911] to-[#200508] shadow-[0_0_70px_rgba(153,27,27,0.7)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400/90 bg-gradient-to-r from-[#200508] via-[#380911] to-[#200508] shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Crown className="h-4 w-4 text-black" />
@@ -1402,7 +1402,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_0_90px_rgba(245,158,11,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Crown className="h-4 w-4 text-black" />
@@ -1442,7 +1442,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600 bg-gradient-to-r from-[#200408] via-[#38070e] to-[#200408] shadow-[0_0_80px_rgba(220,38,38,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-red-600 bg-gradient-to-r from-[#200408] via-[#38070e] to-[#200408] shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-red-800 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-amber-200">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-amber-300" />
@@ -1479,7 +1479,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_0_90px_rgba(245,158,11,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-amber-400 bg-gradient-to-r from-[#200508] via-[#4d0c18] to-[#200508] shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Crown className="h-4 w-4 text-black" />
@@ -1516,7 +1516,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-yellow-400 bg-black/95 shadow-[0_0_80px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-yellow-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-black" />
@@ -1527,7 +1527,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <AlertTriangle className="h-9 w-9 text-yellow-400" />
-                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
+                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     FREE HIT!
                   </h2>
                   <AlertTriangle className="h-9 w-9 text-yellow-400" />
@@ -1554,7 +1554,7 @@ export function EventStings({
 
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-500/80 bg-gradient-to-r shadow-[0_0_80px_rgba(168,85,247,0.6)] backdrop-blur-2xl">
+            <div className="from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-500/80 bg-gradient-to-r shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
@@ -1591,7 +1591,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="from-[#07031e]/98 via-[#1f0a5c]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-cyan-400 bg-gradient-to-r shadow-[0_0_100px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
+            <div className="from-[#07031e]/98 via-[#1f0a5c]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-cyan-400 bg-gradient-to-r shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <Rocket className="h-4 w-4 text-white" />
@@ -1633,7 +1633,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="bg-[#0d0208]/98 relative w-full overflow-hidden rounded-3xl border-2 border-red-500 shadow-[0_0_90px_rgba(239,68,68,0.8)] backdrop-blur-2xl">
+            <div className="bg-[#0d0208]/98 relative w-full overflow-hidden rounded-3xl border-2 border-red-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-red-600 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-white" />
@@ -1670,7 +1670,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="from-[#07031e]/98 via-[#1c0852]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-400 bg-gradient-to-r shadow-[0_0_90px_rgba(168,85,247,0.7)] backdrop-blur-2xl">
+            <div className="from-[#07031e]/98 via-[#1c0852]/98 to-[#07031e]/98 relative w-full overflow-hidden rounded-3xl border-2 border-purple-400 bg-gradient-to-r shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-fuchsia-600 to-purple-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
@@ -1707,7 +1707,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-yellow-400 bg-black/95 shadow-[0_0_80px_rgba(250,204,21,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden rounded-3xl border-2 border-yellow-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2.5 w-2.5 rotate-45 animate-ping bg-black" />
@@ -1718,7 +1718,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Zap className="h-9 w-9 fill-yellow-400 text-yellow-400" />
-                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_0_35px_rgba(250,204,21,0.95)] md:text-8xl">
+                  <h2 className="animate-pulse text-7xl font-black italic tracking-widest text-yellow-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     FREE HIT!
                   </h2>
                   <Zap className="h-9 w-9 fill-yellow-400 text-yellow-400" />
@@ -1739,7 +1739,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-orange-500 shadow-[0_0_85px_rgba(255,69,0,0.75)] backdrop-blur-2xl">
+            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-orange-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-gradient-to-r from-orange-500/10 via-red-500/20 to-amber-500/10" />
               <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -1755,7 +1755,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
-                  <h2 className="bg-gradient-to-r from-yellow-200 via-orange-400 to-red-500 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_0_35px_rgba(255,69,0,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-yellow-200 via-orange-400 to-red-500 bg-clip-text text-7xl font-black italic tracking-wider text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     BLAZING 4!
                   </h2>
                   <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400 [animation-delay:0.4s]" />
@@ -1781,7 +1781,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-red-500 shadow-[0_0_100px_rgba(255,30,0,0.85)] backdrop-blur-2xl">
+            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-red-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-gradient-to-r from-red-600/15 via-orange-500/25 to-yellow-500/15" />
               <div className="flex items-center justify-between bg-gradient-to-r from-orange-600 via-red-600 to-amber-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -1797,7 +1797,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-7">
                 <div className="flex items-center justify-center gap-4">
                   <Flame className="h-9 w-9 animate-flame-flicker fill-orange-400 text-orange-400" />
-                  <h2 className="bg-gradient-to-r from-yellow-100 via-amber-300 to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_50px_rgba(255,69,0,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-yellow-100 via-amber-300 to-red-500 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     MAXIMUM 6!
                   </h2>
                   <Flame className="h-9 w-9 animate-flame-flicker fill-orange-400 text-orange-400 [animation-delay:0.5s]" />
@@ -1826,7 +1826,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-red-600 shadow-[0_0_110px_rgba(220,38,38,0.9)] backdrop-blur-2xl">
+            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-red-600 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-red-600/15" />
               <div className="flex items-center justify-between bg-red-700 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-white">
                 <div className="flex items-center gap-2">
@@ -1842,7 +1842,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/75 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Sparkles className="h-8 w-8 text-red-500" />
-                  <h2 className="bg-gradient-to-r from-red-400 via-orange-200 to-red-600 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_0_40px_rgba(239,68,68,1)] md:text-9xl">
+                  <h2 className="bg-gradient-to-r from-red-400 via-orange-200 to-red-600 bg-clip-text text-7xl font-black italic tracking-widest text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     WICKET!
                   </h2>
                   <Sparkles className="h-8 w-8 text-red-500" />
@@ -1868,7 +1868,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-amber-500 shadow-[0_0_80px_rgba(245,158,11,0.7)] backdrop-blur-2xl">
+            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-amber-500 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/25 to-transparent" />
               <div className="flex items-center justify-between bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
@@ -1880,7 +1880,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/70 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Sun className="h-8 w-8 animate-flame-flicker text-amber-300" />
-                  <h2 className="bg-gradient-to-r from-yellow-200 via-amber-400 to-orange-400 bg-clip-text text-6xl font-black tracking-wider text-transparent drop-shadow-[0_0_35px_rgba(245,158,11,0.95)] md:text-8xl">
+                  <h2 className="bg-gradient-to-r from-yellow-200 via-amber-400 to-orange-400 bg-clip-text text-6xl font-black tracking-wider text-transparent drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-8xl">
                     {sting.title}
                   </h2>
                   <Sun className="h-8 w-8 animate-flame-flicker text-amber-300 [animation-delay:0.5s]" />
@@ -1906,7 +1906,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-orange-400 shadow-[0_0_90px_rgba(255,140,0,0.8)] backdrop-blur-2xl">
+            <div className="clip-notch-card magma-matrix relative w-full overflow-hidden border-2 border-orange-400 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-orange-500 px-6 py-1.5 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <Flame className="h-4 w-4 fill-black text-black animate-flame-flicker" />
@@ -1917,7 +1917,7 @@ export function EventStings({
               <div className="relative flex flex-col items-center justify-center bg-neutral-950/75 px-8 py-6">
                 <div className="flex items-center justify-center gap-4">
                   <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
-                  <h2 className="animate-pulse text-7xl font-black italic tracking-wider text-orange-300 drop-shadow-[0_0_35px_rgba(255,140,0,1)] md:text-9xl">
+                  <h2 className="animate-pulse text-7xl font-black italic tracking-wider text-orange-300 drop-shadow-[0_20px_50px_rgba(0,0,0,0.85)] md:text-9xl">
                     FREE HIT!
                   </h2>
                   <Flame className="h-8 w-8 animate-flame-flicker fill-orange-400 text-orange-400" />
@@ -1944,7 +1944,7 @@ export function EventStings({
         <div className="animate-stinger-entry relative flex w-full max-w-4xl flex-col items-center px-4">
           {/* FOUR */}
           {sting.type === "four" && (
-            <div className="relative w-full overflow-hidden border-y-2 border-cyan-400 bg-gradient-to-r from-blue-950/95 via-cyan-950/95 to-blue-950/95 shadow-[0_0_60px_rgba(6,182,212,0.6)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden border-y-2 border-cyan-400 bg-gradient-to-r from-blue-950/95 via-cyan-950/95 to-blue-950/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-cyan-300/25 to-transparent" />
 
               <div className="flex items-center justify-between border-b border-cyan-500/30 bg-cyan-950/80 px-6 py-1 text-[11px] font-black uppercase tracking-widest text-cyan-300">
@@ -1994,7 +1994,7 @@ export function EventStings({
 
           {/* SIX */}
           {sting.type === "six" && (
-            <div className="relative w-full overflow-hidden border-y-2 border-amber-400 bg-gradient-to-r from-amber-950/95 via-orange-950/95 to-amber-950/95 shadow-[0_0_80px_rgba(245,158,11,0.7)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden border-y-2 border-amber-400 bg-gradient-to-r from-amber-950/95 via-orange-950/95 to-amber-950/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-200/30 to-transparent" />
 
               <div className="flex items-center justify-between border-b border-amber-500/30 bg-amber-950/80 px-6 py-1 text-[11px] font-black uppercase tracking-widest text-amber-300">
@@ -2052,7 +2052,7 @@ export function EventStings({
 
           {/* WICKET */}
           {sting.type === "wicket" && (
-            <div className="relative w-full overflow-hidden border-y-2 border-red-500 bg-gradient-to-r from-neutral-950 via-red-950/95 to-neutral-950 shadow-[0_0_80px_rgba(239,68,68,0.8)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden border-y-2 border-red-500 bg-gradient-to-r from-neutral-950 via-red-950/95 to-neutral-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="pointer-events-none absolute inset-0 animate-pulse bg-red-600/10" />
 
               <div className="flex items-center justify-between border-b border-red-500/40 bg-red-950/80 px-6 py-1 text-[11px] font-black uppercase tracking-widest text-red-300">
@@ -2102,7 +2102,7 @@ export function EventStings({
 
           {/* MILESTONE */}
           {sting.type === "milestone" && (
-            <div className="relative w-full overflow-hidden border-y-2 border-amber-300 bg-gradient-to-r from-amber-950 via-neutral-950 to-amber-950 shadow-[0_0_70px_rgba(252,211,77,0.6)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden border-y-2 border-amber-300 bg-gradient-to-r from-amber-950 via-neutral-950 to-amber-950 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-200/30 to-transparent" />
 
               <div className="flex items-center justify-between border-b border-amber-500/30 bg-amber-950/80 px-6 py-1 text-[11px] font-black uppercase tracking-widest text-amber-300">
@@ -2146,7 +2146,7 @@ export function EventStings({
 
           {/* FREE HIT */}
           {sting.type === "free_hit" && (
-            <div className="relative w-full overflow-hidden border-y-2 border-yellow-400 bg-black/95 shadow-[0_0_60px_rgba(250,204,21,0.6)] backdrop-blur-2xl">
+            <div className="relative w-full overflow-hidden border-y-2 border-yellow-400 bg-black/95 shadow-[0_20px_50px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
               <div className="flex items-center justify-between bg-yellow-400 px-6 py-1 text-[11px] font-black uppercase tracking-widest text-black">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rotate-45 animate-ping bg-black" />

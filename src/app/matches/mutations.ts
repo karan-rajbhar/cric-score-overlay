@@ -280,56 +280,72 @@ async function checkMatchAdminAuth(
   if (match.created_by === userId) return true;
   if ((match.match_admins ?? []).includes(userId)) return true;
 
+  const checks: Promise<boolean>[] = [];
+
   if (match.club_id) {
-    const { data: club } = await supabase
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", match.club_id)
-      .single();
+    checks.push(
+      (async () => {
+        const { data: club } = await supabase
+          .from("clubs")
+          .select("owner_id")
+          .eq("id", match.club_id)
+          .single();
 
-    if (club?.owner_id === userId) return true;
+        if (club?.owner_id === userId) return true;
 
-    const { data: mem } = await supabase
-      .from("club_memberships")
-      .select("id")
-      .eq("club_id", match.club_id)
-      .eq("user_id", userId)
-      .in("role", ["owner", "admin"])
-      .eq("status", "active")
-      .maybeSingle();
+        const { data: mem } = await supabase
+          .from("club_memberships")
+          .select("id")
+          .eq("club_id", match.club_id)
+          .eq("user_id", userId)
+          .in("role", ["owner", "admin"])
+          .eq("status", "active")
+          .maybeSingle();
 
-    if (mem) return true;
+        return !!mem;
+      })(),
+    );
   }
 
   if (match.tournament_id) {
-    const { data: tournament } = await supabase
-      .from("tournaments")
-      .select("created_by, club_id")
-      .eq("id", match.tournament_id)
-      .single();
+    checks.push(
+      (async () => {
+        const { data: tournament } = await supabase
+          .from("tournaments")
+          .select("created_by, club_id")
+          .eq("id", match.tournament_id)
+          .single();
 
-    if (tournament?.created_by === userId) return true;
+        if (tournament?.created_by === userId) return true;
 
-    if (tournament?.club_id) {
-      const { data: club } = await supabase
-        .from("clubs")
-        .select("owner_id")
-        .eq("id", tournament.club_id)
-        .single();
+        if (tournament?.club_id) {
+          const { data: club } = await supabase
+            .from("clubs")
+            .select("owner_id")
+            .eq("id", tournament.club_id)
+            .single();
 
-      if (club?.owner_id === userId) return true;
+          if (club?.owner_id === userId) return true;
 
-      const { data: mem } = await supabase
-        .from("club_memberships")
-        .select("id")
-        .eq("club_id", tournament.club_id)
-        .eq("user_id", userId)
-        .in("role", ["owner", "admin"])
-        .eq("status", "active")
-        .maybeSingle();
+          const { data: mem } = await supabase
+            .from("club_memberships")
+            .select("id")
+            .eq("club_id", tournament.club_id)
+            .eq("user_id", userId)
+            .in("role", ["owner", "admin"])
+            .eq("status", "active")
+            .maybeSingle();
 
-      if (mem) return true;
-    }
+          return !!mem;
+        }
+        return false;
+      })(),
+    );
+  }
+
+  if (checks.length > 0) {
+    const results = await Promise.all(checks);
+    return results.some(Boolean);
   }
 
   return false;
@@ -446,6 +462,7 @@ export async function recordBall(params: {
       p_fielder_id: params.event.fielderId ?? null,
       p_commentary: params.event.commentary ?? null,
       p_dismissed_player_id: params.event.dismissedPlayerId ?? null,
+      p_shot_zone: params.event.shotZone ?? undefined,
     });
     if (error) {
       console.error("record_ball failed:", error);
@@ -475,22 +492,6 @@ export async function recordBall(params: {
         await autoAssignPlayerOfTheMatch(params.matchId);
       } catch (potmErr) {
         console.error("Auto POTM assignment failed:", potmErr);
-      }
-    }
-
-    if (params.event.shotZone) {
-      const { data: latestBall } = await supabase
-        .from("ball_by_ball")
-        .select("id")
-        .eq("match_id", params.matchId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      if (latestBall?.id) {
-        await supabase
-          .from("ball_by_ball")
-          .update({ shot_zone: params.event.shotZone })
-          .eq("id", latestBall.id);
       }
     }
 
@@ -669,7 +670,6 @@ export async function endInnings(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
 
     if ((data as ScoringState)?.match_completed) {
       const { data: matchData } = await supabase
@@ -787,7 +787,6 @@ export async function autoAssignPlayerOfTheMatch(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { success: true, potmId: topPlayer.playerId, error: null };
   } catch (err) {
     console.error("autoAssignPlayerOfTheMatch unexpected error:", err);
@@ -835,7 +834,6 @@ export async function updateDlsTarget(
   invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
-  revalidatePath(`/overlay/${matchId}`);
   return { success: true, error: null };
 }
 
@@ -905,7 +903,6 @@ export async function updateBall(params: {
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
     revalidatePath(`/matches/${params.matchId}/score`);
-    revalidatePath(`/overlay/${params.matchId}`);
     return { data: data as ScoringState, error: null };
   } catch (err) {
     console.error("Unexpected error in updateBall:", err);
@@ -952,7 +949,6 @@ export async function startSuperOver(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { data: data as ScoringState, error: null };
   } catch (err) {
     console.error("Unexpected error in startSuperOver:", err);
@@ -1060,7 +1056,6 @@ export async function updateMatchSettings(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { success: true, error: null };
   } catch (err) {
     console.error("Unexpected error in updateMatchSettings:", err);
@@ -1145,7 +1140,6 @@ export async function reassignCurrentOverBowler(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    revalidatePath(`/overlay/${matchId}`);
     return { success: true, error: null };
   } catch (err) {
     console.error("Unexpected error in reassignCurrentOverBowler:", err);

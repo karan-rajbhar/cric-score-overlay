@@ -61,7 +61,7 @@ export function PresentationCards({
 
   const getCardFrameClass = (fallbackAccent: string) => {
     if (theme === "foxcricket") {
-      return "border-2 border-lime-400 bg-neutral-950/98 shadow-[0_0_60px_rgba(0,255,102,0.3)] clip-slant-right font-mono";
+      return "border-2 border-lime-400 bg-neutral-950/98 shadow-[0_16px_45px_rgba(0,0,0,0.85)] clip-slant-right font-mono";
     }
     if (theme === "sonysports") {
       return "rounded-3xl border-2 border-red-600/70 bg-gradient-to-b from-zinc-950/98 via-neutral-900/98 to-zinc-950/98 shadow-[0_20px_60px_rgba(220,38,38,0.4)]";
@@ -70,25 +70,25 @@ export function PresentationCards({
       return "border border-white/20 border-b-4 border-b-red-600 bg-[#03081a]/98 shadow-[0_20px_60px_rgba(4,10,28,0.95)]";
     }
     if (theme === "thehundred") {
-      return "border-4 border-pink-500 bg-[#0d0114]/98 shadow-[0_0_60px_rgba(236,72,153,0.5)]";
+      return "border-4 border-pink-500 bg-[#0d0114]/98 shadow-[0_16px_45px_rgba(0,0,0,0.85)]";
     }
     if (theme === "apex") {
-      return "clip-chamfer-both border-2 border-amber-400/90 carbon-matrix shadow-[0_0_80px_rgba(245,158,11,0.35)]";
+      return "clip-chamfer-both border-2 border-amber-400/90 carbon-matrix shadow-[0_16px_45px_rgba(0,0,0,0.85)]";
     }
     if (theme === "volt") {
-      return "border-2 border-lime-400 bg-[#020904]/98 shadow-[0_0_70px_rgba(0,255,102,0.4)] clip-slant-right font-mono";
+      return "border-2 border-lime-400 bg-[#020904]/98 shadow-[0_16px_45px_rgba(0,0,0,0.85)] clip-slant-right font-mono";
     }
     if (theme === "agni") {
-      return "clip-notch-card border-2 border-orange-500 magma-matrix shadow-[0_0_80px_rgba(255,69,0,0.5)]";
+      return "clip-notch-card border-2 border-orange-500 magma-matrix shadow-[0_16px_45px_rgba(0,0,0,0.85)]";
     }
     if (theme === "thunder") {
-      return "rounded-3xl border-2 border-blue-400 bg-gradient-to-b from-[#030a24]/98 via-[#081845]/98 to-[#030a24]/98 shadow-[0_0_70px_rgba(59,130,246,0.5)]";
+      return "rounded-3xl border-2 border-blue-400 bg-gradient-to-b from-[#030a24]/98 via-[#081845]/98 to-[#030a24]/98 shadow-[0_16px_45px_rgba(0,0,0,0.85)]";
     }
     if (theme === "dharma") {
       return "rounded-3xl border-2 border-amber-400/80 bg-gradient-to-b from-[#1a0505]/98 via-[#2d0a0a]/98 to-[#1a0505]/98 shadow-[0_20px_60px_rgba(153,27,27,0.6)] font-serif";
     }
     if (theme === "nakshatra") {
-      return "rounded-3xl border-2 border-purple-400/70 bg-gradient-to-b from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 shadow-[0_0_70px_rgba(168,85,247,0.4)]";
+      return "rounded-3xl border-2 border-purple-400/70 bg-gradient-to-b from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 shadow-[0_16px_45px_rgba(0,0,0,0.85)]";
     }
     return `rounded-3xl border-2 ${fallbackAccent} bg-gradient-to-b from-slate-950/95 via-neutral-950/95 to-slate-950/95 shadow-[0_20px_60px_rgba(0,0,0,0.9)] ring-1 ring-amber-500/20`;
   };
@@ -154,7 +154,7 @@ export function PresentationCards({
 
           <div className="mt-8 flex items-center justify-around gap-6 border-y border-white/10 py-6">
             <div className="text-center">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.85)]">
                 {state.team1_logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -179,7 +179,7 @@ export function PresentationCards({
             </div>
 
             <div className="text-center">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
+              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_16px_45px_rgba(0,0,0,0.85)]">
                 {state.team2_logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img

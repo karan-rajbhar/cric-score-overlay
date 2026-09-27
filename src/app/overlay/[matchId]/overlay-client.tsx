@@ -18,8 +18,6 @@ import {
   VolumeX,
   Trophy,
   Activity,
-  Flame,
-  Crown,
 } from "lucide-react";
 import { formatStatus } from "~/lib/cricket";
 import type {
@@ -62,355 +60,7 @@ interface OverlayClientProps {
   initialSponsor?: string;
 }
 
-function oversText(balls: number | null): string {
-  if (!balls) return "0.0";
-  return `${Math.floor(balls / 6)}.${balls % 6}`;
-}
-
-function BallChip({ label }: { label: string }) {
-  let bg = "bg-slate-900 text-slate-100 border-slate-700/80";
-  if (label === "W") {
-    bg =
-      "bg-red-600 text-white border-red-400 font-black motion-reduce:animate-none animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.9)]";
-  } else if (label === "4") {
-    bg =
-      "bg-sky-500 text-white border-sky-300 font-black shadow-[0_0_10px_rgba(14,165,233,0.85)]";
-  } else if (label === "6") {
-    bg =
-      "bg-amber-400 text-black border-amber-200 font-black shadow-[0_0_14px_rgba(245,158,11,0.9)]";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-orange-500 text-black border-orange-300 font-bold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-slate-950 text-slate-400 border-slate-800 font-medium";
-  }
-
-  const ariaLabel =
-    label === "W"
-      ? "Wicket"
-      : label === "4"
-        ? "Four"
-        : label === "6"
-          ? "Six"
-          : label === "0" || label === "•"
-            ? "Dot ball"
-            : `${label} runs`;
-
-  return (
-    <span
-      role="img"
-      aria-label={ariaLabel}
-      className={`skew-tile inline-flex h-6 min-w-[26px] items-center justify-center border px-1.5 font-score text-xs font-black tabular-nums shadow transition-transform ${bg}`}
-    >
-      <span className="skew-tile-content inline-block">
-        {label === "0" ? "•" : label}
-      </span>
-    </span>
-  );
-}
-
-function CircularBallDot({ label }: { label: string }) {
-  let bg = "bg-slate-800 text-slate-200 border-slate-700";
-  if (label === "W") {
-    bg =
-      "bg-red-600 text-white border-red-400 font-black shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse";
-  } else if (label === "4") {
-    bg =
-      "bg-sky-500 text-white border-sky-300 font-black shadow-[0_0_8px_rgba(14,165,233,0.8)]";
-  } else if (label === "6") {
-    bg =
-      "bg-amber-400 text-black border-amber-200 font-black shadow-[0_0_10px_rgba(245,158,11,0.9)]";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-orange-500 text-black border-orange-300 font-bold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-slate-900 text-slate-500 border-slate-800 font-medium";
-  }
-
-  return (
-    <span
-      className={`inline-flex h-6 w-6 items-center justify-center rounded-full border font-score text-[11px] font-black tabular-nums shadow transition-transform ${bg}`}
-    >
-      {label === "0" ? "•" : label}
-    </span>
-  );
-}
-
-function CyberBallCell({ label }: { label: string }) {
-  let bg = "bg-neutral-900 text-lime-400 border-lime-500/40";
-  if (label === "W") {
-    bg =
-      "bg-red-600 text-white border-red-400 font-black shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse";
-  } else if (label === "4") {
-    bg =
-      "bg-cyan-500 text-black border-cyan-300 font-black shadow-[0_0_8px_rgba(6,182,212,0.9)]";
-  } else if (label === "6") {
-    bg =
-      "bg-lime-400 text-black border-lime-200 font-black shadow-[0_0_10px_rgba(163,230,53,0.9)]";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-amber-500 text-black border-amber-300 font-bold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-black text-slate-600 border-neutral-800 font-medium";
-  }
-
-  return (
-    <span
-      className={`inline-flex h-6 min-w-[24px] items-center justify-center border px-1 font-mono text-[11px] font-black tabular-nums shadow transition-transform ${bg}`}
-    >
-      {label === "0" ? "•" : label}
-    </span>
-  );
-}
-
-function HexBallDot({ label }: { label: string }) {
-  let bg = "bg-amber-950/60 text-amber-300 border-amber-500/40";
-  if (label === "W") {
-    bg =
-      "bg-red-600 text-white border-red-400 font-black shadow-[0_0_10px_rgba(239,68,68,0.9)] animate-pulse";
-  } else if (label === "4" || label === "6") {
-    bg =
-      "bg-gradient-to-r from-amber-400 to-yellow-400 text-black border-yellow-200 font-black shadow-[0_0_10px_rgba(245,158,11,0.9)]";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-yellow-500 text-black border-yellow-300 font-bold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-black/60 text-amber-400/40 border-amber-900/40 font-medium";
-  }
-
-  return (
-    <span
-      className={`inline-flex h-6 min-w-[24px] items-center justify-center rounded border px-1 font-score text-[11px] font-black tabular-nums shadow transition-transform ${bg}`}
-    >
-      {label === "0" ? "•" : label}
-    </span>
-  );
-}
-
-function EmberBallDot({ label }: { label: string }) {
-  let bg = "bg-orange-950/70 text-orange-200 border-orange-600/50";
-  if (label === "W") {
-    bg =
-      "bg-red-600 text-white border-red-400 font-black shadow-[0_0_12px_rgba(239,68,68,1)] animate-pulse";
-  } else if (label === "4" || label === "6") {
-    bg =
-      "bg-gradient-to-r from-orange-500 via-amber-400 to-yellow-400 text-black border-yellow-200 font-black shadow-[0_0_12px_rgba(255,100,0,0.95)]";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-amber-500 text-black border-amber-300 font-bold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-[#160603] text-orange-600/50 border-orange-950/80 font-medium";
-  }
-
-  return (
-    <span
-      className={`clip-flame-badge inline-flex h-6 min-w-[26px] items-center justify-center border px-1.5 font-score text-[11px] font-black tabular-nums shadow transition-transform ${bg}`}
-    >
-      {label === "0" ? "•" : label}
-    </span>
-  );
-}
-
-const THEME_STYLES: Record<
-  OverlayTheme,
-  {
-    outerBorder: string;
-    teamBadge: string;
-    mainBarBg: string;
-    subBarBg: string;
-    accentColor: string;
-    accentText: string;
-    strikeChevron: string;
-  }
-> = {
-  starsports: {
-    outerBorder: "border-blue-500/40 shadow-[0_12px_40px_rgba(2,11,30,0.95)]",
-    teamBadge:
-      "bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white",
-    mainBarBg:
-      "bg-gradient-to-r from-[#03091e] via-[#081738] to-[#03091e] text-white",
-    subBarBg: "bg-[#020614] border-t border-amber-500/40 text-amber-300",
-    accentColor: "#f59e0b",
-    accentText: "text-amber-400 font-black",
-    strikeChevron: "text-amber-400",
-  },
-  sonysports: {
-    outerBorder: "border-red-600/50 shadow-[0_12px_45px_rgba(220,38,38,0.4)]",
-    teamBadge:
-      "bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 text-white",
-    subBarBg: "bg-black border-t-2 border-red-600 text-red-300",
-    accentColor: "#ef4444",
-    accentText: "text-red-400 font-black",
-    strikeChevron: "text-red-500",
-  },
-  foxcricket: {
-    outerBorder: "border-lime-400/80 shadow-[0_12px_45px_rgba(163,230,53,0.4)]",
-    teamBadge:
-      "bg-gradient-to-r from-neutral-950 via-slate-900 to-black text-lime-400 font-mono",
-    mainBarBg:
-      "bg-gradient-to-r from-[#070a0f] via-[#0d141e] to-[#070a0f] text-white",
-    subBarBg: "bg-black border-t-2 border-lime-400 text-lime-300",
-    accentColor: "#a3e635",
-    accentText: "text-lime-400 font-black",
-    strikeChevron: "text-lime-400",
-  },
-  thehundred: {
-    outerBorder: "border-pink-500/80 shadow-[0_12px_45px_rgba(236,72,153,0.5)]",
-    teamBadge:
-      "bg-gradient-to-r from-pink-600 via-fuchsia-600 to-pink-700 text-white font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#180324] via-[#2c0643] to-[#180324] text-white",
-    subBarBg: "bg-black border-t-2 border-cyan-400 text-cyan-300",
-    accentColor: "#ec4899",
-    accentText: "text-pink-400 font-black",
-    strikeChevron: "text-cyan-400",
-  },
-  skysports: {
-    outerBorder: "border-red-600/40 shadow-[0_12px_40px_rgba(6,12,33,0.95)]",
-    teamBadge: "bg-gradient-to-r from-red-600 to-red-700 text-white",
-    mainBarBg:
-      "bg-gradient-to-r from-[#050b1a] via-[#091533] to-[#050b1a] text-white",
-    subBarBg: "bg-[#040814] border-t border-red-500/50 text-red-300",
-    accentColor: "#ef4444",
-    accentText: "text-red-400 font-black",
-    strikeChevron: "text-red-400",
-  },
-  apex: {
-    outerBorder:
-      "border-amber-400/90 shadow-[0_12px_45px_rgba(245,158,11,0.4)]",
-    teamBadge:
-      "bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-black font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#0b0c10] via-[#16171d] to-[#0b0c10] text-white",
-    subBarBg: "bg-[#07080a] border-t-2 border-amber-400 text-amber-200",
-    accentColor: "#f59e0b",
-    accentText: "text-amber-400 font-black",
-    strikeChevron: "text-amber-400",
-  },
-  volt: {
-    outerBorder: "border-lime-400 shadow-[0_12px_45px_rgba(0,255,102,0.45)]",
-    teamBadge:
-      "bg-gradient-to-r from-lime-400 to-emerald-500 text-black font-mono font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#030805] via-[#08150c] to-[#030805] text-white",
-    subBarBg: "bg-black border-t-2 border-cyan-400 text-cyan-300 font-mono",
-    accentColor: "#00ff66",
-    accentText: "text-lime-400 font-black",
-    strikeChevron: "text-cyan-400",
-  },
-  agni: {
-    outerBorder: "border-orange-500 shadow-[0_12px_45px_rgba(255,69,0,0.55)]",
-    teamBadge:
-      "bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-black font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#140502] via-[#240a04] to-[#140502] text-white",
-    subBarBg: "bg-[#0d0301] border-t-2 border-orange-500 text-orange-200",
-    accentColor: "#ff4500",
-    accentText: "text-orange-400 font-black",
-    strikeChevron: "text-orange-400",
-  },
-  dharma: {
-    outerBorder: "border-amber-500/80 shadow-[0_12px_45px_rgba(180,83,9,0.4)]",
-    teamBadge:
-      "bg-gradient-to-r from-red-800 via-rose-900 to-red-950 text-amber-200 font-serif font-black border border-amber-400/50",
-    mainBarBg:
-      "bg-gradient-to-r from-[#180408] via-[#2a0810] to-[#180408] text-white",
-    subBarBg:
-      "bg-[#0e0204] border-t-2 border-amber-500 text-amber-300 font-serif",
-    accentColor: "#f59e0b",
-    accentText: "text-amber-300 font-black",
-    strikeChevron: "text-amber-400",
-  },
-  thunder: {
-    outerBorder: "border-blue-400/90 shadow-[0_12px_45px_rgba(59,130,246,0.5)]",
-    teamBadge:
-      "bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-800 text-yellow-300 font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#030a21] via-[#081845] to-[#030a21] text-white",
-    subBarBg: "bg-[#020617] border-t-2 border-blue-400 text-blue-200",
-    accentColor: "#60a5fa",
-    accentText: "text-yellow-300 font-black",
-    strikeChevron: "text-yellow-400",
-  },
-  nakshatra: {
-    outerBorder:
-      "border-purple-500/70 shadow-[0_12px_45px_rgba(168,85,247,0.4)]",
-    teamBadge:
-      "bg-gradient-to-r from-purple-700 via-fuchsia-700 to-indigo-800 text-white font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-[#0a041f] via-[#16083d] to-[#0a041f] text-white",
-    subBarBg: "bg-[#060214] border-t-2 border-purple-400 text-purple-200",
-    accentColor: "#c084fc",
-    accentText: "text-cyan-300 font-black",
-    strikeChevron: "text-cyan-300",
-  },
-  broadcast: {
-    outerBorder: "border-amber-500/40 shadow-[0_12px_40px_rgba(0,0,0,0.95)]",
-    teamBadge:
-      "bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-black font-black",
-    mainBarBg:
-      "bg-gradient-to-r from-neutral-950 via-slate-950 to-neutral-950 text-white",
-    subBarBg: "bg-black border-t border-amber-500/40 text-amber-300",
-    accentColor: "#eab308",
-    accentText: "text-amber-400 font-black",
-    strikeChevron: "text-amber-400",
-  },
-  emerald: {
-    outerBorder:
-      "border-emerald-500/40 shadow-[0_12px_40px_rgba(2,44,34,0.95)]",
-    teamBadge: "bg-gradient-to-r from-emerald-600 to-emerald-800 text-white",
-    mainBarBg:
-      "bg-gradient-to-r from-[#011a13] via-[#03291e] to-[#011a13] text-white",
-    subBarBg: "bg-[#01120d] border-t border-emerald-500/40 text-emerald-300",
-    accentColor: "#10b981",
-    accentText: "text-emerald-400 font-black",
-    strikeChevron: "text-emerald-400",
-  },
-  dark: {
-    outerBorder: "border-white/20 shadow-[0_12px_40px_rgba(0,0,0,0.95)]",
-    teamBadge: "bg-white/15 text-white",
-    mainBarBg: "bg-black/95 text-white",
-    subBarBg: "bg-neutral-950 border-t border-white/20 text-white/90",
-    accentColor: "#ffffff",
-    accentText: "text-white font-black",
-    strikeChevron: "text-emerald-400",
-  },
-  minimal: {
-    outerBorder: "border-zinc-700/80 shadow-[0_12px_30px_rgba(0,0,0,0.9)]",
-    teamBadge: "bg-zinc-800 text-white",
-    mainBarBg: "bg-zinc-950 text-zinc-100",
-    subBarBg: "bg-black border-t border-zinc-700 text-zinc-300",
-    accentColor: "#e4e4e7",
-    accentText: "text-white font-bold",
-    strikeChevron: "text-zinc-300",
-  },
-  custom: {
-    outerBorder: "border-amber-500/40 shadow-[0_12px_40px_rgba(0,0,0,0.95)]",
-    teamBadge: "bg-amber-600 text-black font-black",
-    mainBarBg: "bg-slate-950 text-white",
-    subBarBg: "bg-black border-t border-amber-500/40 text-amber-300",
-    accentColor: "#f59e0b",
-    accentText: "text-amber-400 font-black",
-    strikeChevron: "text-amber-400",
-  },
-};
+import { oversText, BallChip, THEME_STYLES } from "./theme-styles";
 
 export function OverlayClient({
   matchId,
@@ -1316,556 +966,110 @@ export function OverlayClient({
             <>
               {/* 1. LOWER-THIRD INTEGRATED BROADCAST BAR (DEFAULT) */}
               {layout === "bottom" && (
-                <>
-                  {/* ========================================================= */}
-                  {/* A. SONY SPORTS NETWORK CURVED CAPSULE SCOREBUG            */}
-                  {/* ========================================================= */}
-                  {theme === "sonysports" && (
                     <div
                       style={bottomOffsetStyle}
                       className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
                     >
-                      <div className="broadcast-bevel overflow-hidden rounded-2xl border-2 border-red-600/70 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 text-white shadow-[0_12px_45px_rgba(220,38,38,0.4)]">
-                        {/* Top Sony Red Banner Strip */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-red-700 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-                            <span>
-                              SONY SPORTS NETWORK ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {sponsor && (
-                              <span className="py-0.2 rounded-full border border-white/20 bg-black/30 px-2.5 text-[10px] font-black text-white">
-                                {sponsor}
-                              </span>
-                            )}
-                            <span className="font-mono text-[11px] font-black text-white">
-                              SONY LIV · CRR {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
+                      {/* TOP HEADER SUB-STRIP: TOURNAMENT & MATCH PACE */}
+                      <div className="flex items-center justify-between border-x border-t border-white/20 bg-black/95 px-3.5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-slate-300">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-black text-amber-400">
+                            {state.tournament_name ?? state.title}
+                          </span>
+                          <span className="text-white/30">|</span>
+                          <span className="text-white/80">
+                            {battingTeamShort} v {bowlingTeamShort} · {state.venue ?? state.match_format}
+                          </span>
                         </div>
-
-                        {/* Main Sony Horizontal Bar */}
-                        <div className="flex items-stretch border-t border-white/10">
-                          {/* Left Team Block with Vertical Red Accent Pill */}
-                          <div className="flex shrink-0 items-center gap-3 border-r border-red-600/40 bg-zinc-950 px-5 py-2.5 text-white">
-                            <span className="h-8 w-1.5 rounded-full bg-red-600 shadow-[0_0_8px_#ef4444]" />
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight drop-shadow">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-score text-[10px] font-black uppercase tracking-wider text-red-400">
-                                {state.innings_number === 2
-                                  ? "2ND INN"
-                                  : "1ST INN"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-white/10 bg-black/60 px-5 py-2">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-amber-300"
-                                    : "text-white"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-red-500">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-red-300">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen Sony Capsule Cards */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-white/10">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="py-0.2 animate-pulse rounded-full bg-red-600 px-1.5 text-[8px] font-black tracking-wider text-white">
-                                    STRIKE
-                                  </span>
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-white">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-red-500/40 bg-red-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-red-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler Sony Capsule */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-white/10 px-5 py-2 leading-tight">
-                              <div className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
-                                <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                  {state.current_bowler_name}
-                                </span>
-                              </div>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-red-400">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-white/10 px-1.5 font-score text-[9px] font-black tabular-nums text-slate-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
+                        <div className="flex items-center gap-3">
+                          {sponsor && (
+                            <span className="rounded border border-amber-500/40 bg-amber-500/20 px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-300">
+                              {sponsor}
+                            </span>
                           )}
-
-                          {/* Over Delivery Matrix: Sony Circular Dots */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1.5 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CircularBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                  Over in progress
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Bar */}
-                        <div className="overflow-hidden border-t border-red-600/50 bg-black/90 px-5 py-1.5 font-score text-xs font-black uppercase tracking-wide text-red-200">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {carouselIdx === 0 && (
-                              <>
-                                {state.target_runs !== null ? (
-                                  <div className="flex items-center gap-3">
-                                    <span className="rounded-full bg-red-600 px-2.5 py-0.5 text-[11px] font-black text-white">
-                                      TARGET {state.target_runs}
-                                    </span>
-                                    <span className="text-white">
-                                      NEED {state.runs_needed} RUNS FROM{" "}
-                                      {state.balls_remaining} BALLS
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-red-300">
-                                      REQ. RR: {state.required_run_rate ?? "—"}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-red-400">
-                                      VS{" "}
-                                      {state.bowling_team_name ??
-                                        state.bowling_team_short_name}
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-white">
-                                      PROJECTED:{" "}
-                                      {state.current_run_rate
-                                        ? Math.round(
-                                            state.current_run_rate *
-                                              (state.overs_per_innings ?? 20),
-                                          )
-                                        : "—"}{" "}
-                                      RUNS
-                                    </span>
-                                  </div>
-                                )}
-                                <span className="font-mono text-red-400">
-                                  SONY LIV LIVE CENTRE
-                                </span>
-                              </>
-                            )}
-                            {carouselIdx !== 0 && (
-                              <>
-                                <div className="flex items-center gap-3">
-                                  <span className="text-red-400">
-                                    PARTNERSHIP:
-                                  </span>
-                                  <span className="text-white">
-                                    {state.partnership_runs ?? 0} RUNS OFF{" "}
-                                    {state.partnership_balls ?? 0} BALLS
-                                  </span>
-                                </div>
-                                <span className="text-slate-300">
-                                  CURRENT RR: {state.current_run_rate ?? "—"}
-                                </span>
-                              </>
-                            )}
-                          </div>
+                          <span className="rounded border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-wider text-emerald-300">
+                            CRR {state.current_run_rate ?? "—"}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  {/* ========================================================= */}
-                  {/* B. FOX CRICKET AUSTRALIA ASYMMETRIC NEON HUD SCOREBUG     */}
-                  {/* ========================================================= */}
-                  {theme === "foxcricket" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="clip-slant-right overflow-hidden border-2 border-lime-400 bg-neutral-950 text-white shadow-[0_0_35px_rgba(0,255,102,0.35)]">
-                        {/* Top Fox Sports Lab Radar Bar */}
-                        <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-4 py-1 font-mono text-[11px] font-black uppercase text-lime-400">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-2 w-2 rotate-45 bg-lime-400" />
-                            <span>
-                              FOX CRICKET · FOX SPORTS LAB · {battingTeamShort}{" "}
-                              v {bowlingTeamShort}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span>RADAR: 144.2 KPH</span>
-                            <span>•</span>
-                            <span className="text-white">
-                              CRR {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Main Fox Sports Bar */}
-                        <div className="flex items-stretch">
-                          {/* Left Team Asymmetric Polygon Block */}
-                          <div className="flex shrink-0 items-center gap-3 border-r-2 border-lime-400 bg-black px-5 py-2">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight text-lime-400">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-mono text-[10px] font-bold text-lime-400/80">
-                                INNINGS {state.innings_number ?? 1}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r-2 border-lime-500/30 bg-neutral-950 px-4 py-1.5">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-lime-300"
-                                    : "text-white"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-lime-400">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-lime-300">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-lime-500/20 pl-2.5 text-right leading-tight">
-                              <span className="block font-mono text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-mono text-[10px] font-bold uppercase text-lime-400/70">
-                                OV / {state.overs_per_innings}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batters Fox Dual Telemetry Module */}
-                          <div className="flex items-center divide-x divide-lime-500/20 border-r-2 border-lime-500/30 bg-black/50">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="py-0.2 rounded bg-lime-400 px-1.5 font-mono text-[9px] font-black tracking-wider text-black">
-                                    FOX STRIKE ▶
-                                  </span>
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name}
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-lime-300">
-                                    {state.striker_runs ?? 0}*
-                                  </span>
-                                  <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-lime-500/40 bg-lime-500/20 px-1 font-mono text-[9px] font-bold tabular-nums text-lime-300">
-                                      {strikerSr} SR
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler Fox Telemetry */}
-                          {state.current_bowler_name && (
-                            <div className="border-r-2 border-lime-500/30 bg-black/60 px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-mono text-base font-black tabular-nums text-cyan-300">
-                                  {state.bowler_wickets ?? 0}/
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-cyan-500/20 px-1 font-mono text-[9px] font-bold tabular-nums text-cyan-300">
-                                  {bowlerEcon} RPO
-                                </span>
-                              </div>
-                            </div>
+                      {/* MAIN HORIZONTAL SEGMENTED SCORE BAR */}
+                      <div
+                        className={`relative flex items-stretch border border-white/20 ${themeStyle.mainBarBg} ${themeStyle.outerBorder} broadcast-bevel`}
+                      >
+                        {/* 1. TEAM BLOCK (ANGLED TRAPEZOID BADGE) */}
+                        <div
+                          className={`clip-slant-right flex shrink-0 items-center gap-3 px-5 py-2 ${themeStyle.teamBadge} broadcast-gloss shadow-inner`}
+                        >
+                          {state.team1_logo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={state.team1_logo_url}
+                              alt="Logo"
+                              className="h-8 w-8 object-contain drop-shadow"
+                            />
                           )}
-
-                          {/* Over Delivery Matrix: Square Cyber Cells */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/80 px-4 py-1.5">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CyberBallCell key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-mono text-[11px] font-bold uppercase text-lime-500/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Ribbon */}
-                        <div className="overflow-hidden border-t-2 border-lime-400 bg-black px-4 py-1.5 font-mono text-xs font-black uppercase tracking-wide text-lime-300">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-lime-400 px-2 py-0.5 text-[11px] font-black text-black">
-                                  CHASE EQUATION
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS OFF{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-lime-300">
-                                  RRR {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-lime-400">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-lime-400">
-                              FOX SPORTS LAB TELEMETRY
+                          <div className="text-left leading-none">
+                            <span className="block font-score text-3xl font-black tracking-tight drop-shadow">
+                              {battingTeamShort}
                             </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* C. SKY SPORTS CRICKET THE ASHES MODULAR GRID SCOREBUG     */}
-                  {/* ========================================================= */}
-                  {theme === "skysports" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="overflow-hidden border border-white/20 bg-[#03081a] text-white shadow-[0_12px_45px_rgba(4,10,28,0.95)]">
-                        {/* Top Sky Red & Midnight Bar */}
-                        <div className="flex items-center justify-between border-b-2 border-red-600 bg-[#040a1c] px-4 py-1 font-score text-[11px] font-bold uppercase tracking-wider text-slate-300">
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-red-500">
-                              sky sports cricket
-                            </span>
-                            <span className="text-white/30">·</span>
-                            <span className="font-bold text-white">
-                              {state.tournament_name ?? "THE ASHES LIVE"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-slate-400">
-                              {state.venue}
-                            </span>
-                            <span className="text-white/30">|</span>
-                            <span className="font-bold text-red-400">
-                              CRR: {state.current_run_rate ?? "—"}
+                            <span className="mt-0.5 block font-score text-[10px] font-black uppercase tracking-widest opacity-90">
+                              {state.innings_number === 2
+                                ? "2ND INN"
+                                : "1ST INN"}
                             </span>
                           </div>
                         </div>
 
-                        {/* Main Sky Modular Grid */}
-                        <div className="flex items-stretch divide-x divide-white/15">
-                          {/* Left Team Card */}
-                          <div className="flex shrink-0 items-center gap-3 bg-[#06102a] px-5 py-2.5 text-white">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wider text-red-400">
-                                {state.innings_number === 2
-                                  ? "2ND INNINGS"
-                                  : "1ST INNINGS"}
-                              </span>
-                            </div>
+                        {/* 2. CORE SCORE & OVERS BLOCK */}
+                        <div className="flex items-center gap-3 border-r border-white/15 bg-black/40 px-4 py-1.5">
+                          <div className="flex items-baseline gap-1">
+                            <span
+                              className={`font-score text-4xl font-black leading-none tracking-tight transition-all duration-300 ${
+                                scorePulsing
+                                  ? "animate-score-pulse scale-105 text-amber-300"
+                                  : "text-white"
+                              }`}
+                            >
+                              {state.total_runs ?? 0}
+                            </span>
+                            <span className="font-score text-2xl font-black leading-none text-amber-400">
+                              /{state.total_wickets ?? 0}
+                            </span>
                           </div>
 
-                          {/* Score Card with Red Bottom Hairline */}
-                          <div className="relative flex items-center gap-3 bg-[#040b20] px-5 py-2">
-                            <div className="flex items-baseline gap-1.5">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-amber-300"
-                                    : "text-white"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-red-500">
-                                -
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                OVERS
-                              </span>
-                            </div>
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600" />
+                          <div className="border-l border-white/10 pl-2.5 text-right leading-tight">
+                            <span className="block font-score text-base font-black tabular-nums text-white">
+                              {oversText(state.total_balls)}
+                            </span>
+                            <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              / {state.overs_per_innings} OV
+                            </span>
                           </div>
+                        </div>
 
-                          {/* Batters Side-by-Side Dual Equal Cards */}
+                        {/* 3. BATSMEN PANEL (STRIKER & NON-STRIKER) */}
+                        <div className="flex items-center divide-x divide-white/10 border-r border-white/15">
+                          {/* Striker */}
                           {state.striker_name && (
-                            <div className="border-l-2 border-red-600 bg-[#071333] px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.striker_name} *
-                              </span>
+                            <div className="px-4 py-1.5 leading-tight">
+                              <div className="flex items-center gap-1.5">
+                                <span className="animate-pulse text-xs font-black text-emerald-400 drop-shadow-[0_0_6px_#34d399]">
+                                  ▶
+                                </span>
+                                <span className="font-score text-sm font-black uppercase tracking-tight text-white">
+                                  {state.striker_name} *
+                                </span>
+                              </div>
                               <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-white">
+                                <span className="font-score text-base font-black tabular-nums text-amber-300">
                                   {state.striker_runs ?? 0}
                                 </span>
-                                <span className="font-score text-[11px] tabular-nums text-slate-400">
-                                  ({state.striker_balls ?? 0} balls)
+                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
+                                  ({state.striker_balls ?? 0}b)
                                 </span>
                                 {strikerSr && (
-                                  <span className="font-score text-[10px] font-bold tabular-nums text-red-400">
+                                  <span className="rounded bg-white/10 px-1.5 py-0.5 font-score text-[9px] font-black tabular-nums text-emerald-300">
                                     SR {strikerSr}
                                   </span>
                                 )}
@@ -1873,1813 +1077,262 @@ export function OverlayClient({
                             </div>
                           )}
 
+                          {/* Non-Striker */}
                           {state.non_striker_name && (
-                            <div className="bg-[#050e26] px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                {state.non_striker_name}
-                              </span>
+                            <div className="px-4 py-1.5 leading-tight">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-slate-500">
+                                  •
+                                </span>
+                                <span className="font-score text-sm font-bold uppercase tracking-tight text-slate-300">
+                                  {state.non_striker_name}
+                                </span>
+                              </div>
                               <div className="mt-0.5 flex items-center gap-1.5">
                                 <span className="font-score text-base font-bold tabular-nums text-slate-200">
                                   {state.non_striker_runs ?? 0}
                                 </span>
-                                <span className="font-score text-[11px] tabular-nums text-slate-400">
+                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
                                   ({state.non_striker_balls ?? 0}b)
                                 </span>
                               </div>
                             </div>
                           )}
+                        </div>
 
-                          {/* Bowler Card with Full Test Spell: O - M - R - W */}
-                          {state.current_bowler_name && (
-                            <div className="bg-[#040b20] px-5 py-2 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
+                        {/* 4. CURRENT BOWLER PANEL */}
+                        {state.current_bowler_name && (
+                          <div className="border-r border-white/15 px-4 py-1.5 leading-tight">
+                            <div className="flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-sky-400" />
+                              <span className="font-score text-sm font-black uppercase tracking-tight text-white">
                                 {state.current_bowler_name}
                               </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-red-400">
-                                  {oversText(state.bowler_balls)}-0-
-                                  {state.bowler_runs ?? 0}-
-                                  {state.bowler_wickets ?? 0}
-                                </span>
-                                <span className="font-score text-[10px] font-medium text-slate-400">
-                                  Econ: {bowlerEcon}
-                                </span>
-                              </div>
                             </div>
-                          )}
-
-                          {/* Over Delivery Matrix: Circular Sky Dots */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1.5 bg-[#06102a] px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CircularBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                  In play
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Bar */}
-                        <div className="flex items-center justify-between border-t border-red-600/50 bg-[#030714] px-4 py-1.5 font-score text-xs font-bold text-slate-300">
-                          {state.target_runs !== null ? (
-                            <div>
-                              <span className="font-black text-red-400">
-                                CHASE:{" "}
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <span className="font-score text-base font-black tabular-nums text-sky-300">
+                                {state.bowler_wickets ?? 0}-
+                                {state.bowler_runs ?? 0}
                               </span>
-                              <span>
-                                NEED {state.runs_needed} RUNS FROM{" "}
-                                {state.balls_remaining} BALLS
+                              <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
+                                ({oversText(state.bowler_balls)})
                               </span>
-                              <span className="mx-2 text-white/30">|</span>
-                              <span>
-                                REQUIRED RATE: {state.required_run_rate ?? "—"}
-                              </span>
-                            </div>
-                          ) : (
-                            <div>
-                              <span>
-                                PROJECTED SCORE:{" "}
-                                {state.current_run_rate
-                                  ? Math.round(
-                                      state.current_run_rate *
-                                        (state.overs_per_innings ?? 20),
-                                    )
-                                  : "—"}{" "}
-                                RUNS
-                              </span>
-                              <span className="mx-2 text-white/30">|</span>
-                              <span>EXTRAS: {state.extras_total ?? 0}</span>
-                            </div>
-                          )}
-                          <span className="font-black text-red-500">
-                            SKY SPORTS CRICKET
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* D. THE HUNDRED BALLS COUNTDOWN POP-ART SCOREBUG           */}
-                  {/* ========================================================= */}
-                  {theme === "thehundred" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="overflow-hidden border-2 border-pink-500 bg-[#100118] text-white shadow-[0_12px_45px_rgba(236,72,153,0.5)]">
-                        {/* Top Neon Bar */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-pink-600 via-fuchsia-600 to-pink-700 px-4 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
-                          <span>
-                            THE HUNDRED · {battingTeamShort} v{" "}
-                            {bowlingTeamShort}
-                          </span>
-                          <span>CRR {state.current_run_rate ?? "—"}</span>
-                        </div>
-
-                        {/* Main Pop-Art Bar */}
-                        <div className="flex items-stretch bg-black">
-                          <div className="bg-pink-600 px-6 py-2.5 text-3xl font-black text-white">
-                            {battingTeamShort}
-                          </div>
-
-                          {/* Countdown Box */}
-                          <div className="flex flex-col justify-center bg-cyan-400 px-6 py-2 leading-none text-black">
-                            <span className="font-mono text-2xl font-black">
-                              {state.balls_remaining ?? 18}
-                            </span>
-                            <span className="text-[10px] font-black uppercase tracking-wider">
-                              BALLS LEFT
-                            </span>
-                          </div>
-
-                          {/* Score */}
-                          <div className="flex items-center gap-1.5 border-r border-pink-500/30 bg-neutral-950 px-5 py-2 text-3xl font-black text-yellow-300">
-                            <span>{state.total_runs ?? 0}</span>
-                            <span className="text-pink-500">/</span>
-                            <span>{state.total_wickets ?? 0}</span>
-                          </div>
-
-                          {/* Batters */}
-                          <div className="flex items-center gap-4 border-r border-pink-500/30 px-4 py-2 text-xs font-bold">
-                            <div>
-                              <span className="text-pink-400">
-                                {state.striker_name}*
-                              </span>
-                              :{" "}
-                              <span className="font-black text-white">
-                                {state.striker_runs ?? 0}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400">
-                                {state.non_striker_name}
-                              </span>
-                              :{" "}
-                              <span className="font-black text-white">
-                                {state.non_striker_runs ?? 0}
+                              <span className="rounded bg-sky-500/20 px-1.5 py-0.5 font-score text-[9px] font-black tabular-nums text-sky-300">
+                                ECON {bowlerEcon}
                               </span>
                             </div>
                           </div>
+                        )}
 
-                          {/* Bowler */}
-                          <div className="border-r border-pink-500/30 px-4 py-2 text-xs font-bold">
-                            <span className="block text-cyan-400">
-                              {state.current_bowler_name}
-                            </span>
-                            <span className="text-white">
-                              {state.bowler_wickets ?? 0}-
-                              {state.bowler_runs ?? 0}
-                            </span>
-                          </div>
-
-                          {/* Delivery Cells */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 px-4">
-                              {thisOverBalls.map((b, idx) => (
-                                <CyberBallCell key={idx} label={b} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* E. APEX FRANCHISE 24K GOLD CHAMPIONSHIP SCOREBUG         */}
-                  {/* ========================================================= */}
-                  {theme === "apex" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="clip-chamfer-both carbon-matrix relative overflow-hidden border-2 border-amber-400/90 text-white shadow-[0_12px_45px_rgba(245,158,11,0.4)]">
-                        <div className="animate-light-sweep pointer-events-none absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-amber-300/15 to-transparent" />
-
-                        {/* Top Gold & Carbon Header Strip */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-black">
-                          <div className="flex items-center gap-2">
-                            <Trophy className="h-3.5 w-3.5 text-black" />
-                            <span>
-                              APEX BROADCAST · 24K FRANCHISE GOLD ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-mono font-bold">
-                            <span>EXIT RADAR: 149.2 KPH</span>
-                            <span>•</span>
-                            <span>CRR {state.current_run_rate ?? "—"}</span>
-                          </div>
-                        </div>
-
-                        {/* Main Apex Bar */}
-                        <div className="flex items-stretch border-t border-amber-400/30">
-                          {/* Left Team Block (Chamfered 24K Gold) */}
-                          <div className="flex shrink-0 items-center gap-3 border-r-2 border-amber-300 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 px-6 py-2.5 text-black">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight drop-shadow">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider opacity-90">
-                                {state.innings_number === 2
-                                  ? "2ND INNINGS"
-                                  : "1ST INNINGS"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-amber-400/30 bg-black/70 px-5 py-2">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-yellow-200"
-                                    : "bg-gradient-to-r from-yellow-200 via-amber-300 to-yellow-100 bg-clip-text text-transparent"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-amber-400">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-amber-400/20 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen Apex Cards */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-amber-400/30 bg-black/40">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <Sparkles className="h-3 w-3 animate-pulse text-amber-400" />
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-amber-300">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-amber-400/40 bg-amber-400/20 px-1.5 font-score text-[9px] font-black tabular-nums text-amber-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler Apex Card */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-amber-400/30 bg-black/50 px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-amber-400">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-amber-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-amber-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Delivery Cells: Hex Gold Dots */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/60 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <HexBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-amber-400/60">
-                                  OVER IN PROGRESS
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Ribbon */}
-                        <div className="overflow-hidden border-t border-amber-400/40 bg-black/95 px-5 py-1.5 font-score text-xs font-black uppercase tracking-wide text-amber-200">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-amber-400 px-2.5 py-0.5 text-[11px] font-black text-black">
-                                  CHASE TARGET {state.target_runs}
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS OFF{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-amber-300">
-                                  REQUIRED RATE:{" "}
-                                  {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
+                        {/* 5. OVER BALL-BY-BALL CHIP TRAY */}
+                        {showBalls && (
+                          <div className="flex flex-1 items-center justify-end gap-1 px-4 py-1.5">
+                            {thisOverBalls.length > 0 ? (
+                              <>
+                                {thisOverBalls.map((b, idx) => (
+                                  <BallChip key={idx} label={b} />
+                                ))}
+                                {Array.from({
+                                  length: Math.max(
+                                    0,
+                                    6 - thisOverBalls.length,
+                                  ),
+                                }).map((_, i) => (
+                                  <span
+                                    key={`empty-${i}`}
+                                    className="skew-tile inline-flex h-6 w-[26px] items-center justify-center border border-dashed border-white/20 bg-white/5 opacity-50"
+                                  />
+                                ))}
+                              </>
                             ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-amber-400">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED SCORE:{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
+                              <span className="font-score text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                Over in progress
+                              </span>
                             )}
-                            <span className="text-amber-400">
-                              APEX BROADCAST NETWORK
-                            </span>
                           </div>
-                        </div>
+                        )}
                       </div>
-                    </div>
-                  )}
 
-                  {/* ========================================================= */}
-                  {/* F. VOLT SPORTS-TECH HIGH-VOLTAGE CYBER SCOREBUG           */}
-                  {/* ========================================================= */}
-                  {theme === "volt" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-mono drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="clip-slant-right overflow-hidden border-2 border-lime-400 bg-[#020904] text-white shadow-[0_0_35px_rgba(0,255,102,0.4)]">
-                        {/* Top Volt Sports-Tech Telemetry Bar */}
-                        <div className="flex items-center justify-between border-b border-lime-400/40 bg-black px-4 py-1 font-mono text-[11px] font-black uppercase text-lime-400">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-2 w-2 rotate-45 animate-pulse bg-lime-400" />
-                            <span>
-                              VOLT SPORTS-TECH · HIGH-VOLTAGE LIVE ·{" "}
-                              {battingTeamShort} v {bowlingTeamShort}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-bold text-cyan-300">
-                            <span>[ VOLT RADAR: 151.2 KPH ]</span>
-                            <span>•</span>
-                            <span className="text-lime-300">
-                              CRR {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Main Volt Cyber Bar */}
-                        <div className="flex items-stretch">
-                          {/* Left Team Angled Neon Block */}
-                          <div className="flex shrink-0 items-center gap-3 border-r-2 border-lime-300 bg-gradient-to-r from-lime-400 to-emerald-500 px-5 py-2 font-black text-black">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-mono text-3xl font-black tracking-tight">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-mono text-[10px] font-bold">
-                                INN {state.innings_number ?? 1}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r-2 border-lime-500/30 bg-neutral-950 px-5 py-1.5">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-mono text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-cyan-300"
-                                    : "text-lime-400"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-mono text-2xl font-black leading-none text-cyan-400">
-                                /
-                              </span>
-                              <span className="font-mono text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-lime-500/20 pl-2.5 text-right leading-tight">
-                              <span className="block font-mono text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-mono text-[10px] font-bold uppercase text-lime-400/80">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batters Volt Telemetry */}
-                          <div className="flex items-center divide-x divide-lime-500/20 border-r-2 border-lime-500/30 bg-black/60">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="py-0.2 rounded bg-lime-400 px-1.5 font-mono text-[8px] font-black tracking-wider text-black">
-                                    STRIKE ▶
-                                  </span>
-                                  <span className="font-mono text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name}
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-mono text-base font-black tabular-nums text-lime-300">
-                                    {state.striker_runs ?? 0}*
-                                  </span>
-                                  <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-cyan-500/40 bg-cyan-500/20 px-1 font-mono text-[9px] font-bold tabular-nums text-cyan-300">
-                                      {strikerSr} SR
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-mono text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-mono text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler Volt Telemetry */}
-                          {state.current_bowler_name && (
-                            <div className="border-r-2 border-lime-500/30 bg-black/80 px-4 py-1.5 leading-tight">
-                              <span className="block font-mono text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-mono text-base font-black tabular-nums text-cyan-300">
-                                  {state.bowler_wickets ?? 0}/
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-mono text-[11px] tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-lime-500/20 px-1 font-mono text-[9px] font-bold tabular-nums text-lime-300">
-                                  {bowlerEcon} RPO
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Over Delivery Matrix: Cyber Cells */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/90 px-4 py-1.5">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CyberBallCell key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-mono text-[11px] font-bold uppercase text-lime-500/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Ribbon */}
-                        <div className="overflow-hidden border-t-2 border-lime-400 bg-black px-4 py-1.5 font-mono text-xs font-black uppercase tracking-wide text-lime-300">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-lime-400 px-2 py-0.5 text-[11px] font-black text-black">
-                                  CHASE EQUATION
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS OFF{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-cyan-300">
-                                  RRR {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-lime-400">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-cyan-400">
-                              VOLT HIGH-VOLTAGE TELEMETRY
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* G. THUNDER VELOCITY COBALT STORM SCOREBUG                 */}
-                  {/* ========================================================= */}
-                  {theme === "thunder" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="overflow-hidden rounded-2xl border-2 border-blue-400 bg-gradient-to-r from-[#030a21] via-[#081845] to-[#030a21] text-white shadow-[0_12px_45px_rgba(59,130,246,0.5)]">
-                        {/* Top Thunder Blue Bar */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
-                          <div className="flex items-center gap-2">
-                            <Zap className="h-3.5 w-3.5 fill-yellow-300 text-yellow-300" />
-                            <span>
-                              THUNDER VELOCITY ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-bold text-yellow-300">
-                            <span>
-                              THUNDER CRR: {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Main Thunder Bar */}
-                        <div className="flex items-stretch border-t border-blue-400/30">
-                          {/* Left Team Block */}
-                          <div className="flex shrink-0 items-center gap-3 border-r border-blue-400/50 bg-blue-600 px-5 py-2.5 text-white">
-                            <Zap className="h-6 w-6 fill-yellow-300 text-yellow-300" />
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-score text-[10px] font-black uppercase tracking-wider text-yellow-300">
-                                {state.innings_number === 2
-                                  ? "2ND INN"
-                                  : "1ST INN"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-white/10 bg-black/60 px-5 py-2">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-yellow-200"
-                                    : "text-yellow-300"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-blue-400">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-blue-300">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-white/10 bg-black/40">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <Zap className="h-3 w-3 animate-pulse fill-yellow-300 text-yellow-300" />
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-yellow-300">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-blue-400/40 bg-blue-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-blue-200">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-white/10 bg-black/50 px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-blue-300">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-white/10 px-1.5 font-score text-[9px] font-black tabular-nums text-slate-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Over Delivery Matrix */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/60 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CircularBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-blue-300/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Bar */}
-                        <div className="border-t-2 border-blue-400 bg-[#020617] px-5 py-1.5 font-score text-xs font-black uppercase tracking-wide text-blue-200">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-yellow-400 px-2.5 py-0.5 text-[11px] font-black text-black">
-                                  TARGET {state.target_runs}
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS FROM{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-yellow-300">
-                                  REQ. RR: {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-yellow-300">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED:{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-yellow-300">
-                              THUNDER VELOCITY CRICKET
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* H. DHARMA HERITAGE ROYALE INDIAN SCOREBUG                 */}
-                  {/* ========================================================= */}
-                  {theme === "dharma" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-serif drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="overflow-hidden rounded-3xl border-2 border-amber-400/80 bg-gradient-to-r from-[#180408] via-[#2a0810] to-[#180408] text-white shadow-[0_12px_45px_rgba(180,83,9,0.4)]">
-                        {/* Top Dharma Saffron Gold Header */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-5 py-1 text-[11px] font-black uppercase tracking-widest text-black">
-                          <div className="flex items-center gap-2">
-                            <Crown className="h-3.5 w-3.5 text-black" />
-                            <span>
-                              DHARMA HERITAGE · RAJASTHAN ROYALE ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-sans font-bold">
-                            <span>CRR {state.current_run_rate ?? "—"}</span>
-                          </div>
-                        </div>
-
-                        {/* Main Dharma Bar */}
-                        <div className="flex items-stretch border-t border-amber-400/30">
-                          {/* Left Team Arched Block */}
-                          <div className="flex shrink-0 items-center gap-3 border-r border-amber-400/50 bg-gradient-to-r from-red-800 via-rose-900 to-red-950 px-6 py-2.5 text-amber-200">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider text-amber-300">
-                                {state.innings_number === 2
-                                  ? "2ND INNINGS"
-                                  : "1ST INNINGS"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-white/10 bg-black/60 px-5 py-2 font-sans">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-amber-200"
-                                    : "text-amber-300"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-red-500">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-3 text-right font-serif leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-white/10 bg-black/40 font-sans">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <Crown className="h-3 w-3 text-amber-400" />
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-amber-300">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-amber-400/40 bg-amber-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-amber-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-white/10 bg-black/50 px-4 py-1.5 font-sans leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-amber-300">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-white/10 px-1.5 font-score text-[9px] font-black tabular-nums text-slate-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Over Delivery Matrix */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/60 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CircularBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-serif text-[11px] font-bold uppercase tracking-wider text-amber-400/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Bar */}
-                        <div className="border-t-2 border-amber-500 bg-[#0e0204] px-5 py-1.5 font-sans text-xs font-black uppercase tracking-wide text-amber-300">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-amber-400 px-2.5 py-0.5 text-[11px] font-black text-black">
-                                  TARGET {state.target_runs}
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS FROM{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-amber-300">
-                                  REQ. RR: {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-amber-400">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED:{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-amber-400">
-                              DHARMA HERITAGE ROYALE
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* I. NAKSHATRA ASTRAL COSMIC NEBULA SCOREBUG                */}
-                  {/* ========================================================= */}
-                  {theme === "nakshatra" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="from-[#0a041f]/98 via-[#16083d]/98 to-[#0a041f]/98 overflow-hidden rounded-3xl border-2 border-purple-500/70 bg-gradient-to-r text-white shadow-[0_12px_45px_rgba(168,85,247,0.4)] backdrop-blur-2xl">
-                        {/* Top Cosmic Nebula Header */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-white">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-                            <span>
-                              NAKSHATRA ASTRAL · COSMIC CRICKET ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-mono font-bold text-cyan-300">
-                            <span>
-                              ASTRAL CRR: {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Main Nakshatra Bar */}
-                        <div className="flex items-stretch border-t border-purple-400/30">
-                          {/* Left Team Nebula Block */}
-                          <div className="flex shrink-0 items-center gap-3 border-r border-purple-400/40 bg-gradient-to-r from-purple-700 via-fuchsia-700 to-indigo-800 px-6 py-2.5 font-black text-white">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-score text-[10px] font-black uppercase tracking-wider text-cyan-300">
-                                {state.innings_number === 2
-                                  ? "2ND INN"
-                                  : "1ST INN"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-white/10 bg-black/60 px-5 py-2">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-cyan-200"
-                                    : "text-cyan-300"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-purple-400">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-white/10 bg-black/40">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <Sparkles className="h-3 w-3 animate-pulse text-cyan-300" />
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-cyan-200">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-purple-400/40 bg-purple-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-purple-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-white/10 bg-black/50 px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-cyan-300">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-white/10 px-1.5 font-score text-[9px] font-black tabular-nums text-slate-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Over Delivery Matrix */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/60 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <CircularBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-purple-300/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Sub-Bar */}
-                        <div className="border-t-2 border-purple-400 bg-[#060214] px-5 py-1.5 font-score text-xs font-black uppercase tracking-wide text-purple-200">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-purple-600 px-2.5 py-0.5 text-[11px] font-black text-white">
-                                  TARGET {state.target_runs}
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS FROM{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-cyan-300">
-                                  REQ. RR: {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-cyan-300">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED:{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-cyan-300">
-                              NAKSHATRA ASTRAL FEED
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* I2. AGNI INFERNO SCOREBUG (VOLCANIC MAGMA & EMBER MATRIX) */}
-                  {/* ========================================================= */}
-                  {theme === "agni" && (
-                    <div
-                      style={bottomOffsetStyle}
-                      className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
-                    >
-                      <div className="clip-notch-card magma-matrix relative overflow-hidden border-2 border-orange-500 text-white shadow-[0_12px_45px_rgba(255,69,0,0.55)]">
-                        <div className="animate-flame-flicker pointer-events-none absolute inset-0 bg-gradient-to-r from-red-600/10 via-orange-500/15 to-amber-500/10" />
-
-                        {/* Top Header: Agni Inferno Match Heat */}
-                        <div className="flex items-center justify-between bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 px-5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-black">
-                          <div className="flex items-center gap-2">
-                            <Flame className="h-3.5 w-3.5 animate-flame-flicker fill-black text-black" />
-                            <span>
-                              AGNI INFERNO · BLAZING PASSION ·{" "}
-                              {state.tournament_name ??
-                                `${battingTeamShort} v ${bowlingTeamShort}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3 font-mono font-black">
-                            <span>[ CORE TEMP: 1850°C ]</span>
-                            <span>•</span>
-                            <span>CRR {state.current_run_rate ?? "—"}</span>
-                          </div>
-                        </div>
-
-                        {/* Main Agni Bar */}
-                        <div className="flex items-stretch border-t border-orange-500/30">
-                          {/* Left Team Flame Notch */}
-                          <div className="clip-notch-card flex shrink-0 items-center gap-3 border-r-2 border-orange-400 bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 px-6 py-2.5 text-black">
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight drop-shadow">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-wider opacity-90">
-                                {state.innings_number === 2
-                                  ? "2ND INNINGS"
-                                  : "1ST INNINGS"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Score Block */}
-                          <div className="flex items-center gap-3 border-r border-orange-500/30 bg-black/70 px-5 py-2">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-yellow-200"
-                                    : "bg-gradient-to-r from-yellow-200 via-orange-300 to-amber-200 bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(255,69,0,0.8)]"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-orange-500">
-                                /
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-white">
-                                {state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-orange-500/30 pl-3 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-orange-400">
-                                OVERS
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Batsmen Agni Cards */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-orange-500/30 bg-black/50">
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <Flame className="h-3.5 w-3.5 animate-flame-flicker fill-orange-400 text-orange-400" />
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-orange-300">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="py-0.2 rounded border border-orange-500/40 bg-orange-500/20 px-1.5 font-score text-[9px] font-black tabular-nums text-orange-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <span className="block font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                  {state.non_striker_name}
-                                </span>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bowler Agni Card */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-orange-500/30 bg-black/60 px-4 py-1.5 leading-tight">
-                              <span className="block font-score text-sm font-black uppercase tracking-tight text-white">
-                                {state.current_bowler_name}
-                              </span>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-orange-400">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="py-0.2 rounded bg-white/10 px-1.5 font-score text-[9px] font-black tabular-nums text-slate-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Over Delivery Ember Matrix */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 bg-black/60 px-4 py-2">
-                              {thisOverBalls.length > 0 ? (
-                                thisOverBalls.map((b, idx) => (
-                                  <EmberBallDot key={idx} label={b} />
-                                ))
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-orange-400/60">
-                                  IN PLAY
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Bottom Agni Sub-Bar */}
-                        <div className="border-t-2 border-orange-500 bg-[#0d0301] px-5 py-1.5 font-score text-xs font-black uppercase tracking-wide text-orange-200">
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {state.target_runs !== null ? (
-                              <div className="flex items-center gap-3">
-                                <span className="rounded bg-orange-600 px-2.5 py-0.5 text-[11px] font-black text-black">
-                                  TARGET {state.target_runs}
-                                </span>
-                                <span className="text-white">
-                                  NEED {state.runs_needed} RUNS FROM{" "}
-                                  {state.balls_remaining} BALLS
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-amber-300">
-                                  REQ. RR: {state.required_run_rate ?? "—"}
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-3">
-                                <span className="text-amber-300">
-                                  PARTNERSHIP {state.partnership_runs ?? 0} (
-                                  {state.partnership_balls ?? 0}B)
-                                </span>
-                                <span className="text-white/30">|</span>
-                                <span className="text-white">
-                                  PROJECTED:{" "}
-                                  {state.current_run_rate
-                                    ? Math.round(
-                                        state.current_run_rate *
-                                          (state.overs_per_innings ?? 20),
-                                      )
-                                    : "—"}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-orange-400">
-                              AGNI INFERNO FEED
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ========================================================= */}
-                  {/* J. STAR SPORTS / IPL / ICC GOLD FEED (DEFAULT PARALLELOGRAM) */}
-                  {/* ========================================================= */}
-                  {theme !== "sonysports" &&
-                    theme !== "foxcricket" &&
-                    theme !== "skysports" &&
-                    theme !== "thehundred" &&
-                    theme !== "apex" &&
-                    theme !== "volt" &&
-                    theme !== "agni" &&
-                    theme !== "thunder" &&
-                    theme !== "dharma" &&
-                    theme !== "nakshatra" && (
+                      {/* LOWER SUB-BAR: DYNAMIC ROTATING BROADCAST RIBBON */}
                       <div
-                        style={bottomOffsetStyle}
-                        className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score drop-shadow-2xl transition-all duration-300"
+                        className={`overflow-hidden px-4 py-1.5 ${themeStyle.subBarBg} font-score text-xs font-black uppercase tracking-wide`}
                       >
-                        {/* TOP HEADER SUB-STRIP: TOURNAMENT & MATCH PACE */}
-                        <div className="flex items-center justify-between border-x border-t border-white/20 bg-black/95 px-3.5 py-1 font-score text-[11px] font-black uppercase tracking-wider text-slate-300">
-                          <div className="flex items-center gap-2.5">
-                            <span className="font-black text-amber-400">
-                              {state.tournament_name ?? state.title}
-                            </span>
-                            <span className="text-white/30">|</span>
-                            <span className="text-white/80">
-                              {state.match_format} · {state.venue}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {sponsor && (
-                              <span className="rounded border border-amber-500/40 bg-amber-500/20 px-2 py-0.5 text-[10px] font-black tracking-wider text-amber-300">
-                                {sponsor}
-                              </span>
-                            )}
-                            <span className="rounded border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-black tracking-wider text-emerald-300">
-                              CRR {state.current_run_rate ?? "—"}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* MAIN HORIZONTAL SEGMENTED SCORE BAR */}
                         <div
-                          className={`relative flex items-stretch border border-white/20 ${themeStyle.mainBarBg} ${themeStyle.outerBorder} broadcast-bevel`}
+                          key={carouselIdx}
+                          className="animate-sub-bar-flip flex items-center justify-between"
                         >
-                          {/* 1. TEAM BLOCK (ANGLED TRAPEZOID BADGE) */}
-                          <div
-                            className={`clip-slant-right flex shrink-0 items-center gap-3 px-5 py-2 ${themeStyle.teamBadge} broadcast-gloss shadow-inner`}
-                          >
-                            {state.team1_logo_url && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={state.team1_logo_url}
-                                alt="Logo"
-                                className="h-8 w-8 object-contain drop-shadow"
-                              />
-                            )}
-                            <div className="text-left leading-none">
-                              <span className="block font-score text-3xl font-black tracking-tight drop-shadow">
-                                {battingTeamShort}
-                              </span>
-                              <span className="mt-0.5 block font-score text-[10px] font-black uppercase tracking-widest opacity-90">
-                                {state.innings_number === 2
-                                  ? "2ND INN"
-                                  : "1ST INN"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* 2. CORE SCORE & OVERS BLOCK */}
-                          <div className="flex items-center gap-3 border-r border-white/15 bg-black/40 px-4 py-1.5">
-                            <div className="flex items-baseline gap-1">
-                              <span
-                                className={`font-score text-4xl font-black leading-none tracking-tight transition-all duration-300 ${
-                                  scorePulsing
-                                    ? "animate-score-pulse scale-105 text-amber-300"
-                                    : "text-white"
-                                }`}
-                              >
-                                {state.total_runs ?? 0}
-                              </span>
-                              <span className="font-score text-2xl font-black leading-none text-amber-400">
-                                /{state.total_wickets ?? 0}
-                              </span>
-                            </div>
-
-                            <div className="border-l border-white/10 pl-2.5 text-right leading-tight">
-                              <span className="block font-score text-base font-black tabular-nums text-white">
-                                {oversText(state.total_balls)}
-                              </span>
-                              <span className="block font-score text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                / {state.overs_per_innings} OV
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* 3. BATSMEN PANEL (STRIKER & NON-STRIKER) */}
-                          <div className="flex items-center divide-x divide-white/10 border-r border-white/15">
-                            {/* Striker */}
-                            {state.striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="animate-pulse text-xs font-black text-emerald-400 drop-shadow-[0_0_6px_#34d399]">
-                                    ▶
-                                  </span>
-                                  <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                    {state.striker_name} *
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2">
-                                  <span className="font-score text-base font-black tabular-nums text-amber-300">
-                                    {state.striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.striker_balls ?? 0}b)
-                                  </span>
-                                  {strikerSr && (
-                                    <span className="rounded bg-white/10 px-1.5 py-0.5 font-score text-[9px] font-black tabular-nums text-emerald-300">
-                                      SR {strikerSr}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Non-Striker */}
-                            {state.non_striker_name && (
-                              <div className="px-4 py-1.5 leading-tight">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-slate-500">
-                                    •
-                                  </span>
-                                  <span className="font-score text-sm font-bold uppercase tracking-tight text-slate-300">
-                                    {state.non_striker_name}
-                                  </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                                    {state.non_striker_runs ?? 0}
-                                  </span>
-                                  <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                    ({state.non_striker_balls ?? 0}b)
-                                  </span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* 4. CURRENT BOWLER PANEL */}
-                          {state.current_bowler_name && (
-                            <div className="border-r border-white/15 px-4 py-1.5 leading-tight">
-                              <div className="flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_#38bdf8]" />
-                                <span className="font-score text-sm font-black uppercase tracking-tight text-white">
-                                  {state.current_bowler_name}
-                                </span>
-                              </div>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                <span className="font-score text-base font-black tabular-nums text-sky-300">
-                                  {state.bowler_wickets ?? 0}-
-                                  {state.bowler_runs ?? 0}
-                                </span>
-                                <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
-                                  ({oversText(state.bowler_balls)})
-                                </span>
-                                <span className="rounded bg-sky-500/20 px-1.5 py-0.5 font-score text-[9px] font-black tabular-nums text-sky-300">
-                                  ECON {bowlerEcon}
-                                </span>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 5. OVER BALL-BY-BALL CHIP TRAY */}
-                          {showBalls && (
-                            <div className="flex flex-1 items-center justify-end gap-1 px-4 py-1.5">
-                              {thisOverBalls.length > 0 ? (
-                                <>
-                                  {thisOverBalls.map((b, idx) => (
-                                    <BallChip key={idx} label={b} />
-                                  ))}
-                                  {Array.from({
-                                    length: Math.max(
-                                      0,
-                                      6 - thisOverBalls.length,
-                                    ),
-                                  }).map((_, i) => (
-                                    <span
-                                      key={`empty-${i}`}
-                                      className="skew-tile inline-flex h-6 w-[26px] items-center justify-center border border-dashed border-white/20 bg-white/5 opacity-50"
-                                    />
-                                  ))}
-                                </>
-                              ) : (
-                                <span className="font-score text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                  Over in progress
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* LOWER SUB-BAR: DYNAMIC ROTATING BROADCAST RIBBON */}
-                        <div
-                          className={`overflow-hidden px-4 py-1.5 ${themeStyle.subBarBg} font-score text-xs font-black uppercase tracking-wide`}
-                        >
-                          <div
-                            key={carouselIdx}
-                            className="animate-sub-bar-flip flex items-center justify-between"
-                          >
-                            {/* Slide 0: Target / Chase Equation or Projected Score */}
-                            {carouselIdx === 0 && (
-                              <>
-                                {state.target_runs !== null ? (
-                                  <div className="flex items-center gap-3">
-                                    <span className="rounded bg-amber-400 px-2 py-0.5 text-[11px] font-black text-black">
-                                      TARGET {state.target_runs}
-                                    </span>
-                                    <span className="text-white">
-                                      NEED {state.runs_needed} RUNS FROM{" "}
-                                      {state.balls_remaining} BALLS
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-amber-300">
-                                      REQ. RR: {state.required_run_rate ?? "—"}
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-emerald-300">
-                                      CURR. RR: {state.current_run_rate ?? "—"}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-amber-400">
-                                      VS{" "}
-                                      {state.bowling_team_name ??
-                                        state.bowling_team_short_name}
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-white">
-                                      PROJECTED SCORE:{" "}
-                                      {state.current_run_rate
-                                        ? Math.round(
-                                            state.current_run_rate *
-                                              (state.overs_per_innings ?? 20),
-                                          )
-                                        : "—"}{" "}
-                                      RUNS
-                                    </span>
-                                    <span className="text-white/30">|</span>
-                                    <span className="text-slate-300">
-                                      EXTRAS: {state.extras_total ?? 0}
-                                    </span>
-                                  </div>
-                                )}
-                                {state.partnership_runs !== null &&
-                                  state.partnership_runs > 0 && (
-                                    <div className="font-bold text-slate-300">
-                                      PARTNERSHIP {state.partnership_runs} (
-                                      {state.partnership_balls}b)
-                                    </div>
-                                  )}
-                              </>
-                            )}
-
-                            {/* Slide 1: Partnership Analysis with Visual Progress Bar */}
-                            {carouselIdx === 1 && (
-                              <>
+                          {/* Slide 0: Target / Chase Equation or Projected Score */}
+                          {carouselIdx === 0 && (
+                            <>
+                              {state.target_runs !== null ? (
                                 <div className="flex items-center gap-3">
-                                  <span className="rounded bg-purple-600 px-2 py-0.5 text-[11px] font-black text-white">
-                                    PARTNERSHIP
+                                  <span className="rounded bg-amber-400 px-2 py-0.5 text-[11px] font-black text-black">
+                                    TARGET {state.target_runs}
                                   </span>
                                   <span className="text-white">
-                                    {state.partnership_runs ?? 0} RUNS OFF{" "}
-                                    {state.partnership_balls ?? 0} BALLS
-                                  </span>
-                                  {state.striker_name &&
-                                    state.non_striker_name &&
-                                    state.partnership_runs &&
-                                    state.partnership_runs > 0 && (
-                                      <div className="ml-2 flex items-center gap-1.5">
-                                        <span className="text-[10px] font-bold text-amber-300">
-                                          {state.striker_name.split(" ").pop()}{" "}
-                                          ({state.striker_runs ?? 0})
-                                        </span>
-                                        <div className="flex h-2 w-24 overflow-hidden rounded-full border border-white/20 bg-slate-800">
-                                          <div
-                                            style={{
-                                              width: `${Math.min(
-                                                100,
-                                                Math.max(
-                                                  10,
-                                                  ((state.striker_runs ?? 0) /
-                                                    Math.max(
-                                                      1,
-                                                      (state.striker_runs ??
-                                                        0) +
-                                                        (state.non_striker_runs ??
-                                                          0),
-                                                    )) *
-                                                    100,
-                                                ),
-                                              )}%`,
-                                            }}
-                                            className="h-full bg-amber-400"
-                                          />
-                                          <div className="h-full flex-1 bg-sky-400" />
-                                        </div>
-                                        <span className="text-[10px] font-bold text-sky-300">
-                                          ({state.non_striker_runs ?? 0}){" "}
-                                          {state.non_striker_name
-                                            .split(" ")
-                                            .pop()}
-                                        </span>
-                                      </div>
-                                    )}
-                                </div>
-                                <div className="font-bold text-emerald-300">
-                                  RUN RATE:{" "}
-                                  {state.partnership_balls &&
-                                  state.partnership_balls > 0
-                                    ? (
-                                        ((state.partnership_runs ?? 0) /
-                                          state.partnership_balls) *
-                                        6
-                                      ).toFixed(2)
-                                    : "—"}
-                                </div>
-                              </>
-                            )}
-
-                            {/* Slide 2: Bowler Spell & Over Summary */}
-                            {carouselIdx === 2 && (
-                              <>
-                                <div className="flex items-center gap-3">
-                                  <span className="rounded bg-sky-600 px-2 py-0.5 text-[11px] font-black text-white">
-                                    BOWLER ANALYSIS
-                                  </span>
-                                  <span className="text-white">
-                                    {state.current_bowler_name}:{" "}
-                                    {state.bowler_wickets ?? 0}-
-                                    {state.bowler_runs ?? 0} (
-                                    {oversText(state.bowler_balls)} OV)
+                                    NEED {state.runs_needed} RUNS FROM{" "}
+                                    {state.balls_remaining} BALLS
                                   </span>
                                   <span className="text-white/30">|</span>
-                                  <span className="text-sky-300">
-                                    ECONOMY: {bowlerEcon}
+                                  <span className="text-amber-300">
+                                    REQ. RR: {state.required_run_rate ?? "—"}
+                                  </span>
+                                  <span className="text-white/30">|</span>
+                                  <span className="text-emerald-300">
+                                    CURR. RR: {state.current_run_rate ?? "—"}
                                   </span>
                                 </div>
-                                <div className="font-bold text-amber-300">
-                                  {state.overs_per_innings
-                                    ? `${state.overs_per_innings} OVERS MATCH`
-                                    : "T20"}
-                                </div>
-                              </>
-                            )}
-
-                            {/* Slide 3: Tournament & Venue Match Info */}
-                            {carouselIdx === 3 && (
-                              <>
+                              ) : (
                                 <div className="flex items-center gap-3">
-                                  <span className="rounded bg-white/20 px-2 py-0.5 text-[11px] font-black text-white">
-                                    MATCH CONTEXT
+                                  <span className="text-amber-400">
+                                    VS{" "}
+                                    {state.bowling_team_name ??
+                                      state.bowling_team_short_name}
                                   </span>
+                                  <span className="text-white/30">|</span>
                                   <span className="text-white">
-                                    {state.tournament_name ?? state.title}
+                                    PROJECTED SCORE:{" "}
+                                    {state.current_run_rate
+                                      ? Math.round(
+                                          state.current_run_rate *
+                                            (state.overs_per_innings ?? 20),
+                                        )
+                                      : "—"}{" "}
+                                    RUNS
                                   </span>
                                   <span className="text-white/30">|</span>
                                   <span className="text-slate-300">
-                                    {state.venue ?? "Live Broadcast"}
+                                    EXTRAS: {state.extras_total ?? 0}
                                   </span>
                                 </div>
-                                <div className="font-black text-amber-400">
-                                  {state.toss_decision
-                                    ? `TOSS: ${state.toss_decision === "bowl" ? "ELECTED TO BOWL" : "ELECTED TO BAT"}`
-                                    : "MATCH UNDERWAY"}
-                                </div>
-                              </>
-                            )}
-                          </div>
+                              )}
+                              {state.partnership_runs !== null &&
+                                state.partnership_runs > 0 && (
+                                  <div className="font-bold text-slate-300">
+                                    PARTNERSHIP {state.partnership_runs} (
+                                    {state.partnership_balls}b)
+                                  </div>
+                                )}
+                            </>
+                          )}
+
+                          {/* Slide 1: Partnership Analysis with Visual Progress Bar */}
+                          {carouselIdx === 1 && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <span className="rounded bg-purple-600 px-2 py-0.5 text-[11px] font-black text-white">
+                                  PARTNERSHIP
+                                </span>
+                                <span className="text-white">
+                                  {state.partnership_runs ?? 0} RUNS OFF{" "}
+                                  {state.partnership_balls ?? 0} BALLS
+                                </span>
+                                {state.striker_name &&
+                                  state.non_striker_name &&
+                                  state.partnership_runs &&
+                                  state.partnership_runs > 0 && (
+                                    <div className="ml-2 flex items-center gap-1.5">
+                                      <span className="text-[10px] font-bold text-amber-300">
+                                        {state.striker_name.split(" ").pop()}{" "}
+                                        ({state.striker_runs ?? 0})
+                                      </span>
+                                      <div className="flex h-2 w-24 overflow-hidden rounded-full border border-white/20 bg-slate-800">
+                                        <div
+                                          style={{
+                                            width: `${Math.min(
+                                              100,
+                                              Math.max(
+                                                10,
+                                                ((state.striker_runs ?? 0) /
+                                                  Math.max(
+                                                    1,
+                                                    (state.striker_runs ??
+                                                      0) +
+                                                      (state.non_striker_runs ??
+                                                        0),
+                                                  )) *
+                                                  100,
+                                              ),
+                                            )}%`,
+                                          }}
+                                          className="h-full bg-amber-400"
+                                        />
+                                        <div className="h-full flex-1 bg-sky-400" />
+                                      </div>
+                                      <span className="text-[10px] font-bold text-sky-300">
+                                        ({state.non_striker_runs ?? 0}){" "}
+                                        {state.non_striker_name
+                                          .split(" ")
+                                          .pop()}
+                                      </span>
+                                    </div>
+                                  )}
+                              </div>
+                              <div className="font-bold text-emerald-300">
+                                RUN RATE:{" "}
+                                {state.partnership_balls &&
+                                state.partnership_balls > 0
+                                  ? (
+                                      ((state.partnership_runs ?? 0) /
+                                        state.partnership_balls) *
+                                      6
+                                    ).toFixed(2)
+                                  : "—"}
+                              </div>
+                            </>
+                          )}
+
+                          {/* Slide 2: Bowler Spell & Over Summary */}
+                          {carouselIdx === 2 && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <span className="rounded bg-sky-600 px-2 py-0.5 text-[11px] font-black text-white">
+                                  BOWLER ANALYSIS
+                                </span>
+                                <span className="text-white">
+                                  {state.current_bowler_name}:{" "}
+                                  {state.bowler_wickets ?? 0}-
+                                  {state.bowler_runs ?? 0} (
+                                  {oversText(state.bowler_balls)} OV)
+                                </span>
+                                <span className="text-white/30">|</span>
+                                <span className="text-sky-300">
+                                  ECONOMY: {bowlerEcon}
+                                </span>
+                              </div>
+                              <div className="font-bold text-amber-300">
+                                {state.overs_per_innings
+                                  ? `${state.overs_per_innings} OVERS MATCH`
+                                  : "T20"}
+                              </div>
+                            </>
+                          )}
+
+                          {/* Slide 3: Tournament & Venue Match Info */}
+                          {carouselIdx === 3 && (
+                            <>
+                              <div className="flex items-center gap-3">
+                                <span className="rounded bg-white/20 px-2 py-0.5 text-[11px] font-black text-white">
+                                  MATCH CONTEXT
+                                </span>
+                                <span className="text-white">
+                                  {state.tournament_name ?? state.title}
+                                </span>
+                                <span className="text-white/30">|</span>
+                                <span className="text-slate-300">
+                                  {state.venue ?? "Live Broadcast"}
+                                </span>
+                              </div>
+                              <div className="font-black text-amber-400">
+                                {state.toss_decision
+                                  ? `TOSS: ${state.toss_decision === "bowl" ? "ELECTED TO BOWL" : "ELECTED TO BAT"}`
+                                  : "MATCH UNDERWAY"}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
-                    )}
-                </>
+                    </div>
               )}
 
               {/* 2. TOP TICKER LAYOUT */}
@@ -3713,7 +1366,7 @@ export function OverlayClient({
 
                     {state.striker_name && (
                       <div className="flex items-center gap-2 border-r border-white/15 px-4">
-                        <span className="animate-pulse text-xs font-black text-emerald-400">
+                        <span className="text-xs font-black text-emerald-400">
                           ▶
                         </span>
                         <span className="text-sm font-bold uppercase text-white">
