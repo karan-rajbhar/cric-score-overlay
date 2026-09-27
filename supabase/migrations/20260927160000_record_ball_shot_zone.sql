@@ -1,6 +1,9 @@
 -- Migration: Add p_shot_zone to record_ball RPC function
 -- Allows direct storage of wagon-wheel shot zone on ball insertion without extra SELECT + UPDATE round-trips.
 
+-- Drop previous 12-parameter overload to prevent PGRST203 ambiguous function resolution in PostgREST
+DROP FUNCTION IF EXISTS public.record_ball(uuid, uuid, uuid, uuid, integer, integer, text, boolean, text, uuid, text, uuid);
+
 CREATE OR REPLACE FUNCTION public.record_ball(
   p_match_id UUID,
   p_bowler_id UUID,

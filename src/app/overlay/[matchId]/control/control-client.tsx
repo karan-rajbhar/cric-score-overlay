@@ -728,15 +728,16 @@ export function ControlClient({
     setLastAction(`Safe margin offset: +${px}px`);
   };
 
-  // Copy OBS URL
-  const obsUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/overlay/${matchId}`
-      : `/overlay/${matchId}`;
+  // Copy OBS URL (relative on SSR/render to prevent hydration mismatch)
+  const obsUrl = `/overlay/${matchId}`;
 
   const copyObsUrl = async () => {
     try {
-      await navigator.clipboard.writeText(obsUrl);
+      const fullUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/overlay/${matchId}`
+          : `/overlay/${matchId}`;
+      await navigator.clipboard.writeText(fullUrl);
       setCopiedObsUrl(true);
       setTimeout(() => setCopiedObsUrl(false), 2500);
       setLastAction("Copied OBS Browser Source URL!");
@@ -821,16 +822,16 @@ export function ControlClient({
   }, [activeDeckTab]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-[#080c14] text-slate-100 selection:bg-amber-500 selection:text-black">
       {/* ============================================================= */}
       {/* 1. STUDIO HEADER & ON-AIR TALLY BAR                           */}
       {/* ============================================================= */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 px-3 py-2.5 shadow-xl backdrop-blur-xl sm:px-5 sm:py-3">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0f18]/95 px-3 py-2.5 shadow-md backdrop-blur-md sm:px-5 sm:py-3">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 sm:gap-4">
           {/* Match & Live Studio Status */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
             <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-1 text-xs font-black tracking-wider text-red-400">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" />
+              <span className="h-2 w-2 rounded-full bg-red-500" />
               <span>LIVE STUDIO</span>
             </div>
 
@@ -859,7 +860,7 @@ export function ControlClient({
             >
               <Radio
                 className={cn(
-                  "h-3.5 w-3.5 animate-pulse",
+                  "h-3.5 w-3.5",
                   selectedBroadcastView === "1"
                     ? "text-emerald-400"
                     : "text-amber-400",
@@ -948,11 +949,11 @@ export function ControlClient({
           {/* ========================================================= */}
           <div className="space-y-4 lg:col-span-6 xl:col-span-6">
             {/* 16:9 Live Preview Screen Card */}
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
               {/* Monitor Titlebar */}
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
                   <span className="font-semibold text-slate-200">
                     Program Feed
                   </span>
@@ -1083,7 +1084,7 @@ export function ControlClient({
             </div>
 
             {/* Stream-Deck Instant Event Celebration Hotdeck */}
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-4 w-4 text-amber-400" />
@@ -1099,70 +1100,70 @@ export function ControlClient({
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <button
                   onClick={() => handleTriggerSting("four")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-sky-500/40 bg-gradient-to-b from-sky-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-sky-600/50 active:scale-95"
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-sky-500/40 bg-sky-950/30 p-3 font-black text-white shadow-sm transition hover:border-sky-400/80 hover:bg-sky-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded bg-sky-500/30 px-1 py-0.5 text-[9px] font-mono text-sky-300">
+                  <span className="absolute right-2 top-2 rounded border border-sky-500/40 bg-sky-950/80 px-1 py-0.5 font-mono text-[9px] text-sky-300">
                     [4]
                   </span>
                   <Zap className="h-5 w-5 text-sky-400 transition group-hover:scale-110" />
-                  <span className="text-lg">FOUR!</span>
-                  <span className="text-[10px] uppercase text-sky-200/70">
+                  <span className="text-base font-black tracking-wide text-white">FOUR!</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300/70">
                     Boundary
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleTriggerSting("six")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-purple-500/40 bg-gradient-to-b from-purple-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-purple-600/50 active:scale-95"
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 font-black text-white shadow-sm transition hover:border-amber-400/80 hover:bg-amber-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded bg-purple-500/30 px-1 py-0.5 text-[9px] font-mono text-purple-300">
+                  <span className="absolute right-2 top-2 rounded border border-amber-500/40 bg-amber-950/80 px-1 py-0.5 font-mono text-[9px] text-amber-300">
                     [6]
                   </span>
                   <Flame className="h-5 w-5 text-amber-400 transition group-hover:scale-110" />
-                  <span className="text-lg text-amber-300">MAXIMUM!</span>
-                  <span className="text-[10px] uppercase text-amber-200/70">
+                  <span className="text-base font-black tracking-wide text-amber-300">MAXIMUM!</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300/70">
                     Six
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleTriggerSting("wicket")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-red-500/40 bg-gradient-to-b from-red-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-red-600/50 active:scale-95"
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-red-500/40 bg-red-950/30 p-3 font-black text-white shadow-sm transition hover:border-red-400/80 hover:bg-red-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded bg-red-500/30 px-1 py-0.5 text-[9px] font-mono text-red-300">
+                  <span className="absolute right-2 top-2 rounded border border-red-500/40 bg-red-950/80 px-1 py-0.5 font-mono text-[9px] text-red-300">
                     [W]
                   </span>
                   <AlertOctagon className="h-5 w-5 text-red-400 transition group-hover:scale-110" />
-                  <span className="text-lg text-red-300">WICKET!</span>
-                  <span className="text-[10px] uppercase text-red-200/70">
+                  <span className="text-base font-black tracking-wide text-red-300">WICKET!</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-300/70">
                     Out
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleTriggerSting("milestone")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-600/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-amber-600/50 active:scale-95"
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 font-black text-white shadow-sm transition hover:border-emerald-400/80 hover:bg-emerald-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded bg-amber-500/30 px-1 py-0.5 text-[9px] font-mono text-amber-300">
+                  <span className="absolute right-2 top-2 rounded border border-emerald-500/40 bg-emerald-950/80 px-1 py-0.5 font-mono text-[9px] text-emerald-300">
                     [M]
                   </span>
-                  <Trophy className="h-5 w-5 text-yellow-300 transition group-hover:scale-110" />
-                  <span className="text-lg text-yellow-300">50 / 100</span>
-                  <span className="text-[10px] uppercase text-yellow-200/70">
+                  <Trophy className="h-5 w-5 text-emerald-400 transition group-hover:scale-110" />
+                  <span className="text-base font-black tracking-wide text-emerald-300">50 / 100</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">
                     Milestone
                   </span>
                 </button>
 
                 <button
                   onClick={() => handleTriggerSting("free_hit")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-2xl border border-yellow-500/40 bg-gradient-to-b from-yellow-500/30 to-slate-900 p-3 font-black text-white shadow-lg transition hover:scale-[1.02] hover:from-yellow-500/50 active:scale-95 col-span-2 sm:col-span-1"
+                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-yellow-500/40 bg-yellow-950/30 p-3 font-black text-white shadow-sm transition hover:border-yellow-400/80 hover:bg-yellow-900/40 active:scale-95 col-span-2 sm:col-span-1"
                 >
-                  <span className="absolute right-2 top-2 rounded bg-yellow-500/30 px-1 py-0.5 text-[9px] font-mono text-yellow-300">
+                  <span className="absolute right-2 top-2 rounded border border-yellow-500/40 bg-yellow-950/80 px-1 py-0.5 font-mono text-[9px] text-yellow-300">
                     [F]
                   </span>
                   <ShieldAlert className="h-5 w-5 text-yellow-400 transition group-hover:scale-110" />
-                  <span className="text-lg text-yellow-400">FREE HIT</span>
-                  <span className="text-[10px] uppercase text-yellow-200/70">
+                  <span className="text-base font-black tracking-wide text-yellow-400">FREE HIT</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-yellow-300/70">
                     No-Ball
                   </span>
                 </button>
@@ -1170,7 +1171,7 @@ export function ControlClient({
             </div>
 
             {/* In-Play Lower-Third Popups Deck */}
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Activity className="h-4 w-4 text-sky-400" />
@@ -1247,7 +1248,7 @@ export function ControlClient({
 
             {/* Test Match Simulator (Only active on /overlay/test/control) */}
             {isTestMode && (
-              <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 to-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-4">
+              <div className="rounded-xl border border-amber-500/25 bg-[#121622] p-3.5 shadow-xl sm:p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-amber-400 text-xs">
                     <Radio className="h-4 w-4" />
@@ -1303,7 +1304,7 @@ export function ControlClient({
           {/* ========================================================= */}
           <div className="space-y-4 lg:col-span-6 xl:col-span-6">
             {/* Phase Graphics Switcher Deck */}
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-2xl backdrop-blur-md sm:rounded-3xl sm:p-5">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
               <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4 w-4 text-amber-400" />
@@ -1395,7 +1396,7 @@ export function ControlClient({
             </div>
 
             {/* 1-Click Broadcast Notice Presets & Custom Ticker */}
-            <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3.5 shadow-xl backdrop-blur-md sm:rounded-3xl sm:p-5">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Radio className="h-4 w-4 text-sky-400" />

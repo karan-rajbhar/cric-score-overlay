@@ -1967,42 +1967,24 @@ export type Database = {
         Returns: undefined
       }
       recompute_innings: { Args: { p_innings_id: string }; Returns: undefined }
-      record_ball:
-        | {
-            Args: {
-              p_batsman_id: string
-              p_bowler_id: string
-              p_commentary?: string
-              p_dismissal_type?: string
-              p_dismissed_player_id?: string
-              p_extra_type?: string
-              p_extras?: number
-              p_fielder_id?: string
-              p_is_wicket?: boolean
-              p_match_id: string
-              p_non_striker_id: string
-              p_runs_scored?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_batsman_id: string
-              p_bowler_id: string
-              p_commentary?: string
-              p_dismissal_type?: string
-              p_dismissed_player_id?: string
-              p_extra_type?: string
-              p_extras?: number
-              p_fielder_id?: string
-              p_is_wicket?: boolean
-              p_match_id: string
-              p_non_striker_id: string
-              p_runs_scored?: number
-              p_shot_zone?: string
-            }
-            Returns: Json
-          }
+      record_ball: {
+        Args: {
+          p_batsman_id: string
+          p_bowler_id: string
+          p_commentary?: string
+          p_dismissal_type?: string
+          p_dismissed_player_id?: string
+          p_extra_type?: string
+          p_extras?: number
+          p_fielder_id?: string
+          p_is_wicket?: boolean
+          p_match_id: string
+          p_non_striker_id: string
+          p_runs_scored?: number
+          p_shot_zone?: string
+        }
+        Returns: Json
+      }
       record_state: { Args: { p_match_id: string }; Returns: Json }
       set_current_batsmen: {
         Args: {
