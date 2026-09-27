@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
 import { Download, Share2, FileJson, Loader2 } from "lucide-react";
@@ -573,16 +574,12 @@ export function drawSummary(
 }
 
 export function MatchExportButtons({ match }: { match: Match }) {
-  const matchUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/matches/${match.id}`
-      : `/matches/${match.id}`;
-  const summary = useMemo(
-    () => buildExportSummary(match, matchUrl),
-    [match, matchUrl],
-  );
+  const router = useRouter();
 
   const shareImage = async () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const matchUrl = `${origin}/matches/${match.id}`;
+    const summary = buildExportSummary(match, matchUrl);
     const { canvas, ctx } = createCanvas(W, H);
     const qrImage = await generateQRImage(summary.matchUrl, 184);
     drawSummary(ctx, summary, qrImage);
@@ -604,7 +601,7 @@ export function MatchExportButtons({ match }: { match: Match }) {
         isMobile ? undefined : "width=860,height=950",
       );
       if (!w) {
-        window.location.href = reportUrl;
+        router.push(reportUrl);
       }
     } catch (err) {
       console.error("PDF export error:", err);

@@ -19,6 +19,7 @@ export default async function OverlayPage({
     theme?: string;
     controls?: string;
     sponsor?: string;
+    safe?: string;
   }>;
 }) {
   const { matchId } = await params;
@@ -34,6 +35,7 @@ export default async function OverlayPage({
         initialTheme={initialParams?.theme}
         initialControls={initialParams?.controls !== "false"}
         initialSponsor={initialParams?.sponsor}
+        initialSafeZone={initialParams?.safe === "true"}
       />
     );
   }
@@ -59,6 +61,7 @@ export default async function OverlayPage({
       initialTheme={initialParams?.theme}
       initialControls={initialParams?.controls !== "false"}
       initialSponsor={initialParams?.sponsor}
+      initialSafeZone={initialParams?.safe === "true"}
     />
   );
 }

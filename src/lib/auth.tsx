@@ -37,26 +37,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(
-    () =>
-      typeof window === "undefined" ||
-      !window.location.pathname.startsWith("/overlay"),
-  );
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    // If running inside OBS overlay browser source, skip client-side auth initialization
-    if (
-      typeof window !== "undefined" &&
-      window.location.pathname.startsWith("/overlay")
-    ) {
-      return;
-    }
-
     const supabase = createClient();
 
     // Simple, reliable session initialization
     const initializeAuth = async () => {
+      // If running inside OBS overlay browser source, skip client-side auth initialization
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/overlay")
+      ) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const {
           data: { session },

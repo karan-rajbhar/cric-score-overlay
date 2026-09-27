@@ -58,6 +58,7 @@ interface OverlayClientProps {
   initialTheme?: string;
   initialControls?: boolean;
   initialSponsor?: string;
+  initialSafeZone?: boolean;
 }
 
 import { oversText, BallChip, THEME_STYLES } from "./theme-styles";
@@ -70,6 +71,7 @@ export function OverlayClient({
   initialTheme = "starsports",
   initialControls = true,
   initialSponsor = "",
+  initialSafeZone = false,
 }: OverlayClientProps) {
   const [state, setState] = useState<LiveMatchState | null>(initial);
   const [matchData] = useState<Match | null>(initialMatch);
@@ -108,11 +110,7 @@ export function OverlayClient({
     setVolume: setAudioVolume,
     toggleSound,
   } = usePreferencesStore();
-  const [showSafeZone, setShowSafeZone] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("safe") === "true",
-  );
+  const [showSafeZone, setShowSafeZone] = useState(initialSafeZone);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -1054,7 +1052,7 @@ export function OverlayClient({
                           {state.striker_name && (
                             <div className="px-4 py-1.5 leading-tight">
                               <div className="flex items-center gap-1.5">
-                                <span className="animate-pulse text-xs font-black text-emerald-400 drop-shadow-[0_0_6px_#34d399]">
+                                <span className={`text-xs font-black ${themeStyle.strikeChevron}`}>
                                   ▶
                                 </span>
                                 <span className="font-score text-sm font-black uppercase tracking-tight text-white">
