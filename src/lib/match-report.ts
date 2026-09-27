@@ -1845,150 +1845,6 @@ export async function buildMatchReportHtml(
         }
     }
 
-    @media screen and (max-width: 768px) {
-        body {
-            background: #e2e8f0;
-            overflow-x: hidden;
-        }
-        .report-page {
-            margin: 8px auto;
-            padding: 16px 14px;
-            max-width: 100%;
-            min-height: auto !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-            border-radius: 4px;
-        }
-        .tactical-narrative-grid.duo-col {
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-    }
-
-    @media screen and (max-width: 640px) {
-        #screen-toolbar {
-            padding: 8px 12px;
-            gap: 8px;
-        }
-        #screen-toolbar .toolbar-info {
-            font-size: 11px;
-        }
-        #screen-toolbar button {
-            padding: 6px 12px;
-            font-size: 11px;
-        }
-        .report-page {
-            margin: 0 0 12px 0;
-            padding: 14px 10px;
-            border-radius: 0;
-        }
-        .match-duel-hero {
-            grid-template-columns: 1fr;
-            padding: 12px 14px;
-            gap: 12px;
-        }
-        .duel-outcome-col {
-            border-left: none;
-            border-top: 1px dashed #cbd5e1;
-            padding-left: 0;
-            padding-top: 10px;
-        }
-        .duel-team-name {
-            font-size: 13.5px;
-        }
-        .headline-score {
-            font-size: 13.5px;
-        }
-        .match-info-card {
-            padding: 12px 14px;
-        }
-        .info-grid {
-            grid-template-columns: 1fr;
-            row-gap: 6px;
-        }
-        .info-row {
-            grid-column: span 1 !important;
-            font-size: 10.5px;
-            padding-bottom: 3px;
-        }
-        .info-label {
-            font-size: 10px;
-        }
-        .info-val {
-            font-size: 10.5px;
-        }
-        .score-table {
-            min-width: 480px;
-            font-size: 10px;
-        }
-        .score-table th, .score-table td {
-            padding: 4px 6px;
-        }
-        .player-name {
-            font-size: 10.5px;
-        }
-        .table-subheading {
-            padding: 5px 8px;
-            font-size: 9px;
-        }
-        .fow {
-            padding: 6px 8px;
-            font-size: 9.5px;
-        }
-        .dnb-strip {
-            padding: 5px 8px;
-            font-size: 9.5px;
-        }
-        .partnerships-grid {
-            grid-template-columns: 1fr;
-            gap: 6px;
-            padding: 6px 8px;
-        }
-        .charts-duo-grid {
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-        .over-comparison-headers {
-            grid-template-columns: 1fr;
-            gap: 6px;
-        }
-        .comparison-row {
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-        .signoff-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-        .signoff-box {
-            padding: 8px 10px;
-            min-height: 70px;
-        }
-        .report-footer {
-            flex-direction: column-reverse;
-            align-items: center;
-            text-align: center;
-            gap: 12px;
-            margin-top: 16px;
-            padding-top: 10px;
-        }
-        .footer-qr-block {
-            flex-direction: column;
-            gap: 6px;
-        }
-        .footer-qr-caption {
-            text-align: center;
-            max-width: 200px;
-            font-size: 9px;
-        }
-        .footer-title {
-            font-size: 10.5px;
-        }
-        .footer-url {
-            font-size: 9.5px;
-            word-break: break-all;
-        }
-    }
-
     /* Page Canvas Frame */
     .report-page {
         width: 100%;
@@ -3076,6 +2932,186 @@ export async function buildMatchReportHtml(
         padding-top: 8px;
         border-top: 1px solid #f1f5f9;
         margin-top: 4px;
+    }
+
+    @media screen and (max-width: 768px) {
+        html, body {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+            background: #e2e8f0;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        #screen-toolbar {
+            padding: 8px 14px;
+            gap: 10px;
+        }
+        #screen-toolbar .toolbar-info {
+            font-size: 11.5px;
+        }
+        #screen-toolbar button {
+            padding: 6px 14px;
+            font-size: 11.5px;
+        }
+        .report-page {
+            margin: 8px auto !important;
+            padding: 16px 14px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+            border-radius: 4px;
+            box-sizing: border-box !important;
+        }
+        .report-top-header {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .match-duel-hero {
+            grid-template-columns: 1fr !important;
+            padding: 14px 16px;
+            gap: 14px;
+        }
+        .duel-outcome-col {
+            border-left: none !important;
+            border-top: 1px dashed #cbd5e1;
+            padding-left: 0 !important;
+            padding-top: 12px;
+        }
+        .info-grid {
+            grid-template-columns: 1fr !important;
+            row-gap: 8px;
+        }
+        .info-row {
+            grid-column: span 1 !important;
+        }
+        .tactical-narrative-grid.duo-col {
+            grid-template-columns: 1fr !important;
+            gap: 14px;
+        }
+        .charts-duo-grid {
+            grid-template-columns: 1fr !important;
+            gap: 14px;
+        }
+        .over-comparison-headers {
+            grid-template-columns: 1fr !important;
+            gap: 8px;
+        }
+        .comparison-row {
+            grid-template-columns: 1fr !important;
+            gap: 8px;
+        }
+        .signoff-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px;
+        }
+        .report-footer {
+            flex-direction: column-reverse !important;
+            align-items: center !important;
+            text-align: center !important;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 10px;
+        }
+        .footer-qr-block {
+            flex-direction: column !important;
+            gap: 6px;
+        }
+        .footer-qr-caption {
+            text-align: center;
+            max-width: 240px;
+            font-size: 9px;
+        }
+        .footer-url {
+            word-break: break-all;
+        }
+    }
+
+    @media screen and (max-width: 640px) {
+        #screen-toolbar {
+            padding: 8px 10px;
+            gap: 6px;
+        }
+        #screen-toolbar .toolbar-info {
+            font-size: 11px;
+        }
+        #screen-toolbar button {
+            padding: 5px 10px;
+            font-size: 11px;
+        }
+        .report-page {
+            margin: 0 0 10px 0 !important;
+            padding: 12px 10px !important;
+            border-radius: 0 !important;
+        }
+        .report-main-title {
+            font-size: 20px !important;
+            margin-bottom: 12px !important;
+        }
+        .match-duel-hero {
+            padding: 12px 12px !important;
+            gap: 10px;
+        }
+        .duel-team-name {
+            font-size: 13px !important;
+        }
+        .headline-score {
+            font-size: 13px !important;
+        }
+        .match-info-card {
+            padding: 10px 12px !important;
+        }
+        .info-grid {
+            row-gap: 6px;
+        }
+        .info-row {
+            font-size: 10px;
+            padding-bottom: 2px;
+        }
+        .info-label {
+            font-size: 9.5px;
+        }
+        .info-val {
+            font-size: 10px;
+        }
+        .score-table {
+            min-width: 460px;
+            font-size: 10px;
+        }
+        .score-table th, .score-table td {
+            padding: 4px 6px;
+        }
+        .player-name {
+            font-size: 10.5px;
+        }
+        .table-subheading {
+            padding: 5px 8px;
+            font-size: 9px;
+        }
+        .fow {
+            padding: 6px 8px;
+            font-size: 9.5px;
+        }
+        .dnb-strip {
+            padding: 5px 8px;
+            font-size: 9.5px;
+        }
+        .partnerships-grid {
+            grid-template-columns: 1fr !important;
+            gap: 6px;
+            padding: 6px 8px;
+        }
+        .signoff-box {
+            padding: 8px 10px;
+            min-height: 70px;
+        }
+        .footer-title {
+            font-size: 10px;
+        }
+        .footer-url {
+            font-size: 9px;
+        }
     }
 </style>
 </head>

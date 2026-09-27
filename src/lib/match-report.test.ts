@@ -400,6 +400,14 @@ describe("match-report export helpers", () => {
       // Avoid page-break cuts mid-card
       expect(html).toContain("break-inside: avoid !important;");
       expect(html).toContain("break-after: avoid !important;");
+
+      // Verify cascade order: media queries must appear AFTER base styles to override them
+      const baseReportPageIdx = html.indexOf(".report-page {");
+      const baseChartsGridIdx = html.indexOf(".charts-duo-grid {");
+      const mediaQueryIdx = html.indexOf("@media screen and (max-width: 768px)");
+
+      expect(mediaQueryIdx).toBeGreaterThan(baseReportPageIdx);
+      expect(mediaQueryIdx).toBeGreaterThan(baseChartsGridIdx);
     });
 
     it("flows 1st innings directly on Page 1 to eliminate wasted space and splits 2nd innings on Page 2", async () => {

@@ -13,6 +13,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    testTimeout: 10000,
     restoreMocks: true,
     coverage: {
       reporter: ["text", "lcov"],

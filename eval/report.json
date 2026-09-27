@@ -1,12 +1,12 @@
 {
-  "timestamp": "2026-09-20T03:52:08Z",
-  "composite_health_score": 87.6,
+  "timestamp": "2026-09-27T15:02:39Z",
+  "composite_health_score": 88.9,
   "gates": {
     "typecheck": true,
     "eslint": true,
     "tests_pass": true
   },
-  "coverage_percentage": 37.84,
+  "coverage_percentage": 44.51,
   "improvement_targets": [
     {
       "file": "src/components/layout/app-sidebar.tsx",

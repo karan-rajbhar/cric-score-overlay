@@ -7,7 +7,6 @@ import { Download, Share2, FileJson, Loader2 } from "lucide-react";
 import { downloadCricsheetJson } from "~/lib/cricsheet";
 import { getFullMatchForExport } from "~/app/matches/queries";
 import {
-  buildMatchReportHtml,
   buildExportSummary,
   type MatchExportSummary,
   type ExportTeamStats,
@@ -593,36 +592,23 @@ export function MatchExportButtons({ match }: { match: Match }) {
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  const exportPdf = async () => {
+  const exportPdf = () => {
     setIsExportingPdf(true);
     try {
-      let exportMatch = match;
-      const hasBalls = match.innings?.some(
-        (inn) => inn.ball_by_ball && inn.ball_by_ball.length > 0,
-      );
-      if (!hasBalls) {
-        const res = await getFullMatchForExport(match.id);
-        if (res.data) {
-          exportMatch = res.data;
-        }
-      }
-      const html = await buildMatchReportHtml(exportMatch, summary.matchUrl);
+      const reportUrl = `/matches/${match.id}/report`;
       const isMobile =
         typeof window !== "undefined" && window.innerWidth < 768;
       const w = window.open(
-        "",
+        reportUrl,
         "_blank",
         isMobile ? undefined : "width=860,height=950",
       );
       if (!w) {
-        toast.error("Allow pop-ups to export the PDF");
-        return;
+        window.location.href = reportUrl;
       }
-      w.document.write(html);
-      w.document.close();
     } catch (err) {
       console.error("PDF export error:", err);
-      toast.error("Failed to generate match report PDF");
+      toast.error("Failed to open match report");
     } finally {
       setIsExportingPdf(false);
     }
