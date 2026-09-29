@@ -361,7 +361,7 @@ function SuperstarPointsDialog({
                   <span className="text-muted-foreground">
                     {player.stats.wickets}w • {player.stats.overs}ov ({player.stats.runsConceded}r)
                   </span>
-                  <span className="font-bold tabular text-primary">
+                  <span className="font-bold tabular-nums text-primary">
                     +{player.breakdown.bowling} pts
                   </span>
                 </div>
@@ -369,13 +369,13 @@ function SuperstarPointsDialog({
 
               <div className="flex items-center justify-between py-1">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <Shield className="h-3.5 w-3.5 text-indigo-500" /> Fielding & Dismissals
+                  <Shield className="h-3.5 w-3.5 shrink-0 text-indigo-500" /> Fielding & Dismissals
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
                     {player.stats.catches} catches • {player.stats.stumpings} stumpings • {player.stats.runOuts} run outs
                   </span>
-                  <span className="font-bold tabular text-primary">
+                  <span className="font-bold tabular-nums text-primary">
                     +{player.breakdown.fielding} pts
                   </span>
                 </div>
@@ -552,7 +552,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                 : "text-slate-300 hover:text-white",
             )}
           >
-            <span className="w-1 h-3.5 bg-red-600 rounded-full inline-block" />
+            <span className="w-1 h-3.5 bg-red-600 rounded-full inline-block shrink-0" />
             <span className="truncate uppercase">{match.team1.name}</span>
           </button>
           <button
@@ -565,7 +565,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                 : "text-slate-300 hover:text-white",
             )}
           >
-            <span className="w-1 h-3.5 bg-blue-600 rounded-full inline-block" />
+            <span className="w-1 h-3.5 bg-blue-600 rounded-full inline-block shrink-0" />
             <span className="truncate uppercase">{match.team2.name}</span>
           </button>
         </div>
@@ -588,7 +588,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
               onClick={() => setViewMode("pitch")}
               className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
             >
-              <Layers className="h-3.5 w-3.5" />
+              <Layers className="h-3.5 w-3.5 shrink-0" />
               <span>Pitch</span>
             </Button>
             <Button
@@ -597,7 +597,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
               onClick={() => setViewMode("list")}
               className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
             >
-              <List className="h-3.5 w-3.5" />
+              <List className="h-3.5 w-3.5 shrink-0" />
               <span>List</span>
             </Button>
           </div>
@@ -616,7 +616,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
               title="Superstar 11 Points Rules"
               aria-label="Superstar 11 Points Rules"
             >
-              <Info className="h-4 w-4" />
+              <Info className="h-4 w-4 shrink-0" />
             </button>
 
             {/* Stadium Curved Boundary Line */}
@@ -679,7 +679,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             <span className="text-sm font-bold">
               Superstars Performance Rankings
             </span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground tabular-nums">
               Total Points: {totalPoints} PTS
             </span>
           </div>
@@ -693,12 +693,12 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                 <div
                   key={player.playerId}
                   onClick={() => setSelectedPlayer(player)}
-                  className="flex cursor-pointer items-center justify-between rounded-xl border border-border/70 bg-card p-3 transition-all hover:bg-muted/50"
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-border/70 bg-card p-3 transition-all hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <span
                       className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white tabular-nums",
                         player.rank === 1
                           ? "bg-amber-500"
                           : player.rank === 2
@@ -711,29 +711,29 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                       {player.rank}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span
                         className={cn(
-                          "h-2 w-2 rounded-full",
+                          "h-2 w-2 rounded-full shrink-0",
                           isTeam1 ? "bg-red-600" : "bg-blue-600",
                         )}
                       />
-                      <div>
-                        <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm">
-                          <span>{player.playerName}</span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 font-bold text-xs sm:text-sm">
+                          <span className="truncate">{player.playerName}</span>
                           <RoleBadge role={player.role} />
                           {player.isCaptain && (
-                            <span className="rounded bg-red-600 px-1 py-0.2 text-[9px] font-black text-white">
+                            <span className="rounded bg-red-600 px-1 py-0.2 text-[9px] font-black text-white shrink-0">
                               C (2X)
                             </span>
                           )}
                           {player.isViceCaptain && (
-                            <span className="rounded bg-slate-800 px-1 py-0.2 text-[9px] font-black text-white">
+                            <span className="rounded bg-slate-800 px-1 py-0.2 text-[9px] font-black text-white shrink-0">
                               VC (1.5X)
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="truncate text-[11px] text-muted-foreground tabular-nums">
                           {player.teamName} • {player.stats.runs} runs (
                           {player.stats.balls}b) • {player.stats.wickets} wkts
                         </p>
@@ -741,16 +741,16 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                     </div>
                   </div>
 
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <div className="flex items-center gap-1 justify-end font-black text-sm text-foreground">
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                        <span>{rating}</span>
+                        <span className="tabular-nums">{rating}</span>
                         {player.rank === 1 && (
-                          <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300" />
+                          <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300 shrink-0" />
                         )}
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
                       {player.totalPoints} pts
                     </span>
                   </div>

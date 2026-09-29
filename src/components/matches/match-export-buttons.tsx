@@ -643,16 +643,22 @@ export function MatchExportButtons({ match }: { match: Match }) {
         size="sm"
         disabled={isExportingPdf}
         onClick={() => void exportPdf()}
+        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
       >
         {isExportingPdf ? (
-          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />
         ) : (
-          <Download className="mr-1.5 h-4 w-4" />
+          <Download className="mr-1.5 h-4 w-4 shrink-0" />
         )}
         Match report (PDF)
       </Button>
-      <Button variant="outline" size="sm" onClick={() => void shareImage()}>
-        <Share2 className="mr-1.5 h-4 w-4" />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => void shareImage()}
+        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
+      >
+        <Share2 className="mr-1.5 h-4 w-4 shrink-0" />
         Share summary
       </Button>
       <Button
@@ -660,11 +666,12 @@ export function MatchExportButtons({ match }: { match: Match }) {
         size="sm"
         disabled={isExportingCricsheet}
         onClick={() => void handleCricsheetExport()}
+        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
       >
         {isExportingCricsheet ? (
-          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />
         ) : (
-          <FileJson className="mr-1.5 h-4 w-4" />
+          <FileJson className="mr-1.5 h-4 w-4 shrink-0" />
         )}
         Cricsheet JSON
       </Button>

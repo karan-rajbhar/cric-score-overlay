@@ -259,11 +259,11 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 text-3xl font-bold">
+            <div className="mb-4 text-3xl font-bold tabular-nums">
               {team1Innings ? (
                 <>
                   {team1Innings.total_runs}/{team1Innings.total_wickets}
-                  <span className="ml-2 text-lg text-muted-foreground">
+                  <span className="ml-2 text-lg text-muted-foreground tabular-nums">
                     ({formatDecimalOvers(team1Innings.total_overs)} ov)
                   </span>
                 </>
@@ -277,7 +277,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 {getTopScorer(team1Innings) && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Top Scorer</span>
-                    <span className="font-medium">
+                    <span className="font-medium tabular-nums">
                       {getTopScorer(team1Innings)?.user?.full_name} -{" "}
                       {getTopScorer(team1Innings)?.runs_scored}
                       {!getTopScorer(team1Innings)?.is_out && "*"}(
@@ -287,7 +287,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Run Rate</span>
-                  <span className="font-medium">{team1RunRate}</span>
+                  <span className="font-medium tabular-nums">{team1RunRate}</span>
                 </div>
               </div>
             )}
@@ -307,11 +307,11 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 text-3xl font-bold">
+            <div className="mb-4 text-3xl font-bold tabular-nums">
               {team2Innings ? (
                 <>
                   {team2Innings.total_runs}/{team2Innings.total_wickets}
-                  <span className="ml-2 text-lg text-muted-foreground">
+                  <span className="ml-2 text-lg text-muted-foreground tabular-nums">
                     ({formatDecimalOvers(team2Innings.total_overs)} ov)
                   </span>
                 </>
@@ -325,7 +325,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 {getTopScorer(team2Innings) && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Top Scorer</span>
-                    <span className="font-medium">
+                    <span className="font-medium tabular-nums">
                       {getTopScorer(team2Innings)?.user?.full_name} -{" "}
                       {getTopScorer(team2Innings)?.runs_scored}
                       {!getTopScorer(team2Innings)?.is_out && "*"}(
@@ -335,7 +335,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Run Rate</span>
-                  <span className="font-medium">{team2RunRate}</span>
+                  <span className="font-medium tabular-nums">{team2RunRate}</span>
                 </div>
               </div>
             )}
@@ -370,7 +370,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                         className="flex items-center justify-between text-sm"
                       >
                         <span>{bp.user?.full_name}</span>
-                        <span className="tabular font-medium">
+                        <span className="tabular-nums font-medium">
                           {bp.runs_scored}
                           {!bp.is_out && "*"} ({bp.balls_faced})
                         </span>
@@ -397,7 +397,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                         className="flex items-center justify-between text-sm"
                       >
                         <span>{bp.user?.full_name}</span>
-                        <span className="tabular font-medium">
+                        <span className="tabular-nums font-medium">
                           {bp.wickets_taken}/{bp.runs_conceded} (
                           {formatDecimalOvers(bp.overs_bowled)} ov)
                         </span>

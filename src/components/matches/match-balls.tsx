@@ -118,7 +118,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
           className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
           onClick={() => setFilter("boundaries")}
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className="h-3.5 w-3.5 shrink-0" />
           Boundaries (4s &amp; 6s)
         </Badge>
         <Badge
@@ -126,7 +126,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
           className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
           onClick={() => setFilter("wickets")}
         >
-          <Zap className="h-3.5 w-3.5" />
+          <Zap className="h-3.5 w-3.5 shrink-0" />
           Wickets
         </Badge>
       </div>
@@ -175,7 +175,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                         <span className="font-medium">
                           {teamName(match, innings.team_id)}
                         </span>
-                        <span className="text-lg font-bold">
+                        <span className="text-lg font-bold tabular-nums">
                           {innings.total_runs}/{innings.total_wickets} (
                           {innings.total_overs} ov)
                         </span>
@@ -204,10 +204,12 @@ export function MatchBalls({ match }: MatchBallsProps) {
                               )}
                             </CardTitle>
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary">{overRuns} runs</Badge>
+                              <Badge variant="secondary" className="tabular-nums">
+                                {overRuns} {overRuns === 1 ? "run" : "runs"}
+                              </Badge>
                               {wicketsInOver > 0 && (
-                                <Badge variant="destructive">
-                                  {wicketsInOver} wicket
+                                <Badge variant="destructive" className="tabular-nums">
+                                  {wicketsInOver} {wicketsInOver === 1 ? "wicket" : "wickets"}
                                 </Badge>
                               )}
                             </div>
@@ -221,7 +223,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                 <div
                                   key={ball.id}
                                   className={cn(
-                                    "flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold",
+                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0",
                                     getBallClass(ball),
                                   )}
                                   title={`${ball.batsman?.full_name} vs ${ball.bowler?.full_name}${

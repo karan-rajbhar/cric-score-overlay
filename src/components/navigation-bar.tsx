@@ -96,7 +96,7 @@ export function NavigationBar() {
             onClick={toggleMobile}
             aria-label="Open navigation drawer"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5 shrink-0" />
           </Button>
 
           {/* Desktop sidebar collapse trigger */}
@@ -108,7 +108,7 @@ export function NavigationBar() {
             title="Toggle sidebar (Ctrl+B)"
             aria-label="Toggle sidebar"
           >
-            <PanelLeft className="h-4 w-4" />
+            <PanelLeft className="h-4 w-4 shrink-0" />
           </Button>
 
           <Link
@@ -133,7 +133,7 @@ export function NavigationBar() {
             }}
             className="relative w-full"
           >
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
               id="global-search-input"
               value={searchQuery}
@@ -159,7 +159,7 @@ export function NavigationBar() {
             aria-label="Search"
           >
             <Link href="/search">
-              <Search className="h-4 w-4" />
+              <Search className="h-4 w-4 shrink-0" />
             </Link>
           </Button>
 
@@ -171,7 +171,7 @@ export function NavigationBar() {
                   size="sm"
                   className="interactive-button h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
                 </Button>
               </DropdownMenuTrigger>
@@ -188,7 +188,7 @@ export function NavigationBar() {
                     href="/matches/create"
                     className="flex items-center gap-2"
                   >
-                    <Radio className="h-4 w-4 text-emerald-500" />
+                    <Radio className="h-4 w-4 shrink-0 text-emerald-500" />
                     <span>New Match</span>
                   </Link>
                 </DropdownMenuItem>
@@ -197,7 +197,7 @@ export function NavigationBar() {
                     href="/teams/create"
                     className="flex items-center gap-2"
                   >
-                    <Users className="h-4 w-4 text-sky-500" />
+                    <Users className="h-4 w-4 shrink-0 text-sky-500" />
                     <span>Create Team</span>
                   </Link>
                 </DropdownMenuItem>
@@ -206,7 +206,7 @@ export function NavigationBar() {
                     href="/tournaments/create"
                     className="flex items-center gap-2"
                   >
-                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
                     <span>Host Tournament</span>
                   </Link>
                 </DropdownMenuItem>
@@ -215,7 +215,7 @@ export function NavigationBar() {
                     href="/clubs/create"
                     className="flex items-center gap-2"
                   >
-                    <Shield className="h-4 w-4 text-purple-500" />
+                    <Shield className="h-4 w-4 shrink-0 text-purple-500" />
                     <span>Register Club</span>
                   </Link>
                 </DropdownMenuItem>
@@ -264,7 +264,7 @@ export function NavigationBar() {
                     href={`/players/${username ? `@${username}` : user.id}`}
                     className="flex items-center gap-2"
                   >
-                    <UserIcon className="h-3.5 w-3.5 text-primary" />
+                    <UserIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span>My Profile</span>
                   </Link>
                 </DropdownMenuItem>
@@ -280,7 +280,7 @@ export function NavigationBar() {
                   disabled={signOutLoading}
                   className="cursor-pointer text-xs text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
                 >
-                  <LogOut className="mr-2 h-3.5 w-3.5" />
+                  <LogOut className="mr-2 h-3.5 w-3.5 shrink-0" />
                   <span>Sign out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>

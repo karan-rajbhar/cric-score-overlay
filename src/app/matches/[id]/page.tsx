@@ -383,7 +383,7 @@ function MatchDetailsPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background">
       {/* Header */}
       <div className="sticky top-14 z-20 border-b border-border bg-card">
         <div className="container mx-auto px-3 py-2.5 sm:px-4">
@@ -396,7 +396,7 @@ function MatchDetailsPageContent() {
                 className="interactive-button shrink-0 pl-0 text-xs font-medium sm:text-sm"
               >
                 <Link href={matchBackHref} onClick={handleBackClick}>
-                  <ChevronLeft className="mr-1 h-4 w-4" />
+                  <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
                   <span className="sm:hidden">Back</span>
                   <span className="hidden sm:inline">{matchBackLabel}</span>
                 </Link>
@@ -503,9 +503,9 @@ function MatchDetailsPageContent() {
                   {match.team1.name}
                 </p>
                 {team1Innings ? (
-                  <p className="score-display tabular mt-0.5 text-3xl font-semibold leading-none">
+                  <p className="score-display tabular-nums mt-0.5 text-3xl font-semibold leading-none">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
-                    <span className="ml-2 font-score text-base font-medium text-muted-foreground">
+                    <span className="ml-2 font-score text-base font-medium text-muted-foreground tabular-nums">
                       ({oversFromBalls(inningsBalls(team1Innings))} ov)
                     </span>
                   </p>
@@ -541,9 +541,9 @@ function MatchDetailsPageContent() {
                   {match.team2.name}
                 </p>
                 {team2Innings ? (
-                  <p className="score-display tabular mt-0.5 text-3xl font-semibold leading-none">
+                  <p className="score-display tabular-nums mt-0.5 text-3xl font-semibold leading-none">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
-                    <span className="ml-2 font-score text-base font-medium text-muted-foreground">
+                    <span className="ml-2 font-score text-base font-medium text-muted-foreground tabular-nums">
                       ({oversFromBalls(inningsBalls(team2Innings))} ov)
                     </span>
                   </p>
@@ -572,9 +572,9 @@ function MatchDetailsPageContent() {
               </div>
               <div className="shrink-0 text-right">
                 {team1Innings ? (
-                  <p className="score-display tabular text-xl font-black leading-none">
+                  <p className="score-display tabular-nums text-xl font-black leading-none">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
-                    <span className="tabular ml-1.5 text-xs font-medium text-muted-foreground">
+                    <span className="tabular-nums ml-1.5 text-xs font-medium text-muted-foreground">
                       ({oversFromBalls(inningsBalls(team1Innings))} ov)
                     </span>
                   </p>
@@ -600,9 +600,9 @@ function MatchDetailsPageContent() {
               </div>
               <div className="shrink-0 text-right">
                 {team2Innings ? (
-                  <p className="score-display tabular text-xl font-black leading-none">
+                  <p className="score-display tabular-nums text-xl font-black leading-none">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
-                    <span className="tabular ml-1.5 text-xs font-medium text-muted-foreground">
+                    <span className="tabular-nums ml-1.5 text-xs font-medium text-muted-foreground">
                       ({oversFromBalls(inningsBalls(team2Innings))} ov)
                     </span>
                   </p>
@@ -625,7 +625,7 @@ function MatchDetailsPageContent() {
           {/* Player of the Match */}
           {match.player_of_the_match && (
             <div className="mx-auto mt-4 flex max-w-md items-center justify-center gap-3 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-amber-900 dark:text-amber-200">
-              <Award className="h-5 w-5 flex-shrink-0 text-amber-500" />
+              <Award className="h-5 w-5 shrink-0 text-amber-500" />
               <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
                 Player of the match:
               </span>
@@ -647,7 +647,7 @@ function MatchDetailsPageContent() {
                         : ""
                     }`}
                   >
-                    <Play className="mr-1.5 h-4 w-4" />
+                    <Play className="mr-1.5 h-4 w-4 shrink-0" />
                     {match.status === "scheduled"
                       ? "Start match"
                       : "Continue scoring"}
@@ -668,7 +668,7 @@ function MatchDetailsPageContent() {
             )}
             <Button variant="outline" size="sm" asChild className="h-10 px-4 text-xs font-semibold sm:h-9 sm:text-sm">
               <Link href={`/overlay/${match.id}`} target="_blank">
-                <Tv className="mr-1.5 h-4 w-4" />
+                <Tv className="mr-1.5 h-4 w-4 shrink-0" />
                 OBS overlay
               </Link>
             </Button>

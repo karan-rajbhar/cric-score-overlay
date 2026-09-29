@@ -130,6 +130,58 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     );
   });
 
+  it("supports custom penalty runs when selecting penalty and a run value", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    const penaltyBtn = screen.getByRole("button", { name: /^penalty$/i });
+    fireEvent.click(penaltyBtn);
+    const twoBtn = screen.getByRole("button", { name: /^2 runs$/i });
+    fireEvent.click(twoBtn);
+
+    expect(onScore).toHaveBeenCalledWith(
+      0,
+      { type: "penalty", runs: 2 },
+      undefined,
+    );
+  });
+
+  it("supports awarding bonus runs via Bonus extra button", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    const bonusBtn = screen.getByRole("button", { name: /^bonus$/i });
+    fireEvent.click(bonusBtn);
+    const zeroBtn = screen.getByRole("button", { name: /0 runs/i });
+    fireEvent.click(zeroBtn);
+
+    expect(onScore).toHaveBeenCalledWith(
+      0,
+      { type: "bonus", runs: 1 },
+      undefined,
+    );
+  });
+
+  it("supports scoring 5 runs directly from the keypad", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    const fiveBtn = screen.getByRole("button", { name: /^5 runs$/i });
+    fireEvent.click(fiveBtn);
+
+    expect(onScore).toHaveBeenCalledWith(5, undefined, undefined);
+  });
+
+  it("opens high runs drawer on +More and allows selecting 7 to 13 runs", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    const moreBtn = screen.getByRole("button", { name: /more run options/i });
+    fireEvent.click(moreBtn);
+
+    expect(screen.getByText(/high runs \/ extras/i)).toBeInTheDocument();
+    const sevenBtn = screen.getByRole("button", { name: "7" });
+    fireEvent.click(sevenBtn);
+
+    expect(onScore).toHaveBeenCalledWith(7, undefined, undefined);
+  });
+
   it("allows toggling auto wagon wheel prompt off for direct 1-tap scoring", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);

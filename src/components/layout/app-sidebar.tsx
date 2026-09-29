@@ -97,7 +97,7 @@ export function AppSidebar() {
                 className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Close menu"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5 shrink-0" />
               </button>
             </div>
             <Link
@@ -105,7 +105,7 @@ export function AppSidebar() {
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <Search className="h-3.5 w-3.5" />
+              <Search className="h-3.5 w-3.5 shrink-0" />
               <span>Search matches, clubs, players…</span>
             </Link>
           </div>
@@ -179,10 +179,10 @@ export function AppSidebar() {
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             ) : (
               <>
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 shrink-0" />
                 <span>Collapse Sidebar</span>
               </>
             )}

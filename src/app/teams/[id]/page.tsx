@@ -211,7 +211,7 @@ export default async function TeamDetailsPage({
     completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
 
   return (
-    <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -294,7 +294,7 @@ export default async function TeamDetailsPage({
           asChild
         >
           <Link href={backHref}>
-            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
             <span className="sm:hidden">Back</span>
             <span className="hidden sm:inline">{backLabel}</span>
           </Link>
@@ -328,7 +328,7 @@ export default async function TeamDetailsPage({
                     title="Edit Team"
                     aria-label="Edit Team"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit className="h-4 w-4 shrink-0" />
                   </Button>
                 )}
               </div>
@@ -347,15 +347,15 @@ export default async function TeamDetailsPage({
               <div className="space-y-3 border-t pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center text-muted-foreground">
-                    <Users className="mr-2 h-4 w-4" />
+                    <Users className="mr-2 h-4 w-4 shrink-0" />
                     Squad Size
                   </div>
-                  <span className="font-medium">{players.length}</span>
+                  <span className="font-medium tabular-nums">{players.length}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center text-muted-foreground">
-                    <Trophy className="mr-2 h-4 w-4" />
+                    <Trophy className="mr-2 h-4 w-4 shrink-0" />
                     Type
                   </div>
                   <Badge variant="secondary">
@@ -365,7 +365,7 @@ export default async function TeamDetailsPage({
 
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center text-muted-foreground">
-                    <Calendar className="mr-2 h-4 w-4" />
+                    <Calendar className="mr-2 h-4 w-4 shrink-0" />
                     Created
                   </div>
                   <span className="font-medium">
@@ -408,7 +408,7 @@ export default async function TeamDetailsPage({
             <CardContent className="space-y-3">
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular text-xl font-bold">
+                  <div className="tabular-nums text-xl font-bold">
                     {totalMatches}
                   </div>
                   <div className="text-[11px] font-medium text-muted-foreground">
@@ -416,15 +416,15 @@ export default async function TeamDetailsPage({
                   </div>
                 </div>
                 <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-                  <div className="tabular text-xl font-bold">{wonMatches}</div>
+                  <div className="tabular-nums text-xl font-bold">{wonMatches}</div>
                   <div className="text-[11px] font-medium">Won</div>
                 </div>
                 <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
-                  <div className="tabular text-xl font-bold">{lostMatches}</div>
+                  <div className="tabular-nums text-xl font-bold">{lostMatches}</div>
                   <div className="text-[11px] font-medium">Lost</div>
                 </div>
                 <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular text-xl font-bold">{tiedMatches}</div>
+                  <div className="tabular-nums text-xl font-bold">{tiedMatches}</div>
                   <div className="text-[11px] font-medium text-muted-foreground">
                     Tied/NR
                   </div>
@@ -433,7 +433,7 @@ export default async function TeamDetailsPage({
               {winRate !== null && (
                 <div className="flex items-center justify-between border-t pt-2 text-xs">
                   <span className="text-muted-foreground">Win rate</span>
-                  <span className="tabular font-semibold text-foreground">
+                  <span className="tabular-nums font-semibold text-foreground">
                     {winRate}%
                   </span>
                 </div>
@@ -454,11 +454,11 @@ export default async function TeamDetailsPage({
                   value="matches"
                   className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
-                  <Swords className="h-4 w-4" />
+                  <Swords className="h-4 w-4 shrink-0" />
                   Matches
                   <Badge
                     variant="secondary"
-                    className="tabular ml-1 h-5 px-1.5 text-xs font-semibold"
+                    className="tabular-nums ml-1 h-5 px-1.5 text-xs font-semibold"
                   >
                     {teamMatches.length}
                   </Badge>
@@ -467,11 +467,11 @@ export default async function TeamDetailsPage({
                   value="squad"
                   className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
-                  <Users className="h-4 w-4" />
+                  <Users className="h-4 w-4 shrink-0" />
                   Squad
                   <Badge
                     variant="secondary"
-                    className="tabular ml-1 h-5 px-1.5 text-xs font-semibold"
+                    className="tabular-nums ml-1 h-5 px-1.5 text-xs font-semibold"
                   >
                     {players.length}
                   </Badge>

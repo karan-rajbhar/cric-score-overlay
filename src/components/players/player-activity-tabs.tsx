@@ -245,7 +245,7 @@ export function PlayerActivityTabs({
             value="batting"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Flame className="h-4 w-4 text-orange-500" />
+            <Flame className="h-4 w-4 shrink-0 text-orange-500" />
             <span>Batting</span>
             <Badge
               variant="secondary"
@@ -258,7 +258,7 @@ export function PlayerActivityTabs({
             value="bowling"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Activity className="h-4 w-4 text-blue-500" />
+            <Activity className="h-4 w-4 shrink-0 text-blue-500" />
             <span>Bowling</span>
             <Badge
               variant="secondary"
@@ -271,7 +271,7 @@ export function PlayerActivityTabs({
             value="matches"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Swords className="h-4 w-4 text-emerald-500" />
+            <Swords className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>Matches</span>
             <Badge
               variant="secondary"
@@ -284,7 +284,7 @@ export function PlayerActivityTabs({
             value="teams"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Users className="h-4 w-4 text-purple-500" />
+            <Users className="h-4 w-4 shrink-0 text-purple-500" />
             <span>Teams</span>
             <Badge
               variant="secondary"
@@ -391,7 +391,7 @@ export function PlayerActivityTabs({
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <span
-                              className={`tabular text-base font-bold ${
+                              className={`tabular-nums text-base font-bold ${
                                 bp.runs_scored >= 50
                                   ? "text-amber-600 dark:text-amber-400"
                                   : "text-foreground"
@@ -412,22 +412,22 @@ export function PlayerActivityTabs({
                         </TableCell>
 
                         {/* Balls */}
-                        <TableCell className="tabular text-center font-medium text-muted-foreground">
+                        <TableCell className="tabular-nums text-center font-medium text-muted-foreground">
                           {bp.balls_faced}
                         </TableCell>
 
                         {/* Strike Rate */}
-                        <TableCell className="tabular text-center text-xs font-semibold">
+                        <TableCell className="tabular-nums text-center text-xs font-semibold">
                           {strikeRate(bp.runs_scored, bp.balls_faced)}
                         </TableCell>
 
                         {/* 4s */}
-                        <TableCell className="tabular text-center text-xs">
+                        <TableCell className="tabular-nums text-center text-xs">
                           {bp.fours}
                         </TableCell>
 
                         {/* 6s */}
-                        <TableCell className="tabular text-center text-xs">
+                        <TableCell className="tabular-nums text-center text-xs">
                           {bp.sixes}
                         </TableCell>
 
@@ -577,7 +577,7 @@ export function PlayerActivityTabs({
                         {/* Figures */}
                         <TableCell className="text-center">
                           <span
-                            className={`tabular text-base font-bold ${
+                            className={`tabular-nums text-base font-bold ${
                               bp.wickets_taken >= 3
                                 ? "font-extrabold text-primary"
                                 : "text-foreground"
@@ -588,27 +588,27 @@ export function PlayerActivityTabs({
                         </TableCell>
 
                         {/* Overs */}
-                        <TableCell className="tabular text-center font-medium">
+                        <TableCell className="tabular-nums text-center font-medium">
                           {Number(bp.overs_bowled).toFixed(1)}
                         </TableCell>
 
                         {/* Maidens */}
-                        <TableCell className="tabular text-center">
+                        <TableCell className="tabular-nums text-center">
                           {bp.maidens}
                         </TableCell>
 
                         {/* Runs Conceded */}
-                        <TableCell className="tabular text-center text-muted-foreground">
+                        <TableCell className="tabular-nums text-center text-muted-foreground">
                           {bp.runs_conceded}
                         </TableCell>
 
                         {/* Wickets */}
-                        <TableCell className="tabular text-center font-bold text-foreground">
+                        <TableCell className="tabular-nums text-center font-bold text-foreground">
                           {bp.wickets_taken}
                         </TableCell>
 
                         {/* Economy */}
-                        <TableCell className="tabular text-center text-xs font-semibold">
+                        <TableCell className="tabular-nums text-center text-xs font-semibold">
                           {economyRate(
                             bp.runs_conceded,
                             bp.balls_bowled ||
@@ -617,7 +617,7 @@ export function PlayerActivityTabs({
                         </TableCell>
 
                         {/* Extras */}
-                        <TableCell className="tabular text-center text-xs text-muted-foreground">
+                        <TableCell className="tabular-nums text-center text-xs text-muted-foreground">
                           {bp.wides}/{bp.no_balls}
                         </TableCell>
 
@@ -739,14 +739,14 @@ export function PlayerActivityTabs({
                             name={m.team1.name}
                             shortName={m.team1.short_name}
                             logoUrl={m.team1.logo_url}
-                            className="h-6 w-6 text-xs"
+                            className="h-6 w-6 shrink-0 text-xs"
                           />
                           <span className="truncate text-sm font-medium">
                             {m.team1.name}
                           </span>
                         </div>
                         {inn1 ? (
-                          <div className="tabular text-right text-xs font-bold">
+                          <div className="tabular-nums text-right text-xs font-bold">
                             {inn1.total_runs}/{inn1.total_wickets}
                             <span className="ml-1 text-[11px] font-normal text-muted-foreground">
                               ({inn1.total_overs.toFixed(1)})
@@ -766,14 +766,14 @@ export function PlayerActivityTabs({
                             name={m.team2.name}
                             shortName={m.team2.short_name}
                             logoUrl={m.team2.logo_url}
-                            className="h-6 w-6 text-xs"
+                            className="h-6 w-6 shrink-0 text-xs"
                           />
                           <span className="truncate text-sm font-medium">
                             {m.team2.name}
                           </span>
                         </div>
                         {inn2 ? (
-                          <div className="tabular text-right text-xs font-bold">
+                          <div className="tabular-nums text-right text-xs font-bold">
                             {inn2.total_runs}/{inn2.total_wickets}
                             <span className="ml-1 text-[11px] font-normal text-muted-foreground">
                               ({inn2.total_overs.toFixed(1)})
@@ -826,12 +826,12 @@ export function PlayerActivityTabs({
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           {m.venue && (
                             <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
+                              <MapPin className="h-3 w-3 shrink-0" />
                               {m.venue}
                             </span>
                           )}
-                          <span className="tabular inline-flex items-center gap-1">
-                            <CalendarDays className="h-3 w-3" />
+                          <span className="tabular-nums inline-flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3 shrink-0" />
                             {formatDate(m.scheduled_at)}
                           </span>
                         </div>
@@ -848,7 +848,7 @@ export function PlayerActivityTabs({
                       >
                         <Link href={`/matches/${m.id}?playerId=${userId}`}>
                           <span>View Scorecard</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </Link>
                       </Button>
                     </div>
@@ -902,7 +902,7 @@ export function PlayerActivityTabs({
                           name={tm.team.name}
                           shortName={tm.team.short_name}
                           logoUrl={tm.team.logo_url}
-                          className="h-12 w-12 text-sm"
+                          className="h-12 w-12 shrink-0 text-sm"
                         />
                         <div>
                           <CardTitle className="text-base font-bold leading-tight">
@@ -977,7 +977,7 @@ export function PlayerActivityTabs({
                       >
                         <Link href={teamUrl}>
                           <span>View Team & Squad</span>
-                          <ArrowRight className="h-3.5 w-3.5" />
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </Link>
                       </Button>
                     </div>

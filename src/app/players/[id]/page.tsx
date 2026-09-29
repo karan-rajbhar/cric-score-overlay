@@ -260,7 +260,7 @@ export default async function PlayerPage({
     Math.max(matchesList.length, batting.length, bowling.length);
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -357,7 +357,7 @@ export default async function PlayerPage({
           className="interactive-button min-h-[36px] w-fit pl-0"
         >
           <Link href={backHref}>
-            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
             <span className="sm:hidden">Back</span>
             <span className="hidden sm:inline">{backLabel}</span>
           </Link>
@@ -403,7 +403,7 @@ export default async function PlayerPage({
                       name={tm.team.name}
                       shortName={tm.team.short_name}
                       logoUrl={tm.team.logo_url}
-                      className="h-4 w-4 text-[9px]"
+                      className="h-4 w-4 shrink-0 text-[9px]"
                     />
                     <span>{tm.team.name}</span>
                     {tm.jersey_number !== undefined &&

@@ -822,7 +822,7 @@ export function ControlClient({
   }, [activeDeckTab]);
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-slate-100 selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#080c14] text-slate-100 selection:bg-amber-500 selection:text-black">
       {/* ============================================================= */}
       {/* 1. STUDIO HEADER & ON-AIR TALLY BAR                           */}
       {/* ============================================================= */}
@@ -831,7 +831,7 @@ export function ControlClient({
           {/* Match & Live Studio Status */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
             <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-1 text-xs font-black tracking-wider text-red-400">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
               <span>LIVE STUDIO</span>
             </div>
 
@@ -860,7 +860,7 @@ export function ControlClient({
             >
               <Radio
                 className={cn(
-                  "h-3.5 w-3.5",
+                  "h-3.5 w-3.5 shrink-0",
                   selectedBroadcastView === "1"
                     ? "text-emerald-400"
                     : "text-amber-400",
@@ -880,7 +880,7 @@ export function ControlClient({
                 className="flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-lg transition hover:bg-emerald-500 active:scale-95"
                 title="Return to Scorebar (Space / Esc)"
               >
-                <Undo2 className="h-3.5 w-3.5" />
+                <Undo2 className="h-3.5 w-3.5 shrink-0" />
                 <span className="hidden sm:inline">Cut to Scorebar</span>
                 <span className="sm:hidden">Cut</span>
               </button>
@@ -898,9 +898,9 @@ export function ControlClient({
               }`}
             >
               {copiedObsUrl ? (
-                <Check className="h-3.5 w-3.5" />
+                <Check className="h-3.5 w-3.5 shrink-0" />
               ) : (
-                <Copy className="h-3.5 w-3.5" />
+                <Copy className="h-3.5 w-3.5 shrink-0" />
               )}
               <span className="hidden sm:inline">
                 {copiedObsUrl ? "Copied!" : "Copy OBS URL"}
@@ -914,7 +914,7 @@ export function ControlClient({
               className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Open full transparent overlay in new window"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">Popout</span>
             </a>
 
@@ -923,7 +923,7 @@ export function ControlClient({
               className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Configure Themes, Margins & Audio"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-amber-400" />
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-amber-400" />
               <span className="hidden sm:inline">Settings</span>
             </button>
 
@@ -932,7 +932,7 @@ export function ControlClient({
               className="flex min-h-[36px] items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black uppercase text-white shadow-md transition hover:bg-red-500 active:scale-95"
               title="Emergency Clear (Space / Esc)"
             >
-              <XCircle className="h-3.5 w-3.5" />
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">Clear</span>
             </button>
           </div>
@@ -1093,7 +1093,8 @@ export function ControlClient({
                   </span>
                 </div>
                 <span className="text-[11px] text-slate-400">
-                  Click or use hotkeys
+                  <span className="hidden sm:inline">Click or use hotkeys</span>
+                  <span className="sm:hidden">Instant triggers</span>
                 </span>
               </div>
 
@@ -1102,7 +1103,7 @@ export function ControlClient({
                   onClick={() => handleTriggerSting("four")}
                   className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-sky-500/40 bg-sky-950/30 p-3 font-black text-white shadow-sm transition hover:border-sky-400/80 hover:bg-sky-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded border border-sky-500/40 bg-sky-950/80 px-1 py-0.5 font-mono text-[9px] text-sky-300">
+                  <span className="absolute right-2 top-2 hidden rounded border border-sky-500/40 bg-sky-950/80 px-1 py-0.5 font-mono text-[9px] text-sky-300 sm:inline">
                     [4]
                   </span>
                   <Zap className="h-5 w-5 text-sky-400 transition group-hover:scale-110" />
@@ -1116,7 +1117,7 @@ export function ControlClient({
                   onClick={() => handleTriggerSting("six")}
                   className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 font-black text-white shadow-sm transition hover:border-amber-400/80 hover:bg-amber-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded border border-amber-500/40 bg-amber-950/80 px-1 py-0.5 font-mono text-[9px] text-amber-300">
+                  <span className="absolute right-2 top-2 hidden rounded border border-amber-500/40 bg-amber-950/80 px-1 py-0.5 font-mono text-[9px] text-amber-300 sm:inline">
                     [6]
                   </span>
                   <Flame className="h-5 w-5 text-amber-400 transition group-hover:scale-110" />
@@ -1130,7 +1131,7 @@ export function ControlClient({
                   onClick={() => handleTriggerSting("wicket")}
                   className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-red-500/40 bg-red-950/30 p-3 font-black text-white shadow-sm transition hover:border-red-400/80 hover:bg-red-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded border border-red-500/40 bg-red-950/80 px-1 py-0.5 font-mono text-[9px] text-red-300">
+                  <span className="absolute right-2 top-2 hidden rounded border border-red-500/40 bg-red-950/80 px-1 py-0.5 font-mono text-[9px] text-red-300 sm:inline">
                     [W]
                   </span>
                   <AlertOctagon className="h-5 w-5 text-red-400 transition group-hover:scale-110" />
@@ -1144,7 +1145,7 @@ export function ControlClient({
                   onClick={() => handleTriggerSting("milestone")}
                   className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 font-black text-white shadow-sm transition hover:border-emerald-400/80 hover:bg-emerald-900/40 active:scale-95"
                 >
-                  <span className="absolute right-2 top-2 rounded border border-emerald-500/40 bg-emerald-950/80 px-1 py-0.5 font-mono text-[9px] text-emerald-300">
+                  <span className="absolute right-2 top-2 hidden rounded border border-emerald-500/40 bg-emerald-950/80 px-1 py-0.5 font-mono text-[9px] text-emerald-300 sm:inline">
                     [M]
                   </span>
                   <Trophy className="h-5 w-5 text-emerald-400 transition group-hover:scale-110" />
@@ -1158,7 +1159,7 @@ export function ControlClient({
                   onClick={() => handleTriggerSting("free_hit")}
                   className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-yellow-500/40 bg-yellow-950/30 p-3 font-black text-white shadow-sm transition hover:border-yellow-400/80 hover:bg-yellow-900/40 active:scale-95 col-span-2 sm:col-span-1"
                 >
-                  <span className="absolute right-2 top-2 rounded border border-yellow-500/40 bg-yellow-950/80 px-1 py-0.5 font-mono text-[9px] text-yellow-300">
+                  <span className="absolute right-2 top-2 hidden rounded border border-yellow-500/40 bg-yellow-950/80 px-1 py-0.5 font-mono text-[9px] text-yellow-300 sm:inline">
                     [F]
                   </span>
                   <ShieldAlert className="h-5 w-5 text-yellow-400 transition group-hover:scale-110" />

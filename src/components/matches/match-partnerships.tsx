@@ -292,7 +292,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
                                 variant="outline"
                                 className="shrink-0 gap-1 border-amber-500/40 bg-amber-500/10 px-1.5 py-0 text-[10px] font-bold text-amber-600 dark:text-amber-400"
                               >
-                                <Flame className="h-3 w-3" />
+                                <Flame className="h-3 w-3 shrink-0" />
                                 Best
                               </Badge>
                             ) : null}
@@ -302,7 +302,8 @@ export function MatchPartnerships({ match }: { match: Match }) {
                               {p.runs}
                             </strong>{" "}
                             <span className="text-xs text-muted-foreground">
-                              ({p.balls} balls · SR {sr})
+                              <span className="hidden sm:inline">({p.balls} balls · SR {sr})</span>
+                              <span className="sm:hidden">({p.balls}b · {sr})</span>
                             </span>
                           </span>
                         </div>

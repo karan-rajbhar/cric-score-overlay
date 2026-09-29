@@ -154,7 +154,7 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="space-y-2 text-center">
@@ -178,7 +178,7 @@ function LoginPageInner() {
             {/* Error Display */}
             {displayError && (
               <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
+                <AlertCircle className="h-4 w-4 shrink-0" />
                 <AlertDescription>{displayError}</AlertDescription>
               </Alert>
             )}
@@ -197,7 +197,7 @@ function LoginPageInner() {
                 </>
               ) : (
                 <>
-                  <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
+                  <svg className="mr-2 h-5 w-5 shrink-0" viewBox="0 0 24 24">
                     <path
                       fill="#4285F4"
                       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -245,7 +245,7 @@ function LoginPageInner() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Mail className="mr-2 inline h-4 w-4" />
+                <Mail className="mr-2 inline h-4 w-4 shrink-0" />
                 Email
               </button>
               <button
@@ -261,7 +261,7 @@ function LoginPageInner() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Phone className="mr-2 inline h-4 w-4" />
+                <Phone className="mr-2 inline h-4 w-4 shrink-0" />
                 Phone
               </button>
             </div>
@@ -278,7 +278,7 @@ function LoginPageInner() {
                     Email address
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="email"
                       name="email"
@@ -303,7 +303,7 @@ function LoginPageInner() {
                     Password
                   </Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="password"
                       name="password"
@@ -321,9 +321,9 @@ function LoginPageInner() {
                       className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                     >
                       {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
+                        <EyeOff className="h-4 w-4 shrink-0" />
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 shrink-0" />
                       )}
                     </button>
                   </div>
@@ -353,7 +353,7 @@ function LoginPageInner() {
                   ) : (
                     <>
                       Sign in
-                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
                     </>
                   )}
                 </Button>
@@ -372,7 +372,7 @@ function LoginPageInner() {
                     Phone number
                   </Label>
                   <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                    <Phone className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
                     <Input
                       id="phone"
                       name="tel"
@@ -404,7 +404,7 @@ function LoginPageInner() {
                       Verification code
                     </Label>
                     <div className="relative">
-                      <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                      <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
                       <Input
                         id="otp"
                         name="one-time-code"
@@ -454,12 +454,12 @@ function LoginPageInner() {
                       {otpSent ? (
                         <>
                           Verify & Sign in
-                          <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
                         </>
                       ) : (
                         <>
                           Send verification code
-                          <MessageCircle className="ml-2 h-4 w-4 transition-transform group-hover:scale-110" />
+                          <MessageCircle className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:scale-110" />
                         </>
                       )}
                     </>

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "skills": {
+    "ui-design": {
+      "source": "uizze.com",
+      "sourceUrl": "https://uizze.com",
+      "sourceType": "well-known",
+      "computedHash": "004b8ebf8e3d29aa153f7dc22eaf3542d74cd50676b7dfa86a25bae9bb4105c6",
+      "wellKnownDigest": "sha256:e67eecdd2108ea6331b183c06c990d94cba2970339e9c7a1d5341338ad5967bd"
+    }
+  }
+}

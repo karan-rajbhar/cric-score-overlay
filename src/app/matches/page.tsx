@@ -91,7 +91,7 @@ export default function MatchesPage() {
             >
               {title}
             </span>
-            <span className="tabular rounded-full bg-muted/80 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+            <span className="tabular-nums rounded-full bg-muted/80 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
               {items.length}
             </span>
           </div>
@@ -118,7 +118,7 @@ export default function MatchesPage() {
     );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full max-w-full overflow-x-hidden">
       {/* Header + search & filter controls */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
@@ -136,7 +136,7 @@ export default function MatchesPage() {
             className="interactive-button w-full gap-1.5 sm:w-auto"
           >
             <Link href="/matches/create">
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 shrink-0" />
               Score New Match
             </Link>
           </Button>
@@ -145,7 +145,7 @@ export default function MatchesPage() {
 
       <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground shrink-0" />
           <Input
             placeholder="Search teams, titles or venues…"
             value={searchQuery}
@@ -193,7 +193,7 @@ export default function MatchesPage() {
                 onClick={() => void refetch()}
                 className="interactive-button gap-2"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                 Try Again
               </Button>
             </CardContent>

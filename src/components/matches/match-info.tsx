@@ -83,7 +83,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-start gap-3">
-                <Layers className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <Layers className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Format</p>
                   <p className="font-medium">{match.match_format}</p>
@@ -91,7 +91,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
               </div>
 
               <div className="flex items-start gap-3">
-                <CircleDot className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <CircleDot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Overs</p>
                   <p className="font-medium">
@@ -102,7 +102,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.ball_type && (
                 <div className="flex items-start gap-3">
-                  <CircleDot className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <CircleDot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Ball Type</p>
                     <p className="font-medium capitalize">{match.ball_type}</p>
@@ -111,7 +111,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
               )}
 
               <div className="flex items-start gap-3">
-                <MapPin className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Venue</p>
                   <p className="font-medium">
@@ -122,7 +122,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.scheduled_at && (
                 <div className="flex items-start gap-3">
-                  <Calendar className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <Calendar className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Date & Time</p>
                     <p className="font-medium">
@@ -137,7 +137,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.actual_start_time && (
                 <div className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Actual Start
@@ -158,7 +158,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-start gap-3">
-                <Trophy className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <Trophy className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Toss</p>
                   <p className="font-medium">
@@ -178,7 +178,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.weather_conditions && (
                 <div className="flex items-start gap-3">
-                  <CloudSun className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <CloudSun className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Weather</p>
                     <p className="font-medium">{match.weather_conditions}</p>
@@ -188,7 +188,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.pitch_conditions && (
                 <div className="flex items-start gap-3">
-                  <Landmark className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <Landmark className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Pitch</p>
                     <p className="font-medium">{match.pitch_conditions}</p>
@@ -198,7 +198,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {(match.umpire1_name || match.umpire2_name) && (
                 <div className="flex items-start gap-3">
-                  <Users className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                  <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Umpires</p>
                     <p className="font-medium">
@@ -221,7 +221,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Match ID</p>
-                  <p className="font-mono text-sm">{match.id}</p>
+                  <p className="font-mono text-xs sm:text-sm break-all">{match.id}</p>
                 </div>
                 {match.tournament && (
                   <div>

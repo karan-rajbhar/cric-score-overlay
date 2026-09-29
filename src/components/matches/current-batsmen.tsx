@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "~/components/ui/card";
-import { ArrowLeftRight, UserPlus, Users, Pencil, Radio } from "lucide-react";
+import { ArrowLeftRight, UserPlus, Users, Pencil, Radio, HeartPulse } from "lucide-react";
 
 interface Batsman {
   id: string;
@@ -13,13 +13,15 @@ interface Batsman {
   isStriker: boolean;
 }
 
-interface CurrentBatsmenProps {
+export interface CurrentBatsmenProps {
   batsman1: Batsman | null;
   batsman2: Batsman | null;
   onSwapStriker?: () => void;
   onSelectNewBatsman?: () => void;
   onChangeStriker?: () => void;
   onChangeNonStriker?: () => void;
+  onRetireStriker?: () => void;
+  onRetireNonStriker?: () => void;
 }
 
 import { strikeRate } from "~/lib/cricket";
@@ -29,12 +31,14 @@ function BatsmanRow({
   batsman,
   onSelectNewBatsman,
   onChangeBatter,
+  onRetireBatter,
   changeLabel,
   sunlightMode,
 }: {
   batsman: Batsman | null;
   onSelectNewBatsman?: () => void;
   onChangeBatter?: () => void;
+  onRetireBatter?: () => void;
   changeLabel?: string;
   sunlightMode?: boolean;
 }) {
@@ -132,6 +136,22 @@ function BatsmanRow({
               <span>Change</span>
             </button>
           )}
+          {onRetireBatter && (
+            <button
+              type="button"
+              onClick={onRetireBatter}
+              aria-label={`Retire ${batsman.name}`}
+              title="Retire batter hurt (injury/illness) or retire out"
+              className={
+                sunlightMode
+                  ? "inline-flex min-h-[30px] items-center gap-1 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-[11px] font-black text-black active:scale-95"
+                  : "inline-flex min-h-[30px] items-center gap-1 rounded-full border border-border/80 bg-background/80 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600 active:scale-95 dark:hover:text-rose-400"
+              }
+            >
+              <HeartPulse className="h-2.5 w-2.5 text-rose-500" />
+              <span>Retire</span>
+            </button>
+          )}
         </div>
         <p
           className={
@@ -192,6 +212,8 @@ export function CurrentBatsmen({
   onSelectNewBatsman,
   onChangeStriker,
   onChangeNonStriker,
+  onRetireStriker,
+  onRetireNonStriker,
   sunlightMode: propSunlightMode,
 }: CurrentBatsmenProps & { sunlightMode?: boolean }) {
   const storeSunlightMode = usePreferencesStore((s) => s.sunlightMode);
@@ -258,6 +280,7 @@ export function CurrentBatsmen({
             batsman={batsman1}
             onSelectNewBatsman={onSelectNewBatsman}
             onChangeBatter={onChangeStriker ?? onSelectNewBatsman}
+            onRetireBatter={onRetireStriker}
             changeLabel="Change Striker"
             sunlightMode={sunlightMode}
           />
@@ -265,6 +288,7 @@ export function CurrentBatsmen({
             batsman={batsman2}
             onSelectNewBatsman={onSelectNewBatsman}
             onChangeBatter={onChangeNonStriker ?? onSelectNewBatsman}
+            onRetireBatter={onRetireNonStriker}
             changeLabel="Change Non-Striker"
             sunlightMode={sunlightMode}
           />

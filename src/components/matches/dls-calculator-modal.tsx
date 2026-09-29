@@ -21,11 +21,13 @@ import { toast } from "sonner";
 interface DlsCalculatorModalProps {
   match: Match;
   canEdit?: boolean;
+  triggerButton?: React.ReactNode;
 }
 
 export function DlsCalculatorModal({
   match,
   canEdit = false,
+  triggerButton,
 }: DlsCalculatorModalProps) {
   const [open, setOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -109,15 +111,17 @@ export function DlsCalculatorModal({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 min-h-[36px] gap-1.5 text-xs font-medium"
-        >
-          <CloudRain className="h-3.5 w-3.5 text-sky-500" />
-          <span className="hidden sm:inline">DLS Rain Calc</span>
-          <span className="sm:hidden">DLS</span>
-        </Button>
+        {triggerButton ?? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
+          >
+            <CloudRain className="h-4 w-4 shrink-0 text-sky-500" />
+            <span className="hidden sm:inline">DLS Rain Calc</span>
+            <span className="sm:hidden">DLS</span>
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>

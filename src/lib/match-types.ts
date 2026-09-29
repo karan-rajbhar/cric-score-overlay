@@ -139,6 +139,7 @@ export interface Innings {
   extras_wides: number;
   extras_no_balls: number;
   extras_penalties: number;
+  extras_bonuses?: number;
   batting_performances?: BattingPerformance[];
   bowling_performances?: BowlingPerformance[];
   ball_by_ball?: BallEvent[];
@@ -150,6 +151,11 @@ export interface Match {
   title: string;
   match_format: string;
   overs_per_innings: number;
+  balls_per_over?: number | null;
+  max_balls_per_over?: number | null;
+  wide_counts_as_ball_faced?: boolean | null;
+  wide_runs_to_batsman?: boolean | null;
+  noball_extras_to_batsman?: boolean | null;
   status: string;
   current_innings: number;
   current_over: number;

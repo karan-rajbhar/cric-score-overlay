@@ -64,7 +64,7 @@ function CreateTeamForm() {
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2 text-primary">
-          <Users className="h-5 w-5" />
+          <Users className="h-5 w-5 shrink-0" />
           <span className="text-xs font-semibold text-primary">
             Team registration
           </span>
@@ -133,7 +133,7 @@ function CreateTeamForm() {
                 {clubs.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     <div className="flex items-center gap-2">
-                      <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                      <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       <span>{c.name}</span>
                       {c.short_name && (
                         <span className="text-xs text-muted-foreground">
@@ -167,7 +167,7 @@ function CreateTeamForm() {
           <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full text-sm font-bold">
             {saving ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
                 Creating team...
               </>
             ) : (
@@ -200,7 +200,7 @@ function CreateTeamBackButton() {
   return (
     <Button variant="ghost" asChild className="mb-4">
       <Link href={backHref}>
-        <ChevronLeft className="mr-2 h-4 w-4" /> {backLabel}
+        <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> {backLabel}
       </Link>
     </Button>
   );
@@ -237,7 +237,7 @@ export default function CreateTeamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-6 sm:py-8">
+    <div className="w-full max-w-full overflow-x-hidden min-h-screen bg-background py-6 sm:py-8">
       <div className="container mx-auto max-w-xl px-3 sm:px-4">
         <Suspense fallback={null}>
           <CreateTeamBackButton />

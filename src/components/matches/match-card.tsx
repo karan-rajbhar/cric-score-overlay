@@ -64,10 +64,10 @@ function TeamRow({
       </div>
       {innings && (
         <div className="shrink-0 text-right">
-          <p className="score-display tabular text-2xl font-bold leading-none">
+          <p className="score-display tabular-nums text-2xl font-bold leading-none">
             {innings.total_runs}/{innings.total_wickets}
           </p>
-          <p className="tabular mt-0.5 text-xs font-medium text-muted-foreground">
+          <p className="tabular-nums mt-0.5 text-xs font-medium text-muted-foreground">
             {innings.total_overs.toFixed(1)} ov
           </p>
         </div>
@@ -138,12 +138,12 @@ export function MatchCard({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                 {match.venue && (
                   <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground/70" />
-                    <span>{match.venue}</span>
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
+                    <span className="truncate max-w-[200px]">{match.venue}</span>
                   </span>
                 )}
-                <span className="tabular inline-flex items-center gap-1.5">
-                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/70" />
+                <span className="tabular-nums inline-flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                   <span>{formatDate(match.scheduled_at)}</span>
                 </span>
               </div>
@@ -165,7 +165,7 @@ export function MatchCard({
                     className="flex-1 gap-1.5"
                   >
                     <span>
-                      <PlayCircle className="h-3.5 w-3.5" />
+                      <PlayCircle className="h-3.5 w-3.5 shrink-0" />
                       Score
                     </span>
                   </Button>

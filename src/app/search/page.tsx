@@ -23,7 +23,7 @@ function Section<T>({
     <div>
       <div className="mb-2.5 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <span className="tabular text-xs font-medium text-muted-foreground">
+        <span className="tabular-nums text-xs font-medium text-muted-foreground">
           {items.length} {items.length === 1 ? "result" : "results"}
         </span>
       </div>
@@ -49,14 +49,14 @@ export default async function SearchPage({
       result.tournaments.length > 0);
 
   return (
-    <div className="container mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-3xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <h1 className="text-2xl font-bold tracking-tight">Search</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Teams, matches, players, clubs and tournaments
       </p>
 
       <form action="/search" method="GET" className="relative mt-6">
-        <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3.5 top-3.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <Input
           id="search-query"
           name="q"

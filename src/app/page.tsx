@@ -35,7 +35,7 @@ export default function HomePage() {
   const { user } = useAuth();
 
   return (
-    <div className="space-y-10 pb-16 sm:space-y-16">
+    <div className="w-full max-w-full overflow-x-hidden space-y-10 pb-16 sm:space-y-16">
       {/* Sunlit Hero Section */}
       <section className="card-hero relative overflow-hidden bg-gradient-to-b from-card via-card/90 to-emerald-500/5 px-4 py-10 text-center sm:px-12 sm:py-24">
         {/* Single ambient wash — one memorable light, not two */}
@@ -65,7 +65,7 @@ export default function HomePage() {
                   className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/matches/create" className="gap-2">
-                    <Zap className="h-4 w-4" />
+                    <Zap className="h-4 w-4 shrink-0" />
                     <span>Score New Match</span>
                   </Link>
                 </Button>
@@ -86,7 +86,7 @@ export default function HomePage() {
                   className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
                 >
                   <Link href="/auth/signup" className="gap-2">
-                    <Sparkles className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4 shrink-0" />
                     <span>Start Free Account</span>
                   </Link>
                 </Button>
@@ -125,7 +125,7 @@ export default function HomePage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/80 bg-background text-primary shadow-sm">
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-5 w-5 shrink-0" />
                   </span>
                   <Badge variant="outline" className="text-[10.5px]">
                     {badge}
@@ -160,7 +160,7 @@ export default function HomePage() {
           {/* For Scorers */}
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-sm font-bold text-emerald-950 dark:text-emerald-200 sm:text-base">
-              <Zap className="h-4 w-4 text-emerald-600" />
+              <Zap className="h-4 w-4 shrink-0 text-emerald-600" />
               For Scorers &amp; Officials
             </h3>
             <ul className="mt-3 space-y-2.5 text-xs sm:mt-4 sm:space-y-3 sm:text-sm">
@@ -183,7 +183,7 @@ export default function HomePage() {
           {/* For Streamers */}
           <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 sm:p-6">
             <h3 className="flex items-center gap-2 text-sm font-bold text-sky-950 dark:text-sky-200 sm:text-base">
-              <Tv className="h-4 w-4 text-sky-600" />
+              <Tv className="h-4 w-4 shrink-0 text-sky-600" />
               For OBS Streamers &amp; Channels
             </h3>
             <ul className="mt-3 space-y-2.5 text-xs sm:mt-4 sm:space-y-3 sm:text-sm">

@@ -129,7 +129,7 @@ export function ClubTournamentsTab({
         {isAdmin && (
           <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
             <Link href={`/tournaments/create?clubId=${clubId}`}>
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 shrink-0" />
               Host Tournament
             </Link>
           </Button>
@@ -140,7 +140,7 @@ export function ClubTournamentsTab({
       {tournaments.length > 0 && (
         <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <Input
               placeholder="Search tournaments or venues..."
               value={searchQuery}
@@ -157,7 +157,7 @@ export function ClubTournamentsTab({
                   className="h-8 w-[140px] text-xs"
                   aria-label="Filter by season"
                 >
-                  <Filter className="mr-1.5 h-3 w-3 text-muted-foreground" />
+                  <Filter className="mr-1.5 h-3 w-3 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder="Season" />
                 </SelectTrigger>
                 <SelectContent>
@@ -243,7 +243,7 @@ export function ClubTournamentsTab({
                             variant="secondary"
                             className="gap-1 text-[10px]"
                           >
-                            <Calendar className="h-2.5 w-2.5" />
+                            <Calendar className="h-2.5 w-2.5 shrink-0" />
                             {seasonName}
                           </Badge>
                         )}
@@ -259,13 +259,13 @@ export function ClubTournamentsTab({
                     )}
                     {t.venue && (
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5 text-primary" />
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                         <span>{t.venue}</span>
                       </div>
                     )}
                     {(t.start_date || t.end_date) && (
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-primary" />
+                        <Calendar className="h-3.5 w-3.5 shrink-0 text-primary" />
                         <span>
                           {t.start_date ?? "TBD"}
                           {t.end_date ? ` to ${t.end_date}` : ""}

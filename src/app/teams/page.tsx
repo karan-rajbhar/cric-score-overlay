@@ -40,7 +40,7 @@ export default async function TeamsPage({
   };
 
   return (
-    <div className="container mx-auto px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -54,7 +54,7 @@ export default async function TeamsPage({
         </div>
         <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
           <Link href="/teams/create">
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-2 h-4 w-4 shrink-0" />
             Create team
           </Link>
         </Button>
@@ -84,7 +84,7 @@ export default async function TeamsPage({
           </Link>
         </div>
         <div className="relative w-full flex-1 sm:max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <form action="/teams" method="GET">
             <Input
               name="search"

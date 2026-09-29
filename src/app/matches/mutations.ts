@@ -969,6 +969,11 @@ export interface MatchSettingsUpdate {
   lastManStands?: boolean;
   goldenBall?: boolean;
   title?: string;
+  ballsPerOver?: number;
+  maxBallsPerOver?: number | null;
+  wideCountsAsBallFaced?: boolean;
+  wideRunsToBatsman?: boolean;
+  noballExtrasToBatsman?: boolean;
 }
 
 export async function updateMatchSettings(
@@ -983,6 +988,16 @@ export async function updateMatchSettings(
       return {
         success: false,
         error: "Overs per innings must be at least 1",
+      };
+    }
+
+    if (
+      settings.ballsPerOver !== undefined &&
+      (settings.ballsPerOver < 2 || settings.ballsPerOver > 12)
+    ) {
+      return {
+        success: false,
+        error: "Balls per over must be between 2 and 12",
       };
     }
 
@@ -1019,6 +1034,16 @@ export async function updateMatchSettings(
     if (settings.goldenBall !== undefined)
       matchUpdates.golden_ball = settings.goldenBall;
     if (settings.title !== undefined) matchUpdates.title = settings.title;
+    if (settings.ballsPerOver !== undefined)
+      matchUpdates.balls_per_over = settings.ballsPerOver;
+    if (settings.maxBallsPerOver !== undefined)
+      matchUpdates.max_balls_per_over = settings.maxBallsPerOver;
+    if (settings.wideCountsAsBallFaced !== undefined)
+      matchUpdates.wide_counts_as_ball_faced = settings.wideCountsAsBallFaced;
+    if (settings.wideRunsToBatsman !== undefined)
+      matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
+    if (settings.noballExtrasToBatsman !== undefined)
+      matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
 
     if (Object.keys(matchUpdates).length > 0) {
       const { error: matchErr } = await supabase
@@ -1064,6 +1089,369 @@ export async function updateMatchSettings(
       error: friendlyError(
         err instanceof Error ? err.message : "Failed to update match settings",
       ),
+    };
+  }
+}
+
+export async function abandonMatch(
+  matchId: string,
+  params: {
+    reason: string;
+    resultType?: "abandoned" | "no_result" | "win";
+    winningTeamId?: string | null;
+    notes?: string | null;
+  },
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to abandon a match" };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can abandon a match",
+      };
+    }
+
+    const resultDescription = params.notes
+      ? `Match abandoned: ${params.reason}. ${params.notes}`
+      : `Match abandoned: ${params.reason}`;
+
+    const updatePayload: Record<string, unknown> = {
+      status: "abandoned",
+      result_type: params.resultType ?? "abandoned",
+      result_description: resultDescription,
+      actual_end_time: new Date().toISOString(),
+    };
+
+    if (params.resultType === "win" && params.winningTeamId) {
+      updatePayload.winning_team_id = params.winningTeamId;
+    }
+
+    const { error: matchErr } = await supabase
+      .from("matches")
+      .update(updatePayload)
+      .eq("id", matchId);
+
+    if (matchErr) {
+      console.error("abandonMatch failed:", matchErr);
+      return { success: false, error: friendlyError(matchErr.message) };
+    }
+
+    // End active innings
+    await supabase
+      .from("innings")
+      .update({ is_completed: true })
+      .eq("match_id", matchId);
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in abandonMatch:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to abandon match",
+      ),
+    };
+  }
+}
+
+export async function awardTeamPenalty(
+  matchId: string,
+  params: {
+    teamId: string;
+    runs: number;
+    reason: string;
+    type?: "penalty" | "bonus";
+  },
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const awardType = params.type ?? "penalty";
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to award penalty runs" };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can award penalty runs",
+      };
+    }
+
+    const { data: match } = await supabase
+      .from("matches")
+      .select("*, innings(*)")
+      .eq("id", matchId)
+      .single();
+
+    if (!match) return { success: false, error: "Match not found" };
+
+    const currentInnings = match.innings?.find(
+      (i: { innings_number: number }) => i.innings_number === match.current_innings,
+    );
+
+    if (!currentInnings) {
+      return { success: false, error: "No active innings found to award penalty" };
+    }
+
+    const isBattingTeam = currentInnings.team_id === params.teamId;
+
+    if (isBattingTeam) {
+      const striker = await supabase
+        .from("batting_performances")
+        .select("user_id")
+        .eq("innings_id", currentInnings.id)
+        .eq("is_striker", true)
+        .maybeSingle();
+
+      const nonStriker = await supabase
+        .from("batting_performances")
+        .select("user_id")
+        .eq("innings_id", currentInnings.id)
+        .eq("is_current_batsman", true)
+        .eq("is_striker", false)
+        .maybeSingle();
+
+      const bowler = await supabase
+        .from("bowling_performances")
+        .select("user_id")
+        .eq("innings_id", currentInnings.id)
+        .eq("is_current_bowler", true)
+        .maybeSingle();
+
+      if (striker.data && nonStriker.data && bowler.data) {
+        await supabase.from("ball_by_ball").insert({
+          match_id: matchId,
+          innings_id: currentInnings.id,
+          over_number: match.current_over,
+          ball_number: match.current_ball + 1,
+          bowler_id: bowler.data.user_id,
+          batsman_id: striker.data.user_id,
+          non_striker_id: nonStriker.data.user_id,
+          runs_scored: 0,
+          extras: params.runs,
+          extra_type: awardType,
+          commentary: `${awardType === "bonus" ? "Bonus" : "Penalty"}: +${params.runs} runs awarded to batting team (${params.reason})`,
+        });
+        await supabase.rpc("recompute_innings", { p_innings_id: currentInnings.id });
+      } else {
+        const updatePayload: Record<string, number> = {
+          total_runs: (currentInnings.total_runs ?? 0) + params.runs,
+          extras_total: (currentInnings.extras_total ?? 0) + params.runs,
+        };
+        if (awardType === "bonus") {
+          updatePayload.extras_bonuses = (currentInnings.extras_bonuses ?? 0) + params.runs;
+        } else {
+          updatePayload.extras_penalties = (currentInnings.extras_penalties ?? 0) + params.runs;
+        }
+        await supabase
+          .from("innings")
+          .update(updatePayload)
+          .eq("id", currentInnings.id);
+      }
+    } else {
+      if (match.current_innings === 1) {
+        await supabase.from("match_events").insert({
+          match_id: matchId,
+          event_type: "penalty",
+          event_data: {
+            team_id: params.teamId,
+            runs: params.runs,
+            reason: params.reason,
+          },
+        });
+      } else {
+        const newTarget = Math.max(1, (currentInnings.target_runs ?? 0) - params.runs);
+        await supabase
+          .from("innings")
+          .update({ target_runs: newTarget })
+          .eq("id", currentInnings.id);
+      }
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in awardTeamPenalty:", err);
+    return {
+      success: false,
+      error: friendlyError(err instanceof Error ? err.message : "Failed to award penalty"),
+    };
+  }
+}
+
+export async function retirePlayer(
+  matchId: string,
+  params: {
+    playerId: string;
+    type: "retired_hurt" | "retired_out";
+    reason?: string | null;
+  },
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to retire a player" };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can retire a player",
+      };
+    }
+
+    const { data: match } = await supabase
+      .from("matches")
+      .select("current_innings")
+      .eq("id", matchId)
+      .single();
+
+    if (!match) return { success: false, error: "Match not found" };
+
+    const { data: innings } = await supabase
+      .from("innings")
+      .select("id, total_wickets, total_runs, total_balls")
+      .eq("match_id", matchId)
+      .eq("innings_number", match.current_innings)
+      .single();
+
+    if (!innings) return { success: false, error: "Active innings not found" };
+
+    const isOut = params.type === "retired_out";
+
+    const { error: bpErr } = await supabase
+      .from("batting_performances")
+      .update({
+        is_out: isOut,
+        dismissal_type: params.type,
+        is_current_batsman: false,
+        is_striker: false,
+      })
+      .eq("innings_id", innings.id)
+      .eq("user_id", params.playerId);
+
+    if (bpErr) {
+      console.error("retirePlayer failed on batting_performances:", bpErr);
+      return { success: false, error: friendlyError(bpErr.message) };
+    }
+
+    if (isOut) {
+      await supabase
+        .from("innings")
+        .update({
+          total_wickets: (innings.total_wickets ?? 0) + 1,
+        })
+        .eq("id", innings.id);
+
+      await supabase.from("fall_of_wickets").insert({
+        match_id: matchId,
+        innings_id: innings.id,
+        wicket_number: (innings.total_wickets ?? 0) + 1,
+        runs_at_fall: innings.total_runs,
+        overs_at_fall: Math.floor((innings.total_balls ?? 0) / 6) + ((innings.total_balls ?? 0) % 6) / 10,
+        batsman_out_id: params.playerId,
+        dismissal_type: "retired_out",
+      });
+    }
+
+    await supabase.rpc("recompute_innings", { p_innings_id: innings.id });
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in retirePlayer:", err);
+    return {
+      success: false,
+      error: friendlyError(err instanceof Error ? err.message : "Failed to retire player"),
+    };
+  }
+}
+
+export async function updateTargetRuns(
+  matchId: string,
+  params: {
+    targetRuns: number | null;
+    overs?: number | null;
+  },
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to update target" };
+    }
+
+    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can update target",
+      };
+    }
+
+    const { data: match } = await supabase
+      .from("matches")
+      .select("current_innings")
+      .eq("id", matchId)
+      .single();
+
+    const currentInningsNum = match?.current_innings ?? 2;
+
+    const { error: innErr } = await supabase
+      .from("innings")
+      .update({ target_runs: params.targetRuns })
+      .eq("match_id", matchId)
+      .eq("innings_number", currentInningsNum);
+
+    if (innErr) {
+      return { success: false, error: friendlyError(innErr.message) };
+    }
+
+    if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
+      await supabase
+        .from("matches")
+        .update({ overs_per_innings: params.overs })
+        .eq("id", matchId);
+    }
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in updateTargetRuns:", err);
+    return {
+      success: false,
+      error: friendlyError(err instanceof Error ? err.message : "Failed to update target"),
     };
   }
 }

@@ -8,6 +8,8 @@ export interface PreferencesStoreState {
   hapticFeedback: boolean;
   sunlightMode: boolean;
   wagonWheelPrompt: boolean;
+  wagonWheelMode: "off" | "boundaries" | "all";
+  voiceAnnouncements: boolean;
   defaultMatchFormat: MatchFormat;
   defaultOvers: number;
 
@@ -21,6 +23,9 @@ export interface PreferencesStoreState {
   setSunlightMode: (enabled: boolean) => void;
   toggleWagonWheelPrompt: () => void;
   setWagonWheelPrompt: (enabled: boolean) => void;
+  setWagonWheelMode: (mode: "off" | "boundaries" | "all") => void;
+  toggleVoiceAnnouncements: () => void;
+  setVoiceAnnouncements: (enabled: boolean) => void;
   setDefaultFormat: (format: MatchFormat, overs?: number) => void;
   resetPreferences: () => void;
 }
@@ -31,6 +36,8 @@ const DEFAULT_PREFERENCES = {
   hapticFeedback: true,
   sunlightMode: false,
   wagonWheelPrompt: false,
+  wagonWheelMode: "all" as const,
+  voiceAnnouncements: false,
   defaultMatchFormat: "T20" as MatchFormat,
   defaultOvers: 20,
 };
@@ -39,6 +46,17 @@ export const usePreferencesStore = create<PreferencesStoreState>()(
   persist(
     (set) => ({
       ...DEFAULT_PREFERENCES,
+
+      toggleVoiceAnnouncements: () =>
+        set((state) => ({ voiceAnnouncements: !state.voiceAnnouncements })),
+
+      setVoiceAnnouncements: (voiceAnnouncements) => set({ voiceAnnouncements }),
+
+      setWagonWheelMode: (wagonWheelMode) =>
+        set({
+          wagonWheelMode,
+          wagonWheelPrompt: wagonWheelMode !== "off",
+        }),
 
       toggleSound: () =>
         set((state) => ({ soundEffectsEnabled: !state.soundEffectsEnabled })),

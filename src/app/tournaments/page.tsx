@@ -19,14 +19,14 @@ export default async function TournamentsPage() {
     .order("start_date", { ascending: false });
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
           Tournaments
         </h1>
         <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
           <Link href="/tournaments/create">
-            <Plus className="mr-1.5 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4 shrink-0" />
             New tournament
           </Link>
         </Button>
@@ -58,7 +58,7 @@ export default async function TournamentsPage() {
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
-                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
                     <span>
                       {formatTournamentFormat(t.tournament_format)}
                       {t.venue ? `, ${t.venue}` : ""}

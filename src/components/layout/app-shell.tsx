@@ -19,6 +19,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <main className="min-h-screen bg-transparent">{children}</main>;
   }
 
+  // If this is live match scoring, render dedicated distraction-free scoring console
+  // without global site navbar (search, profile), sidebar, or footer
+  const isScoring =
+    Boolean(pathname?.includes("/matches/")) &&
+    Boolean(pathname?.endsWith("/score") || pathname?.includes("/score/"));
+  if (isScoring) {
+    return (
+      <main className="min-h-screen bg-background text-foreground">
+        {children}
+      </main>
+    );
+  }
+
   return (
     <div className="sunlit-canvas flex min-h-screen flex-col bg-background text-foreground">
         <NavigationBar />
@@ -31,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
             }`}
           >
-            <div className="mx-auto max-w-[1440px] px-3.5 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
+            <div className="mx-auto w-full max-w-[1440px] overflow-x-hidden px-3.5 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
               {children}
             </div>
           </main>

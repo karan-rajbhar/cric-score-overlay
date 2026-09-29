@@ -142,4 +142,88 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
       }),
     );
   });
+
+  it("allows setting custom balls per over and max balls per over with extras", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+
+    // Change balls per over input to 5
+    const bpoInput = screen.getByLabelText(/^balls per over$/i);
+    fireEvent.change(bpoInput, { target: { value: "5" } });
+
+    const saveButton = screen.getByRole("button", { name: /save changes/i });
+    fireEvent.click(saveButton);
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ballsPerOver: 5,
+      }),
+    );
+  });
+
+  it("allows configuring custom local extras crediting to batsman", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+
+    // Checkboxes for extras
+    const wideBallCheckbox = screen.getByRole("checkbox", {
+      name: /add wide balls to batsman/i,
+    });
+    const wideRunsCheckbox = screen.getByRole("checkbox", {
+      name: /add wide runs to batsman/i,
+    });
+    const nbExtrasCheckbox = screen.getByRole("checkbox", {
+      name: /add no ball extras to batsman/i,
+    });
+
+    fireEvent.click(wideBallCheckbox);
+    fireEvent.click(wideRunsCheckbox);
+    fireEvent.click(nbExtrasCheckbox);
+
+    const saveButton = screen.getByRole("button", { name: /save changes/i });
+    fireEvent.click(saveButton);
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wideCountsAsBallFaced: true,
+        wideRunsToBatsman: true,
+        noballExtrasToBatsman: true,
+      }),
+    );
+  });
+
+  it("triggers onOpenAbandon when abandon match button in danger zone is clicked", () => {
+    const onOpenAbandon = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={vi.fn()}
+        onOpenAbandon={onOpenAbandon}
+        isProcessing={false}
+      />,
+    );
+
+    const abandonButton = screen.getByRole("button", { name: /^abandon$/i });
+    fireEvent.click(abandonButton);
+
+    expect(onOpenAbandon).toHaveBeenCalled();
+  });
 });

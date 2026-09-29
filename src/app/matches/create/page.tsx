@@ -506,8 +506,8 @@ function CreateMatchWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-6 sm:py-8">
-      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background py-6 sm:py-8">
+      <div className="container mx-auto w-full max-w-2xl overflow-x-hidden px-3 sm:px-4">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <Button variant="ghost" asChild className="mb-4">
@@ -520,7 +520,7 @@ function CreateMatchWizard() {
                     : "/matches"
               }
             >
-              <ChevronLeft className="mr-2 h-4 w-4" />
+              <ChevronLeft className="mr-2 h-4 w-4 shrink-0" />
               {selectedTournament
                 ? `Back to ${selectedTournament.name}`
                 : selectedClub
@@ -536,7 +536,7 @@ function CreateMatchWizard() {
             </h1>
             {selectedTournament && (
               <Badge variant="outline" className="gap-1">
-                <Trophy className="h-3 w-3 text-amber-500" />
+                <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
                 {selectedTournament.name}
               </Badge>
             )}
@@ -558,7 +558,7 @@ function CreateMatchWizard() {
                     : "bg-muted text-muted-foreground"
                 }`}
               >
-                {step > s ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : s}
+                {step > s ? <Check className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" /> : s}
               </div>
               {s < 4 && (
                 <div
@@ -664,9 +664,9 @@ function CreateMatchWizard() {
                   {selectedTournament && (
                     <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
                       <div className="flex items-center gap-1.5 font-medium text-amber-500">
-                        <Trophy className="h-3.5 w-3.5" />
+                        <Trophy className="h-3.5 w-3.5 shrink-0" />
                         <span className="inline-flex items-center gap-1">
-                          Teams with <Star className="inline h-3 w-3 fill-amber-500 text-amber-500" /> are registered in{" "}
+                          Teams with <Star className="inline h-3 w-3 shrink-0 fill-amber-500 text-amber-500" /> are registered in{" "}
                           {selectedTournament.name}
                         </span>
                       </div>
@@ -682,7 +682,7 @@ function CreateMatchWizard() {
                   )}
                   {selectedClub && isClubOrganizer && !selectedTournament && (
                     <div className="mb-4 flex items-center gap-1.5 text-xs font-medium text-blue-500">
-                      <Shield className="h-3.5 w-3.5" />
+                      <Shield className="h-3.5 w-3.5 shrink-0" />
                       <span>Club Admin Access for {selectedClub.name}</span>
                     </div>
                   )}
@@ -690,7 +690,7 @@ function CreateMatchWizard() {
 
                 {teamsLoading ? (
                   <div className="flex flex-col items-center justify-center gap-3 py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <Loader2 className="h-6 w-6 shrink-0 animate-spin text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">
                       Loading teams...
                     </span>
@@ -698,7 +698,7 @@ function CreateMatchWizard() {
                 ) : teamsLoadError ? (
                   <div className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-center">
                     <div className="flex items-center justify-center gap-2 text-sm text-red-500">
-                      <AlertCircle className="h-4 w-4" />
+                      <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>{teamsLoadError}</span>
                     </div>
                     <Button
@@ -707,7 +707,7 @@ function CreateMatchWizard() {
                       onClick={handleRetry}
                       className="gap-1.5"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                       Retry
                     </Button>
                   </div>
@@ -745,7 +745,7 @@ function CreateMatchWizard() {
                                   setNewTeamName("");
                                 }}
                               >
-                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                <Plus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                                 Create your team
                               </Button>
                             </div>
@@ -873,7 +873,7 @@ function CreateMatchWizard() {
                               setNewTeamName("");
                             }}
                           >
-                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
                             Create new team
                           </Button>
                         </>
@@ -1002,7 +1002,7 @@ function CreateMatchWizard() {
                               setNewTeamName("");
                             }}
                           >
-                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
                             Create opponent team
                           </Button>
                           <p className="mt-1 text-xs text-muted-foreground">
@@ -1068,7 +1068,7 @@ function CreateMatchWizard() {
                         {selectableTournaments.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             <div className="flex items-center gap-2">
-                              <Trophy className="h-3.5 w-3.5 text-amber-500" />
+                              <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500" />
                               <span>{t.name}</span>
                             </div>
                           </SelectItem>
@@ -1102,7 +1102,7 @@ function CreateMatchWizard() {
                         {selectableClubs.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             <div className="flex items-center gap-2">
-                              <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                              <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               <span>{c.name}</span>
                             </div>
                           </SelectItem>
@@ -1269,7 +1269,7 @@ function CreateMatchWizard() {
 
                 {error && (
                   <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-500">
-                    <AlertCircle className="h-5 w-5" />
+                    <AlertCircle className="h-5 w-5 shrink-0" />
                     {error}
                   </div>
                 )}
@@ -1284,7 +1284,7 @@ function CreateMatchWizard() {
                 disabled={step === 1}
                 className="h-11 min-h-[44px] px-5 text-sm font-semibold"
               >
-                <ChevronLeft className="mr-2 h-4 w-4" />
+                <ChevronLeft className="mr-2 h-4 w-4 shrink-0" />
                 Back
               </Button>
 
@@ -1299,7 +1299,7 @@ function CreateMatchWizard() {
                   className="h-11 min-h-[44px] px-6 text-sm font-bold"
                 >
                   Next
-                  <ChevronRight className="ml-2 h-4 w-4" />
+                  <ChevronRight className="ml-2 h-4 w-4 shrink-0" />
                 </Button>
               ) : (
                 <Button
@@ -1309,12 +1309,12 @@ function CreateMatchWizard() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
                       Creating...
                     </>
                   ) : (
                     <>
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check className="mr-2 h-4 w-4 shrink-0" />
                       Create Match
                     </>
                   )}
@@ -1370,7 +1370,7 @@ function CreateMatchWizard() {
               >
                 {newTeamSaving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
                     Creating...
                   </>
                 ) : (
@@ -1390,7 +1390,7 @@ export default function CreateMatchPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />
         </div>
       }
     >

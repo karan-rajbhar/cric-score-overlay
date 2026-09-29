@@ -29,7 +29,7 @@ export function TeamCard({ team }: TeamCardProps) {
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
               {team.short_name?.substring(0, 2) ||
                 team.name.substring(0, 2).toUpperCase()}
             </div>
@@ -51,14 +51,14 @@ export function TeamCard({ team }: TeamCardProps) {
 
         <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5" />
-            <span className="tabular">
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="tabular-nums">
               {team.player_count || 0}{" "}
               {team.player_count === 1 ? "player" : "players"}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Trophy className="h-3.5 w-3.5" />
+            <Trophy className="h-3.5 w-3.5 shrink-0" />
             <span>{formatTeamType(team.team_type)}</span>
           </div>
         </div>

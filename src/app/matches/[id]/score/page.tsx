@@ -47,6 +47,26 @@ const MatchSettingsDialog = dynamic(
     ),
   { ssr: false },
 );
+const PenaltyBonusDialog = dynamic(
+  () =>
+    import("./components/PenaltyBonusDialog").then((m) => m.PenaltyBonusDialog),
+  { ssr: false },
+);
+const AbandonMatchDialog = dynamic(
+  () =>
+    import("./components/AbandonMatchDialog").then((m) => m.AbandonMatchDialog),
+  { ssr: false },
+);
+const RetirePlayerDialog = dynamic(
+  () =>
+    import("./components/RetirePlayerDialog").then((m) => m.RetirePlayerDialog),
+  { ssr: false },
+);
+const ReviseTargetDialog = dynamic(
+  () =>
+    import("./components/ReviseTargetDialog").then((m) => m.ReviseTargetDialog),
+  { ssr: false },
+);
 const DlsCalculatorModal = dynamic(
   () =>
     import("~/components/matches/dls-calculator-modal").then(
@@ -62,7 +82,6 @@ const MatchScorersDialog = dynamic(
   { ssr: false },
 );
 import { useScoring } from "./useScoring";
-import { oversFromBalls } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
@@ -72,15 +91,26 @@ import { cn } from "~/lib/utils";
 import {
   updateMatchSettings,
   reassignCurrentOverBowler,
+  abandonMatch,
+  awardTeamPenalty,
+  retirePlayer,
+  updateTargetRuns,
 } from "../../mutations";
 import type { ExtraType } from "../../types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   ChevronLeft,
   Tv,
   Loader2,
   AlertCircle,
-  Undo2,
   UserPlus,
   Users,
   Award,
@@ -89,6 +119,8 @@ import {
   SlidersHorizontal,
   Sun,
   Zap,
+  MoreVertical,
+  CloudRain,
 } from "lucide-react";
 
 export default function ScoringPage() {
@@ -196,14 +228,25 @@ export default function ScoringPage() {
   const [tossDecision, setTossDecision] = useState<"bat" | "bowl">("bat");
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
+  const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
+  const [showAbandonMatchDialog, setShowAbandonMatchDialog] = useState(false);
+  const [showReviseTargetDialog, setShowReviseTargetDialog] = useState(false);
+  const [retireTarget, setRetireTarget] = useState<{
+    playerId: string;
+    playerName: string;
+  } | null>(null);
   const [reassignOverDeliveries, setReassignOverDeliveries] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<DeliveryToEdit | null>(
     null,
   );
+  const [mobileTab, setMobileTab] = useState<"score" | "squads">("score");
 
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,
   );
+  const isFreeHit =
+    rawDeliveries.length > 0 &&
+    rawDeliveries[rawDeliveries.length - 1]?.extra_type === "no_ball";
   const battingTeam = currentInnings
     ? (currentInnings.team_id === match?.team1_id ? match?.team1 : match?.team2)
     : match?.team1;
@@ -428,6 +471,86 @@ export default function ScoringPage() {
     setShowAddPlayerDialog(false);
   };
 
+  const handleRetirePlayerConfirm = async ({
+    playerId,
+    type,
+    reason,
+  }: {
+    playerId: string;
+    type: "retired_hurt" | "retired_out";
+    reason?: string | null;
+  }) => {
+    if (!match) return;
+    const res = await retirePlayer(match.id, {
+      playerId,
+      type,
+      reason,
+    });
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success(
+        `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
+      );
+      if (strikerId === playerId) {
+        setStrikerId("");
+      }
+      if (nonStrikerId === playerId) {
+        setNonStrikerId("");
+      }
+      await syncFromDb();
+      setShowSelectBatsmen(true);
+    }
+  };
+
+  const handleAwardPenaltyConfirm = async (params: {
+    teamId: string;
+    runs: number;
+    reason: string;
+    type: "penalty" | "bonus";
+  }) => {
+    if (!match) return;
+    const res = await awardTeamPenalty(match.id, params);
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success(
+        `${params.type === "penalty" ? "Penalty" : "Bonus"} of ${params.runs} runs recorded`,
+      );
+      await syncFromDb();
+    }
+  };
+
+  const handleAbandonMatchConfirm = async (params: {
+    reason: string;
+    resultType: "abandoned" | "no_result" | "win";
+    winningTeamId?: string | null;
+    notes?: string | null;
+  }) => {
+    if (!match) return;
+    const res = await abandonMatch(match.id, params);
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success("Match marked as abandoned");
+      await syncFromDb();
+    }
+  };
+
+  const handleReviseTargetConfirm = async (params: {
+    targetRuns: number | null;
+    overs?: number | null;
+  }) => {
+    if (!match) return;
+    const res = await updateTargetRuns(match.id, params);
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success("Target updated successfully");
+      await syncFromDb();
+    }
+  };
+
   if (loading || authLoading || isAuthorized === null) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -519,110 +642,276 @@ export default function ScoringPage() {
     <div
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
-        "min-h-screen bg-background",
+        "min-h-screen bg-background w-full max-w-full overflow-x-hidden",
         sunlightMode && "sunlight-mode",
       )}
     >
+      {/* Dedicated Scorer Console Header (Distraction-Free) */}
       <header
         className={cn(
-          "sticky top-0 z-20 border-b bg-card",
-          sunlightMode && "border-b-2 border-black bg-white",
+          "sticky top-0 z-30 border-b bg-card/95 backdrop-blur-md",
+          sunlightMode
+            ? "border-b-2 border-black bg-white"
+            : "border-border/80 dark:border-[#242f29] dark:bg-[#0d1210]/95",
         )}
       >
-        <div className="container mx-auto flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <Button variant="ghost" size="icon" className="shrink-0" asChild>
+        <div className="container mx-auto flex h-11 w-full max-w-full items-center justify-between px-2.5 sm:h-12 sm:px-4">
+          {/* Left: Back Arrow + Match Title & Format */}
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+              asChild
+            >
               <Link
                 href={`/matches/${match.id}`}
-                aria-label="Back to match details"
+                aria-label="Exit scoring and return to match details"
+                title="Exit scoring"
               >
                 <ChevronLeft className="h-5 w-5" />
               </Link>
             </Button>
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold leading-tight sm:text-base">
-                {match.title}
-              </h1>
-              <p className="truncate text-xs text-muted-foreground">
-                {match.team1.name} vs {match.team2.name}, {match.match_format}
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-xs font-black sm:text-sm">
+                  {match.team1.short_name || match.team1.name} vs{" "}
+                  {match.team2.short_name || match.team2.name}
+                </span>
+                <Badge
+                  variant={match.status === "live" ? "default" : "secondary"}
+                  className="hidden h-4 px-1.5 text-[9px] font-black uppercase sm:inline-flex"
+                >
+                  {match.status}
+                </Badge>
+              </div>
+              <p className="truncate text-[10px] text-muted-foreground sm:text-xs">
+                {match.title} • {match.match_format.toUpperCase()}
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+
+          {/* Right: Quick Tools & Consolidated Actions Menu */}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {/* Sunlight indicator */}
             {sunlightMode && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm">
+              <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-black text-white sm:inline-flex">
                 <Sun className="h-3 w-3" /> SUN
               </span>
             )}
+
+            {/* Awake indicator */}
             {isScreenAwake && (
               <span
                 title="Screen wake lock active to prevent display timeout"
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]"
+                className="hidden items-center gap-1 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 sm:inline-flex"
               >
                 <Zap className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> AWAKE
               </span>
             )}
+
+            {/* Start Match / Toss if scheduled */}
             {match.status === "scheduled" && isScorer && (
               <Button
                 size="sm"
                 onClick={() => setTossDialogDismissed(false)}
-                className="h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-bold"
+                className="h-8 gap-1 rounded-lg px-2.5 text-xs font-bold"
               >
-                <Play className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Start Match</span>
+                <Play className="h-3.5 w-3.5" />
+                <span>Toss</span>
               </Button>
             )}
-            {match.status === "live" && isScorer && (
-              <DlsCalculatorModal match={match} canEdit={isScorer} />
-            )}
+
+            {/* Desktop Direct Action: Settings */}
             {isScorer && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowMatchSettingsDialog(true)}
                 className={cn(
-                  "h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-semibold",
+                  "hidden h-8 gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex",
                   sunlightMode && "border-2 border-black font-bold",
                 )}
-                title="Match Settings & Rules"
+                title="Match Settings & Custom Rules"
               >
-                <SlidersHorizontal className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">Settings</span>
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Settings</span>
               </Button>
             )}
+
+            {/* Desktop Direct Action: Penalty / Bonus */}
+            {match.status === "live" && isScorer && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPenaltyBonusDialog(true)}
+                className={cn(
+                  "hidden h-8 gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex",
+                  sunlightMode && "border-2 border-black font-bold",
+                )}
+                title="Award Team Penalty or Bonus Runs"
+              >
+                <ShieldAlert className="h-3.5 w-3.5" />
+                <span>Penalty/Bonus</span>
+              </Button>
+            )}
+
+            {/* Desktop Direct Action: DLS */}
+            {match.status === "live" && isScorer && (
+              <div className="hidden md:block">
+                <DlsCalculatorModal match={match} canEdit={isScorer} />
+              </div>
+            )}
+
+            {/* Desktop Direct Action: Scorers */}
+            {isScorer && (
+              <div className="hidden lg:block">
+                <MatchScorersDialog
+                  matchId={match.id}
+                  isCreator={match.created_by === user?.id}
+                />
+              </div>
+            )}
+
+            {/* OBS Broadcast Overlay Shortcut */}
             <Button
               variant="outline"
-              size="sm"
-              onClick={() => setShowAddPlayerDialog(true)}
-              className={cn(
-                "h-9 min-h-[36px] px-2.5 sm:h-8 sm:px-3 text-xs font-semibold",
-                sunlightMode && "border-2 border-black font-bold",
-              )}
+              size="icon"
+              className="h-8 w-8 rounded-lg"
+              asChild
+              title="Open broadcast overlay in new tab"
             >
-              <UserPlus className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Add Player</span>
-            </Button>
-            {isScorer && (
-              <MatchScorersDialog
-                matchId={match.id}
-                isCreator={match.created_by === user?.id}
-              />
-            )}
-            <Button variant="ghost" size="icon" className="h-9 w-9 min-h-[36px] min-w-[36px] sm:h-8 sm:w-8" asChild>
               <Link
                 href={`/overlay/${match.id}`}
                 target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Open broadcast overlay in new tab"
               >
                 <Tv className="h-4 w-4" />
               </Link>
             </Button>
+
+            {/* Consolidated "Match Actions" Menu (Primary on Mobile, Comprehensive on Desktop) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 rounded-lg",
+                    sunlightMode && "border-2 border-black font-black",
+                  )}
+                  aria-label="Match actions and scoring options"
+                  title="Match actions & scoring options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-xl">
+                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                  Scoring Controls
+                </DropdownMenuLabel>
+                {isScorer && (
+                  <DropdownMenuItem
+                    onClick={() => setShowMatchSettingsDialog(true)}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  >
+                    <SlidersHorizontal className="h-4 w-4 text-emerald-500" />
+                    <span>Match Rules & Settings</span>
+                  </DropdownMenuItem>
+                )}
+                {match.status === "live" && isScorer && (
+                  <DropdownMenuItem
+                    onClick={() => setShowPenaltyBonusDialog(true)}
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  >
+                    <ShieldAlert className="h-4 w-4 text-rose-500" />
+                    <span>Award Penalty / Bonus Runs</span>
+                  </DropdownMenuItem>
+                )}
+                {match.status === "live" && isScorer && (
+                  <DlsCalculatorModal
+                    match={match}
+                    canEdit={isScorer}
+                    triggerButton={
+                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold hover:bg-muted">
+                        <CloudRain className="h-4 w-4 text-sky-500" />
+                        <span>DLS Rain Calculator</span>
+                      </div>
+                    }
+                  />
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setShowAddPlayerDialog(true)}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                >
+                  <UserPlus className="h-4 w-4 text-primary" />
+                  <span>Add / Manage Players</span>
+                </DropdownMenuItem>
+                {isScorer && (
+                  <MatchScorersDialog
+                    matchId={match.id}
+                    isCreator={match.created_by === user?.id}
+                    triggerButton={
+                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold hover:bg-muted">
+                        <Users className="h-4 w-4 text-amber-500" />
+                        <span>Manage Scorers & Delegation</span>
+                      </div>
+                    }
+                  />
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={toggleSunlightMode}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                >
+                  <Sun className="h-4 w-4 text-amber-500" />
+                  <span>Outdoor Sunlight Mode: {sunlightMode ? "ON" : "OFF"}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+      {/* Mobile Ergonomic Tab Switcher (< lg) */}
+      <div className="sticky top-11 z-20 flex items-center gap-1 border-b border-border/40 bg-background/95 px-2 py-1 backdrop-blur-md lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileTab("score")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1 text-xs font-black transition-all",
+            mobileTab === "score"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted/50",
+          )}
+        >
+          <Zap className="h-3.5 w-3.5 shrink-0" />
+          <span>Live Scoring</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("squads")}
+          className={cn(
+            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1 text-xs font-black transition-all",
+            mobileTab === "squads"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted/50",
+          )}
+        >
+          <Users className="h-3.5 w-3.5 shrink-0" />
+          <span>Squads ({battingTeamPlayers.length + bowlingTeamPlayers.length})</span>
+        </button>
+      </div>
+
+      <div className="container mx-auto grid max-w-6xl w-full min-w-0 gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
+        <div
+          className={cn(
+            "space-y-2 sm:space-y-4 lg:col-span-2 min-w-0 w-full",
+            mobileTab !== "score" && "hidden lg:block",
+          )}
+        >
           {match.status === "scheduled" && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary-950 dark:border-emerald-500/35 dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]">
               <div>
@@ -643,94 +932,6 @@ export default function ScoringPage() {
               </Button>
             </div>
           )}
-          <Card
-            data-sunlight={sunlightMode ? "true" : "false"}
-            className={
-              sunlightMode
-                ? "border-2 border-black bg-white shadow-none"
-                : ""
-            }
-          >
-            <CardContent className="p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p
-                    className={cn(
-                      "text-xs font-bold sm:text-sm",
-                      sunlightMode ? "text-black" : "text-muted-foreground",
-                    )}
-                  >
-                    {battingTeam?.name ?? "—"} batting
-                  </p>
-                  <p
-                    className={cn(
-                      "score-display text-3xl font-black sm:text-4xl tabular-nums tracking-tight",
-                      sunlightMode && "text-black",
-                    )}
-                  >
-                    {`${currentInnings?.total_runs ?? 0}/${currentInnings?.total_wickets ?? 0}`}
-                    <span
-                      className={cn(
-                        "ml-2 text-base font-bold sm:text-lg",
-                        sunlightMode ? "text-black" : "text-muted-foreground",
-                      )}
-                    >
-                      ({oversFromBalls(currentInnings?.total_balls)} ov)
-                    </span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleUndo()}
-                    disabled={isProcessing}
-                    className={cn(
-                      "h-10 min-h-[40px] px-3.5 text-xs font-bold sm:h-9 sm:min-h-0 sm:font-semibold",
-                      sunlightMode
-                        ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
-                        : "",
-                    )}
-                  >
-                    <Undo2 className="mr-1.5 h-4 w-4" /> Undo
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEndInnings()}
-                    disabled={isProcessing}
-                    className={cn(
-                      "h-10 min-h-[40px] px-3.5 text-xs font-bold sm:h-9 sm:min-h-0 sm:font-semibold",
-                      sunlightMode
-                        ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
-                        : "",
-                    )}
-                  >
-                    End Inns
-                  </Button>
-                </div>
-              </div>
-              {lastBalls.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {lastBalls.map((b, i) => (
-                    <Badge
-                      key={i}
-                      variant={b === "W" ? "destructive" : "secondary"}
-                      className={cn(
-                        "tabular font-black",
-                        sunlightMode &&
-                          (b === "W"
-                            ? "border-2 border-black bg-red-600 text-white"
-                            : "border-2 border-black bg-white text-black"),
-                      )}
-                    >
-                      {b}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
           {match.status === "completed" && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:border-amber-500/35 dark:bg-amber-950/40 dark:text-amber-200 dark:shadow-[inset_0_1px_0_0_rgba(251,191,36,0.2)]">
@@ -768,6 +969,9 @@ export default function ScoringPage() {
           <LiveMatchHUD
             match={match}
             currentInnings={currentInnings}
+            battingTeamName={battingTeam?.name}
+            onEndInnings={() => void handleEndInnings()}
+            isProcessing={isProcessing}
             striker={strikerDisplay}
             nonStriker={nonStrikerDisplay}
             bowler={bowlerDisplay}
@@ -809,6 +1013,23 @@ export default function ScoringPage() {
                 setShowEditBallDialog(true);
               }
             }}
+            onRetireStriker={() => {
+              if (strikerDisplay) {
+                setRetireTarget({
+                  playerId: strikerDisplay.id,
+                  playerName: strikerDisplay.name,
+                });
+              }
+            }}
+            onRetireNonStriker={() => {
+              if (nonStrikerDisplay) {
+                setRetireTarget({
+                  playerId: nonStrikerDisplay.id,
+                  playerName: nonStrikerDisplay.name,
+                });
+              }
+            }}
+            onReviseTarget={() => setShowReviseTargetDialog(true)}
             sunlightMode={sunlightMode}
           />
 
@@ -816,6 +1037,18 @@ export default function ScoringPage() {
             onScore={onScore}
             onWicket={openWicketDialog}
             onUndo={() => void handleUndo()}
+            onEditLastBall={() => {
+              const d = rawDeliveries[rawDeliveries.length - 1];
+              if (d) {
+                setEditingDelivery(d);
+                setShowEditBallDialog(true);
+              }
+            }}
+            onSwapStriker={() => {
+              if (strikerId && nonStrikerId && !isProcessing) {
+                void handleConfirmBatsmen(nonStrikerId, strikerId);
+              }
+            }}
             onSelectBall={(idx) => {
               const d = rawDeliveries[idx];
               if (d) {
@@ -826,6 +1059,7 @@ export default function ScoringPage() {
             currentOver={match.current_over}
             currentBall={match.current_ball}
             lastBalls={lastBalls}
+            isFreeHit={isFreeHit}
             disabled={!isScorer || isProcessing || match.status !== "live"}
             sunlightMode={sunlightMode}
             onToggleSunlightMode={toggleSunlightMode}
@@ -855,8 +1089,13 @@ export default function ScoringPage() {
             )}
         </div>
 
-        <div className="space-y-4">
-          <Card>
+        <div
+          className={cn(
+            "space-y-4",
+            mobileTab !== "squads" && "hidden lg:block",
+          )}
+        >
+          <Card className="content-visibility-auto">
             <CardContent className="p-4">
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Users className="h-4 w-4" /> Squads
@@ -915,6 +1154,41 @@ export default function ScoringPage() {
               >
                 <UserPlus className="mr-1.5 h-4 w-4" /> Manage Players
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Desktop Match Rules & Extras Breakdown Card */}
+          <Card className="hidden lg:block">
+            <CardContent className="p-4 space-y-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <SlidersHorizontal className="h-4 w-4 text-emerald-500" /> Match Insights
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-2">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Format</p>
+                  <p className="font-extrabold text-foreground">{match.match_format || "Custom"}</p>
+                </div>
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-2">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground">Overs</p>
+                  <p className="font-extrabold tabular-nums text-foreground">{match.overs_per_innings} ov ({match.balls_per_over ?? 6}b/ov)</p>
+                </div>
+              </div>
+
+              {currentInnings && (
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="text-muted-foreground">Innings Extras:</span>
+                    <span className="tabular-nums font-black text-foreground">{currentInnings.extras_total ?? 0}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                    <span>Wd: <strong className="text-foreground">{currentInnings.extras_wides ?? 0}</strong></span>
+                    <span>Nb: <strong className="text-foreground">{currentInnings.extras_no_balls ?? 0}</strong></span>
+                    <span>B: <strong className="text-foreground">{currentInnings.extras_byes ?? 0}</strong></span>
+                    <span>Lb: <strong className="text-foreground">{currentInnings.extras_leg_byes ?? 0}</strong></span>
+                    <span>Pen: <strong className="text-foreground">{currentInnings.extras_penalties ?? 0}</strong></span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -1054,6 +1328,7 @@ export default function ScoringPage() {
         onRunsCompletedChange={setRunsCompletedBeforeRunOut}
         onConfirm={() => void onWicketConfirm()}
         isProcessing={isProcessing}
+        isFreeHit={isFreeHit}
       />
 
       <EditBallDialog
@@ -1104,6 +1379,48 @@ export default function ScoringPage() {
             await syncFromDb();
           }
         }}
+        onOpenAbandon={() => {
+          setShowMatchSettingsDialog(false);
+          setShowAbandonMatchDialog(true);
+        }}
+        isProcessing={isProcessing}
+      />
+
+      <PenaltyBonusDialog
+        open={showPenaltyBonusDialog}
+        onOpenChange={setShowPenaltyBonusDialog}
+        battingTeam={battingTeam}
+        bowlingTeam={bowlingTeam}
+        onConfirm={handleAwardPenaltyConfirm}
+        isProcessing={isProcessing}
+      />
+
+      <AbandonMatchDialog
+        open={showAbandonMatchDialog}
+        onOpenChange={setShowAbandonMatchDialog}
+        team1={match.team1}
+        team2={match.team2}
+        onConfirm={handleAbandonMatchConfirm}
+        isProcessing={isProcessing}
+      />
+
+      <RetirePlayerDialog
+        open={Boolean(retireTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRetireTarget(null);
+        }}
+        playerId={retireTarget?.playerId ?? ""}
+        playerName={retireTarget?.playerName ?? ""}
+        onConfirm={handleRetirePlayerConfirm}
+        isProcessing={isProcessing}
+      />
+
+      <ReviseTargetDialog
+        open={showReviseTargetDialog}
+        onOpenChange={setShowReviseTargetDialog}
+        currentTarget={currentInnings?.target_runs}
+        currentOvers={match.overs_per_innings}
+        onConfirm={handleReviseTargetConfirm}
         isProcessing={isProcessing}
       />
     </div>

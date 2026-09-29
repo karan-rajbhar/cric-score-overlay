@@ -123,7 +123,7 @@ export function ClubMatchesTab({
         {isAdmin && (
           <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
             <Link href={`/matches/create?clubId=${clubId}`}>
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 shrink-0" />
               Schedule Match
             </Link>
           </Button>
@@ -134,7 +134,7 @@ export function ClubMatchesTab({
       {matches.length > 0 && (
         <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/60 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <Input
               placeholder="Search teams, title, or venue..."
               value={searchQuery}
@@ -151,7 +151,7 @@ export function ClubMatchesTab({
                   className="h-8 w-[140px] text-xs"
                   aria-label="Filter matches by season"
                 >
-                  <Filter className="mr-1.5 h-3 w-3 text-muted-foreground" />
+                  <Filter className="mr-1.5 h-3 w-3 shrink-0 text-muted-foreground" />
                   <SelectValue placeholder="Season" />
                 </SelectTrigger>
                 <SelectContent>
@@ -228,7 +228,7 @@ export function ClubMatchesTab({
                           variant="secondary"
                           className="gap-1 text-[10px]"
                         >
-                          <Calendar className="h-2.5 w-2.5" />
+                          <Calendar className="h-2.5 w-2.5 shrink-0" />
                           {seasonName}
                         </Badge>
                       )}
@@ -243,7 +243,7 @@ export function ClubMatchesTab({
                       }
                     >
                       {isLive && (
-                        <Radio className="mr-1 h-3 w-3 animate-pulse text-emerald-400" />
+                        <Radio className="mr-1 h-3 w-3 shrink-0 animate-pulse text-emerald-400" />
                       )}
                       {formatStatus(m.status)}
                     </Badge>
@@ -299,7 +299,7 @@ export function ClubMatchesTab({
                       className="h-7 gap-1 text-xs"
                     >
                       <Link href={`/overlay/${m.id}`} target="_blank">
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3 w-3 shrink-0" />
                         Overlay
                       </Link>
                     </Button>

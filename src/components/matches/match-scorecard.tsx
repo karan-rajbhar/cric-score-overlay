@@ -78,10 +78,10 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                     {teamName(match, innings.team_id)} Innings
                   </CardTitle>
                   <div className="text-right">
-                    <div className="text-3xl font-bold">
+                    <div className="text-3xl font-bold tabular-nums">
                       {innings.total_runs}/{innings.total_wickets}
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-muted-foreground tabular-nums">
                       ({formatDecimalOvers(innings.total_overs)} overs)
                     </div>
                   </div>
@@ -151,19 +151,19 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
                             {bp.runs_scored}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.balls_faced}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.fours}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.sixes}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {strikeRate(bp.runs_scored, bp.balls_faced)}
                           </TableCell>
                         </TableRow>
@@ -179,10 +179,10 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-medium text-muted-foreground">Extras</span>
                   <div className="flex items-center gap-2 sm:gap-4">
-                    <span className="tabular text-base font-bold text-foreground">
+                    <span className="tabular-nums text-base font-bold text-foreground">
                       {innings.extras_total || 0}
                     </span>
-                    <span className="text-xs text-muted-foreground sm:text-sm">
+                    <span className="text-xs text-muted-foreground sm:text-sm tabular-nums">
                       (wd {innings.extras_wides || 0}, nb{" "}
                       {innings.extras_no_balls || 0}, b{" "}
                       {innings.extras_byes || 0}, lb{" "}
@@ -230,19 +230,19 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                           <TableCell className="px-2 py-2 text-xs font-medium sm:px-4 sm:py-3 sm:text-sm">
                             {bp.user?.full_name}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {oversFromBalls(bp.balls_bowled ?? 0)}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.maidens}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {bp.runs_conceded}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs font-semibold sm:px-2 sm:py-3 sm:text-sm">
                             {bp.wickets_taken}
                           </TableCell>
-                          <TableCell className="tabular px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
+                          <TableCell className="tabular-nums px-1.5 py-2 text-center text-xs sm:px-2 sm:py-3 sm:text-sm">
                             {economyRate(bp.runs_conceded, bp.balls_bowled)}
                           </TableCell>
                         </TableRow>

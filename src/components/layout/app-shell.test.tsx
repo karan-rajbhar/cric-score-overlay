@@ -41,6 +41,21 @@ describe("AppShell Component", () => {
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 
+  it("renders dedicated scoring container without navigation, sidebar, or footer for /matches/.../score routes", () => {
+    mockUsePathname.mockReturnValue("/matches/match-123/score");
+
+    render(
+      <AppShell>
+        <div data-testid="scoring-child">Live Scoring Cockpit</div>
+      </AppShell>
+    );
+
+    expect(screen.getByTestId("scoring-child")).toBeInTheDocument();
+    expect(screen.queryByTestId("mock-nav-bar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mock-sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
   it("renders standard shell with navbar, sidebar, content, and footer for regular pages", () => {
     mockUsePathname.mockReturnValue("/matches");
 

@@ -32,7 +32,7 @@ function ClubCard({ club }: { club: ClubRow }) {
               name={club.name}
               shortName={club.short_name}
               logoUrl={club.logo_url}
-              className="h-10 w-10 text-sm rounded-xl"
+              className="h-10 w-10 shrink-0 text-sm rounded-xl"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
@@ -53,7 +53,7 @@ function ClubCard({ club }: { club: ClubRow }) {
               <Badge variant="outline">{formatClubType(club.club_type)}</Badge>
             )}
             <span>
-              {teamCount} {teamCount === 1 ? "team" : "teams"}
+              <span className="tabular-nums">{teamCount}</span> {teamCount === 1 ? "team" : "teams"}
             </span>
           </div>
         </CardContent>
@@ -111,7 +111,7 @@ export default async function ClubsPage() {
   const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-10">
+    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10">
       <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
@@ -124,7 +124,7 @@ export default async function ClubsPage() {
         {user && (
           <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
             <Link href="/clubs/create">
-              <Plus className="mr-1.5 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4 shrink-0" />
               Create club
             </Link>
           </Button>

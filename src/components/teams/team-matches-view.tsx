@@ -122,7 +122,7 @@ export function TeamMatchesView({
     if (match.status === "scheduled") {
       return (
         <Badge variant="outline" className="gap-1 text-muted-foreground">
-          <Clock className="h-3 w-3" />
+          <Clock className="h-3 w-3 shrink-0" />
           Upcoming
         </Badge>
       );
@@ -141,12 +141,12 @@ export function TeamMatchesView({
       const isWinner = match.winning_team_id === currentTeamId;
       return isWinner ? (
         <Badge className="border-emerald-500/30 bg-emerald-500/15 font-semibold text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="mr-1 h-3 w-3" />
+          <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" />
           Won
         </Badge>
       ) : (
         <Badge className="border-rose-500/30 bg-rose-500/15 font-semibold text-rose-600 dark:text-rose-400">
-          <XCircle className="mr-1 h-3 w-3" />
+          <XCircle className="mr-1 h-3 w-3 shrink-0" />
           Lost
         </Badge>
       );
@@ -167,7 +167,7 @@ export function TeamMatchesView({
               className="h-7 text-xs font-medium"
               onClick={() => setScopeFilter("tournament")}
             >
-              <Trophy className="mr-1 h-3 w-3" />
+              <Trophy className="mr-1 h-3 w-3 shrink-0" />
               {tournamentInfo.name} ({tournamentMatchesCount})
             </Button>
             <Button
@@ -259,7 +259,7 @@ export function TeamMatchesView({
                           href={`/tournaments/${match.tournament.id}`}
                           className="flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-primary"
                         >
-                          <Trophy className="h-3 w-3 text-amber-500" />
+                          <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
                           <span className="max-w-[140px] truncate">
                             {match.tournament.name}
                           </span>
@@ -286,7 +286,7 @@ export function TeamMatchesView({
                           name={match.team1.name}
                           shortName={match.team1.short_name}
                           logoUrl={match.team1.logo_url}
-                          className="h-7 w-7 text-xs"
+                          className="h-7 w-7 shrink-0 text-xs"
                         />
                         <div className="min-w-0">
                           <p className="truncate text-sm">
@@ -301,10 +301,10 @@ export function TeamMatchesView({
                       </div>
                       {inn1 ? (
                         <div className="text-right">
-                          <p className="score-display tabular text-base font-semibold leading-none">
+                          <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn1.total_runs}/{inn1.total_wickets}
                           </p>
-                          <p className="tabular mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
                             {inn1.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -328,7 +328,7 @@ export function TeamMatchesView({
                           name={match.team2.name}
                           shortName={match.team2.short_name}
                           logoUrl={match.team2.logo_url}
-                          className="h-7 w-7 text-xs"
+                          className="h-7 w-7 shrink-0 text-xs"
                         />
                         <div className="min-w-0">
                           <p className="truncate text-sm">
@@ -343,10 +343,10 @@ export function TeamMatchesView({
                       </div>
                       {inn2 ? (
                         <div className="text-right">
-                          <p className="score-display tabular text-base font-semibold leading-none">
+                          <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn2.total_runs}/{inn2.total_wickets}
                           </p>
-                          <p className="tabular mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
                             {inn2.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -368,12 +368,12 @@ export function TeamMatchesView({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         {match.venue && (
                           <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
+                            <MapPin className="h-3 w-3 shrink-0" />
                             {match.venue}
                           </span>
                         )}
-                        <span className="tabular inline-flex items-center gap-1">
-                          <CalendarDays className="h-3 w-3" />
+                        <span className="tabular-nums inline-flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3 shrink-0" />
                           {formatDate(match.scheduled_at)}
                         </span>
                       </div>
@@ -396,7 +396,7 @@ export function TeamMatchesView({
                         }`}
                       >
                         <span>View Match Scorecard</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                       </Link>
                     </Button>
                   </div>

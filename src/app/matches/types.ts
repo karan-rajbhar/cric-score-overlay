@@ -20,9 +20,20 @@ export interface MatchFormData {
   wicketsPerInnings?: number;
   lastManStands?: boolean;
   goldenBall?: boolean;
+  ballsPerOver?: number;
+  maxBallsPerOver?: number | null;
+  wideCountsAsBallFaced?: boolean;
+  wideRunsToBatsman?: boolean;
+  noballExtrasToBatsman?: boolean;
 }
 
-export type ExtraType = "wide" | "no_ball" | "bye" | "leg_bye" | "penalty";
+export type ExtraType =
+  | "wide"
+  | "no_ball"
+  | "bye"
+  | "leg_bye"
+  | "penalty"
+  | "bonus";
 
 export interface BallEvent {
   runsScored?: number;

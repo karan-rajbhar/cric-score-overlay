@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
             {success ? (
               <div className="space-y-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="h-6 w-6" />
+                  <CheckCircle2 className="h-6 w-6 shrink-0" />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Please check your email and follow the instructions to set a
@@ -81,7 +81,7 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
                   <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4 shrink-0" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
                     Email address
                   </Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
                       name="email"
@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
                     className="gap-2 text-xs text-muted-foreground"
                   >
                     <Link href="/auth/login">
-                      <ArrowLeft className="h-3.5 w-3.5" />
+                      <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
                       Back to sign in
                     </Link>
                   </Button>

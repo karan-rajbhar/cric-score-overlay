@@ -322,7 +322,7 @@ export default async function TournamentPage({
       : "All Tournaments";
 
   return (
-    <div className="container mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       {/* Top Back Nav & Breadcrumbs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button
@@ -332,7 +332,7 @@ export default async function TournamentPage({
           className="interactive-button pl-0 text-xs sm:text-sm"
         >
           <Link href={backHref}>
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
             <span className="sm:hidden">Back</span>
             <span className="hidden sm:inline">{backLabel}</span>
           </Link>
@@ -386,7 +386,7 @@ export default async function TournamentPage({
               {tournament.club && (
                 <Link href={`/clubs/${(tournament.club as { id: string }).id}`}>
                   <Badge variant="outline" className="hover:border-primary/50">
-                    <Shield className="mr-1 h-3 w-3" />
+                    <Shield className="mr-1 h-3 w-3 shrink-0" />
                     {(tournament.club as { name: string }).name}
                   </Badge>
                 </Link>
@@ -406,13 +406,13 @@ export default async function TournamentPage({
             <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
               {tournament.venue && (
                 <div className="flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5 text-primary" />
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span>{tournament.venue}</span>
                 </div>
               )}
               {(tournament.start_date || tournament.end_date) && (
                 <div className="flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span>
                     {tournament.start_date ?? "TBD"}
                     {tournament.end_date ? ` to ${tournament.end_date}` : ""}
@@ -420,7 +420,7 @@ export default async function TournamentPage({
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 text-primary" />
+                <Users className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span>{(registrations ?? []).length} Teams registered</span>
               </div>
             </div>
@@ -448,7 +448,7 @@ export default async function TournamentPage({
                 className="w-full justify-center gap-1.5 sm:w-auto"
               >
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 shrink-0" />
                   Schedule Match
                 </Link>
               </Button>
@@ -467,28 +467,28 @@ export default async function TournamentPage({
             value="standings"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Points Table
           </TabsTrigger>
           <TabsTrigger
             value="fixtures"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Fixtures ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="teams"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Teams ({(registrations ?? []).length})
           </TabsTrigger>
           <TabsTrigger
             value="analysis"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Trophy className="h-3.5 w-3.5 text-amber-500 sm:h-4 sm:w-4" />
+            <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500 sm:h-4 sm:w-4" />
             Leaderboard & Stats
           </TabsTrigger>
         </TabsList>
@@ -626,19 +626,19 @@ export default async function TournamentPage({
                                 </span>
                               )}
                             </td>
-                            <td className="tabular px-3 py-3 text-center">
+                            <td className="tabular-nums px-3 py-3 text-center">
                               {s.matches_played}
                             </td>
-                            <td className="tabular px-3 py-3 text-center font-medium text-emerald-500">
+                            <td className="tabular-nums px-3 py-3 text-center font-medium text-emerald-500">
                               {s.wins}
                             </td>
-                            <td className="tabular px-3 py-3 text-center text-red-400">
+                            <td className="tabular-nums px-3 py-3 text-center text-red-400">
                               {s.losses}
                             </td>
-                            <td className="tabular px-3 py-3 text-center text-muted-foreground">
+                            <td className="tabular-nums px-3 py-3 text-center text-muted-foreground">
                               {s.ties}
                             </td>
-                            <td className="tabular px-3 py-3 text-center text-base font-bold text-foreground">
+                            <td className="tabular-nums px-3 py-3 text-center text-base font-bold text-foreground">
                               <div>{s.points}</div>
                               {s.points_adjustment &&
                                 Number(s.points_adjustment) !== 0 && (
@@ -651,7 +651,7 @@ export default async function TournamentPage({
                                 )}
                             </td>
                             <td
-                              className={`tabular px-3 py-3 text-center font-mono text-xs ${
+                              className={`tabular-nums px-3 py-3 text-center font-mono text-xs ${
                                 nrrVal > 0
                                   ? "font-semibold text-emerald-500"
                                   : nrrVal < 0
@@ -706,7 +706,7 @@ export default async function TournamentPage({
               )}
               <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 shrink-0" />
                   Schedule Match
                 </Link>
               </Button>
@@ -717,7 +717,7 @@ export default async function TournamentPage({
           {liveMatches.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Radio className="h-4 w-4 animate-pulse text-emerald-400" />
+                <Radio className="h-4 w-4 shrink-0 animate-pulse text-emerald-400" />
                 <h3 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                   Live now
                 </h3>
@@ -804,7 +804,7 @@ export default async function TournamentPage({
           {isTournamentAdmin && pendingRegistrations.length > 0 && (
             <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
               <h3 className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-400">
-                <Shield className="h-4 w-4" />
+                <Shield className="h-4 w-4 shrink-0" />
                 Pending registration requests ({pendingRegistrations.length})
               </h3>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -882,7 +882,9 @@ export default async function TournamentPage({
                           )}
                         </div>
                         <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
-                          <span>{playerCount} Players in Squad</span>
+                          <span>
+                            <span className="tabular-nums">{playerCount}</span> Players in Squad
+                          </span>
                           <span className="font-medium text-emerald-500">
                             {formatStatus(r.status)}
                           </span>
@@ -956,7 +958,7 @@ function MatchCard({
               {match.team1?.name ?? "Team 1"}
             </span>
             {inn1?.total_runs !== undefined && inn1.total_runs !== null ? (
-              <span className="tabular text-base font-bold">
+              <span className="tabular-nums text-base font-bold">
                 {inn1.total_runs}/{inn1.total_wickets ?? 0}
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({inn1.total_overs ?? 0} ov)
@@ -973,7 +975,7 @@ function MatchCard({
               {match.team2?.name ?? "Team 2"}
             </span>
             {inn2?.total_runs !== undefined && inn2.total_runs !== null ? (
-              <span className="tabular text-base font-bold">
+              <span className="tabular-nums text-base font-bold">
                 {inn2.total_runs}/{inn2.total_wickets ?? 0}
                 <span className="ml-1 text-xs text-muted-foreground">
                   ({inn2.total_overs ?? 0} ov)
@@ -999,7 +1001,7 @@ function MatchCard({
             className="h-7 gap-1 text-xs"
           >
             <Link href={`/overlay/${match.id}`} target="_blank">
-              <ExternalLink className="h-3 w-3" />
+              <ExternalLink className="h-3 w-3 shrink-0" />
               Overlay
             </Link>
           </Button>

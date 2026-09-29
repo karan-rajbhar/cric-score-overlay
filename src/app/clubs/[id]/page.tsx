@@ -355,10 +355,10 @@ export default async function ClubPage({
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link href="/clubs">
-          <ChevronLeft className="mr-1 h-4 w-4" />
+          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
           All Clubs
         </Link>
       </Button>
@@ -377,7 +377,7 @@ export default async function ClubPage({
               name={club.name}
               shortName={club.short_name}
               logoUrl={club.logo_url}
-              className="h-12 w-12 sm:h-16 sm:w-16 text-lg sm:text-2xl rounded-2xl"
+              className="h-12 w-12 shrink-0 sm:h-16 sm:w-16 text-lg sm:text-2xl rounded-2xl"
             />
             <div>
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -400,7 +400,7 @@ export default async function ClubPage({
                     variant={s.is_current ? "default" : "outline"}
                     className="gap-1 text-xs"
                   >
-                    <Calendar className="h-3 w-3" />
+                    <Calendar className="h-3 w-3 shrink-0" />
                     <span>{s.name}</span>
                     {s.is_current && (
                       <span className="text-[10px] font-normal opacity-80">
@@ -431,19 +431,19 @@ export default async function ClubPage({
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
                 {club.location && (
                   <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span>{club.location}</span>
                   </div>
                 )}
                 {club.contact_email && (
                   <div className="flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5 text-primary" />
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span>{club.contact_email}</span>
                   </div>
                 )}
                 {club.contact_phone && (
                   <div className="flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 text-primary" />
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span>{club.contact_phone}</span>
                   </div>
                 )}
@@ -458,7 +458,7 @@ export default async function ClubPage({
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 hover:text-foreground"
                   >
-                    <Globe className="h-3.5 w-3.5 text-primary" />
+                    <Globe className="h-3.5 w-3.5 shrink-0 text-primary" />
                     <span>Website</span>
                   </a>
                 )}
@@ -536,13 +536,13 @@ export default async function ClubPage({
                   className="w-full gap-1.5 sm:w-auto"
                 >
                   <Link href={`/tournaments/create?clubId=${club.id}`}>
-                    <Trophy className="h-4 w-4" />
+                    <Trophy className="h-4 w-4 shrink-0" />
                     Host Tournament
                   </Link>
                 </Button>
                 <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                   <Link href={`/teams/create?clubId=${club.id}`}>
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-4 w-4 shrink-0" />
                     Create Club Team
                   </Link>
                 </Button>
@@ -554,7 +554,7 @@ export default async function ClubPage({
         {/* Club Stats Counters */}
         <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border/50 pt-4 text-center sm:grid-cols-4">
           <div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold tabular-nums text-foreground">
               {typedTeams.length}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -562,7 +562,7 @@ export default async function ClubPage({
             </div>
           </div>
           <div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold tabular-nums text-foreground">
               {typedTournaments.length}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -570,7 +570,7 @@ export default async function ClubPage({
             </div>
           </div>
           <div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold tabular-nums text-foreground">
               {typedHallOfFame.length}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -578,7 +578,7 @@ export default async function ClubPage({
             </div>
           </div>
           <div>
-            <div className="text-xl font-bold text-foreground">
+            <div className="text-xl font-bold tabular-nums text-foreground">
               {typedMembers.length}
             </div>
             <div className="text-xs font-medium text-muted-foreground">
@@ -598,42 +598,42 @@ export default async function ClubPage({
             value="teams"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Shield className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Teams ({typedTeams.length})
           </TabsTrigger>
           <TabsTrigger
             value="tournaments"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Trophy className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Tournaments ({typedTournaments.length})
           </TabsTrigger>
           <TabsTrigger
             value="matches"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Matches ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="stats"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Stats & Records
           </TabsTrigger>
           <TabsTrigger
             value="hall-of-fame"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Award className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Hall of Fame ({typedHallOfFame.length})
           </TabsTrigger>
           <TabsTrigger
             value="members"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Members ({typedMembers.length})
           </TabsTrigger>
         </TabsList>
@@ -650,7 +650,7 @@ export default async function ClubPage({
             {isAdmin && (
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/teams/create?clubId=${club.id}`}>
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 shrink-0" />
                   Add Team
                 </Link>
               </Button>
@@ -700,7 +700,7 @@ export default async function ClubPage({
                       <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
                         <span>{formatTeamType(team.team_type)}</span>
                         <span>
-                          {team.team_players?.[0]?.count ?? 0} Players
+                          <span className="tabular-nums">{team.team_players?.[0]?.count ?? 0}</span> Players
                         </span>
                       </div>
                     </CardContent>
@@ -756,7 +756,7 @@ export default async function ClubPage({
                   variant="secondary"
                   className="border-amber-500/20 bg-amber-500/10 text-xs text-amber-500"
                 >
-                  <Sparkles className="mr-1 h-3 w-3" />
+                  <Sparkles className="mr-1 h-3 w-3 shrink-0" />
                   Honors & Legends
                 </Badge>
               </div>

@@ -54,11 +54,17 @@ export interface LiveMatchHUDProps {
   bowler: BowlerDisplay | null;
   lastBalls: string[];
   rawDeliveries?: DeliveryToEdit[];
+  battingTeamName?: string;
+  onEndInnings?: () => void;
+  isProcessing?: boolean;
   onSwapStriker?: () => void;
   onChangeStriker?: () => void;
   onChangeNonStriker?: () => void;
   onChangeBowler?: () => void;
   onSelectBall?: (index: number) => void;
+  onRetireStriker?: () => void;
+  onRetireNonStriker?: () => void;
+  onReviseTarget?: () => void;
   sunlightMode?: boolean;
 }
 
@@ -70,11 +76,17 @@ export function LiveMatchHUD({
   bowler,
   lastBalls,
   rawDeliveries = [],
+  battingTeamName,
+  onEndInnings,
+  isProcessing = false,
   onSwapStriker,
   onChangeStriker,
   onChangeNonStriker,
   onChangeBowler,
   onSelectBall,
+  onRetireStriker,
+  onRetireNonStriker,
+  onReviseTarget,
   sunlightMode = false,
 }: LiveMatchHUDProps) {
   // Innings calculations
@@ -97,9 +109,11 @@ export function LiveMatchHUD({
     [currentInnings],
   );
 
+  const bpo = match.balls_per_over ?? 6;
+
   const totalInningsBalls = useMemo(
-    () => (match.overs_per_innings ?? 20) * 6,
-    [match.overs_per_innings],
+    () => (match.overs_per_innings ?? 20) * bpo,
+    [match.overs_per_innings, bpo],
   );
 
   const ballsRem = useMemo(
@@ -117,14 +131,14 @@ export function LiveMatchHUD({
   }, [targetRuns, isSecondInnings, currentRuns]);
 
   const crr = useMemo(
-    () => (currentInnings ? runRate(currentRuns, ballsBowled) : "0.00"),
-    [currentInnings, currentRuns, ballsBowled],
+    () => (currentInnings ? runRate(currentRuns, ballsBowled, bpo) : "0.00"),
+    [currentInnings, currentRuns, ballsBowled, bpo],
   );
 
   const rrr = useMemo(() => {
     if (runsNeeded == null) return null;
-    return requiredRunRate(runsNeeded, ballsRem);
-  }, [runsNeeded, ballsRem]);
+    return requiredRunRate(runsNeeded, ballsRem, bpo);
+  }, [runsNeeded, ballsRem, bpo]);
 
   // Projected score in 1st innings
   const projectedScore = useMemo(() => {
@@ -137,13 +151,13 @@ export function LiveMatchHUD({
   // Projected at 8 & 10 RPO in 1st innings
   const proj8 = useMemo(() => {
     if (isSecondInnings) return null;
-    return Math.round(currentRuns + (ballsRem / 6) * 8);
-  }, [isSecondInnings, currentRuns, ballsRem]);
+    return Math.round(currentRuns + (ballsRem / bpo) * 8);
+  }, [isSecondInnings, currentRuns, ballsRem, bpo]);
 
   const proj10 = useMemo(() => {
     if (isSecondInnings) return null;
-    return Math.round(currentRuns + (ballsRem / 6) * 10);
-  }, [isSecondInnings, currentRuns, ballsRem]);
+    return Math.round(currentRuns + (ballsRem / bpo) * 10);
+  }, [isSecondInnings, currentRuns, ballsRem, bpo]);
 
   // Active partnership calculation
   const partnership = useMemo(() => {
@@ -153,14 +167,14 @@ export function LiveMatchHUD({
     const pRuns = Math.max(0, currentRuns - (lastFow?.runs_at_fall ?? 0));
     const pBalls = Math.max(
       0,
-      ballsBowled - (lastFow ? ballsFromOvers(lastFow.overs_at_fall ?? 0) : 0),
+      ballsBowled - (lastFow ? ballsFromOvers(lastFow.overs_at_fall ?? 0, bpo) : 0),
     );
     return {
       runs: pRuns,
       balls: pBalls,
-      runRate: runRate(pRuns, pBalls),
+      runRate: runRate(pRuns, pBalls, bpo),
     };
-  }, [currentInnings, currentRuns, ballsBowled]);
+  }, [currentInnings, currentRuns, ballsBowled, bpo]);
 
   // Bowler max overs limit
   const maxBowlerOvers = useMemo(
@@ -170,10 +184,10 @@ export function LiveMatchHUD({
 
   const bowlerBallsCount = useMemo(() => {
     if (!bowler) return 0;
-    return ballsFromOvers(bowler.overs);
-  }, [bowler]);
+    return ballsFromOvers(bowler.overs, bpo);
+  }, [bowler, bpo]);
 
-  const bowlerMaxBalls = maxBowlerOvers * 6;
+  const bowlerMaxBalls = maxBowlerOvers * bpo;
   const isBowlerSpellFinished = bowlerBallsCount >= bowlerMaxBalls && bowlerBallsCount > 0;
 
   // Runs in current over
@@ -202,7 +216,7 @@ export function LiveMatchHUD({
   }, [crr, rrr]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 sm:space-y-3">
       {/* 1. KEY MATCH SITUATION & EQUATION BANNER */}
       {match.status === "live" && (
         <Card
@@ -218,14 +232,48 @@ export function LiveMatchHUD({
                 : "border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-background to-sky-500/5 dark:border-sky-500/30",
           )}
         >
-          <CardContent className="p-3.5 sm:p-4">
+          <CardContent className="p-2 sm:p-4">
+            {/* Integrated Live Scoreboard Strip */}
+            <div className="flex items-center justify-between border-b border-border/40 pb-1.5 mb-1.5 sm:pb-2 sm:mb-2">
+              <div className="min-w-0">
+                <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground block truncate uppercase tracking-wider">
+                  {battingTeamName ?? (match.current_innings === 1 ? match.team1?.name : match.team2?.name) ?? "Batting"} · Inns {match.current_innings}
+                </span>
+                <div className="flex items-baseline gap-1.5 sm:gap-2">
+                  <span className="score-display text-xl sm:text-3xl font-black tabular-nums tracking-tight text-foreground">
+                    {currentRuns}/{currentWickets}
+                  </span>
+                  <span className="text-xs sm:text-sm font-extrabold text-muted-foreground">
+                    ({oversFromBalls(ballsBowled, bpo)} ov)
+                  </span>
+                </div>
+              </div>
+
+              {onEndInnings && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEndInnings}
+                  disabled={isProcessing}
+                  className={cn(
+                    "h-7 px-2 text-[11px] sm:h-8 sm:px-2.5 sm:text-xs font-extrabold",
+                    sunlightMode
+                      ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
+                      : "",
+                  )}
+                >
+                  End Inns
+                </Button>
+              )}
+            </div>
+
             {isSecondInnings && targetRuns != null ? (
-              <div className="space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+              <div className="space-y-1.5 sm:space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <span
                       className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold",
+                        "flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full font-bold",
                         sunlightMode
                           ? "bg-black text-white"
                           : isAheadOfRate
@@ -233,13 +281,13 @@ export function LiveMatchHUD({
                             : "bg-amber-500 text-white",
                       )}
                     >
-                      <Zap className="h-4 w-4" />
+                      <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </span>
                     <div>
                       <h3
                         data-testid="chase-equation-title"
                         className={cn(
-                          "text-sm font-black tracking-tight sm:text-base",
+                          "text-xs font-black tracking-tight sm:text-base",
                           sunlightMode
                             ? "text-black"
                             : isAheadOfRate
@@ -258,8 +306,21 @@ export function LiveMatchHUD({
                           "Target Achieved"
                         )}
                       </h3>
-                      <p className="text-[11px] font-medium text-muted-foreground">
-                        Target: <span className="tabular font-bold text-foreground">{targetRuns}</span> · {wicketsInHand} wickets in hand
+                      <p className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-medium text-muted-foreground">
+                        <span>
+                          Target: <span className="tabular font-bold text-foreground">{targetRuns}</span> · {wicketsInHand} wickets in hand
+                        </span>
+                        {onReviseTarget && (
+                          <button
+                            type="button"
+                            onClick={onReviseTarget}
+                            title="Revise target runs or match overs"
+                            className="inline-flex items-center gap-1 rounded bg-muted/70 px-1 py-0.2 sm:px-1.5 sm:py-0.5 text-[9px] sm:text-[10px] font-bold text-foreground hover:bg-muted"
+                          >
+                            <Pencil className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                            Revise Target
+                          </button>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -269,7 +330,7 @@ export function LiveMatchHUD({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "tabular shrink-0 gap-1 px-2.5 py-1 text-xs font-bold",
+                        "tabular shrink-0 gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold",
                         sunlightMode
                           ? "border-2 border-black font-black text-black"
                           : isAheadOfRate
@@ -279,12 +340,12 @@ export function LiveMatchHUD({
                     >
                       {isAheadOfRate ? (
                         <>
-                          <TrendingUp className="h-3 w-3" />
+                          <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                           <span>Ahead +{rateDiff} RPO</span>
                         </>
                       ) : (
                         <>
-                          <TrendingDown className="h-3 w-3" />
+                          <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
                           <span>Req +{rateDiff} RPO</span>
                         </>
                       )}
@@ -293,16 +354,16 @@ export function LiveMatchHUD({
                 </div>
 
                 {/* Key Chase Metrics Grid */}
-                <div className="grid grid-cols-4 gap-1.5 rounded-xl border border-border/70 bg-background/80 p-2 text-center text-xs dark:bg-card/70">
-                  <div className="border-r border-border/60 px-1">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Target</p>
-                    <p className="tabular font-score text-sm font-black">{targetRuns}</p>
+                <div className="grid grid-cols-4 gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl border border-border/70 bg-background/80 p-1 sm:p-2 text-center text-[10px] sm:text-xs dark:bg-card/70">
+                  <div className="border-r border-border/60 px-0.5 sm:px-1">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Target</p>
+                    <p className="tabular font-score text-xs sm:text-sm font-black">{targetRuns}</p>
                   </div>
-                  <div className="border-r border-border/60 px-1">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Req RR</p>
+                  <div className="border-r border-border/60 px-0.5 sm:px-1">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Req RR</p>
                     <p
                       className={cn(
-                        "tabular font-score text-sm font-black",
+                        "tabular font-score text-xs sm:text-sm font-black",
                         sunlightMode
                           ? "text-black"
                           : isAheadOfRate
@@ -313,13 +374,13 @@ export function LiveMatchHUD({
                       {rrr ?? "—"}
                     </p>
                   </div>
-                  <div className="border-r border-border/60 px-1">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Curr RR</p>
-                    <p className="tabular font-score text-sm font-black">{crr}</p>
+                  <div className="border-r border-border/60 px-0.5 sm:px-1">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Curr RR</p>
+                    <p className="tabular font-score text-xs sm:text-sm font-black">{crr}</p>
                   </div>
-                  <div className="px-1">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Remain</p>
-                    <p className="tabular font-score text-sm font-black">{ballsRem}b</p>
+                  <div className="px-0.5 sm:px-1">
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Remain</p>
+                    <p className="tabular font-score text-xs sm:text-sm font-black">{ballsRem}b</p>
                   </div>
                 </div>
               </div>
@@ -336,7 +397,7 @@ export function LiveMatchHUD({
                         1st Innings · <span className="tabular text-sky-600 dark:text-sky-400">CRR: {crr}</span>
                       </h3>
                       <p className="text-[11px] font-medium text-muted-foreground">
-                        {ballsRem} balls remaining ({oversFromBalls(ballsRem)} ov)
+                        {ballsRem} balls remaining ({oversFromBalls(ballsRem, bpo)} ov)
                       </p>
                     </div>
                   </div>
@@ -374,23 +435,23 @@ export function LiveMatchHUD({
       )}
 
       {/* 2. COMPACT ACTIVE BATSMEN & BOWLER HUD */}
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-1.5 sm:gap-2.5 sm:grid-cols-2">
         {/* ACTIVE BATTERS CARD */}
         <Card
           data-testid="hud-batters-card"
           className={cn(
-            "rounded-2xl border shadow-sm",
+            "rounded-xl sm:rounded-2xl border shadow-sm",
             sunlightMode ? "border-2 border-black bg-white" : "border-border/70 bg-card/90",
           )}
         >
-          <CardContent className="space-y-2 p-3 sm:p-3.5">
-            <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
-              <div className="flex items-center gap-1.5">
-                <Flame className="h-3.5 w-3.5 text-orange-500" />
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <CardContent className="space-y-1 p-2 sm:space-y-2 sm:p-3.5">
+            <div className="flex items-center justify-between border-b border-border/50 pb-1 sm:pb-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Flame className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Batting
                 </span>
-                <span className="tabular text-[11px] text-muted-foreground/80">
+                <span className="tabular text-[10px] sm:text-[11px] text-muted-foreground/80 hidden sm:inline">
                   (Stand: {partnership.runs} off {partnership.balls}b)
                 </span>
               </div>
@@ -400,9 +461,9 @@ export function LiveMatchHUD({
                   onClick={onSwapStriker}
                   title="Swap striker (change who is on strike)"
                   aria-label="Swap active striker"
-                  className="touch-target inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95"
+                  className="touch-target inline-flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2 py-0.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 shrink-0"
                 >
-                  <ArrowLeftRight className="h-3 w-3" />
+                  <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
                   <span>Swap</span>
                 </button>
               )}
@@ -411,15 +472,15 @@ export function LiveMatchHUD({
             {/* Striker Row */}
             <div
               className={cn(
-                "flex items-center justify-between rounded-xl px-2.5 py-1.5 transition-colors",
+                "flex items-center justify-between rounded-lg sm:rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 transition-colors",
                 sunlightMode
                   ? "bg-neutral-100 border border-black font-black"
                   : "bg-emerald-500/10 border border-emerald-500/25",
               )}
             >
-              <div className="min-w-0 flex-1 pr-2">
+              <div className="min-w-0 flex-1 pr-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
                   <span className="truncate text-xs font-extrabold text-foreground">
                     {striker ? striker.name : "Select Striker"} *
                   </span>
@@ -428,23 +489,33 @@ export function LiveMatchHUD({
                       type="button"
                       onClick={onChangeStriker}
                       aria-label="Change striker"
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-3 w-3 shrink-0" />
+                    </button>
+                  )}
+                  {onRetireStriker && striker && (
+                    <button
+                      type="button"
+                      onClick={onRetireStriker}
+                      title="Retire batsman (hurt / out)"
+                      className="ml-1 inline-flex items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-500/20 dark:text-rose-400 shrink-0"
+                    >
+                      Retire
                     </button>
                   )}
                 </div>
                 {striker && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="pl-3.5 text-[10px] text-muted-foreground">
                     SR: {strikeRate(striker.runs, striker.balls)} · {striker.fours}x4, {striker.sixes}x6
                   </p>
                 )}
               </div>
               <div className="shrink-0 text-right">
                 {striker ? (
-                  <p className="tabular font-score text-sm font-black">
+                  <p className="tabular font-score text-xs sm:text-sm font-black whitespace-nowrap">
                     {striker.runs}{" "}
-                    <span className="text-[11px] font-semibold text-muted-foreground">
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground">
                       ({striker.balls})
                     </span>
                   </p>
@@ -452,7 +523,7 @@ export function LiveMatchHUD({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[11px] px-2"
+                    className="h-6 text-[10px] sm:text-[11px] px-2"
                     onClick={onChangeStriker}
                   >
                     Assign
@@ -462,9 +533,10 @@ export function LiveMatchHUD({
             </div>
 
             {/* Non-Striker Row */}
-            <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/20 px-2.5 py-1.5">
-              <div className="min-w-0 flex-1 pr-2">
+            <div className="flex items-center justify-between rounded-lg sm:rounded-xl border border-border/50 bg-muted/20 px-2 py-1 sm:px-2.5 sm:py-1.5">
+              <div className="min-w-0 flex-1 pr-1.5">
                 <div className="flex items-center gap-1.5">
+                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
                   <span className="truncate text-xs font-bold text-muted-foreground">
                     {nonStriker ? nonStriker.name : "Select Non-Striker"}
                   </span>
@@ -473,23 +545,33 @@ export function LiveMatchHUD({
                       type="button"
                       onClick={onChangeNonStriker}
                       aria-label="Change non-striker"
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-3 w-3 shrink-0" />
+                    </button>
+                  )}
+                  {onRetireNonStriker && nonStriker && (
+                    <button
+                      type="button"
+                      onClick={onRetireNonStriker}
+                      title="Retire batsman (hurt / out)"
+                      className="ml-1 inline-flex items-center rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-500/20 dark:text-rose-400 shrink-0"
+                    >
+                      Retire
                     </button>
                   )}
                 </div>
                 {nonStriker && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="pl-3.5 text-[10px] text-muted-foreground">
                     SR: {strikeRate(nonStriker.runs, nonStriker.balls)} · {nonStriker.fours}x4, {nonStriker.sixes}x6
                   </p>
                 )}
               </div>
               <div className="shrink-0 text-right">
                 {nonStriker ? (
-                  <p className="tabular font-score text-sm font-bold text-muted-foreground">
+                  <p className="tabular font-score text-xs sm:text-sm font-bold text-muted-foreground whitespace-nowrap">
                     {nonStriker.runs}{" "}
-                    <span className="text-[11px] font-medium text-muted-foreground/70">
+                    <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground/70">
                       ({nonStriker.balls})
                     </span>
                   </p>
@@ -497,7 +579,7 @@ export function LiveMatchHUD({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[11px] px-2"
+                    className="h-6 text-[10px] sm:text-[11px] px-2"
                     onClick={onChangeNonStriker}
                   >
                     Assign
@@ -512,15 +594,15 @@ export function LiveMatchHUD({
         <Card
           data-testid="hud-bowler-card"
           className={cn(
-            "rounded-2xl border shadow-sm",
+            "rounded-xl sm:rounded-2xl border shadow-sm",
             sunlightMode ? "border-2 border-black bg-white" : "border-border/70 bg-card/90",
           )}
         >
-          <CardContent className="space-y-2 p-3 sm:p-3.5">
-            <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
-              <div className="flex items-center gap-1.5">
-                <Target className="h-3.5 w-3.5 text-sky-500" />
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <CardContent className="space-y-1 p-2 sm:space-y-2 sm:p-3.5">
+            <div className="flex items-center justify-between border-b border-border/50 pb-1 sm:pb-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Target className="h-4 w-4 text-sky-500 shrink-0" />
+                <span className="truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Bowler
                 </span>
               </div>
@@ -529,49 +611,49 @@ export function LiveMatchHUD({
                   type="button"
                   onClick={onChangeBowler}
                   aria-label="Change current bowler"
-                  className="touch-target inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95"
+                  className="touch-target inline-flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2 py-0.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 shrink-0"
                 >
-                  <Pencil className="h-3 w-3" />
+                  <Pencil className="h-3.5 w-3.5 shrink-0" />
                   <span>Change</span>
                 </button>
               )}
             </div>
 
-            <div className="rounded-xl border border-sky-500/25 bg-sky-500/10 px-2.5 py-1.5">
+            <div className="rounded-lg sm:rounded-xl border border-sky-500/25 bg-sky-500/10 px-2 py-1 sm:px-2.5 sm:py-1.5">
               <div className="flex items-center justify-between">
-                <span className="truncate text-xs font-extrabold text-foreground">
+                <span className="truncate text-xs sm:text-sm font-extrabold text-foreground">
                   {bowler ? bowler.name : "Select Bowler"}
                 </span>
-                <span className="tabular font-score text-sm font-black">
+                <span className="tabular font-score text-xs sm:text-sm font-black whitespace-nowrap">
                   {bowler ? `${bowler.wickets}/${bowler.runs}` : "—"}
                 </span>
               </div>
 
               {bowler ? (
-                <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
                   <span>
-                    Overs: <strong className="tabular text-foreground">{oversFromBalls(bowlerBallsCount)}</strong> / {maxBowlerOvers}
+                    Overs: <strong className="tabular text-foreground">{oversFromBalls(bowlerBallsCount, bpo)}</strong> / {maxBowlerOvers}
                   </span>
                   <span>
-                    Econ: <strong className="tabular text-foreground">{economyRate(bowler.runs, bowlerBallsCount)}</strong>
+                    Econ: <strong className="tabular text-foreground">{economyRate(bowler.runs, bowlerBallsCount, bpo)}</strong>
                   </span>
                   <span>
                     Mdns: <strong className="tabular text-foreground">{bowler.maidens}</strong>
                   </span>
                 </div>
               ) : (
-                <p className="text-[11px] text-muted-foreground">No bowler selected for this over</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">No bowler selected for this over</p>
               )}
 
               {isBowlerSpellFinished && (
-                <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                <p className="mt-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                   ⚠ Max quota reached ({maxBowlerOvers} ov)
                 </p>
               )}
             </div>
 
-            {/* This over breakdown badge row */}
-            <div className="flex items-center justify-between pt-0.5 text-[11px]">
+            {/* This over breakdown badge row — hidden on mobile to eliminate redundancy with ScoringPanel */}
+            <div className="hidden sm:flex items-center justify-between pt-0.5 text-[11px]">
               <span className="text-muted-foreground">
                 This Over: <strong className="tabular text-foreground">{thisOverRuns} runs</strong>
               </span>

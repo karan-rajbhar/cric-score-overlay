@@ -88,7 +88,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
           {/* Score comparison pill */}
           <div className="mx-auto grid max-w-lg grid-cols-3 items-center rounded-xl border border-border bg-background/80 p-4 text-center">
             <div>
-              <p className="text-3xl font-extrabold text-primary">
+              <p className="text-3xl font-extrabold text-primary tabular-nums">
                 {team1Wins}
               </p>
               <p className="mt-1 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -96,18 +96,18 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
               </p>
             </div>
             <div className="border-x border-border/60 px-3">
-              <p className="text-xl font-bold text-muted-foreground">{total}</p>
+              <p className="text-xl font-bold text-muted-foreground tabular-nums">{total}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 {total === 1 ? "Match" : "Matches"}
               </p>
               {tiesOrNr > 0 && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+                <p className="mt-0.5 text-[10px] text-muted-foreground/70 tabular-nums">
                   {tiesOrNr} Tied/NR
                 </p>
               )}
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-sky-500">
+              <p className="text-3xl font-extrabold text-sky-500 tabular-nums">
                 {team2Wins}
               </p>
               <p className="mt-1 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -149,7 +149,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
       {/* Previous Matches Feed */}
       <div className="space-y-3">
         <h3 className="flex items-center gap-2 text-lg font-semibold">
-          <Trophy className="h-5 w-5 text-amber-500" />
+          <Trophy className="h-5 w-5 text-amber-500 shrink-0" />
           Past Encounters ({matches.length})
         </h3>
 
@@ -177,7 +177,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                 <Card className="cursor-pointer transition-all hover:border-primary/50">
                   <CardContent className="flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                         <span
                           className={`text-sm font-semibold ${isTeam1Winner ? "font-bold text-primary" : ""}`}
                         >
@@ -186,7 +186,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                         {inn1 && (
                           <Badge
                             variant="secondary"
-                            className="tabular text-xs"
+                            className="tabular-nums text-xs"
                           >
                             {inn1.total_runs}/{inn1.total_wickets} (
                             {inn1.total_overs} ov)
@@ -203,7 +203,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                         {inn2 && (
                           <Badge
                             variant="secondary"
-                            className="tabular text-xs"
+                            className="tabular-nums text-xs"
                           >
                             {inn2.total_runs}/{inn2.total_wickets} (
                             {inn2.total_overs} ov)
@@ -215,16 +215,16 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                       </p>
                     </div>
 
-                    <div className="flex flex-shrink-0 items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
                       {m.venue && (
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
+                          <MapPin className="h-3 w-3 shrink-0" />
                           {m.venue}
                         </span>
                       )}
                       {m.scheduled_at && (
                         <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
+                          <Calendar className="h-3 w-3 shrink-0" />
                           {new Date(m.scheduled_at).toLocaleDateString()}
                         </span>
                       )}

@@ -28,6 +28,7 @@ interface MatchSettingsDialogProps {
   onOpenChange: (open: boolean) => void;
   match: Match;
   onSave: (settings: MatchSettingsUpdate) => Promise<void> | void;
+  onOpenAbandon?: () => void;
   isProcessing?: boolean;
 }
 
@@ -35,11 +36,13 @@ function MatchSettingsForm({
   match,
   onSave,
   onCancel,
+  onOpenAbandon,
   isProcessing,
 }: {
   match: Match;
   onSave: (settings: MatchSettingsUpdate) => Promise<void> | void;
   onCancel: () => void;
+  onOpenAbandon?: () => void;
   isProcessing: boolean;
 }) {
   const secondInnings = match.innings?.find((i) => i.innings_number === 2);
@@ -49,6 +52,23 @@ function MatchSettingsForm({
   const [matchFormat, setMatchFormat] = useState(match.match_format || "T20");
   const [oversPerInnings, setOversPerInnings] = useState<number>(
     match.overs_per_innings || 20,
+  );
+  const [ballsPerOver, setBallsPerOver] = useState<number>(
+    match.balls_per_over || 6,
+  );
+  const [maxBallsPerOver, setMaxBallsPerOver] = useState<string>(
+    match.max_balls_per_over !== null && match.max_balls_per_over !== undefined
+      ? String(match.max_balls_per_over)
+      : "unlimited",
+  );
+  const [wideCountsAsBallFaced, setWideCountsAsBallFaced] = useState<boolean>(
+    Boolean(match.wide_counts_as_ball_faced),
+  );
+  const [wideRunsToBatsman, setWideRunsToBatsman] = useState<boolean>(
+    Boolean(match.wide_runs_to_batsman),
+  );
+  const [noballExtrasToBatsman, setNoballExtrasToBatsman] = useState<boolean>(
+    Boolean(match.noball_extras_to_batsman),
   );
   const [targetRuns, setTargetRuns] = useState<string>(
     currentTarget !== null ? String(currentTarget) : "",
@@ -69,6 +89,14 @@ function MatchSettingsForm({
       title: title.trim() || undefined,
       matchFormat,
       oversPerInnings: Number(oversPerInnings) || 20,
+      ballsPerOver: Number(ballsPerOver) || 6,
+      maxBallsPerOver:
+        maxBallsPerOver !== "unlimited" && maxBallsPerOver.trim() !== ""
+          ? Number(maxBallsPerOver)
+          : null,
+      wideCountsAsBallFaced,
+      wideRunsToBatsman,
+      noballExtrasToBatsman,
       targetRuns: targetRuns.trim() !== "" ? Number(targetRuns) : null,
       wicketsPerInnings: Number(wicketsPerInnings) || 10,
       lastManStands,
@@ -78,6 +106,7 @@ function MatchSettingsForm({
   };
 
   const overPresets = [5, 10, 12, 15, 20, 50];
+  const ballsPerOverPresets = [4, 5, 6, 8, 10];
 
   return (
     <form onSubmit={handleSubmit}>
@@ -171,6 +200,69 @@ function MatchSettingsForm({
           </div>
         </div>
 
+        {/* Balls Per Over */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="balls-per-over" className="text-xs font-bold">
+              Balls Per Over
+            </Label>
+            <span className="text-[11px] text-muted-foreground">
+              Standard: 6 (The Hundred: 5, Box: 4/8)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              id="balls-per-over"
+              type="number"
+              min={2}
+              max={12}
+              value={ballsPerOver}
+              onChange={(e) => setBallsPerOver(Number(e.target.value))}
+              className="h-9 w-20 text-xs font-bold"
+              required
+            />
+            <div className="flex flex-wrap gap-1">
+              {ballsPerOverPresets.map((b) => (
+                <Button
+                  key={b}
+                  type="button"
+                  variant={ballsPerOver === b ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setBallsPerOver(b)}
+                  className="h-8 px-2.5 text-xs font-semibold"
+                >
+                  {b}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Max Balls Per Over (with Extras) */}
+        <div className="space-y-1.5">
+          <Label htmlFor="max-balls-per-over" className="text-xs font-bold">
+            Max Balls Per Over (inclusive of Extras)
+          </Label>
+          <Select
+            value={maxBallsPerOver}
+            onValueChange={setMaxBallsPerOver}
+          >
+            <SelectTrigger id="max-balls-per-over" className="h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unlimited">Unlimited (Standard MCC)</SelectItem>
+              <SelectItem value="6">Max 6 Balls (Junior / Strict)</SelectItem>
+              <SelectItem value="8">Max 8 Balls (ECB Junior / Tape-Ball)</SelectItem>
+              <SelectItem value="10">Max 10 Balls (Indoor / Box)</SelectItem>
+              <SelectItem value="12">Max 12 Balls</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Overs conclude automatically once this delivery count is reached to prevent dragged overs.
+          </p>
+        </div>
+
         {/* Target Runs (if 2nd innings or revised target) */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -209,6 +301,77 @@ function MatchSettingsForm({
           <p className="text-[11px] text-muted-foreground">
             Standard is 10 wickets. Set fewer for box/corporate cricket.
           </p>
+        </div>
+
+        {/* Custom Extras Crediting Rules */}
+        <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Local / Box Cricket Extras Rules</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
+                htmlFor="wide-balls-faced"
+                className="cursor-pointer text-xs font-bold"
+              >
+                Add Wide Balls to Batsman
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Count wide deliveries towards batsman&apos;s balls faced tally.
+              </p>
+            </div>
+            <input
+              id="wide-balls-faced"
+              type="checkbox"
+              checked={wideCountsAsBallFaced}
+              onChange={(e) => setWideCountsAsBallFaced(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
+                htmlFor="wide-runs-batsman"
+                className="cursor-pointer text-xs font-bold"
+              >
+                Add Wide Runs to Batsman
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Credit wide extra runs to the individual batsman&apos;s score.
+              </p>
+            </div>
+            <input
+              id="wide-runs-batsman"
+              type="checkbox"
+              checked={wideRunsToBatsman}
+              onChange={(e) => setWideRunsToBatsman(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
+                htmlFor="noball-extras-batsman"
+                className="cursor-pointer text-xs font-bold"
+              >
+                Add No Ball Extras to Batsman
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Credit the 1-run no ball penalty to the individual batsman&apos;s score.
+              </p>
+            </div>
+            <input
+              id="noball-extras-batsman"
+              type="checkbox"
+              checked={noballExtrasToBatsman}
+              onChange={(e) => setNoballExtrasToBatsman(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+          </div>
         </div>
 
         {/* Special Stumps Rules Options */}
@@ -261,6 +424,34 @@ function MatchSettingsForm({
           </div>
         </div>
 
+        {/* Danger Zone: Abandon Match */}
+        {onOpenAbandon && (
+          <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-destructive">
+                  Abandon Match
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Halt and abandon fixture due to weather, light, or forfeiture.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs font-bold"
+                onClick={() => {
+                  onCancel();
+                  onOpenAbandon();
+                }}
+              >
+                Abandon
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Rain Warning Notice */}
         <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-200">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
@@ -299,6 +490,7 @@ export function MatchSettingsDialog({
   onOpenChange,
   match,
   onSave,
+  onOpenAbandon,
   isProcessing = false,
 }: MatchSettingsDialogProps) {
   return (
@@ -310,6 +502,7 @@ export function MatchSettingsDialog({
             match={match}
             onSave={onSave}
             onCancel={() => onOpenChange(false)}
+            onOpenAbandon={onOpenAbandon}
             isProcessing={isProcessing}
           />
         )}

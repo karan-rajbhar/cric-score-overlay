@@ -33,7 +33,7 @@ export default async function PlayersPage({
   const { data: players } = await query;
 
   return (
-    <div className="container mx-auto max-w-5xl px-3 py-4 sm:px-4 sm:py-8">
+    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Players</h1>
       <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
         All players on the platform
@@ -44,7 +44,7 @@ export default async function PlayersPage({
         method="GET"
         className="relative mt-4 w-full max-w-md sm:mt-6"
       >
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-3 h-4 w-4 shrink-0 text-muted-foreground" />
         <Input
           name="q"
           defaultValue={q}

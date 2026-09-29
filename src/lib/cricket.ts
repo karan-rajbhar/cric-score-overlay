@@ -14,28 +14,39 @@ import type {
  * Cricket overs notation from a ball count: 12 -> "2.0", 8 -> "1.2".
  * Guaranteed integer math — immune to floating point drift or two-dot strings.
  */
-export const oversFromBalls = (balls: number | null | undefined): string => {
+export const oversFromBalls = (
+  balls: number | null | undefined,
+  ballsPerOver: number = 6,
+): string => {
   if (balls == null || isNaN(balls)) return "0.0";
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
   const safeBalls = Math.max(0, Math.round(balls));
-  return `${Math.floor(safeBalls / 6)}.${safeBalls % 6}`;
+  return `${Math.floor(safeBalls / bpo)}.${safeBalls % bpo}`;
 };
 
 /** Decimal overs (engine's 1.2-style) back to a ball count. */
-export const ballsFromOvers = (overs: number): number =>
-  Math.floor(overs) * 6 + Math.round((overs - Math.floor(overs)) * 10);
+export const ballsFromOvers = (
+  overs: number,
+  ballsPerOver: number = 6,
+): number => {
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  return Math.floor(overs) * bpo + Math.round((overs - Math.floor(overs)) * 10);
+};
 
 /** Balls bowled by a bowler row, tolerating either engine column. */
 export const bowlerBalls = (
   b: Pick<BowlingPerformance, "balls_bowled" | "overs_bowled">,
+  ballsPerOver: number = 6,
 ): number =>
   (b.balls_bowled ?? 0) > 0
     ? b.balls_bowled
-    : ballsFromOvers(b.overs_bowled ?? 0);
+    : ballsFromOvers(b.overs_bowled ?? 0, ballsPerOver);
 
 /** Format bowler overs notation from either balls_bowled or overs_bowled. */
 export const formatBowlerOvers = (
   b: Pick<BowlingPerformance, "balls_bowled" | "overs_bowled">,
-): string => oversFromBalls(bowlerBalls(b));
+  ballsPerOver: number = 6,
+): string => oversFromBalls(bowlerBalls(b, ballsPerOver), ballsPerOver);
 
 /** Compute bowler economy rate from either balls_bowled or overs_bowled. */
 export const bowlerEconomy = (
@@ -43,7 +54,8 @@ export const bowlerEconomy = (
     BowlingPerformance,
     "balls_bowled" | "overs_bowled" | "runs_conceded"
   >,
-): string => economyRate(b.runs_conceded, bowlerBalls(b));
+  ballsPerOver: number = 6,
+): string => economyRate(b.runs_conceded, bowlerBalls(b, ballsPerOver), ballsPerOver);
 
 export const hasBowled = (
   b: Pick<BowlingPerformance, "balls_bowled" | "overs_bowled">,
@@ -58,24 +70,31 @@ export const strikeRate = (
 export const economyRate = (
   runs: number | null | undefined,
   balls: number | null | undefined,
-): string =>
-  balls && balls > 0 ? ((runs ?? 0) / (balls / 6)).toFixed(2) : "—";
+  ballsPerOver: number = 6,
+): string => {
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  return balls && balls > 0 ? ((runs ?? 0) / (balls / bpo)).toFixed(2) : "—";
+};
 
-/** Standard Cricket Run Rate (runs per 6 legal balls). */
+/** Standard Cricket Run Rate (runs per overs). */
 export const runRate = (
   runs: number | null | undefined,
   balls: number | null | undefined,
-): string =>
-  balls && balls > 0 ? (((runs ?? 0) * 6) / balls).toFixed(2) : "0.00";
+  ballsPerOver: number = 6,
+): string => {
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  return balls && balls > 0 ? (((runs ?? 0) * bpo) / balls).toFixed(2) : "0.00";
+};
 
 /** Total balls bowled in an innings, resolving total_balls or decimal total_overs. */
 export const inningsBalls = (
   inn: Pick<Innings, "total_balls" | "total_overs"> | null | undefined,
+  ballsPerOver: number = 6,
 ): number => {
   if (!inn) return 0;
   if (inn.total_balls != null && inn.total_balls > 0) return inn.total_balls;
   if (inn.total_overs != null && inn.total_overs > 0)
-    return ballsFromOvers(inn.total_overs);
+    return ballsFromOvers(inn.total_overs, ballsPerOver);
   return 0;
 };
 
@@ -83,13 +102,21 @@ export const inningsBalls = (
 export const ballsRemaining = (
   oversPerInnings: number,
   ballsBowled: number,
-): number => Math.max(0, Math.round(oversPerInnings * 6) - ballsBowled);
+  ballsPerOver: number = 6,
+): number => {
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  return Math.max(0, Math.round(oversPerInnings * bpo) - ballsBowled);
+};
 
-/** Required run rate (runs needed per 6 remaining balls). */
+/** Required run rate (runs needed per remaining overs). */
 export const requiredRunRate = (
   runsNeeded: number,
   ballsRem: number,
-): string => (ballsRem > 0 ? ((runsNeeded * 6) / ballsRem).toFixed(2) : "—");
+  ballsPerOver: number = 6,
+): string => {
+  const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  return ballsRem > 0 ? ((runsNeeded * bpo) / ballsRem).toFixed(2) : "—";
+};
 
 /** "4 1 W wd 6" style label for one delivery. */
 export function deliveryLabel(b: {
@@ -111,6 +138,8 @@ export function deliveryLabel(b: {
       return `lb${b.extras ?? 0}`;
     case "penalty":
       return `p${b.extras ?? 0}`;
+    case "bonus":
+      return `bon${b.extras ?? 0}`;
     default:
       return String(b.runs_scored ?? 0);
   }

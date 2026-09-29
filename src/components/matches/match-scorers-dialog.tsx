@@ -238,11 +238,12 @@ export function MatchScorersDialog({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 min-h-[36px] gap-1.5 px-2 text-xs sm:px-3"
+            className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
             title="Invite co-scorers to record balls live"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlus className="h-4 w-4 shrink-0" />
             <span className="hidden sm:inline">Invite Scorer</span>
+            <span className="sm:hidden">Scorers</span>
           </Button>
         )}
       </DialogTrigger>

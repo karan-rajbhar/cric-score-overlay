@@ -100,7 +100,7 @@ export function ClubStatsTab({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Matches Played</span>
-              <Activity className="h-4 w-4 text-primary" />
+              <Activity className="h-4 w-4 shrink-0 text-primary" />
             </div>
             <div className="mt-2 text-2xl font-extrabold tabular-nums">
               {milestones.totalMatches}
@@ -115,7 +115,7 @@ export function ClubStatsTab({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Runs Scored</span>
-              <Flame className="h-4 w-4 text-amber-500" />
+              <Flame className="h-4 w-4 shrink-0 text-amber-500" />
             </div>
             <div className="mt-2 text-2xl font-extrabold tabular-nums">
               {milestones.totalRuns}
@@ -130,7 +130,7 @@ export function ClubStatsTab({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Wickets Taken</span>
-              <Target className="h-4 w-4 text-emerald-500" />
+              <Target className="h-4 w-4 shrink-0 text-emerald-500" />
             </div>
             <div className="mt-2 text-2xl font-extrabold tabular-nums">
               {milestones.totalWickets}
@@ -145,7 +145,7 @@ export function ClubStatsTab({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Highest Total</span>
-              <Trophy className="h-4 w-4 text-primary" />
+              <Trophy className="h-4 w-4 shrink-0 text-primary" />
             </div>
             <div className="mt-2 text-2xl font-extrabold tabular-nums">
               {milestones.highestTeamScore
@@ -174,7 +174,7 @@ export function ClubStatsTab({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                  <Flame className="h-4 w-4 text-amber-500" />
+                  <Flame className="h-4 w-4 shrink-0 text-amber-500" />
                   Leading Run Scorers
                 </CardTitle>
                 <Badge variant="secondary" className="text-[10px]">
@@ -232,7 +232,7 @@ export function ClubStatsTab({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                  <Target className="h-4 w-4 text-emerald-500" />
+                  <Target className="h-4 w-4 shrink-0 text-emerald-500" />
                   Leading Wicket Takers
                 </CardTitle>
                 <Badge variant="secondary" className="text-[10px]">

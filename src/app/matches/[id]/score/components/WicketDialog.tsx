@@ -100,6 +100,7 @@ interface WicketDialogProps {
   onRunsCompletedChange?: (runs: number) => void;
   onConfirm: () => void;
   isProcessing: boolean;
+  isFreeHit?: boolean;
 }
 
 export function WicketDialog({
@@ -121,15 +122,19 @@ export function WicketDialog({
   onRunsCompletedChange,
   onConfirm,
   isProcessing,
+  isFreeHit = false,
 }: WicketDialogProps) {
-  // Filter dismissal types based on MCC laws when an extra delivery is active
+  // Filter dismissal types based on MCC laws when an extra delivery or Free Hit is active
   const availableDismissals = ALL_DISMISSAL_TYPES.filter((d) => {
+    if (isFreeHit) {
+      return d.value === "run_out" || d.value === "obstructing" || d.value === "retired_hurt";
+    }
     if (extraType === "no_ball") return d.allowedOnNoBall;
     if (extraType === "wide") return d.allowedOnWide;
     return true;
   });
 
-  // If currently selected dismissal is not valid under the active extra, auto-select first valid
+  // If currently selected dismissal is not valid under the active extra/free hit, auto-select first valid
   useEffect(() => {
     if (open && !availableDismissals.some((d) => d.value === dismissalType)) {
       onDismissalTypeChange(availableDismissals[0]?.value ?? "run_out");
@@ -137,6 +142,7 @@ export function WicketDialog({
   }, [
     open,
     extraType,
+    isFreeHit,
     dismissalType,
     availableDismissals,
     onDismissalTypeChange,
@@ -171,6 +177,15 @@ export function WicketDialog({
                 {extraType === "no_ball"
                   ? "No-ball: Under MCC Law 21.18, batter can only be Run Out, Obstructing the Field, or Retired Hurt."
                   : "Wide: Under MCC Law 22.17, batter cannot be Bowled, Caught, or LBW."}
+              </span>
+            </div>
+          )}
+
+          {isFreeHit && !extraType && (
+            <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+              <span>
+                Free Hit Delivery: Under Law 21.19, batter can only be dismissed Run Out, Obstructing, or Retired Hurt.
               </span>
             </div>
           )}
