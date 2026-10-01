@@ -15,9 +15,19 @@ import {
 } from "../../mutations";
 import {
   enqueuePendingBall,
-  hasPendingBalls,
-  flushPendingBalls,
+  enqueueAction,
+  flushPendingActions,
+  getPendingCount,
+  popLastAction,
+  getPendingActions,
 } from "~/lib/offline-queue";
+import {
+  processDeliveryLocally,
+  buildContextFromMatch,
+  deliveryResultToScoringState,
+} from "~/lib/offline-scoring-engine";
+import type { LocalScoringContext } from "~/lib/offline-scoring-engine";
+import { cacheMatchData, getCachedMatchData } from "~/lib/offline-match-cache";
 import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
@@ -81,6 +91,21 @@ export function useScoring(
   const [rawDeliveries, setRawDeliveries] = useState<DeliveryToEdit[]>([]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isOffline, setIsOffline] = useState(
+    () => (typeof navigator !== "undefined" ? !navigator.onLine : false),
+  );
+  const [pendingCount, setPendingCount] = useState(() =>
+    getPendingCount(matchId),
+  );
+  const localCtxRef = useRef<LocalScoringContext | null>(null);
+  const playersRef = useRef<{ batting: Player[]; bowling: Player[] }>({
+    batting: [],
+    bowling: [],
+  });
+  const loadedSquadTeamsRef = useRef<{
+    batting: string | null;
+    bowling: string | null;
+  } | null>(null);
 
   const isRealUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -126,18 +151,27 @@ export function useScoring(
     }
   }, [matchId]);
 
+  const resolveSquadTeamIds = useCallback(
+    (matchData: Match): { batting: string | null; bowling: string | null } => {
+      const currentInnings = matchData.innings?.find(
+        (i) => i.innings_number === matchData.current_innings,
+      );
+      const battingTeamId = currentInnings
+        ? currentInnings.team_id
+        : matchData.team1_id;
+      const bowlingTeamId = currentInnings
+        ? (battingTeamId === matchData.team1_id
+            ? matchData.team2_id
+            : matchData.team1_id)
+        : matchData.team2_id;
+      return { batting: battingTeamId ?? null, bowling: bowlingTeamId ?? null };
+    },
+    [],
+  );
+
   const loadPlayers = useCallback(async (matchData: Match) => {
-    const currentInnings = matchData.innings?.find(
-      (i) => i.innings_number === matchData.current_innings,
-    );
-    const battingTeamId = currentInnings
-      ? currentInnings.team_id
-      : matchData.team1_id;
-    const bowlingTeamId = currentInnings
-      ? (battingTeamId === matchData.team1_id
-          ? matchData.team2_id
-          : matchData.team1_id)
-      : matchData.team2_id;
+    const { batting: battingTeamId, bowling: bowlingTeamId } =
+      resolveSquadTeamIds(matchData);
 
     if (!battingTeamId || !bowlingTeamId) return;
 
@@ -156,37 +190,43 @@ export function useScoring(
 
       const battingUserIds = new Set(fetchedBatting.map((p) => p.user_id));
 
-      setBattingTeamPlayers((prev) => {
-        const map = new Map(fetchedBatting.map((p) => [p.user_id, p]));
-        for (const p of prev) {
-          if (p.user_id && p.team_id === battingTeamId && !map.has(p.user_id)) {
-            map.set(p.user_id, p);
-          }
+      const battingMap = new Map(fetchedBatting.map((p) => [p.user_id, p]));
+      for (const p of playersRef.current.batting) {
+        if (p.user_id && p.team_id === battingTeamId && !battingMap.has(p.user_id)) {
+          battingMap.set(p.user_id, p);
         }
-        return Array.from(map.values());
-      });
+      }
+      const updatedBatting = Array.from(battingMap.values());
+      playersRef.current.batting = updatedBatting;
+      setBattingTeamPlayers(updatedBatting);
 
-      setBowlingTeamPlayers((prev) => {
-        const filteredBowling = fetchedBowling.filter(
-          (p) => !battingUserIds.has(p.user_id),
-        );
-        const map = new Map(filteredBowling.map((p) => [p.user_id, p]));
-        for (const p of prev) {
-          if (
-            p.user_id &&
-            p.team_id === bowlingTeamId &&
-            !battingUserIds.has(p.user_id) &&
-            !map.has(p.user_id)
-          ) {
-            map.set(p.user_id, p);
-          }
+      const bowlingMap = new Map(
+        fetchedBowling
+          .filter((p) => !battingUserIds.has(p.user_id))
+          .map((p) => [p.user_id, p]),
+      );
+      for (const p of playersRef.current.bowling) {
+        if (
+          p.user_id &&
+          p.team_id === bowlingTeamId &&
+          !battingUserIds.has(p.user_id) &&
+          !bowlingMap.has(p.user_id)
+        ) {
+          bowlingMap.set(p.user_id, p);
         }
-        return Array.from(map.values());
-      });
+      }
+      const updatedBowling = Array.from(bowlingMap.values());
+      playersRef.current.bowling = updatedBowling;
+      setBowlingTeamPlayers(updatedBowling);
+
+      loadedSquadTeamsRef.current = {
+        batting: battingTeamId,
+        bowling: bowlingTeamId,
+      };
     } catch (err) {
       console.error("Error loading squad players:", err);
     }
-  }, []);
+  }, [resolveSquadTeamIds]);
 
   const syncFromDb = useCallback(async () => {
     const result = await getScoringState(matchId);
@@ -206,18 +246,48 @@ export function useScoring(
       lastOverBowlerId?: string | null;
       thisOverDeliveries: DeliveryToEdit[];
     };
-    await loadPlayers(m);
+    // Refetch squads only on first load or when the batting/bowling sides
+    // change (innings swap). Squads are otherwise mutated locally via
+    // handleAddPlayerInline, which explicitly reloads them.
+    const teams = resolveSquadTeamIds(m);
+    const squadsFresh =
+      playersRef.current.batting.length > 0 &&
+      playersRef.current.bowling.length > 0 &&
+      loadedSquadTeamsRef.current?.batting === teams.batting &&
+      loadedSquadTeamsRef.current?.bowling === teams.bowling;
+    if (!squadsFresh) {
+      await loadPlayers(m);
+    }
     setMatch(m);
     setStrikerId(s);
     setNonStrikerId(ns);
     setCurrentBowlerId(b);
     setLastOverBowlerId(lob ?? null);
-    setRawDeliveries(thisOverDeliveries);
-    setLastBalls(thisOverDeliveries.map(deliveryLabel));
+    // Ensure we do not display deliveries from a previous over if bowler has been set for a new over
+    const currentOverDeliveries =
+      b && (m.current_ball === 0 || !m.current_ball)
+        ? thisOverDeliveries.filter((d) => d.over_number === m.current_over)
+        : thisOverDeliveries;
+    setRawDeliveries(currentOverDeliveries);
+    setLastBalls(currentOverDeliveries.map(deliveryLabel));
+
+    // Cache for offline use and rebuild local scoring context
+    cacheMatchData(matchId, {
+      match: m,
+      battingTeamPlayers: playersRef.current.batting,
+      bowlingTeamPlayers: playersRef.current.bowling,
+      strikerId: s,
+      nonStrikerId: ns,
+      bowlerId: b,
+      lastOverBowlerId: lob ?? null,
+    });
+    localCtxRef.current = buildContextFromMatch(m, s, ns, b);
+    setPendingCount(getPendingCount(matchId));
+
     if (m.status === "live" && !b && s && ns) {
       optionsRef.current?.onNeedsBowler?.();
     }
-  }, [matchId, loadPlayers]);
+  }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
   const loadMatch = useCallback(async () => {
     const result = await getMatch(matchId);
@@ -231,31 +301,81 @@ export function useScoring(
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
-      await syncFromDb();
+      try {
+        await syncFromDb();
+      } catch {
+        // Server unreachable — try loading from offline cache
+        const cached = getCachedMatchData(matchId);
+        if (cached && !cancelled) {
+          setMatch(cached.match);
+          setBattingTeamPlayers(cached.battingTeamPlayers);
+          setBowlingTeamPlayers(cached.bowlingTeamPlayers);
+          setStrikerId(cached.strikerId);
+          setNonStrikerId(cached.nonStrikerId);
+          setCurrentBowlerId(cached.bowlerId);
+          setLastOverBowlerId(cached.lastOverBowlerId);
+          localCtxRef.current = buildContextFromMatch(
+            cached.match,
+            cached.strikerId,
+            cached.nonStrikerId,
+            cached.bowlerId,
+          );
+          toast.info("Loaded from offline cache — scoring available offline");
+        }
+      }
       if (!cancelled) setLoading(false);
     };
     void init();
     return () => {
       cancelled = true;
     };
-  }, [syncFromDb]);
+  }, [syncFromDb, matchId]);
+
+  const flushOfflineQueue = useCallback(async () => {
+    if (getPendingCount(matchId) === 0) return { synced: 0, failed: 0 };
+    setIsProcessing(true);
+    toast.info("Syncing offline deliveries with server...");
+
+    const res = await flushPendingActions(matchId, {
+      recordBall: (ball) => recordBall(ball),
+      setBatsmen: (sId, nsId) => setCurrentBatsmen(matchId, sId, nsId),
+      setBowler: (bId) => setCurrentBowler(matchId, bId),
+      endInnings: () => endInnings(matchId),
+      undoLastBall: () => undoLastBall(matchId),
+    });
+
+    setPendingCount(getPendingCount(matchId));
+    if (res.synced > 0) {
+      toast.success(`Successfully synced ${res.synced} offline item(s)!`);
+      await syncFromDb();
+    }
+    if (res.failed > 0) {
+      toast.error(
+        `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
+      );
+    }
+    setIsProcessing(false);
+    return res;
+  }, [matchId, syncFromDb]);
 
   useEffect(() => {
     const handleOnline = async () => {
-      if (hasPendingBalls(matchId)) {
-        toast.info("Connection restored. Syncing offline deliveries...");
-        const res = await flushPendingBalls(matchId, (ball) => recordBall(ball));
-        if (res.synced > 0) {
-          toast.success(
-            `Synced ${res.synced} offline delivery${res.synced > 1 ? "ies" : ""}`,
-          );
-          await syncFromDb();
-        }
-      }
+      setIsOffline(false);
+      await flushOfflineQueue();
     };
+    const handleOffline = () => {
+      setIsOffline(true);
+      toast.warning("Network connection lost. Scoring is working in offline mode.");
+    };
+
     window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
-  }, [matchId, syncFromDb]);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [flushOfflineQueue]);
 
   const applyState = (state: ScoringState) => {
     setStrikerId(state.striker_id);
@@ -421,7 +541,9 @@ export function useScoring(
       optionsRef.current?.onNeedsBatsman?.();
     }
 
-    void syncFromDb();
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      void syncFromDb();
+    }
   };
 
   const handleStartMatch = async (
@@ -440,6 +562,101 @@ export function useScoring(
     return result;
   };
 
+  const scoreOffline = (
+    bowlerId: string,
+    batsmanId: string,
+    nonStriker: string,
+    event: BallEvent,
+  ) => {
+    if (!bowlerId) {
+      toast.error("Select a bowler before scoring");
+      setIsProcessing(false);
+      return { data: null, error: "Select a bowler before scoring" };
+    }
+    if (!batsmanId || !nonStriker) {
+      toast.error("Select batsmen before scoring");
+      setIsProcessing(false);
+      return { data: null, error: "Select batsmen before scoring" };
+    }
+
+    const currentCtx =
+      localCtxRef.current ??
+      (match
+        ? buildContextFromMatch(match, batsmanId, nonStriker, bowlerId)
+        : null);
+
+    if (currentCtx) {
+      const isAllOut = currentCtx.totalWickets >= currentCtx.wicketsPerInnings;
+      const isOversExhausted =
+        currentCtx.oversPerInnings > 0 &&
+        (currentCtx.totalBalls >= currentCtx.oversPerInnings * currentCtx.ballsPerOver ||
+          (currentCtx.currentOver >= currentCtx.oversPerInnings && currentCtx.currentBall === 0));
+      const isTargetChased =
+        currentCtx.targetRuns !== null &&
+        currentCtx.totalRuns >= currentCtx.targetRuns;
+
+      if (isAllOut || isOversExhausted || isTargetChased) {
+        toast.error("Innings is complete. Please end innings or complete match.");
+        setIsProcessing(false);
+        return { data: null, error: "Innings is complete" };
+      }
+
+      enqueuePendingBall({
+        matchId,
+        bowlerId,
+        batsmanId,
+        nonStrikerId: nonStriker,
+        event,
+      });
+
+      const result = processDeliveryLocally(currentCtx, event);
+      localCtxRef.current = result;
+      const computedState = deliveryResultToScoringState(
+        result,
+        bowlerId,
+        battingTeamPlayers,
+        bowlingTeamPlayers,
+        event,
+      );
+
+      const newDeliveryToEdit: DeliveryToEdit = {
+        id: `offline-ball-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        over_number: currentCtx.currentOver,
+        ball_number: currentCtx.currentBall + 1,
+        bowler_id: bowlerId,
+        batsman_id: batsmanId,
+        runs_scored: event.runsScored ?? 0,
+        extras: event.extras ?? 0,
+        extra_type: (event.extraType as ExtraType) ?? null,
+        is_wicket: event.isWicket ?? false,
+        dismissal_type: event.dismissalType ?? null,
+        dismissed_player_id: event.dismissedPlayerId ?? null,
+      };
+      setRawDeliveries((prev) => [...prev, newDeliveryToEdit]);
+
+      applyState(computedState);
+      if (match) {
+        cacheMatchData(matchId, {
+          match,
+          battingTeamPlayers,
+          bowlingTeamPlayers,
+          strikerId: result.strikerId,
+          nonStrikerId: result.nonStrikerId,
+          bowlerId: result.needsBowler ? null : result.bowlerId,
+          lastOverBowlerId: result.overCompleted ? bowlerId : lastOverBowlerId,
+        });
+      }
+
+      setPendingCount(getPendingCount(matchId));
+      toast.info("Offline: Ball recorded locally and queued for auto-sync.");
+      setIsProcessing(false);
+      return { data: computedState, error: null };
+    }
+
+    setIsProcessing(false);
+    return { data: null, error: "Unable to process ball locally" };
+  };
+
   const handleScore = async (
     bowlerId: string,
     batsmanId: string,
@@ -449,21 +666,12 @@ export function useScoring(
     setIsProcessing(true);
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      enqueuePendingBall({
-        matchId,
-        bowlerId,
-        batsmanId,
-        nonStrikerId: nonStriker,
-        event,
-      });
-      toast.info("Offline: Ball saved locally and queued for auto-sync.");
-      setIsProcessing(false);
-      return { data: null, error: null };
+      return scoreOffline(bowlerId, batsmanId, nonStriker, event);
     }
 
     try {
-      if (hasPendingBalls(matchId)) {
-        await flushPendingBalls(matchId, (ball) => recordBall(ball));
+      if (getPendingCount(matchId) > 0) {
+        await flushOfflineQueue();
       }
 
       const result = await recordBall({
@@ -485,18 +693,12 @@ export function useScoring(
       const isNetwork =
         (typeof navigator !== "undefined" && !navigator.onLine) ||
         (err instanceof Error &&
-          (err.message.includes("fetch") || err.name === "NetworkError"));
+          (err.message.includes("fetch") ||
+            err.name === "NetworkError" ||
+            err.message.includes("Failed to fetch") ||
+            err.message.includes("network")));
       if (isNetwork) {
-        enqueuePendingBall({
-          matchId,
-          bowlerId,
-          batsmanId,
-          nonStrikerId: nonStriker,
-          event,
-        });
-        toast.info("Connection lost: Ball queued for auto-sync.");
-        setIsProcessing(false);
-        return { data: null, error: null };
+        return scoreOffline(bowlerId, batsmanId, nonStriker, event);
       }
       console.error("handleScore error:", err);
       toast.error("Failed to record ball");
@@ -507,6 +709,51 @@ export function useScoring(
 
   const handleUndo = async () => {
     setIsProcessing(true);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const lastAction = popLastAction(matchId);
+      if (lastAction) {
+        setPendingCount(getPendingCount(matchId));
+        setRawDeliveries((prev) => prev.slice(0, -1));
+        setLastBalls((prev) => prev.slice(0, -1));
+        toast.success("Undid last offline action");
+
+        // Replay remaining pending actions on top of cached baseline
+        const cached = getCachedMatchData(matchId);
+        if (cached) {
+          let replayCtx = buildContextFromMatch(
+            cached.match,
+            cached.strikerId,
+            cached.nonStrikerId,
+            cached.bowlerId,
+          );
+          const remainingActions = getPendingActions(matchId);
+          for (const a of remainingActions) {
+            if (a.type === "recordBall") {
+              replayCtx = processDeliveryLocally(replayCtx, a.payload.event);
+            } else if (a.type === "setBatsmen") {
+              replayCtx.strikerId = a.payload.strikerId;
+              replayCtx.nonStrikerId = a.payload.nonStrikerId;
+            } else if (a.type === "setBowler") {
+              replayCtx.bowlerId = a.payload.bowlerId;
+            }
+          }
+          localCtxRef.current = replayCtx;
+          const computed = deliveryResultToScoringState(
+            replayCtx,
+            replayCtx.bowlerId,
+            battingTeamPlayers,
+            bowlingTeamPlayers,
+          );
+          applyState(computed);
+        }
+      } else {
+        toast.error("No offline deliveries in queue to undo");
+      }
+      setIsProcessing(false);
+      return { data: null, error: null };
+    }
+
     const result = await undoLastBall(matchId);
     if (result.error) {
       toast.error(result.error);
@@ -583,19 +830,61 @@ export function useScoring(
       toast.error(err);
       return { error: err };
     }
+
     setIsProcessing(true);
-    const result = await setCurrentBatsmen(matchId, sId, nsId);
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      broadcastScoreUpdate();
-      if (!currentBowlerId) {
-        // Caller will open bowler dialog
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setStrikerId(sId);
+      setNonStrikerId(nsId);
+      if (localCtxRef.current) {
+        localCtxRef.current.strikerId = sId;
+        localCtxRef.current.nonStrikerId = nsId;
       }
-      await syncFromDb();
+      enqueueAction(matchId, "setBatsmen", { strikerId: sId, nonStrikerId: nsId });
+      setPendingCount(getPendingCount(matchId));
+      if (match) {
+        cacheMatchData(matchId, {
+          match,
+          battingTeamPlayers,
+          bowlingTeamPlayers,
+          strikerId: sId,
+          nonStrikerId: nsId,
+          bowlerId: currentBowlerId,
+          lastOverBowlerId,
+        });
+      }
+      toast.success("Batsmen set locally (queued for sync)");
+      setIsProcessing(false);
+      return { error: null };
     }
-    setIsProcessing(false);
-    return result;
+
+    try {
+      const result = await setCurrentBatsmen(matchId, sId, nsId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        broadcastScoreUpdate();
+        if (!currentBowlerId) {
+          // Caller will open bowler dialog
+        }
+        await syncFromDb();
+      }
+      setIsProcessing(false);
+      return result;
+    } catch {
+      // Network failure fallback
+      setStrikerId(sId);
+      setNonStrikerId(nsId);
+      if (localCtxRef.current) {
+        localCtxRef.current.strikerId = sId;
+        localCtxRef.current.nonStrikerId = nsId;
+      }
+      enqueueAction(matchId, "setBatsmen", { strikerId: sId, nonStrikerId: nsId });
+      setPendingCount(getPendingCount(matchId));
+      toast.success("Batsmen set locally (queued for sync)");
+      setIsProcessing(false);
+      return { error: null };
+    }
   };
 
   const handleConfirmBowler = async (bowlerId: string | null) => {
@@ -611,16 +900,125 @@ export function useScoring(
       toast.error(err);
       return { error: err };
     }
+
     setIsProcessing(true);
-    const result = await setCurrentBowler(matchId, bowlerId);
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      broadcastScoreUpdate();
-      await syncFromDb();
+
+    // If starting a new over, clear lastBalls and rawDeliveries so the previous over is not shown
+    if (!currentBowlerId || !match || match.current_ball === 0) {
+      setLastBalls([]);
+      setRawDeliveries([]);
     }
-    setIsProcessing(false);
-    return result;
+
+    // Lookup new bowler's existing performance in current innings or default to 0
+    const currentInn = match?.innings?.find(
+      (i) => i.innings_number === match?.current_innings,
+    );
+    const existingPerf = currentInn?.bowling_performances?.find(
+      (bp) => bp.user_id === bowlerId,
+    );
+
+    const bowlerRuns = existingPerf?.runs_conceded ?? 0;
+    const bowlerBalls = existingPerf?.balls_bowled ?? 0;
+    const bowlerWickets = existingPerf?.wickets_taken ?? 0;
+
+    // Update local scoring engine context with new bowler's stats
+    if (localCtxRef.current) {
+      localCtxRef.current.bowlerId = bowlerId;
+      localCtxRef.current.bowlerRunsConceded = bowlerRuns;
+      localCtxRef.current.bowlerBallsBowled = bowlerBalls;
+      localCtxRef.current.bowlerWickets = bowlerWickets;
+    }
+
+    setCurrentBowlerId(bowlerId);
+
+    // Update match state so bowling_performances marks new bowler as current
+    setMatch((prev) => {
+      if (!prev) return prev;
+      const innings = prev.innings?.map((inn) => {
+        if (inn.innings_number !== prev.current_innings) return inn;
+
+        const bowlerPlayer = bowlingTeamPlayers.find((p) => p.user_id === bowlerId);
+        let updatedBowling = inn.bowling_performances ?? [];
+        const exists = updatedBowling.some((bp) => bp.user_id === bowlerId);
+
+        if (exists) {
+          updatedBowling = updatedBowling.map((bp) => ({
+            ...bp,
+            is_current_bowler: bp.user_id === bowlerId,
+          }));
+        } else {
+          updatedBowling = [
+            ...updatedBowling.map((bp) => ({ ...bp, is_current_bowler: false })),
+            {
+              id: bowlerId,
+              match_id: prev.id,
+              innings_id: inn.id,
+              user_id: bowlerId,
+              overs_bowled: 0,
+              balls_bowled: 0,
+              maidens: 0,
+              runs_conceded: 0,
+              wickets_taken: 0,
+              wides: 0,
+              no_balls: 0,
+              is_current_bowler: true,
+              user: {
+                id: bowlerId,
+                full_name: bowlerPlayer?.user?.full_name ?? "Bowler",
+              },
+            },
+          ];
+        }
+
+        return {
+          ...inn,
+          bowling_performances: updatedBowling,
+        };
+      });
+
+      return {
+        ...prev,
+        innings,
+      };
+    });
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueAction(matchId, "setBowler", { bowlerId });
+      setPendingCount(getPendingCount(matchId));
+      if (match) {
+        cacheMatchData(matchId, {
+          match,
+          battingTeamPlayers,
+          bowlingTeamPlayers,
+          strikerId,
+          nonStrikerId,
+          bowlerId,
+          lastOverBowlerId,
+        });
+      }
+      toast.success("Bowler set locally (queued for sync)");
+      setIsProcessing(false);
+      return { error: null };
+    }
+
+    try {
+      const result = await setCurrentBowler(matchId, bowlerId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        broadcastScoreUpdate();
+        await syncFromDb();
+      }
+      setIsProcessing(false);
+      return result;
+    } catch {
+      // Network failure fallback
+      enqueueAction(matchId, "setBowler", { bowlerId });
+      setPendingCount(getPendingCount(matchId));
+      toast.success("Bowler set locally (queued for sync)");
+      setIsProcessing(false);
+      return { error: null };
+    }
   };
 
   const handleAddPlayerInline = async (
@@ -691,15 +1089,114 @@ export function useScoring(
 
   const handleEndInnings = async () => {
     setIsProcessing(true);
-    const result = await endInnings(matchId);
-    if (result.error) {
-      toast.error(result.error);
-    } else if (result.data) {
-      broadcastScoreUpdate();
-      applyState(result.data);
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueAction(matchId, "endInnings", {});
+      setPendingCount(getPendingCount(matchId));
+
+      setMatch((prev) => {
+        if (!prev) return prev;
+        const currentInn = prev.innings?.find(
+          (i) => i.innings_number === prev.current_innings,
+        );
+        const newInningsNum = (prev.current_innings ?? 1) + 1;
+        const targetRuns = currentInn ? (currentInn.total_runs ?? 0) + 1 : null;
+        return {
+          ...prev,
+          current_innings: newInningsNum,
+          current_over: 0,
+          current_ball: 0,
+          innings: [
+            ...(prev.innings ?? []).map((i) =>
+              i.innings_number === prev.current_innings
+                ? { ...i, is_completed: true }
+                : i,
+            ),
+            {
+              id: `local-inn-${newInningsNum}`,
+              match_id: prev.id,
+              innings_number: newInningsNum,
+              team_id:
+                currentInn?.team_id === prev.team1_id
+                  ? prev.team2_id
+                  : prev.team1_id,
+              total_runs: 0,
+              total_wickets: 0,
+              total_balls: 0,
+              total_overs: 0,
+              is_completed: false,
+              target_runs: targetRuns,
+              extras_total: 0,
+              extras_byes: 0,
+              extras_leg_byes: 0,
+              extras_wides: 0,
+              extras_no_balls: 0,
+              extras_penalties: 0,
+            },
+          ],
+        };
+      });
+
+      setStrikerId(null);
+      setNonStrikerId(null);
+      setCurrentBowlerId(null);
+      setLastBalls([]);
+      setRawDeliveries([]);
+
+      setBattingTeamPlayers(bowlingTeamPlayers);
+      setBowlingTeamPlayers(battingTeamPlayers);
+      playersRef.current = {
+        batting: bowlingTeamPlayers,
+        bowling: battingTeamPlayers,
+      };
+
+      if (localCtxRef.current) {
+        const newInn = (localCtxRef.current.currentInnings ?? 1) + 1;
+        const targetRuns = (localCtxRef.current.totalRuns ?? 0) + 1;
+        localCtxRef.current = {
+          ...localCtxRef.current,
+          currentInnings: newInn,
+          currentOver: 0,
+          currentBall: 0,
+          totalRuns: 0,
+          totalWickets: 0,
+          totalBalls: 0,
+          strikerId: null,
+          nonStrikerId: null,
+          bowlerId: null,
+          strikerRuns: 0,
+          strikerBalls: 0,
+          nonStrikerRuns: 0,
+          nonStrikerBalls: 0,
+          bowlerRunsConceded: 0,
+          bowlerBallsBowled: 0,
+          bowlerWickets: 0,
+          targetRuns,
+        };
+      }
+
+      toast.info(
+        "Innings break — offline mode. Select new batsmen and bowler for the 2nd innings.",
+      );
+      optionsRef.current?.onNeedsBatsman?.();
+      setIsProcessing(false);
+      return { data: null, error: null };
     }
-    setIsProcessing(false);
-    return result;
+
+    try {
+      const result = await endInnings(matchId);
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        broadcastScoreUpdate();
+        applyState(result.data);
+      }
+      setIsProcessing(false);
+      return result;
+    } catch {
+      setIsProcessing(false);
+      return { data: null, error: "Failed to end innings" };
+    }
   };
 
   return {
@@ -715,6 +1212,9 @@ export function useScoring(
     lastBalls,
     rawDeliveries,
     isProcessing,
+    isOffline,
+    pendingCount,
+    flushOfflineQueue,
     setStrikerId,
     setNonStrikerId,
     setCurrentBowlerId,
