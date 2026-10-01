@@ -1,5 +1,7 @@
 "use client";
 
+import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
+
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -32,11 +34,11 @@ interface BatsmenDialogProps {
   onNonStrikerChange: (v: string) => void;
   onConfirm: () => void;
   isProcessing: boolean;
-  addPlayerTarget: string | null;
-  newPlayerName: string;
-  onNewPlayerNameChange: (v: string) => void;
+  addPlayerTarget?: string | null;
+  newPlayerName?: string;
+  onNewPlayerNameChange?: (v: string) => void;
   onAddPlayer: () => void;
-  onAddPlayerTargetChange: (v: "batting" | "bowling" | null) => void;
+  onAddPlayerTargetChange?: (v: "batting" | "bowling" | null) => void;
 }
 
 export function BatsmenDialog({
@@ -52,12 +54,26 @@ export function BatsmenDialog({
   onNonStrikerChange,
   onConfirm,
   isProcessing,
-  addPlayerTarget,
-  newPlayerName,
+  addPlayerTarget: addPlayerTargetProp,
+  newPlayerName: newPlayerNameProp,
   onNewPlayerNameChange,
   onAddPlayer,
   onAddPlayerTargetChange,
 }: BatsmenDialogProps) {
+  // When uncontrolled, subscribe straight to the store so typing only
+  // re-renders this dialog instead of the whole scoring page.
+  const storeAddPlayerTarget = useScoringUIStore((s) => s.addPlayerTarget);
+  const storeSetAddPlayerTarget = useScoringUIStore(
+    (s) => s.setAddPlayerTarget,
+  );
+  const storeNewPlayerName = useScoringUIStore((s) => s.newPlayerName);
+  const storeSetNewPlayerName = useScoringUIStore((s) => s.setNewPlayerName);
+
+  const addPlayerTarget = addPlayerTargetProp ?? storeAddPlayerTarget;
+  const newPlayerName = newPlayerNameProp ?? storeNewPlayerName;
+  const handleNameChange = onNewPlayerNameChange ?? storeSetNewPlayerName;
+  const handleTargetChange =
+    onAddPlayerTargetChange ?? storeSetAddPlayerTarget;
   const uniquePlayers = Array.from(
     new Map(
       battingTeamPlayers
@@ -172,7 +188,7 @@ export function BatsmenDialog({
               <Input
                 placeholder="Player name"
                 value={newPlayerName}
-                onChange={(e) => onNewPlayerNameChange(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && void onAddPlayer()}
               />
@@ -189,7 +205,7 @@ export function BatsmenDialog({
                 variant="ghost"
                 size="icon"
                 aria-label="Cancel adding player"
-                onClick={() => onAddPlayerTargetChange(null)}
+                onClick={() => handleTargetChange(null)}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -197,7 +213,7 @@ export function BatsmenDialog({
           ) : (
             <button
               type="button"
-              onClick={() => onAddPlayerTargetChange("batting")}
+              onClick={() => handleTargetChange("batting")}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               <UserPlus className="h-3.5 w-3.5" /> New player? Add to squad

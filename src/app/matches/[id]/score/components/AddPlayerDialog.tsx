@@ -17,16 +17,17 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { UserPlus } from "lucide-react";
+import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
 
 interface AddPlayerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   teamName: string | undefined;
   bowlingTeamName: string | undefined;
-  addPlayerTeam: "batting" | "bowling";
-  onTeamChange: (v: "batting" | "bowling") => void;
-  newPlayerName: string;
-  onNameChange: (v: string) => void;
+  addPlayerTeam?: "batting" | "bowling";
+  onTeamChange?: (v: "batting" | "bowling") => void;
+  newPlayerName?: string;
+  onNameChange?: (v: string) => void;
   onConfirm: () => void;
   isProcessing: boolean;
 }
@@ -36,13 +37,25 @@ export function AddPlayerDialog({
   onOpenChange,
   teamName,
   bowlingTeamName,
-  addPlayerTeam,
+  addPlayerTeam: addPlayerTeamProp,
   onTeamChange,
-  newPlayerName,
+  newPlayerName: newPlayerNameProp,
   onNameChange,
   onConfirm,
   isProcessing,
 }: AddPlayerDialogProps) {
+  // When uncontrolled, subscribe straight to the store so typing only
+  // re-renders this dialog instead of the whole scoring page.
+  const storeAddPlayerTeam = useScoringUIStore((s) => s.addPlayerTeam);
+  const storeSetAddPlayerTeam = useScoringUIStore((s) => s.setAddPlayerTeam);
+  const storeNewPlayerName = useScoringUIStore((s) => s.newPlayerName);
+  const storeSetNewPlayerName = useScoringUIStore((s) => s.setNewPlayerName);
+
+  const addPlayerTeam = addPlayerTeamProp ?? storeAddPlayerTeam;
+  const newPlayerName = newPlayerNameProp ?? storeNewPlayerName;
+  const handleTeamChange = onTeamChange ?? storeSetAddPlayerTeam;
+  const handleNameChange = onNameChange ?? storeSetNewPlayerName;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -58,7 +71,7 @@ export function AddPlayerDialog({
             <label className="text-sm font-medium">Team</label>
             <Select
               value={addPlayerTeam}
-              onValueChange={(v) => onTeamChange(v as never)}
+              onValueChange={(v) => handleTeamChange(v as never)}
             >
               <SelectTrigger className="mt-2">
                 <SelectValue />
@@ -81,7 +94,7 @@ export function AddPlayerDialog({
               autoComplete="name"
               placeholder="e.g., Virat Kohli"
               value={newPlayerName}
-              onChange={(e) => onNameChange(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               className="mt-2"
               autoFocus
               onKeyDown={(e) => e.key === "Enter" && void onConfirm()}

@@ -121,6 +121,8 @@ import {
   Zap,
   MoreVertical,
   CloudRain,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 
 export default function ScoringPage() {
@@ -138,6 +140,7 @@ export default function ScoringPage() {
     : authLoading
       ? null
       : false;
+  const isScorer = Boolean(isAuthorized);
 
   const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
   const toggleSunlightMode = usePreferencesStore((s) => s.toggleSunlightMode);
@@ -146,37 +149,42 @@ export default function ScoringPage() {
     (s) => s.toggleWagonWheelPrompt,
   );
 
-  // UI state managed via Zustand store
-  const {
-    tossDialogDismissed,
-    setTossDialogDismissed,
-    showBatsmenDialog: showSelectBatsmen,
-    setShowSelectBatsmen,
-    showBowlerDialog: showSelectBowler,
-    setShowSelectBowler,
-    showWicketDialog,
-    setShowWicketDialog,
-    showAddPlayerDialog,
-    setShowAddPlayerDialog,
-    showPotmDialog,
-    setShowPotmDialog,
-    addPlayerTeam,
-    setAddPlayerTeam,
-    dismissalType,
-    setDismissalType,
-    fielderId,
-    setFielderId,
-    wicketExtraType,
-    setWicketExtraType,
-    dismissedPlayerId,
-    setDismissedPlayerId,
-    runsCompletedBeforeRunOut,
-    setRunsCompletedBeforeRunOut,
-    addPlayerTarget,
-    setAddPlayerTarget,
-    newPlayerName,
-    setNewPlayerName,
-  } = useScoringUIStore();
+  // UI state managed via Zustand store — granular selectors keep the page
+  // from re-rendering on high-frequency form fields (player-name typing).
+  const tossDialogDismissed = useScoringUIStore((s) => s.tossDialogDismissed);
+  const setTossDialogDismissed = useScoringUIStore(
+    (s) => s.setTossDialogDismissed,
+  );
+  const showSelectBatsmen = useScoringUIStore((s) => s.showBatsmenDialog);
+  const setShowSelectBatsmen = useScoringUIStore(
+    (s) => s.setShowSelectBatsmen,
+  );
+  const showSelectBowler = useScoringUIStore((s) => s.showBowlerDialog);
+  const setShowSelectBowler = useScoringUIStore((s) => s.setShowSelectBowler);
+  const showWicketDialog = useScoringUIStore((s) => s.showWicketDialog);
+  const setShowWicketDialog = useScoringUIStore((s) => s.setShowWicketDialog);
+  const showAddPlayerDialog = useScoringUIStore((s) => s.showAddPlayerDialog);
+  const setShowAddPlayerDialog = useScoringUIStore(
+    (s) => s.setShowAddPlayerDialog,
+  );
+  const showPotmDialog = useScoringUIStore((s) => s.showPotmDialog);
+  const setShowPotmDialog = useScoringUIStore((s) => s.setShowPotmDialog);
+  const dismissalType = useScoringUIStore((s) => s.dismissalType);
+  const setDismissalType = useScoringUIStore((s) => s.setDismissalType);
+  const fielderId = useScoringUIStore((s) => s.fielderId);
+  const setFielderId = useScoringUIStore((s) => s.setFielderId);
+  const wicketExtraType = useScoringUIStore((s) => s.wicketExtraType);
+  const setWicketExtraType = useScoringUIStore((s) => s.setWicketExtraType);
+  const dismissedPlayerId = useScoringUIStore((s) => s.dismissedPlayerId);
+  const setDismissedPlayerId = useScoringUIStore(
+    (s) => s.setDismissedPlayerId,
+  );
+  const runsCompletedBeforeRunOut = useScoringUIStore(
+    (s) => s.runsCompletedBeforeRunOut,
+  );
+  const setRunsCompletedBeforeRunOut = useScoringUIStore(
+    (s) => s.setRunsCompletedBeforeRunOut,
+  );
 
   const handleNeedsBowler = useCallback(() => {
     setShowSelectBowler(true);
@@ -207,6 +215,9 @@ export default function ScoringPage() {
     lastBalls,
     rawDeliveries,
     isProcessing,
+    isOffline,
+    pendingCount,
+    flushOfflineQueue,
     setStrikerId,
     setNonStrikerId,
     setCurrentBowlerId,
@@ -240,6 +251,7 @@ export default function ScoringPage() {
     null,
   );
   const [mobileTab, setMobileTab] = useState<"score" | "squads">("score");
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
 
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,
@@ -256,6 +268,23 @@ export default function ScoringPage() {
 
   const showTossDialog = match?.status === "scheduled" && !tossDialogDismissed;
   const tossWinner = selectedTossWinner || match?.team1_id || "";
+
+  // Keyboard scoring hotkeys must stay inert while any dialog/menu is open,
+  // otherwise typing in a dialog silently records balls behind it.
+  const scoringKeyboardSuppressed =
+    showTossDialog ||
+    showSelectBatsmen ||
+    showSelectBowler ||
+    showWicketDialog ||
+    showAddPlayerDialog ||
+    showPotmDialog ||
+    showEditBallDialog ||
+    showMatchSettingsDialog ||
+    showPenaltyBonusDialog ||
+    showAbandonMatchDialog ||
+    showReviseTargetDialog ||
+    Boolean(retireTarget) ||
+    actionsMenuOpen;
 
   const dismissedPlayerIds = useMemo(
     () =>
@@ -326,6 +355,60 @@ export default function ScoringPage() {
       wickets: perf?.wickets_taken ?? 0,
     };
   }, [currentBowlerId, bowlingTeamPlayers, currentInnings]);
+
+  const isInningsComplete = useMemo(() => {
+    if (!match || match.status !== "live") return false;
+    const inn = currentInnings;
+    if (!inn) return false;
+
+    // Check all out
+    const wicketsLimit = match.wickets_per_innings ?? 10;
+    if ((inn.total_wickets ?? 0) >= wicketsLimit) return true;
+
+    // Check overs limit
+    const oversLimit = match.overs_per_innings;
+    const bpo = match.balls_per_over || 6;
+    if (
+      oversLimit > 0 &&
+      ((inn.total_balls ?? 0) >= oversLimit * bpo ||
+        ((match.current_over ?? 0) >= oversLimit &&
+          (match.current_ball ?? 0) === 0))
+    ) {
+      return true;
+    }
+
+    // Check target chased (2nd innings)
+    if (inn.target_runs !== null && inn.target_runs !== undefined) {
+      if ((inn.total_runs ?? 0) >= inn.target_runs) return true;
+    }
+
+    return inn.is_completed ?? false;
+  }, [match, currentInnings]);
+
+  const isOverComplete = useMemo(() => {
+    if (!match || match.status !== "live" || isInningsComplete) return false;
+    return !currentBowlerId && Boolean(strikerId) && Boolean(nonStrikerId);
+  }, [match, isInningsComplete, currentBowlerId, strikerId, nonStrikerId]);
+
+  const isScoringDisabled = useMemo(() => {
+    return (
+      !isScorer ||
+      isProcessing ||
+      match?.status !== "live" ||
+      !currentBowlerId ||
+      !strikerId ||
+      !nonStrikerId ||
+      isInningsComplete
+    );
+  }, [
+    isScorer,
+    isProcessing,
+    match?.status,
+    currentBowlerId,
+    strikerId,
+    nonStrikerId,
+    isInningsComplete,
+  ]);
 
   const onScore = async (
     runs: number,
@@ -444,6 +527,12 @@ export default function ScoringPage() {
 
 
   const onAddPlayer = async () => {
+    const {
+      addPlayerTarget,
+      newPlayerName,
+      setNewPlayerName,
+      setAddPlayerTarget,
+    } = useScoringUIStore.getState();
     if (!newPlayerName.trim() || !addPlayerTarget) return;
     await handleAddPlayerInline(
       addPlayerTarget,
@@ -458,6 +547,8 @@ export default function ScoringPage() {
   };
 
   const onAddPlayerAlways = async () => {
+    const { addPlayerTeam, newPlayerName, setNewPlayerName } =
+      useScoringUIStore.getState();
     if (!newPlayerName.trim()) return;
     await handleAddPlayerInline(
       addPlayerTeam,
@@ -636,8 +727,6 @@ export default function ScoringPage() {
     );
   }
 
-  const isScorer = isAuthorized;
-
   return (
     <div
       data-sunlight={sunlightMode ? "true" : "false"}
@@ -646,6 +735,13 @@ export default function ScoringPage() {
         sunlightMode && "sunlight-mode",
       )}
     >
+      <a
+        href="#main-scoring-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Skip to scoring console
+      </a>
+
       {/* Dedicated Scorer Console Header (Distraction-Free) */}
       <header
         className={cn(
@@ -674,10 +770,10 @@ export default function ScoringPage() {
             </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-xs font-black sm:text-sm">
+                <h1 className="truncate text-xs font-black sm:text-sm">
                   {match.team1.short_name || match.team1.name} vs{" "}
                   {match.team2.short_name || match.team2.name}
-                </span>
+                </h1>
                 <Badge
                   variant={match.status === "live" ? "default" : "secondary"}
                   className="hidden h-4 px-1.5 text-[9px] font-black uppercase sm:inline-flex"
@@ -693,6 +789,18 @@ export default function ScoringPage() {
 
           {/* Right: Quick Tools & Consolidated Actions Menu */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {/* Offline indicator */}
+            {isOffline && (
+              <span
+                role="status"
+                title="Working offline — changes saved locally"
+                className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300"
+              >
+                <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline">OFFLINE</span>
+                {pendingCount > 0 && <span>({pendingCount})</span>}
+              </span>
+            )}
             {/* Sunlight indicator */}
             {sunlightMode && (
               <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-black text-white sm:inline-flex">
@@ -792,7 +900,7 @@ export default function ScoringPage() {
             </Button>
 
             {/* Consolidated "Match Actions" Menu (Primary on Mobile, Comprehensive on Desktop) */}
-            <DropdownMenu>
+            <DropdownMenu onOpenChange={setActionsMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
@@ -875,8 +983,60 @@ export default function ScoringPage() {
         </div>
       </header>
 
+      {/* Offline Alert & Sync Banner */}
+      {(isOffline || pendingCount > 0) && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "flex flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5 text-xs font-medium sm:px-6",
+            isOffline
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+              : "border-sky-500/40 bg-sky-500/10 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200",
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                isOffline ? "bg-amber-500" : "animate-pulse bg-sky-500",
+              )}
+              aria-hidden="true"
+            />
+            <span>
+              {isOffline ? (
+                <>
+                  <strong className="font-semibold">Offline Mode:</strong> Scoring is active. Deliveries are saved locally.
+                </>
+              ) : (
+                <>
+                  <strong className="font-semibold">Back Online:</strong> {pendingCount} offline update(s) ready to sync.
+                </>
+              )}
+            </span>
+            {pendingCount > 0 && (
+              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-bold">
+                {pendingCount} queued
+              </span>
+            )}
+          </div>
+          {!isOffline && pendingCount > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isProcessing}
+              onClick={() => flushOfflineQueue()}
+              className="h-7 gap-1 px-2 text-[11px] font-semibold"
+            >
+              <RefreshCw className={cn("h-3 w-3", isProcessing && "animate-spin")} aria-hidden="true" />
+              {isProcessing ? "Syncing..." : "Sync now"}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Mobile Ergonomic Tab Switcher (< lg) */}
-      <div className="sticky top-11 z-20 flex items-center gap-1 border-b border-border/40 bg-background/95 px-2 py-1 backdrop-blur-md lg:hidden">
+      <div className="sticky top-11 z-20 flex items-center gap-1 border-b border-border/40 bg-background/95 px-2 py-1 backdrop-blur-md sm:top-12 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileTab("score")}
@@ -905,7 +1065,7 @@ export default function ScoringPage() {
         </button>
       </div>
 
-      <div className="container mx-auto grid max-w-6xl w-full min-w-0 gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
+      <main id="main-scoring-content" className="container mx-auto grid max-w-6xl w-full min-w-0 gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3">
         <div
           className={cn(
             "space-y-2 sm:space-y-4 lg:col-span-2 min-w-0 w-full",
@@ -913,7 +1073,7 @@ export default function ScoringPage() {
           )}
         >
           {match.status === "scheduled" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-primary-950 dark:border-emerald-500/35 dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-emerald-950 dark:border-emerald-500/35 dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
                   <Play className="h-4 w-4 text-primary" />
@@ -1033,6 +1193,85 @@ export default function ScoringPage() {
             sunlightMode={sunlightMode}
           />
 
+          {/* Innings Complete Banner */}
+          {isInningsComplete && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 sm:p-4 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
+              <div className="space-y-0.5">
+                <p className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
+                  <Award className="h-4 w-4 text-amber-500 shrink-0" />
+                  Innings Complete
+                </p>
+                <p className="text-[11px] sm:text-xs text-muted-foreground">
+                  {match.current_innings === 1
+                    ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
+                    : "Match has reached target or overs limit."}
+                </p>
+              </div>
+              {match.current_innings === 1 && isScorer && (
+                <Button
+                  size="sm"
+                  onClick={() => void handleEndInnings()}
+                  disabled={isProcessing}
+                  className="font-bold bg-amber-600 hover:bg-amber-500 text-white text-xs h-8"
+                >
+                  End Innings & Switch Sides
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Over Complete — Select Bowler Banner */}
+          {isOverComplete && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 sm:p-4 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200">
+              <div className="space-y-0.5">
+                <p className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
+                  <Users className="h-4 w-4 text-sky-500 shrink-0" />
+                  Over {match.current_over} Complete
+                </p>
+                <p className="text-[11px] sm:text-xs text-muted-foreground">
+                  Select the bowler for over {match.current_over + 1} to resume scoring.
+                </p>
+              </div>
+              {isScorer && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowSelectBowler(true)}
+                  disabled={isProcessing}
+                  className="font-bold text-xs h-8"
+                >
+                  Select Bowler
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Select Batsmen Banner */}
+          {match.status === "live" &&
+            (!strikerId || !nonStrikerId) &&
+            !isInningsComplete && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 sm:p-4 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200">
+                <div className="space-y-0.5">
+                  <p className="flex items-center gap-1.5 text-xs sm:text-sm font-bold">
+                    <Users className="h-4 w-4 text-amber-500 shrink-0" />
+                    Batsman Selection Required
+                  </p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground">
+                    A wicket has fallen or batsmen need to be set to resume scoring.
+                  </p>
+                </div>
+                {isScorer && (
+                  <Button
+                    size="sm"
+                    onClick={() => setShowSelectBatsmen(true)}
+                    disabled={isProcessing}
+                    className="font-bold text-xs h-8"
+                  >
+                    Select Batsmen
+                  </Button>
+                )}
+              </div>
+            )}
+
           <ScoringPanel
             onScore={onScore}
             onWicket={openWicketDialog}
@@ -1060,7 +1299,9 @@ export default function ScoringPage() {
             currentBall={match.current_ball}
             lastBalls={lastBalls}
             isFreeHit={isFreeHit}
-            disabled={!isScorer || isProcessing || match.status !== "live"}
+            disabled={isScoringDisabled}
+            undoDisabled={!isScorer || isProcessing || match?.status !== "live"}
+            keyboardSuppressed={scoringKeyboardSuppressed}
             sunlightMode={sunlightMode}
             onToggleSunlightMode={toggleSunlightMode}
             wagonWheelPrompt={wagonWheelPrompt}
@@ -1192,7 +1433,7 @@ export default function ScoringPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </main>
 
       <TossDialog
         open={showTossDialog}
@@ -1231,11 +1472,7 @@ export default function ScoringPage() {
           }
         }}
         isProcessing={isProcessing}
-        addPlayerTarget={addPlayerTarget}
-        newPlayerName={newPlayerName}
-        onNewPlayerNameChange={setNewPlayerName}
         onAddPlayer={onAddPlayer}
-        onAddPlayerTargetChange={setAddPlayerTarget}
       />
 
       <BowlerDialog
@@ -1283,11 +1520,7 @@ export default function ScoringPage() {
           }
         }}
         isProcessing={isProcessing}
-        addPlayerTarget={addPlayerTarget}
-        newPlayerName={newPlayerName}
-        onNewPlayerNameChange={setNewPlayerName}
         onAddPlayer={onAddPlayer}
-        onAddPlayerTargetChange={setAddPlayerTarget}
       />
 
       <AddPlayerDialog
@@ -1295,10 +1528,6 @@ export default function ScoringPage() {
         onOpenChange={setShowAddPlayerDialog}
         teamName={battingTeam?.name ?? match.team1?.name}
         bowlingTeamName={bowlingTeam?.name ?? match.team2?.name}
-        addPlayerTeam={addPlayerTeam}
-        onTeamChange={setAddPlayerTeam}
-        newPlayerName={newPlayerName}
-        onNameChange={setNewPlayerName}
         onConfirm={() => void onAddPlayerAlways()}
         isProcessing={isProcessing}
       />
