@@ -86,4 +86,8 @@ export interface ScoringState {
   match_completed: boolean;
   result_description: string | null;
   innings_break?: boolean;
+  runs_scored?: number | null;
+  extras?: number | null;
+  extra_type?: string | null;
+  is_wicket?: boolean | null;
 }

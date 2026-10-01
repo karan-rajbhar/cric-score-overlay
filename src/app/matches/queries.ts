@@ -261,10 +261,13 @@ export async function getScoringState(matchId: string) {
     }> = [];
     let lastOverBowlerId: string | null = null;
     if (current) {
+      const bpo = match?.balls_per_over || 6;
       const totalBalls = current.total_balls ?? 0;
-      const ongoingOver = Math.floor(totalBalls / 6);
-      const isOverBoundary = totalBalls > 0 && totalBalls % 6 === 0;
-      const displayOver = isOverBoundary ? ongoingOver - 1 : ongoingOver;
+      const ongoingOver = Math.floor(totalBalls / bpo);
+      const isOverBoundary = totalBalls > 0 && totalBalls % bpo === 0;
+      // If a bowler is currently assigned, we are in/starting the new over (ongoingOver) awaiting deliveries.
+      // Only when NO bowler is assigned yet (at over boundary, awaiting bowler selection) do we show the completed over for review.
+      const displayOver = isOverBoundary && !bowler ? ongoingOver - 1 : ongoingOver;
 
       const { data: balls } = await supabase
         .from("ball_by_ball")
@@ -277,7 +280,7 @@ export async function getScoringState(matchId: string) {
       thisOverDeliveries = balls ?? [];
 
       if (ongoingOver > 0 || isOverBoundary) {
-        const overToCheck = isOverBoundary ? ongoingOver - 1 : ongoingOver - 1;
+        const overToCheck = ongoingOver > 0 ? ongoingOver - 1 : 0;
         const { data: lastOverBall } = await supabase
           .from("ball_by_ball")
           .select("bowler_id")
