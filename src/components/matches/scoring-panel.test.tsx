@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ScoringPanel } from "./scoring-panel";
 
@@ -288,5 +289,70 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
     expect(onScore).toHaveBeenCalledWith(4, undefined, undefined);
     expect(screen.queryByText(/select shot direction/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("ScoringPanel keyboard guards", () => {
+  const base = {
+    currentOver: 4,
+    currentBall: 2,
+    lastBalls: ["1", "4", "0"],
+  };
+
+  it("ignores scoring hotkeys while a dialog owns the keyboard", () => {
+    const onScore = vi.fn();
+    render(
+      <ScoringPanel
+        {...base}
+        onScore={onScore}
+        onWicket={vi.fn()}
+        onUndo={vi.fn()}
+        wagonWheelPrompt={false}
+        keyboardSuppressed
+      />,
+    );
+    fireEvent.keyDown(window, { key: "4" });
+    expect(onScore).not.toHaveBeenCalled();
+  });
+
+  it("keeps undo usable via button and hotkey when run buttons are disabled", () => {
+    const onUndo = vi.fn();
+    render(
+      <ScoringPanel
+        {...base}
+        onScore={vi.fn()}
+        onWicket={vi.fn()}
+        onUndo={onUndo}
+        wagonWheelPrompt={false}
+        disabled
+        undoDisabled={false}
+      />,
+    );
+    const undoBtn = screen.getByRole("button", { name: /undo last ball/i });
+    expect(undoBtn).toBeEnabled();
+    fireEvent.click(undoBtn);
+
+    fireEvent.keyDown(window, { key: "u" });
+    expect(onUndo).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards the pending delivery when the wagon wheel modal is dismissed", async () => {
+    const user = userEvent.setup();
+    const onScore = vi.fn();
+    render(
+      <ScoringPanel
+        {...base}
+        onScore={onScore}
+        onWicket={vi.fn()}
+        onUndo={vi.fn()}
+        wagonWheelPrompt
+      />,
+    );
+
+    await user.keyboard("4");
+    expect(screen.getByText(/select shot direction/i)).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(onScore).not.toHaveBeenCalled();
   });
 });

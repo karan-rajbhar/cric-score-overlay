@@ -52,6 +52,10 @@ interface ScoringPanelProps {
   currentBall: number;
   lastBalls: string[];
   disabled?: boolean;
+  /** Overrides `disabled` for the Undo action only (undo stays useful while a bowler is pending). */
+  undoDisabled?: boolean;
+  /** Ignore scoring hotkeys while a dialog/menu owns the keyboard. */
+  keyboardSuppressed?: boolean;
   isFreeHit?: boolean;
   sunlightMode?: boolean;
   onToggleSunlightMode?: () => void;
@@ -70,6 +74,8 @@ export function ScoringPanel({
   currentBall,
   lastBalls,
   disabled = false,
+  undoDisabled,
+  keyboardSuppressed = false,
   isFreeHit = false,
   sunlightMode: propSunlightMode,
   onToggleSunlightMode,
@@ -315,7 +321,8 @@ export function ScoringPanel({
   // Keyboard-first scoring: 0-6 score, . dot, W wicket, U undo, E edit, S swap strike, D wide, N noball, B bye, L legbye, ? help.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isWagonWheelModalOpen || showShortcutsHelp || disabled) return;
+      if (isWagonWheelModalOpen || showShortcutsHelp || keyboardSuppressed)
+        return;
       const target = e.target as HTMLElement | null;
       if (
         target instanceof HTMLInputElement ||
@@ -327,25 +334,37 @@ export function ScoringPanel({
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const key = e.key.toLowerCase();
+      // Undo stays available while run buttons are disabled (e.g. over
+      // complete with bowler pending) as long as undo itself isn't disabled.
+      if (key === "u") {
+        if (undoDisabled ?? disabled) return;
+        e.preventDefault();
+        hapticUndo();
+        announceUndo();
+        onUndo?.();
+        return;
+      }
+      if (key === "escape") {
+        e.preventDefault();
+        setSelectedExtra(null);
+        return;
+      }
+      if (key === "?") {
+        e.preventDefault();
+        setShowShortcutsHelp((prev) => !prev);
+        return;
+      }
+      if (disabled) return;
       if (["0", "1", "2", "3", "4", "5", "6"].includes(key) || key === ".") {
         e.preventDefault();
         handleRunClick(key === "." ? 0 : Number(key));
       } else if (key === "w") {
         e.preventDefault();
         hapticWicket();
+        // Wicket dialog may still be cancelled — no voice announcement yet.
         onWicket(selectedExtra);
-        announceDelivery({
-          runs: 0,
-          extraType: selectedExtra,
-          isWicket: true,
-        });
         setSelectedExtra(null);
         setSelectedZone(null);
-      } else if (key === "u") {
-        e.preventDefault();
-        hapticUndo();
-        announceUndo();
-        onUndo?.();
       } else if (key === "e") {
         e.preventDefault();
         onEditLastBall?.();
@@ -364,12 +383,6 @@ export function ScoringPanel({
       } else if (key === "l") {
         e.preventDefault();
         setSelectedExtra((prev) => (prev === "leg_bye" ? null : "leg_bye"));
-      } else if (key === "escape") {
-        e.preventDefault();
-        setSelectedExtra(null);
-      } else if (key === "?") {
-        e.preventDefault();
-        setShowShortcutsHelp((prev) => !prev);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -378,6 +391,8 @@ export function ScoringPanel({
     isWagonWheelModalOpen,
     showShortcutsHelp,
     disabled,
+    keyboardSuppressed,
+    undoDisabled,
     selectedExtra,
     handleRunClick,
     onWicket,
@@ -903,11 +918,11 @@ export function ScoringPanel({
               type="button"
               variant="outline"
               size="lg"
-              onClick={() => {
-                hapticUndo();
-                onUndo();
-              }}
-              disabled={disabled}
+                onClick={() => {
+                  hapticUndo();
+                  onUndo();
+                }}
+                disabled={undoDisabled ?? disabled}
               title="Undo last ball (U)"
               aria-label="Undo last ball"
               className={cn(
@@ -933,7 +948,9 @@ export function ScoringPanel({
         <Dialog
           open={isWagonWheelModalOpen}
           onOpenChange={(open) => {
-            if (!open) handleSkipZone();
+            // Closing via Esc/backdrop discards the pending delivery instead
+            // of silently recording it — mis-taps must not corrupt the score.
+            if (!open) handleCancelModal();
           }}
         >
           <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">

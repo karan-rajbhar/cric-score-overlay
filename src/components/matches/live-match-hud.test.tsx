@@ -176,4 +176,64 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByText(/CRR: 8.00/i)).toBeInTheDocument();
     expect(screen.getByText(/Proj: 160/i)).toBeInTheDocument();
   });
+
+  it("filters out previous over deliveries so new bowler starts with 0 runs this over", () => {
+    const newBowlerMatch: Match = {
+      ...mockMatchChasing,
+      current_over: 1,
+      current_ball: 0,
+    };
+
+    // rawDeliveries contains deliveries from Over 0 (e.g. 6 runs scored in Over 0)
+    const rawDeliveries = [
+      { id: "b1", over_number: 0, ball_number: 1, runs_scored: 4, extras: 0, extra_type: null, is_wicket: false },
+      { id: "b2", over_number: 0, ball_number: 2, runs_scored: 2, extras: 0, extra_type: null, is_wicket: false },
+    ];
+
+    render(
+      <LiveMatchHUD
+        match={newBowlerMatch}
+        currentInnings={mockCurrentInningsChasing}
+        striker={mockStriker}
+        nonStriker={mockNonStriker}
+        bowler={{
+          id: "new-bowler",
+          name: "Jasprit Bumrah",
+          overs: 0,
+          maidens: 0,
+          runs: 0,
+          wickets: 0,
+        }}
+        lastBalls={[]}
+        rawDeliveries={rawDeliveries}
+      />,
+    );
+
+    // This Over runs for the new bowler in over 1 should be 0, not 6!
+    expect(screen.getByText(/0 runs/i)).toBeInTheDocument();
+    expect(screen.queryByText(/6 runs/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Awaiting first ball of over/i)).toBeInTheDocument();
+  });
+
+  it("requires a second confirming tap before ending innings", () => {
+    const onEndInnings = vi.fn();
+    render(
+      <LiveMatchHUD
+        match={mockMatchChasing}
+        currentInnings={mockCurrentInningsChasing}
+        striker={mockStriker}
+        nonStriker={mockNonStriker}
+        bowler={mockBowler}
+        lastBalls={["1", "4"]}
+        onEndInnings={onEndInnings}
+      />,
+    );
+
+    const endBtn = screen.getByRole("button", { name: /^end inns$/i });
+    fireEvent.click(endBtn);
+    expect(onEndInnings).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm end inns/i }));
+    expect(onEndInnings).toHaveBeenCalledTimes(1);
+  });
 });

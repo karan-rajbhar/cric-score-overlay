@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -190,13 +190,20 @@ export function LiveMatchHUD({
   const bowlerMaxBalls = maxBowlerOvers * bpo;
   const isBowlerSpellFinished = bowlerBallsCount >= bowlerMaxBalls && bowlerBallsCount > 0;
 
+  // Deliveries in current over
+  const thisOverDeliveries = useMemo(() => {
+    return rawDeliveries.filter(
+      (d) => d.over_number === undefined || d.over_number === match.current_over,
+    );
+  }, [rawDeliveries, match.current_over]);
+
   // Runs in current over
   const thisOverRuns = useMemo(() => {
-    return rawDeliveries.reduce(
+    return thisOverDeliveries.reduce(
       (sum, d) => sum + (d.runs_scored ?? 0) + (d.extras ?? 0),
       0,
     );
-  }, [rawDeliveries]);
+  }, [thisOverDeliveries]);
 
   // Rate comparison indicator (chasing)
   const isAheadOfRate = useMemo(() => {
@@ -214,6 +221,27 @@ export function LiveMatchHUD({
     const diff = Math.abs(crrNum - rrrNum);
     return diff.toFixed(2);
   }, [crr, rrr]);
+
+  // End Innings is destructive (irreversible mid-innings), so arm it on the
+  // first tap and require a second confirming tap.
+  const [armedMatchInningsKey, setArmedMatchInningsKey] = useState<string | null>(null);
+  const currentMatchInningsKey = `${match.id}-${match.current_innings}`;
+  const endInningsArmed = armedMatchInningsKey === currentMatchInningsKey;
+
+  useEffect(() => {
+    if (!endInningsArmed) return;
+    const t = setTimeout(() => setArmedMatchInningsKey(null), 5000);
+    return () => clearTimeout(t);
+  }, [endInningsArmed]);
+
+  const handleEndInningsClick = () => {
+    if (endInningsArmed) {
+      setArmedMatchInningsKey(null);
+      onEndInnings?.();
+    } else {
+      setArmedMatchInningsKey(currentMatchInningsKey);
+    }
+  };
 
   return (
     <div className="space-y-2 sm:space-y-3">
@@ -250,20 +278,32 @@ export function LiveMatchHUD({
               </div>
 
               {onEndInnings && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEndInnings}
-                  disabled={isProcessing}
-                  className={cn(
-                    "h-7 px-2 text-[11px] sm:h-8 sm:px-2.5 sm:text-xs font-extrabold",
-                    sunlightMode
-                      ? "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"
-                      : "",
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {endInningsArmed && (
+                    <span
+                      role="status"
+                      className="text-[10px] font-bold text-amber-700 dark:text-amber-300 sm:hidden"
+                    >
+                      Tap again to confirm
+                    </span>
                   )}
-                >
-                  End Inns
-                </Button>
+                  <Button
+                    variant={endInningsArmed ? "destructive" : "outline"}
+                    size="sm"
+                    aria-pressed={endInningsArmed}
+                    onClick={handleEndInningsClick}
+                    disabled={isProcessing}
+                    className={cn(
+                      "h-7 px-2 text-[11px] sm:h-8 sm:px-2.5 sm:text-xs font-extrabold",
+                      sunlightMode &&
+                        (endInningsArmed
+                          ? "border-2 border-black bg-red-600 font-black text-white hover:bg-red-700"
+                          : "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"),
+                    )}
+                  >
+                    {endInningsArmed ? "Confirm End Inns" : "End Inns"}
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -315,7 +355,7 @@ export function LiveMatchHUD({
                             type="button"
                             onClick={onReviseTarget}
                             title="Revise target runs or match overs"
-                            className="inline-flex items-center gap-1 rounded bg-muted/70 px-1 py-0.2 sm:px-1.5 sm:py-0.5 text-[9px] sm:text-[10px] font-bold text-foreground hover:bg-muted"
+                            className="inline-flex items-center gap-1 rounded bg-muted/70 px-1 py-0.5 sm:px-1.5 sm:py-0.5 text-[9px] sm:text-[10px] font-bold text-foreground hover:bg-muted"
                           >
                             <Pencil className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
                             Revise Target
@@ -673,12 +713,13 @@ export function LiveMatchHUD({
                             : "bg-muted text-foreground",
                       )}
                       title={`Ball ${idx + 1}: ${b}`}
+                      aria-label={`Ball ${idx + 1}: ${b}`}
                     >
                       {b}
                     </button>
                   ))
                 ) : (
-                  <span className="text-[10px] text-muted-foreground">Over in progress</span>
+                  <span className="text-[10px] text-muted-foreground">Awaiting first ball of over</span>
                 )}
               </div>
             </div>
