@@ -34,13 +34,16 @@ export type QueuedActionType =
   | "setBatsmen"
   | "setBowler"
   | "endInnings"
-  | "undoLastBall";
+  | "undoLastBall"
+  | "startSuperOver";
 
 export interface QueuedActionBase {
   queueId: string;
   matchId: string;
   type: QueuedActionType;
   enqueuedAt: number;
+  retryCount?: number;
+  lastError?: string | null;
 }
 
 export interface QueuedRecordBall extends QueuedActionBase {
@@ -68,12 +71,18 @@ export interface QueuedUndoLastBall extends QueuedActionBase {
   payload: Record<string, never>;
 }
 
+export interface QueuedStartSuperOver extends QueuedActionBase {
+  type: "startSuperOver";
+  payload: Record<string, never>;
+}
+
 export type QueuedAction =
   | QueuedRecordBall
   | QueuedSetBatsmen
   | QueuedSetBowler
   | QueuedEndInnings
-  | QueuedUndoLastBall;
+  | QueuedUndoLastBall
+  | QueuedStartSuperOver;
 
 // ---------------------------------------------------------------------------
 // Storage helpers
@@ -81,6 +90,18 @@ export type QueuedAction =
 
 const STORAGE_KEY_PREFIX = "cric_pending_balls_";
 const ACTIONS_KEY_PREFIX = "cric_pending_actions_";
+const DLQ_KEY_PREFIX = "cric_dead_letter_actions_";
+
+function getDlqKey(matchId: string): string {
+  return `${DLQ_KEY_PREFIX}${matchId}`;
+}
+
+export interface DeadLetterItem {
+  action: QueuedAction;
+  failedAt: number;
+  error: string;
+  retryCount: number;
+}
 
 function getLegacyKey(matchId: string): string {
   return `${STORAGE_KEY_PREFIX}${matchId}`;
@@ -247,10 +268,107 @@ export function clearPendingActions(matchId: string): void {
 }
 
 /**
- * Clear everything for a match.
+ * Retrieve all dead-letter actions for a match.
+ */
+export function getDeadLetterActions(matchId: string): DeadLetterItem[] {
+  const raw = safeGetItem(getDlqKey(matchId));
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Total count of dead-letter actions.
+ */
+export function getDeadLetterCount(matchId: string): number {
+  return getDeadLetterActions(matchId).length;
+}
+
+/**
+ * Clear all dead-letter actions for a match.
+ */
+export function clearDeadLetterActions(matchId: string): void {
+  safeRemoveItem(getDlqKey(matchId));
+}
+
+/**
+ * Move a failing action to the dead-letter queue and persist it.
+ */
+export function moveToDeadLetter(
+  matchId: string,
+  action: QueuedAction,
+  error: string,
+): void {
+  const current = getDeadLetterActions(matchId);
+  current.push({
+    action,
+    failedAt: Date.now(),
+    error,
+    retryCount: (action.retryCount ?? 0) + 1,
+  });
+  safeSetItem(getDlqKey(matchId), JSON.stringify(current));
+}
+
+/**
+ * Manually skip and discard the current head-of-queue action,
+ * moving it to the Dead Letter Queue so subsequent queued actions can flush.
+ */
+export function skipHeadAction(matchId: string): QueuedAction | null {
+  const pending = getPendingActions(matchId);
+  if (pending.length === 0) return null;
+  const head = pending[0]!;
+  moveToDeadLetter(matchId, head, "Manually skipped by scorer");
+  removeAction(matchId, head.queueId);
+  return head;
+}
+
+/**
+ * Update an existing queued action in place (e.g. to increment retryCount).
+ */
+export function updateAction(matchId: string, updated: QueuedAction): void {
+  const current = getPendingActions(matchId);
+  const idx = current.findIndex((a) => a.queueId === updated.queueId);
+  if (idx !== -1) {
+    current[idx] = updated;
+    safeSetItem(getActionsKey(matchId), JSON.stringify(current));
+  }
+}
+
+/**
+ * Determines whether a sync error is fatal/unrecoverable (meaning retrying the
+ * exact same action will never succeed) or transient (e.g. network timeout).
+ */
+export function isFatalSyncError(error: string): boolean {
+  const lower = error.toLowerCase();
+  return (
+    lower.includes("not_authorized") ||
+    lower.includes("not authorized") ||
+    lower.includes("permission") ||
+    lower.includes("logged in") ||
+    lower.includes("invalid") ||
+    lower.includes("unrecoverable") ||
+    lower.includes("match_not_found") ||
+    lower.includes("no_innings_found") ||
+    lower.includes("innings_already_completed") ||
+    lower.includes("cannot_score_after_match_complete") ||
+    lower.includes("striker_mismatch") ||
+    lower.includes("awaiting_new_batsman") ||
+    lower.includes("p0001") ||
+    lower.includes("42501") ||
+    lower.includes("22000")
+  );
+}
+
+/**
+ * Clear everything for a match (pending queue and dead letter queue).
  */
 export function clearAllPending(matchId: string): void {
   clearPendingActions(matchId);
+  clearDeadLetterActions(matchId);
 }
 
 // ---------------------------------------------------------------------------
@@ -313,20 +431,30 @@ export function clearPendingBalls(matchId: string): void {
   safeRemoveItem(getLegacyKey(matchId));
 }
 
+export interface FlushOptions {
+  maxRetries?: number;
+}
+
 /**
  * Sequentially flushes all pending offline balls to the server.
  */
 export async function flushPendingBalls(
   matchId: string,
   submitFn: (ball: PendingBallParams) => Promise<{ error: string | null }>,
+  options?: FlushOptions,
 ): Promise<{ synced: number; failed: number }> {
-  return flushPendingActions(matchId, {
-    recordBall: submitFn,
-    setBatsmen: async () => ({ error: null }),
-    setBowler: async () => ({ error: null }),
-    endInnings: async () => ({ error: null }),
-    undoLastBall: async () => ({ error: null }),
-  });
+  return flushPendingActions(
+    matchId,
+    {
+      recordBall: submitFn,
+      setBatsmen: async () => ({ error: null }),
+      setBowler: async () => ({ error: null }),
+      endInnings: async () => ({ error: null }),
+      undoLastBall: async () => ({ error: null }),
+      startSuperOver: async () => ({ error: null }),
+    },
+    options,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -339,16 +467,23 @@ export interface ActionFlushHandlers {
   setBowler: (bowlerId: string) => Promise<{ error: string | null }>;
   endInnings: () => Promise<{ error: string | null }>;
   undoLastBall: () => Promise<{ error: string | null }>;
+  startSuperOver?: () => Promise<{ error: string | null }>;
 }
 
 /**
  * Sequentially flush all pending actions to the server.
  * Each action type is dispatched to the appropriate server action via the handlers map.
+ *
+ * Implements a Dead Letter Queue (DLQ): If an action encounters an unrecoverable
+ * fatal validation error or exceeds maxRetries (default 3), it is moved to DLQ
+ * and removed from pending queue, unblocking subsequent valid deliveries.
  */
 export async function flushPendingActions(
   matchId: string,
   handlers: ActionFlushHandlers,
+  options?: FlushOptions,
 ): Promise<{ synced: number; failed: number }> {
+  const maxRetries = options?.maxRetries ?? 3;
   const pending = getPendingActions(matchId);
   if (pending.length === 0) return { synced: 0, failed: 0 };
 
@@ -378,6 +513,11 @@ export async function flushPendingActions(
         case "undoLastBall":
           res = await handlers.undoLastBall();
           break;
+        case "startSuperOver":
+          res = handlers.startSuperOver
+            ? await handlers.startSuperOver()
+            : { error: null };
+          break;
         default:
           console.warn("OfflineQueue: Unknown action type:", action);
           res = { error: null }; // Skip unknown actions
@@ -391,16 +531,55 @@ export async function flushPendingActions(
           `OfflineQueue: Failed to sync ${action.type}:`,
           res.error,
         );
-        failed++;
-        break; // Preserve sequential order
+        const retries = (action.retryCount ?? 0) + 1;
+        const updated: QueuedAction = {
+          ...action,
+          retryCount: retries,
+          lastError: res.error,
+        };
+
+        if (isFatalSyncError(res.error) || retries >= maxRetries) {
+          console.warn(
+            `OfflineQueue: Moving unrecoverable action ${action.type} (id: ${action.queueId}) to Dead Letter Queue:`,
+            res.error,
+          );
+          moveToDeadLetter(matchId, updated, res.error);
+          removeAction(matchId, action.queueId);
+          failed++;
+          continue; // Unblock subsequent actions in queue
+        } else {
+          updateAction(matchId, updated);
+          failed++;
+          break; // Preserve sequential order on transient errors
+        }
       }
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       console.error(
         `OfflineQueue: Network error during ${action.type} flush:`,
         err,
       );
-      failed++;
-      break;
+      const retries = (action.retryCount ?? 0) + 1;
+      const updated: QueuedAction = {
+        ...action,
+        retryCount: retries,
+        lastError: errorMsg,
+      };
+
+      if (isFatalSyncError(errorMsg) || retries >= maxRetries) {
+        console.warn(
+          `OfflineQueue: Moving action ${action.type} (id: ${action.queueId}) to Dead Letter Queue after max retries/fatal error:`,
+          errorMsg,
+        );
+        moveToDeadLetter(matchId, updated, errorMsg);
+        removeAction(matchId, action.queueId);
+        failed++;
+        continue; // Unblock subsequent actions
+      } else {
+        updateAction(matchId, updated);
+        failed++;
+        break;
+      }
     }
   }
 

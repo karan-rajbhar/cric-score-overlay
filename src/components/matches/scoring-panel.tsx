@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -154,6 +154,24 @@ export function ScoringPanel({
 
   const [showMoreRuns, setShowMoreRuns] = useState(false);
   const [customRunsInput, setCustomRunsInput] = useState("");
+
+  const overSummary = useMemo(() => {
+    let runs = 0;
+    let wickets = 0;
+    for (const b of lastBalls) {
+      if (b === "W") {
+        wickets++;
+      } else {
+        const num = parseInt(b, 10);
+        if (!isNaN(num)) {
+          runs += num;
+        } else if (b.includes("wd") || b.includes("nb")) {
+          runs += 1;
+        }
+      }
+    }
+    return { runs, wickets };
+  }, [lastBalls]);
 
   const runButtons = [0, 1, 2, 3, 4, 6, 5];
 
@@ -565,9 +583,16 @@ export function ScoringPanel({
 
         {/* Row 2: This over ball-by-ball pill trail (scrollable if many extras) */}
         <div className="flex items-center gap-2 overflow-hidden">
-          <span className="text-[11px] sm:text-xs font-bold text-muted-foreground shrink-0">
-            This over:
-          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[11px] sm:text-xs font-bold text-muted-foreground">
+              This over:
+            </span>
+            {lastBalls.length > 0 && (
+              <span className="rounded-full bg-muted/80 px-1.5 py-0.2 text-[10px] font-bold text-foreground tabular-nums">
+                {overSummary.runs}r{overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
+              </span>
+            )}
+          </div>
           {lastBalls.length > 0 ? (
             <div
               className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar flex-1"
@@ -716,19 +741,19 @@ export function ScoringPanel({
                       )
                     : cn(
                         isDot &&
-                          "border-border/80 bg-background/80 text-muted-foreground shadow-sm hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/80 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
+                          "border-border/80 bg-background/90 text-muted-foreground shadow-2xs hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/90 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
                         runs === 1 &&
-                          "border-amber-500/30 bg-amber-500/5 text-amber-800 shadow-sm hover:bg-amber-500/15 dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:hover:border-amber-500/40 dark:hover:bg-muted/80",
+                          "border-amber-500/30 bg-amber-500/5 text-amber-900 shadow-2xs hover:bg-amber-500/15 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20",
                         runs === 2 &&
-                          "border-amber-500/40 bg-amber-500/10 text-amber-900 shadow-sm hover:bg-amber-500/20 dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:hover:border-amber-500/40 dark:hover:bg-muted/80",
+                          "border-amber-500/40 bg-amber-500/10 text-amber-950 shadow-2xs hover:bg-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25",
                         runs === 3 &&
-                          "border-orange-500/40 bg-orange-500/10 text-orange-900 shadow-sm hover:bg-orange-500/20 dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:hover:border-orange-500/40 dark:hover:bg-muted/80",
+                          "border-orange-500/40 bg-orange-500/10 text-orange-950 shadow-2xs hover:bg-orange-500/20 dark:border-orange-500/40 dark:bg-orange-500/15 dark:text-orange-100 dark:hover:bg-orange-500/25",
                         isFive &&
-                          "border-sky-500/40 bg-sky-500/10 text-sky-900 shadow-sm hover:bg-sky-500/20 dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:hover:border-sky-500/40 dark:hover:bg-muted/80",
+                          "border-sky-500/40 bg-sky-500/10 text-sky-950 shadow-2xs hover:bg-sky-500/20 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-100 dark:hover:bg-sky-500/25",
                         isFour &&
-                          "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 hover:bg-emerald-500/25 dark:border-emerald-500/60 dark:bg-emerald-950/50 dark:text-emerald-300 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.35),0_0_16px_-3px_rgba(16,185,129,0.35)] dark:ring-0 dark:hover:bg-emerald-900/60",
+                          "border-emerald-500/60 bg-emerald-500/15 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 hover:bg-emerald-500/25 dark:border-emerald-500/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.35),0_0_16px_-3px_rgba(16,185,129,0.35)] dark:ring-0 dark:hover:bg-emerald-900/60",
                         isSix &&
-                          "border-purple-500/50 bg-purple-500/15 text-purple-700 shadow-md ring-2 ring-purple-500/20 hover:bg-purple-500/25 dark:border-purple-500/60 dark:bg-purple-950/50 dark:text-purple-300 dark:shadow-[inset_0_1px_0_0_rgba(192,132,252,0.35),0_0_16px_-3px_rgba(168,85,247,0.35)] dark:ring-0 dark:hover:bg-purple-900/60",
+                          "border-purple-500/60 bg-purple-500/15 text-purple-700 shadow-md ring-2 ring-purple-500/20 hover:bg-purple-500/25 dark:border-purple-500/60 dark:bg-purple-950/60 dark:text-purple-300 dark:shadow-[inset_0_1px_0_0_rgba(192,132,252,0.35),0_0_16px_-3px_rgba(168,85,247,0.35)] dark:ring-0 dark:hover:bg-purple-900/60",
                       ),
                 )}
                 onClick={() => handleRunClick(runs)}
@@ -881,12 +906,14 @@ export function ScoringPanel({
           ))}
         </div>
 
-        {/* Primary Action Row: Wicket & Undo (Swap is on Batters HUD; Edit is via ball trail / Undo) */}
+        {/* Primary Action Row: Destructive Wicket + Prominent Undo */}
         <div
           className={cn(
-            "grid gap-1.5 sm:gap-2",
+            "grid gap-2 sm:gap-3.5",
             onUndo ? "grid-cols-2" : "grid-cols-1",
           )}
+          role="group"
+          aria-label="Ball actions"
         >
           <Button
             variant="destructive"
@@ -905,11 +932,16 @@ export function ScoringPanel({
             }}
             disabled={disabled}
             aria-label="Wicket dismissal"
-            title="Wicket dismissal (W)"
+            title={isFreeHit ? "Wicket dismissal (W) — Run Out Only on Free Hit" : "Wicket dismissal (W)"}
           >
             <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span aria-hidden="true">
               WICKET<span className="hidden sm:inline"> (W)</span>
+              {isFreeHit && (
+                <span className="ml-1 text-[10px] text-amber-200 font-bold tracking-normal">
+                  (Run Out)
+                </span>
+              )}
             </span>
           </Button>
 
@@ -918,11 +950,11 @@ export function ScoringPanel({
               type="button"
               variant="outline"
               size="lg"
-                onClick={() => {
-                  hapticUndo();
-                  onUndo();
-                }}
-                disabled={undoDisabled ?? disabled}
+              onClick={() => {
+                hapticUndo();
+                onUndo();
+              }}
+              disabled={undoDisabled ?? disabled}
               title="Undo last ball (U)"
               aria-label="Undo last ball"
               className={cn(

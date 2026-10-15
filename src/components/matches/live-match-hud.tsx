@@ -162,7 +162,9 @@ export function LiveMatchHUD({
   // Active partnership calculation
   const partnership = useMemo(() => {
     if (!currentInnings) return { runs: 0, balls: 0, runRate: "0.00" };
-    const fows = currentInnings.fall_of_wickets ?? [];
+    const fows = [...(currentInnings.fall_of_wickets ?? [])].sort(
+      (a, b) => (a.wicket_number ?? 0) - (b.wicket_number ?? 0),
+    );
     const lastFow = fows.length > 0 ? fows[fows.length - 1] : null;
     const pRuns = Math.max(0, currentRuns - (lastFow?.runs_at_fall ?? 0));
     const pBalls = Math.max(
@@ -250,70 +252,121 @@ export function LiveMatchHUD({
         <Card
           data-testid="match-equation-banner"
           className={cn(
-            "overflow-hidden border shadow-sm transition-all",
+            "overflow-hidden transition-all shadow-md",
             sunlightMode
               ? "border-2 border-black bg-white text-black shadow-none"
               : isSecondInnings
                 ? isAheadOfRate
-                  ? "border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 via-background to-emerald-500/5 dark:border-emerald-500/30"
-                  : "border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-background to-amber-500/5 dark:border-amber-500/30"
-                : "border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-background to-sky-500/5 dark:border-sky-500/30",
+                  ? "scoreboard bg-[#0d281e] dark:bg-[#061811] text-[#f2fbf6] border border-emerald-500/40"
+                  : "scoreboard bg-[#1c2214] dark:bg-[#14180d] text-[#fcfbe8] border border-amber-500/40"
+                : "scoreboard bg-[#0c231b] dark:bg-[#061711] text-[#f2fbf6] border border-[#1d4b38]",
           )}
         >
-          <CardContent className="p-2 sm:p-4">
+          <CardContent className="p-3 sm:p-5 space-y-3">
             {/* Integrated Live Scoreboard Strip */}
-            <div className="flex items-center justify-between border-b border-border/40 pb-1.5 mb-1.5 sm:pb-2 sm:mb-2">
-              <div className="min-w-0">
-                <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground block truncate uppercase tracking-wider">
-                  {battingTeamName ?? (match.current_innings === 1 ? match.team1?.name : match.team2?.name) ?? "Batting"} · Inns {match.current_innings}
-                </span>
-                <div className="flex items-baseline gap-1.5 sm:gap-2">
-                  <span className="score-display text-xl sm:text-3xl font-black tabular-nums tracking-tight text-foreground">
-                    {currentRuns}/{currentWickets}
-                  </span>
-                  <span className="text-xs sm:text-sm font-extrabold text-muted-foreground">
-                    ({oversFromBalls(ballsBowled, bpo)} ov)
-                  </span>
+            <div className={cn("border-b pb-3", sunlightMode ? "border-black/20" : "border-white/10")}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[10px] sm:text-xs font-black uppercase tracking-wider",
+                      sunlightMode ? "text-black" : "text-emerald-400 dark:text-emerald-300",
+                    )}>
+                      {battingTeamName ?? (match.current_innings === 1 ? match.team1?.name : match.team2?.name) ?? "Batting"}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[9px] sm:text-[10px] py-0 px-1.5 font-bold uppercase tracking-wider",
+                        sunlightMode ? "border-black text-black" : "border-white/20 text-white/80 bg-white/5",
+                      )}
+                    >
+                      Inns {match.current_innings} · {match.match_format || "Match"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className={cn(
+                      "font-score text-3xl sm:text-5xl font-black tabular-nums tracking-tight",
+                      sunlightMode ? "text-black" : "text-white",
+                    )}>
+                      {currentRuns}/{currentWickets}
+                    </span>
+                    <span className={cn(
+                      "text-sm sm:text-lg font-bold tabular-nums",
+                      sunlightMode ? "text-black/70" : "text-white/60",
+                    )}>
+                      ({oversFromBalls(ballsBowled, bpo)} ov)
+                    </span>
+                  </div>
                 </div>
+
+                {onEndInnings && (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {endInningsArmed && (
+                      <span
+                        role="status"
+                        className="text-[10px] font-bold text-amber-400 sm:hidden"
+                      >
+                        Tap again to confirm
+                      </span>
+                    )}
+                    <Button
+                      variant={endInningsArmed ? "destructive" : "outline"}
+                      size="sm"
+                      aria-pressed={endInningsArmed}
+                      onClick={handleEndInningsClick}
+                      disabled={isProcessing}
+                      className={cn(
+                        "h-8 px-2.5 text-xs font-black",
+                        sunlightMode &&
+                          (endInningsArmed
+                            ? "border-2 border-black bg-red-600 font-black text-white hover:bg-red-700"
+                            : "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"),
+                        !sunlightMode && !endInningsArmed && "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white",
+                      )}
+                    >
+                      {endInningsArmed ? "Confirm End Inns" : "End Inns"}
+                    </Button>
+                  </div>
+                )}
               </div>
 
-              {onEndInnings && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {endInningsArmed && (
-                    <span
-                      role="status"
-                      className="text-[10px] font-bold text-amber-700 dark:text-amber-300 sm:hidden"
-                    >
-                      Tap again to confirm
-                    </span>
-                  )}
-                  <Button
-                    variant={endInningsArmed ? "destructive" : "outline"}
-                    size="sm"
-                    aria-pressed={endInningsArmed}
-                    onClick={handleEndInningsClick}
-                    disabled={isProcessing}
+              {/* Innings Overs Progress Meter */}
+              <div className="mt-2.5 flex items-center gap-2.5">
+                <div className={cn(
+                  "h-2 flex-1 overflow-hidden rounded-full",
+                  sunlightMode ? "bg-black/15" : "bg-white/10",
+                )}>
+                  <div
                     className={cn(
-                      "h-7 px-2 text-[11px] sm:h-8 sm:px-2.5 sm:text-xs font-extrabold",
-                      sunlightMode &&
-                        (endInningsArmed
-                          ? "border-2 border-black bg-red-600 font-black text-white hover:bg-red-700"
-                          : "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"),
+                      "h-full rounded-full transition-all duration-300",
+                      sunlightMode
+                        ? "bg-black"
+                        : isSecondInnings
+                          ? isAheadOfRate ? "bg-emerald-400" : "bg-amber-400"
+                          : "bg-emerald-400",
                     )}
-                  >
-                    {endInningsArmed ? "Confirm End Inns" : "End Inns"}
-                  </Button>
+                    style={{
+                      width: `${Math.min(100, totalInningsBalls > 0 ? (ballsBowled / totalInningsBalls) * 100 : 0)}%`,
+                    }}
+                  />
                 </div>
-              )}
+                <span className={cn(
+                  "text-[10px] sm:text-xs font-bold tabular-nums shrink-0",
+                  sunlightMode ? "text-black/80" : "text-white/70",
+                )}>
+                  {oversFromBalls(ballsBowled, bpo)} / {match.overs_per_innings ?? 20} ov
+                </span>
+              </div>
             </div>
 
             {isSecondInnings && targetRuns != null ? (
-              <div className="space-y-1.5 sm:space-y-2.5">
-                <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="space-y-2 pt-0.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
                     <span
                       className={cn(
-                        "flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full font-bold",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold",
                         sunlightMode
                           ? "bg-black text-white"
                           : isAheadOfRate
@@ -321,7 +374,7 @@ export function LiveMatchHUD({
                             : "bg-amber-500 text-white",
                       )}
                     >
-                      <Zap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <Zap className="h-4 w-4" />
                     </span>
                     <div>
                       <h3
@@ -331,8 +384,8 @@ export function LiveMatchHUD({
                           sunlightMode
                             ? "text-black"
                             : isAheadOfRate
-                              ? "text-emerald-700 dark:text-emerald-300"
-                              : "text-amber-700 dark:text-amber-300",
+                              ? "text-emerald-300"
+                              : "text-amber-300",
                         )}
                       >
                         {runsNeeded === 0 ? (
@@ -346,18 +399,24 @@ export function LiveMatchHUD({
                           "Target Achieved"
                         )}
                       </h3>
-                      <p className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] font-medium text-muted-foreground">
+                      <p className={cn(
+                        "flex flex-wrap items-center gap-2 text-[10px] sm:text-[11px] font-medium",
+                        sunlightMode ? "text-black/70" : "text-white/70",
+                      )}>
                         <span>
-                          Target: <span className="tabular font-bold text-foreground">{targetRuns}</span> · {wicketsInHand} wickets in hand
+                          Target: <strong className={cn("tabular font-bold", sunlightMode ? "text-black" : "text-white")}>{targetRuns}</strong> · {wicketsInHand} wickets in hand
                         </span>
                         {onReviseTarget && (
                           <button
                             type="button"
                             onClick={onReviseTarget}
                             title="Revise target runs or match overs"
-                            className="inline-flex items-center gap-1 rounded bg-muted/70 px-1 py-0.5 sm:px-1.5 sm:py-0.5 text-[9px] sm:text-[10px] font-bold text-foreground hover:bg-muted"
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold",
+                              sunlightMode ? "bg-black/10 text-black" : "bg-white/15 text-white hover:bg-white/25",
+                            )}
                           >
-                            <Pencil className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                            <Pencil className="h-2.5 w-2.5" />
                             Revise Target
                           </button>
                         )}
@@ -370,22 +429,22 @@ export function LiveMatchHUD({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "tabular shrink-0 gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] sm:text-xs font-bold",
+                        "tabular shrink-0 gap-1 px-2.5 py-1 text-[10px] sm:text-xs font-bold",
                         sunlightMode
                           ? "border-2 border-black font-black text-black"
                           : isAheadOfRate
-                            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
-                            : "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300",
+                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
+                            : "border-amber-400/40 bg-amber-400/15 text-amber-300",
                       )}
                     >
                       {isAheadOfRate ? (
                         <>
-                          <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          <TrendingUp className="h-3 w-3" />
                           <span>Ahead +{rateDiff} RPO</span>
                         </>
                       ) : (
                         <>
-                          <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          <TrendingDown className="h-3 w-3" />
                           <span>Req +{rateDiff} RPO</span>
                         </>
                       )}
@@ -394,49 +453,61 @@ export function LiveMatchHUD({
                 </div>
 
                 {/* Key Chase Metrics Grid */}
-                <div className="grid grid-cols-4 gap-1 sm:gap-1.5 rounded-lg sm:rounded-xl border border-border/70 bg-background/80 p-1 sm:p-2 text-center text-[10px] sm:text-xs dark:bg-card/70">
-                  <div className="border-r border-border/60 px-0.5 sm:px-1">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Target</p>
-                    <p className="tabular font-score text-xs sm:text-sm font-black">{targetRuns}</p>
+                <div className={cn(
+                  "grid grid-cols-4 gap-1 sm:gap-2 rounded-xl p-2 text-center text-xs",
+                  sunlightMode ? "border border-black bg-neutral-100" : "border border-white/10 bg-black/25 backdrop-blur-sm",
+                )}>
+                  <div className={cn("border-r px-1", sunlightMode ? "border-black/20" : "border-white/10")}>
+                    <p className={cn("text-[9px] uppercase tracking-wider font-semibold", sunlightMode ? "text-neutral-600" : "text-white/60")}>Target</p>
+                    <p className={cn("tabular font-score text-sm sm:text-base font-black", sunlightMode ? "text-black" : "text-white")}>{targetRuns}</p>
                   </div>
-                  <div className="border-r border-border/60 px-0.5 sm:px-1">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Req RR</p>
+                  <div className={cn("border-r px-1", sunlightMode ? "border-black/20" : "border-white/10")}>
+                    <p className={cn("text-[9px] uppercase tracking-wider font-semibold", sunlightMode ? "text-neutral-600" : "text-white/60")}>Req RR</p>
                     <p
                       className={cn(
-                        "tabular font-score text-xs sm:text-sm font-black",
+                        "tabular font-score text-sm sm:text-base font-black",
                         sunlightMode
                           ? "text-black"
                           : isAheadOfRate
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-amber-600 dark:text-amber-400",
+                            ? "text-emerald-300"
+                            : "text-amber-300",
                       )}
                     >
                       {rrr ?? "—"}
                     </p>
                   </div>
-                  <div className="border-r border-border/60 px-0.5 sm:px-1">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Curr RR</p>
-                    <p className="tabular font-score text-xs sm:text-sm font-black">{crr}</p>
+                  <div className={cn("border-r px-1", sunlightMode ? "border-black/20" : "border-white/10")}>
+                    <p className={cn("text-[9px] uppercase tracking-wider font-semibold", sunlightMode ? "text-neutral-600" : "text-white/60")}>Curr RR</p>
+                    <p className={cn("tabular font-score text-sm sm:text-base font-black", sunlightMode ? "text-black" : "text-white")}>{crr}</p>
                   </div>
-                  <div className="px-0.5 sm:px-1">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-muted-foreground">Remain</p>
-                    <p className="tabular font-score text-xs sm:text-sm font-black">{ballsRem}b</p>
+                  <div className="px-1">
+                    <p className={cn("text-[9px] uppercase tracking-wider font-semibold", sunlightMode ? "text-neutral-600" : "text-white/60")}>Remain</p>
+                    <p className={cn("tabular font-score text-sm sm:text-base font-black", sunlightMode ? "text-black" : "text-white")}>{ballsRem}b</p>
                   </div>
                 </div>
               </div>
             ) : (
               /* 1ST INNINGS SITUATION */
-              <div className="space-y-2">
+              <div className="space-y-2 pt-0.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white">
+                    <span className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-bold",
+                      sunlightMode ? "bg-black text-white" : "bg-emerald-500 text-white",
+                    )}>
                       <Target className="h-4 w-4" />
                     </span>
                     <div>
-                      <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
-                        1st Innings · <span className="tabular text-sky-600 dark:text-sky-400">CRR: {crr}</span>
+                      <h3 className={cn(
+                        "text-xs font-black tracking-tight sm:text-base",
+                        sunlightMode ? "text-black" : "text-white",
+                      )}>
+                        1st Innings · <span className={cn("tabular", sunlightMode ? "text-black font-black" : "text-emerald-300 font-black")}>CRR: {crr}</span>
                       </h3>
-                      <p className="text-[11px] font-medium text-muted-foreground">
+                      <p className={cn(
+                        "text-[10px] sm:text-[11px] font-medium",
+                        sunlightMode ? "text-black/70" : "text-white/70",
+                      )}>
                         {ballsRem} balls remaining ({oversFromBalls(ballsRem, bpo)} ov)
                       </p>
                     </div>
@@ -445,9 +516,12 @@ export function LiveMatchHUD({
                   {projectedScore != null && (
                     <Badge
                       variant="outline"
-                      className="tabular border-sky-500/40 bg-sky-500/15 px-2.5 py-1 text-xs font-bold text-sky-700 dark:text-sky-300"
+                      className={cn(
+                        "tabular px-2.5 py-1 text-xs font-bold",
+                        sunlightMode ? "border-2 border-black font-black text-black" : "border-emerald-400/40 bg-emerald-400/15 text-emerald-300",
+                      )}
                     >
-                      <Sparkles className="mr-1 h-3 w-3 text-sky-500" />
+                      <Sparkles className="mr-1 h-3 w-3 text-emerald-400" />
                       Proj: {projectedScore}
                     </Badge>
                   )}
@@ -455,15 +529,18 @@ export function LiveMatchHUD({
 
                 {/* Projected scenarios */}
                 {ballsBowled > 6 && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground dark:bg-card/70">
+                  <div className={cn(
+                    "flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-1.5 text-xs",
+                    sunlightMode ? "border border-black bg-neutral-100 text-black" : "border border-white/10 bg-black/25 text-white/80",
+                  )}>
                     <span className="text-[11px] font-semibold">Projected Score:</span>
                     <div className="flex items-center gap-3">
                       <span>
-                        At 8 RPO: <strong className="tabular text-foreground">{proj8}</strong>
+                        At 8 RPO: <strong className={cn("tabular", sunlightMode ? "text-black" : "text-white")}>{proj8}</strong>
                       </span>
-                      <span className="text-border">|</span>
+                      <span className="opacity-40">|</span>
                       <span>
-                        At 10 RPO: <strong className="tabular text-foreground">{proj10}</strong>
+                        At 10 RPO: <strong className={cn("tabular", sunlightMode ? "text-black" : "text-white")}>{proj10}</strong>
                       </span>
                     </div>
                   </div>
@@ -475,23 +552,25 @@ export function LiveMatchHUD({
       )}
 
       {/* 2. COMPACT ACTIVE BATSMEN & BOWLER HUD */}
-      <div className="grid grid-cols-1 gap-1.5 sm:gap-2.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
         {/* ACTIVE BATTERS CARD */}
         <Card
           data-testid="hud-batters-card"
           className={cn(
-            "rounded-xl sm:rounded-2xl border shadow-sm",
-            sunlightMode ? "border-2 border-black bg-white" : "border-border/70 bg-card/90",
+            "rounded-2xl border shadow-sm transition-all",
+            sunlightMode
+              ? "border-2 border-black bg-white"
+              : "border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md",
           )}
         >
-          <CardContent className="space-y-1 p-2 sm:space-y-2 sm:p-3.5">
-            <div className="flex items-center justify-between border-b border-border/50 pb-1 sm:pb-1.5">
+          <CardContent className="space-y-2 p-2.5 sm:space-y-2.5 sm:p-3.5">
+            <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
               <div className="flex min-w-0 items-center gap-1.5">
                 <Flame className="h-4 w-4 text-orange-500 shrink-0" />
-                <span className="truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="truncate text-xs font-black uppercase tracking-wider text-muted-foreground">
                   Batting
                 </span>
-                <span className="tabular text-[10px] sm:text-[11px] text-muted-foreground/80 hidden sm:inline">
+                <span className="tabular text-[10px] sm:text-[11px] font-semibold text-muted-foreground/90">
                   (Stand: {partnership.runs} off {partnership.balls}b)
                 </span>
               </div>
@@ -499,12 +578,15 @@ export function LiveMatchHUD({
                 <button
                   type="button"
                   onClick={onSwapStriker}
-                  title="Swap striker (change who is on strike)"
+                  title="Swap striker (change who is on strike) [S]"
                   aria-label="Swap active striker"
-                  className="touch-target inline-flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2 py-0.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 shrink-0"
+                  className="touch-target inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-muted/60 px-2 py-0.5 text-xs font-bold text-foreground hover:bg-muted active:scale-95 shrink-0 shadow-2xs"
                 >
-                  <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span>Swap</span>
+                  <kbd className="hidden sm:inline-block ml-0.5 rounded border border-border/80 bg-background/80 px-1 py-0.2 font-mono text-[9px] font-bold">
+                    S
+                  </kbd>
                 </button>
               )}
             </div>
@@ -512,17 +594,20 @@ export function LiveMatchHUD({
             {/* Striker Row */}
             <div
               className={cn(
-                "flex items-center justify-between rounded-lg sm:rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 transition-colors",
+                "flex items-center justify-between rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 transition-all relative",
                 sunlightMode
-                  ? "bg-neutral-100 border border-black font-black"
-                  : "bg-emerald-500/10 border border-emerald-500/25",
+                  ? "bg-neutral-100 border-2 border-black font-black"
+                  : "bg-emerald-500/12 border border-emerald-500/35 shadow-[inset_0_1px_0_0_rgba(52,211,153,0.25)]",
               )}
             >
-              <div className="min-w-0 flex-1 pr-1.5">
+              <div className="min-w-0 flex-1 pr-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
-                  <span className="truncate text-xs font-extrabold text-foreground">
+                  <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/30 animate-pulse" aria-hidden="true" />
+                  <span className="truncate text-xs sm:text-sm font-black text-foreground">
                     {striker ? striker.name : "Select Striker"} *
+                  </span>
+                  <span className="inline-flex items-center rounded-md bg-emerald-500/25 px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 shrink-0">
+                    Strike
                   </span>
                   {onChangeStriker && (
                     <button
@@ -546,16 +631,16 @@ export function LiveMatchHUD({
                   )}
                 </div>
                 {striker && (
-                  <p className="pl-3.5 text-[10px] text-muted-foreground">
-                    SR: {strikeRate(striker.runs, striker.balls)} · {striker.fours}x4, {striker.sixes}x6
+                  <p className="pl-4 text-[10px] sm:text-[11px] text-muted-foreground font-medium">
+                    SR: <strong className="tabular font-semibold text-foreground">{strikeRate(striker.runs, striker.balls)}</strong> · {striker.fours}x4, {striker.sixes}x6
                   </p>
                 )}
               </div>
               <div className="shrink-0 text-right">
                 {striker ? (
-                  <p className="tabular font-score text-xs sm:text-sm font-black whitespace-nowrap">
-                    {striker.runs}{" "}
-                    <span className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground">
+                  <p className="tabular font-score text-sm sm:text-base font-black whitespace-nowrap">
+                    <span className="text-foreground">{striker.runs}</span>{" "}
+                    <span className="text-[11px] sm:text-xs font-semibold text-muted-foreground">
                       ({striker.balls})
                     </span>
                   </p>
@@ -573,11 +658,16 @@ export function LiveMatchHUD({
             </div>
 
             {/* Non-Striker Row */}
-            <div className="flex items-center justify-between rounded-lg sm:rounded-xl border border-border/50 bg-muted/20 px-2 py-1 sm:px-2.5 sm:py-1.5">
-              <div className="min-w-0 flex-1 pr-1.5">
+            <div className={cn(
+              "flex items-center justify-between rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2 transition-all",
+              sunlightMode
+                ? "border border-black/40 bg-white"
+                : "border-border/60 bg-muted/25 hover:bg-muted/40",
+            )}>
+              <div className="min-w-0 flex-1 pr-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-                  <span className="truncate text-xs font-bold text-muted-foreground">
+                  <span className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40" aria-hidden="true" />
+                  <span className="truncate text-xs sm:text-sm font-bold text-muted-foreground">
                     {nonStriker ? nonStriker.name : "Select Non-Striker"}
                   </span>
                   {onChangeNonStriker && (
@@ -602,16 +692,16 @@ export function LiveMatchHUD({
                   )}
                 </div>
                 {nonStriker && (
-                  <p className="pl-3.5 text-[10px] text-muted-foreground">
+                  <p className="pl-3.5 text-[10px] sm:text-[11px] text-muted-foreground">
                     SR: {strikeRate(nonStriker.runs, nonStriker.balls)} · {nonStriker.fours}x4, {nonStriker.sixes}x6
                   </p>
                 )}
               </div>
               <div className="shrink-0 text-right">
                 {nonStriker ? (
-                  <p className="tabular font-score text-xs sm:text-sm font-bold text-muted-foreground whitespace-nowrap">
+                  <p className="tabular font-score text-sm sm:text-base font-bold text-muted-foreground whitespace-nowrap">
                     {nonStriker.runs}{" "}
-                    <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground/70">
+                    <span className="text-[11px] sm:text-xs font-medium text-muted-foreground/70">
                       ({nonStriker.balls})
                     </span>
                   </p>
@@ -634,15 +724,17 @@ export function LiveMatchHUD({
         <Card
           data-testid="hud-bowler-card"
           className={cn(
-            "rounded-xl sm:rounded-2xl border shadow-sm",
-            sunlightMode ? "border-2 border-black bg-white" : "border-border/70 bg-card/90",
+            "rounded-2xl border shadow-sm transition-all",
+            sunlightMode
+              ? "border-2 border-black bg-white"
+              : "border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md",
           )}
         >
-          <CardContent className="space-y-1 p-2 sm:space-y-2 sm:p-3.5">
-            <div className="flex items-center justify-between border-b border-border/50 pb-1 sm:pb-1.5">
+          <CardContent className="space-y-2 p-2.5 sm:space-y-2.5 sm:p-3.5">
+            <div className="flex items-center justify-between border-b border-border/50 pb-1.5">
               <div className="flex min-w-0 items-center gap-1.5">
                 <Target className="h-4 w-4 text-sky-500 shrink-0" />
-                <span className="truncate text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="truncate text-xs font-black uppercase tracking-wider text-muted-foreground">
                   Bowler
                 </span>
               </div>
@@ -651,51 +743,70 @@ export function LiveMatchHUD({
                   type="button"
                   onClick={onChangeBowler}
                   aria-label="Change current bowler"
-                  className="touch-target inline-flex items-center gap-1 rounded-lg border border-border bg-muted/60 px-2 py-0.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95 shrink-0"
+                  className="touch-target inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/60 px-2 py-0.5 text-xs font-bold text-foreground hover:bg-muted active:scale-95 shrink-0 shadow-2xs"
                 >
-                  <Pencil className="h-3.5 w-3.5 shrink-0" />
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <span>Change</span>
                 </button>
               )}
             </div>
 
-            <div className="rounded-lg sm:rounded-xl border border-sky-500/25 bg-sky-500/10 px-2 py-1 sm:px-2.5 sm:py-1.5">
+            <div className={cn(
+              "rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2 transition-all",
+              sunlightMode
+                ? "border-2 border-black bg-neutral-100 font-black"
+                : "border-sky-500/35 bg-sky-500/10 shadow-[inset_0_1px_0_0_rgba(56,189,248,0.25)]",
+            )}>
               <div className="flex items-center justify-between">
-                <span className="truncate text-xs sm:text-sm font-extrabold text-foreground">
+                <span className="truncate text-xs sm:text-sm font-black text-foreground">
                   {bowler ? bowler.name : "Select Bowler"}
                 </span>
-                <span className="tabular font-score text-xs sm:text-sm font-black whitespace-nowrap">
+                <span className="tabular font-score text-sm sm:text-base font-black whitespace-nowrap text-foreground">
                   {bowler ? `${bowler.wickets}/${bowler.runs}` : "—"}
                 </span>
               </div>
 
               {bowler ? (
-                <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
-                  <span>
-                    Overs: <strong className="tabular text-foreground">{oversFromBalls(bowlerBallsCount, bpo)}</strong> / {maxBowlerOvers}
-                  </span>
-                  <span>
-                    Econ: <strong className="tabular text-foreground">{economyRate(bowler.runs, bowlerBallsCount, bpo)}</strong>
-                  </span>
-                  <span>
-                    Mdns: <strong className="tabular text-foreground">{bowler.maidens}</strong>
-                  </span>
-                </div>
+                <>
+                  <div className="mt-1 flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
+                    <span>
+                      Overs: <strong className="tabular font-bold text-foreground">{oversFromBalls(bowlerBallsCount, bpo)}</strong> / {maxBowlerOvers}
+                    </span>
+                    <span>
+                      Econ: <strong className="tabular font-bold text-foreground">{economyRate(bowler.runs, bowlerBallsCount, bpo)}</strong>
+                    </span>
+                    <span>
+                      Mdns: <strong className="tabular font-bold text-foreground">{bowler.maidens}</strong>
+                    </span>
+                  </div>
+                  {/* Quota spell progress bar */}
+                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-sky-950/20 dark:bg-sky-100/10">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-300",
+                        isBowlerSpellFinished ? "bg-amber-500" : "bg-sky-500",
+                      )}
+                      style={{
+                        width: `${Math.min(100, maxBowlerOvers > 0 ? (bowlerBallsCount / bowlerMaxBalls) * 100 : 0)}%`,
+                      }}
+                    />
+                  </div>
+                </>
               ) : (
                 <p className="text-[10px] sm:text-xs text-muted-foreground">No bowler selected for this over</p>
               )}
 
               {isBowlerSpellFinished && (
-                <p className="mt-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                   ⚠ Max quota reached ({maxBowlerOvers} ov)
                 </p>
               )}
             </div>
 
-            {/* This over breakdown badge row — hidden on mobile to eliminate redundancy with ScoringPanel */}
-            <div className="hidden sm:flex items-center justify-between pt-0.5 text-[11px]">
-              <span className="text-muted-foreground">
-                This Over: <strong className="tabular text-foreground">{thisOverRuns} runs</strong>
+            {/* This over breakdown badge row */}
+            <div className="flex items-center justify-between pt-0.5 text-[11px]">
+              <span className="text-muted-foreground font-medium">
+                This Over: <strong className="tabular font-black text-foreground">{thisOverRuns} runs</strong>
               </span>
               <div className="flex flex-wrap items-center gap-1">
                 {lastBalls.length > 0 ? (

@@ -48,47 +48,6 @@ export function BallChip({ label }: { label: string }) {
   );
 }
 
-/**
- * Circular TV bug dot ball chip.
- */
-export function CircularBallDot({ label }: { label: string }) {
-  let bg = "bg-slate-800 text-slate-200 border-slate-700";
-  if (label === "W") {
-    bg = "bg-rose-700 text-white border-rose-500 font-bold";
-  } else if (label === "4") {
-    bg = "bg-blue-600 text-white border-blue-400 font-bold";
-  } else if (label === "6") {
-    bg = "bg-amber-400 text-slate-950 border-amber-300 font-black";
-  } else if (
-    label.includes("wd") ||
-    label.includes("nb") ||
-    label.endsWith("b")
-  ) {
-    bg = "bg-amber-600 text-white border-amber-400 font-semibold";
-  } else if (label === "0" || label === "•") {
-    bg = "bg-slate-900/90 text-slate-400 border-slate-800 font-medium";
-  }
-
-  return (
-    <span
-      className={`inline-flex h-5 w-5 items-center justify-center rounded-full border font-score text-[11px] tabular-nums ${bg}`}
-    >
-      {label === "0" ? "•" : label}
-    </span>
-  );
-}
-
-export function CyberBallCell({ label }: { label: string }) {
-  return <BallChip label={label} />;
-}
-
-export function HexBallDot({ label }: { label: string }) {
-  return <CircularBallDot label={label} />;
-}
-
-export function EmberBallDot({ label }: { label: string }) {
-  return <BallChip label={label} />;
-}
 
 /**
  * Broadcast-grade theme specifications.

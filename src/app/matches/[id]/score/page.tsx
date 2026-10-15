@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { LiveMatchHUD } from "~/components/matches/live-match-hud";
@@ -123,7 +123,12 @@ import {
   CloudRain,
   WifiOff,
   RefreshCw,
+  Eye,
+  Lock,
+  Clock,
+  ChevronDown,
 } from "lucide-react";
+import { economyRate, strikeRate } from "~/lib/cricket";
 
 export default function ScoringPage() {
   const params = useParams();
@@ -217,7 +222,9 @@ export default function ScoringPage() {
     isProcessing,
     isOffline,
     pendingCount,
+    deadLetterCount,
     flushOfflineQueue,
+    handleSkipHeadAction,
     setStrikerId,
     setNonStrikerId,
     setCurrentBowlerId,
@@ -266,12 +273,14 @@ export default function ScoringPage() {
     ? (currentInnings.team_id === match?.team1_id ? match?.team2 : match?.team1)
     : match?.team2;
 
-  const showTossDialog = match?.status === "scheduled" && !tossDialogDismissed;
+  const showTossDialog =
+    isScorer && match?.status === "scheduled" && !tossDialogDismissed;
   const tossWinner = selectedTossWinner || match?.team1_id || "";
 
-  // Keyboard scoring hotkeys must stay inert while any dialog/menu is open,
+  // Keyboard scoring hotkeys must stay inert while any dialog/menu is open or when user is not scorer,
   // otherwise typing in a dialog silently records balls behind it.
   const scoringKeyboardSuppressed =
+    !isScorer ||
     showTossDialog ||
     showSelectBatsmen ||
     showSelectBowler ||
@@ -355,6 +364,114 @@ export default function ScoringPage() {
       wickets: perf?.wickets_taken ?? 0,
     };
   }, [currentBowlerId, bowlingTeamPlayers, currentInnings]);
+
+  // Interactive Batting Bench & Order Breakdown
+  const battingBench = useMemo(() => {
+    const performances = currentInnings?.batting_performances ?? [];
+    const perfMap = new Map(performances.map((p) => [p.user_id, p]));
+
+    const active: Array<{
+      playerId: string;
+      name: string;
+      isStriker: boolean;
+      runs: number;
+      balls: number;
+      fours: number;
+      sixes: number;
+    }> = [];
+
+    const dismissed: Array<{
+      playerId: string;
+      name: string;
+      runs: number;
+      balls: number;
+      fours: number;
+      sixes: number;
+      dismissalType?: string | null;
+    }> = [];
+
+    const yetToBat: Array<{
+      playerId: string;
+      name: string;
+    }> = [];
+
+    // 1. Dismissed players
+    for (const p of performances) {
+      if (p.is_out) {
+        const teamPlayer = battingTeamPlayers.find((tp) => tp.user_id === p.user_id);
+        dismissed.push({
+          playerId: p.user_id,
+          name: teamPlayer?.user?.full_name ?? p.user?.full_name ?? "Batter",
+          runs: p.runs_scored ?? 0,
+          balls: p.balls_faced ?? 0,
+          fours: p.fours ?? 0,
+          sixes: p.sixes ?? 0,
+          dismissalType: p.dismissal_type,
+        });
+      }
+    }
+
+    // 2. Currently batting
+    if (strikerId) {
+      const p = perfMap.get(strikerId);
+      const teamPlayer = battingTeamPlayers.find((tp) => tp.user_id === strikerId);
+      active.push({
+        playerId: strikerId,
+        name: teamPlayer?.user?.full_name ?? strikerDisplay?.name ?? "Striker",
+        isStriker: true,
+        runs: p?.runs_scored ?? strikerDisplay?.runs ?? 0,
+        balls: p?.balls_faced ?? strikerDisplay?.balls ?? 0,
+        fours: p?.fours ?? strikerDisplay?.fours ?? 0,
+        sixes: p?.sixes ?? strikerDisplay?.sixes ?? 0,
+      });
+    }
+    if (nonStrikerId && nonStrikerId !== strikerId) {
+      const p = perfMap.get(nonStrikerId);
+      const teamPlayer = battingTeamPlayers.find((tp) => tp.user_id === nonStrikerId);
+      active.push({
+        playerId: nonStrikerId,
+        name: teamPlayer?.user?.full_name ?? nonStrikerDisplay?.name ?? "Non-Striker",
+        isStriker: false,
+        runs: p?.runs_scored ?? nonStrikerDisplay?.runs ?? 0,
+        balls: p?.balls_faced ?? nonStrikerDisplay?.balls ?? 0,
+        fours: p?.fours ?? nonStrikerDisplay?.fours ?? 0,
+        sixes: p?.sixes ?? nonStrikerDisplay?.sixes ?? 0,
+      });
+    }
+
+    // 3. Yet to bat
+    for (const tp of battingTeamPlayers) {
+      if (tp.user_id === strikerId || tp.user_id === nonStrikerId) continue;
+      const perf = perfMap.get(tp.user_id);
+      if (!perf || !perf.is_out) {
+        yetToBat.push({
+          playerId: tp.user_id,
+          name: tp.user?.full_name ?? "Player",
+        });
+      }
+    }
+
+    return { active, dismissed, yetToBat };
+  }, [currentInnings, battingTeamPlayers, strikerId, nonStrikerId, strikerDisplay, nonStrikerDisplay]);
+
+  // Bowler Spell Breakdown
+  const bowlingSpells = useMemo(() => {
+    const bowlingPerfs = currentInnings?.bowling_performances ?? [];
+    return bowlingPerfs.map((bp) => {
+      const teamPlayer = bowlingTeamPlayers.find((tp) => tp.user_id === bp.user_id);
+      const bpo = match?.balls_per_over ?? 6;
+      return {
+        playerId: bp.user_id,
+        name: teamPlayer?.user?.full_name ?? bp.user?.full_name ?? "Bowler",
+        overs: bp.overs_bowled ?? 0,
+        maidens: bp.maidens ?? 0,
+        runs: bp.runs_conceded ?? 0,
+        wickets: bp.wickets_taken ?? 0,
+        econ: economyRate(bp.runs_conceded ?? 0, bp.balls_bowled ?? 0, bpo),
+        isCurrent: bp.user_id === currentBowlerId,
+      };
+    });
+  }, [currentInnings, bowlingTeamPlayers, currentBowlerId, match?.balls_per_over]);
 
   const isInningsComplete = useMemo(() => {
     if (!match || match.status !== "live") return false;
@@ -584,10 +701,10 @@ export default function ScoringPage() {
         `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
       );
       if (strikerId === playerId) {
-        setStrikerId("");
+        setStrikerId(null);
       }
       if (nonStrikerId === playerId) {
-        setNonStrikerId("");
+        setNonStrikerId(null);
       }
       await syncFromDb();
       setShowSelectBatsmen(true);
@@ -660,67 +777,6 @@ export default function ScoringPage() {
             <Button asChild className="mt-4">
               <Link href="/matches">Back to matches</Link>
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <CardTitle className="mt-2 text-xl font-bold">
-              Authentication Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              You must be signed in to access the match scoring console.
-            </p>
-            <Button asChild className="w-full">
-              <Link href={`/auth/login?redirect=/matches/${matchId}/score`}>
-                Sign In
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!isAuthorized) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <CardTitle className="mt-2 text-xl font-bold">
-              Access Denied
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              You do not have administrative permissions to score this match.
-              Only the match creator, designated scorers, or club administrators
-              can record scores.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild className="flex-1">
-                <Link href={`/matches/${matchId}`}>View Match Center</Link>
-              </Button>
-              <Button variant="outline" asChild className="flex-1">
-                <Link href={`/overlay/${matchId}`} target="_blank">
-                  View Overlay
-                </Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -830,57 +886,6 @@ export default function ScoringPage() {
               </Button>
             )}
 
-            {/* Desktop Direct Action: Settings */}
-            {isScorer && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowMatchSettingsDialog(true)}
-                className={cn(
-                  "hidden h-8 gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex",
-                  sunlightMode && "border-2 border-black font-bold",
-                )}
-                title="Match Settings & Custom Rules"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>Settings</span>
-              </Button>
-            )}
-
-            {/* Desktop Direct Action: Penalty / Bonus */}
-            {match.status === "live" && isScorer && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPenaltyBonusDialog(true)}
-                className={cn(
-                  "hidden h-8 gap-1.5 rounded-lg px-2.5 text-xs font-semibold md:inline-flex",
-                  sunlightMode && "border-2 border-black font-bold",
-                )}
-                title="Award Team Penalty or Bonus Runs"
-              >
-                <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Penalty/Bonus</span>
-              </Button>
-            )}
-
-            {/* Desktop Direct Action: DLS */}
-            {match.status === "live" && isScorer && (
-              <div className="hidden md:block">
-                <DlsCalculatorModal match={match} canEdit={isScorer} />
-              </div>
-            )}
-
-            {/* Desktop Direct Action: Scorers */}
-            {isScorer && (
-              <div className="hidden lg:block">
-                <MatchScorersDialog
-                  matchId={match.id}
-                  isCreator={match.created_by === user?.id}
-                />
-              </div>
-            )}
-
             {/* OBS Broadcast Overlay Shortcut */}
             <Button
               variant="outline"
@@ -899,20 +904,23 @@ export default function ScoringPage() {
               </Link>
             </Button>
 
-            {/* Consolidated "Match Actions" Menu (Primary on Mobile, Comprehensive on Desktop) */}
+            {/* Consolidated "Match Tools" Menu (Clean on Desktop & Mobile) */}
             <DropdownMenu onOpenChange={setActionsMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  size="icon"
+                  size="sm"
                   className={cn(
-                    "h-8 w-8 rounded-lg",
+                    "h-8 gap-1.5 rounded-lg px-2 sm:px-2.5 text-xs font-bold shadow-2xs",
                     sunlightMode && "border-2 border-black font-black",
                   )}
                   aria-label="Match actions and scoring options"
-                  title="Match actions & scoring options"
+                  title="Match tools & scoring options"
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="hidden sm:inline">Match Tools</span>
+                  <ChevronDown className="h-3 w-3 opacity-60 hidden sm:inline" />
+                  <MoreVertical className="h-3.5 w-3.5 sm:hidden" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-xl">
@@ -1019,18 +1027,38 @@ export default function ScoringPage() {
                 {pendingCount} queued
               </span>
             )}
+            {deadLetterCount > 0 && (
+              <span
+                className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive"
+                title="Items that failed server validation were moved to Dead Letter Queue to unblock scoring"
+              >
+                {deadLetterCount} rejected
+              </span>
+            )}
           </div>
           {!isOffline && pendingCount > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isProcessing}
-              onClick={() => flushOfflineQueue()}
-              className="h-7 gap-1 px-2 text-[11px] font-semibold"
-            >
-              <RefreshCw className={cn("h-3 w-3", isProcessing && "animate-spin")} aria-hidden="true" />
-              {isProcessing ? "Syncing..." : "Sync now"}
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isProcessing}
+                onClick={() => flushOfflineQueue()}
+                className="h-7 gap-1 px-2 text-[11px] font-semibold"
+              >
+                <RefreshCw className={cn("h-3 w-3", isProcessing && "animate-spin")} aria-hidden="true" />
+                {isProcessing ? "Syncing..." : "Sync now"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={isProcessing}
+                onClick={() => handleSkipHeadAction()}
+                className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+                title="Discard the current head item from queue if it is failing validation or causing a deadlock"
+              >
+                Skip stuck item
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -1118,78 +1146,137 @@ export default function ScoringPage() {
           )}
 
           {!isScorer && (
-            <Card className="border-amber-500/30 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-950/20">
-              <CardContent className="p-3 text-sm text-amber-700 dark:text-amber-300">
-                You are viewing in spectator mode: only match administrators can
-                score.
-              </CardContent>
-            </Card>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-background to-sky-500/5 p-3.5 sm:p-4 text-sky-950 shadow-sm dark:border-sky-500/30 dark:bg-sky-950/30 dark:text-sky-200">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                  <Eye className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs sm:text-sm font-black text-foreground">
+                      Spectator View · Real-Time Console
+                    </p>
+                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" title="Live match active" />
+                  </div>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                    {user
+                      ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
+                      : "Sign in with scorer credentials to record deliveries and manage match state."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {!user ? (
+                  <Button size="sm" asChild className="h-8 text-xs font-bold">
+                    <Link href={`/auth/login?redirect=/matches/${matchId}/score`}>
+                      Sign In to Score
+                    </Link>
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="outline" asChild className="h-8 text-xs font-bold">
+                  <Link href={`/matches/${matchId}`}>Match Center</Link>
+                </Button>
+                <Button size="sm" variant="secondary" asChild className="h-8 text-xs font-bold">
+                  <Link href={`/overlay/${matchId}`} target="_blank">
+                    Overlay
+                  </Link>
+                </Button>
+              </div>
+            </div>
           )}
 
           <LiveMatchHUD
             match={match}
             currentInnings={currentInnings}
             battingTeamName={battingTeam?.name}
-            onEndInnings={() => void handleEndInnings()}
+            onEndInnings={isScorer ? () => void handleEndInnings() : undefined}
             isProcessing={isProcessing}
             striker={strikerDisplay}
             nonStriker={nonStrikerDisplay}
             bowler={bowlerDisplay}
             lastBalls={lastBalls}
             rawDeliveries={rawDeliveries}
-            onSwapStriker={() => {
-              if (strikerId && nonStrikerId && !isProcessing) {
-                void handleConfirmBatsmen(nonStrikerId, strikerId);
-              }
-            }}
-            onChangeStriker={() => {
-              if (match.status === "scheduled") {
-                setTossDialogDismissed(false);
-                toast.info("Please record the toss to start the match");
-                return;
-              }
-              setShowSelectBatsmen(true);
-            }}
-            onChangeNonStriker={() => {
-              if (match.status === "scheduled") {
-                setTossDialogDismissed(false);
-                toast.info("Please record the toss to start the match");
-                return;
-              }
-              setShowSelectBatsmen(true);
-            }}
-            onChangeBowler={() => {
-              if (match.status === "scheduled") {
-                setTossDialogDismissed(false);
-                toast.info("Please record the toss to start the match");
-                return;
-              }
-              setShowSelectBowler(true);
-            }}
-            onSelectBall={(idx) => {
-              const d = rawDeliveries[idx];
-              if (d) {
-                setEditingDelivery(d);
-                setShowEditBallDialog(true);
-              }
-            }}
-            onRetireStriker={() => {
-              if (strikerDisplay) {
-                setRetireTarget({
-                  playerId: strikerDisplay.id,
-                  playerName: strikerDisplay.name,
-                });
-              }
-            }}
-            onRetireNonStriker={() => {
-              if (nonStrikerDisplay) {
-                setRetireTarget({
-                  playerId: nonStrikerDisplay.id,
-                  playerName: nonStrikerDisplay.name,
-                });
-              }
-            }}
-            onReviseTarget={() => setShowReviseTargetDialog(true)}
+            onSwapStriker={
+              isScorer
+                ? () => {
+                    if (strikerId && nonStrikerId && !isProcessing) {
+                      void handleConfirmBatsmen(nonStrikerId, strikerId);
+                    }
+                  }
+                : undefined
+            }
+            onChangeStriker={
+              isScorer
+                ? () => {
+                    if (match.status === "scheduled") {
+                      setTossDialogDismissed(false);
+                      toast.info("Please record the toss to start the match");
+                      return;
+                    }
+                    setShowSelectBatsmen(true);
+                  }
+                : undefined
+            }
+            onChangeNonStriker={
+              isScorer
+                ? () => {
+                    if (match.status === "scheduled") {
+                      setTossDialogDismissed(false);
+                      toast.info("Please record the toss to start the match");
+                      return;
+                    }
+                    setShowSelectBatsmen(true);
+                  }
+                : undefined
+            }
+            onChangeBowler={
+              isScorer
+                ? () => {
+                    if (match.status === "scheduled") {
+                      setTossDialogDismissed(false);
+                      toast.info("Please record the toss to start the match");
+                      return;
+                    }
+                    setShowSelectBowler(true);
+                  }
+                : undefined
+            }
+            onSelectBall={
+              isScorer
+                ? (idx) => {
+                    const d = rawDeliveries[idx];
+                    if (d) {
+                      setEditingDelivery(d);
+                      setShowEditBallDialog(true);
+                    }
+                  }
+                : undefined
+            }
+            onRetireStriker={
+              isScorer
+                ? () => {
+                    if (strikerDisplay) {
+                      setRetireTarget({
+                        playerId: strikerDisplay.id,
+                        playerName: strikerDisplay.name,
+                      });
+                    }
+                  }
+                : undefined
+            }
+            onRetireNonStriker={
+              isScorer
+                ? () => {
+                    if (nonStrikerDisplay) {
+                      setRetireTarget({
+                        playerId: nonStrikerDisplay.id,
+                        playerName: nonStrikerDisplay.name,
+                      });
+                    }
+                  }
+                : undefined
+            }
+            onReviseTarget={isScorer ? () => setShowReviseTargetDialog(true) : undefined}
             sunlightMode={sunlightMode}
           />
 
@@ -1272,41 +1359,168 @@ export default function ScoringPage() {
               </div>
             )}
 
-          <ScoringPanel
-            onScore={onScore}
-            onWicket={openWicketDialog}
-            onUndo={() => void handleUndo()}
-            onEditLastBall={() => {
-              const d = rawDeliveries[rawDeliveries.length - 1];
-              if (d) {
-                setEditingDelivery(d);
-                setShowEditBallDialog(true);
+          {!isScorer ? (
+            <div className="space-y-3">
+              <Card className="rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md shadow-sm">
+                <CardContent className="p-3.5 sm:p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <h3 className="text-xs sm:text-sm font-black tracking-tight text-foreground uppercase">
+                        Live Delivery Feed · Over {match.current_over}
+                      </h3>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-bold text-muted-foreground">
+                      {rawDeliveries.length} ball{rawDeliveries.length === 1 ? "" : "s"} this over
+                    </Badge>
+                  </div>
+
+                  {rawDeliveries.length > 0 ? (
+                    <div className="space-y-2">
+                      {rawDeliveries.slice().reverse().map((d, idx) => {
+                        const bowlerName =
+                          bowlingTeamPlayers.find((p) => p.user_id === d.bowler_id)
+                            ?.user?.full_name ??
+                          bowlerDisplay?.name ??
+                          "Bowler";
+                        const batterName =
+                          battingTeamPlayers.find((p) => p.user_id === d.batsman_id)
+                            ?.user?.full_name ??
+                          (d.is_wicket
+                            ? "Dismissed Batter"
+                            : strikerDisplay?.name ?? "Batter");
+                        const isBoundary =
+                          d.runs_scored === 4 || d.runs_scored === 6;
+                        const isWicket = d.is_wicket;
+                        return (
+                          <div
+                            key={d.id || idx}
+                            className={cn(
+                              "flex items-center justify-between rounded-xl p-2.5 text-xs transition-colors border",
+                              isWicket
+                                ? "bg-rose-500/10 border-rose-500/30 text-rose-950 dark:text-rose-100"
+                                : isBoundary
+                                  ? d.runs_scored === 6
+                                    ? "bg-purple-500/10 border-purple-500/30 text-purple-950 dark:text-purple-100"
+                                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-100"
+                                  : "bg-muted/30 border-border/50 text-foreground",
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="tabular font-score text-xs font-bold text-muted-foreground shrink-0 w-8">
+                                {d.over_number}.{d.ball_number}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold">
+                                  <strong>{bowlerName}</strong> to <strong>{batterName}</strong>
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                                  {d.extra_type ? (
+                                    <span className="uppercase text-amber-600 dark:text-amber-400 font-bold">
+                                      {d.extra_type.replace("_", " ")} ({d.extras} extra{d.extras === 1 ? "" : "s"})
+                                    </span>
+                                  ) : null}
+                                  {d.shot_zone ? (
+                                    <span className="capitalize text-sky-600 dark:text-sky-400">
+                                      Shot: {d.shot_zone.replace("_", " ")}
+                                    </span>
+                                  ) : null}
+                                  {d.dismissal_type ? (
+                                    <span className="text-rose-600 dark:text-rose-400 font-bold capitalize">
+                                      OUT: {d.dismissal_type.replace("_", " ")}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="shrink-0 text-right">
+                              <span
+                                className={cn(
+                                  "inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-black shadow-2xs",
+                                  isWicket
+                                    ? "bg-red-600 text-white"
+                                    : d.runs_scored === 6
+                                      ? "bg-purple-600 text-white"
+                                      : d.runs_scored === 4
+                                        ? "bg-emerald-600 text-white"
+                                        : d.runs_scored === 0 && !d.extra_type
+                                          ? "bg-muted text-muted-foreground"
+                                          : "bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/30",
+                                )}
+                              >
+                                {isWicket
+                                  ? "W"
+                                  : d.extra_type
+                                    ? `${d.runs_scored || 0}${d.extra_type === "wide" ? "wd" : d.extra_type === "no_ball" ? "nb" : "ex"}`
+                                    : d.runs_scored}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 py-6 text-center text-xs text-muted-foreground">
+                      <Clock className="mx-auto h-5 w-5 mb-1.5 opacity-40" />
+                      Awaiting the first delivery of over {match.current_over}...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Locked Console Info Card */}
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-3.5 w-3.5 text-muted-foreground/80 shrink-0" />
+                  <span>Scoring keypad locked · Live feed updates automatically</span>
+                </div>
+                <Button size="sm" variant="ghost" asChild className="h-6 text-[11px] font-bold">
+                  <Link href={`/matches/${matchId}`}>Full Scorecard →</Link>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <ScoringPanel
+              onScore={onScore}
+              onWicket={openWicketDialog}
+              onUndo={() => void handleUndo()}
+              onEditLastBall={() => {
+                const d = rawDeliveries[rawDeliveries.length - 1];
+                if (d) {
+                  setEditingDelivery(d);
+                  setShowEditBallDialog(true);
+                }
+              }}
+              onSwapStriker={() => {
+                if (strikerId && nonStrikerId && !isProcessing) {
+                  void handleConfirmBatsmen(nonStrikerId, strikerId);
+                }
+              }}
+              onSelectBall={(idx) => {
+                const d = rawDeliveries[idx];
+                if (d) {
+                  setEditingDelivery(d);
+                  setShowEditBallDialog(true);
+                }
+              }}
+              currentOver={match.current_over}
+              currentBall={match.current_ball}
+              lastBalls={lastBalls}
+              isFreeHit={isFreeHit}
+              disabled={isScoringDisabled}
+              undoDisabled={
+                !isScorer ||
+                isProcessing ||
+                (match?.status !== "live" && match?.status !== "completed")
               }
-            }}
-            onSwapStriker={() => {
-              if (strikerId && nonStrikerId && !isProcessing) {
-                void handleConfirmBatsmen(nonStrikerId, strikerId);
-              }
-            }}
-            onSelectBall={(idx) => {
-              const d = rawDeliveries[idx];
-              if (d) {
-                setEditingDelivery(d);
-                setShowEditBallDialog(true);
-              }
-            }}
-            currentOver={match.current_over}
-            currentBall={match.current_ball}
-            lastBalls={lastBalls}
-            isFreeHit={isFreeHit}
-            disabled={isScoringDisabled}
-            undoDisabled={!isScorer || isProcessing || match?.status !== "live"}
-            keyboardSuppressed={scoringKeyboardSuppressed}
-            sunlightMode={sunlightMode}
-            onToggleSunlightMode={toggleSunlightMode}
-            wagonWheelPrompt={wagonWheelPrompt}
-            onToggleWagonWheelPrompt={toggleWagonWheelPrompt}
-          />
+              keyboardSuppressed={scoringKeyboardSuppressed}
+              sunlightMode={sunlightMode}
+              onToggleSunlightMode={toggleSunlightMode}
+              wagonWheelPrompt={wagonWheelPrompt}
+              onToggleWagonWheelPrompt={toggleWagonWheelPrompt}
+            />
+          )}
 
           {match.status === "completed" &&
             match.result_description?.toLowerCase().includes("tie") &&
@@ -1336,70 +1550,186 @@ export default function ScoringPage() {
             mobileTab !== "squads" && "hidden lg:block",
           )}
         >
-          <Card className="content-visibility-auto">
-            <CardContent className="p-4">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <Users className="h-4 w-4" /> Squads
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {battingTeam?.name} —{" "}
-                    {match.status === "live" ? "Batting" : "Team 1"}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {battingTeamPlayers.map((p) => (
-                      <Badge
-                        key={p.user_id}
-                        variant="outline"
-                        className="text-xs"
-                      >
-                        {p.user?.full_name}
-                      </Badge>
-                    ))}
-                    {battingTeamPlayers.length === 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        No players
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {bowlingTeam?.name} —{" "}
-                    {match.status === "live" ? "Bowling" : "Team 2"}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {bowlingTeamPlayers.map((p) => (
-                      <Badge
-                        key={p.user_id}
-                        variant="outline"
-                        className="text-xs"
-                      >
-                        {p.user?.full_name}
-                      </Badge>
-                    ))}
-                    {bowlingTeamPlayers.length === 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        No players
-                      </span>
-                    )}
-                  </div>
-                </div>
+          {/* Interactive Bench & Batting Order Card */}
+          <Card className="rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md shadow-sm content-visibility-auto">
+            <CardContent className="p-3.5 sm:p-4 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                <h3 className="flex items-center gap-2 text-sm font-black tracking-tight">
+                  <Users className="h-4 w-4 text-emerald-500" />
+                  <span>{battingTeam?.name ?? "Batting Team"} Squad & Bench</span>
+                </h3>
+                <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider">
+                  Inns {match.current_innings}
+                </Badge>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-3 w-full"
-                onClick={() => setShowAddPlayerDialog(true)}
-              >
-                <UserPlus className="mr-1.5 h-4 w-4" /> Manage Players
-              </Button>
+
+              {/* 1. At The Crease */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>At The Crease</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">Live</span>
+                </p>
+                {battingBench.active.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {battingBench.active.map((b) => (
+                      <div
+                        key={b.playerId}
+                        className={cn(
+                          "flex items-center justify-between rounded-xl p-2 text-xs transition-colors border",
+                          b.isStriker
+                            ? "bg-emerald-500/12 border-emerald-500/35 font-bold shadow-2xs"
+                            : "bg-muted/30 border-border/50",
+                        )}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            {b.isStriker && (
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                            )}
+                            <span className="truncate font-black text-foreground">
+                              {b.name} {b.isStriker && "*"}
+                            </span>
+                            {b.isStriker && (
+                              <span className="inline-flex items-center rounded bg-emerald-500/20 px-1 py-0.2 text-[8px] font-black text-emerald-800 dark:text-emerald-300 uppercase">
+                                Strike
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground pl-3.5">
+                            SR: {strikeRate(b.runs, b.balls)} · {b.fours}x4, {b.sixes}x6
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-score text-sm font-black tabular-nums">
+                            {b.runs}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground ml-1">
+                            ({b.balls})
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">No active batters set</p>
+                )}
+              </div>
+
+              {/* 2. Yet To Bat */}
+              {battingBench.yetToBat.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                    Yet to Bat ({battingBench.yetToBat.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {battingBench.yetToBat.map((p) => (
+                      <Badge
+                        key={p.playerId}
+                        variant="secondary"
+                        className="text-[11px] font-semibold"
+                      >
+                        {p.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Dismissed Batters */}
+              {battingBench.dismissed.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                    Dismissed ({battingBench.dismissed.length})
+                  </p>
+                  <div className="space-y-1">
+                    {battingBench.dismissed.map((d) => (
+                      <div
+                        key={d.playerId}
+                        className="flex items-center justify-between rounded-xl bg-rose-500/8 border border-rose-500/25 px-2.5 py-1.5 text-xs"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="truncate font-bold text-foreground">
+                            {d.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {d.dismissalType ? d.dismissalType.replace("_", " ") : "out"}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-score text-xs font-black tabular-nums">
+                            {d.runs}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground ml-1">
+                            ({d.balls})
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {isScorer && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 w-full text-xs font-bold"
+                  onClick={() => setShowAddPlayerDialog(true)}
+                >
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage Players
+                </Button>
+              )}
             </CardContent>
           </Card>
 
+          {/* Bowling Attack Spell Table */}
+          {bowlingSpells.length > 0 && (
+            <Card className="rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md shadow-sm content-visibility-auto">
+              <CardContent className="p-3.5 sm:p-4 space-y-2.5">
+                <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                  <h3 className="flex items-center gap-2 text-sm font-black tracking-tight">
+                    <Zap className="h-4 w-4 text-sky-500" />
+                    <span>{bowlingTeam?.name ?? "Bowling"} Attack</span>
+                  </h3>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
+                    O · M · R · W · Econ
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {bowlingSpells.map((sp) => (
+                    <div
+                      key={sp.playerId}
+                      className={cn(
+                        "flex items-center justify-between rounded-xl p-2 text-xs transition-colors border",
+                        sp.isCurrent
+                          ? "bg-sky-500/12 border-sky-500/35 font-bold shadow-2xs"
+                          : "bg-muted/30 border-border/40",
+                      )}
+                    >
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        {sp.isCurrent && (
+                          <span className="h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+                        )}
+                        <span className="truncate font-black text-foreground">
+                          {sp.name}
+                        </span>
+                      </div>
+                      <div className="text-right tabular-nums font-mono text-[11px] font-bold text-foreground shrink-0 space-x-1.5">
+                        <span>{sp.overs}ov</span>
+                        <span className="text-muted-foreground">{sp.maidens}m</span>
+                        <span>{sp.runs}r</span>
+                        <span className="text-rose-600 dark:text-rose-400 font-black">{sp.wickets}w</span>
+                        <span className="text-[10px] text-muted-foreground">({sp.econ})</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Desktop Match Rules & Extras Breakdown Card */}
-          <Card className="hidden lg:block">
+          <Card className="rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md shadow-sm hidden lg:block">
             <CardContent className="p-4 space-y-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <SlidersHorizontal className="h-4 w-4 text-emerald-500" /> Match Insights

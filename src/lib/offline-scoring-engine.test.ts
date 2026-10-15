@@ -292,5 +292,46 @@ describe("offline-scoring-engine", () => {
     expect(scoringState.last_bowler_overs).toBe(1); // 6 balls = 1 over
     expect(scoringState.bowler_id).toBeNull(); // bowler selection required
   });
+
+  it("clears striker crease on standard dismissal and credits bowler", () => {
+    const res = processDeliveryLocally(baseContext, {
+      isWicket: true,
+      dismissalType: "bowled",
+    });
+    expect(res.totalWickets).toBe(1);
+    expect(res.bowlerWickets).toBe(1);
+    expect(res.strikerId).toBeNull();
+    expect(res.nonStrikerId).toBe("bat-2");
+    expect(res.needsBatsman).toBe(true);
+  });
+
+  it("handles run out of non-striker without crediting bowler", () => {
+    const res = processDeliveryLocally(baseContext, {
+      isWicket: true,
+      dismissalType: "run_out",
+      dismissedPlayerId: "bat-2",
+      runsScored: 1,
+    });
+    expect(res.totalWickets).toBe(1);
+    expect(res.bowlerWickets).toBe(0); // Bowler does NOT get credit
+    // Strike swap happened on 1 run: bat-1 was at non-striker end, bat-2 was at striker end
+    // Since bat-2 was dismissed, whichever end bat-2 ended up at is cleared:
+    expect(res.strikerId).toBeNull();
+    expect(res.nonStrikerId).toBe("bat-1");
+    expect(res.needsBatsman).toBe(true);
+  });
+
+  it("handles retired hurt without incrementing team wickets or bowler wickets", () => {
+    const res = processDeliveryLocally(baseContext, {
+      isWicket: true,
+      dismissalType: "retired_hurt",
+      dismissedPlayerId: "bat-1",
+    });
+    expect(res.totalWickets).toBe(0); // MCC Law 25.4: not out, not a team wicket
+    expect(res.bowlerWickets).toBe(0);
+    expect(res.strikerId).toBeNull();
+    expect(res.nonStrikerId).toBe("bat-2");
+    expect(res.needsBatsman).toBe(true);
+  });
 });
 

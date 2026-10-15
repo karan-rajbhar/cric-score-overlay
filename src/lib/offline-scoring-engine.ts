@@ -54,6 +54,8 @@ export interface BallInput {
   extras?: number;      // extra runs
   extraType?: 'wide' | 'no_ball' | 'bye' | 'leg_bye' | 'penalty' | 'bonus' | null;
   isWicket?: boolean;
+  dismissalType?: string | null;
+  dismissedPlayerId?: string | null;
 }
 
 /**
@@ -192,8 +194,15 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
   }
 
   if (ball.isWicket) {
-    newCtx.totalWickets += 1;
-    newCtx.bowlerWickets += 1;
+    const isRetiredHurt = ball.dismissalType === "retired_hurt";
+    if (!isRetiredHurt) {
+      newCtx.totalWickets += 1;
+    }
+
+    const nonBowlerDismissals = ["run_out", "retired_hurt", "retired_out", "obstructing"];
+    if (!ball.dismissalType || !nonBowlerDismissals.includes(ball.dismissalType)) {
+      newCtx.bowlerWickets += 1;
+    }
   }
 
   // Delivery strike rotation
@@ -209,6 +218,20 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     newCtx.nonStrikerId = tempId;
     newCtx.nonStrikerRuns = tempRuns;
     newCtx.nonStrikerBalls = tempBalls;
+  }
+
+  // Clear crease for dismissed batsman
+  if (ball.isWicket) {
+    const dismissedId = ball.dismissedPlayerId ?? ctx.strikerId;
+    if (dismissedId && dismissedId === newCtx.nonStrikerId) {
+      newCtx.nonStrikerId = null;
+      newCtx.nonStrikerRuns = 0;
+      newCtx.nonStrikerBalls = 0;
+    } else {
+      newCtx.strikerId = null;
+      newCtx.strikerRuns = 0;
+      newCtx.strikerBalls = 0;
+    }
   }
 
   let overCompleted = false;
@@ -240,14 +263,18 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
   
   if (newCtx.totalWickets >= newCtx.wicketsPerInnings) {
     inningsCompleted = true; // All out
-  } else if (overCompleted && newCtx.currentOver >= newCtx.oversPerInnings) {
+  } else if (
+    newCtx.oversPerInnings > 0 &&
+    (newCtx.totalBalls >= newCtx.oversPerInnings * newCtx.ballsPerOver ||
+      (overCompleted && newCtx.currentOver >= newCtx.oversPerInnings))
+  ) {
     inningsCompleted = true; // Overs exhausted
   } else if (newCtx.targetRuns !== null && newCtx.totalRuns >= newCtx.targetRuns) {
     inningsCompleted = true; // Target chased
   }
 
   let needsBatsman = false;
-  if (ball.isWicket && !inningsCompleted) {
+  if (!inningsCompleted && (ball.isWicket || newCtx.strikerId === null || newCtx.nonStrikerId === null)) {
     needsBatsman = true;
   }
 
@@ -347,8 +374,14 @@ export function buildContextFromMatch(
     bowlerBallsBowled: bowlerBalls,
     bowlerWickets,
     ballsPerOver: match.balls_per_over || 6,
-    oversPerInnings: match.overs_per_innings ?? 20,
-    wicketsPerInnings: match.wickets_per_innings || 10,
+    oversPerInnings:
+      match.current_innings && match.current_innings > 2
+        ? 1
+        : (match.overs_per_innings ?? 20),
+    wicketsPerInnings:
+      match.current_innings && match.current_innings > 2
+        ? 2
+        : (match.wickets_per_innings || 10),
     targetRuns: innings?.target_runs || null
   };
 }
@@ -375,10 +408,12 @@ export function deliveryResultToScoringState(
     (res.bowlerBallsBowled % res.ballsPerOver) / 10;
 
   const isCompleted = res.matchCompleted ?? false;
-  const needsBowler = res.needsBowler ?? false;
-  const needsBatsman = res.needsBatsman ?? false;
-  const overCompleted = res.overCompleted ?? false;
   const inningsCompleted = res.inningsCompleted ?? false;
+  const needsBowler = !inningsCompleted && (res.needsBowler ?? false);
+  const needsBatsman =
+    !inningsCompleted &&
+    ((res.needsBatsman ?? false) || res.strikerId === null || res.nonStrikerId === null);
+  const overCompleted = res.overCompleted ?? false;
 
   return {
     ok: true,
@@ -393,12 +428,12 @@ export function deliveryResultToScoringState(
     is_completed: isCompleted,
     striker_id: res.strikerId,
     non_striker_id: res.nonStrikerId,
-    striker_name: striker?.user?.full_name ?? "Striker",
-    non_striker_name: nonStriker?.user?.full_name ?? "Non-Striker",
-    striker_runs: res.strikerRuns,
-    striker_balls: res.strikerBalls,
-    non_striker_runs: res.nonStrikerRuns,
-    non_striker_balls: res.nonStrikerBalls,
+    striker_name: striker?.user?.full_name ?? (res.strikerId ? "Striker" : null),
+    non_striker_name: nonStriker?.user?.full_name ?? (res.nonStrikerId ? "Non-Striker" : null),
+    striker_runs: res.strikerId ? res.strikerRuns : null,
+    striker_balls: res.strikerId ? res.strikerBalls : null,
+    non_striker_runs: res.nonStrikerId ? res.nonStrikerRuns : null,
+    non_striker_balls: res.nonStrikerId ? res.nonStrikerBalls : null,
     needs_batsman: needsBatsman,
     needs_bowler: needsBowler,
     bowler_id: needsBowler ? null : res.bowlerId,
@@ -423,5 +458,6 @@ export function deliveryResultToScoringState(
     extras: ball ? (ball.extras ?? 0) : null,
     extra_type: ball?.extraType ?? null,
     is_wicket: ball?.isWicket ?? null,
+    dismissal_type: ball?.dismissalType ?? null,
   };
 }

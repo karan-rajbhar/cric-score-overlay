@@ -73,6 +73,12 @@ export default {
           active: "hsl(var(--sidebar-active))",
           "active-foreground": "hsl(var(--sidebar-active-foreground))",
         },
+        board: {
+          DEFAULT: "hsl(var(--board))",
+          foreground: "hsl(var(--board-foreground))",
+          muted: "hsl(var(--board-muted))",
+          line: "hsl(var(--board-line))",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

@@ -90,4 +90,5 @@ export interface ScoringState {
   extras?: number | null;
   extra_type?: string | null;
   is_wicket?: boolean | null;
+  dismissal_type?: string | null;
 }

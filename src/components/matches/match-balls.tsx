@@ -32,6 +32,8 @@ export function MatchBalls({ match }: MatchBallsProps) {
     if (ball.extra_type === "no_ball") return `${ball.runs_scored}nb`;
     if (ball.extra_type === "bye") return `${ball.extras}b`;
     if (ball.extra_type === "leg_bye") return `${ball.extras}lb`;
+    if (ball.extra_type === "penalty") return `${ball.extras}P`;
+    if (ball.extra_type === "bonus") return `${ball.extras}B`;
     return ball.runs_scored.toString();
   };
 
@@ -132,7 +134,11 @@ export function MatchBalls({ match }: MatchBallsProps) {
       </div>
 
       <Tabs
-        defaultValue={`innings-${sortedInnings[0]?.innings_number}`}
+        defaultValue={
+          sortedInnings.some((inn) => inn.innings_number === match.current_innings)
+            ? `innings-${match.current_innings}`
+            : `innings-${sortedInnings[sortedInnings.length - 1]?.innings_number ?? 1}`
+        }
         className="w-full"
       >
         <TabsList className="mb-4 grid h-auto w-full max-w-xs grid-cols-2 gap-1 p-1">
@@ -169,15 +175,23 @@ export function MatchBalls({ match }: MatchBallsProps) {
               ) : (
                 <div className="space-y-4">
                   {/* Innings Header */}
-                  <Card>
-                    <CardContent className="py-3">
+                  <Card className="overflow-hidden border-border bg-card">
+                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
+                    <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium">
-                          {teamName(match, innings.team_id)}
-                        </span>
-                        <span className="text-lg font-bold tabular-nums">
-                          {innings.total_runs}/{innings.total_wickets} (
-                          {innings.total_overs} ov)
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                            {teamName(match, innings.team_id).slice(0, 2)}
+                          </div>
+                          <span className="font-semibold text-foreground text-sm sm:text-base">
+                            {teamName(match, innings.team_id)}
+                          </span>
+                        </div>
+                        <span className="text-base sm:text-lg font-bold tabular-nums font-score text-foreground">
+                          {innings.total_runs}/{innings.total_wickets}{" "}
+                          <span className="text-xs font-normal text-muted-foreground font-sans">
+                            ({innings.total_overs} ov)
+                          </span>
                         </span>
                       </div>
                     </CardContent>
@@ -192,30 +206,30 @@ export function MatchBalls({ match }: MatchBallsProps) {
                     ).length;
 
                     return (
-                      <Card key={overNum} className="content-visibility-auto">
-                        <CardHeader className="py-3">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              Over {overNum + 1}
+                      <Card key={overNum} className="content-visibility-auto overflow-hidden border-border bg-card">
+                        <CardHeader className="border-b border-border/50 py-3 px-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-bold">
+                              <span>Over {overNum + 1}</span>
                               {overBalls[0]?.bowler && (
-                                <span className="text-sm font-normal text-muted-foreground">
-                                  - {overBalls[0].bowler.full_name}
+                                <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                  {overBalls[0].bowler.full_name}
                                 </span>
                               )}
                             </CardTitle>
                             <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="tabular-nums">
+                              <Badge variant="secondary" className="tabular-nums font-semibold text-xs">
                                 {overRuns} {overRuns === 1 ? "run" : "runs"}
                               </Badge>
                               {wicketsInOver > 0 && (
-                                <Badge variant="destructive" className="tabular-nums">
+                                <Badge variant="destructive" className="tabular-nums font-bold text-xs">
                                   {wicketsInOver} {wicketsInOver === 1 ? "wicket" : "wickets"}
                                 </Badge>
                               )}
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="pt-0">
+                        <CardContent className="p-4">
                           <div className="flex flex-wrap gap-2">
                             {overBalls
                               .sort((a, b) => a.ball_number - b.ball_number)
@@ -223,7 +237,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                 <div
                                   key={ball.id}
                                   className={cn(
-                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0",
+                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0 transition-transform hover:scale-105",
                                     getBallClass(ball),
                                   )}
                                   title={`${ball.batsman?.full_name} vs ${ball.bowler?.full_name}${
@@ -238,27 +252,29 @@ export function MatchBalls({ match }: MatchBallsProps) {
                           </div>
 
                           {/* Ball Commentary */}
-                          <div className="mt-3 space-y-1.5">
+                          <div className="mt-3.5 space-y-1.5 border-t border-border/50 pt-3">
                             {overBalls
                               .sort((a, b) => a.ball_number - b.ball_number)
                               .map((ball) => (
                                 <div
                                   key={ball.id}
-                                  className="border-b border-border/30 py-1 text-sm last:border-0"
+                                  className="rounded-lg p-2 text-xs sm:text-sm transition-colors hover:bg-muted/30"
                                 >
-                                  <div className="flex flex-wrap items-center">
-                                    <span className="font-mono text-xs font-medium">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                                       {overNum}.{ball.ball_number}
                                     </span>
-                                    <span className="mx-2 text-muted-foreground">
+                                    <span className="text-muted-foreground text-xs sm:text-sm">
                                       {ball.bowler?.full_name} to{" "}
-                                      {ball.batsman?.full_name}
+                                      <strong className="text-foreground font-semibold">
+                                        {ball.batsman?.full_name}
+                                      </strong>
                                     </span>
                                     <span
                                       className={cn(
-                                        "font-bold",
+                                        "font-bold text-xs sm:text-sm",
                                         ball.is_wicket &&
-                                          "font-extrabold text-red-600 dark:text-red-400",
+                                          "font-black text-red-600 dark:text-red-400",
                                         ball.runs_scored === 6 &&
                                           "font-black text-purple-600 dark:text-purple-400",
                                         ball.runs_scored === 4 &&
@@ -278,14 +294,14 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                     {ball.extra_type && (
                                       <Badge
                                         variant="outline"
-                                        className="ml-2 text-xs"
+                                        className="text-[10px] px-1.5 py-0 uppercase"
                                       >
                                         {formatExtraType(ball.extra_type)}
                                       </Badge>
                                     )}
                                   </div>
                                   {ball.commentary && (
-                                    <p className="mt-0.5 pl-6 text-xs text-muted-foreground">
+                                    <p className="mt-1 pl-6 text-xs text-muted-foreground italic">
                                       {ball.commentary}
                                     </p>
                                   )}

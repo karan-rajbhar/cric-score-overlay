@@ -219,62 +219,6 @@ export async function registerTeamForTournament(
   return { success: true };
 }
 
-export async function removeTeamFromTournament(
-  tournamentId: string,
-  teamId: string,
-) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "You must be logged in" };
-
-  const isTournAdmin = await checkTournamentAdminAuth(
-    supabase,
-    tournamentId,
-    user.id,
-  );
-  const isTeamRep = await checkTeamRepAuth(supabase, teamId, user.id);
-
-  if (!isTournAdmin && !isTeamRep) {
-    return {
-      error:
-        "Only tournament organizers or team managers can withdraw this team.",
-    };
-  }
-
-  const { error } = await supabase
-    .from("tournament_registrations")
-    .delete()
-    .eq("tournament_id", tournamentId)
-    .eq("team_id", teamId);
-
-  if (error) {
-    console.error("removeTeamFromTournament error:", error);
-    return { error: error.message };
-  }
-
-  // Remove from standings as well
-  await supabase
-    .from("tournament_standings")
-    .delete()
-    .eq("tournament_id", tournamentId)
-    .eq("team_id", teamId);
-
-  const { data: tourn } = await supabase
-    .from("tournaments")
-    .select("club_id")
-    .eq("id", tournamentId)
-    .single();
-
-  revalidatePath(`/tournaments/${tournamentId}`);
-  if (tourn?.club_id) {
-    revalidatePath(`/clubs/${tourn.club_id}`);
-  }
-  return { success: true };
-}
-
 export async function refreshTournamentStandings(tournamentId: string) {
   const supabase = await createServerClient();
   const {

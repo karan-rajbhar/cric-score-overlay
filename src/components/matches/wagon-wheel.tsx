@@ -24,19 +24,11 @@ import { cn } from "~/lib/utils";
 
 import {
   SECTORS,
-  type SectorInfo,
   polarToCartesian,
   describeDonutSegment,
   describeWedge,
 } from "~/lib/wagon-wheel-utils";
 
-export {
-  SECTORS,
-  type SectorInfo,
-  polarToCartesian,
-  describeDonutSegment,
-  describeWedge,
-};
 
 interface WagonWheelProps {
   match: Match;
@@ -45,9 +37,12 @@ interface WagonWheelProps {
 
 export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
   const inningsList = useMemo(() => match.innings ?? [], [match.innings]);
-  const [selectedInningsId, setSelectedInningsId] = useState<string>(
-    inningsList[0]?.id ?? "",
-  );
+  const defaultInningsId = useMemo(() => {
+    const active = inningsList.find((i) => i.innings_number === match.current_innings);
+    return active?.id ?? inningsList[0]?.id ?? "";
+  }, [inningsList, match.current_innings]);
+
+  const [selectedInningsId, setSelectedInningsId] = useState<string>(defaultInningsId);
   const [selectedBatterId, setSelectedBatterId] = useState<string>("all");
   const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
   const [activeRunFilter, setActiveRunFilter] = useState<number | null>(null);

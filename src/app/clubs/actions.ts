@@ -490,57 +490,6 @@ export async function inviteClubMember(clubId: string, email: string) {
   return { success: true };
 }
 
-export async function updateSeason(
-  seasonId: string,
-  clubId: string,
-  name: string,
-  startDate?: string,
-  endDate?: string,
-  isCurrent?: boolean,
-) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "You must be logged in" };
-
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
-  if (!canManage) {
-    return { error: "You are not authorized to manage seasons for this club" };
-  }
-
-  const trimmedName = name.trim();
-  if (!trimmedName) return { error: "Season name is required" };
-
-  if (isCurrent) {
-    await supabase
-      .from("club_seasons")
-      .update({ is_current: false })
-      .eq("club_id", clubId);
-  }
-
-  const { error } = await supabase
-    .from("club_seasons")
-    .update({
-      name: trimmedName,
-      start_date: startDate || null,
-      end_date: endDate || null,
-      is_current: isCurrent ?? false,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", seasonId)
-    .eq("club_id", clubId);
-
-  if (error) {
-    console.error("updateSeason error:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath(`/clubs/${clubId}`);
-  return { success: true };
-}
-
 export async function deleteSeason(seasonId: string, clubId: string) {
   const supabase = await createServerClient();
   const {

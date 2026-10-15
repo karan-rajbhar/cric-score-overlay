@@ -77,24 +77,35 @@ export function MatchInfo({ match }: MatchInfoProps) {
       <TabsContent value="match-info">
         <div className="grid gap-4 md:grid-cols-2">
           {/* Basic Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Match Details</CardTitle>
+          <Card className="overflow-hidden border-border bg-card">
+            <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
+            <CardHeader className="border-b border-border/50 py-3.5">
+              <CardTitle className="text-base sm:text-lg">Match Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
-                <Layers className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                  <Layers className="h-4 w-4" />
+                </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Format</p>
-                  <p className="font-medium">{match.match_format}</p>
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Format
+                  </p>
+                  <p className="font-semibold text-foreground text-sm sm:text-base">
+                    {match.match_format}
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <CircleDot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                  <CircleDot className="h-4 w-4" />
+                </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Overs</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Overs
+                  </p>
+                  <p className="font-semibold text-foreground text-sm sm:text-base">
                     {match.overs_per_innings} overs per innings
                   </p>
                 </div>
@@ -102,19 +113,29 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.ball_type && (
                 <div className="flex items-start gap-3">
-                  <CircleDot className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <CircleDot className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Ball Type</p>
-                    <p className="font-medium capitalize">{match.ball_type}</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Ball Type
+                    </p>
+                    <p className="font-semibold capitalize text-foreground text-sm sm:text-base">
+                      {match.ball_type}
+                    </p>
                   </div>
                 </div>
               )}
 
               <div className="flex items-start gap-3">
-                <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                  <MapPin className="h-4 w-4" />
+                </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Venue</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Venue
+                  </p>
+                  <p className="font-semibold text-foreground text-sm sm:text-base">
                     {match.venue || "Not specified"}
                   </p>
                 </div>
@@ -122,13 +143,17 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.scheduled_at && (
                 <div className="flex items-start gap-3">
-                  <Calendar className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <Calendar className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Date & Time</p>
-                    <p className="font-medium">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Date & Time
+                    </p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatDate(match.scheduled_at)}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {formatTime(match.scheduled_at)}
                     </p>
                   </div>
@@ -137,12 +162,14 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.actual_start_time && (
                 <div className="flex items-start gap-3">
-                  <Clock className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <Clock className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Actual Start
                     </p>
-                    <p className="font-medium">
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatTime(match.actual_start_time)}
                     </p>
                   </div>
@@ -152,20 +179,25 @@ export function MatchInfo({ match }: MatchInfoProps) {
           </Card>
 
           {/* Toss & Conditions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Toss & Conditions</CardTitle>
+          <Card className="overflow-hidden border-border bg-card">
+            <div className="h-1 w-full bg-gradient-to-r from-amber-500 to-amber-500/40" />
+            <CardHeader className="border-b border-border/50 py-3.5">
+              <CardTitle className="text-base sm:text-lg">Toss & Conditions</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
-                <Trophy className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                  <Trophy className="h-4 w-4" />
+                </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Toss</p>
-                  <p className="font-medium">
+                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Toss
+                  </p>
+                  <p className="font-semibold text-foreground text-sm sm:text-base">
                     {match.toss_winner_team_id ? (
                       <>
                         {getTossWinnerName()} won the toss and elected to{" "}
-                        <span className="font-semibold">
+                        <span className="font-bold text-amber-500">
                           {match.toss_decision === "bowl" ? "bowl" : "bat"}
                         </span>
                       </>
@@ -178,30 +210,46 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
               {match.weather_conditions && (
                 <div className="flex items-start gap-3">
-                  <CloudSun className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <CloudSun className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Weather</p>
-                    <p className="font-medium">{match.weather_conditions}</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Weather
+                    </p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                      {match.weather_conditions}
+                    </p>
                   </div>
                 </div>
               )}
 
               {match.pitch_conditions && (
                 <div className="flex items-start gap-3">
-                  <Landmark className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <Landmark className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Pitch</p>
-                    <p className="font-medium">{match.pitch_conditions}</p>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Pitch
+                    </p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                      {match.pitch_conditions}
+                    </p>
                   </div>
                 </div>
               )}
 
               {(match.umpire1_name || match.umpire2_name) && (
                 <div className="flex items-start gap-3">
-                  <Users className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Umpires</p>
-                    <p className="font-medium">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Umpires
+                    </p>
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
                       {[match.umpire1_name, match.umpire2_name]
                         .filter(Boolean)
                         .join(", ")}
@@ -213,26 +261,32 @@ export function MatchInfo({ match }: MatchInfoProps) {
           </Card>
 
           {/* Match ID & Meta */}
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-lg">Additional Info</CardTitle>
+          <Card className="md:col-span-2 overflow-hidden border-border bg-card">
+            <CardHeader className="border-b border-border/50 py-3">
+              <CardTitle className="text-base">Additional Info</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Match ID</p>
-                  <p className="font-mono text-xs sm:text-sm break-all">{match.id}</p>
+            <CardContent className="pt-3">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
+                  <p className="text-xs font-medium text-muted-foreground">Match ID</p>
+                  <p className="font-mono text-xs break-all font-semibold text-foreground mt-0.5">
+                    {match.id}
+                  </p>
                 </div>
                 {match.tournament && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Tournament</p>
-                    <p className="font-medium">{match.tournament.name}</p>
+                  <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
+                    <p className="text-xs font-medium text-muted-foreground">Tournament</p>
+                    <p className="font-semibold text-sm text-foreground mt-0.5">
+                      {match.tournament.name}
+                    </p>
                   </div>
                 )}
                 {match.club && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Club</p>
-                    <p className="font-medium">{match.club.name}</p>
+                  <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
+                    <p className="text-xs font-medium text-muted-foreground">Club</p>
+                    <p className="font-semibold text-sm text-foreground mt-0.5">
+                      {match.club.name}
+                    </p>
                   </div>
                 )}
               </div>
@@ -245,23 +299,37 @@ export function MatchInfo({ match }: MatchInfoProps) {
       <TabsContent value="squads">
         <div className="grid gap-4 md:grid-cols-2">
           {/* Team 1 Squad */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cricket-primary/20">
-                  {match.team1.short_name?.charAt(0) ||
-                    match.team1.name.charAt(0)}
-                </div>
-                {match.team1.name}
-              </CardTitle>
+          <Card className="overflow-hidden border-border bg-card">
+            <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
+            <CardHeader className="border-b border-border/50 py-3.5 px-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                    {match.team1.short_name?.slice(0, 2) ||
+                      match.team1.name.slice(0, 2)}
+                  </div>
+                  {match.team1.name}
+                </CardTitle>
+                {match.team1.team_players && (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {match.team1.team_players.length} players
+                  </span>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className="w-[50px]">#</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead>Role</TableHead>
+                    <TableHead className="w-[50px] text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      #
+                    </TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      Player
+                    </TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground text-right pr-4">
+                      Role
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -271,13 +339,17 @@ export function MatchInfo({ match }: MatchInfoProps) {
                         (a.batting_order || 99) - (b.batting_order || 99),
                     )
                     .map((tp, idx) => (
-                      <TableRow key={tp.id}>
-                        <TableCell className="font-medium">
+                      <TableRow key={tp.id} className="transition-colors hover:bg-muted/30">
+                        <TableCell className="font-mono text-center text-xs font-semibold text-muted-foreground">
                           {tp.jersey_number || idx + 1}
                         </TableCell>
-                        <TableCell>{tp.user?.full_name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {getPlayerRole(tp.role_in_team)}
+                        <TableCell className="font-semibold text-sm text-foreground">
+                          {tp.user?.full_name}
+                        </TableCell>
+                        <TableCell className="text-right pr-4">
+                          <span className="inline-block rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            {getPlayerRole(tp.role_in_team)}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -285,7 +357,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
               </Table>
               {(!match.team1.team_players ||
                 match.team1.team_players.length === 0) && (
-                <div className="p-4 text-center text-muted-foreground">
+                <div className="p-8 text-center text-sm text-muted-foreground">
                   Squad not announced yet
                 </div>
               )}
@@ -293,23 +365,37 @@ export function MatchInfo({ match }: MatchInfoProps) {
           </Card>
 
           {/* Team 2 Squad */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cricket-secondary/20">
-                  {match.team2.short_name?.charAt(0) ||
-                    match.team2.name.charAt(0)}
-                </div>
-                {match.team2.name}
-              </CardTitle>
+          <Card className="overflow-hidden border-border bg-card">
+            <div className="h-1 w-full bg-gradient-to-r from-sky-500 to-sky-500/40" />
+            <CardHeader className="border-b border-border/50 py-3.5 px-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-xs font-bold text-sky-500">
+                    {match.team2.short_name?.slice(0, 2) ||
+                      match.team2.name.slice(0, 2)}
+                  </div>
+                  {match.team2.name}
+                </CardTitle>
+                {match.team2.team_players && (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {match.team2.team_players.length} players
+                  </span>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className="w-[50px]">#</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead>Role</TableHead>
+                    <TableHead className="w-[50px] text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      #
+                    </TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                      Player
+                    </TableHead>
+                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground text-right pr-4">
+                      Role
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -319,13 +405,17 @@ export function MatchInfo({ match }: MatchInfoProps) {
                         (a.batting_order || 99) - (b.batting_order || 99),
                     )
                     .map((tp, idx) => (
-                      <TableRow key={tp.id}>
-                        <TableCell className="font-medium">
+                      <TableRow key={tp.id} className="transition-colors hover:bg-muted/30">
+                        <TableCell className="font-mono text-center text-xs font-semibold text-muted-foreground">
                           {tp.jersey_number || idx + 1}
                         </TableCell>
-                        <TableCell>{tp.user?.full_name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {getPlayerRole(tp.role_in_team)}
+                        <TableCell className="font-semibold text-sm text-foreground">
+                          {tp.user?.full_name}
+                        </TableCell>
+                        <TableCell className="text-right pr-4">
+                          <span className="inline-block rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            {getPlayerRole(tp.role_in_team)}
+                          </span>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -333,7 +423,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
               </Table>
               {(!match.team2.team_players ||
                 match.team2.team_players.length === 0) && (
-                <div className="p-4 text-center text-muted-foreground">
+                <div className="p-8 text-center text-sm text-muted-foreground">
                   Squad not announced yet
                 </div>
               )}

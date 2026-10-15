@@ -20,6 +20,8 @@ import {
   getPendingCount,
   popLastAction,
   getPendingActions,
+  getDeadLetterCount,
+  skipHeadAction,
 } from "~/lib/offline-queue";
 import {
   processDeliveryLocally,
@@ -96,6 +98,9 @@ export function useScoring(
   );
   const [pendingCount, setPendingCount] = useState(() =>
     getPendingCount(matchId),
+  );
+  const [deadLetterCount, setDeadLetterCount] = useState(() =>
+    getDeadLetterCount(matchId),
   );
   const localCtxRef = useRef<LocalScoringContext | null>(null);
   const playersRef = useRef<{ batting: Player[]; bowling: Player[] }>({
@@ -342,9 +347,11 @@ export function useScoring(
       setBowler: (bId) => setCurrentBowler(matchId, bId),
       endInnings: () => endInnings(matchId),
       undoLastBall: () => undoLastBall(matchId),
+      startSuperOver: () => startSuperOver(matchId),
     });
 
     setPendingCount(getPendingCount(matchId));
+    setDeadLetterCount(getDeadLetterCount(matchId));
     if (res.synced > 0) {
       toast.success(`Successfully synced ${res.synced} offline item(s)!`);
       await syncFromDb();
@@ -399,7 +406,7 @@ export function useScoring(
       const innings = prev.innings?.map((inn) => {
         if (inn.innings_number !== state.current_innings) return inn;
 
-        const updatedBatting = inn.batting_performances?.map((bp) => {
+        const updatedBatting = (inn.batting_performances ?? []).map((bp) => {
           if (state.striker_id && bp.user_id === state.striker_id) {
             return {
               ...bp,
@@ -418,8 +425,82 @@ export function useScoring(
               is_striker: false,
             };
           }
+          if (bp.user_id !== state.striker_id && bp.user_id !== state.non_striker_id) {
+            const wasCurrent = bp.is_current_batsman || (strikerId && bp.user_id === strikerId) || (nonStrikerId && bp.user_id === nonStrikerId);
+            const isDismissed = Boolean(state.is_wicket && wasCurrent);
+            return {
+              ...bp,
+              is_current_batsman: false,
+              is_striker: false,
+              ...(isDismissed && state.dismissal_type !== "retired_hurt"
+                ? { is_out: true, dismissal_type: state.dismissal_type ?? bp.dismissal_type }
+                : {}),
+            };
+          }
           return bp;
         });
+
+        if (state.striker_id && !updatedBatting.some((bp) => bp.user_id === state.striker_id)) {
+          const strikerPlayer = battingTeamPlayers.find((p) => p.user_id === state.striker_id);
+          updatedBatting.push({
+            id: state.striker_id,
+            match_id: prev.id,
+            innings_id: inn.id,
+            user_id: state.striker_id,
+            runs_scored: state.striker_runs ?? 0,
+            balls_faced: state.striker_balls ?? 0,
+            fours: 0,
+            sixes: 0,
+            is_out: false,
+            is_current_batsman: true,
+            is_striker: true,
+            user: {
+              id: state.striker_id,
+              full_name: state.striker_name ?? strikerPlayer?.user?.full_name ?? "Striker",
+            },
+          });
+        }
+        if (state.non_striker_id && !updatedBatting.some((bp) => bp.user_id === state.non_striker_id)) {
+          const nonStrikerPlayer = battingTeamPlayers.find((p) => p.user_id === state.non_striker_id);
+          updatedBatting.push({
+            id: state.non_striker_id,
+            match_id: prev.id,
+            innings_id: inn.id,
+            user_id: state.non_striker_id,
+            runs_scored: state.non_striker_runs ?? 0,
+            balls_faced: state.non_striker_balls ?? 0,
+            fours: 0,
+            sixes: 0,
+            is_out: false,
+            is_current_batsman: true,
+            is_striker: false,
+            user: {
+              id: state.non_striker_id,
+              full_name: state.non_striker_name ?? nonStrikerPlayer?.user?.full_name ?? "Non-Striker",
+            },
+          });
+        }
+        if (state.is_wicket && strikerId && !state.striker_id && !updatedBatting.some((bp) => bp.user_id === strikerId)) {
+          const dismissedPlayer = battingTeamPlayers.find((p) => p.user_id === strikerId);
+          updatedBatting.push({
+            id: strikerId,
+            match_id: prev.id,
+            innings_id: inn.id,
+            user_id: strikerId,
+            runs_scored: 0,
+            balls_faced: 1,
+            fours: 0,
+            sixes: 0,
+            is_out: state.dismissal_type !== "retired_hurt",
+            dismissal_type: state.dismissal_type ?? undefined,
+            is_current_batsman: false,
+            is_striker: false,
+            user: {
+              id: strikerId,
+              full_name: dismissedPlayer?.user?.full_name ?? "Striker",
+            },
+          });
+        }
 
         const effectiveBowlerId =
           state.bowler_id ?? state.last_bowler_id ?? currentBowlerId;
@@ -524,21 +605,21 @@ export function useScoring(
       extra_type?: string;
       is_wicket?: boolean;
     };
-    if (
-      delivery.runs_scored !== undefined ||
-      delivery.extras !== undefined ||
-      delivery.is_wicket
-    ) {
+    const hasBallEvent =
+      (delivery.runs_scored !== undefined && delivery.runs_scored !== null) ||
+      (delivery.extras !== undefined && delivery.extras !== null) ||
+      Boolean(delivery.is_wicket);
+    if (hasBallEvent) {
       setLastBalls((prev) =>
         [...prev, deliveryLabel(delivery)].slice(-6),
       );
     }
 
-    if (state.over_completed || state.needs_bowler) {
+    if (state.needs_batsman) {
+      optionsRef.current?.onNeedsBatsman?.();
+    } else if (state.over_completed || state.needs_bowler) {
       toast.info("Over complete! Please select the bowler for the next over.");
       optionsRef.current?.onNeedsBowler?.();
-    } else if (state.needs_batsman) {
-      optionsRef.current?.onNeedsBatsman?.();
     }
 
     if (typeof navigator === "undefined" || navigator.onLine) {
@@ -601,6 +682,13 @@ export function useScoring(
         return { data: null, error: "Innings is complete" };
       }
 
+      const ctxToProcess = {
+        ...currentCtx,
+        strikerId: batsmanId,
+        nonStrikerId: nonStriker,
+        bowlerId: bowlerId,
+      };
+
       enqueuePendingBall({
         matchId,
         bowlerId,
@@ -609,7 +697,7 @@ export function useScoring(
         event,
       });
 
-      const result = processDeliveryLocally(currentCtx, event);
+      const result = processDeliveryLocally(ctxToProcess, event);
       localCtxRef.current = result;
       const computedState = deliveryResultToScoringState(
         result,
@@ -714,8 +802,10 @@ export function useScoring(
       const lastAction = popLastAction(matchId);
       if (lastAction) {
         setPendingCount(getPendingCount(matchId));
-        setRawDeliveries((prev) => prev.slice(0, -1));
-        setLastBalls((prev) => prev.slice(0, -1));
+        if (lastAction.type === "recordBall") {
+          setRawDeliveries((prev) => prev.slice(0, -1));
+          setLastBalls((prev) => prev.slice(0, -1));
+        }
         toast.success("Undid last offline action");
 
         // Replay remaining pending actions on top of cached baseline
@@ -730,12 +820,37 @@ export function useScoring(
           const remainingActions = getPendingActions(matchId);
           for (const a of remainingActions) {
             if (a.type === "recordBall") {
+              if (a.payload.batsmanId) replayCtx.strikerId = a.payload.batsmanId;
+              if (a.payload.nonStrikerId) replayCtx.nonStrikerId = a.payload.nonStrikerId;
+              if (a.payload.bowlerId) replayCtx.bowlerId = a.payload.bowlerId;
               replayCtx = processDeliveryLocally(replayCtx, a.payload.event);
             } else if (a.type === "setBatsmen") {
               replayCtx.strikerId = a.payload.strikerId;
               replayCtx.nonStrikerId = a.payload.nonStrikerId;
             } else if (a.type === "setBowler") {
               replayCtx.bowlerId = a.payload.bowlerId;
+            } else if (a.type === "startSuperOver") {
+              replayCtx.currentInnings = (replayCtx.currentInnings ?? 2) + 1;
+              replayCtx.currentOver = 0;
+              replayCtx.currentBall = 0;
+              replayCtx.totalRuns = 0;
+              replayCtx.totalWickets = 0;
+              replayCtx.totalBalls = 0;
+              replayCtx.strikerId = null;
+              replayCtx.nonStrikerId = null;
+              replayCtx.bowlerId = null;
+              replayCtx.oversPerInnings = 1;
+              replayCtx.wicketsPerInnings = 2;
+            } else if (a.type === "endInnings") {
+              replayCtx.currentInnings = (replayCtx.currentInnings ?? 1) + 1;
+              replayCtx.currentOver = 0;
+              replayCtx.currentBall = 0;
+              replayCtx.totalRuns = 0;
+              replayCtx.totalWickets = 0;
+              replayCtx.totalBalls = 0;
+              replayCtx.strikerId = null;
+              replayCtx.nonStrikerId = null;
+              replayCtx.bowlerId = null;
             }
           }
           localCtxRef.current = replayCtx;
@@ -796,17 +911,143 @@ export function useScoring(
 
   const handleStartSuperOver = async () => {
     setIsProcessing(true);
-    const result = await startSuperOver(matchId);
-    if (result.error) {
-      toast.error(result.error);
-    } else if (result.data) {
-      broadcastScoreUpdate();
-      applyState(result.data);
-      toast.success("Super Over initiated!");
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      enqueueAction(matchId, "startSuperOver", {});
+      setPendingCount(getPendingCount(matchId));
+
+      const lastInningsNum =
+        match?.innings?.reduce(
+          (max, inn) => Math.max(max, inn.innings_number),
+          match?.current_innings ?? 2,
+        ) ?? 2;
+      const newInningsNum = lastInningsNum + 1;
+
+      // In Super Over, team that batted second in match bats first in Super Over
+      const inn2 = match?.innings?.find((i) => i.innings_number === 2);
+      const superOverBattingTeamId = inn2?.team_id ?? match?.team2_id;
+
+      setMatch((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: "live",
+          current_innings: newInningsNum,
+          current_over: 0,
+          current_ball: 0,
+          winning_team_id: null,
+          result_type: null,
+          result_description: "Super Over in progress",
+          innings: [
+            ...(prev.innings ?? []).map((i) =>
+              i.is_completed ? i : { ...i, is_completed: true },
+            ),
+            {
+              id: `local-super-over-${newInningsNum}`,
+              match_id: prev.id,
+              innings_number: newInningsNum,
+              team_id: superOverBattingTeamId ?? prev.team2_id,
+              total_runs: 0,
+              total_wickets: 0,
+              total_balls: 0,
+              total_overs: 0,
+              is_completed: false,
+              target_runs: null,
+              extras_total: 0,
+              extras_byes: 0,
+              extras_leg_byes: 0,
+              extras_wides: 0,
+              extras_no_balls: 0,
+              extras_penalties: 0,
+              batting_performances: [],
+              bowling_performances: [],
+            },
+          ],
+        };
+      });
+
+      setStrikerId(null);
+      setNonStrikerId(null);
+      setCurrentBowlerId(null);
+      setLastOverBowlerId(null);
+      setLastBalls([]);
+      setRawDeliveries([]);
+
+      if (
+        superOverBattingTeamId &&
+        bowlingTeamPlayers.length > 0 &&
+        bowlingTeamPlayers[0]?.team_id === superOverBattingTeamId
+      ) {
+        setBattingTeamPlayers(bowlingTeamPlayers);
+        setBowlingTeamPlayers(battingTeamPlayers);
+        playersRef.current = {
+          batting: bowlingTeamPlayers,
+          bowling: battingTeamPlayers,
+        };
+      }
+
+      if (localCtxRef.current) {
+        localCtxRef.current = {
+          ...localCtxRef.current,
+          currentInnings: newInningsNum,
+          currentOver: 0,
+          currentBall: 0,
+          totalRuns: 0,
+          totalWickets: 0,
+          totalBalls: 0,
+          strikerId: null,
+          nonStrikerId: null,
+          bowlerId: null,
+          strikerRuns: 0,
+          strikerBalls: 0,
+          nonStrikerRuns: 0,
+          nonStrikerBalls: 0,
+          bowlerRunsConceded: 0,
+          bowlerBallsBowled: 0,
+          bowlerWickets: 0,
+          targetRuns: null,
+          oversPerInnings: 1,
+          wicketsPerInnings: 2,
+        };
+      }
+
+      if (match) {
+        cacheMatchData(matchId, {
+          match,
+          battingTeamPlayers,
+          bowlingTeamPlayers,
+          strikerId: null,
+          nonStrikerId: null,
+          bowlerId: null,
+          lastOverBowlerId: null,
+        });
+      }
+
+      toast.success("Super Over initiated offline! (Queued for sync)");
+      optionsRef.current?.onNeedsBatsman?.();
+      setIsProcessing(false);
+      return { data: null, error: null };
     }
-    await syncFromDb();
-    setIsProcessing(false);
-    return result;
+
+    try {
+      const result = await startSuperOver(matchId);
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        broadcastScoreUpdate();
+        applyState(result.data);
+        toast.success("Super Over initiated!");
+      }
+      await syncFromDb();
+      setIsProcessing(false);
+      return result;
+    } catch {
+      enqueueAction(matchId, "startSuperOver", {});
+      setPendingCount(getPendingCount(matchId));
+      toast.success("Super Over queued for sync");
+      setIsProcessing(false);
+      return { data: null, error: null };
+    }
   };
 
   const handleConfirmBatsmen = async (
@@ -840,6 +1081,54 @@ export function useScoring(
         localCtxRef.current.strikerId = sId;
         localCtxRef.current.nonStrikerId = nsId;
       }
+      setMatch((prev) => {
+        if (!prev) return prev;
+        const innings = prev.innings?.map((inn) => {
+          if (inn.innings_number !== prev.current_innings) return inn;
+          let bps = [...(inn.batting_performances ?? [])];
+          bps = bps.map((b) => ({
+            ...b,
+            is_current_batsman: b.user_id === sId || b.user_id === nsId,
+            is_striker: b.user_id === sId,
+          }));
+          if (sId && !bps.some((b) => b.user_id === sId)) {
+            const p = battingTeamPlayers.find((tp) => tp.user_id === sId);
+            bps.push({
+              id: sId,
+              match_id: prev.id,
+              innings_id: inn.id,
+              user_id: sId,
+              runs_scored: 0,
+              balls_faced: 0,
+              fours: 0,
+              sixes: 0,
+              is_out: false,
+              is_current_batsman: true,
+              is_striker: true,
+              user: { id: sId, full_name: p?.user?.full_name ?? "Striker" },
+            });
+          }
+          if (nsId && !bps.some((b) => b.user_id === nsId)) {
+            const p = battingTeamPlayers.find((tp) => tp.user_id === nsId);
+            bps.push({
+              id: nsId,
+              match_id: prev.id,
+              innings_id: inn.id,
+              user_id: nsId,
+              runs_scored: 0,
+              balls_faced: 0,
+              fours: 0,
+              sixes: 0,
+              is_out: false,
+              is_current_batsman: true,
+              is_striker: false,
+              user: { id: nsId, full_name: p?.user?.full_name ?? "Non-Striker" },
+            });
+          }
+          return { ...inn, batting_performances: bps };
+        });
+        return { ...prev, innings };
+      });
       enqueueAction(matchId, "setBatsmen", { strikerId: sId, nonStrikerId: nsId });
       setPendingCount(getPendingCount(matchId));
       if (match) {
@@ -1199,6 +1488,16 @@ export function useScoring(
     }
   };
 
+  const handleSkipHeadAction = () => {
+    const skipped = skipHeadAction(matchId);
+    setPendingCount(getPendingCount(matchId));
+    setDeadLetterCount(getDeadLetterCount(matchId));
+    if (skipped) {
+      toast.info(`Skipped blocked offline ${skipped.type} action`);
+    }
+    return skipped;
+  };
+
   return {
     match,
     loading,
@@ -1214,7 +1513,9 @@ export function useScoring(
     isProcessing,
     isOffline,
     pendingCount,
+    deadLetterCount,
     flushOfflineQueue,
+    handleSkipHeadAction,
     setStrikerId,
     setNonStrikerId,
     setCurrentBowlerId,

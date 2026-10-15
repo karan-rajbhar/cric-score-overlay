@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useScoring } from "./useScoring";
 import { getScoringState, getTeamPlayers } from "../../queries";
 import { setCurrentBowler } from "../../mutations";
+import { getPendingActions } from "~/lib/offline-queue";
 
 vi.mock("~/lib/supabase/client", () => ({
   supabase: {
@@ -63,6 +64,7 @@ describe("useScoring", () => {
   };
 
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
     vi.mocked(getTeamPlayers).mockResolvedValue({ data: [], error: null });
     vi.mocked(getScoringState).mockResolvedValue({
@@ -423,5 +425,130 @@ describe("useScoring", () => {
     });
     await result.current.syncFromDb();
     expect(getTeamPlayers).toHaveBeenCalledTimes(4);
+  });
+
+  it("offline scoring handles wicket by clearing dismissed striker and marking them out in batting performances", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const onNeedsBatsman = vi.fn();
+    const { result } = renderHook(() => useScoring(matchId, { onNeedsBatsman }));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.handleConfirmBowler("u3");
+    await result.current.handleConfirmBatsmen("u1", "u2");
+
+    const scoreRes = await result.current.handleScore("u3", "u1", "u2", {
+      isWicket: true,
+      dismissalType: "bowled",
+      runsScored: 0,
+    });
+
+    expect(scoreRes.data?.needs_batsman).toBe(true);
+    expect(scoreRes.data?.striker_id).toBeNull();
+    expect(scoreRes.data?.non_striker_id).toBe("u2");
+    expect(onNeedsBatsman).toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(result.current.strikerId).toBeNull();
+      const inn = result.current.match?.innings?.find((i) => i.innings_number === 1);
+      const dismissedPerf = inn?.batting_performances?.find((bp) => bp.user_id === "u1");
+      expect(dismissedPerf?.is_out).toBe(true);
+      expect(dismissedPerf?.is_current_batsman).toBe(false);
+    });
+  });
+
+  it("offline undo only removes delivery when undoing a recordBall action", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const { result } = renderHook(() => useScoring(matchId));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.handleConfirmBowler("u3");
+    await result.current.handleConfirmBatsmen("u1", "u2");
+
+    // Score 1 ball
+    await result.current.handleScore("u3", "u1", "u2", { runsScored: 1 });
+    await waitFor(() => {
+      expect(result.current.lastBalls.length).toBe(1);
+      expect(result.current.rawDeliveries.length).toBe(1);
+    });
+
+    // Set bowler (non-ball action)
+    await result.current.handleConfirmBowler("u4");
+    await waitFor(() => {
+      expect(result.current.currentBowlerId).toBe("u4");
+    });
+
+    // Undoing the setBowler action must NOT pop the previous delivery!
+    await result.current.handleUndo();
+    await waitFor(() => {
+      expect(result.current.currentBowlerId).toBe("u3");
+    });
+    expect(result.current.lastBalls.length).toBe(1);
+    expect(result.current.rawDeliveries.length).toBe(1);
+
+    // Undoing again will undo the ball
+    await result.current.handleUndo();
+    await waitFor(() => {
+      expect(result.current.lastBalls.length).toBe(0);
+      expect(result.current.rawDeliveries.length).toBe(0);
+    });
+  });
+
+  it("initiates Super Over offline, updates innings and queues startSuperOver for sync", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const tiedMatchScoringState = {
+      match: {
+        id: matchId,
+        status: "completed",
+        current_innings: 2,
+        team1_id: "team-1",
+        team2_id: "team-2",
+        innings: [
+          { innings_number: 1, team_id: "team-1", is_completed: true },
+          { innings_number: 2, team_id: "team-2", is_completed: true },
+        ],
+      },
+      strikerId: null,
+      nonStrikerId: null,
+      bowlerId: null,
+      lastOverBowlerId: null,
+      thisOverDeliveries: [],
+    };
+    vi.mocked(getScoringState).mockResolvedValueOnce({
+      data: tiedMatchScoringState,
+      error: null,
+    });
+
+    const onNeedsBatsman = vi.fn();
+    const { result } = renderHook(() =>
+      useScoring(matchId, { onNeedsBatsman }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const superOverRes = await result.current.handleStartSuperOver();
+    expect(superOverRes.error).toBeNull();
+    expect(onNeedsBatsman).toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(result.current.match?.status).toBe("live");
+      expect(result.current.match?.current_innings).toBe(3);
+      expect(result.current.match?.result_description).toBe("Super Over in progress");
+      expect(result.current.strikerId).toBeNull();
+      expect(result.current.nonStrikerId).toBeNull();
+      expect(result.current.currentBowlerId).toBeNull();
+      expect(result.current.pendingCount).toBe(1);
+    });
+
+    const actions = getPendingActions(matchId);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]!.type).toBe("startSuperOver");
   });
 });

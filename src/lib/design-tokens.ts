@@ -310,58 +310,6 @@ export const PALETTE = {
   },
 } as const;
 
-export const TYPOGRAPHY = {
-  fonts: {
-    sans: "var(--font-sans), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    display: "var(--font-score), 'Barlow Condensed', 'Inter', sans-serif",
-    mono: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-  scale: {
-    micro: { size: "0.6875rem", lineHeight: "0.95rem", tracking: "0.04em" }, // 11px
-    xs: { size: "0.75rem", lineHeight: "1.1rem", tracking: "0.02em" }, // 12px
-    sm: { size: "0.875rem", lineHeight: "1.35rem", tracking: "0.01em" }, // 14px
-    base: { size: "1rem", lineHeight: "1.55rem", tracking: "0" }, // 16px
-    lg: { size: "1.125rem", lineHeight: "1.75rem", tracking: "-0.01em" }, // 18px
-    xl: { size: "1.25rem", lineHeight: "1.85rem", tracking: "-0.015em" }, // 20px
-    "2xl": { size: "1.5rem", lineHeight: "2.1rem", tracking: "-0.02em" }, // 24px
-    "3xl": { size: "1.875rem", lineHeight: "2.4rem", tracking: "-0.025em" }, // 30px
-    "4xl": { size: "2.25rem", lineHeight: "2.75rem", tracking: "-0.03em" }, // 36px
-    "5xl": { size: "3rem", lineHeight: "3.5rem", tracking: "-0.035em" }, // 48px
-  },
-} as const;
-
-export const SPACING = {
-  px: "1px",
-  0.5: "0.125rem", // 2px
-  1: "0.25rem", // 4px
-  1.5: "0.375rem", // 6px
-  2: "0.5rem", // 8px
-  2.5: "0.625rem", // 10px
-  3: "0.75rem", // 12px
-  4: "1rem", // 16px
-  5: "1.25rem", // 20px
-  6: "1.5rem", // 24px
-  8: "2rem", // 32px
-  10: "2.5rem", // 40px
-  12: "3rem", // 48px
-  16: "4rem", // 64px
-} as const;
-
-export const RADII = {
-  sm: "0.375rem", // 6px
-  md: "0.625rem", // 10px
-  lg: "0.875rem", // 14px
-  xl: "1.25rem", // 20px
-  full: "9999px",
-} as const;
-
-export const LAYOUT = {
-  sidebarWidth: "260px",
-  sidebarCollapsedWidth: "72px",
-  navbarHeight: "60px",
-  containerMaxWidth: "1280px",
-} as const;
-
 // ---------------------------------------------------------------------------
 // WCAG 2.1 Contrast Calculation Utilities
 // ---------------------------------------------------------------------------

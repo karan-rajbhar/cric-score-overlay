@@ -14,6 +14,10 @@ import {
   clearPendingActions,
   clearAllPending,
   flushPendingActions,
+  getDeadLetterActions,
+  getDeadLetterCount,
+  clearDeadLetterActions,
+  skipHeadAction,
   type ActionFlushHandlers,
   type PendingBallParams,
 } from "./offline-queue";
@@ -223,6 +227,118 @@ describe("Offline Scorer Queue", () => {
       expect(result.synced).toBe(0);
       expect(result.failed).toBe(1);
       expect(getPendingActions(matchId)).toHaveLength(1);
+    });
+
+    it("routes fatal sync errors to Dead Letter Queue without halting queue drain", async () => {
+      // Corrupt/poisoned head action with fatal authorization error
+      enqueueAction(matchId, "recordBall", dummyBall);
+      // Valid subsequent action
+      enqueueAction(matchId, "setBatsmen", {
+        strikerId: "bat-1",
+        nonStrikerId: "bat-2",
+      });
+
+      const handlers: ActionFlushHandlers = {
+        recordBall: vi.fn().mockResolvedValue({ error: "not_authorized: permission denied" }),
+        setBatsmen: vi.fn().mockResolvedValue({ error: null }),
+        setBowler: vi.fn().mockResolvedValue({ error: null }),
+        undoLastBall: vi.fn().mockResolvedValue({ error: null }),
+        endInnings: vi.fn().mockResolvedValue({ error: null }),
+      };
+
+      const result = await flushPendingActions(matchId, handlers);
+      // Head action was moved to DLQ, 2nd action succeeded
+      expect(result.failed).toBe(1);
+      expect(result.synced).toBe(1);
+      expect(handlers.recordBall).toHaveBeenCalledTimes(1);
+      expect(handlers.setBatsmen).toHaveBeenCalledTimes(1);
+
+      // Pending queue is now empty (head action unblocked!)
+      expect(getPendingActions(matchId)).toHaveLength(0);
+
+      // Dead letter queue captured the failed action
+      expect(getDeadLetterCount(matchId)).toBe(1);
+      const dlq = getDeadLetterActions(matchId);
+      expect(dlq[0]!.action.type).toBe("recordBall");
+      expect(dlq[0]!.error).toContain("not_authorized");
+    });
+
+    it("routes actions exceeding max retries to Dead Letter Queue and unblocks queue", async () => {
+      enqueueAction(matchId, "setBowler", { bowlerId: "bowl-1" });
+      enqueueAction(matchId, "recordBall", dummyBall);
+
+      const handlers: ActionFlushHandlers = {
+        setBowler: vi.fn().mockResolvedValue({ error: "Temporary server timeout" }),
+        recordBall: vi.fn().mockResolvedValue({ error: null }),
+        setBatsmen: vi.fn().mockResolvedValue({ error: null }),
+        undoLastBall: vi.fn().mockResolvedValue({ error: null }),
+        endInnings: vi.fn().mockResolvedValue({ error: null }),
+      };
+
+      // Attempt 1: retryCount becomes 1, queue stops to preserve order
+      const r1 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      expect(r1.failed).toBe(1);
+      expect(r1.synced).toBe(0);
+      expect(getPendingActions(matchId)).toHaveLength(2);
+      expect(getDeadLetterCount(matchId)).toBe(0);
+
+      // Attempt 2: retryCount becomes 2
+      const r2 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      expect(r2.failed).toBe(1);
+      expect(r2.synced).toBe(0);
+      expect(getPendingActions(matchId)).toHaveLength(2);
+      expect(getDeadLetterCount(matchId)).toBe(0);
+
+      // Attempt 3: retryCount reaches 3 -> moved to DLQ, subsequent recordBall drains!
+      const r3 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      expect(r3.failed).toBe(1);
+      expect(r3.synced).toBe(1);
+      expect(getPendingActions(matchId)).toHaveLength(0);
+      expect(getDeadLetterCount(matchId)).toBe(1);
+    });
+
+    it("supports manual head-of-queue skipping via skipHeadAction", () => {
+      const a1 = enqueueAction(matchId, "recordBall", dummyBall);
+      const a2 = enqueueAction(matchId, "setBowler", { bowlerId: "bowl-2" });
+
+      expect(getPendingCount(matchId)).toBe(2);
+      const skipped = skipHeadAction(matchId);
+      expect(skipped).not.toBeNull();
+      expect(skipped!.queueId).toBe(a1.queueId);
+
+      // Pending queue now starts with a2
+      const remaining = getPendingActions(matchId);
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]!.queueId).toBe(a2.queueId);
+
+      // DLQ contains skipped item
+      const dlq = getDeadLetterActions(matchId);
+      expect(dlq).toHaveLength(1);
+      expect(dlq[0]!.action.queueId).toBe(a1.queueId);
+      expect(dlq[0]!.error).toContain("Manually skipped");
+
+      clearDeadLetterActions(matchId);
+      expect(getDeadLetterActions(matchId)).toHaveLength(0);
+      expect(getDeadLetterCount(matchId)).toBe(0);
+    });
+
+    it("enqueues and flushes startSuperOver actions", async () => {
+      enqueueAction(matchId, "startSuperOver", {} as Record<string, never>);
+
+      const handlers: ActionFlushHandlers = {
+        setBatsmen: vi.fn().mockResolvedValue({ error: null }),
+        setBowler: vi.fn().mockResolvedValue({ error: null }),
+        recordBall: vi.fn().mockResolvedValue({ error: null }),
+        undoLastBall: vi.fn().mockResolvedValue({ error: null }),
+        endInnings: vi.fn().mockResolvedValue({ error: null }),
+        startSuperOver: vi.fn().mockResolvedValue({ error: null }),
+      };
+
+      const result = await flushPendingActions(matchId, handlers);
+      expect(result.synced).toBe(1);
+      expect(result.failed).toBe(0);
+      expect(handlers.startSuperOver).toHaveBeenCalledTimes(1);
+      expect(getPendingActions(matchId)).toHaveLength(0);
     });
   });
 });

@@ -84,15 +84,15 @@ export function NavigationBar() {
   }, []);
 
   return (
-    <nav className="sticky top-0 z-40 h-[58px] border-b border-border/70 bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
-      <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+    <nav className="sticky top-0 z-40 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+      <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5">
         {/* Left: Sidebar toggle + Brand */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
           {/* Mobile menu trigger */}
           <Button
             variant="ghost"
-            size="sm"
-            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground active:scale-95 md:hidden"
+            size="icon"
+            className="touch-manipulation text-muted-foreground hover:text-foreground md:hidden"
             onClick={toggleMobile}
             aria-label="Open navigation drawer"
           >
@@ -103,7 +103,7 @@ export function NavigationBar() {
           <Button
             variant="ghost"
             size="sm"
-            className="hidden h-8 w-8 p-0 text-muted-foreground hover:bg-muted hover:text-foreground md:flex"
+            className="hidden h-9 w-9 p-0 text-muted-foreground hover:text-foreground md:flex"
             onClick={toggleCollapsed}
             title="Toggle sidebar (Ctrl+B)"
             aria-label="Toggle sidebar"
@@ -113,7 +113,7 @@ export function NavigationBar() {
 
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-2 sm:gap-2.5"
+            className="flex shrink-0 items-center gap-2 rounded-lg"
             aria-label="CricScore home"
           >
             <BrandMark />
@@ -124,6 +124,7 @@ export function NavigationBar() {
         {/* Center: Search */}
         <div className="hidden w-full max-w-md items-center lg:flex">
           <form
+            role="search"
             onSubmit={(e) => {
               e.preventDefault();
               const q = searchQuery.trim();
@@ -133,16 +134,22 @@ export function NavigationBar() {
             }}
             className="relative w-full"
           >
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <input
               id="global-search-input"
+              type="search"
+              aria-label="Search matches, tournaments and players"
+              autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search matches, tournaments, players..."
-              className="h-8 w-full rounded-lg border border-border/70 bg-muted/30 pl-8 pr-12 text-xs transition-all placeholder:text-muted-foreground focus-visible:bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+              placeholder="Search matches, tournaments, players"
+              className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-12 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-2 top-2 hidden select-none rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-block">
-              ⌘K
+            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted-foreground sm:inline-block">
+              Ctrl K
             </kbd>
           </form>
         </div>

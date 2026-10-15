@@ -188,11 +188,12 @@ export function MatchSummary({ match }: MatchSummaryProps) {
     <div className="space-y-6">
       {/* Result Banner */}
       {match.status === "completed" && match.result_description && (
-        <Card className="border-cricket-primary/30 bg-gradient-to-r from-cricket-primary/20 to-cricket-secondary/20">
+        <Card className="overflow-hidden border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-card to-amber-500/10 shadow-sm">
+          <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-primary to-amber-500" />
           <CardContent className="py-4">
-            <div className="flex items-center justify-center gap-3">
-              <Trophy className="h-6 w-6 text-cricket-primary" />
-              <p className="text-lg font-semibold text-foreground">
+            <div className="flex items-center justify-center gap-3 text-center">
+              <Trophy className="h-6 w-6 shrink-0 text-amber-500 animate-pulse" />
+              <p className="text-base sm:text-lg font-bold tracking-tight text-foreground">
                 {match.result_description}
               </p>
             </div>
@@ -200,39 +201,103 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         </Card>
       )}
 
-      {/* Live Match Info */}
+      {/* Live Match Info / Chase Equation */}
       {isChasing && chasingTeam && chasingInnings && (
-        <Card className="border-red-500/30 bg-gradient-to-r from-red-500/20 to-orange-500/20">
-          <CardContent className="py-4">
-            <div className="flex flex-col items-center justify-center gap-1.5 text-center">
-              <div className="flex items-center justify-center gap-2">
-                <Target className="h-6 w-6 shrink-0 text-red-500" />
-                <p className="text-lg font-semibold">
+        <Card className="overflow-hidden border-border bg-card shadow-sm">
+          <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-500" />
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400"
+                >
+                  <Target className="h-3.5 w-3.5 shrink-0" />
+                  Chase Equation
+                </Badge>
+                {chasingInnings.target_runs && (
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Target:{" "}
+                    <strong className="text-foreground tabular-nums font-score text-sm">
+                      {chasingInnings.target_runs}
+                    </strong>
+                  </span>
+                )}
+              </div>
+
+              <div className="text-center sm:text-left">
+                <p className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
                   {chasingTeam.name} needs{" "}
-                  <span className="font-bold text-red-500">{runsNeeded}</span>{" "}
+                  <span className="font-score text-2xl sm:text-3xl font-extrabold text-red-500 tabular-nums">
+                    {runsNeeded}
+                  </span>{" "}
                   runs from{" "}
-                  <span className="font-bold text-red-500">
+                  <span className="font-score text-2xl sm:text-3xl font-extrabold text-red-500 tabular-nums">
                     {chasingBallsRem}
                   </span>{" "}
                   balls
                 </p>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-medium text-muted-foreground">
+
+              {/* Chase progress needle bar */}
+              {chasingInnings.target_runs && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                    <span>
+                      <strong className="font-semibold text-foreground tabular-nums">
+                        {chasingInnings.total_runs}
+                      </strong>{" "}
+                      runs scored
+                    </span>
+                    <span className="tabular-nums">
+                      {Math.min(
+                        100,
+                        Math.round(
+                          (chasingInnings.total_runs /
+                            chasingInnings.target_runs) *
+                            100,
+                        ),
+                      )}
+                      % of target
+                    </span>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 via-emerald-500 to-emerald-400 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(
+                            0,
+                            (chasingInnings.total_runs /
+                              chasingInnings.target_runs) *
+                              100,
+                          ),
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pt-1 text-xs font-medium text-muted-foreground sm:justify-start">
                 <span>
                   Required RR:{" "}
-                  <strong className="text-foreground">{rrr}</strong>
+                  <strong className="text-foreground tabular-nums">{rrr}</strong>
                 </span>
                 <span>•</span>
                 <span>
                   Current RR:{" "}
-                  <strong className="text-foreground">{chasingCrr}</strong>
+                  <strong className="text-foreground tabular-nums">
+                    {chasingCrr}
+                  </strong>
                 </span>
                 {chasingInnings.target_runs && (
                   <>
                     <span>•</span>
                     <span>
                       Target:{" "}
-                      <strong className="text-foreground">
+                      <strong className="text-foreground tabular-nums">
                         {chasingInnings.target_runs}
                       </strong>
                     </span>
@@ -244,165 +309,319 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         </Card>
       )}
 
-      {/* Key Stats Grid */}
+      {/* Key Stats Grid - Team Innings Cards */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Team 1 Summary */}
-        <Card>
+        <Card className="overflow-hidden border-border bg-card transition-shadow hover:shadow-md">
+          <div
+            className={`h-1 w-full ${
+              match.winning_team_id === match.team1_id
+                ? "bg-amber-500"
+                : "bg-primary/40"
+            }`}
+          />
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">{match.team1.name}</CardTitle>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                  {match.team1.short_name?.slice(0, 3) ||
+                    match.team1.name.slice(0, 3)}
+                </div>
+                <CardTitle className="text-base sm:text-lg">
+                  {match.team1.name}
+                </CardTitle>
+              </div>
               {match.winning_team_id === match.team1_id && (
-                <Badge className="bg-cricket-primary/10 text-cricket-primary">
+                <Badge className="border border-amber-500/30 bg-amber-500/15 text-xs font-semibold text-amber-600 dark:text-amber-400">
                   Winner
                 </Badge>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 text-3xl font-bold tabular-nums">
+            <div className="mb-4">
               {team1Innings ? (
-                <>
-                  {team1Innings.total_runs}/{team1Innings.total_wickets}
-                  <span className="ml-2 text-lg text-muted-foreground tabular-nums">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-score text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight text-foreground">
+                    {team1Innings.total_runs}/{team1Innings.total_wickets}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground tabular-nums">
                     ({formatDecimalOvers(team1Innings.total_overs)} ov)
                   </span>
-                </>
+                </div>
               ) : (
-                <span className="text-muted-foreground">Yet to bat</span>
+                <span className="inline-block rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Yet to bat
+                </span>
               )}
             </div>
 
             {team1Innings && (
-              <div className="space-y-2 text-sm">
+              <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
                 {getTopScorer(team1Innings) && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Top Scorer</span>
-                    <span className="font-medium tabular-nums">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Top Scorer
+                    </span>
+                    <span className="font-medium tabular-nums text-foreground">
                       {getTopScorer(team1Innings)?.user?.full_name} -{" "}
-                      {getTopScorer(team1Innings)?.runs_scored}
+                      <strong className="font-semibold">
+                        {getTopScorer(team1Innings)?.runs_scored}
+                      </strong>
                       {!getTopScorer(team1Innings)?.is_out && "*"}(
                       {getTopScorer(team1Innings)?.balls_faced})
                     </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Run Rate</span>
-                  <span className="font-medium tabular-nums">{team1RunRate}</span>
+                <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Run Rate
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {team1RunRate}
+                  </span>
                 </div>
+                {team1Innings.batting_performances &&
+                  team1Innings.batting_performances.length > 0 && (
+                    <div className="flex items-center justify-between border-t border-border/40 pt-2 text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        Boundaries
+                      </span>
+                      <span className="tabular-nums font-medium text-muted-foreground">
+                        <strong className="text-foreground">
+                          {team1Innings.batting_performances.reduce(
+                            (acc, bp) => acc + (bp.fours || 0),
+                            0,
+                          )}
+                        </strong>{" "}
+                        fours,{" "}
+                        <strong className="text-foreground">
+                          {team1Innings.batting_performances.reduce(
+                            (acc, bp) => acc + (bp.sixes || 0),
+                            0,
+                          )}
+                        </strong>{" "}
+                        sixes
+                      </span>
+                    </div>
+                  )}
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Team 2 Summary */}
-        <Card>
+        <Card className="overflow-hidden border-border bg-card transition-shadow hover:shadow-md">
+          <div
+            className={`h-1 w-full ${
+              match.winning_team_id === match.team2_id
+                ? "bg-amber-500"
+                : "bg-sky-500/40"
+            }`}
+          />
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">{match.team2.name}</CardTitle>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-xs font-bold text-sky-500">
+                  {match.team2.short_name?.slice(0, 3) ||
+                    match.team2.name.slice(0, 3)}
+                </div>
+                <CardTitle className="text-base sm:text-lg">
+                  {match.team2.name}
+                </CardTitle>
+              </div>
               {match.winning_team_id === match.team2_id && (
-                <Badge className="bg-cricket-primary/10 text-cricket-primary">
+                <Badge className="border border-amber-500/30 bg-amber-500/15 text-xs font-semibold text-amber-600 dark:text-amber-400">
                   Winner
                 </Badge>
               )}
             </div>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 text-3xl font-bold tabular-nums">
+            <div className="mb-4">
               {team2Innings ? (
-                <>
-                  {team2Innings.total_runs}/{team2Innings.total_wickets}
-                  <span className="ml-2 text-lg text-muted-foreground tabular-nums">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-score text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight text-foreground">
+                    {team2Innings.total_runs}/{team2Innings.total_wickets}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground tabular-nums">
                     ({formatDecimalOvers(team2Innings.total_overs)} ov)
                   </span>
-                </>
+                </div>
               ) : (
-                <span className="text-muted-foreground">Yet to bat</span>
+                <span className="inline-block rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Yet to bat
+                </span>
               )}
             </div>
 
             {team2Innings && (
-              <div className="space-y-2 text-sm">
+              <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
                 {getTopScorer(team2Innings) && (
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Top Scorer</span>
-                    <span className="font-medium tabular-nums">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Top Scorer
+                    </span>
+                    <span className="font-medium tabular-nums text-foreground">
                       {getTopScorer(team2Innings)?.user?.full_name} -{" "}
-                      {getTopScorer(team2Innings)?.runs_scored}
+                      <strong className="font-semibold">
+                        {getTopScorer(team2Innings)?.runs_scored}
+                      </strong>
                       {!getTopScorer(team2Innings)?.is_out && "*"}(
                       {getTopScorer(team2Innings)?.balls_faced})
                     </span>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Run Rate</span>
-                  <span className="font-medium tabular-nums">{team2RunRate}</span>
+                <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Run Rate
+                  </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {team2RunRate}
+                  </span>
                 </div>
+                {team2Innings.batting_performances &&
+                  team2Innings.batting_performances.length > 0 && (
+                    <div className="flex items-center justify-between border-t border-border/40 pt-2 text-xs">
+                      <span className="font-medium text-muted-foreground">
+                        Boundaries
+                      </span>
+                      <span className="tabular-nums font-medium text-muted-foreground">
+                        <strong className="text-foreground">
+                          {team2Innings.batting_performances.reduce(
+                            (acc, bp) => acc + (bp.fours || 0),
+                            0,
+                          )}
+                        </strong>{" "}
+                        fours,{" "}
+                        <strong className="text-foreground">
+                          {team2Innings.batting_performances.reduce(
+                            (acc, bp) => acc + (bp.sixes || 0),
+                            0,
+                          )}
+                        </strong>{" "}
+                        sixes
+                      </span>
+                    </div>
+                  )}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Best Performers */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
+      {/* Best Performers Duel */}
+      <Card className="border-border">
+        <CardHeader className="border-b border-border/50 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <TrendingUp className="h-5 w-5 text-primary" />
             Best performers
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <div className="grid gap-6 md:grid-cols-2">
             {/* Batting */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold text-muted-foreground">
-                Top batters
-              </h4>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Top batters
+                </h4>
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  Runs (Balls)
+                </span>
+              </div>
               <div className="space-y-2">
                 {match.innings?.flatMap((inn) =>
                   (inn.batting_performances || [])
                     .filter((bp) => bp.runs_scored > 0)
                     .sort((a, b) => b.runs_scored - a.runs_scored)
                     .slice(0, 3)
-                    .map((bp) => (
+                    .map((bp, idx) => (
                       <div
                         key={bp.id}
-                        className="flex items-center justify-between text-sm"
+                        className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40"
                       >
-                        <span>{bp.user?.full_name}</span>
-                        <span className="tabular-nums font-medium">
-                          {bp.runs_scored}
-                          {!bp.is_out && "*"} ({bp.balls_faced})
-                        </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate font-medium text-foreground">
+                            {bp.user?.full_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(bp.fours > 0 || bp.sixes > 0) && (
+                            <span className="hidden sm:inline-block text-[11px] text-muted-foreground tabular-nums">
+                              {bp.fours}×4 {bp.sixes}×6
+                            </span>
+                          )}
+                          <span className="tabular-nums font-semibold font-score text-base text-foreground">
+                            {bp.runs_scored}
+                            {!bp.is_out && "*"}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            ({bp.balls_faced})
+                          </span>
+                        </div>
                       </div>
                     )),
+                )}
+                {(!match.innings ||
+                  match.innings.flatMap((inn) => inn.batting_performances || [])
+                    .length === 0) && (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No batting data available yet
+                  </p>
                 )}
               </div>
             </div>
 
             {/* Bowling */}
             <div>
-              <h4 className="mb-3 text-xs font-semibold text-muted-foreground">
-                Top bowlers
-              </h4>
+              <div className="mb-3 flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Top bowlers
+                </h4>
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  W/R (Overs)
+                </span>
+              </div>
               <div className="space-y-2">
                 {match.innings?.flatMap((inn) =>
                   (inn.bowling_performances || [])
                     .filter((bp) => bp.wickets_taken > 0)
                     .sort((a, b) => b.wickets_taken - a.wickets_taken)
                     .slice(0, 3)
-                    .map((bp) => (
+                    .map((bp, idx) => (
                       <div
                         key={bp.id}
-                        className="flex items-center justify-between text-sm"
+                        className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40"
                       >
-                        <span>{bp.user?.full_name}</span>
-                        <span className="tabular-nums font-medium">
-                          {bp.wickets_taken}/{bp.runs_conceded} (
-                          {formatDecimalOvers(bp.overs_bowled)} ov)
-                        </span>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                            {idx + 1}
+                          </span>
+                          <span className="truncate font-medium text-foreground">
+                            {bp.user?.full_name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="tabular-nums font-semibold font-score text-base text-emerald-500">
+                            {bp.wickets_taken}/{bp.runs_conceded}
+                          </span>
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            ({formatDecimalOvers(bp.overs_bowled)} ov)
+                          </span>
+                        </div>
                       </div>
                     )),
+                )}
+                {(!match.innings ||
+                  match.innings.flatMap((inn) => inn.bowling_performances || [])
+                    .length === 0) && (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No bowling figures available yet
+                  </p>
                 )}
               </div>
             </div>
@@ -411,14 +630,14 @@ export function MatchSummary({ match }: MatchSummaryProps) {
       </Card>
 
       {/* Match Timeline / Key Moments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+      <Card className="border-border">
+        <CardHeader className="border-b border-border/50 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Clock className="h-5 w-5 text-primary" />
             Key Moments
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {keyMoments.length === 0 ? (
             <div className="py-8 text-center text-muted-foreground">
               <Clock className="mx-auto mb-2 h-8 w-8 opacity-40" />

@@ -8,6 +8,7 @@ import { teamName, runRate, inningsBalls as inningsBallCount } from "~/lib/crick
 import { WagonWheel } from "./wagon-wheel";
 import { MatchWormChart } from "./match-worm-chart";
 import { MatchManhattan } from "./match-manhattan";
+import { Activity, BarChart3, CircleDot, PieChart, TrendingUp } from "lucide-react";
 import {
   CHART_TEAM1,
   CHART_TEAM2,
@@ -48,24 +49,93 @@ export function MatchStats({ match }: MatchStatsProps) {
 
   return (
     <div className="w-full space-y-6">
+      {/* Broadcast Quick Jump Bar */}
+      <div className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-card/95 p-1.5 backdrop-blur-md shadow-sm">
+        <span className="hidden px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground sm:inline-block">
+          Jump:
+        </span>
+        <button
+          type="button"
+          onClick={() =>
+            document
+              .getElementById("stats-wagon-wheel")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          <CircleDot className="h-3.5 w-3.5 text-primary" />
+          Field
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            document
+              .getElementById("stats-worm")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          <TrendingUp className="h-3.5 w-3.5 text-sky-500" />
+          Worm
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            document
+              .getElementById("stats-manhattan")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          <BarChart3 className="h-3.5 w-3.5 text-amber-500" />
+          Runs / Over
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            document
+              .getElementById("stats-breakdown")
+              ?.scrollIntoView({ behavior: "smooth" })
+          }
+          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          <PieChart className="h-3.5 w-3.5 text-purple-500" />
+          Deliveries
+        </button>
+        {sortedInnings.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("stats-phases")
+                ?.scrollIntoView({ behavior: "smooth" })
+            }
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+          >
+            <Activity className="h-3.5 w-3.5 text-emerald-500" />
+            Phases
+          </button>
+        )}
+      </div>
+
       {/* 1. Wagon wheel stays on top — deferred off-screen */}
-      <div className="chart-defer">
+      <div id="stats-wagon-wheel" className="chart-defer scroll-mt-16">
         <WagonWheel match={match} />
       </div>
 
       {/* 2. Worm chart — deferred off-screen */}
-      <div className="chart-defer">
+      <div id="stats-worm" className="chart-defer scroll-mt-16">
         <MatchWormChart match={match} ballLog={ballLog} />
       </div>
 
       {/* 3. Manhattan — deferred off-screen */}
-      <div className="chart-defer">
+      <div id="stats-manhattan" className="chart-defer scroll-mt-16">
         <MatchManhattan match={match} />
       </div>
 
       {/* 5. Phase splits + momentum per innings */}
       {sortedInnings.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div id="stats-phases" className="grid gap-4 md:grid-cols-2 scroll-mt-16">
           {sortedInnings.map((innings, ii) => {
             const table = tables[ii]?.table ?? [];
             const best = bestOver(table);
@@ -75,39 +145,55 @@ export function MatchStats({ match }: MatchStatsProps) {
               match.overs_per_innings,
             );
             return (
-              <Card key={innings.id}>
-                <CardContent className="space-y-3 py-4">
-                  <p className="font-medium">
-                    {teamName(match, innings.team_id)} · {innings.total_runs}/
-                    {innings.total_wickets}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Best over: </span>
-                      <span className="font-medium tabular-nums">
+              <Card key={innings.id} className="overflow-hidden border-border bg-card">
+                <div
+                  className="h-1 w-full"
+                  style={{
+                    background: ii === 0 ? CHART_TEAM1 : CHART_TEAM2,
+                  }}
+                />
+                <CardContent className="space-y-3.5 py-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                      {teamName(match, innings.team_id)} ·{" "}
+                      <span className="font-score font-bold tabular-nums">
+                        {innings.total_runs}/{innings.total_wickets}
+                      </span>
+                    </p>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      Innings {innings.innings_number}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                      <span className="text-muted-foreground block text-[11px]">Best over</span>
+                      <span className="font-semibold tabular-nums text-foreground">
                         {best ? `Over ${best.over} (${best.runs} runs)` : "—"}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Run rate: </span>
-                      <span className="font-medium tabular-nums">
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                      <span className="text-muted-foreground block text-[11px]">Run rate</span>
+                      <span className="font-semibold tabular-nums text-foreground">
                         {runRate(innings.total_runs, inningsBallCount(innings))}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Last 5 ov: </span>
-                      <span className="font-medium tabular-nums">
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                      <span className="text-muted-foreground block text-[11px]">Last 5 ov</span>
+                      <span className="font-semibold tabular-nums text-foreground">
                         {last5.runs}/{last5.wickets}
                       </span>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Extras: </span>
-                      <span className="font-medium tabular-nums">
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                      <span className="text-muted-foreground block text-[11px]">Extras</span>
+                      <span className="font-semibold tabular-nums text-foreground">
                         {extrasSplit(innings).total}
                       </span>
                     </div>
                   </div>
-                  <div className="space-y-1.5 border-t pt-3">
+                  <div className="space-y-2 border-t border-border/50 pt-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                      Phase Analysis
+                    </span>
                     {phases.map((p) => {
                       const maxPhase = Math.max(
                         ...phases.map((x) => x.runs),
@@ -118,10 +204,10 @@ export function MatchStats({ match }: MatchStatsProps) {
                           key={p.label}
                           className="flex items-center gap-2 text-xs"
                         >
-                          <span className="w-20 shrink-0 font-medium">
+                          <span className="w-20 shrink-0 font-medium text-foreground">
                             {p.label}
                           </span>
-                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                             <div
                               className="h-full rounded-full transition-[width] duration-700 ease-out"
                               style={{
@@ -131,7 +217,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                               }}
                             />
                           </div>
-                          <span className="w-24 shrink-0 text-right tabular-nums text-muted-foreground">
+                          <span className="w-24 shrink-0 text-right tabular-nums text-muted-foreground font-medium">
                             {p.runs}/{p.wickets} · {p.overs}
                           </span>
                         </div>
@@ -146,9 +232,9 @@ export function MatchStats({ match }: MatchStatsProps) {
       )}
 
       {/* 6. Delivery breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-balance">Delivery Breakdown</CardTitle>
+      <Card id="stats-breakdown" className="scroll-mt-16 border-border">
+        <CardHeader className="border-b border-border/50 pb-3">
+          <CardTitle className="text-balance text-base sm:text-lg">Delivery Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">

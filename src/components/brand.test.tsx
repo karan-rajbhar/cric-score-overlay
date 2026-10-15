@@ -8,18 +8,18 @@ describe("Brand Components", () => {
     const span = container.querySelector("span");
     expect(span).toBeInTheDocument();
     expect(span).toHaveClass("custom-test-class");
-    expect(span).toHaveClass("from-emerald-500");
+    expect(span).toHaveClass("bg-board");
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
     expect(svg).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("renders BrandWordmark with platform name and green accent dot", () => {
+  it("renders BrandWordmark with platform name and red-ball accent dot", () => {
     render(<BrandWordmark />);
     expect(screen.getByText("CricScore")).toBeInTheDocument();
 
     const dot = screen.getByText("CricScore").nextElementSibling;
-    expect(dot).toHaveClass("bg-emerald-500");
+    expect(dot).toHaveClass("bg-ruby");
   });
 });

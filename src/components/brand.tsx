@@ -1,13 +1,14 @@
 import { cn } from "~/lib/utils";
 
 /**
- * Platform brand: cricket-ball mark (circle with seam) on a pitch-green tile.
+ * Platform brand: cricket-ball mark (circle with seam) chalked onto a
+ * scoreboard-green tile.
  */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white shadow-sm ring-1 ring-emerald-400/30 transition-transform duration-200 hover:scale-105 active:scale-95",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-board text-board-foreground ring-1 ring-inset ring-board-line",
         className,
       )}
     >
@@ -29,14 +30,12 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
+/** Wordmark; the trailing dot is the red ball. */
 export function BrandWordmark() {
   return (
-    <span className="flex items-center gap-1.5 font-score text-xl font-extrabold tracking-tight text-foreground">
+    <span className="flex items-baseline gap-1 font-score text-[22px] font-bold leading-none text-foreground">
       <span>CricScore</span>
-      <span
-        className="h-1.5 w-1.5 rounded-full bg-emerald-500"
-        aria-hidden="true"
-      />
+      <span className="h-1.5 w-1.5 rounded-full bg-ruby" aria-hidden="true" />
     </span>
   );
 }

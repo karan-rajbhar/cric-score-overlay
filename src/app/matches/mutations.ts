@@ -1235,36 +1235,20 @@ export async function awardTeamPenalty(
         .eq("is_current_bowler", true)
         .maybeSingle();
 
-      if (striker.data && nonStriker.data && bowler.data) {
-        await supabase.from("ball_by_ball").insert({
-          match_id: matchId,
-          innings_id: currentInnings.id,
-          over_number: match.current_over,
-          ball_number: match.current_ball + 1,
-          bowler_id: bowler.data.user_id,
-          batsman_id: striker.data.user_id,
-          non_striker_id: nonStriker.data.user_id,
-          runs_scored: 0,
-          extras: params.runs,
-          extra_type: awardType,
-          commentary: `${awardType === "bonus" ? "Bonus" : "Penalty"}: +${params.runs} runs awarded to batting team (${params.reason})`,
-        });
-        await supabase.rpc("recompute_innings", { p_innings_id: currentInnings.id });
-      } else {
-        const updatePayload: Record<string, number> = {
-          total_runs: (currentInnings.total_runs ?? 0) + params.runs,
-          extras_total: (currentInnings.extras_total ?? 0) + params.runs,
-        };
-        if (awardType === "bonus") {
-          updatePayload.extras_bonuses = (currentInnings.extras_bonuses ?? 0) + params.runs;
-        } else {
-          updatePayload.extras_penalties = (currentInnings.extras_penalties ?? 0) + params.runs;
-        }
-        await supabase
-          .from("innings")
-          .update(updatePayload)
-          .eq("id", currentInnings.id);
-      }
+      await supabase.from("ball_by_ball").insert({
+        match_id: matchId,
+        innings_id: currentInnings.id,
+        over_number: match.current_over ?? 0,
+        ball_number: Math.min(20, Math.max(1, (match.current_ball ?? 0) + 1)),
+        bowler_id: bowler.data?.user_id ?? null,
+        batsman_id: striker.data?.user_id ?? null,
+        non_striker_id: nonStriker.data?.user_id ?? null,
+        runs_scored: 0,
+        extras: params.runs,
+        extra_type: awardType,
+        commentary: `${awardType === "bonus" ? "Bonus" : "Penalty"}: +${params.runs} runs awarded to batting team (${params.reason})`,
+      });
+      await supabase.rpc("recompute_innings", { p_innings_id: currentInnings.id });
     } else {
       if (match.current_innings === 1) {
         await supabase.from("match_events").insert({
@@ -1326,7 +1310,7 @@ export async function retirePlayer(
 
     const { data: match } = await supabase
       .from("matches")
-      .select("current_innings")
+      .select("current_innings, current_over, current_ball")
       .eq("id", matchId)
       .single();
 
@@ -1341,41 +1325,26 @@ export async function retirePlayer(
 
     if (!innings) return { success: false, error: "Active innings not found" };
 
-    const isOut = params.type === "retired_out";
+    const { error: ballErr } = await supabase.from("ball_by_ball").insert({
+      match_id: matchId,
+      innings_id: innings.id,
+      over_number: match.current_over ?? 0,
+      ball_number: Math.min(20, Math.max(1, (match.current_ball ?? 0) + 1)),
+      bowler_id: null,
+      batsman_id: params.playerId,
+      non_striker_id: null,
+      runs_scored: 0,
+      extras: 0,
+      extra_type: null,
+      is_wicket: true,
+      dismissal_type: params.type,
+      dismissed_player_id: params.playerId,
+      commentary: `Player ${params.type === "retired_hurt" ? "retired hurt" : "retired out"}${params.reason ? `: ${params.reason}` : ""}`,
+    });
 
-    const { error: bpErr } = await supabase
-      .from("batting_performances")
-      .update({
-        is_out: isOut,
-        dismissal_type: params.type,
-        is_current_batsman: false,
-        is_striker: false,
-      })
-      .eq("innings_id", innings.id)
-      .eq("user_id", params.playerId);
-
-    if (bpErr) {
-      console.error("retirePlayer failed on batting_performances:", bpErr);
-      return { success: false, error: friendlyError(bpErr.message) };
-    }
-
-    if (isOut) {
-      await supabase
-        .from("innings")
-        .update({
-          total_wickets: (innings.total_wickets ?? 0) + 1,
-        })
-        .eq("id", innings.id);
-
-      await supabase.from("fall_of_wickets").insert({
-        match_id: matchId,
-        innings_id: innings.id,
-        wicket_number: (innings.total_wickets ?? 0) + 1,
-        runs_at_fall: innings.total_runs,
-        overs_at_fall: Math.floor((innings.total_balls ?? 0) / 6) + ((innings.total_balls ?? 0) % 6) / 10,
-        batsman_out_id: params.playerId,
-        dismissal_type: "retired_out",
-      });
+    if (ballErr) {
+      console.error("retirePlayer failed on ball_by_ball insert:", ballErr);
+      return { success: false, error: friendlyError(ballErr.message) };
     }
 
     await supabase.rpc("recompute_innings", { p_innings_id: innings.id });
