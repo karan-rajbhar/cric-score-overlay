@@ -5,13 +5,9 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
-  Zap,
-  Target,
-  Flame,
   ArrowLeftRight,
   TrendingUp,
   TrendingDown,
-  Sparkles,
   Pencil,
 } from "lucide-react";
 import {
@@ -270,7 +266,7 @@ export function LiveMatchHUD({
         <Card
           data-testid="match-equation-banner"
           className={cn(
-            "overflow-hidden shadow-md transition-all",
+            "overflow-hidden shadow-sm",
             sunlightMode
               ? "border-2 border-black bg-white text-black shadow-none"
               : isSecondInnings
@@ -286,7 +282,7 @@ export function LiveMatchHUD({
                 <div className="flex items-center gap-2">
                   <span
                     className={cn(
-                      "truncate text-[10px] font-black uppercase tracking-wider sm:text-xs",
+                      "truncate text-xs font-semibold sm:text-sm",
                       sunlightMode
                         ? "text-black"
                         : "text-emerald-400 dark:text-emerald-300",
@@ -301,7 +297,7 @@ export function LiveMatchHUD({
                   <Badge
                     variant="outline"
                     className={cn(
-                      "px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider sm:text-[10px]",
+                      "px-1.5 py-0 text-[10px] font-medium sm:text-xs",
                       sunlightMode
                         ? "border-black text-black"
                         : "border-white/20 bg-white/5 text-white/80",
@@ -314,7 +310,7 @@ export function LiveMatchHUD({
                 <div className="mt-0.5 flex items-baseline gap-2">
                   <span
                     className={cn(
-                      "font-score text-3xl font-black tabular-nums tracking-tight sm:text-5xl",
+                      "font-score text-3xl font-bold tabular-nums tracking-tight sm:text-5xl",
                       bright,
                     )}
                   >
@@ -353,17 +349,17 @@ export function LiveMatchHUD({
                     onClick={handleEndInningsClick}
                     disabled={isProcessing}
                     className={cn(
-                      "h-8 px-2.5 text-xs font-black",
+                      "h-8 px-2.5 text-xs font-semibold",
                       sunlightMode &&
                         (endInningsArmed
-                          ? "border-2 border-black bg-red-600 font-black text-white hover:bg-red-700"
-                          : "border-2 border-black bg-white font-black text-black hover:bg-neutral-100"),
+                          ? "border-2 border-black bg-red-600 font-bold text-white hover:bg-red-700"
+                          : "border-2 border-black bg-white font-bold text-black hover:bg-neutral-100"),
                       !sunlightMode &&
                         !endInningsArmed &&
                         "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white",
                     )}
                   >
-                    {endInningsArmed ? "Confirm End Inns" : "End Inns"}
+                    {endInningsArmed ? "Confirm end inns" : "End inns"}
                   </Button>
                 </div>
               )}
@@ -405,23 +401,11 @@ export function LiveMatchHUD({
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span
-                      className={cn(
-                        "hidden h-7 w-7 shrink-0 items-center justify-center rounded-full sm:flex",
-                        sunlightMode
-                          ? "bg-black text-white"
-                          : isAheadOfRate
-                            ? "bg-emerald-500 text-white"
-                            : "bg-amber-500 text-white",
-                      )}
-                    >
-                      <Zap className="h-4 w-4" />
-                    </span>
                     <div className="min-w-0">
                       <h3
                         data-testid="chase-equation-title"
                         className={cn(
-                          "text-xs font-black tracking-tight sm:text-base",
+                          "text-xs font-semibold sm:text-base",
                           sunlightMode
                             ? "text-black"
                             : isAheadOfRate
@@ -430,21 +414,21 @@ export function LiveMatchHUD({
                         )}
                       >
                         {runsNeeded === 0 ? (
-                          "Scores Level · 1 run to win!"
+                          "Scores level · 1 run to win"
                         ) : runsNeeded && runsNeeded > 0 ? (
                           <>
                             Need{" "}
-                            <span className="tabular font-black">
+                            <span className="tabular font-bold">
                               {runsNeeded}
                             </span>{" "}
                             runs from{" "}
-                            <span className="tabular font-black">
+                            <span className="tabular font-bold">
                               {ballsRem}
                             </span>{" "}
                             balls
                           </>
                         ) : (
-                          "Target Achieved"
+                          "Target achieved"
                         )}
                       </h3>
                       <p
@@ -474,7 +458,7 @@ export function LiveMatchHUD({
                       className={cn(
                         "tabular shrink-0 gap-1 px-2 py-0.5 text-[10px] font-bold sm:px-2.5 sm:py-1 sm:text-xs",
                         sunlightMode
-                          ? "border-2 border-black font-black text-black"
+                          ? "border-2 border-black font-bold text-black"
                           : isAheadOfRate
                             ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
                             : "border-amber-400/40 bg-amber-400/15 text-amber-300",
@@ -498,7 +482,7 @@ export function LiveMatchHUD({
                     "hidden grid-cols-4 gap-2 rounded-xl p-2 text-center text-xs sm:grid",
                     sunlightMode
                       ? "border border-black bg-neutral-100"
-                      : "border border-white/10 bg-black/25 backdrop-blur-sm",
+                      : "border border-white/10 bg-black/25",
                   )}
                 >
                   {[
@@ -527,7 +511,7 @@ export function LiveMatchHUD({
                     >
                       <p
                         className={cn(
-                          "text-[9px] font-semibold uppercase tracking-wider",
+                          "text-[10px] font-medium",
                           sunlightMode ? "text-neutral-600" : "text-white/60",
                         )}
                       >
@@ -535,7 +519,7 @@ export function LiveMatchHUD({
                       </p>
                       <p
                         className={cn(
-                          "tabular font-score text-base font-black",
+                          "tabular font-score text-base font-bold",
                           color,
                         )}
                       >
@@ -549,27 +533,17 @@ export function LiveMatchHUD({
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span
-                      className={cn(
-                        "hidden h-7 w-7 shrink-0 items-center justify-center rounded-full sm:flex",
-                        sunlightMode
-                          ? "bg-black text-white"
-                          : "bg-emerald-500 text-white",
-                      )}
-                    >
-                      <Target className="h-4 w-4" />
-                    </span>
                     <div>
                       <h3
                         className={cn(
-                          "text-xs font-black tracking-tight sm:text-base",
+                          "text-xs font-semibold sm:text-base",
                           bright,
                         )}
                       >
                         1st Innings ·{" "}
                         <span
                           className={cn(
-                            "tabular font-black",
+                            "tabular font-bold",
                             sunlightMode ? "text-black" : "text-emerald-300",
                           )}
                         >
@@ -594,11 +568,10 @@ export function LiveMatchHUD({
                       className={cn(
                         "tabular px-2.5 py-1 text-xs font-bold",
                         sunlightMode
-                          ? "border-2 border-black font-black text-black"
-                          : "border-emerald-400/40 bg-emerald-400/15 text-emerald-300",
+                          ? "border-2 border-black font-bold text-black"
+                          : "border-white/20 bg-white/5 text-white/80",
                       )}
                     >
-                      <Sparkles className="mr-1 h-3 w-3 text-emerald-400" />
                       Proj: {projectedScore}
                     </Badge>
                   )}
@@ -614,7 +587,7 @@ export function LiveMatchHUD({
                     )}
                   >
                     <span className="text-[11px] font-semibold">
-                      Projected Score:
+                      Projected score:
                     </span>
                     <div className="flex items-center gap-3">
                       <span>
@@ -644,18 +617,17 @@ export function LiveMatchHUD({
         <Card
           data-testid="hud-batters-card"
           className={cn(
-            "rounded-2xl border shadow-sm transition-all",
+            "rounded-xl border shadow-sm",
             sunlightMode
               ? "border-2 border-black bg-white"
-              : "border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md",
+              : "border-border bg-card",
           )}
         >
           <CardContent className="space-y-1.5 p-2 sm:space-y-2 sm:p-3.5">
             {/* Title row (phones rely on the inline controls instead) */}
             <div className="hidden items-center justify-between gap-2 border-b border-border/50 pb-1.5 sm:flex">
               <div className="flex min-w-0 items-center gap-1.5">
-                <Flame className="h-4 w-4 shrink-0 text-orange-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                <span className="text-sm font-semibold text-foreground">
                   Batting
                 </span>
                 <span className="tabular truncate text-[11px] font-semibold text-muted-foreground/90">
@@ -670,20 +642,20 @@ export function LiveMatchHUD({
               className={cn(
                 "flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2",
                 sunlightMode
-                  ? "border-2 border-black bg-neutral-100 font-black"
-                  : "bg-emerald-500/12 border border-emerald-500/35 shadow-[inset_0_1px_0_0_rgba(52,211,153,0.25)]",
+                  ? "border-2 border-black bg-neutral-100 font-bold"
+                  : "border border-emerald-600/30 bg-emerald-500/10",
               )}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span
-                    className="flex h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-emerald-500 ring-2 ring-emerald-500/30"
+                    className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-600"
                     aria-hidden="true"
                   />
-                  <span className="truncate text-xs font-black text-foreground sm:text-sm">
-                    {striker ? striker.name : "Select Striker"} *
+                  <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
+                    {striker ? striker.name : "Select striker"} *
                   </span>
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-emerald-500/25 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-200">
+                  <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
                     Strike
                   </span>
                 </div>
@@ -699,7 +671,7 @@ export function LiveMatchHUD({
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {striker ? (
-                  <p className="tabular whitespace-nowrap font-score text-sm font-black sm:text-base">
+                  <p className="tabular whitespace-nowrap font-score text-sm font-bold sm:text-base">
                     <span className="text-foreground">{striker.runs}</span>{" "}
                     <span className="text-[11px] font-semibold text-muted-foreground sm:text-xs">
                       ({striker.balls})
@@ -734,8 +706,8 @@ export function LiveMatchHUD({
                     className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
                     aria-hidden="true"
                   />
-                  <span className="truncate text-xs font-bold text-muted-foreground sm:text-sm">
-                    {nonStriker ? nonStriker.name : "Select Non-Striker"}
+                  <span className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+                    {nonStriker ? nonStriker.name : "Select non-striker"}
                   </span>
                 </div>
                 {nonStriker && (
@@ -771,21 +743,20 @@ export function LiveMatchHUD({
         <Card
           data-testid="hud-bowler-card"
           className={cn(
-            "rounded-2xl border shadow-sm transition-all",
+            "rounded-xl border shadow-sm",
             sunlightMode
               ? "border-2 border-black bg-white"
-              : "border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 backdrop-blur-md",
+              : "border-border bg-card",
           )}
         >
           <CardContent className="space-y-1.5 p-2 sm:space-y-2 sm:p-3.5">
             <div className="hidden items-center justify-between gap-2 border-b border-border/50 pb-1.5 sm:flex">
               <div className="flex min-w-0 items-center gap-1.5">
-                <Target className="h-4 w-4 shrink-0 text-sky-500" />
-                <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                <span className="text-sm font-semibold text-foreground">
                   Bowler
                 </span>
                 <span className="tabular truncate text-[11px] font-semibold text-muted-foreground/90">
-                  (This Over: {thisOverRuns} runs)
+                  (this over: {thisOverRuns} runs)
                 </span>
               </div>
               {!isPhone && bowlerAction}
@@ -795,16 +766,16 @@ export function LiveMatchHUD({
               className={cn(
                 "rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
                 sunlightMode
-                  ? "border-2 border-black bg-neutral-100 font-black"
-                  : "border-sky-500/35 bg-sky-500/10 shadow-[inset_0_1px_0_0_rgba(56,189,248,0.25)]",
+                  ? "border-2 border-black bg-neutral-100 font-bold"
+                  : "border-border bg-muted/40",
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-black text-foreground sm:text-sm">
-                  {bowler ? bowler.name : "Select Bowler"}
+                <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
+                  {bowler ? bowler.name : "Select bowler"}
                 </span>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="tabular whitespace-nowrap font-score text-sm font-black text-foreground sm:text-base">
+                  <span className="tabular whitespace-nowrap font-score text-sm font-bold text-foreground sm:text-base">
                     {bowler ? `${bowler.wickets}/${bowler.runs}` : "—"}
                   </span>
                   {isPhone && bowlerAction}
@@ -833,11 +804,11 @@ export function LiveMatchHUD({
                       </strong>
                     </span>
                   </div>
-                  <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-sky-950/20 dark:bg-sky-100/10 sm:block">
+                  <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-muted sm:block">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
-                        isBowlerSpellFinished ? "bg-amber-500" : "bg-sky-500",
+                        isBowlerSpellFinished ? "bg-amber-500" : "bg-foreground/40",
                       )}
                       style={{
                         width: `${Math.min(100, (bowlerBallsCount / bowlerMaxBalls) * 100)}%`,
@@ -852,7 +823,7 @@ export function LiveMatchHUD({
               )}
               {isBowlerSpellFinished && (
                 <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                  ⚠ Max quota reached ({maxBowlerOvers} ov)
+                  Max quota reached ({maxBowlerOvers} ov)
                 </p>
               )}
             </div>

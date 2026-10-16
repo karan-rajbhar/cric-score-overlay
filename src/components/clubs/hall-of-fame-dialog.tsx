@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Plus, Trophy, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { inductHallOfFame, removeHallOfFame } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
@@ -69,7 +69,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success("Player inducted into the Hall of Fame!");
+        toast.success("Player added to the Hall of Fame");
         setOpen(false);
         setTitle("");
         setDescription("");
@@ -87,26 +87,17 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          size="sm"
-          className="gap-1.5 bg-amber-600 font-medium text-white hover:bg-amber-500"
-        >
+        <Button size="sm" className="gap-1.5">
           <Plus className="h-4 w-4" />
-          Induct Legend
+          Add to Hall of Fame
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-amber-500">
-            <Trophy className="h-5 w-5" />
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-              Club honors
-            </span>
-          </div>
           <DialogTitle className="text-xl">Hall of Fame Induction</DialogTitle>
           <DialogDescription>
-            Honor a player or record holder into the club&apos;s prestigious
-            Hall of Fame.
+            Recognise a player or record holder in the club&apos;s Hall of
+            Fame.
           </DialogDescription>
         </DialogHeader>
 
@@ -196,7 +187,6 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-amber-600 text-white hover:bg-amber-500"
           >
             {isSaving ? "Inducting..." : "Confirm Induction"}
           </Button>

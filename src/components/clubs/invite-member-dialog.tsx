@@ -13,7 +13,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { UserPlus, Loader2, Mail } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
 import { inviteClubMember } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
@@ -62,12 +62,6 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-primary">
-            <Mail className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Club Membership
-            </span>
-          </div>
           <DialogTitle className="text-xl">Invite Player or Staff</DialogTitle>
           <DialogDescription>
             Send a club invitation to a cricketer, scorer, or coach by their

@@ -21,7 +21,7 @@ export default async function TournamentsPage() {
   return (
     <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+        <h1 className="text-balance text-2xl font-semibold tracking-tight">
           Tournaments
         </h1>
         <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
@@ -58,7 +58,7 @@ export default async function TournamentsPage() {
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
-                    <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
+                    <Trophy className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span>
                       {formatTournamentFormat(t.tournament_format)}
                       {t.venue ? `, ${t.venue}` : ""}

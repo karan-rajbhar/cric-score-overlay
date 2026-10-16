@@ -41,7 +41,6 @@ describe("EventStings Component", () => {
 
     render(<EventStings sting={sting} onDismiss={vi.fn()} />);
     expect(screen.getByText("MAXIMUM!")).toBeInTheDocument();
-    expect(screen.getByText("THAT'S A HUGE SIX!")).toBeInTheDocument();
     expect(screen.getByText("Massive six over long-on")).toBeInTheDocument();
   });
 
@@ -92,205 +91,52 @@ describe("EventStings Component", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders Fox Cricket telemetry HUD sting when theme is foxcricket", () => {
+  it.each([
+    "starsports",
+    "sonysports",
+    "foxcricket",
+    "skysports",
+    "thehundred",
+    "apex",
+    "volt",
+    "thunder",
+    "dharma",
+    "nakshatra",
+    "agni",
+    "custom",
+  ] as const)("renders the same event card for the %s theme", (theme) => {
     const sting: ActiveEventSting = {
-      id: "test-fox-4",
+      id: `test-${theme}-4`,
       type: "four",
-      title: "FOUR!",
+      title: "Four",
       subtitle: "David Warner cuts for four",
-      detail: "148.4 km/h",
+      detail: "78* (46b)",
       durationMs: 4000,
     };
 
-    render(
-      <EventStings sting={sting} theme="foxcricket" onDismiss={vi.fn()} />,
-    );
-    expect(
-      screen.getByText(/FOX CRICKET · FOX SPORTS LAB/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/RADAR EXIT: 148.4 KM\/H/i)).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("FOX SPEED")).toBeInTheDocument();
+    render(<EventStings sting={sting} theme={theme} onDismiss={vi.fn()} />);
+    const card = screen.getByRole("status");
+    expect(card).toHaveAttribute("data-theme", theme);
+    expect(screen.getByText("Four")).toBeInTheDocument();
+    expect(screen.getByText("David Warner cuts for four")).toBeInTheDocument();
+    expect(screen.getByText("78* (46b)")).toBeInTheDocument();
   });
 
-  it("renders Sony Sports Network curved pill sting when theme is sonysports", () => {
+  it("dismisses after the sting duration", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
     const sting: ActiveEventSting = {
-      id: "test-sony-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Rohit Sharma drives",
-      detail: "Cracking cover drive",
-      durationMs: 4000,
+      id: "test-timer",
+      type: "wicket",
+      title: "Wicket",
+      durationMs: 1000,
     };
 
-    render(
-      <EventStings sting={sting} theme="sonysports" onDismiss={vi.fn()} />,
-    );
-    expect(
-      screen.getByText(/SONY SPORTS NETWORK · LIVE STREAMING ON SONY LIV/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("SONY LIV")).toBeInTheDocument();
-  });
-
-  it("renders Sky Sports Ashes architectural sting when theme is skysports", () => {
-    const sting: ActiveEventSting = {
-      id: "test-sky-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Joe Root drives through covers",
-      detail: "4 runs to the boundary",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="skysports" onDismiss={vi.fn()} />);
-    expect(screen.getByText("sky sports cricket")).toBeInTheDocument();
-    expect(screen.getByText("THE ASHES LIVE")).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-  });
-
-  it("renders The Hundred pop-art sting when theme is thehundred", () => {
-    const sting: ActiveEventSting = {
-      id: "test-100-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Liam Livingstone smashes",
-      detail: "Boundary struck",
-      durationMs: 4000,
-    };
-
-    render(
-      <EventStings sting={sting} theme="thehundred" onDismiss={vi.fn()} />,
-    );
-    expect(
-      screen.getByText(/THE HUNDRED · BALLS COUNTDOWN CRICKET/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-  });
-
-  it("renders Apex 24k Gold Franchise sting when theme is apex", () => {
-    const sting: ActiveEventSting = {
-      id: "test-apex-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Sanju Samson sweeps",
-      detail: "144.2 km/h",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="apex" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/APEX BROADCAST · 24K GOLD BOUNDARY/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("APEX 4!")).toBeInTheDocument();
-    expect(screen.getByText("EXIT SPEED")).toBeInTheDocument();
-  });
-
-  it("renders Volt Sports-Tech cyber neon sting when theme is volt", () => {
-    const sting: ActiveEventSting = {
-      id: "test-volt-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Andre Russell blitzes",
-      detail: "151.2 km/h",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="volt" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/VOLT SPORTS-TECH · HIGH-VOLTAGE BOUNDARY/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("VOLT RADAR")).toBeInTheDocument();
-  });
-
-  it("renders Thunder Velocity cobalt storm sting when theme is thunder", () => {
-    const sting: ActiveEventSting = {
-      id: "test-thunder-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Glenn Maxwell reverse sweeps",
-      detail: "139.8 km/h",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="thunder" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/THUNDER VELOCITY · LIGHTNING FOUR/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("THUNDER SPEED")).toBeInTheDocument();
-  });
-
-  it("renders Dharma Heritage royale sting when theme is dharma", () => {
-    const sting: ActiveEventSting = {
-      id: "test-dharma-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "KL Rahul classic cover drive",
-      detail: "Exquisite timing",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="dharma" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/DHARMA HERITAGE · ROYAL BOUNDARY/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("SHAHI SHOT")).toBeInTheDocument();
-  });
-
-  it("renders Nakshatra Astral cosmic sting when theme is nakshatra", () => {
-    const sting: ActiveEventSting = {
-      id: "test-nakshatra-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Suryakumar Yadav scoops",
-      detail: "360 degree boundary",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="nakshatra" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/NAKSHATRA ASTRAL · STELLAR BOUNDARY/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(screen.getByText("ASTRAL METRICS")).toBeInTheDocument();
-  });
-
-  it("renders Agni Inferno volcanic magma sting when theme is agni", () => {
-    const sting: ActiveEventSting = {
-      id: "test-agni-4",
-      type: "four",
-      title: "BLAZING 4!",
-      subtitle: "Rishabh Pant one-handed blast",
-      detail: "148.5 km/h",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="agni" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/AGNI INFERNO · BLAZING BOUNDARY/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("BLAZING 4!")).toBeInTheDocument();
-    expect(screen.getByText("EXIT HEAT")).toBeInTheDocument();
-  });
-
-  it("renders Agni Inferno maximum volcanic blast for six when theme is agni", () => {
-    const sting: ActiveEventSting = {
-      id: "test-agni-6",
-      type: "six",
-      title: "MAXIMUM 6!",
-      subtitle: "Out of the stadium",
-      detail: "116 metres",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme="agni" onDismiss={vi.fn()} />);
-    expect(
-      screen.getByText(/AGNI INFERNO · MAXIMUM VOLCANIC BLAST/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("MAXIMUM 6!")).toBeInTheDocument();
-    expect(screen.getByText("BALL TRAJECTORY")).toBeInTheDocument();
+    render(<EventStings sting={sting} onDismiss={onDismiss} />);
+    vi.advanceTimersByTime(999);
+    expect(onDismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });

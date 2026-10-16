@@ -113,10 +113,7 @@ export function TeamMatchesView({
   const getTeamOutcomeBadge = (match: TeamMatchItem) => {
     if (match.status === "live") {
       return (
-        <Badge className="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400">
-          <span className="mr-1.5 h-2 w-2 animate-ping rounded-full bg-red-500" />
-          Live
-        </Badge>
+<Badge variant="live">Live</Badge>
       );
     }
     if (match.status === "scheduled") {
@@ -259,14 +256,14 @@ export function TeamMatchesView({
                           href={`/tournaments/${match.tournament.id}`}
                           className="flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-primary"
                         >
-                          <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                          <Trophy className="h-3 w-3 shrink-0" />
                           <span className="max-w-[140px] truncate">
                             {match.tournament.name}
                           </span>
                         </Link>
                       )}
                     </div>
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {match.match_format} · {match.overs_per_innings} ov
                     </span>
                   </div>

@@ -9,8 +9,7 @@ import {
   Clock,
   TrendingUp,
   Coins,
-  Flame,
-  Zap,
+  XCircle,
   Flag,
   Award,
 } from "lucide-react";
@@ -116,7 +115,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             badge: bp.runs_scored >= 100 ? "Century" : "Fifty",
             title: `${bp.user?.full_name ?? "Batter"} scored ${bp.runs_scored}${!bp.is_out ? "*" : ""} (${bp.balls_faced}b)`,
             description: `${bp.fours} fours, ${bp.sixes} sixes for ${innTeam.name}`,
-            icon: <Flame className="h-4 w-4 text-orange-500" />,
+            icon: <TrendingUp className="h-4 w-4 text-muted-foreground" />,
           });
         }
       });
@@ -129,7 +128,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             badge: `${bp.wickets_taken} Wickets`,
             title: `${bp.user?.full_name ?? "Bowler"} took ${bp.wickets_taken}/${bp.runs_conceded}`,
             description: `in ${formatDecimalOvers(bp.overs_bowled)} overs`,
-            icon: <Target className="h-4 w-4 text-emerald-500" />,
+            icon: <Target className="h-4 w-4 text-muted-foreground" />,
           });
         }
       });
@@ -147,7 +146,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           description: fow.dismissal_type
             ? `Dismissal: ${fow.dismissal_type}`
             : undefined,
-          icon: <Zap className="h-4 w-4 text-red-500" />,
+          icon: <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />,
         });
       });
 
@@ -188,12 +187,11 @@ export function MatchSummary({ match }: MatchSummaryProps) {
     <div className="space-y-6">
       {/* Result Banner */}
       {match.status === "completed" && match.result_description && (
-        <Card className="overflow-hidden border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-card to-amber-500/10 shadow-sm">
-          <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-primary to-amber-500" />
+        <Card className="overflow-hidden border-border bg-card shadow-sm">
           <CardContent className="py-4">
             <div className="flex items-center justify-center gap-3 text-center">
-              <Trophy className="h-6 w-6 shrink-0 text-amber-500 animate-pulse" />
-              <p className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              <Trophy className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <p className="text-balance text-base sm:text-lg font-semibold text-foreground">
                 {match.result_description}
               </p>
             </div>
@@ -204,19 +202,17 @@ export function MatchSummary({ match }: MatchSummaryProps) {
       {/* Live Match Info / Chase Equation */}
       {isChasing && chasingTeam && chasingInnings && (
         <Card className="overflow-hidden border-border bg-card shadow-sm">
-          <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 to-orange-500" />
           <CardContent className="p-4 sm:p-6">
             <div className="flex flex-col gap-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
                 <Badge
                   variant="outline"
-                  className="gap-1.5 border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400"
+                  className="px-2.5 py-0.5 text-xs font-medium"
                 >
-                  <Target className="h-3.5 w-3.5 shrink-0" />
-                  Chase Equation
+                  Chase
                 </Badge>
                 {chasingInnings.target_runs && (
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Target:{" "}
                     <strong className="text-foreground tabular-nums font-score text-sm">
                       {chasingInnings.target_runs}
@@ -226,13 +222,13 @@ export function MatchSummary({ match }: MatchSummaryProps) {
               </div>
 
               <div className="text-center sm:text-left">
-                <p className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                <p className="text-lg sm:text-xl font-semibold text-foreground">
                   {chasingTeam.name} needs{" "}
-                  <span className="font-score text-2xl sm:text-3xl font-extrabold text-red-500 tabular-nums">
+                  <span className="font-score text-2xl sm:text-3xl font-bold text-foreground tabular-nums">
                     {runsNeeded}
                   </span>{" "}
                   runs from{" "}
-                  <span className="font-score text-2xl sm:text-3xl font-extrabold text-red-500 tabular-nums">
+                  <span className="font-score text-2xl sm:text-3xl font-bold text-foreground tabular-nums">
                     {chasingBallsRem}
                   </span>{" "}
                   balls
@@ -263,7 +259,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full bg-gradient-to-r from-amber-500 via-emerald-500 to-emerald-400 transition-all duration-500"
+                      className="h-full bg-emerald-600 transition-all duration-500"
                       style={{
                         width: `${Math.min(
                           100,
@@ -312,7 +308,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
       {/* Key Stats Grid - Team Innings Cards */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Team 1 Summary */}
-        <Card className="overflow-hidden border-border bg-card transition-shadow hover:shadow-md">
+        <Card className="overflow-hidden border-border bg-card">
           <div
             className={`h-1 w-full ${
               match.winning_team_id === match.team1_id
@@ -323,7 +319,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
                   {match.team1.short_name?.slice(0, 3) ||
                     match.team1.name.slice(0, 3)}
                 </div>
@@ -342,7 +338,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             <div className="mb-4">
               {team1Innings ? (
                 <div className="flex items-baseline gap-2">
-                  <span className="font-score text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight text-foreground">
+                  <span className="font-score text-3xl sm:text-4xl font-bold tabular-nums tracking-tight text-foreground">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
                   </span>
                   <span className="text-sm font-medium text-muted-foreground tabular-nums">
@@ -411,7 +407,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         </Card>
 
         {/* Team 2 Summary */}
-        <Card className="overflow-hidden border-border bg-card transition-shadow hover:shadow-md">
+        <Card className="overflow-hidden border-border bg-card">
           <div
             className={`h-1 w-full ${
               match.winning_team_id === match.team2_id
@@ -422,7 +418,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-xs font-bold text-sky-500">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
                   {match.team2.short_name?.slice(0, 3) ||
                     match.team2.name.slice(0, 3)}
                 </div>
@@ -441,7 +437,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             <div className="mb-4">
               {team2Innings ? (
                 <div className="flex items-baseline gap-2">
-                  <span className="font-score text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight text-foreground">
+                  <span className="font-score text-3xl sm:text-4xl font-bold tabular-nums tracking-tight text-foreground">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
                   </span>
                   <span className="text-sm font-medium text-muted-foreground tabular-nums">
@@ -523,7 +519,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             {/* Batting */}
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <h4 className="text-sm font-semibold text-foreground">
                   Top batters
                 </h4>
                 <span className="text-[11px] font-medium text-muted-foreground">
@@ -579,7 +575,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
             {/* Bowling */}
             <div>
               <div className="mb-3 flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <h4 className="text-sm font-semibold text-foreground">
                   Top bowlers
                 </h4>
                 <span className="text-[11px] font-medium text-muted-foreground">
@@ -664,7 +660,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant="outline"
-                        className="px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
+                        className="px-1.5 py-0 text-[10px] font-medium"
                       >
                         {m.badge}
                       </Badge>

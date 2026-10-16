@@ -19,7 +19,7 @@ import {
   Trophy,
   Users,
   Plus,
-  Radio,
+  BarChart3,
   Shield,
   ExternalLink,
 } from "lucide-react";
@@ -329,7 +329,7 @@ export default async function TournamentPage({
           variant="ghost"
           size="sm"
           asChild
-          className="interactive-button pl-0 text-xs sm:text-sm"
+          className="pl-0 text-xs sm:text-sm"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
@@ -361,7 +361,7 @@ export default async function TournamentPage({
       </div>
 
       {/* Tournament Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/80 to-primary/5 p-4 shadow-sm sm:p-6 md:p-8">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -374,9 +374,6 @@ export default async function TournamentPage({
                       : "outline"
                 }
               >
-                {tournament.status === "ongoing" && (
-                  <span className="mr-1.5 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                )}
                 {formatStatus(tournament.status)}
               </Badge>
               <Badge variant="outline">
@@ -393,7 +390,7 @@ export default async function TournamentPage({
               )}
             </div>
 
-            <h1 className="mt-3 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
+            <h1 className="mt-3 text-balance text-2xl font-semibold tracking-tight">
               {tournament.name}
             </h1>
 
@@ -406,13 +403,13 @@ export default async function TournamentPage({
             <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
               {tournament.venue && (
                 <div className="flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
                   <span>{tournament.venue}</span>
                 </div>
               )}
               {(tournament.start_date || tournament.end_date) && (
                 <div className="flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <Calendar className="h-3.5 w-3.5 shrink-0" />
                   <span>
                     {tournament.start_date ?? "TBD"}
                     {tournament.end_date ? ` to ${tournament.end_date}` : ""}
@@ -420,7 +417,7 @@ export default async function TournamentPage({
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <Users className="h-3.5 w-3.5 shrink-0" />
                 <span>{(registrations ?? []).length} Teams registered</span>
               </div>
             </div>
@@ -488,7 +485,7 @@ export default async function TournamentPage({
             value="analysis"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500 sm:h-4 sm:w-4" />
+            <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Leaderboard & Stats
           </TabsTrigger>
         </TabsList>
@@ -574,15 +571,7 @@ export default async function TournamentPage({
                           >
                             <td className="px-3 py-3">
                               <span
-                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                                  isTop
-                                    ? "bg-amber-500/20 text-amber-500"
-                                    : idx === 1
-                                      ? "bg-slate-300/20 text-slate-400"
-                                      : idx === 2
-                                        ? "bg-amber-700/20 text-amber-600"
-                                        : "text-muted-foreground"
-                                }`}
+                                className="inline-flex h-6 w-6 items-center justify-center text-xs font-medium tabular-nums text-muted-foreground"
                               >
                                 {idx + 1}
                               </span>
@@ -692,7 +681,7 @@ export default async function TournamentPage({
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold sm:text-lg">
+              <h2 className="text-lg font-semibold">
                 Tournament Fixtures & Matches
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -717,8 +706,11 @@ export default async function TournamentPage({
           {liveMatches.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Radio className="h-4 w-4 shrink-0 animate-pulse text-emerald-400" />
-                <h3 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <span
+                  className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+                <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
                   Live now
                 </h3>
               </div>
@@ -784,7 +776,7 @@ export default async function TournamentPage({
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold sm:text-lg">
+              <h2 className="text-lg font-semibold">
                 Registered teams
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -934,7 +926,7 @@ function MatchCard({
 
   return (
     <Card
-      className={`transition-colors hover:border-primary/40 ${isLive ? "border-emerald-500/50 bg-emerald-500/5" : ""}`}
+      className="transition-colors hover:border-primary/40"
     >
       <CardContent className="p-5">
         <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -942,11 +934,8 @@ function MatchCard({
             {match.venue ?? "Venue TBD"}
           </span>
           <Badge
-            variant={isLive ? "default" : isCompleted ? "secondary" : "outline"}
+            variant={isLive ? "live" : isCompleted ? "secondary" : "outline"}
           >
-            {isLive && (
-              <span className="mr-1 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            )}
             {formatStatus(match.status)}
           </Badge>
         </div>

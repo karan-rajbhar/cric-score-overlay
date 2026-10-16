@@ -1036,7 +1036,7 @@ export function useScoring(
       } else if (result.data) {
         broadcastScoreUpdate();
         applyState(result.data);
-        toast.success("Super Over initiated!");
+        toast.success("Super over started");
       }
       await syncFromDb();
       setIsProcessing(false);

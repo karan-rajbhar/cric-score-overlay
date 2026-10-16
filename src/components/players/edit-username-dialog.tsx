@@ -14,7 +14,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { AtSign, Check, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { AtSign, Check, AlertCircle, Loader2 } from "lucide-react";
 import {
   checkUsernameAvailability,
   updateUsername,
@@ -137,13 +137,9 @@ export function EditUsernameDialog({
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Claim Your Unique Handle
-            </DialogTitle>
+            <DialogTitle className="text-lg">Choose a username</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Your unique @handle is how other cricketers find, mention, and
-              tag you across teams, scorecards, and tournaments.
+              Your @username appears on your profile, teams and scorecards.
             </DialogDescription>
           </DialogHeader>
 

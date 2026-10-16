@@ -221,7 +221,7 @@ export function BatsmenDialog({
           )}
 
           <Button
-            className="w-full h-11 min-h-[44px] text-sm font-bold shadow-md"
+            className="w-full h-11 min-h-[44px] text-sm font-semibold"
             onClick={onConfirm}
             disabled={
               !strikerId ||

@@ -51,18 +51,7 @@ function drawPointsTable(
   qrImage: HTMLImageElement | null,
 ) {
   // 1. Background
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#080e0c");
-  bg.addColorStop(0.5, "#0f1f18");
-  bg.addColorStop(1, "#080e0c");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Decorative corner glow
-  const glow = ctx.createRadialGradient(W - 100, 100, 10, W - 100, 100, 400);
-  glow.addColorStop(0, "rgba(34, 197, 94, 0.15)");
-  glow.addColorStop(1, "transparent");
-  ctx.fillStyle = glow;
+  ctx.fillStyle = "#0c1411";
   ctx.fillRect(0, 0, W, H);
 
   ctx.textBaseline = "top";
@@ -277,7 +266,7 @@ export function PointsTableShare({
         new ClipboardItem({ [blob.type]: blob }),
       ]);
       setCopied(true);
-      toast.success("Graphic copied to clipboard!");
+      toast.success("Image copied to clipboard");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
@@ -299,8 +288,7 @@ export function PointsTableShare({
         <DialogHeader>
           <DialogTitle>Share Points Table Graphic</DialogTitle>
           <DialogDescription>
-            Broadcast-grade tournament standings graphic ready for WhatsApp,
-            Twitter, and Social Media.
+            Download or copy the points table as an image to share.
           </DialogDescription>
         </DialogHeader>
 
@@ -313,7 +301,7 @@ export function PointsTableShare({
               </p>
             </div>
           ) : previewUrl ? (
-            <div className="overflow-hidden rounded-lg border border-border shadow-lg">
+            <div className="overflow-hidden rounded-lg border border-border">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
@@ -340,7 +328,7 @@ export function PointsTableShare({
             ) : (
               <Copy className="h-4 w-4" />
             )}
-            {copied ? "Copied!" : "Copy Image"}
+            {copied ? "Copied" : "Copy image"}
           </Button>
           <Button
             onClick={handleDownload}

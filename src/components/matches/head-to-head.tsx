@@ -8,7 +8,7 @@ import {
   CardDescription,
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { Swords, Trophy, Calendar, MapPin, Loader2 } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2 } from "lucide-react";
 import { useHeadToHeadQuery } from "~/lib/hooks/useMatchQueries";
 import type { MatchTeam } from "~/lib/match-types";
 import Link from "next/link";
@@ -74,30 +74,27 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
   return (
     <div className="space-y-6">
       {/* Overview Card */}
-      <Card className="border-border/60 bg-gradient-to-br from-card to-muted/20">
+      <Card className="border-border">
         <CardHeader className="pb-2 text-center">
-          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Swords className="h-5 w-5" />
-          </div>
-          <CardTitle className="text-2xl">Head-to-Head Record</CardTitle>
+          <CardTitle className="text-lg font-semibold">Head-to-head record</CardTitle>
           <CardDescription>
-            All-time historical clashes between {team1.name} and {team2.name}
+            All matches between {team1.name} and {team2.name}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Score comparison pill */}
           <div className="mx-auto grid max-w-lg grid-cols-3 items-center rounded-xl border border-border bg-background/80 p-4 text-center">
             <div>
-              <p className="text-3xl font-extrabold text-primary tabular-nums">
+              <p className="text-3xl font-bold text-primary tabular-nums">
                 {team1Wins}
               </p>
-              <p className="mt-1 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="mt-1 truncate text-xs font-medium text-muted-foreground">
                 {team1.short_name || team1.name}
               </p>
             </div>
             <div className="border-x border-border/60 px-3">
               <p className="text-xl font-bold text-muted-foreground tabular-nums">{total}</p>
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 {total === 1 ? "Match" : "Matches"}
               </p>
               {tiesOrNr > 0 && (
@@ -107,10 +104,10 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
               )}
             </div>
             <div>
-              <p className="text-3xl font-extrabold text-sky-500 tabular-nums">
+              <p className="text-3xl font-bold text-sky-500 tabular-nums">
                 {team2Wins}
               </p>
-              <p className="mt-1 truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="mt-1 truncate text-xs font-medium text-muted-foreground">
                 {team2.short_name || team2.name}
               </p>
             </div>
@@ -161,7 +158,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                 sides.
               </p>
               <p className="mt-1 text-xs text-muted-foreground/70">
-                This fixture is their inaugural clash!
+                This is their first meeting.
               </p>
             </CardContent>
           </Card>

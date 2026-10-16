@@ -186,11 +186,11 @@ export function DlsCalculatorModal({
 
           {/* Target Result Box */}
           <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 text-center">
-            <p className="text-xs font-medium uppercase tracking-wider text-sky-700 dark:text-sky-300">
-              Revised DLS Target
+            <p className="text-xs font-medium text-sky-700 dark:text-sky-300">
+              Revised DLS target
             </p>
             <div className="mt-1 flex items-center justify-center gap-2">
-              <span className="text-4xl font-extrabold text-foreground">
+              <span className="text-4xl font-bold tabular-nums text-foreground">
                 {calculation.targetRuns}
               </span>
               <span className="text-sm text-muted-foreground">

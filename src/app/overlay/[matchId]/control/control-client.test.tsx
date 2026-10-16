@@ -37,7 +37,8 @@ class MockResizeObserver {
 }
 
 beforeEach(() => {
-  window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+  window.ResizeObserver =
+    MockResizeObserver as unknown as typeof ResizeObserver;
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
     configurable: true,
@@ -55,10 +56,12 @@ describe("ControlClient Component", () => {
       />,
     );
 
-    expect(screen.getByText(/LIVE STUDIO/i)).toBeInTheDocument();
+    expect(screen.getByText(/Control room/i)).toBeInTheDocument();
     expect(screen.getByText(/Royal Challengers/i)).toBeInTheDocument();
     expect(screen.getByText(/Super Kings/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Copy OBS URL/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Copy OBS URL/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders the 5 instant celebration sting buttons with hotkey labels", () => {
@@ -70,11 +73,17 @@ describe("ControlClient Component", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /FOUR!/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /MAXIMUM!/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /WICKET!/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /50 \/ 100/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /FREE HIT/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Four/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Six/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /W\s*Wicket\s*Out/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Milestone/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Free hit/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders match phase graphics switcher decks instead of a raw 29-button scroll", () => {
@@ -86,10 +95,18 @@ describe("ControlClient Component", () => {
       />,
     );
 
-    expect(screen.getByRole("tab", { name: /Live Scorebars/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Scorecards & Squads/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Breaks & Stoppages/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Analytics & Charts/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Live Scorebars/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Scorecards & Squads/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Breaks & Stoppages/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: /Analytics & Charts/i }),
+    ).toBeInTheDocument();
   });
 
   it("allows switching phase tabs to reveal relevant broadcast graphics", () => {
@@ -101,7 +118,9 @@ describe("ControlClient Component", () => {
       />,
     );
 
-    const scorecardsTab = screen.getByRole("tab", { name: /Scorecards & Squads/i });
+    const scorecardsTab = screen.getByRole("tab", {
+      name: /Scorecards & Squads/i,
+    });
     fireEvent.click(scorecardsTab);
 
     expect(screen.getByText(/Batting Team 1/i)).toBeInTheDocument();
@@ -122,8 +141,12 @@ describe("ControlClient Component", () => {
     expect(drinksBtn).toBeInTheDocument();
     fireEvent.click(drinksBtn);
 
-    expect(screen.getByPlaceholderText(/Custom broadcast alert/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Send Alert/i })).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/Custom broadcast alert/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Send Alert/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders interactive match scenario simulator in test mode and responds to score mutations", () => {
@@ -152,7 +175,7 @@ describe("ControlClient Component", () => {
       />,
     );
 
-    expect(screen.getByText(/ON AIR/i)).toBeInTheDocument();
+    expect(screen.getByText(/On air:/i)).toBeInTheDocument();
   });
 
   it("opens the unified Settings & Themes dialog when Settings button is clicked", () => {
@@ -167,9 +190,9 @@ describe("ControlClient Component", () => {
     const settingsBtn = screen.getByRole("button", { name: /Settings/i });
     fireEvent.click(settingsBtn);
 
-    expect(screen.getByText(/Broadcast Production Settings/i)).toBeInTheDocument();
-    expect(screen.getByText(/TV Broadcast Visual Theme/i)).toBeInTheDocument();
-    expect(screen.getByText(/Operator Keyboard Shortcuts/i)).toBeInTheDocument();
+    expect(screen.getByText(/Overlay settings/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Theme$/i)).toBeInTheDocument();
+    expect(screen.getByText(/Keyboard shortcuts/i)).toBeInTheDocument();
   });
 
   it("handles keyboard shortcuts to trigger celebratory stings", () => {

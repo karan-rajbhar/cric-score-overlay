@@ -289,7 +289,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
       {/* Top Header matching Match Centre Stumps aesthetic */}
-      <CardHeader className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-4 py-3 sm:px-6 text-white">
+      <CardHeader className="bg-slate-900 px-4 py-3 sm:px-6 text-white">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5 text-emerald-400" />
@@ -317,7 +317,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               role="img"
               aria-label="Cricket wagon wheel shot distribution map"
               viewBox="0 0 500 500"
-              className="h-full w-full select-none drop-shadow-md"
+              className="h-full w-full select-none"
             >
               <title>Cricket Wagon Wheel Shot Distribution Map</title>
               <defs>
@@ -641,35 +641,35 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
         </div>
 
         {/* Metrics Bar: Runs, Balls, SR | Off-S, Leg-S (matching Stumps screenshot) */}
-        <div className="rounded-2xl border border-border/70 bg-card/60 p-3 sm:p-4 shadow-sm backdrop-blur-sm">
+        <div className="rounded-2xl border border-border bg-card p-3 sm:p-4">
           <div className="grid grid-cols-2 divide-x divide-border/60">
             {/* Left Section: Runs, Balls, SR */}
             <div className="grid grid-cols-3 text-center px-1 sm:px-2">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Runs
                 </div>
-                <div className="text-lg sm:text-2xl font-extrabold tabular-nums text-foreground">
+                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? totalRuns
                     : overallTotals.runs}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Balls
                 </div>
-                <div className="text-lg sm:text-2xl font-extrabold tabular-nums text-foreground">
+                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? totalBalls
                     : overallTotals.balls}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   SR
                 </div>
-                <div className="text-lg sm:text-2xl font-extrabold tabular-nums text-foreground">
+                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? strikeRate
                     : overallTotals.sr}
@@ -680,20 +680,20 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Right Section: Off-S, Leg-S */}
             <div className="grid grid-cols-2 text-center px-1 sm:px-2">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Off-S
                 </div>
-                <div className="text-lg sm:text-2xl font-extrabold tabular-nums text-foreground">
+                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? offSideRuns
                     : overallTotals.off}
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="text-[11px] font-medium text-muted-foreground">
                   Leg-S
                 </div>
-                <div className="text-lg sm:text-2xl font-extrabold tabular-nums text-foreground">
+                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? legSideRuns
                     : overallTotals.leg}
@@ -704,7 +704,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
         </div>
 
         {/* Legend Filter Pill: 1, 2, 3, 4, 6 with counts (matching Stumps screenshot) */}
-        <div className="rounded-2xl bg-slate-900 dark:bg-slate-950 p-2.5 sm:p-3.5 text-white shadow-md">
+        <div className="rounded-2xl bg-slate-900 dark:bg-slate-950 p-2.5 sm:p-3.5 text-white">
           <div className="grid grid-cols-5 gap-1.5 sm:gap-2 text-center">
             {/* 1s */}
             <button

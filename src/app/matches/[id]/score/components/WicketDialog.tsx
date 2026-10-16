@@ -208,7 +208,7 @@ export function WicketDialog({
                   className={cn(
                     "touch-target flex h-11 min-h-[44px] items-center justify-center rounded-xl border text-xs font-bold transition-all active:scale-95",
                     dismissalType === d.value
-                      ? "border-black bg-black text-white shadow-sm font-black dark:border-white dark:bg-white dark:text-black"
+                      ? "border-black bg-black text-white shadow-sm font-bold dark:border-white dark:bg-white dark:text-black"
                       : "border-border/80 bg-background text-foreground hover:bg-muted",
                   )}
                 >
@@ -307,7 +307,7 @@ export function WicketDialog({
           )}
 
           <Button
-            className="mt-2 h-11 min-h-[44px] w-full text-sm font-bold shadow-md"
+            className="mt-2 h-11 min-h-[44px] w-full text-sm font-semibold"
             onClick={onConfirm}
             disabled={isProcessing}
           >

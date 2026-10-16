@@ -8,7 +8,8 @@ import {
   useMatchBallLogQuery,
 } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
-import { Flame, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { LiveIndicator } from "./live-indicator";
 import { cn } from "~/lib/utils";
 
 interface Partnership {
@@ -191,17 +192,6 @@ export function MatchPartnerships({ match }: { match: Match }) {
         </div>
       </CardHeader>
       <CardContent>
-        <style>{`
-          @keyframes partnership-grow { from { width: 0; } }
-          @keyframes partnership-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-          @keyframes partnership-pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-          .partnership-row { animation: partnership-fade-up 0.45s ease-out both; }
-          .partnership-bar-seg { animation: partnership-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
-          .partnership-live-dot { animation: partnership-pulse-dot 1.6s ease-in-out infinite; }
-          @media (prefers-reduced-motion: reduce) {
-            .partnership-row, .partnership-bar-seg, .partnership-live-dot { animation: none; }
-          }
-        `}</style>
         {inningsGroups === null ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -219,7 +209,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
             {inningsGroups.map((g) => (
               <div key={g.inningsId}>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     {g.teamName}
                   </p>
                   <p className="text-[11px] tabular-nums text-muted-foreground">
@@ -261,12 +251,11 @@ export function MatchPartnerships({ match }: { match: Match }) {
                       <li
                         key={p.id}
                         className={cn(
-                          "partnership-row rounded-xl border p-2.5",
+                          "rounded-xl border p-2.5",
                           p.is_current
                             ? "border-primary/40 bg-primary/5"
                             : "border-border/70 bg-card",
                         )}
-                        style={{ animationDelay: `${Math.min(idx * 0.07, 0.7)}s` }}
                       >
                         <div className="flex items-center justify-between gap-2 text-sm">
                           <span className="flex min-w-0 items-center gap-1.5">
@@ -282,23 +271,19 @@ export function MatchPartnerships({ match }: { match: Match }) {
                               <span className="text-violet-600 dark:text-violet-400">{name2}</span>
                             </span>
                             {p.is_current ? (
-                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                                <span className="partnership-live-dot h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                Live
-                              </span>
+                              <LiveIndicator className="shrink-0 text-[10px]" />
                             ) : null}
                             {isBest ? (
                               <Badge
                                 variant="outline"
-                                className="shrink-0 gap-1 border-amber-500/40 bg-amber-500/10 px-1.5 py-0 text-[10px] font-bold text-amber-600 dark:text-amber-400"
+                                className="shrink-0 px-1.5 py-0 text-[10px] font-medium"
                               >
-                                <Flame className="h-3 w-3 shrink-0" />
                                 Best
                               </Badge>
                             ) : null}
                           </span>
                           <span className="shrink-0 text-right tabular-nums">
-                            <strong className="text-base font-extrabold">
+                            <strong className="text-base font-bold tabular-nums">
                               {p.runs}
                             </strong>{" "}
                             <span className="text-xs text-muted-foreground">
@@ -312,21 +297,15 @@ export function MatchPartnerships({ match }: { match: Match }) {
                         <div className="mt-2 flex h-3 flex-1 overflow-hidden rounded-full bg-muted">
                           {seg1 > 0 && (
                             <div
-                              className="partnership-bar-seg h-full bg-sky-500"
-                              style={{
-                                width: `${(seg1 / total) * 100}%`,
-                                animationDelay: `${Math.min(idx * 0.07 + 0.15, 0.85)}s`,
-                              }}
+                              className="h-full bg-sky-500"
+                              style={{ width: `${(seg1 / total) * 100}%` }}
                               title={`${name1}: ${seg1} runs (${pct1}%)`}
                             />
                           )}
                           {seg2 > 0 && (
                             <div
-                              className="partnership-bar-seg h-full bg-violet-500"
-                              style={{
-                                width: `${(seg2 / total) * 100}%`,
-                                animationDelay: `${Math.min(idx * 0.07 + 0.25, 0.95)}s`,
-                              }}
+                              className="h-full bg-violet-500"
+                              style={{ width: `${(seg2 / total) * 100}%` }}
                               title={`${name2}: ${seg2} runs (${pct2}%)`}
                             />
                           )}

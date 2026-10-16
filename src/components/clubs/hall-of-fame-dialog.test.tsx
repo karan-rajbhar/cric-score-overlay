@@ -92,18 +92,18 @@ describe("HallOfFameDialog Component", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Induct Legend trigger button", () => {
+  it("renders Add to Hall of Fame trigger button", () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
     expect(
-      screen.getByRole("button", { name: /induct legend/i })
+      screen.getByRole("button", { name: /add to hall of fame/i })
     ).toBeInTheDocument();
   });
 
   it("opens modal dialog and displays form fields", () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
 
     expect(
       screen.getByRole("heading", { name: /hall of fame induction/i })
@@ -116,7 +116,7 @@ describe("HallOfFameDialog Component", () => {
   it("validates that a member is selected before submitting", async () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
     fireEvent.click(screen.getByRole("button", { name: /confirm induction/i }));
 
     expect(toast.error).toHaveBeenCalledWith("Please select a player to induct");
@@ -126,7 +126,7 @@ describe("HallOfFameDialog Component", () => {
   it("validates that title is entered before submitting", async () => {
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
 
     // Select player
     fireEvent.click(screen.getByTestId("mock-select-item-usr-1"));
@@ -143,7 +143,7 @@ describe("HallOfFameDialog Component", () => {
 
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
 
     // Select player and category
     fireEvent.click(screen.getByTestId("mock-select-item-usr-1"));
@@ -174,7 +174,7 @@ describe("HallOfFameDialog Component", () => {
         seasonOrYear: "1989-2013",
         recordMetric: "15,921 Test runs",
       });
-      expect(toast.success).toHaveBeenCalledWith("Player inducted into the Hall of Fame!");
+      expect(toast.success).toHaveBeenCalledWith("Player added to the Hall of Fame");
     });
   });
 
@@ -185,7 +185,7 @@ describe("HallOfFameDialog Component", () => {
 
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
     fireEvent.click(screen.getByTestId("mock-select-item-usr-2"));
     fireEvent.change(screen.getByLabelText(/honor \/ title/i), {
       target: { value: "Captain Cool" },
@@ -204,7 +204,7 @@ describe("HallOfFameDialog Component", () => {
 
     render(<HallOfFameDialog clubId="club-10" members={mockMembers} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /induct legend/i }));
+    fireEvent.click(screen.getByRole("button", { name: /add to hall of fame/i }));
     fireEvent.click(screen.getByTestId("mock-select-item-usr-2"));
     fireEvent.change(screen.getByLabelText(/honor \/ title/i), {
       target: { value: "Captain Cool" },

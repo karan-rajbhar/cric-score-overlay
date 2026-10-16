@@ -58,8 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-row">
               <p className="text-center sm:text-left">
-                © 2026 CricScore. Live cricket scoring, tournament management
-                and broadcast engine.
+                © 2026 CricScore. Cricket scoring for clubs and leagues.
               </p>
               <nav
                 aria-label="Footer"

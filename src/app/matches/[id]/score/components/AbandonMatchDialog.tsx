@@ -80,7 +80,7 @@ export function AbandonMatchDialog({
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-4 w-4" />
               </span>
-              <DialogTitle className="text-lg font-bold">
+              <DialogTitle className="text-lg font-semibold">
                 Abandon Match
               </DialogTitle>
             </div>

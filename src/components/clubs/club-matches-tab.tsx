@@ -17,7 +17,6 @@ import { EmptyState } from "~/components/ui/empty-state";
 import {
   Calendar,
   Plus,
-  Radio,
   ExternalLink,
   Search,
   Filter,
@@ -188,7 +187,7 @@ export function ClubMatchesTab({
         <EmptyState
           icon={Calendar}
           title="No Matches Scheduled"
-          description="Schedule club matches to start tracking live scores, wagon wheels, and broadcast overlays."
+          description="Schedule a club match to start scoring it ball by ball."
           primaryAction={
             isAdmin
               ? {
@@ -215,9 +214,7 @@ export function ClubMatchesTab({
             return (
               <Card
                 key={m.id}
-                className={`transition-colors hover:border-primary/40 ${
-                  isLive ? "border-emerald-500/50 bg-emerald-500/5" : ""
-                }`}
+                className="transition-colors hover:border-primary/40"
               >
                 <CardContent className="p-5">
                   <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -236,15 +233,12 @@ export function ClubMatchesTab({
                     <Badge
                       variant={
                         isLive
-                          ? "default"
+                          ? "live"
                           : isCompleted
                             ? "secondary"
                             : "outline"
                       }
                     >
-                      {isLive && (
-                        <Radio className="mr-1 h-3 w-3 shrink-0 animate-pulse text-emerald-400" />
-                      )}
                       {formatStatus(m.status)}
                     </Badge>
                   </div>

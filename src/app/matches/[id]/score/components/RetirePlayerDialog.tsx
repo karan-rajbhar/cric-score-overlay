@@ -59,7 +59,7 @@ export function RetirePlayerDialog({
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
                 <HeartPulse className="h-4 w-4" />
               </span>
-              <DialogTitle className="text-lg font-bold">
+              <DialogTitle className="text-lg font-semibold">
                 Retire Batsman: {playerName}
               </DialogTitle>
             </div>

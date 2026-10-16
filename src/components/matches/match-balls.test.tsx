@@ -88,7 +88,7 @@ describe("MatchBalls", () => {
 
     render(<MatchBalls match={match} />);
 
-    expect(screen.getByText("All Deliveries")).toBeInTheDocument();
+    expect(screen.getByText("All deliveries")).toBeInTheDocument();
     expect(screen.getByText(/Boundaries/)).toBeInTheDocument();
     expect(screen.getByText("Wickets")).toBeInTheDocument();
 

@@ -1,13 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
-import {
-  Flame,
-  Target,
-  Trophy,
-  Activity,
-} from "lucide-react";
+import { Activity } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
 import { LeaderboardData } from "~/lib/leaderboard";
@@ -96,13 +90,12 @@ export function ClubStatsTab({
 
       {/* Key Milestones Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="border-border/80 bg-card/60">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Matches Played</span>
-              <Activity className="h-4 w-4 shrink-0 text-primary" />
             </div>
-            <div className="mt-2 text-2xl font-extrabold tabular-nums">
+            <div className="mt-2 text-2xl font-bold tabular-nums">
               {milestones.totalMatches}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
@@ -111,13 +104,12 @@ export function ClubStatsTab({
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/60">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Runs Scored</span>
-              <Flame className="h-4 w-4 shrink-0 text-amber-500" />
             </div>
-            <div className="mt-2 text-2xl font-extrabold tabular-nums">
+            <div className="mt-2 text-2xl font-bold tabular-nums">
               {milestones.totalRuns}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
@@ -126,13 +118,12 @@ export function ClubStatsTab({
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/60">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Wickets Taken</span>
-              <Target className="h-4 w-4 shrink-0 text-emerald-500" />
             </div>
-            <div className="mt-2 text-2xl font-extrabold tabular-nums">
+            <div className="mt-2 text-2xl font-bold tabular-nums">
               {milestones.totalWickets}
             </div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
@@ -141,13 +132,12 @@ export function ClubStatsTab({
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/60">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Highest Total</span>
-              <Trophy className="h-4 w-4 shrink-0 text-primary" />
             </div>
-            <div className="mt-2 text-2xl font-extrabold tabular-nums">
+            <div className="mt-2 text-2xl font-bold tabular-nums">
               {milestones.highestTeamScore
                 ? `${milestones.highestTeamScore.runs}/${milestones.highestTeamScore.wickets}`
                 : "—"}
@@ -173,13 +163,9 @@ export function ClubStatsTab({
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                  <Flame className="h-4 w-4 shrink-0 text-amber-500" />
+                <CardTitle className="text-base font-semibold">
                   Leading Run Scorers
                 </CardTitle>
-                <Badge variant="secondary" className="text-[10px]">
-                  Top Batters
-                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -231,13 +217,9 @@ export function ClubStatsTab({
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                  <Target className="h-4 w-4 shrink-0 text-emerald-500" />
+                <CardTitle className="text-base font-semibold">
                   Leading Wicket Takers
                 </CardTitle>
-                <Badge variant="secondary" className="text-[10px]">
-                  Top Bowlers
-                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">

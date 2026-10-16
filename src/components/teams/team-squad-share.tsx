@@ -36,10 +36,7 @@ function drawSquadCanvas(
   qrImage: HTMLImageElement | null,
 ) {
   // Background
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, COLORS.bgTop);
-  bg.addColorStop(1, "#1a3328");
-  ctx.fillStyle = bg;
+  ctx.fillStyle = COLORS.bgTop;
   ctx.fillRect(0, 0, W, H);
 
   ctx.fillStyle = COLORS.accent;

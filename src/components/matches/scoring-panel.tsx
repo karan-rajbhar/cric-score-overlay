@@ -17,9 +17,6 @@ import {
   RotateCcw,
   AlertTriangle,
   Compass,
-  Zap,
-  Flame,
-  Sparkles,
   Keyboard,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
@@ -66,37 +63,37 @@ const EXTRA_TYPES = [
     type: "wide",
     label: "Wide",
     shortLabel: "Wd",
-    activeClass: "bg-amber-500 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "no_ball",
     label: "No ball",
     shortLabel: "Nb",
-    activeClass: "bg-orange-500 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "bye",
     label: "Bye",
     shortLabel: "Bye",
-    activeClass: "bg-sky-600 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "leg_bye",
     label: "Leg bye",
     shortLabel: "Lb",
-    activeClass: "bg-violet-500 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "penalty",
     label: "Penalty",
     shortLabel: "Pen",
-    activeClass: "bg-rose-600 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "bonus",
     label: "Bonus",
     shortLabel: "Bon",
-    activeClass: "bg-emerald-600 text-white",
+    activeClass: "bg-primary text-primary-foreground",
   },
 ];
 
@@ -187,32 +184,32 @@ export function ScoringPanel({
     if (selectedExtra === "bonus") {
       return runs === 0 ? "1 Bon" : `${runs} Bon`;
     }
-    if (runs === 0) return "DOT";
-    if (runs === 4) return "FOUR";
-    if (runs === 5) return "FIVE";
-    if (runs === 6) return "SIX";
+    if (runs === 0) return "Dot";
+    if (runs === 4) return "Four";
+    if (runs === 5) return "Five";
+    if (runs === 6) return "Six";
     return "";
   };
 
   const getStagedDeliveryDescription = () => {
     if (!selectedExtra) return null;
     if (selectedExtra === "wide") {
-      return "WIDE BALL: Tap runs to record delivery (0 for 1 Wide, or tap completed runs).";
+      return "Wide ball: Tap runs to record delivery (0 for 1 Wide, or tap completed runs).";
     }
     if (selectedExtra === "no_ball") {
-      return "NO BALL: Tap runs to record delivery (+1 No Ball extra added). Free Hit next delivery!";
+      return "No ball: Tap runs to record delivery (+1 No Ball extra added). Free hit next delivery.";
     }
     if (selectedExtra === "bye") {
-      return "BYE: Tap runs to record delivery (credited to team extras, 0 to bowler).";
+      return "Bye: Tap runs to record delivery (credited to team extras, 0 to bowler).";
     }
     if (selectedExtra === "leg_bye") {
-      return "LEG BYE: Tap runs to record delivery (credited to team extras, 0 to bowler).";
+      return "Leg bye: Tap runs to record delivery (credited to team extras, 0 to bowler).";
     }
     if (selectedExtra === "penalty") {
-      return "PENALTY RUNS: Tap runs to record delivery (default 5 runs).";
+      return "Penalty runs: Tap runs to record delivery (default 5 runs).";
     }
     if (selectedExtra === "bonus") {
-      return "BONUS RUNS: Tap runs to record delivery (bonus runs to team).";
+      return "Bonus runs: Tap runs to record delivery (bonus runs to team).";
     }
     return "Tap runs to record delivery";
   };
@@ -403,23 +400,23 @@ export function ScoringPanel({
   const getBallDisplay = (ball: string) => {
     if (sunlightMode) {
       if (ball === "W")
-        return "bg-red-600 text-white border-2 border-black font-black rounded-md shadow-none";
+        return "bg-red-600 text-white border-2 border-black font-bold rounded-md shadow-none";
       if (ball === "4")
-        return "bg-emerald-600 text-white border-2 border-black font-black rounded-full shadow-none";
+        return "bg-emerald-600 text-white border-2 border-black font-bold rounded-full shadow-none";
       if (ball === "6")
-        return "bg-purple-700 text-white border-2 border-black font-black rounded-full shadow-none";
+        return "bg-purple-700 text-white border-2 border-black font-bold rounded-full shadow-none";
       if (ball.includes("wd") || ball.includes("nb"))
-        return "bg-amber-300 text-black border-2 border-black font-black rounded-full shadow-none";
-      return "bg-white text-black border-2 border-black font-black rounded-full shadow-none";
+        return "bg-amber-300 text-black border-2 border-black font-bold rounded-full shadow-none";
+      return "bg-white text-black border-2 border-black font-bold rounded-full shadow-none";
     }
 
     // Shape + text carry meaning, not color alone (color-blind safe).
     if (ball === "W")
-      return "bg-red-600 text-white border-red-700 font-black shadow-sm rounded-md outline outline-1 outline-offset-1 outline-red-800";
+      return "bg-red-600 text-white border-red-700 font-bold rounded-md outline outline-1 outline-offset-1 outline-red-800";
     if (ball === "4")
-      return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-600 font-black rounded-full ring-2 ring-emerald-500/30";
+      return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-600 font-bold rounded-full";
     if (ball === "6")
-      return "bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-600 font-black rounded-full ring-2 ring-offset-1 ring-purple-500/40 ring-offset-background";
+      return "bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-600 font-bold rounded-full";
     if (ball.includes("wd") || ball.includes("nb"))
       return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border-amber-600 border-dashed font-bold rounded-full";
     return "bg-muted/60 text-muted-foreground border-border/80 font-medium rounded-full";
@@ -440,7 +437,7 @@ export function ScoringPanel({
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
         "card-data bg-card/90 max-sm:flex max-sm:flex-1 max-sm:flex-col",
-        sunlightMode && "sunlight-mode border-2 border-black shadow-md",
+        sunlightMode && "sunlight-mode border-2 border-black",
       )}
     >
       <CardContent className="space-y-2 p-2.5 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
@@ -455,7 +452,7 @@ export function ScoringPanel({
 
         {/* Over position + this-over ball trail (tap a ball to edit it) */}
         <div className="flex items-center gap-2">
-          <span className="tabular shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-black leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
+          <span className="tabular shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-bold leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
             Over {currentOver}.{currentBall}
           </span>
           {lastBalls.length > 0 ? (
@@ -497,15 +494,14 @@ export function ScoringPanel({
         {isFreeHit && (
           <div
             className={cn(
-              "flex animate-pulse items-center gap-2 rounded-xl border px-3 py-2 shadow-sm",
+              "flex items-center gap-2 rounded-xl border px-3 py-2",
               sunlightMode
-                ? "border-2 border-black bg-amber-400 font-black text-black"
+                ? "border-2 border-black bg-amber-400 font-bold text-black"
                 : "border-amber-500/50 bg-amber-500/15 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/60 dark:text-amber-200",
             )}
           >
-            <Zap className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            <span className="text-xs font-black tracking-wide">
-              FREE HIT — batter can only be run out (MCC Law 21.19)
+            <span className="text-xs font-semibold">
+              Free hit: batter can only be run out (MCC Law 21.19)
             </span>
           </div>
         )}
@@ -514,9 +510,9 @@ export function ScoringPanel({
         {selectedExtra && (
           <div
             className={cn(
-              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm",
+              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
               sunlightMode
-                ? "border-2 border-black bg-amber-300 font-black text-black shadow-none"
+                ? "border-2 border-black bg-amber-300 font-bold text-black"
                 : "border-amber-500/40 bg-amber-500/10 dark:border-amber-500/50 dark:bg-amber-950/40",
             )}
           >
@@ -531,7 +527,7 @@ export function ScoringPanel({
                 className={cn(
                   "text-xs font-bold",
                   sunlightMode
-                    ? "font-black text-black"
+                    ? "font-bold text-black"
                     : "text-amber-900 dark:text-amber-200",
                 )}
               >
@@ -590,10 +586,10 @@ export function ScoringPanel({
                         : `${runs} runs (${runs})`
                 }
                 className={cn(
-                  "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-black leading-none transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
+                  "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
                   sunlightMode
                     ? cn(
-                        "border-2 font-black shadow-none",
+                        "border-2 font-bold shadow-none",
                         (isDot ||
                           runs === 1 ||
                           runs === 2 ||
@@ -607,19 +603,19 @@ export function ScoringPanel({
                       )
                     : cn(
                         isDot &&
-                          "shadow-2xs border-border/80 bg-background/90 text-muted-foreground hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/90 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
+                          "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
                         runs === 1 &&
-                          "shadow-2xs border-amber-500/30 bg-amber-500/5 text-amber-900 hover:bg-amber-500/15 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20",
+                          "border-border bg-background text-foreground hover:bg-muted",
                         runs === 2 &&
-                          "shadow-2xs border-amber-500/40 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25",
+                          "border-border bg-background text-foreground hover:bg-muted",
                         runs === 3 &&
-                          "shadow-2xs border-orange-500/40 bg-orange-500/10 text-orange-950 hover:bg-orange-500/20 dark:border-orange-500/40 dark:bg-orange-500/15 dark:text-orange-100 dark:hover:bg-orange-500/25",
+                          "border-border bg-background text-foreground hover:bg-muted",
                         isFive &&
-                          "shadow-2xs border-sky-500/40 bg-sky-500/10 text-sky-950 hover:bg-sky-500/20 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-100 dark:hover:bg-sky-500/25",
+                          "border-border bg-background text-foreground hover:bg-muted",
                         isFour &&
-                          "border-emerald-500/60 bg-emerald-500/15 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 hover:bg-emerald-500/25 dark:border-emerald-500/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.35),0_0_16px_-3px_rgba(16,185,129,0.35)] dark:ring-0 dark:hover:bg-emerald-900/60",
+                          "border-emerald-600/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60",
                         isSix &&
-                          "border-purple-500/60 bg-purple-500/15 text-purple-700 shadow-md ring-2 ring-purple-500/20 hover:bg-purple-500/25 dark:border-purple-500/60 dark:bg-purple-950/60 dark:text-purple-300 dark:shadow-[inset_0_1px_0_0_rgba(192,132,252,0.35),0_0_16px_-3px_rgba(168,85,247,0.35)] dark:ring-0 dark:hover:bg-purple-900/60",
+                          "border-purple-600/60 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 dark:bg-purple-950/60 dark:text-purple-300 dark:hover:bg-purple-900/60",
                       ),
                 )}
                 onClick={() => handleRunClick(runs)}
@@ -628,7 +624,7 @@ export function ScoringPanel({
                 {subLabel && (
                   <span
                     className={cn(
-                      "mt-1 font-sans text-[9px] font-black leading-none tracking-wider sm:text-[11px]",
+                      "mt-1 font-sans text-[9px] font-semibold leading-none sm:text-[11px]",
                       sunlightMode
                         ? isFour || isSix
                           ? "text-white"
@@ -637,11 +633,9 @@ export function ScoringPanel({
                           ? "text-emerald-600 dark:text-emerald-400"
                           : runs === 6
                             ? "text-purple-600 dark:text-purple-400"
-                            : runs === 5
-                              ? "text-sky-600 dark:text-sky-400"
-                              : selectedExtra
-                                ? "font-extrabold text-amber-700 dark:text-amber-300"
-                                : "text-muted-foreground",
+                            : selectedExtra
+                              ? "text-amber-700 dark:text-amber-300"
+                              : "text-muted-foreground",
                     )}
                   >
                     {subLabel}
@@ -659,18 +653,18 @@ export function ScoringPanel({
             title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
             onClick={() => setShowMoreRuns((prev) => !prev)}
             className={cn(
-              "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
+              "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
               sunlightMode
                 ? showMoreRuns
                   ? "border-2 border-black bg-black text-white shadow-none"
                   : "border-2 border-black bg-white text-black shadow-none hover:bg-neutral-100"
                 : showMoreRuns
-                  ? "border-primary bg-primary/15 text-primary shadow-sm"
-                  : "border-border/80 bg-background/80 text-muted-foreground shadow-sm hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/80 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
+                  ? "border-primary bg-primary/15 text-primary"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <span className="text-base font-black leading-none sm:text-lg">
-              +More
+            <span className="text-base font-semibold leading-none sm:text-lg">
+              More
             </span>
             <span className="mt-1 font-sans text-[9px] font-bold leading-none text-muted-foreground sm:text-[10px]">
               7–13+
@@ -683,7 +677,7 @@ export function ScoringPanel({
           <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:border-border/80 dark:bg-card/90">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-foreground">
-                High Runs / Extras (7 to 13+):
+                High runs / extras (7 to 13+)
               </span>
               <button
                 type="button"
@@ -760,14 +754,14 @@ export function ScoringPanel({
               aria-pressed={selectedExtra === type}
               aria-label={label}
               className={cn(
-                "h-10 rounded-lg text-[11px] font-bold transition-colors active:scale-95 disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
+                "h-10 rounded-lg text-[11px] font-semibold transition-colors disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
                 sunlightMode
                   ? selectedExtra === type
-                    ? "border-2 border-black bg-black font-black text-white shadow-none"
-                    : "border-2 border-black bg-white font-black text-black shadow-none hover:bg-neutral-100"
+                    ? "border-2 border-black bg-black font-bold text-white shadow-none"
+                    : "border-2 border-black bg-white font-bold text-black shadow-none hover:bg-neutral-100"
                   : selectedExtra === type
-                    ? `${activeClass} border-transparent font-black shadow-md`
-                    : "border border-border/80 bg-background/80 text-foreground shadow-sm hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] dark:hover:bg-muted/80",
+                    ? `${activeClass} border-transparent font-bold`
+                    : "border border-border bg-background text-foreground hover:bg-muted",
               )}
             >
               <span className="sm:hidden" aria-hidden="true">
@@ -793,10 +787,10 @@ export function ScoringPanel({
             variant="destructive"
             size="lg"
             className={cn(
-              "h-11 gap-1.5 rounded-xl text-xs font-black tracking-wider shadow-sm sm:h-12 sm:gap-2 sm:rounded-2xl sm:text-sm",
+              "h-11 gap-1.5 rounded-xl text-sm font-semibold sm:h-12 sm:gap-2 sm:rounded-2xl sm:text-sm",
               sunlightMode
-                ? "border-2 border-black bg-red-600 font-black text-white shadow-none hover:bg-red-700"
-                : "dark:border dark:border-rose-500/60 dark:bg-rose-950/70 dark:text-rose-100 dark:shadow-[inset_0_1px_0_0_rgba(244,63,94,0.35),0_0_16px_-4px_rgba(244,63,94,0.35)] dark:hover:bg-rose-900/80",
+                ? "border-2 border-black bg-red-600 font-bold text-white shadow-none hover:bg-red-700"
+                : "",
             )}
             onClick={() => {
               hapticWicket();
@@ -812,9 +806,8 @@ export function ScoringPanel({
                 : "Wicket dismissal (W)"
             }
           >
-            <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span aria-hidden="true">
-              WICKET<span className="hidden sm:inline"> (W)</span>
+              Wicket<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
                 <span className="ml-1 text-[10px] font-bold tracking-normal text-amber-200">
                   (Run Out)
@@ -836,15 +829,15 @@ export function ScoringPanel({
               title="Undo last ball (U)"
               aria-label="Undo last ball"
               className={cn(
-                "h-11 gap-1.5 rounded-xl border-2 px-2 text-xs font-black tracking-wide sm:h-12 sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-sm",
+                "h-11 gap-1.5 rounded-xl border-2 px-2 text-sm font-semibold sm:h-12 sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-sm",
                 sunlightMode
                   ? "border-black bg-white text-black hover:bg-neutral-100"
-                  : "border-border/80 bg-background/80 text-foreground hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] dark:hover:bg-muted/80",
+                  : "border-border bg-background text-foreground hover:bg-muted",
               )}
             >
               <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span aria-hidden="true">
-                UNDO<span className="hidden sm:inline"> (U)</span>
+                Undo<span className="hidden sm:inline"> (U)</span>
               </span>
             </Button>
           )}
@@ -867,11 +860,9 @@ export function ScoringPanel({
           <DialogContent className="max-w-md rounded-3xl p-4 sm:p-6">
             <DialogHeader className="text-center sm:text-center">
               <div className="mx-auto flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                  <Compass className="h-4 w-4" />
-                </span>
-                <DialogTitle className="text-lg font-black tracking-tight">
-                  Select Shot Direction
+                <Compass className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <DialogTitle className="text-lg font-semibold">
+                  Select shot direction
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground">
@@ -883,9 +874,9 @@ export function ScoringPanel({
             {/* Pending Delivery Badge */}
             {pendingScore && (
               <div className="flex items-center justify-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-score text-sm font-extrabold text-emerald-800 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 font-score text-sm font-semibold tabular-nums text-foreground">
                   {pendingScore.extraType && (
-                    <span className="uppercase text-amber-600 dark:text-amber-400">
+                    <span className="capitalize text-amber-700 dark:text-amber-400">
                       {pendingScore.extraType.replace("_", " ")} +
                     </span>
                   )}
@@ -895,13 +886,13 @@ export function ScoringPanel({
                       : `${pendingScore.rawRuns} ${pendingScore.rawRuns === 1 ? "Run" : "Runs"}`}
                   </span>
                   {pendingScore.rawRuns === 4 && (
-                    <span className="inline-flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400">
-                      <Flame className="h-3.5 w-3.5" /> FOUR
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                      · Four
                     </span>
                   )}
                   {pendingScore.rawRuns === 6 && (
-                    <span className="inline-flex items-center gap-1 font-bold text-purple-600 dark:text-purple-400">
-                      <Sparkles className="h-3.5 w-3.5" /> MAX
+                    <span className="font-semibold text-purple-700 dark:text-purple-400">
+                      · Six
                     </span>
                   )}
                 </span>
@@ -928,7 +919,7 @@ export function ScoringPanel({
                 onClick={handleCancelModal}
                 className="text-xs text-muted-foreground hover:text-destructive"
               >
-                Cancel Delivery (Discard)
+                Discard delivery
               </Button>
               <Button
                 type="button"
@@ -937,7 +928,7 @@ export function ScoringPanel({
                 onClick={handleSkipZone}
                 className="w-full text-xs font-bold sm:w-auto"
               >
-                Skip (Score without zone)
+                Skip (score without zone)
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -948,13 +939,13 @@ export function ScoringPanel({
           <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">
             <DialogHeader>
               <div className="flex items-center gap-2">
-                <Keyboard className="h-5 w-5 text-emerald-500" />
-                <DialogTitle className="text-lg font-black">
-                  Keyboard Rapid-Scoring
+                <Keyboard className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                <DialogTitle className="text-lg font-semibold">
+                  Keyboard shortcuts
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground">
-                Desktop hotkeys for high-speed, zero-mouse scoring.
+                Score from the keyboard on desktop.
               </DialogDescription>
             </DialogHeader>
 
@@ -994,7 +985,7 @@ export function ScoringPanel({
                 onClick={() => setShowShortcutsHelp(false)}
                 className="w-full text-xs font-bold"
               >
-                Got it (Press ? anytime)
+                Got it (press ? anytime)
               </Button>
             </DialogFooter>
           </DialogContent>

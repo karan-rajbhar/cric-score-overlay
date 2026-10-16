@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Sliders, ShieldAlert, Sparkles } from "lucide-react";
+import { Sliders, ShieldAlert } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import type { MatchSettingsUpdate } from "~/app/matches/mutations";
 
@@ -115,7 +115,7 @@ function MatchSettingsForm({
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Sliders className="h-4 w-4" />
           </span>
-          <DialogTitle className="text-lg font-bold">
+          <DialogTitle className="text-lg font-semibold">
             Match Settings & Rules
           </DialogTitle>
         </div>
@@ -305,9 +305,8 @@ function MatchSettingsForm({
 
         {/* Custom Extras Crediting Rules */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Local / Box Cricket Extras Rules</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span>Local / box cricket extras</span>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -376,9 +375,8 @@ function MatchSettingsForm({
 
         {/* Special Stumps Rules Options */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span>Special Rules</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span>Special rules</span>
           </div>
 
           <div className="flex items-center justify-between gap-2">

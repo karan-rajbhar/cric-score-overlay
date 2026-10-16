@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
-import { Loader2, Sparkles, Zap } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
 import { teamName, formatDismissalType, formatExtraType } from "~/lib/cricket";
@@ -39,11 +39,11 @@ export function MatchBalls({ match }: MatchBallsProps) {
 
   const getBallClass = (ball: Ball) => {
     if (ball.is_wicket)
-      return "bg-red-600 text-white font-black shadow-sm ring-1 ring-red-400";
+      return "bg-red-600 text-white font-bold";
     if (ball.runs_scored === 6)
-      return "bg-purple-600 text-white font-black shadow-sm ring-1 ring-purple-400";
+      return "bg-purple-600 text-white font-bold";
     if (ball.runs_scored === 4)
-      return "bg-emerald-600 text-white font-black shadow-sm ring-1 ring-emerald-400";
+      return "bg-emerald-600 text-white font-bold";
     if (ball.extra_type)
       return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border border-amber-500/40 font-bold";
     if (ball.runs_scored > 0)
@@ -110,25 +110,23 @@ export function MatchBalls({ match }: MatchBallsProps) {
       <div className="mb-4 flex flex-wrap gap-2">
         <Badge
           variant={filter === "all" ? "default" : "outline"}
-          className="cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
+          className="cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
           onClick={() => setFilter("all")}
         >
-          All Deliveries
+          All deliveries
         </Badge>
         <Badge
           variant={filter === "boundaries" ? "magenta" : "outline"}
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
           onClick={() => setFilter("boundaries")}
         >
-          <Sparkles className="h-3.5 w-3.5 shrink-0" />
           Boundaries (4s &amp; 6s)
         </Badge>
         <Badge
           variant={filter === "wickets" ? "destructive" : "outline"}
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-bold shadow-sm transition-all active:scale-95"
+          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
           onClick={() => setFilter("wickets")}
         >
-          <Zap className="h-3.5 w-3.5 shrink-0" />
           Wickets
         </Badge>
       </div>
@@ -176,11 +174,10 @@ export function MatchBalls({ match }: MatchBallsProps) {
                 <div className="space-y-4">
                   {/* Innings Header */}
                   <Card className="overflow-hidden border-border bg-card">
-                    <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
                     <CardContent className="py-3 px-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
                             {teamName(match, innings.team_id).slice(0, 2)}
                           </div>
                           <span className="font-semibold text-foreground text-sm sm:text-base">
@@ -237,7 +234,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                 <div
                                   key={ball.id}
                                   className={cn(
-                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0 transition-transform hover:scale-105",
+                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0",
                                     getBallClass(ball),
                                   )}
                                   title={`${ball.batsman?.full_name} vs ${ball.bowler?.full_name}${
@@ -274,11 +271,11 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                       className={cn(
                                         "font-bold text-xs sm:text-sm",
                                         ball.is_wicket &&
-                                          "font-black text-red-600 dark:text-red-400",
+                                          "font-bold text-red-600 dark:text-red-400",
                                         ball.runs_scored === 6 &&
-                                          "font-black text-purple-600 dark:text-purple-400",
+                                          "font-bold text-purple-600 dark:text-purple-400",
                                         ball.runs_scored === 4 &&
-                                          "font-black text-emerald-600 dark:text-emerald-400",
+                                          "font-bold text-emerald-600 dark:text-emerald-400",
                                       )}
                                     >
                                       {ball.is_wicket

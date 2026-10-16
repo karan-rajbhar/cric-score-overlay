@@ -94,7 +94,7 @@ export function PenaltyBonusDialog({
                   <Award className="h-4 w-4" />
                 )}
               </span>
-              <DialogTitle className="text-lg font-bold">
+              <DialogTitle className="text-lg font-semibold">
                 Award Penalty or Bonus Runs
               </DialogTitle>
             </div>

@@ -17,7 +17,6 @@ import {
   Shield,
   Plus,
   Award,
-  Sparkles,
   BarChart3,
 } from "lucide-react";
 import { ClubMembershipButton } from "~/components/clubs/club-membership-button";
@@ -367,7 +366,7 @@ export default async function ClubPage({
       </Button>
 
       {/* Club Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/90 to-primary/10 p-4 shadow-sm sm:p-6 md:p-8">
+      <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-6 md:p-8">
         {club.banner_url && (
           <div
             className="absolute inset-0 bg-cover bg-center opacity-25 dark:opacity-20 pointer-events-none"
@@ -421,7 +420,7 @@ export default async function ClubPage({
                 ))}
               </div>
 
-              <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
+              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight">
                 {club.name}
               </h1>
 
@@ -434,19 +433,19 @@ export default async function ClubPage({
               <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
                 {club.location && (
                   <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <MapPin className="h-3.5 w-3.5 shrink-0" />
                     <span>{club.location}</span>
                   </div>
                 )}
                 {club.contact_email && (
                   <div className="flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
                     <span>{club.contact_email}</span>
                   </div>
                 )}
                 {club.contact_phone && (
                   <div className="flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <Phone className="h-3.5 w-3.5 shrink-0" />
                     <span>{club.contact_phone}</span>
                   </div>
                 )}
@@ -461,7 +460,7 @@ export default async function ClubPage({
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 hover:text-foreground"
                   >
-                    <Globe className="h-3.5 w-3.5 shrink-0 text-primary" />
+                    <Globe className="h-3.5 w-3.5 shrink-0" />
                     <span>Website</span>
                   </a>
                 )}
@@ -474,7 +473,7 @@ export default async function ClubPage({
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sky-400 hover:text-sky-300"
+                    className="flex items-center gap-1 hover:text-foreground"
                   >
                     <span>X / Twitter</span>
                   </a>
@@ -539,14 +538,13 @@ export default async function ClubPage({
                   className="w-full gap-1.5 sm:w-auto"
                 >
                   <Link href={`/tournaments/create?clubId=${club.id}`}>
-                    <Trophy className="h-4 w-4 shrink-0" />
-                    Host Tournament
+                    New tournament
                   </Link>
                 </Button>
                 <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                   <Link href={`/teams/create?clubId=${club.id}`}>
                     <Plus className="h-4 w-4 shrink-0" />
-                    Create Club Team
+                    New team
                   </Link>
                 </Button>
               </>
@@ -645,7 +643,7 @@ export default async function ClubPage({
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold">Club Squads & Teams</h2>
+              <h2 className="text-lg font-semibold">Teams</h2>
               <p className="text-xs text-muted-foreground">
                 Teams representing {club.name} in leagues and friendly matches.
               </p>
@@ -663,12 +661,12 @@ export default async function ClubPage({
           {typedTeams.length === 0 ? (
             <EmptyState
               icon={Shield}
-              title="No Teams Registered Yet"
-              description="Create the club's first playing squad to start organizing fixtures and player statistics."
+              title="No teams yet"
+              description="Add a team to start scheduling matches and tracking player stats."
               primaryAction={
                 isAdmin
                   ? {
-                      label: "Create Club Team",
+                      label: "New team",
                       href: `/teams/create?clubId=${club.id}`,
                       icon: Plus,
                     }
@@ -752,20 +750,10 @@ export default async function ClubPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold sm:text-lg">
-                  Club Hall of Fame
-                </h2>
-                <Badge
-                  variant="secondary"
-                  className="border-amber-500/20 bg-amber-500/10 text-xs text-amber-500"
-                >
-                  <Sparkles className="mr-1 h-3 w-3 shrink-0" />
-                  Honors & Legends
-                </Badge>
+                <h2 className="text-lg font-semibold">Hall of Fame</h2>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Immortalizing the finest players, record holders, and historic
-                champions of {club.name}.
+                Honours, records and champions of {club.name}.
               </p>
             </div>
             {isAdmin && (
@@ -774,15 +762,14 @@ export default async function ClubPage({
           </div>
 
           {typedHallOfFame.length === 0 ? (
-            <Card className="border-dashed border-amber-500/20 bg-amber-500/5">
+            <Card className="border-dashed">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                <Trophy className="mx-auto mb-3 h-12 w-12 text-amber-500/50" />
                 <h3 className="mb-1 text-base font-semibold text-foreground">
-                  No legends inducted yet
+                  No Hall of Fame entries yet
                 </h3>
                 <p className="mx-auto mb-4 max-w-sm text-xs">
-                  Honor outstanding performers, centurions, and club stalwarts
-                  into the permanent Hall of Fame.
+                  Admins can add players to recognise records, titles and long
+                  service.
                 </p>
                 {isAdmin && (
                   <HallOfFameDialog
@@ -795,33 +782,14 @@ export default async function ClubPage({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {typedHallOfFame.map((entry) => {
-                const categoryColors: Record<string, string> = {
-                  legend: "border-amber-500/30 bg-amber-500/5 text-amber-400",
-                  top_scorer:
-                    "border-emerald-500/30 bg-emerald-500/5 text-emerald-400",
-                  top_wicket_taker:
-                    "border-sky-500/30 bg-sky-500/5 text-sky-400",
-                  champion:
-                    "border-purple-500/30 bg-purple-500/5 text-purple-400",
-                  record: "border-rose-500/30 bg-rose-500/5 text-rose-400",
-                };
-                const badgeColor =
-                  categoryColors[entry.category] ?? categoryColors.legend;
-
                 return (
-                  <Card
-                    key={entry.id}
-                    className="relative overflow-hidden border-amber-500/20 bg-gradient-to-b from-card to-amber-950/10 shadow-sm transition-all hover:border-amber-500/50"
-                  >
-                    <div className="pointer-events-none absolute right-3 top-3 text-amber-400 opacity-10">
-                      <Trophy className="h-24 w-24" />
-                    </div>
-                    <CardContent className="relative z-10 flex h-full flex-col justify-between space-y-4 p-5">
+                  <Card key={entry.id}>
+                    <CardContent className="flex h-full flex-col justify-between space-y-4 p-5">
                       <div>
                         <div className="mb-3 flex items-center justify-between gap-2">
                           <Badge
                             variant="outline"
-                            className={`text-xs font-medium capitalize ${badgeColor}`}
+                            className="text-xs font-medium capitalize"
                           >
                             {entry.category.replace(/_/g, " ")}
                           </Badge>
@@ -844,21 +812,21 @@ export default async function ClubPage({
                         </div>
 
                         <div className="mb-3 flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-amber-500/30 bg-amber-500/20 text-sm font-bold text-amber-400 shadow-inner">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted text-sm font-semibold text-muted-foreground">
                             {(entry.player?.full_name ?? "L")[0]?.toUpperCase()}
                           </div>
                           <div>
-                            <h3 className="text-base font-bold leading-tight text-foreground">
+                            <h3 className="text-base font-semibold leading-tight text-foreground">
                               {entry.player?.full_name ?? "Honored Member"}
                             </h3>
-                            <p className="text-xs font-medium text-amber-500">
+                            <p className="text-xs font-medium text-muted-foreground">
                               {entry.title}
                             </p>
                           </div>
                         </div>
 
                         {entry.record_metric && (
-                          <div className="mb-3 inline-block rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 font-mono text-xs font-semibold text-amber-300">
+                          <div className="mb-3 inline-block rounded-md border border-border bg-muted px-3 py-1.5 font-mono text-xs font-semibold tabular-nums text-foreground">
                             {entry.record_metric}
                           </div>
                         )}
@@ -871,7 +839,7 @@ export default async function ClubPage({
                       </div>
 
                       <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px] text-muted-foreground">
-                        <span>Hall of Fame Inductee</span>
+                        <span>Inducted</span>
                         {entry.inducted_at && (
                           <span>
                             {new Date(entry.inducted_at).toLocaleDateString()}
@@ -890,8 +858,8 @@ export default async function ClubPage({
         <TabsContent value="members" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold sm:text-lg">
-                Club Members & Staff
+              <h2 className="text-lg font-semibold">
+                Members
               </h2>
               <p className="text-xs text-muted-foreground">
                 Owners, administrators, coaches, and registered players.

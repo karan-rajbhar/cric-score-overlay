@@ -25,7 +25,7 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   title: "CricScore — Live Cricket Scoring & Overlay",
   description:
-    "Professional cricket match scoring and club management platform with real-time updates",
+    "Ball-by-ball cricket scoring, live scorecards and club tournaments.",
   icons: [{ rel: "icon", url: "/favicon.ico" }],
   keywords: "cricket, scoring, live, management, tournament, OBS, streaming",
   authors: [{ name: "CricScore" }],

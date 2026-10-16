@@ -108,7 +108,7 @@ export function MatchCard({
       className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       aria-label={`${match.team1.name} versus ${match.team2.name}, ${formatStatus(match.status)}`}
     >
-      <Card className="card-data overflow-hidden transition-colors duration-150 group-hover:border-primary/40 group-hover:shadow-md">
+      <Card className="card-data overflow-hidden transition-colors duration-150 group-hover:border-primary/40">
         <CardContent className="p-0">
           {/* Meta strip */}
           <div className="flex items-center justify-between border-b border-border/80 px-4 py-2.5">

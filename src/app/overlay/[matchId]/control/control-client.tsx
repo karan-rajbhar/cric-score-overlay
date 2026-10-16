@@ -34,11 +34,6 @@ import {
   DialogDescription,
 } from "~/components/ui/dialog";
 import {
-  Zap,
-  Flame,
-  AlertOctagon,
-  Trophy,
-  ShieldAlert,
   Copy,
   Check,
   ExternalLink,
@@ -46,16 +41,11 @@ import {
   XCircle,
   Volume2,
   VolumeX,
-  Activity,
   Send,
   SlidersHorizontal,
-  Landmark,
-  Tv,
   Undo2,
   RotateCcw,
   Keyboard,
-  Radio,
-  Sparkles,
   Users,
   Layers,
   BarChart3,
@@ -83,80 +73,80 @@ const THEME_OPTIONS: Array<{
   {
     id: "starsports",
     label: "Star Sports",
-    desc: "IPL Gold & Blue",
-    swatch: "from-amber-400 to-blue-600",
+    desc: "Blue and gold",
+    swatch: "bg-amber-400",
   },
   {
     id: "sonysports",
     label: "Sony Sports",
-    desc: "LIV Crimson Red",
-    swatch: "from-red-600 to-rose-950",
+    desc: "Red",
+    swatch: "bg-red-600",
   },
   {
     id: "foxcricket",
     label: "Fox Cricket",
-    desc: "Aussie BBL Orange",
-    swatch: "from-amber-500 to-orange-600",
+    desc: "Orange",
+    swatch: "bg-amber-500",
   },
   {
     id: "apex",
-    label: "Apex 24K",
-    desc: "Mirror Gold",
-    swatch: "from-yellow-300 via-amber-400 to-yellow-600",
+    label: "Apex",
+    desc: "Gold",
+    swatch: "bg-yellow-300",
   },
   {
     id: "volt",
-    label: "Volt Tech",
-    desc: "Cyber Lime",
-    swatch: "from-lime-400 to-emerald-500",
+    label: "Volt",
+    desc: "Lime",
+    swatch: "bg-lime-400",
   },
   {
     id: "agni",
-    label: "Agni Inferno",
-    desc: "Volcanic Magma",
-    swatch: "from-orange-500 to-red-600",
+    label: "Agni",
+    desc: "Orange and red",
+    swatch: "bg-orange-500",
   },
   {
     id: "skysports",
     label: "Sky Sports",
-    desc: "Ashes Red & Navy",
-    swatch: "from-red-600 to-blue-900",
+    desc: "Red and navy",
+    swatch: "bg-red-600",
   },
   {
     id: "thehundred",
     label: "The Hundred",
-    desc: "Hot Pink & Cyan",
-    swatch: "from-pink-500 to-cyan-400",
+    desc: "Pink and cyan",
+    swatch: "bg-pink-500",
   },
   {
     id: "dharma",
     label: "Dharma",
-    desc: "Royal Vedic Gold",
-    swatch: "from-amber-500 to-orange-700",
+    desc: "Maroon and gold",
+    swatch: "bg-amber-500",
   },
   {
     id: "thunder",
     label: "Thunder",
-    desc: "Electric Cyan & Indigo",
-    swatch: "from-cyan-400 to-indigo-600",
+    desc: "Cyan and indigo",
+    swatch: "bg-cyan-400",
   },
   {
     id: "nakshatra",
     label: "Nakshatra",
-    desc: "Cosmic Purple & Gold",
-    swatch: "from-purple-500 to-amber-400",
+    desc: "Purple and gold",
+    swatch: "bg-purple-500",
   },
   {
     id: "emerald",
     label: "Emerald",
-    desc: "Pitch Green & Gold",
-    swatch: "from-emerald-500 to-green-800",
+    desc: "Green and gold",
+    swatch: "bg-emerald-500",
   },
   {
     id: "dark",
-    label: "Dark Titanium",
-    desc: "Carbon Titanium",
-    swatch: "from-zinc-700 to-neutral-900",
+    label: "Dark",
+    desc: "Neutral dark",
+    swatch: "bg-zinc-700",
   },
 ];
 
@@ -170,7 +160,7 @@ const GRAPHIC_PHASE_DECKS: Array<{
 }> = [
   {
     id: "scorebars",
-    name: "Live Scorebars",
+    name: "Live scorebars",
     description: "In-play broadcast bugs anchored at the bottom of the feed",
     icon: Layers,
     views: [
@@ -203,7 +193,7 @@ const GRAPHIC_PHASE_DECKS: Array<{
   },
   {
     id: "scorecards",
-    name: "Scorecards & Squads",
+    name: "Scorecards & squads",
     description: "Full-screen cards during fall of wickets or extended pauses",
     icon: Users,
     views: [
@@ -246,7 +236,7 @@ const GRAPHIC_PHASE_DECKS: Array<{
   },
   {
     id: "breaks",
-    name: "Breaks & Stoppages",
+    name: "Breaks & stoppages",
     description: "Full presentation screens for toss, innings break & weather",
     icon: Calendar,
     views: [
@@ -274,7 +264,7 @@ const GRAPHIC_PHASE_DECKS: Array<{
   },
   {
     id: "analytics",
-    name: "Analytics & Charts",
+    name: "Analytics & charts",
     description: "In-depth graphs, match trends & tournament honours",
     icon: BarChart3,
     views: [
@@ -321,32 +311,32 @@ const GRAPHIC_PHASE_DECKS: Array<{
 const NOTICE_PRESETS = [
   {
     id: "drinks",
-    label: "DRINKS BREAK",
+    label: "Drinks break",
     text: "Drinks break in progress · Play resumes shortly",
   },
   {
     id: "rain",
-    label: "RAIN DELAY",
+    label: "Rain delay",
     text: "Rain stopped play · Ground staff covering the pitch",
   },
   {
     id: "timeout",
-    label: "STRATEGIC TIMEOUT",
+    label: "Strategic timeout",
     text: "2.5-minute strategic tactical timeout underway",
   },
   {
     id: "innings",
-    label: "INNINGS BREAK",
+    label: "Innings break",
     text: "Change of innings in progress · Pitch preparation underway",
   },
   {
     id: "drs",
-    label: "DRS REVIEW",
+    label: "DRS review",
     text: "Decision review in progress · Third umpire reviewing ball trajectory",
   },
   {
     id: "inspection",
-    label: "PITCH INSPECTION",
+    label: "Pitch inspection",
     text: "Next official umpires inspection scheduled in 15 minutes",
   },
 ];
@@ -490,8 +480,14 @@ export function ControlClient({
       type: "SET_BROADCAST_VIEW",
       broadcastView: "1",
     });
-    setLastAction("Live Scorebar On-Air (Scoreboard safe)");
-  }, [sendCommand, setActiveSting, setActiveStrap, setLastAction, setSelectedBroadcastView]);
+    setLastAction("Scorebar on air");
+  }, [
+    sendCommand,
+    setActiveSting,
+    setActiveStrap,
+    setLastAction,
+    setSelectedBroadcastView,
+  ]);
 
   // Switch broadcast view
   const handleSelectBroadcastView = useCallback(
@@ -520,22 +516,22 @@ export function ControlClient({
       }
 
       const titles: Record<string, string> = {
-        four: "FOUR!",
-        six: "MAXIMUM!",
-        wicket: "WICKET!",
-        milestone: "50 / 100",
-        free_hit: "FREE HIT",
+        four: "Four",
+        six: "Six",
+        wicket: "Wicket",
+        milestone: "Milestone",
+        free_hit: "Free hit",
       };
 
       const stingId = `sting-${Date.now()}`;
       const sting: ActiveEventSting = {
         id: stingId,
         type: stingType,
-        title: titles[stingType] ?? "BOUNDARY!",
+        title: titles[stingType] ?? "Boundary",
         subtitle:
           activeState.batting_team_short_name ??
           activeState.batting_team_name ??
-          "LIVE EVENT",
+          "Live",
         detail: activeState.striker_name
           ? `${activeState.striker_name} · ${activeState.striker_runs ?? 0} (${activeState.striker_balls ?? 0}b)`
           : undefined,
@@ -548,7 +544,7 @@ export function ControlClient({
       }, 4000);
 
       sendCommand({ type: "TRIGGER_STING", stingType });
-      setLastAction(`Fired Sting: ${titles[stingType]}`);
+      setLastAction(`Event card: ${titles[stingType]}`);
     },
     [activeState, audioEnabled, sendCommand, setActiveSting, setLastAction],
   );
@@ -562,7 +558,7 @@ export function ControlClient({
       let badge = "";
 
       if (type === "batsman") {
-        badge = "BATSMAN STATS";
+        badge = "Batter";
         title = activeState.striker_name ?? "Striker";
         subtitle = `${activeState.striker_runs ?? 0} runs off ${activeState.striker_balls ?? 0} balls`;
         const sr =
@@ -572,9 +568,9 @@ export function ControlClient({
                 100
               ).toFixed(1)
             : "0.0";
-        detail = `Strike Rate: ${sr}`;
+        detail = `Strike rate: ${sr}`;
       } else if (type === "bowler") {
-        badge = "BOWLER STATS";
+        badge = "Bowler";
         title = activeState.current_bowler_name ?? "Bowler";
         subtitle = `${activeState.bowler_wickets ?? 0}/${activeState.bowler_runs ?? 0} (${activeState.bowler_balls ? Math.floor(activeState.bowler_balls / 6) + "." + (activeState.bowler_balls % 6) : "0.0"} ov)`;
         const econ =
@@ -586,13 +582,13 @@ export function ControlClient({
             : "0.00";
         detail = `Economy: ${econ}`;
       } else if (type === "partnership") {
-        badge = "CURRENT PARTNERSHIP";
-        title = `${activeState.partnership_runs ?? 0} RUNS`;
+        badge = "Partnership";
+        title = `${activeState.partnership_runs ?? 0} runs`;
         subtitle = `${activeState.striker_name ?? "Batsman 1"} & ${activeState.non_striker_name ?? "Batsman 2"}`;
         detail = `${activeState.partnership_balls ?? 0} balls faced`;
       } else if (type === "target") {
-        badge = "TARGET REQUIREMENT";
-        title = `TARGET: ${activeState.target_runs ?? 0}`;
+        badge = "Chase";
+        title = `Target: ${activeState.target_runs ?? 0}`;
         subtitle = `Need ${activeState.runs_needed ?? 0} runs off ${activeState.balls_remaining ?? 0} balls`;
         detail = `Req RR: ${activeState.required_run_rate ?? "0.00"}`;
       }
@@ -614,9 +610,15 @@ export function ControlClient({
       }, strapDurationSecs * 1000);
 
       sendCommand({ type: "SHOW_STRAP", strap });
-      setLastAction(`Lower Third: ${badge}`);
+      setLastAction(`Lower third: ${badge}`);
     },
-    [activeState, sendCommand, setActiveStrap, setLastAction, strapDurationSecs],
+    [
+      activeState,
+      sendCommand,
+      setActiveStrap,
+      setLastAction,
+      strapDurationSecs,
+    ],
   );
 
   // Trigger custom alert strap
@@ -628,9 +630,9 @@ export function ControlClient({
       const strap: ActiveLowerThirdStrap = {
         id: strapId,
         type: "custom",
-        title: "OFFICIAL MATCH NOTICE",
+        title: "Match notice",
         subtitle: text,
-        badge: "LIVE NOTICE",
+        badge: "Notice",
         durationMs: strapDurationSecs * 1000,
       };
       setActiveStrap(strap);
@@ -639,7 +641,7 @@ export function ControlClient({
       }, strapDurationSecs * 1000);
 
       sendCommand({ type: "SHOW_STRAP", strap });
-      setLastAction(`Broadcast Alert: "${text}"`);
+      setLastAction(`Notice: "${text}"`);
       if (!customText) setCustomStrapText("");
     },
     [
@@ -656,7 +658,7 @@ export function ControlClient({
   const handlePanicClear = useCallback(() => {
     handleReturnToScorebar();
     sendCommand({ type: "PANIC_CLEAR" });
-    setLastAction("Cleared all active graphics (Safety Cut)");
+    setLastAction("Cleared all graphics");
   }, [handleReturnToScorebar, sendCommand, setLastAction]);
 
   // Global keyboard shortcuts for live operators
@@ -700,25 +702,21 @@ export function ControlClient({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    handleTriggerSting,
-    handleReturnToScorebar,
-    handleTriggerStrap,
-  ]);
+  }, [handleTriggerSting, handleReturnToScorebar, handleTriggerStrap]);
 
   // Audio toggle
   const handleToggleAudio = () => {
     const next = !audioEnabled;
     setAudioEnabled(next);
     sendCommand({ type: "TOGGLE_AUDIO", audioEnabled: next });
-    setLastAction(next ? "SFX Audio Enabled" : "SFX Audio Muted");
+    setLastAction(next ? "Sound on" : "Sound off");
   };
 
   // Theme selector
   const handleSelectTheme = (thm: OverlayTheme) => {
     setSelectedTheme(thm);
     sendCommand({ type: "SET_THEME", theme: thm });
-    setLastAction(`Broadcast Theme: ${thm.toUpperCase()}`);
+    setLastAction(`Theme: ${thm}`);
   };
 
   // Margin offset
@@ -740,7 +738,7 @@ export function ControlClient({
       await navigator.clipboard.writeText(fullUrl);
       setCopiedObsUrl(true);
       setTimeout(() => setCopiedObsUrl(false), 2500);
-      setLastAction("Copied OBS Browser Source URL!");
+      setLastAction("Copied OBS browser source URL");
     } catch {
       // fallback
     }
@@ -784,7 +782,7 @@ export function ControlClient({
       };
     });
     setLastAction(
-      `Simulator: ${isWicket ? "WICKET!" : `+${runsDelta} Runs`} (Score: ${(activeState.total_runs ?? 0) + runsDelta}/${(activeState.total_wickets ?? 0) + (isWicket ? 1 : 0)})`,
+      `Simulator: ${isWicket ? "Wicket" : `+${runsDelta} runs`} (Score: ${(activeState.total_runs ?? 0) + runsDelta}/${(activeState.total_wickets ?? 0) + (isWicket ? 1 : 0)})`,
     );
   };
 
@@ -802,7 +800,7 @@ export function ControlClient({
         non_striker_balls: curr.striker_balls,
       };
     });
-    setLastAction("Simulator: Rotated Strike");
+    setLastAction("Simulator: rotated strike");
   };
 
   const currentViewMeta = useMemo(() => {
@@ -822,28 +820,27 @@ export function ControlClient({
   }, [activeDeckTab]);
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#080c14] text-slate-100 selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#080c14] text-slate-100 ">
       {/* ============================================================= */}
       {/* 1. STUDIO HEADER & ON-AIR TALLY BAR                           */}
       {/* ============================================================= */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0f18]/95 px-3 py-2.5 shadow-md backdrop-blur-md sm:px-5 sm:py-3">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0f18] px-3 py-2.5 sm:px-5 sm:py-3">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 sm:gap-4">
           {/* Match & Live Studio Status */}
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            <div className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-600/20 px-2.5 py-1 text-xs font-black tracking-wider text-red-400">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
-              <span>LIVE STUDIO</span>
-            </div>
+            <span className="text-sm font-medium text-slate-400">
+              Control room
+            </span>
 
             <div className="flex items-baseline gap-2">
-              <span className="text-sm font-black tracking-wide text-white">
+              <span className="text-sm font-semibold text-white">
                 {activeState.team1_name ?? activeState.team1_short_name ?? "T1"}{" "}
                 vs{" "}
                 {activeState.team2_name ?? activeState.team2_short_name ?? "T2"}
               </span>
-              <span className="font-mono text-xs font-bold tabular-nums text-amber-400">
-                {activeState.total_runs ?? 0}/{activeState.total_wickets ?? 0}{" "}
-                ({oversText(activeState.total_balls)} ov)
+              <span className="text-xs font-semibold tabular-nums text-slate-300">
+                {activeState.total_runs ?? 0}/{activeState.total_wickets ?? 0} (
+                {oversText(activeState.total_balls)} ov)
               </span>
             </div>
           </div>
@@ -854,21 +851,14 @@ export function ControlClient({
               className={cn(
                 "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition",
                 selectedBroadcastView === "1"
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-amber-500/50 bg-amber-500/20 text-amber-300 ring-2 ring-amber-500/30",
+                  ? "border-white/10 bg-white/5 text-slate-300"
+                  : "border-red-500/40 bg-red-500/10 text-red-200",
               )}
             >
-              <Radio
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0",
-                  selectedBroadcastView === "1"
-                    ? "text-emerald-400"
-                    : "text-amber-400",
-                )}
-              />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
               <span>
-                ON AIR:{" "}
-                <span className="font-black text-white">
+                On air:{" "}
+                <span className="font-semibold text-white">
                   {currentViewMeta.label}
                 </span>
               </span>
@@ -877,12 +867,12 @@ export function ControlClient({
             {selectedBroadcastView !== "1" && (
               <button
                 onClick={handleReturnToScorebar}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-500/50 bg-emerald-600 px-3 py-1.5 text-xs font-black text-white shadow-lg transition hover:bg-emerald-500 active:scale-95"
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white px-3 py-1.5 text-xs font-medium text-black transition-colors hover:bg-white/90"
                 title="Return to Scorebar (Space / Esc)"
               >
                 <Undo2 className="h-3.5 w-3.5 shrink-0" />
-                <span className="hidden sm:inline">Cut to Scorebar</span>
-                <span className="sm:hidden">Cut</span>
+                <span className="hidden sm:inline">Back to scorebar</span>
+                <span className="sm:hidden">Back</span>
               </button>
             )}
           </div>
@@ -903,7 +893,7 @@ export function ControlClient({
                 <Copy className="h-3.5 w-3.5 shrink-0" />
               )}
               <span className="hidden sm:inline">
-                {copiedObsUrl ? "Copied!" : "Copy OBS URL"}
+                {copiedObsUrl ? "Copied" : "Copy OBS URL"}
               </span>
             </button>
 
@@ -923,14 +913,14 @@ export function ControlClient({
               className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               title="Configure Themes, Margins & Audio"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">Settings</span>
             </button>
 
             <button
               onClick={handlePanicClear}
-              className="flex min-h-[36px] items-center gap-1.5 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-black uppercase text-white shadow-md transition hover:bg-red-500 active:scale-95"
-              title="Emergency Clear (Space / Esc)"
+              className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500"
+              title="Clear all graphics"
             >
               <XCircle className="h-3.5 w-3.5 shrink-0" />
               <span className="hidden sm:inline">Clear</span>
@@ -949,7 +939,7 @@ export function ControlClient({
           {/* ========================================================= */}
           <div className="space-y-4 lg:col-span-6 xl:col-span-6">
             {/* 16:9 Live Preview Screen Card */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
               {/* Monitor Titlebar */}
               <div className="flex items-center justify-between border-b border-white/10 pb-2.5 text-xs">
                 <div className="flex items-center gap-2">
@@ -972,12 +962,10 @@ export function ControlClient({
                   >
                     {monitorBg === "stadium" ? (
                       <>
-                        <Landmark className="h-3 w-3 text-emerald-400" />
                         <span>Stadium</span>
                       </>
                     ) : (
                       <>
-                        <Tv className="h-3 w-3 text-amber-400" />
                         <span>Grid</span>
                       </>
                     )}
@@ -988,7 +976,7 @@ export function ControlClient({
                     className={cn(
                       "flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition",
                       audioEnabled
-                        ? "border-amber-500/40 bg-amber-500/20 text-amber-300"
+                        ? "border-white/20 bg-white/10 text-white"
                         : "border-white/10 bg-white/5 text-slate-400",
                     )}
                     title="Toggle celebration sting audio fanfares"
@@ -998,7 +986,7 @@ export function ControlClient({
                     ) : (
                       <VolumeX className="h-3.5 w-3.5" />
                     )}
-                    <span>{audioEnabled ? "SFX On" : "Muted"}</span>
+                    <span>{audioEnabled ? "Sound on" : "Muted"}</span>
                   </button>
                 </div>
               </div>
@@ -1007,17 +995,11 @@ export function ControlClient({
               <div
                 ref={monitorRef}
                 className={cn(
-                  "relative mt-3 aspect-video w-full overflow-hidden rounded-xl border-2 border-white/10 shadow-2xl sm:rounded-2xl",
+                  "relative mt-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10",
                   monitorBg === "stadium"
-                    ? "bg-cover bg-center"
+                    ? "bg-[#0b1220]"
                     : "bg-slate-950 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]",
                 )}
-                style={{
-                  backgroundImage:
-                    monitorBg === "stadium"
-                      ? "radial-gradient(circle at 50% 30%, rgba(30, 58, 138, 0.4) 0%, rgba(2, 6, 23, 0.95) 100%), linear-gradient(180deg, rgba(2, 6, 23, 0.5) 0%, rgba(2, 6, 23, 0.92) 100%)"
-                      : undefined,
-                }}
               >
                 {/* 1920x1080 Scaled Canvas */}
                 <div
@@ -1053,133 +1035,103 @@ export function ControlClient({
               {/* Active Layers Status HUD */}
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/40 px-3 py-2 text-[11px]">
                 <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Layer Stack:</span>
-                  <span className="font-semibold text-emerald-400">
+                  <span className="text-slate-400">Layers:</span>
+                  <span className="font-medium text-slate-200">
                     Base: {currentViewMeta.label}
                   </span>
                   <span className="text-slate-600">•</span>
                   <span
                     className={cn(
                       "font-semibold",
-                      activeStrap ? "text-sky-300" : "text-slate-500",
+                      activeStrap ? "text-slate-200" : "text-slate-500",
                     )}
                   >
-                    Strap: {activeStrap ? activeStrap.badge ?? "Active" : "None"}
+                    Strap:{" "}
+                    {activeStrap ? (activeStrap.badge ?? "Active") : "None"}
                   </span>
                   <span className="text-slate-600">•</span>
                   <span
                     className={cn(
                       "font-semibold",
-                      activeSting ? "text-amber-300" : "text-slate-500",
+                      activeSting ? "text-slate-200" : "text-slate-500",
                     )}
                   >
                     Sting: {activeSting ? activeSting.title : "Idle"}
                   </span>
                 </div>
 
-                <span className="font-mono text-xs font-bold text-slate-400">
-                  {lastAction}
-                </span>
+                <span className="text-xs text-slate-400">{lastAction}</span>
               </div>
             </div>
 
             {/* Stream-Deck Instant Event Celebration Hotdeck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Instant Event Celebration Stings
-                  </span>
-                </div>
+                <h2 className="text-sm font-semibold text-slate-100">
+                  Event cards
+                </h2>
                 <span className="text-[11px] text-slate-400">
                   <span className="hidden sm:inline">Click or use hotkeys</span>
-                  <span className="sm:hidden">Instant triggers</span>
+                  <span className="sm:hidden">Tap to show</span>
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                <button
-                  onClick={() => handleTriggerSting("four")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-sky-500/40 bg-sky-950/30 p-3 font-black text-white shadow-sm transition hover:border-sky-400/80 hover:bg-sky-900/40 active:scale-95"
-                >
-                  <span className="absolute right-2 top-2 hidden rounded border border-sky-500/40 bg-sky-950/80 px-1 py-0.5 font-mono text-[9px] text-sky-300 sm:inline">
-                    [4]
-                  </span>
-                  <Zap className="h-5 w-5 text-sky-400 transition group-hover:scale-110" />
-                  <span className="text-base font-black tracking-wide text-white">FOUR!</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300/70">
-                    Boundary
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleTriggerSting("six")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 font-black text-white shadow-sm transition hover:border-amber-400/80 hover:bg-amber-900/40 active:scale-95"
-                >
-                  <span className="absolute right-2 top-2 hidden rounded border border-amber-500/40 bg-amber-950/80 px-1 py-0.5 font-mono text-[9px] text-amber-300 sm:inline">
-                    [6]
-                  </span>
-                  <Flame className="h-5 w-5 text-amber-400 transition group-hover:scale-110" />
-                  <span className="text-base font-black tracking-wide text-amber-300">MAXIMUM!</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300/70">
-                    Six
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleTriggerSting("wicket")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-red-500/40 bg-red-950/30 p-3 font-black text-white shadow-sm transition hover:border-red-400/80 hover:bg-red-900/40 active:scale-95"
-                >
-                  <span className="absolute right-2 top-2 hidden rounded border border-red-500/40 bg-red-950/80 px-1 py-0.5 font-mono text-[9px] text-red-300 sm:inline">
-                    [W]
-                  </span>
-                  <AlertOctagon className="h-5 w-5 text-red-400 transition group-hover:scale-110" />
-                  <span className="text-base font-black tracking-wide text-red-300">WICKET!</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-300/70">
-                    Out
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleTriggerSting("milestone")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 font-black text-white shadow-sm transition hover:border-emerald-400/80 hover:bg-emerald-900/40 active:scale-95"
-                >
-                  <span className="absolute right-2 top-2 hidden rounded border border-emerald-500/40 bg-emerald-950/80 px-1 py-0.5 font-mono text-[9px] text-emerald-300 sm:inline">
-                    [M]
-                  </span>
-                  <Trophy className="h-5 w-5 text-emerald-400 transition group-hover:scale-110" />
-                  <span className="text-base font-black tracking-wide text-emerald-300">50 / 100</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">
-                    Milestone
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => handleTriggerSting("free_hit")}
-                  className="group relative flex flex-col items-center justify-center gap-1 rounded-lg border border-yellow-500/40 bg-yellow-950/30 p-3 font-black text-white shadow-sm transition hover:border-yellow-400/80 hover:bg-yellow-900/40 active:scale-95 col-span-2 sm:col-span-1"
-                >
-                  <span className="absolute right-2 top-2 hidden rounded border border-yellow-500/40 bg-yellow-950/80 px-1 py-0.5 font-mono text-[9px] text-yellow-300 sm:inline">
-                    [F]
-                  </span>
-                  <ShieldAlert className="h-5 w-5 text-yellow-400 transition group-hover:scale-110" />
-                  <span className="text-base font-black tracking-wide text-yellow-400">FREE HIT</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-yellow-300/70">
-                    No-Ball
-                  </span>
-                </button>
+                {(
+                  [
+                    { type: "four", label: "Four", sub: "Boundary", key: "4" },
+                    {
+                      type: "six",
+                      label: "Six",
+                      sub: "Over the rope",
+                      key: "6",
+                    },
+                    { type: "wicket", label: "Wicket", sub: "Out", key: "W" },
+                    {
+                      type: "milestone",
+                      label: "Milestone",
+                      sub: "50 / 100",
+                      key: "M",
+                    },
+                    {
+                      type: "free_hit",
+                      label: "Free hit",
+                      sub: "After a no-ball",
+                      key: "F",
+                    },
+                  ] as const
+                ).map((ev) => (
+                  <button
+                    key={ev.type}
+                    onClick={() => handleTriggerSting(ev.type)}
+                    className={cn(
+                      "relative flex flex-col items-center justify-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-3 text-white transition-colors hover:bg-white/10",
+                      ev.type === "free_hit" && "col-span-2 sm:col-span-1",
+                    )}
+                  >
+                    <kbd className="absolute right-2 top-2 hidden rounded border border-white/10 px-1 font-mono text-[10px] text-slate-400 sm:inline">
+                      {ev.key}
+                    </kbd>
+                    <span
+                      className={cn(
+                        "text-sm font-semibold",
+                        ev.type === "wicket" && "text-red-400",
+                      )}
+                    >
+                      {ev.label}
+                    </span>
+                    <span className="text-xs text-slate-400">{ev.sub}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* In-Play Lower-Third Popups Deck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Activity className="h-4 w-4 text-sky-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    In-Play Lower-Third Popups
-                  </span>
-                </div>
+                <h2 className="text-sm font-semibold text-slate-100">
+                  Lower thirds
+                </h2>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-slate-400">Duration:</span>
                   <select
@@ -1201,13 +1153,13 @@ export function ControlClient({
                 {[
                   {
                     id: "batsman",
-                    label: "Striker Stats",
+                    label: "Striker",
                     hotkey: "B",
                     desc: "Runs, balls & strike rate",
                   },
                   {
                     id: "bowler",
-                    label: "Bowler Spell",
+                    label: "Bowler",
                     hotkey: "O",
                     desc: "Overs, maidens & wickets",
                   },
@@ -1219,7 +1171,7 @@ export function ControlClient({
                   },
                   {
                     id: "target",
-                    label: "Chase Equation",
+                    label: "Chase",
                     hotkey: "T",
                     desc: "Runs needed from balls",
                   },
@@ -1229,13 +1181,13 @@ export function ControlClient({
                     onClick={() =>
                       handleTriggerStrap(s.id as ActiveLowerThirdStrap["type"])
                     }
-                    className="flex flex-col justify-between rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:border-amber-500/40 hover:bg-white/10 active:scale-95"
+                    className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/5 p-2.5 text-left transition-colors hover:bg-white/10"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">
+                      <span className="text-xs font-semibold text-white">
                         {s.label}
                       </span>
-                      <span className="rounded bg-white/10 px-1 text-[9px] font-mono text-slate-300">
+                      <span className="rounded bg-white/10 px-1 font-mono text-[9px] text-slate-300">
                         [{s.hotkey}]
                       </span>
                     </div>
@@ -1249,48 +1201,47 @@ export function ControlClient({
 
             {/* Test Match Simulator (Only active on /overlay/test/control) */}
             {isTestMode && (
-              <div className="rounded-xl border border-amber-500/25 bg-[#121622] p-3.5 shadow-xl sm:p-4">
+              <div className="rounded-xl border border-dashed border-white/15 bg-[#0e131d] p-3.5 sm:p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-400 text-xs">
-                    <Radio className="h-4 w-4" />
-                    <span>Match Simulator (Test Cockpit)</span>
-                  </div>
+                  <h2 className="text-sm font-semibold text-slate-100">
+                    Match simulator (test only)
+                  </h2>
                   <span className="text-[10px] text-slate-400">
-                    Instant match state QA
+                    Changes the preview state only
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     onClick={() => simulateScoreChange(4)}
-                    className="rounded-lg border border-sky-500/40 bg-sky-500/20 px-2.5 py-1 text-xs font-bold text-sky-300 hover:bg-sky-500/30 active:scale-95"
+                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
                   >
-                    +4 Runs
+                    +4 runs
                   </button>
                   <button
                     onClick={() => simulateScoreChange(6)}
-                    className="rounded-lg border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/30 active:scale-95"
+                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
                   >
-                    +6 Runs
+                    +6 runs
                   </button>
                   <button
                     onClick={() => simulateScoreChange(0, true)}
-                    className="rounded-lg border border-red-500/40 bg-red-500/20 px-2.5 py-1 text-xs font-bold text-red-300 hover:bg-red-500/30 active:scale-95"
+                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
                   >
                     +Wkt
                   </button>
                   <button
                     onClick={simulateStrikeRotation}
-                    className="rounded-lg border border-purple-500/40 bg-purple-500/20 px-2.5 py-1 text-xs font-bold text-purple-300 hover:bg-purple-500/30 active:scale-95"
+                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
                   >
-                    Rotate Strike
+                    Rotate strike
                   </button>
                   <button
                     onClick={() => {
                       setState(DEMO_MATCH_STATE);
-                      setLastAction("Simulator: Reset to Demo State");
+                      setLastAction("Simulator: reset to demo state");
                     }}
-                    className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 active:scale-95"
+                    className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-white/10"
                   >
                     <RotateCcw className="h-3 w-3" />
                     <span>Reset</span>
@@ -1305,14 +1256,11 @@ export function ControlClient({
           {/* ========================================================= */}
           <div className="space-y-4 lg:col-span-6 xl:col-span-6">
             {/* Phase Graphics Switcher Deck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
               <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Broadcast Graphic Decks
-                  </span>
-                </div>
+                <h2 className="text-sm font-semibold text-slate-100">
+                  Graphics
+                </h2>
                 <span className="text-[11px] text-slate-400">
                   Select graphic to push live
                 </span>
@@ -1321,7 +1269,7 @@ export function ControlClient({
               {/* 4 Clean Phase Navigation Tabs */}
               <div
                 role="tablist"
-                className="flex items-center gap-1.5 overflow-x-auto no-scrollbar rounded-xl bg-black/40 p-1"
+                className="no-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-xl bg-black/40 p-1"
               >
                 {GRAPHIC_PHASE_DECKS.map((deck) => {
                   const Icon = deck.icon;
@@ -1333,9 +1281,9 @@ export function ControlClient({
                       aria-selected={isActive}
                       onClick={() => setActiveDeckTab(deck.id)}
                       className={cn(
-                        "flex shrink-0 whitespace-nowrap items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold transition min-h-[38px] flex-1",
+                        "flex min-h-[38px] flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-medium transition-colors",
                         isActive
-                          ? "bg-amber-500 text-black shadow-md"
+                          ? "bg-white text-black"
                           : "text-slate-400 hover:bg-white/5 hover:text-white",
                       )}
                     >
@@ -1360,28 +1308,28 @@ export function ControlClient({
                         key={v.id}
                         onClick={() => handleSelectBroadcastView(v.id)}
                         className={cn(
-                          "flex flex-col justify-between rounded-xl border p-3 text-left transition",
+                          "flex flex-col justify-between rounded-lg border p-3 text-left transition-colors",
                           isLive
-                            ? "border-amber-400 bg-amber-500/20 shadow-md ring-2 ring-amber-400/40"
+                            ? "border-red-500/50 bg-red-500/10"
                             : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10",
                         )}
                       >
                         <div className="flex items-center justify-between">
                           <span
                             className={cn(
-                              "text-xs font-bold",
-                              isLive ? "text-amber-300" : "text-white",
+                              "text-xs font-semibold",
+                              "text-white",
                             )}
                           >
                             {v.label}
                           </span>
                           {isLive ? (
-                            <span className="flex items-center gap-1 rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-black">
-                              <Radio className="h-2.5 w-2.5" />
-                              <span>LIVE</span>
+                            <span className="flex items-center gap-1 text-[11px] font-medium text-red-300">
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                              <span>On air</span>
                             </span>
                           ) : (
-                            <span className="text-[10px] font-mono text-slate-500">
+                            <span className="font-mono text-[10px] text-slate-500">
                               v{v.id}
                             </span>
                           )}
@@ -1397,17 +1345,12 @@ export function ControlClient({
             </div>
 
             {/* 1-Click Broadcast Notice Presets & Custom Ticker */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 shadow-xl sm:p-4">
+            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
               <div className="mb-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Radio className="h-4 w-4 text-sky-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                    Live Broadcast Notices & Alerts
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400">
-                  1-Click Presets
-                </span>
+                <h2 className="text-sm font-semibold text-slate-100">
+                  Notices
+                </h2>
+                <span className="text-[11px] text-slate-400">Presets</span>
               </div>
 
               {/* 1-Click Notice Badges */}
@@ -1416,7 +1359,7 @@ export function ControlClient({
                   <button
                     key={p.id}
                     onClick={() => handleSendCustomAlert(p.text)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-slate-300 transition hover:border-amber-400/50 hover:bg-amber-500/10 hover:text-amber-300 active:scale-95"
+                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                   >
                     {p.label}
                   </button>
@@ -1432,15 +1375,15 @@ export function ControlClient({
                   onKeyDown={(e) =>
                     e.key === "Enter" && handleSendCustomAlert()
                   }
-                  placeholder="Custom broadcast alert (e.g. 'Match inspection at 3:30 PM')"
-                  className="w-full min-h-[44px] sm:min-h-0 rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-base sm:text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                  placeholder="Custom broadcast alert (e.g. 'Inspection at 3:30 PM')"
+                  className="min-h-[44px] w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-base text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none sm:min-h-0 sm:text-xs"
                 />
                 <button
                   onClick={() => handleSendCustomAlert()}
-                  className="flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-black transition hover:bg-amber-400 active:scale-95"
+                  className="flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
                 >
                   <Send className="h-3.5 w-3.5" />
-                  <span>Send Alert</span>
+                  <span>Send alert</span>
                 </button>
               </div>
             </div>
@@ -1452,24 +1395,22 @@ export function ControlClient({
       {/* 3. UNIFIED THEME & BROADCAST SETTINGS DIALOG (NO REDUNDANCY)  */}
       {/* ============================================================= */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-white/10 bg-slate-900 text-white shadow-2xl">
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-white/10 bg-slate-900 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-black text-white">
-              <SlidersHorizontal className="h-5 w-5 text-amber-400" />
-              <span>Broadcast Production Settings</span>
+            <DialogTitle className="text-lg font-semibold text-white">
+              <span>Overlay settings</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-400">
-              Customize visual broadcast theme, OBS safe-zone margins, sound
-              fanfares, and review operator hotkeys.
+              Theme, OBS safe-zone margin and hotkeys.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-2">
             {/* TV Broadcast Themes */}
             <div>
-              <label className="mb-2 block flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
-                <Palette className="h-4 w-4 text-amber-400" />
-                <span>TV Broadcast Visual Theme</span>
+              <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                <Palette className="h-4 w-4" />
+                <span>Theme</span>
               </label>
 
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1480,20 +1421,20 @@ export function ControlClient({
                       key={thm.id}
                       onClick={() => handleSelectTheme(thm.id)}
                       className={cn(
-                        "flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition",
+                        "flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-colors",
                         isSelected
-                          ? "border-amber-400 bg-amber-500/20 ring-1 ring-amber-400"
+                          ? "border-white/40 bg-white/10"
                           : "border-white/10 bg-white/5 hover:bg-white/10",
                       )}
                     >
                       <span
                         className={cn(
-                          "h-3 w-3 shrink-0 rounded-full bg-gradient-to-tr ring-1 ring-white/30",
+                          "h-3 w-3 shrink-0 rounded-full ring-1 ring-white/30",
                           thm.swatch,
                         )}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-bold text-white">
+                        <div className="truncate text-xs font-medium text-white">
                           {thm.label}
                         </div>
                         <div className="truncate text-[10px] text-slate-400">
@@ -1508,8 +1449,8 @@ export function ControlClient({
 
             {/* OBS Safe-Zone Margin Offset */}
             <div className="border-t border-white/10 pt-4">
-              <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-300">
-                OBS Safe-Zone Margin Offset
+              <label className="mb-1 block text-sm font-semibold text-slate-200">
+                OBS safe-zone margin
               </label>
               <p className="mb-2 text-xs text-slate-400">
                 Lifts the bottom scorebar above YouTube/Twitch live chat or
@@ -1522,9 +1463,9 @@ export function ControlClient({
                     key={px}
                     onClick={() => handleSetMarginOffset(px)}
                     className={cn(
-                      "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition",
+                      "rounded-md border px-3.5 py-1.5 text-xs font-medium tabular-nums transition-colors",
                       marginOffsetPx === px
-                        ? "border-amber-400 bg-amber-500 font-black text-black shadow-md"
+                        ? "border-white bg-white text-black"
                         : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
                     )}
                   >
@@ -1536,79 +1477,79 @@ export function ControlClient({
 
             {/* Keyboard Hotkeys Guide */}
             <div className="border-t border-white/10 pt-4">
-              <label className="mb-2 block flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
-                <Keyboard className="h-4 w-4 text-sky-400" />
-                <span>Operator Keyboard Shortcuts</span>
+              <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+                <Keyboard className="h-4 w-4" />
+                <span>Keyboard shortcuts</span>
               </label>
 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
-                  <div className="font-bold text-amber-300 text-[11px] uppercase">
-                    Celebration Stings
+                  <div className="text-xs font-medium text-slate-400">
+                    Event cards
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Boundary Four:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Four</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [4]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Maximum Six:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Six</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [6]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Wicket Down:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Wicket</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [W]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Milestone 50/100:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Milestone (50/100)</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [M]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Free Hit Call:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Free hit</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [F]
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
-                  <div className="font-bold text-sky-300 text-[11px] uppercase">
-                    Production Navigation
+                  <div className="text-xs font-medium text-slate-400">
+                    Navigation
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Return to Scorebar:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Back to scorebar</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [Space / Esc]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Striker Stats:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Striker</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [B]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Bowler Figures:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Bowler</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [O]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Partnership Stand:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Partnership</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [P]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
-                    <span>Target Chase:</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px] font-bold">
+                    <span>Chase</span>
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
                       [T]
                     </span>
                   </div>

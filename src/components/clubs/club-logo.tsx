@@ -54,7 +54,7 @@ export function ClubLogo({
   return (
     <div
       className={cn(
-        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border shadow-inner transition-all",
+        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border transition-colors",
         className,
       )}
       style={{
@@ -66,7 +66,7 @@ export function ClubLogo({
       aria-label={`${name} emblem`}
     >
       {initials ? (
-        <span className="font-black tracking-wider">{initials}</span>
+        <span className="font-semibold">{initials}</span>
       ) : (
         <Shield className="h-5 w-5" />
       )}

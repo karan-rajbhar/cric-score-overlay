@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { overridePointsTableEntry } from "~/app/tournaments/actions";
 
@@ -92,12 +91,6 @@ export function PointsOverrideDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-primary">
-            <SlidersHorizontal className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Admin Controls
-            </span>
-          </div>
           <DialogTitle className="text-xl">
             Points & Qualification Override
           </DialogTitle>

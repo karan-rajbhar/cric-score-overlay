@@ -61,7 +61,7 @@ export function ClubMembershipButton({
         if (res?.error) {
           toast.error(res.error);
         } else {
-          toast.success("Welcome to the club!");
+          toast.success("You joined the club");
         }
       }
     });

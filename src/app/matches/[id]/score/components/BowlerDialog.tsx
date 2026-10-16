@@ -116,7 +116,7 @@ export function BowlerDialog({
         <div className="space-y-4 pt-4">
           {uniqueBowlingPlayers.length > 0 && (
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <label className="text-xs font-medium text-muted-foreground">
                 Quick Select Bowler
               </label>
               <div
@@ -143,7 +143,7 @@ export function BowlerDialog({
                       className={cn(
                         "touch-target flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-bold transition-all active:scale-95 disabled:pointer-events-none disabled:opacity-40",
                         isSelected
-                          ? "border-black bg-black font-black text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
+                          ? "border-black bg-black font-bold text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
                           : "border-border/80 bg-background text-foreground hover:bg-muted",
                       )}
                     >
@@ -261,7 +261,7 @@ export function BowlerDialog({
           )}
 
           <Button
-            className="w-full h-11 min-h-[44px] text-sm font-bold shadow-md"
+            className="w-full h-11 min-h-[44px] text-sm font-semibold"
             onClick={onConfirm}
             disabled={
               !currentBowlerId ||

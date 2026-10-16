@@ -79,8 +79,9 @@ import {
   AlertCircle,
   Trophy,
   Shield,
-  Sparkles,
+  MapPin,
 } from "lucide-react";
+import { LiveIndicator } from "~/components/matches/live-indicator";
 
 function MatchDetailsPageContent() {
   const params = useParams();
@@ -208,7 +209,7 @@ function MatchDetailsPageContent() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "live":
-        return <Badge variant="live">Live</Badge>;
+        return null;
       case "completed":
         return <Badge variant="success">Result</Badge>;
       case "scheduled":
@@ -227,7 +228,7 @@ function MatchDetailsPageContent() {
       <div className="container mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4 py-12">
         <EmptyState
           icon={AlertCircle}
-          title={error ? "Error Loading Match" : "Match Not Found"}
+          title={error ? "Couldn't load match" : "Match not found"}
           description={
             error ||
             "This match could not be found or may have been removed from the tournament schedule."
@@ -438,7 +439,7 @@ function MatchDetailsPageContent() {
                   <span
                     className={`h-2 w-2 rounded-full ${
                       isConnected
-                        ? "animate-pulse bg-emerald-500"
+                        ? "bg-emerald-500"
                         : "bg-zinc-400"
                     }`}
                   />
@@ -459,7 +460,7 @@ function MatchDetailsPageContent() {
               {match.tournament && !tournamentId && (
                 <Link
                   href={`/tournaments/${match.tournament.id}?tab=fixtures${clubId ? `&clubId=${clubId}` : ""}`}
-                  className="hidden items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-500/20 dark:text-amber-300 md:inline-flex"
+                  className="hidden items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
                   title="View Tournament"
                 >
                   <Trophy className="h-3 w-3 shrink-0" />
@@ -495,7 +496,7 @@ function MatchDetailsPageContent() {
             <div className="flex flex-wrap items-center gap-2">
               {match.tournament && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-board-line bg-board-line/30 px-2.5 py-0.5 font-medium text-board-foreground">
-                  <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                  <Trophy className="h-3.5 w-3.5 text-board-muted shrink-0" />
                   <span className="truncate max-w-[140px] sm:max-w-none">{match.tournament.name}</span>
                 </span>
               )}
@@ -505,12 +506,12 @@ function MatchDetailsPageContent() {
                   <span className="truncate max-w-[120px] sm:max-w-none">{match.club.name}</span>
                 </span>
               )}
-              <span className="rounded-full border border-board-line px-2.5 py-0.5 font-semibold uppercase tracking-wider text-[11px] text-board-foreground/90">
-                {match.match_format.toUpperCase()} • {match.overs_per_innings} OV
+              <span className="rounded-full border border-board-line px-2.5 py-0.5 font-medium text-[11px] text-board-foreground/90">
+                {match.match_format} · {match.overs_per_innings} overs
               </span>
               {match.venue && (
                 <span className="hidden sm:inline-flex items-center gap-1 text-board-muted">
-                  <span>📍</span>
+                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span className="truncate max-w-[180px]">{match.venue}</span>
                 </span>
               )}
@@ -518,19 +519,16 @@ function MatchDetailsPageContent() {
 
             <div className="flex items-center gap-2">
               {match.status === "live" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/15 px-2.5 py-0.5 text-xs font-bold text-red-400">
-                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                  LIVE
-                </span>
+                <LiveIndicator className="text-red-400 dark:text-red-400" />
               )}
               {match.status === "completed" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
-                  FINAL
+                <span className="inline-flex items-center gap-1 rounded-full border border-board-line px-2.5 py-0.5 text-xs font-medium text-board-foreground">
+                  Result
                 </span>
               )}
               {match.status === "scheduled" && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-board-line bg-board-line/30 px-2.5 py-0.5 text-xs font-medium text-board-muted">
-                  UPCOMING
+                  Upcoming
                 </span>
               )}
             </div>
@@ -550,7 +548,7 @@ function MatchDetailsPageContent() {
                 </p>
                 {team1Innings ? (
                   <div className="mt-0.5 flex items-baseline justify-end gap-2">
-                    <span className="scoreboard-figure text-4xl lg:text-5xl font-black text-board-foreground">
+                    <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
                       {team1Innings.total_runs}/{team1Innings.total_wickets}
                     </span>
                     <span className="scoreboard-label text-sm lg:text-base font-semibold">
@@ -571,8 +569,8 @@ function MatchDetailsPageContent() {
 
             {/* VS Pill */}
             <div className="flex flex-col items-center justify-center">
-              <span className="rounded-full border border-board-line bg-board-line/30 px-3 py-1 font-score text-xs font-bold uppercase tracking-widest text-board-muted">
-                VS
+              <span className="text-xs font-medium text-board-muted">
+                vs
               </span>
             </div>
 
@@ -590,7 +588,7 @@ function MatchDetailsPageContent() {
                 </p>
                 {team2Innings ? (
                   <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="scoreboard-figure text-4xl lg:text-5xl font-black text-board-foreground">
+                    <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
                       {team2Innings.total_runs}/{team2Innings.total_wickets}
                     </span>
                     <span className="scoreboard-label text-sm lg:text-base font-semibold">
@@ -620,7 +618,7 @@ function MatchDetailsPageContent() {
               </div>
               <div className="shrink-0 text-right">
                 {team1Innings ? (
-                  <p className="scoreboard-figure text-xl font-black text-board-foreground">
+                  <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
                     {team1Innings.total_runs}/{team1Innings.total_wickets}
                     <span className="scoreboard-label ml-1 text-xs font-medium">
                       ({oversFromBalls(inningsBalls(team1Innings))} ov)
@@ -646,7 +644,7 @@ function MatchDetailsPageContent() {
               </div>
               <div className="shrink-0 text-right">
                 {team2Innings ? (
-                  <p className="scoreboard-figure text-xl font-black text-board-foreground">
+                  <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
                     {team2Innings.total_runs}/{team2Innings.total_wickets}
                     <span className="scoreboard-label ml-1 text-xs font-medium">
                       ({oversFromBalls(inningsBalls(team2Innings))} ov)
@@ -661,14 +659,13 @@ function MatchDetailsPageContent() {
 
           {/* Dynamic Match Result or Chase Status */}
           {match.status === "completed" && match.result_description && (
-            <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm sm:text-base font-bold text-emerald-400">
-                <Trophy className="h-4 w-4 shrink-0 text-amber-400" />
+            <div className="mt-4 rounded-xl border border-board-line p-3 text-center">
+              <div className="flex items-center justify-center gap-2 text-sm sm:text-base font-semibold text-board-foreground">
                 <span>{formatMatchResult(match)}</span>
               </div>
               {match.player_of_the_match && (
                 <div className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-board-muted">
-                  <Award className="h-3.5 w-3.5 text-amber-400" />
+                  <Award className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Player of the match:</span>
                   <strong className="text-board-foreground font-semibold">{match.player_of_the_match.full_name}</strong>
                 </div>
@@ -680,7 +677,7 @@ function MatchDetailsPageContent() {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
             {isScorer &&
               (match.status === "scheduled" || match.status === "live") && (
-                <Button asChild size="sm" className="interactive-button h-10 px-4 text-xs font-bold sm:h-9 sm:text-sm bg-primary hover:bg-primary/90 text-primary-foreground">
+                <Button asChild size="sm" className="h-10 px-4 text-xs font-semibold sm:h-9 sm:text-sm">
                   <Link
                     href={`/matches/${match.id}/score${
                       searchParams.toString()
@@ -714,7 +711,7 @@ function MatchDetailsPageContent() {
               className="h-10 border-board-line bg-board-line/30 px-4 text-xs font-semibold text-board-foreground hover:bg-board-line/60 hover:text-board-foreground sm:h-9 sm:text-sm"
             >
               <Link href={`/overlay/${match.id}`} target="_blank">
-                <Tv className="mr-1.5 h-4 w-4 shrink-0 text-amber-400" />
+                <Tv className="mr-1.5 h-4 w-4 shrink-0" />
                 OBS overlay
               </Link>
             </Button>
@@ -739,16 +736,13 @@ function MatchDetailsPageContent() {
             >
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Scorecard</span>
-              {match.status === "live" && (
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />
-              )}
             </TabsTrigger>
             <TabsTrigger
               value="superstars"
               className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
             >
-              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>Super Stars</span>
+              <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Top performers</span>
             </TabsTrigger>
             <TabsTrigger
               value="stats"
@@ -763,9 +757,6 @@ function MatchDetailsPageContent() {
             >
               <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Balls</span>
-              {match.status === "live" && (
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />
-              )}
             </TabsTrigger>
             <TabsTrigger
               value="info"

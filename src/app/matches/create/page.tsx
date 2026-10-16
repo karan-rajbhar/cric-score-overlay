@@ -47,7 +47,6 @@ import {
   Shield,
   RotateCcw,
   Users,
-  Star,
 } from "lucide-react";
 
 interface Team {
@@ -495,7 +494,7 @@ function CreateMatchWizard() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
               <Check className="h-8 w-8 text-emerald-500" />
             </div>
-            <h2 className="mb-2 text-xl font-semibold">Match Created!</h2>
+            <h2 className="mb-2 text-xl font-semibold">Match created</h2>
             <p className="text-muted-foreground">
               Redirecting to live scorecard...
             </p>
@@ -531,12 +530,12 @@ function CreateMatchWizard() {
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-              Create New Match
+            <h1 className="text-balance text-2xl font-semibold text-foreground">
+              New match
             </h1>
             {selectedTournament && (
               <Badge variant="outline" className="gap-1">
-                <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" />
                 {selectedTournament.name}
               </Badge>
             )}
@@ -663,10 +662,9 @@ function CreateMatchWizard() {
                   </p>
                   {selectedTournament && (
                     <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1.5 font-medium text-amber-500">
-                        <Trophy className="h-3.5 w-3.5 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
-                          Teams with <Star className="inline h-3 w-3 shrink-0 fill-amber-500 text-amber-500" /> are registered in{" "}
+                          Teams marked <Trophy className="inline h-3 w-3 shrink-0" aria-hidden="true" /> are registered in{" "}
                           {selectedTournament.name}
                         </span>
                       </div>
@@ -733,7 +731,7 @@ function CreateMatchWizard() {
                               <p className="text-xs text-muted-foreground">
                                 You can only host matches for teams you created,
                                 captain, play for, or manage. Create a team now
-                                to proceed!
+                                to proceed.
                               </p>
                               <Button
                                 type="button"
@@ -783,7 +781,7 @@ function CreateMatchWizard() {
                                           >
                                             <span className="flex items-center gap-1.5">
                                               {isReg && (
-                                                <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                               )}
                                               <span>
                                                 {team.name}
@@ -812,7 +810,7 @@ function CreateMatchWizard() {
                                             value={team.id}
                                           >
                                             <span className="flex items-center gap-1.5">
-                                              <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                              <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                               <span>
                                                 {team.name}
                                                 {team.short_name &&
@@ -846,7 +844,7 @@ function CreateMatchWizard() {
                                             >
                                               <span className="flex items-center gap-1.5">
                                                 {isReg && (
-                                                  <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                                  <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                                 )}
                                                 <span>
                                                   {team.name}
@@ -915,7 +913,7 @@ function CreateMatchWizard() {
                                     {team2TournamentTeams.map((team) => (
                                       <SelectItem key={team.id} value={team.id}>
                                         <span className="flex items-center gap-1.5">
-                                          <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                          <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                           <span>
                                             {team.name}
                                             {team.short_name &&
@@ -1068,7 +1066,7 @@ function CreateMatchWizard() {
                         {selectableTournaments.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             <div className="flex items-center gap-2">
-                              <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                              <Trophy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               <span>{t.name}</span>
                             </div>
                           </SelectItem>

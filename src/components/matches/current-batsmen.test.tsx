@@ -27,7 +27,7 @@ describe("CurrentBatsmen ('At the Crease' component)", () => {
       />,
     );
 
-    expect(screen.getByText("At the Crease")).toBeInTheDocument();
+    expect(screen.getByText("At the crease")).toBeInTheDocument();
     expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
     expect(screen.getByText("Rohit Sharma")).toBeInTheDocument();
 
@@ -36,7 +36,7 @@ describe("CurrentBatsmen ('At the Crease' component)", () => {
     expect(screen.getByText("(28)")).toBeInTheDocument();
     expect(screen.getByText("4×4")).toBeInTheDocument();
     expect(screen.getByText("2×6")).toBeInTheDocument();
-    expect(screen.getByText("STRIKE")).toBeInTheDocument();
+    expect(screen.getByText("Strike")).toBeInTheDocument();
 
     // Non-striker score
     expect(screen.getByText("32")).toBeInTheDocument();

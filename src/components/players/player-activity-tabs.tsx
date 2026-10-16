@@ -33,7 +33,6 @@ import {
   Users,
   Trophy,
   Activity,
-  Flame,
 } from "lucide-react";
 
 export interface PlayerTeamMembership {
@@ -245,7 +244,6 @@ export function PlayerActivityTabs({
             value="batting"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Flame className="h-4 w-4 shrink-0 text-orange-500" />
             <span>Batting</span>
             <Badge
               variant="secondary"
@@ -258,7 +256,6 @@ export function PlayerActivityTabs({
             value="bowling"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Activity className="h-4 w-4 shrink-0 text-blue-500" />
             <span>Bowling</span>
             <Badge
               variant="secondary"
@@ -271,7 +268,6 @@ export function PlayerActivityTabs({
             value="matches"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Swords className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>Matches</span>
             <Badge
               variant="secondary"
@@ -284,7 +280,6 @@ export function PlayerActivityTabs({
             value="teams"
             className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Users className="h-4 w-4 shrink-0 text-purple-500" />
             <span>Teams</span>
             <Badge
               variant="secondary"
@@ -317,9 +312,9 @@ export function PlayerActivityTabs({
 
         {batting.length === 0 ? (
           <EmptyState
-            icon={Flame}
-            title="No Batting Innings Recorded"
-            description="Batting performances from completed and live scorecards will automatically appear here."
+            icon={Activity}
+            title="No batting innings yet"
+            description="Innings from scored matches will appear here."
           />
         ) : (
           <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -579,7 +574,7 @@ export function PlayerActivityTabs({
                           <span
                             className={`tabular-nums text-base font-bold ${
                               bp.wickets_taken >= 3
-                                ? "font-extrabold text-primary"
+                                ? "text-primary"
                                 : "text-foreground"
                             }`}
                           >
@@ -706,26 +701,23 @@ export function PlayerActivityTabs({
                         <Badge
                           variant={
                             m.status === "live"
-                              ? "default"
+                              ? "live"
                               : m.status === "completed"
                                 ? "secondary"
                                 : "outline"
                           }
                           className="text-[11px]"
                         >
-                          {m.status === "live" && (
-                            <span className="mr-1 h-2 w-2 animate-ping rounded-full bg-red-400" />
-                          )}
                           {formatStatus(m.status)}
                         </Badge>
                         {m.tournament && (
                           <span className="flex max-w-[130px] items-center gap-1 truncate font-medium text-muted-foreground">
-                            <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                            <Trophy className="h-3 w-3 shrink-0" />
                             {m.tournament.name}
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {m.match_format} · {m.overs_per_innings} ov
                       </span>
                     </div>

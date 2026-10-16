@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import type { SponsorItem } from "./types";
-import { Shield } from "lucide-react";
 
 interface CornerWatermarkProps {
   title?: string | null;
@@ -49,22 +48,20 @@ export function CornerWatermark({
   return (
     <div className="pointer-events-none fixed right-6 top-16 z-20 flex select-none flex-col items-end gap-1.5 font-sans">
       {/* 1. Station / League Watermark */}
-      <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 shadow-lg backdrop-blur-md">
-        {logoUrl ? (
+      <div className="flex items-center gap-2 rounded-md border border-white/10 bg-[#0b0f17]/90 px-3 py-1.5">
+        {logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt="Logo" className="h-5 w-5 object-contain" />
-        ) : (
-          <Shield className="h-4 w-4 text-amber-400" />
         )}
-        <span className="text-xs font-black uppercase tracking-wider text-white/90">
-          {title ?? "LIVE STREAM"}
+        <span className="text-xs font-semibold text-white/90">
+          {title ?? "Live"}
         </span>
       </div>
 
       {/* 2. Rotating Sponsor Carousel */}
       {currentSponsor && (
         <div
-          className={`flex items-center gap-2 rounded-md border border-white/10 bg-white/10 px-2.5 py-1 backdrop-blur-sm transition-opacity duration-300 ${
+          className={`flex items-center gap-2 rounded-md border border-white/10 bg-[#0b0f17]/90 px-2.5 py-1 transition-opacity duration-300 ${
             fade ? "opacity-100" : "opacity-0"
           }`}
         >
@@ -75,11 +72,9 @@ export function CornerWatermark({
               alt={currentSponsor.name}
               className="h-4 w-4 object-contain"
             />
-          ) : (
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-          )}
+          ) : null}
           <div className="text-right">
-            <span className="block text-[10px] font-bold uppercase leading-tight text-amber-300">
+            <span className="block text-[11px] font-semibold leading-tight text-white">
               {currentSponsor.name}
             </span>
             {currentSponsor.tagline && (

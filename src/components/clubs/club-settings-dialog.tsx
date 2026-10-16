@@ -104,7 +104,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
 
       await updateClubSocialLinks(club.id, socialPayload);
 
-      toast.success("Club profile & settings updated!");
+      toast.success("Club settings saved");
       setOpen(false);
     } catch (err) {
       console.error("Error updating club:", err);
@@ -241,7 +241,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
 
           {/* Contact Details */}
           <div className="border-t border-border/60 pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="mb-2 text-sm font-medium text-foreground">
               Contact & Links
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -291,7 +291,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
 
           {/* Social Profiles */}
           <div className="border-t border-border/60 pt-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="mb-2 text-sm font-medium text-foreground">
               Social Media Handles
             </div>
             <div className="grid grid-cols-3 gap-2">

@@ -28,6 +28,12 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
    npm run lint
    ```
 3. Frontend: responsive and accessible (ARIA, labels), `text-wrap: balance` for titles, `tabular-nums` for score figures, `content-visibility: auto` for long lists.
+4. Visual style: calm sports-data look; scores are the hero, chrome stays quiet.
+   - No decorative motion (`animate-ping`/`bounce`, glows, sparkles). The only pulse is the small red "Live" dot; skeletons and spinners keep theirs.
+   - Icons only when they carry meaning; no Sparkles/Zap/Flame/Crown ornaments or emoji. Captain/keeper are "(c)"/"(wk)".
+   - `font-semibold` headings, `font-bold` only for score figures; sentence-case labels instead of ALL-CAPS tracked micro-labels (table headers and the "LIVE" chip excepted).
+   - Flat cards (`bg-card`, border, at most `shadow-sm`); no decorative gradients, coloured shadows or blur blobs. Colour signals state (live, wicket, boundary, win/loss) and primary actions.
+   - Plain copy: no hype, no exclamation marks. The OBS overlay follows the same rules (no bold ALL-CAPS); team short codes are data and stay as-is.
 
 ## Local testing
 

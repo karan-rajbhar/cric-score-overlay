@@ -43,7 +43,7 @@ export default async function TeamsPage({
     <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
       <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          <h1 className="text-balance text-2xl font-semibold tracking-tight">
             {view === "mine" ? "My teams" : "All teams"}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">

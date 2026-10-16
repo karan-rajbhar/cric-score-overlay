@@ -12,12 +12,9 @@ import {
   DialogDescription,
 } from "~/components/ui/dialog";
 import {
-  Sparkles,
   Layers,
   List,
-  Flame,
   Info,
-  Star,
   Activity,
   Target,
   Shield,
@@ -41,7 +38,7 @@ function RoleBadge({ role }: { role: SuperstarRole }) {
       return (
         <Badge
           variant="outline"
-          className="border-sky-500/40 bg-sky-500/15 text-[10px] font-bold text-sky-700 dark:text-sky-300"
+          className="text-[10px] font-medium text-muted-foreground"
         >
           WK
         </Badge>
@@ -50,7 +47,7 @@ function RoleBadge({ role }: { role: SuperstarRole }) {
       return (
         <Badge
           variant="outline"
-          className="border-emerald-500/40 bg-emerald-500/15 text-[10px] font-bold text-emerald-700 dark:text-emerald-300"
+          className="text-[10px] font-medium text-muted-foreground"
         >
           BAT
         </Badge>
@@ -59,7 +56,7 @@ function RoleBadge({ role }: { role: SuperstarRole }) {
       return (
         <Badge
           variant="outline"
-          className="border-amber-500/40 bg-amber-500/15 text-[10px] font-bold text-amber-700 dark:text-amber-300"
+          className="text-[10px] font-medium text-muted-foreground"
         >
           AR
         </Badge>
@@ -68,7 +65,7 @@ function RoleBadge({ role }: { role: SuperstarRole }) {
       return (
         <Badge
           variant="outline"
-          className="border-purple-500/40 bg-purple-500/15 text-[10px] font-bold text-purple-700 dark:text-purple-300"
+          className="text-[10px] font-medium text-muted-foreground"
         >
           BOWL
         </Badge>
@@ -86,59 +83,24 @@ function CricketJerseySvg({
   isTeam1?: boolean;
   number?: number;
 }) {
-  const gradientId = isTeam1 ? "jerseyRedGrad" : "jerseyBlueGrad";
+  const bodyColor = isTeam1 ? "#b91c1c" : "#1d4ed8";
   const trimColor = isTeam1 ? "#7f1d1d" : "#1e3a8a";
 
   return (
     <svg
       viewBox="0 0 100 105"
-      className="h-14 w-14 drop-shadow-[0_6px_10px_rgba(0,0,0,0.45)] transition-transform duration-200 group-hover:scale-110 sm:h-16 sm:w-16"
+      className="h-14 w-14 sm:h-16 sm:w-16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <defs>
-        {/* Red Jersey Gradient for Team 1 */}
-        <linearGradient id="jerseyRedGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#ef4444" />
-          <stop offset="35%" stopColor="#b91c1c" />
-          <stop offset="100%" stopColor="#7f1d1d" />
-        </linearGradient>
-
-        {/* Blue Jersey Gradient for Team 2 */}
-        <linearGradient
-          id="jerseyBlueGrad"
-          x1="0%" y1="0%"
-          x2="100%"
-          y2="100%"
-        >
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="35%" stopColor="#1d4ed8" />
-          <stop offset="100%" stopColor="#1e3a8a" />
-        </linearGradient>
-
-        {/* Fabric Folds Shadow Overlay */}
-        <linearGradient id="fabricFolds" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#000000" stopOpacity="0.25" />
-          <stop offset="25%" stopColor="#ffffff" stopOpacity="0.1" />
-          <stop offset="50%" stopColor="#000000" stopOpacity="0.15" />
-          <stop offset="75%" stopColor="#ffffff" stopOpacity="0.1" />
-          <stop offset="100%" stopColor="#000000" stopOpacity="0.3" />
-        </linearGradient>
-      </defs>
-
       {/* Jersey Body & Sleeves */}
       <path
         d="M 28 16 L 8 36 L 22 46 L 28 38 L 28 98 L 72 98 L 72 38 L 78 46 L 92 36 L 72 16 L 58 16 C 56 26 44 26 42 16 Z"
-        fill={`url(#${gradientId})`}
+        fill={bodyColor}
         stroke="rgba(255,255,255,0.25)"
         strokeWidth="1.2"
       />
 
-      {/* Vertical Fabric Texture Folds */}
-      <path
-        d="M 28 38 L 28 98 L 72 98 L 72 38 Z"
-        fill="url(#fabricFolds)"
-      />
 
       {/* Sleeve Hem Left */}
       <path
@@ -168,9 +130,9 @@ function CricketJerseySvg({
         dominantBaseline="central"
         fill="#ffffff"
         fontSize="24"
-        fontWeight="900"
+        fontWeight="700"
         letterSpacing="0.5"
-        className="font-sans select-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]"
+        className="font-sans select-none"
       >
         {number}
       </text>
@@ -210,7 +172,7 @@ function SuperstarPlayerNode({
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex flex-col items-center text-center cursor-pointer focus:outline-none transition-transform active:scale-95"
+      className="group relative flex flex-col items-center text-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-lg"
       title={`Click to view ${player.playerName} points breakdown`}
     >
       {/* Jersey with floating badges */}
@@ -221,26 +183,24 @@ function SuperstarPlayerNode({
         />
 
         {/* Top-Left Rating Pill (Green badge with gold star for #1) */}
-        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10.5px] font-black text-white shadow-md ring-1 ring-white/30">
+        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10.5px] font-semibold tabular-nums text-white">
           <span>{rating}</span>
-          {isTopRanked && (
-            <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300" />
-          )}
+          {isTopRanked && <span className="sr-only">(top ranked)</span>}
         </div>
 
         {/* Top-Right Key Milestone Badge (e.g. 50 runs, 3w wickets) */}
         {milestone && (
           <div
             title={`Milestone: ${milestone}`}
-            className="absolute -right-2 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-300 px-1 text-[9.5px] font-black text-slate-900 shadow-md ring-1 ring-white/40"
+            className="absolute -right-2 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-300 px-1 text-[9.5px] font-semibold tabular-nums text-slate-900"
           >
             {milestone}
           </div>
         )}
       </div>
 
-      {/* Player Name Glassmorphism Tag */}
-      <div className="mt-1 flex max-w-[95px] items-center justify-center rounded-lg bg-black/45 px-2 py-0.5 text-white shadow-md backdrop-blur-sm border border-white/10 sm:max-w-[115px]">
+      {/* Player name tag */}
+      <div className="mt-1 flex max-w-[95px] items-center justify-center rounded-md bg-black/55 px-2 py-0.5 text-white sm:max-w-[115px]">
         <span className="truncate text-[10.5px] font-semibold tracking-tight sm:text-[11.5px]">
           {player.playerName}
         </span>
@@ -277,23 +237,23 @@ function SuperstarPointsDialog({
                 className="h-11 w-11 rounded-full object-cover border-2 border-primary"
               />
             ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/15 font-black text-primary">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted font-semibold text-foreground">
                 {player.playerName.slice(0, 2).toUpperCase()}
               </div>
             )}
             <div>
-              <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <DialogTitle className="text-lg font-semibold flex items-center gap-2">
                 <span>{player.playerName}</span>
                 <RoleBadge role={player.role} />
                 {player.isCaptain && (
-                  <Badge className="bg-red-600 text-white font-black text-[10px]">
-                    C (2X)
-                  </Badge>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (c) 2x
+                  </span>
                 )}
                 {player.isViceCaptain && (
-                  <Badge className="bg-slate-800 text-white font-black text-[10px]">
-                    VC (1.5X)
-                  </Badge>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (vc) 1.5x
+                  </span>
                 )}
               </DialogTitle>
               <DialogDescription className="text-xs">
@@ -305,14 +265,13 @@ function SuperstarPointsDialog({
 
         <div className="space-y-4 pt-2">
           {/* Points Highlight Banner */}
-          <div className="flex items-center justify-between rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-amber-950 dark:text-amber-100">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3.5">
             <div className="flex items-center gap-2">
-              <Flame className="h-5 w-5 text-amber-500" />
               <div>
                 <p className="text-xs font-semibold text-muted-foreground">
-                  Superstar Impact Rating
+                  Impact rating
                 </p>
-                <p className="text-xl font-black text-foreground">
+                <p className="text-xl font-bold tabular-nums text-foreground">
                   {(player.totalPoints / 10).toFixed(1)}{" "}
                   <span className="text-xs text-muted-foreground font-normal">
                     ({player.totalPoints} pts)
@@ -321,27 +280,27 @@ function SuperstarPointsDialog({
               </div>
             </div>
             {player.isCaptain && (
-              <span className="rounded-lg bg-red-600/90 px-2 py-1 text-xs font-black text-white">
-                Captain Multiplier: 2X
+              <span className="text-xs font-medium text-muted-foreground">
+                Captain: 2x points
               </span>
             )}
             {player.isViceCaptain && (
-              <span className="rounded-lg bg-slate-800 px-2 py-1 text-xs font-black text-white">
-                Vice-Captain Multiplier: 1.5X
+              <span className="text-xs font-medium text-muted-foreground">
+                Vice-captain: 1.5x points
               </span>
             )}
           </div>
 
           {/* Breakdown Table */}
           <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-2.5">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Performance Breakdown
+            <h4 className="text-sm font-semibold text-foreground">
+              Performance breakdown
             </h4>
 
             <div className="space-y-1.5 text-xs">
               <div className="flex items-center justify-between py-1 border-b border-border/50">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <Activity className="h-3.5 w-3.5 text-emerald-500" /> Batting Points
+                  <Activity className="h-3.5 w-3.5 text-muted-foreground" /> Batting Points
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -355,7 +314,7 @@ function SuperstarPointsDialog({
 
               <div className="flex items-center justify-between py-1 border-b border-border/50">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <Target className="h-3.5 w-3.5 text-sky-500" /> Bowling Points
+                  <Target className="h-3.5 w-3.5 text-muted-foreground" /> Bowling Points
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -369,7 +328,7 @@ function SuperstarPointsDialog({
 
               <div className="flex items-center justify-between py-1">
                 <span className="flex items-center gap-1.5 font-medium">
-                  <Shield className="h-3.5 w-3.5 shrink-0 text-indigo-500" /> Fielding & Dismissals
+                  <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> Fielding & Dismissals
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">
@@ -384,7 +343,7 @@ function SuperstarPointsDialog({
           </div>
 
           <div className="rounded-xl bg-slate-100 p-3 text-[11px] text-muted-foreground dark:bg-slate-900 border border-border/60">
-            Points and ratings calculated dynamically using international cricket fantasy and match impact standards.
+            Points are calculated from this match's ball-by-ball data.
           </div>
         </div>
       </DialogContent>
@@ -406,9 +365,8 @@ function SuperstarInfoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-amber-500" />
-            Superstar 11 Impact System
+          <DialogTitle className="text-base sm:text-lg font-semibold">
+            How Superstar 11 points work
           </DialogTitle>
           <DialogDescription className="text-xs">
             How player impact ratings are calculated across both teams
@@ -418,7 +376,7 @@ function SuperstarInfoDialog({
         <div className="space-y-3 pt-2 text-xs text-muted-foreground">
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
             <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Activity className="h-4 w-4 text-emerald-500" /> Batting Points
+              <Activity className="h-4 w-4 text-muted-foreground" /> Batting Points
             </p>
             <p>• 1 Point per Run scored</p>
             <p>• +1 Bonus point per Boundary (4s)</p>
@@ -428,7 +386,7 @@ function SuperstarInfoDialog({
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
             <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Target className="h-4 w-4 text-sky-500" /> Bowling Points
+              <Target className="h-4 w-4 text-muted-foreground" /> Bowling Points
             </p>
             <p>• 25 Points per Wicket taken (excluding run-outs)</p>
             <p>• 12 Points per Maiden Over</p>
@@ -438,7 +396,7 @@ function SuperstarInfoDialog({
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
             <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Shield className="h-4 w-4 text-indigo-500" /> Fielding Points
+              <Shield className="h-4 w-4 text-muted-foreground" /> Fielding Points
             </p>
             <p>• 8 Points per Catch</p>
             <p>• 12 Points per Stumping / Direct Hit Run-out</p>
@@ -446,7 +404,7 @@ function SuperstarInfoDialog({
 
           <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
             <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> Star Multipliers
+              Multipliers
             </p>
             <p>• Captain (Top Performer): 2X Points</p>
             <p>• Vice-Captain (2nd Top Performer): 1.5X Points</p>
@@ -511,10 +469,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
     return (
       <Card className="border-border/60">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500">
-            <Sparkles className="h-7 w-7" />
-          </div>
-          <h3 className="mt-4 text-lg font-bold">Superstars XI</h3>
+          <h3 className="text-lg font-semibold">Superstars XI</h3>
           <p className="mt-1 max-w-md text-xs text-muted-foreground sm:text-sm">
             Superstars XI will be automatically generated once match action
             begins and player performances are recorded.
@@ -553,7 +508,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             )}
           >
             <span className="w-1 h-3.5 bg-red-600 rounded-full inline-block shrink-0" />
-            <span className="truncate uppercase">{match.team1.name}</span>
+            <span className="truncate">{match.team1.name}</span>
           </button>
           <button
             type="button"
@@ -566,7 +521,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             )}
           >
             <span className="w-1 h-3.5 bg-blue-600 rounded-full inline-block shrink-0" />
-            <span className="truncate uppercase">{match.team2.name}</span>
+            <span className="truncate">{match.team2.name}</span>
           </button>
         </div>
 
@@ -606,13 +561,13 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
 
       {/* Pitch View: Stumps-style Cricket Ground Field */}
       {viewMode === "pitch" ? (
-        <Card className="overflow-hidden border-border/80 shadow-xl">
-          <div className="relative min-h-[640px] sm:min-h-[700px] w-full overflow-hidden bg-[radial-gradient(ellipse_at_center,#2f855a_0%,#276749_65%,#1c4532_100%)] p-4 sm:p-6">
+        <Card className="overflow-hidden border-border shadow-sm">
+          <div className="relative min-h-[640px] sm:min-h-[700px] w-full overflow-hidden bg-[#276749] p-4 sm:p-6">
             {/* Info Icon Button (top-right of grass) */}
             <button
               type="button"
               onClick={() => setIsInfoOpen(true)}
-              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/50 hover:text-white focus:outline-none"
+              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 transition-colors hover:bg-black/50 hover:text-white focus:outline-none"
               title="Superstar 11 Points Rules"
               aria-label="Superstar 11 Points Rules"
             >
@@ -626,7 +581,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             <div className="pointer-events-none absolute inset-10 sm:inset-14 rounded-[50%] border border-white/15" />
 
             {/* Center Beige Pitch Rectangle */}
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-16 -translate-x-1/2 -translate-y-1/2 rounded border border-amber-900/30 bg-[#c2ad82]/70 shadow-inner backdrop-blur-[1px]">
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-16 -translate-x-1/2 -translate-y-1/2 rounded border border-amber-900/30 bg-[#c2ad82]/70">
               {/* Bowling Crease Lines */}
               <div className="absolute top-6 left-1 right-1 h-[1.5px] bg-white/80" />
               <div className="absolute bottom-6 left-1 right-1 h-[1.5px] bg-white/80" />
@@ -680,7 +635,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
               Superstars Performance Rankings
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">
-              Total Points: {totalPoints} PTS
+              Total points: {totalPoints}
             </span>
           </div>
 
@@ -693,19 +648,15 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                 <div
                   key={player.playerId}
                   onClick={() => setSelectedPlayer(player)}
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-border/70 bg-card p-3 transition-all hover:bg-muted/50"
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-border/70 bg-card p-3 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <span
                       className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white tabular-nums",
-                        player.rank === 1
-                          ? "bg-amber-500"
-                          : player.rank === 2
-                            ? "bg-slate-500"
-                            : player.rank === 3
-                              ? "bg-amber-700"
-                              : "bg-muted text-muted-foreground font-bold",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+                        player.rank <= 3
+                          ? "bg-foreground text-background"
+                          : "bg-muted text-muted-foreground",
                       )}
                     >
                       {player.rank}
@@ -723,13 +674,13 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                           <span className="truncate">{player.playerName}</span>
                           <RoleBadge role={player.role} />
                           {player.isCaptain && (
-                            <span className="rounded bg-red-600 px-1 py-0.2 text-[9px] font-black text-white shrink-0">
-                              C (2X)
+                            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
+                              (c) 2x
                             </span>
                           )}
                           {player.isViceCaptain && (
-                            <span className="rounded bg-slate-800 px-1 py-0.2 text-[9px] font-black text-white shrink-0">
-                              VC (1.5X)
+                            <span className="shrink-0 text-[11px] font-normal text-muted-foreground">
+                              (vc) 1.5x
                             </span>
                           )}
                         </div>
@@ -742,13 +693,8 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
                   </div>
 
                   <div className="shrink-0 text-right">
-                    <div className="flex items-center gap-1 justify-end font-black text-sm text-foreground">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                        <span className="tabular-nums">{rating}</span>
-                        {player.rank === 1 && (
-                          <Star className="h-2.5 w-2.5 fill-yellow-300 text-yellow-300 shrink-0" />
-                        )}
-                      </span>
+                    <div className="font-score text-sm font-bold tabular-nums text-foreground">
+                      {rating}
                     </div>
                     <span className="text-[10px] text-muted-foreground tabular-nums">
                       {player.totalPoints} pts

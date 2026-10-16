@@ -50,8 +50,8 @@ export function MatchStats({ match }: MatchStatsProps) {
   return (
     <div className="w-full space-y-6">
       {/* Broadcast Quick Jump Bar */}
-      <div className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-xl border border-border/80 bg-card/95 p-1.5 backdrop-blur-md shadow-sm">
-        <span className="hidden px-2 text-xs font-bold uppercase tracking-wider text-muted-foreground sm:inline-block">
+      <div className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm">
+        <span className="hidden px-2 text-xs font-medium text-muted-foreground sm:inline-block">
           Jump:
         </span>
         <button
@@ -191,8 +191,8 @@ export function MatchStats({ match }: MatchStatsProps) {
                     </div>
                   </div>
                   <div className="space-y-2 border-t border-border/50 pt-3">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
-                      Phase Analysis
+                    <span className="text-[11px] font-medium text-muted-foreground block">
+                      Phase analysis
                     </span>
                     {phases.map((p) => {
                       const maxPhase = Math.max(
@@ -359,7 +359,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-[width] duration-700 ease-out"
+                            className="h-full bg-amber-500"
                             style={{ width: `${bpct}%` }}
                           />
                         </div>

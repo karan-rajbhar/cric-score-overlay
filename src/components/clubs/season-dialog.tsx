@@ -13,7 +13,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Calendar, Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import { createSeason, deleteSeason } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
@@ -71,12 +71,6 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-primary">
-            <Calendar className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Season Management
-            </span>
-          </div>
           <DialogTitle className="text-xl">Create Club Season</DialogTitle>
           <DialogDescription>
             Organize tournaments, team rosters, and stats under a periodic

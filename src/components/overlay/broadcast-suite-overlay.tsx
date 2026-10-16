@@ -80,31 +80,28 @@ export interface BroadcastThemeConfig {
 export const DEFAULT_BROADCAST_THEME: BroadcastThemeConfig = {
   name: "Star Sports (IPL)",
   containerClass:
-    "border-2 border-blue-500/80 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(59,130,246,0.35)]",
+    "border border-blue-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
   containerStyle: {
     background: "#050e24",
     borderColor: "rgba(59, 130, 246, 0.85)",
   },
-  scoreTopClass: "bg-gradient-to-r from-[#071330] via-[#0d2254] to-[#071330]",
-  centerBadgeClass:
-    "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(245,158,11,0.5)]",
+  scoreTopClass: "bg-[#071330]",
+  centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
   centerBadgeStyle: {
-    background: "linear-gradient(135deg, #1d4ed8 0%, #0c1a3b 100%)",
+    background: "#1d4ed8",
     borderColor: "#fbbf24",
-    borderWidth: "3px",
+    borderWidth: "2px",
   },
   wingStyle: { background: "rgba(251, 191, 36, 0.6)" },
-  accentRunsClass: "text-amber-400 font-mono font-black",
-  accentSecondaryClass: "text-sky-400 font-bold",
+  accentRunsClass: "text-amber-400 font-bold tabular-nums",
+  accentSecondaryClass: "text-sky-400 font-semibold",
   bottomBarClass: "bg-[#020713] border-t border-blue-500/30",
   cardBorderClass:
-    "border-2 border-blue-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(59,130,246,0.3)]",
-  cardHeaderClass:
-    "bg-gradient-to-r from-blue-900 via-indigo-950 to-blue-900 border-b-2 border-amber-400",
-  boundary4Class: "bg-blue-600 text-white font-black border-blue-400",
-  boundary6Class:
-    "bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black border-yellow-200",
-  wicketClass: "bg-red-600 text-white font-black border-red-400",
+    "border border-blue-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+  cardHeaderClass: "bg-blue-900 border-b-2 border-amber-400",
+  boundary4Class: "bg-blue-600 text-white font-semibold border-blue-400",
+  boundary6Class: "bg-amber-500 text-black font-semibold border-yellow-200",
+  wicketClass: "bg-red-600 text-white font-semibold border-red-400",
   dotBallClass: "bg-white/10 text-slate-400 border-white/15",
 };
 
@@ -113,358 +110,326 @@ export const BROADCAST_THEME_MAP: Record<string, BroadcastThemeConfig> = {
   sonysports: {
     name: "Sony Sports (LIV)",
     containerClass:
-      "border-2 border-red-600/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(220,38,38,0.4)]",
+      "border border-red-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#101012",
       borderColor: "rgba(220, 38, 38, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#18181b] via-[#27272a] to-[#18181b]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(220,38,38,0.5)]",
+    scoreTopClass: "bg-[#18181b]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)",
+      background: "#dc2626",
       borderColor: "#fca5a5",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(220, 38, 38, 0.7)" },
-    accentRunsClass: "text-red-400 font-mono font-black",
-    accentSecondaryClass: "text-rose-300 font-bold",
+    accentRunsClass: "text-red-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-rose-300 font-semibold",
     bottomBarClass: "bg-[#09090b] border-t-2 border-red-600",
     cardBorderClass:
-      "border-2 border-red-600/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(220,38,38,0.35)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-red-900 via-zinc-950 to-red-900 border-b-2 border-red-500",
-    boundary4Class: "bg-red-700 text-white font-black border-red-400",
-    boundary6Class:
-      "bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 text-white font-black border-rose-300",
-    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-black",
+      "border border-red-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-red-900 border-b-2 border-red-500",
+    boundary4Class: "bg-red-700 text-white font-semibold border-red-400",
+    boundary6Class: "bg-red-600 text-white font-semibold border-rose-300",
+    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-semibold",
     dotBallClass: "bg-zinc-800 text-zinc-400 border-zinc-700",
   },
   foxcricket: {
     name: "Fox Cricket",
     containerClass:
-      "border-2 border-orange-500/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(249,115,22,0.4)]",
+      "border border-orange-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#0c0a09",
       borderColor: "rgba(249, 115, 22, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#1c1917] via-[#292524] to-[#1c1917]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(249,115,22,0.5)]",
+    scoreTopClass: "bg-[#1c1917]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #ea580c 0%, #7c2d12 100%)",
+      background: "#ea580c",
       borderColor: "#fed7aa",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(249, 115, 22, 0.7)" },
-    accentRunsClass: "text-orange-400 font-mono font-black",
-    accentSecondaryClass: "text-amber-300 font-bold",
+    accentRunsClass: "text-orange-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-amber-300 font-semibold",
     bottomBarClass: "bg-[#060504] border-t-2 border-orange-500",
     cardBorderClass:
-      "border-2 border-orange-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(249,115,22,0.35)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-orange-950 via-stone-950 to-orange-950 border-b-2 border-orange-500",
-    boundary4Class: "bg-orange-600 text-white font-black border-orange-400",
-    boundary6Class:
-      "bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 text-black font-black border-amber-300",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-orange-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-orange-950 border-b-2 border-orange-500",
+    boundary4Class: "bg-orange-600 text-white font-semibold border-orange-400",
+    boundary6Class: "bg-amber-500 text-black font-semibold border-amber-300",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-stone-800 text-stone-400 border-stone-700",
   },
   skysports: {
     name: "Sky Sports (Ashes)",
     containerClass:
-      "border-2 border-red-700/80 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(185,28,28,0.35)]",
+      "border border-red-700/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#050b1a",
       borderColor: "rgba(185, 28, 28, 0.85)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#091533] via-[#102047] to-[#091533]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(185,28,28,0.45)]",
+    scoreTopClass: "bg-[#091533]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #b91c1c 0%, #1e1b4b 100%)",
+      background: "#b91c1c",
       borderColor: "#fca5a5",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(185, 28, 28, 0.6)" },
-    accentRunsClass: "text-red-400 font-mono font-black",
-    accentSecondaryClass: "text-sky-300 font-bold",
+    accentRunsClass: "text-red-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-sky-300 font-semibold",
     bottomBarClass: "bg-[#030610] border-t border-red-600/40",
     cardBorderClass:
-      "border-2 border-red-700/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(185,28,28,0.3)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-red-950 via-slate-950 to-red-950 border-b-2 border-red-500",
-    boundary4Class: "bg-red-600 text-white font-black border-red-400",
-    boundary6Class:
-      "bg-gradient-to-r from-red-600 to-amber-500 text-white font-black border-amber-300",
-    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-black",
+      "border border-red-700/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-red-950 border-b-2 border-red-500",
+    boundary4Class: "bg-red-600 text-white font-semibold border-red-400",
+    boundary6Class: "bg-red-600 text-white font-semibold border-amber-300",
+    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-semibold",
     dotBallClass: "bg-slate-800 text-slate-400 border-slate-700",
   },
   apex: {
     name: "Apex 24K Gold",
     containerClass:
-      "border-2 border-amber-400/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_40px_rgba(245,158,11,0.5)]",
+      "border border-amber-400/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#0d0c09",
       borderColor: "rgba(245, 158, 11, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#17150f] via-[#241f15] to-[#17150f]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_30px_rgba(245,158,11,0.6)]",
+    scoreTopClass: "bg-[#17150f]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #d97706 0%, #78350f 100%)",
+      background: "#d97706",
       borderColor: "#fde68a",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(245, 158, 11, 0.7)" },
-    accentRunsClass: "text-amber-300 font-mono font-black",
-    accentSecondaryClass: "text-yellow-400 font-bold",
+    accentRunsClass: "text-amber-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-yellow-400 font-semibold",
     bottomBarClass: "bg-[#070604] border-t-2 border-amber-500",
     cardBorderClass:
-      "border-2 border-amber-400/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(245,158,11,0.45)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-amber-950 via-neutral-950 to-amber-950 border-b-2 border-amber-400",
-    boundary4Class: "bg-amber-600 text-black font-black border-amber-300",
-    boundary6Class:
-      "bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500 text-black font-black border-yellow-100",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-amber-400/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-amber-950 border-b-2 border-amber-400",
+    boundary4Class: "bg-amber-600 text-black font-semibold border-amber-300",
+    boundary6Class: "bg-yellow-300 text-black font-semibold border-yellow-100",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-neutral-800 text-amber-200/50 border-neutral-700",
   },
   volt: {
     name: "Volt Sports-Tech",
     containerClass:
-      "border-2 border-lime-400/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(163,230,53,0.4)]",
+      "border border-lime-400/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#040d0a",
       borderColor: "rgba(163, 230, 53, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#071a13] via-[#0d2d21] to-[#071a13]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(163,230,53,0.5)]",
+    scoreTopClass: "bg-[#071a13]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #65a30d 0%, #064e3b 100%)",
+      background: "#65a30d",
       borderColor: "#bef264",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(163, 230, 53, 0.7)" },
-    accentRunsClass: "text-lime-300 font-mono font-black",
-    accentSecondaryClass: "text-emerald-400 font-bold",
+    accentRunsClass: "text-lime-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-emerald-400 font-semibold",
     bottomBarClass: "bg-[#020705] border-t-2 border-lime-400",
     cardBorderClass:
-      "border-2 border-lime-400/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(163,230,53,0.35)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-emerald-950 via-zinc-950 to-emerald-950 border-b-2 border-lime-400",
-    boundary4Class: "bg-cyan-500 text-black font-black border-cyan-300",
-    boundary6Class: "bg-lime-400 text-black font-black border-lime-200",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-lime-400/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-emerald-950 border-b-2 border-lime-400",
+    boundary4Class: "bg-cyan-500 text-black font-semibold border-cyan-300",
+    boundary6Class: "bg-lime-400 text-black font-semibold border-lime-200",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-neutral-900 text-lime-400/50 border-neutral-800",
   },
   agni: {
     name: "Agni Inferno",
     containerClass:
-      "border-2 border-orange-600/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_45px_rgba(234,88,12,0.5)]",
+      "border border-orange-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#120501",
       borderColor: "rgba(234, 88, 12, 0.95)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#200802] via-[#350f04] to-[#200802]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_30px_rgba(234,88,12,0.6)]",
+    scoreTopClass: "bg-[#200802]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #c2410c 0%, #431407 100%)",
+      background: "#c2410c",
       borderColor: "#ffedd5",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(234, 88, 12, 0.7)" },
-    accentRunsClass: "text-orange-400 font-mono font-black",
-    accentSecondaryClass: "text-amber-400 font-bold",
+    accentRunsClass: "text-orange-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-amber-400 font-semibold",
     bottomBarClass: "bg-[#0a0200] border-t-2 border-orange-600",
     cardBorderClass:
-      "border-2 border-orange-600/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_45px_rgba(234,88,12,0.45)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-orange-950 via-red-950 to-orange-950 border-b-2 border-orange-500",
-    boundary4Class: "bg-orange-600 text-white font-black border-orange-400",
-    boundary6Class:
-      "bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 text-white font-black border-yellow-300",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-orange-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-orange-950 border-b-2 border-orange-500",
+    boundary4Class: "bg-orange-600 text-white font-semibold border-orange-400",
+    boundary6Class: "bg-amber-400 text-white font-semibold border-yellow-300",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-stone-900 text-orange-400/50 border-stone-800",
   },
   thehundred: {
     name: "The Hundred",
     containerClass:
-      "border-2 border-pink-500/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_40px_rgba(236,72,153,0.45)]",
+      "border border-pink-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#14031c",
       borderColor: "rgba(236, 72, 153, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#240532] via-[#380b4d] to-[#240532]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(236,72,153,0.5)]",
+    scoreTopClass: "bg-[#240532]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #db2777 0%, #0891b2 100%)",
+      background: "#db2777",
       borderColor: "#f472b6",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(236, 72, 153, 0.7)" },
-    accentRunsClass: "text-pink-400 font-mono font-black",
-    accentSecondaryClass: "text-cyan-300 font-bold",
+    accentRunsClass: "text-pink-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-cyan-300 font-semibold",
     bottomBarClass: "bg-[#0a010e] border-t-2 border-cyan-400",
     cardBorderClass:
-      "border-2 border-pink-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(236,72,153,0.4)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-pink-950 via-purple-950 to-cyan-950 border-b-2 border-pink-400",
-    boundary4Class: "bg-cyan-500 text-black font-black border-cyan-300",
-    boundary6Class: "bg-pink-500 text-white font-black border-pink-300",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-pink-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-pink-950 border-b-2 border-pink-400",
+    boundary4Class: "bg-cyan-500 text-black font-semibold border-cyan-300",
+    boundary6Class: "bg-pink-500 text-white font-semibold border-pink-300",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-fuchsia-950 text-pink-300/50 border-fuchsia-900",
   },
   dharma: {
     name: "Dharma Gold",
     containerClass:
-      "border-2 border-amber-600/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(217,119,6,0.45)]",
+      "border border-amber-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#130a04",
       borderColor: "rgba(217, 119, 6, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#231206] via-[#351c09] to-[#231206]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(217,119,6,0.5)]",
+    scoreTopClass: "bg-[#231206]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #b45309 0%, #451a03 100%)",
+      background: "#b45309",
       borderColor: "#fde68a",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(217, 119, 6, 0.7)" },
-    accentRunsClass: "text-amber-300 font-mono font-black",
-    accentSecondaryClass: "text-yellow-400 font-bold",
+    accentRunsClass: "text-amber-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-yellow-400 font-semibold",
     bottomBarClass: "bg-[#0a0502] border-t-2 border-amber-600",
     cardBorderClass:
-      "border-2 border-amber-600/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(217,119,6,0.4)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-amber-950 via-stone-950 to-amber-950 border-b-2 border-amber-500",
-    boundary4Class: "bg-amber-600 text-black font-black border-amber-300",
-    boundary6Class:
-      "bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-600 text-black font-black border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-amber-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-amber-950 border-b-2 border-amber-500",
+    boundary4Class: "bg-amber-600 text-black font-semibold border-amber-300",
+    boundary6Class: "bg-yellow-400 text-black font-semibold border-yellow-200",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-stone-900 text-amber-300/50 border-stone-800",
   },
   thunder: {
     name: "Thunder Indigo",
     containerClass:
-      "border-2 border-cyan-500/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(6,182,212,0.45)]",
+      "border border-cyan-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#03071e",
       borderColor: "rgba(6, 182, 212, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#091238] via-[#0f1e56] to-[#091238]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(6,182,212,0.55)]",
+    scoreTopClass: "bg-[#091238]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #0891b2 0%, #1e1b4b 100%)",
+      background: "#0891b2",
       borderColor: "#67e8f9",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(6, 182, 212, 0.7)" },
-    accentRunsClass: "text-cyan-300 font-mono font-black",
-    accentSecondaryClass: "text-sky-400 font-bold",
+    accentRunsClass: "text-cyan-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-sky-400 font-semibold",
     bottomBarClass: "bg-[#020412] border-t-2 border-cyan-500",
     cardBorderClass:
-      "border-2 border-cyan-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(6,182,212,0.4)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-cyan-950 via-indigo-950 to-cyan-950 border-b-2 border-cyan-400",
-    boundary4Class: "bg-cyan-600 text-white font-black border-cyan-300",
-    boundary6Class:
-      "bg-gradient-to-r from-cyan-400 to-blue-500 text-black font-black border-cyan-100",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-cyan-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-cyan-950 border-b-2 border-cyan-400",
+    boundary4Class: "bg-cyan-600 text-white font-semibold border-cyan-300",
+    boundary6Class: "bg-cyan-400 text-black font-semibold border-cyan-100",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-indigo-950 text-cyan-300/50 border-indigo-900",
   },
   nakshatra: {
     name: "Nakshatra Cosmic",
     containerClass:
-      "border-2 border-purple-500/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_40px_rgba(168,85,247,0.45)]",
+      "border border-purple-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#0e051a",
       borderColor: "rgba(168, 85, 247, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#1b0c30] via-[#2a134d] to-[#1b0c30]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(168,85,247,0.55)]",
+    scoreTopClass: "bg-[#1b0c30]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #7e22ce 0%, #3b0764 100%)",
+      background: "#7e22ce",
       borderColor: "#fde047",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(168, 85, 247, 0.7)" },
-    accentRunsClass: "text-amber-300 font-mono font-black",
-    accentSecondaryClass: "text-purple-300 font-bold",
+    accentRunsClass: "text-amber-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-purple-300 font-semibold",
     bottomBarClass: "bg-[#06020c] border-t-2 border-purple-500",
     cardBorderClass:
-      "border-2 border-purple-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(168,85,247,0.4)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-purple-950 via-fuchsia-950 to-purple-950 border-b-2 border-amber-400",
-    boundary4Class: "bg-purple-600 text-white font-black border-purple-300",
-    boundary6Class:
-      "bg-gradient-to-r from-amber-400 via-fuchsia-500 to-purple-600 text-white font-black border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-purple-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-purple-950 border-b-2 border-amber-400",
+    boundary4Class: "bg-purple-600 text-white font-semibold border-purple-300",
+    boundary6Class: "bg-amber-400 text-white font-semibold border-yellow-200",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-purple-950 text-purple-300/50 border-purple-900",
   },
   emerald: {
     name: "Emerald Cricket",
     containerClass:
-      "border-2 border-emerald-500/90 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_35px_rgba(16,185,129,0.45)]",
+      "border border-emerald-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#04120b",
       borderColor: "rgba(16, 185, 129, 0.9)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#092416] via-[#0e3722] to-[#092416]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(16,185,129,0.55)]",
+    scoreTopClass: "bg-[#092416]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #059669 0%, #064e3b 100%)",
+      background: "#059669",
       borderColor: "#fde047",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(16, 185, 129, 0.7)" },
-    accentRunsClass: "text-amber-300 font-mono font-black",
-    accentSecondaryClass: "text-emerald-300 font-bold",
+    accentRunsClass: "text-amber-300 font-bold tabular-nums",
+    accentSecondaryClass: "text-emerald-300 font-semibold",
     bottomBarClass: "bg-[#020905] border-t-2 border-emerald-500",
     cardBorderClass:
-      "border-2 border-emerald-500/80 shadow-[0_25px_60px_rgba(0,0,0,0.95),0_0_40px_rgba(16,185,129,0.4)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-emerald-950 via-teal-950 to-emerald-950 border-b-2 border-emerald-400",
-    boundary4Class: "bg-emerald-600 text-white font-black border-emerald-300",
-    boundary6Class:
-      "bg-gradient-to-r from-yellow-400 to-emerald-500 text-black font-black border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-emerald-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-emerald-950 border-b-2 border-emerald-400",
+    boundary4Class:
+      "bg-emerald-600 text-white font-semibold border-emerald-300",
+    boundary6Class: "bg-yellow-400 text-black font-semibold border-yellow-200",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-emerald-950 text-emerald-300/50 border-emerald-900",
   },
   dark: {
     name: "Dark Titanium",
     containerClass:
-      "border-2 border-white/25 shadow-[0_16px_50px_rgba(0,0,0,0.95),0_0_30px_rgba(255,255,255,0.15)]",
+      "border border-white/25 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     containerStyle: {
       background: "#0a0a0a",
       borderColor: "rgba(255, 255, 255, 0.25)",
     },
-    scoreTopClass: "bg-gradient-to-r from-[#171717] via-[#262626] to-[#171717]",
-    centerBadgeClass:
-      "shadow-[0_10px_30px_rgba(0,0,0,0.95),0_0_25px_rgba(255,255,255,0.2)]",
+    scoreTopClass: "bg-[#171717]",
+    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
     centerBadgeStyle: {
-      background: "linear-gradient(135deg, #404040 0%, #171717 100%)",
+      background: "#404040",
       borderColor: "#ffffff",
-      borderWidth: "3px",
+      borderWidth: "2px",
     },
     wingStyle: { background: "rgba(255, 255, 255, 0.4)" },
-    accentRunsClass: "text-sky-400 font-mono font-black",
-    accentSecondaryClass: "text-slate-300 font-bold",
+    accentRunsClass: "text-sky-400 font-bold tabular-nums",
+    accentSecondaryClass: "text-slate-300 font-semibold",
     bottomBarClass: "bg-[#050505] border-t-2 border-white/20",
     cardBorderClass:
-      "border-2 border-white/25 shadow-[0_25px_60px_rgba(0,0,0,0.95)]",
-    cardHeaderClass:
-      "bg-gradient-to-r from-neutral-900 via-zinc-900 to-neutral-900 border-b-2 border-white/30",
-    boundary4Class: "bg-sky-600 text-white font-black border-sky-400",
-    boundary6Class: "bg-white text-black font-black border-slate-300",
-    wicketClass: "bg-red-600 text-white font-black border-red-400",
+      "border border-white/25 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    cardHeaderClass: "bg-neutral-900 border-b-2 border-white/30",
+    boundary4Class: "bg-sky-600 text-white font-semibold border-sky-400",
+    boundary6Class: "bg-white text-black font-semibold border-slate-300",
+    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
     dotBallClass: "bg-neutral-800 text-neutral-400 border-neutral-700",
   },
   broadcast: DEFAULT_BROADCAST_THEME,
@@ -565,14 +530,14 @@ export function BroadcastSuiteOverlay({
 
   // Toss text
   const tossText = state.toss_winner_team_id
-    ? `${state.toss_winner_team_id === match?.team1_id ? team1Name : team2Name} WON THE TOSS AND ELECTED TO ${state.toss_decision === "bowl" ? "BOWL" : "BAT"}`
-    : `${team1Name} WON THE TOSS AND ELECTED TO BAT`;
+    ? `${state.toss_winner_team_id === match?.team1_id ? team1Name : team2Name} won the toss and elected to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`
+    : `${team1Name} won the toss and elected to bat`;
 
   // Equation text
   const equationText =
     state.runs_needed !== null && state.balls_remaining !== null
-      ? `${state.batting_team_short_name ?? battingTeamName} NEED ${state.runs_needed} FROM ${oversFormatted(state.balls_remaining)} OVERS ${state.required_run_rate ?? "—"} RRR`
-      : `${team1Name} VS ${team2Name}`;
+      ? `${state.batting_team_short_name ?? battingTeamName} need ${state.runs_needed} from ${oversFormatted(state.balls_remaining)} overs (RRR ${state.required_run_rate ?? "—"})`
+      : `${team1Name} vs ${team2Name}`;
 
   return (
     <div
@@ -619,7 +584,7 @@ export function BroadcastSuiteOverlay({
         activeView === "37" ||
         activeView === "38" ||
         activeView === "39") && (
-        <div className="overlayWrap ScoreBar duration-300 animate-in slide-in-from-bottom-5">
+        <div className="overlayWrap ScoreBar duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none">
           <div
             className={`scoreContainer ${t.containerClass}`}
             style={t.containerStyle}
@@ -631,7 +596,7 @@ export function BroadcastSuiteOverlay({
                   <span className="t2Code text-amber-300">{team2Code}</span>
                   <span className="t2Total">{inn2Total}</span>/
                   <span className="t2Wickets">{inn2Wickets}</span>
-                  <span className="oversended">OVERS</span>
+                  <span className="oversended">ov</span>
                   <span className="t2Overs">{inn2Overs}</span>
                 </div>
                 <div className="result">
@@ -641,7 +606,7 @@ export function BroadcastSuiteOverlay({
                   <span className="t1Code text-sky-300">{team1Code}</span>
                   <span className="t1Total">{inn1Total}</span>/
                   <span className="t1Wickets">{inn1Wickets}</span>
-                  <span className="oversended">OVERS</span>
+                  <span className="oversended">ov</span>
                   <span className="t1Overs">{inn1Overs}</span>
                 </div>
               </div>
@@ -713,7 +678,7 @@ export function BroadcastSuiteOverlay({
                     <span className="bowlerWickets" id="bowlerWickets">
                       {state.bowler_wickets ?? 0}
                     </span>
-                    <span className="overlabelbowler">OVERS</span>
+                    <span className="overlabelbowler">ov</span>
                     <span
                       className={`bowlerOvers ${t.accentSecondaryClass}`}
                       id="bowlerOvers"
@@ -745,7 +710,7 @@ export function BroadcastSuiteOverlay({
                   <div className="mainCenterTopLeft t1Code text-sky-400">
                     {team1Code}
                   </div>
-                  <div className="text-xs font-black text-white/40">VS</div>
+                  <div className="text-xs font-semibold text-white/40">vs</div>
                   <div className="mainCenterTopLeft t2Code text-amber-400">
                     {team2Code}
                   </div>
@@ -764,7 +729,7 @@ export function BroadcastSuiteOverlay({
                     </span>
                   </div>
                   <div className="mainCenterBottomRight">
-                    <span>OVERS</span>
+                    <span>Overs</span>
                     <span className="overs colorwhite">
                       {oversFormatted(state.total_balls)}
                     </span>
@@ -782,7 +747,7 @@ export function BroadcastSuiteOverlay({
                 {!isSecondInnings ? (
                   <div className="firstIn" id="firstInningButtomTab">
                     <span className="t1Name text-sky-300">{team1Name}</span>
-                    <span className="colorc1 firstinningvs"> VS </span>
+                    <span className="colorc1 firstinningvs"> vs </span>
                     <span className="t2Name text-amber-300">{team2Name}</span>
                   </div>
                 ) : (
@@ -796,14 +761,14 @@ export function BroadcastSuiteOverlay({
                           {team1Code}
                         </span>{" "}
                         {inn1Total}/{inn1Wickets}
-                        <span className="numberColorClass"> OVERS </span>
+                        <span className="numberColorClass"> ov </span>
                         {inn1Overs}
                       </span>
                     </div>
                     <div className="bottomMed showRunsRequired border-l border-white/10 pl-3">
                       <div className="need-hide scoreEquation flex items-center gap-1.5">
                         <span className="colorc1 smallf text-amber-400">
-                          NEED
+                          Need
                         </span>
                         <span className="requiredRuns">
                           {state.runs_needed ?? 0}
@@ -856,21 +821,21 @@ export function BroadcastSuiteOverlay({
       {/* ===================================================================== */}
       {(activeView === "2" || activeView === "4") && (
         <div
-          className={`overlayWrap card ${activeView === "2" ? "Batting1" : "Batting2"} active duration-200 animate-in zoom-in-95`}
+          className={`overlayWrap card ${activeView === "2" ? "Batting1" : "Batting2"} active duration-200 animate-in fade-in motion-reduce:animate-none`}
         >
           <div className={`insideWrap relative ${t.cardBorderClass}`}>
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle t1Name">
-                {activeView === "2" ? team1Name : team2Name} · BATTING CARD
+                {activeView === "2" ? team1Name : team2Name} · Batting
               </div>
             </div>
             <div className="insideWrapInside battingcard">
@@ -897,26 +862,26 @@ export function BroadcastSuiteOverlay({
                   </div>
                 ))
               ) : (
-                <div className="p-8 text-center italic text-slate-400">
+                <div className="p-8 text-center text-slate-400">
                   Live scorecard is updating with every delivery.
                 </div>
               )}
             </div>
             <div className="scoreRow total bowling but_batting">
               <span className="cardlabel colorc1">Overs</span>
-              <span className="t1Overs ml-1 font-mono">
+              <span className="t1Overs ml-1 tabular-nums">
                 {activeView === "2" ? inn1Overs : inn2Overs}
               </span>
               <span className="cardlabel colorc1 ml-4">RR</span>
-              <span className="t1RR ml-1 font-mono">
+              <span className="t1RR ml-1 tabular-nums">
                 {state.current_run_rate ?? "0.0"}
               </span>
               <span className="cardlabel colorc1 ml-4">Extras</span>
-              <span className="t1Extras ml-1 font-mono">
+              <span className="t1Extras ml-1 tabular-nums">
                 {(activeView === "2" ? inn1 : inn2)?.extras_total ?? 0}
               </span>
               <span className="cardlabel colorc1 ml-4">Total</span>
-              <span className="t1Total ml-1 font-mono text-amber-300">
+              <span className="t1Total ml-1 tabular-nums text-amber-300">
                 {(activeView === "2" ? inn1 : inn2)?.total_runs ??
                   state.total_runs ??
                   0}
@@ -943,21 +908,21 @@ export function BroadcastSuiteOverlay({
       {/* ===================================================================== */}
       {(activeView === "3" || activeView === "5") && (
         <div
-          className={`overlayWrap card ${activeView === "3" ? "Bowling1" : "Bowling2"} active duration-200 animate-in zoom-in-95`}
+          className={`overlayWrap card ${activeView === "3" ? "Bowling1" : "Bowling2"} active duration-200 animate-in fade-in motion-reduce:animate-none`}
         >
           <div className={`insideWrap relative ${t.cardBorderClass}`}>
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle t2Name">
-                {activeView === "3" ? team2Name : team1Name} · BOWLING CARD
+                {activeView === "3" ? team2Name : team1Name} · Bowling
               </div>
             </div>
             <div className="insideWrapInside bowlingcard">
@@ -977,9 +942,9 @@ export function BroadcastSuiteOverlay({
                         {bw.user?.full_name ?? "Bowler"}
                       </div>
                       <div className="status">
-                        O: <span className="font-mono text-white">{ov}</span> ·
-                        M:{" "}
-                        <span className="font-mono text-white">
+                        O: <span className="tabular-nums text-white">{ov}</span>{" "}
+                        · M:{" "}
+                        <span className="tabular-nums text-white">
                           {bw.maidens}
                         </span>
                       </div>
@@ -991,22 +956,22 @@ export function BroadcastSuiteOverlay({
                   );
                 })
               ) : (
-                <div className="p-8 text-center italic text-slate-400">
+                <div className="p-8 text-center text-slate-400">
                   Bowling figures active.
                 </div>
               )}
             </div>
             <div className="scoreRow total bowling powered-wrap">
               <span className="cardlabel colorc1">Overs</span>
-              <span className="t1Overs ml-1 font-mono">
+              <span className="t1Overs ml-1 tabular-nums">
                 {activeView === "3" ? inn1Overs : inn2Overs}
               </span>
               <span className="cardlabel colorc1 ml-4">Extras</span>
-              <span className="t1Extras ml-1 font-mono">
+              <span className="t1Extras ml-1 tabular-nums">
                 {(activeView === "3" ? inn1 : inn2)?.extras_total ?? 0}
               </span>
               <span className="cardlabel colorc1 ml-4">Total</span>
-              <span className="t1Total ml-1 font-mono text-amber-300">
+              <span className="t1Total ml-1 tabular-nums text-amber-300">
                 {(activeView === "3" ? inn1 : inn2)?.total_runs ?? 0}/
                 {(activeView === "3" ? inn1 : inn2)?.total_wickets ?? 0}
               </span>
@@ -1023,7 +988,7 @@ export function BroadcastSuiteOverlay({
       {/* ===================================================================== */}
       {(activeView === "6" || activeView === "7") && (
         <div
-          className={`overlayWrap card ${activeView === "6" ? "Squad1" : "Squad2"} duration-200 animate-in zoom-in-95`}
+          className={`overlayWrap card ${activeView === "6" ? "Squad1" : "Squad2"} duration-200 animate-in fade-in motion-reduce:animate-none`}
         >
           <div
             className={`insideWrap relative ${t.cardBorderClass}`}
@@ -1033,14 +998,14 @@ export function BroadcastSuiteOverlay({
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle">
-                {activeView === "6" ? team1Name : team2Name} · PLAYING XI
+                {activeView === "6" ? team1Name : team2Name} · Playing XI
               </div>
             </div>
             <div className="insideWrapInside grid grid-cols-2 gap-2 p-4">
@@ -1056,7 +1021,7 @@ export function BroadcastSuiteOverlay({
                     {idx + 1}. {tp.user?.full_name ?? "Player"}
                   </span>
                   {tp.role_in_team && (
-                    <span className="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-300">
+                    <span className="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                       {tp.role_in_team}
                     </span>
                   )}
@@ -1074,7 +1039,7 @@ export function BroadcastSuiteOverlay({
       {/* 5. MATCH SUMMARY (data-view="8")                                      */}
       {/* ===================================================================== */}
       {activeView === "8" && (
-        <div className="overlayWrap card summary duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap card summary duration-200 animate-in fade-in motion-reduce:animate-none">
           <div
             className={`insideWrap relative ${t.cardBorderClass}`}
             style={{ maxWidth: "860px" }}
@@ -1083,26 +1048,26 @@ export function BroadcastSuiteOverlay({
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">MATCH SUMMARY</div>
+              <div className="teamtitle">Match summary</div>
             </div>
 
             {/* Team 1 Summary Header & Leaders */}
             <div className="border-b border-white/10 p-4">
-              <div className="flex items-center justify-between pb-2 text-sm font-black text-sky-300">
+              <div className="flex items-center justify-between pb-2 text-sm font-semibold text-sky-300">
                 <span>{team1Name}</span>
-                <span className="font-mono text-white">
+                <span className="tabular-nums text-white">
                   {inn1Total}/{inn1Wickets} ({inn1Overs} ov)
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold uppercase text-amber-400">
+                  <span className="mb-1 block text-[10px] font-bold text-amber-400">
                     Top Batters
                   </span>
                   {(inn1?.batting_performances || [])
@@ -1113,14 +1078,14 @@ export function BroadcastSuiteOverlay({
                         className="flex justify-between py-0.5 text-slate-200"
                       >
                         <span>{bp.user?.full_name}</span>
-                        <span className="font-mono font-bold text-amber-300">
+                        <span className="font-bold tabular-nums text-amber-300">
                           {bp.runs_scored} ({bp.balls_faced})
                         </span>
                       </div>
                     ))}
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold uppercase text-sky-400">
+                  <span className="mb-1 block text-[10px] font-bold text-sky-400">
                     Top Bowlers
                   </span>
                   {(inn2?.bowling_performances || [])
@@ -1131,7 +1096,7 @@ export function BroadcastSuiteOverlay({
                         className="flex justify-between py-0.5 text-slate-200"
                       >
                         <span>{bw.user?.full_name}</span>
-                        <span className="font-mono font-bold text-sky-300">
+                        <span className="font-bold tabular-nums text-sky-300">
                           {bw.wickets_taken}/{bw.runs_conceded}
                         </span>
                       </div>
@@ -1142,15 +1107,15 @@ export function BroadcastSuiteOverlay({
 
             {/* Team 2 Summary Header & Leaders */}
             <div className="p-4">
-              <div className="flex items-center justify-between pb-2 text-sm font-black text-amber-300">
+              <div className="flex items-center justify-between pb-2 text-sm font-semibold text-amber-300">
                 <span>{team2Name}</span>
-                <span className="font-mono text-white">
+                <span className="tabular-nums text-white">
                   {inn2Total}/{inn2Wickets} ({inn2Overs} ov)
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold uppercase text-amber-400">
+                  <span className="mb-1 block text-[10px] font-bold text-amber-400">
                     Top Batters
                   </span>
                   {(inn2?.batting_performances || [])
@@ -1161,14 +1126,14 @@ export function BroadcastSuiteOverlay({
                         className="flex justify-between py-0.5 text-slate-200"
                       >
                         <span>{bp.user?.full_name}</span>
-                        <span className="font-mono font-bold text-amber-300">
+                        <span className="font-bold tabular-nums text-amber-300">
                           {bp.runs_scored} ({bp.balls_faced})
                         </span>
                       </div>
                     ))}
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold uppercase text-sky-400">
+                  <span className="mb-1 block text-[10px] font-bold text-sky-400">
                     Top Bowlers
                   </span>
                   {(inn1?.bowling_performances || [])
@@ -1179,7 +1144,7 @@ export function BroadcastSuiteOverlay({
                         className="flex justify-between py-0.5 text-slate-200"
                       >
                         <span>{bw.user?.full_name}</span>
-                        <span className="font-mono font-bold text-sky-300">
+                        <span className="font-bold tabular-nums text-sky-300">
                           {bw.wickets_taken}/{bw.runs_conceded}
                         </span>
                       </div>
@@ -1190,7 +1155,7 @@ export function BroadcastSuiteOverlay({
 
             <div className="scoreRowtotal summaryend">
               <div className="tossWon">{tossText}</div>
-              <div className="result mt-1 font-black text-amber-300">
+              <div className="result mt-1 font-semibold text-amber-300">
                 {equationText}
               </div>
             </div>
@@ -1202,7 +1167,7 @@ export function BroadcastSuiteOverlay({
       {/* 6. PARTNERSHIP CARD (data-view="23")                                  */}
       {/* ===================================================================== */}
       {activeView === "23" && (
-        <div className="overlayWrap card partnership duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap card partnership duration-200 animate-in fade-in motion-reduce:animate-none">
           <div
             className={`insideWrap relative ${t.cardBorderClass}`}
             style={{ width: "800px" }}
@@ -1211,36 +1176,36 @@ export function BroadcastSuiteOverlay({
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className="insideWrapInside">
               <div className={`teaminfo ${t.cardHeaderClass}`}>
-                <div className="teamtitle">CURRENT PARTNERSHIP</div>
+                <div className="teamtitle">Current partnership</div>
               </div>
               <div className="part_wrap">
                 <div className="partnership_profiles">
                   {/* Left Batter */}
                   <div className="left-sec">
                     <div className="partnershipScore1 psgroup psgrouptop">
-                      <span className="p1tRuns text-xl font-black text-white">
+                      <span className="p1tRuns text-xl font-semibold text-white">
                         {state.striker_runs ?? 0}
                       </span>
                       <span className="p1tBalls ml-1 text-xs text-slate-400">
                         ({state.striker_balls ?? 0}b)
                       </span>
-                      <div className="p1pName text_bottom_ps mt-0.5 font-bold uppercase text-sky-300">
+                      <div className="p1pName text_bottom_ps mt-0.5 font-bold text-sky-300">
                         {state.striker_name ?? "Striker"} *
                       </div>
                     </div>
                     <div className="partnership-bg partnershipImg1" />
                     <div className="partnershipScore1 psgroup psgroupbottom">
-                      <span className="p1pRuns font-mono font-bold text-amber-300">
+                      <span className="p1pRuns font-bold tabular-nums text-amber-300">
                         SR {strikerSr}
                       </span>
-                      <div className="text_bottom_ps text-[10px] uppercase text-slate-400">
+                      <div className="text_bottom_ps text-[10px] text-slate-400">
                         Strike Rate
                       </div>
                     </div>
@@ -1248,7 +1213,7 @@ export function BroadcastSuiteOverlay({
 
                   {/* Mid Section: Partnership Runs */}
                   <div className="mid-sec">
-                    <div className="ptRuns font-mono text-5xl font-black text-amber-400">
+                    <div className="ptRuns text-5xl font-semibold tabular-nums text-amber-400">
                       {state.partnership_runs ?? 0}
                     </div>
                     <div className="ptballswrap">
@@ -1256,29 +1221,29 @@ export function BroadcastSuiteOverlay({
                       <span className="ptBalls font-bold text-white">
                         {state.partnership_balls ?? 0}
                       </span>{" "}
-                      BALLS
+                      balls
                     </div>
                   </div>
 
                   {/* Right Batter */}
                   <div className="right-sec">
                     <div className="partnershipScore2 psgroup psgrouptop">
-                      <span className="p2tRuns text-xl font-black text-white">
+                      <span className="p2tRuns text-xl font-semibold text-white">
                         {state.non_striker_runs ?? 0}
                       </span>
                       <span className="p2tBalls ml-1 text-xs text-slate-400">
                         ({state.non_striker_balls ?? 0}b)
                       </span>
-                      <div className="p2pName text_bottom_ps mt-0.5 font-bold uppercase text-sky-300">
+                      <div className="p2pName text_bottom_ps mt-0.5 font-bold text-sky-300">
                         {state.non_striker_name ?? "Non-Striker"}
                       </div>
                     </div>
                     <div className="partnership-bg partnershipImg2" />
                     <div className="partnershipScore2 psgroup psgroupbottom">
-                      <span className="p2pRuns font-mono font-bold text-amber-300">
+                      <span className="p2pRuns font-bold tabular-nums text-amber-300">
                         SR {runnerSr}
                       </span>
-                      <div className="text_bottom_ps text-[10px] uppercase text-slate-400">
+                      <div className="text_bottom_ps text-[10px] text-slate-400">
                         Strike Rate
                       </div>
                     </div>
@@ -1297,13 +1262,13 @@ export function BroadcastSuiteOverlay({
       {/* 7. SPLASH: INTRO (data-view="13")                                     */}
       {/* ===================================================================== */}
       {activeView === "13" && (
-        <div className="overlayWrap card splash matchintro duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap card splash matchintro duration-200 animate-in fade-in motion-reduce:animate-none">
           <div className="insideWrap intrasplash relative max-w-2xl">
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1311,7 +1276,7 @@ export function BroadcastSuiteOverlay({
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle">
                 <div className="scoreRow tournamentName seriesName justify-center">
-                  {state.tournament_name ?? "LIVE CRICKET BROADCAST"}
+                  {state.tournament_name ?? "Live cricket"}
                 </div>
               </div>
             </div>
@@ -1327,7 +1292,7 @@ export function BroadcastSuiteOverlay({
                           : undefined,
                       }}
                     />
-                    <div className="versus_intro">VS</div>
+                    <div className="versus_intro">vs</div>
                     <div
                       className="intro_team intro_team_2"
                       style={{
@@ -1337,7 +1302,7 @@ export function BroadcastSuiteOverlay({
                       }}
                     />
                   </div>
-                  <div className="splash_type">WE WILL BE STARTING SOON</div>
+                  <div className="splash_type">Starting soon</div>
                 </div>
               </div>
             </div>
@@ -1352,13 +1317,13 @@ export function BroadcastSuiteOverlay({
       {/* 8. SPLASH: INNINGS BREAK (data-view="14")                             */}
       {/* ===================================================================== */}
       {activeView === "14" && (
-        <div className="overlayWrap splash card inningsbreak duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap splash card inningsbreak duration-200 animate-in fade-in motion-reduce:animate-none">
           <div className="insideWrap intrasplash relative max-w-2xl">
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1366,7 +1331,7 @@ export function BroadcastSuiteOverlay({
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle">
                 <div className="scoreRow tournamentName seriesName justify-center">
-                  {state.tournament_name ?? "MATCH UPDATE"}
+                  {state.tournament_name ?? "Match update"}
                 </div>
               </div>
             </div>
@@ -1383,14 +1348,14 @@ export function BroadcastSuiteOverlay({
                             : undefined,
                         }}
                       />
-                      <div className="mt-2 text-sm font-black text-sky-300">
+                      <div className="mt-2 text-sm font-semibold text-sky-300">
                         {team1Code} {inn1Total}/{inn1Wickets}
                       </div>
                       <div className="text-xs text-slate-400">
                         Overs {inn1Overs}
                       </div>
                     </div>
-                    <div className="versus_intro">VS</div>
+                    <div className="versus_intro">vs</div>
                     <div>
                       <div
                         className="intro_team intro_team_2"
@@ -1400,7 +1365,7 @@ export function BroadcastSuiteOverlay({
                             : undefined,
                         }}
                       />
-                      <div className="mt-2 text-sm font-black text-amber-300">
+                      <div className="mt-2 text-sm font-semibold text-amber-300">
                         {team2Code}
                       </div>
                       <div className="text-xs text-slate-400">
@@ -1409,7 +1374,7 @@ export function BroadcastSuiteOverlay({
                     </div>
                   </div>
                   <div className="splash_type text-amber-300">
-                    INNINGS BREAK
+                    Innings break
                   </div>
                 </div>
               </div>
@@ -1426,28 +1391,28 @@ export function BroadcastSuiteOverlay({
       {/* ===================================================================== */}
       {(activeView === "15" || activeView === "28") && (
         <div
-          className={`overlayWrap splash card ${activeView === "15" ? "drinksbreak" : "raindelay"} duration-200 animate-in zoom-in-95`}
+          className={`overlayWrap splash card ${activeView === "15" ? "drinksbreak" : "raindelay"} duration-200 animate-in fade-in motion-reduce:animate-none`}
         >
           <div className="insideWrap intrasplash relative max-w-xl">
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle">
-                {activeView === "15" ? "DRINKS BREAK" : "RAIN DELAY"}
+                {activeView === "15" ? "Drinks break" : "Rain delay"}
               </div>
             </div>
             <div className="insideWrapInside py-8 text-center">
-              <p className="text-2xl font-black uppercase text-white">
+              <p className="text-2xl font-semibold text-white">
                 {activeView === "15"
-                  ? "Official Drinks Interval"
-                  : "Play Suspended Due To Rain"}
+                  ? "Drinks interval"
+                  : "Play suspended due to rain"}
               </p>
               <p className="mt-2 text-sm font-bold text-amber-300">
                 {battingTeamName}: {state.total_runs}/{state.total_wickets} in{" "}
@@ -1465,7 +1430,7 @@ export function BroadcastSuiteOverlay({
       {/* 10. LOWER-THIRD: BATSMAN STATS (data-view="16")                       */}
       {/* ===================================================================== */}
       {activeView === "16" && (
-        <div className="overlayWrap batsmancurrentcard bottom_card duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap batsmancurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="insideWrapInside p-0">
               <div className="flex-row-box">
@@ -1501,7 +1466,7 @@ export function BroadcastSuiteOverlay({
       {/* 11. LOWER-THIRD: RUNNER STATS (data-view="17")                        */}
       {/* ===================================================================== */}
       {activeView === "17" && (
-        <div className="overlayWrap runnercurrentcard bottom_card duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap runnercurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="flex-row-box">
               <div className="side-player-img" />
@@ -1535,7 +1500,7 @@ export function BroadcastSuiteOverlay({
       {/* 12. LOWER-THIRD: BOWLER STATS (data-view="18")                        */}
       {/* ===================================================================== */}
       {activeView === "18" && (
-        <div className="overlayWrap bowlercurrentcard bottom_card duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap bowlercurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="flex-row-box">
               <div className="side-player-img" />
@@ -1569,7 +1534,7 @@ export function BroadcastSuiteOverlay({
       {/* 13. LOWER-THIRD: OUT BATSMAN (data-view="19")                         */}
       {/* ===================================================================== */}
       {activeView === "19" && (
-        <div className="overlayWrap lastoutcard bottom_card duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap lastoutcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="flex-row-box">
               <div className="side-player-img" />
@@ -1578,13 +1543,13 @@ export function BroadcastSuiteOverlay({
                   <p className="player_stat_name lastOutName">
                     {state.last_ball_dismissed_player ?? "Last Out Batter"}
                   </p>
-                  <p className="player_stat_name lastOutString mt-0.5 text-xs italic text-slate-400">
+                  <p className="player_stat_name lastOutString mt-0.5 text-xs text-slate-400">
                     {state.last_ball_dismissal_type ?? "Dismissed"}
                   </p>
                 </div>
                 <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <span className="text-xs font-black uppercase text-red-400">
-                    WICKET CONFIRMED
+                  <span className="text-xs font-semibold text-red-400">
+                    Out
                   </span>
                 </div>
               </div>
@@ -1597,7 +1562,7 @@ export function BroadcastSuiteOverlay({
       {/* 14. LOWER-THIRD: PLAYER OF THE MATCH (data-view="29")                 */}
       {/* ===================================================================== */}
       {activeView === "29" && (
-        <div className="overlayWrap bottom_card mom duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap bottom_card mom duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="flex-row-box">
               <div className="side-player-img" />
@@ -1611,7 +1576,7 @@ export function BroadcastSuiteOverlay({
                 </div>
                 <div className="scoreRow player player_current mt-1 border-0 p-0">
                   <div className="stat_type font-bold text-amber-400">
-                    PLAYER OF THE MATCH
+                    Player of the match
                   </div>
                 </div>
               </div>
@@ -1627,7 +1592,7 @@ export function BroadcastSuiteOverlay({
         activeView === "25" ||
         activeView === "26" ||
         activeView === "27") && (
-        <div className="overlayWrap careercardofplayerbatsmen bottom_card duration-300 animate-in slide-in-from-left-5">
+        <div className="overlayWrap careercardofplayerbatsmen bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
           <div className="insideWrap current_bottom_stat_row">
             <div className="flex-row-box">
               <div className="side-player-img" />
@@ -1667,22 +1632,20 @@ export function BroadcastSuiteOverlay({
       {/* 16. CHARTS: OVER BY OVER (data-view="21") & WORM (data-view="22")     */}
       {/* ===================================================================== */}
       {(activeView === "21" || activeView === "22") && (
-        <div className="overlayWrap card charts duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap card charts duration-200 animate-in fade-in motion-reduce:animate-none">
           <div className="insideWrap relative max-w-2xl">
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
               <div className="teamtitle">
-                {activeView === "21"
-                  ? "OVER BY OVER PROGRESSION"
-                  : "WORM RUN-RATE COMPARISON"}
+                {activeView === "21" ? "Over by over" : "Worm"}
               </div>
             </div>
             <div className="p-8 text-center">
@@ -1695,9 +1658,7 @@ export function BroadcastSuiteOverlay({
                 </span>
               </div>
               <div className="flex h-40 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs text-slate-400">
-                {activeView === "21"
-                  ? "Over By Over Bar Graph: High impact overs rendered in real-time"
-                  : "Cumulative Worm Chart: Projected target trajectory comparison"}
+                {activeView === "21" ? "Over-by-over chart" : "Worm chart"}
               </div>
             </div>
             <div className="scoreRow total squad powered-wrap">
@@ -1711,24 +1672,24 @@ export function BroadcastSuiteOverlay({
       {/* 17. POINTS TABLE (data-view="20")                                     */}
       {/* ===================================================================== */}
       {activeView === "20" && (
-        <div className="overlayWrap card pointsTable duration-200 animate-in zoom-in-95">
+        <div className="overlayWrap card pointsTable duration-200 animate-in fade-in motion-reduce:animate-none">
           <div className="insideWrap relative max-w-2xl">
             {onCloseCard && (
               <button
                 onClick={onCloseCard}
                 aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-red-600"
+                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">TOURNAMENT STANDINGS</div>
+              <div className="teamtitle">Standings</div>
             </div>
             <div className="p-4">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-white/10 text-[10px] uppercase text-slate-400">
+                  <tr className="border-b border-white/10 text-[10px] text-slate-400">
                     <th className="p-2">Team</th>
                     <th className="p-2 text-center">P</th>
                     <th className="p-2 text-center">W</th>
@@ -1737,7 +1698,7 @@ export function BroadcastSuiteOverlay({
                     <th className="p-2 text-right">Pts</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 font-mono">
+                <tbody className="divide-y divide-white/5 tabular-nums">
                   <tr className="text-white">
                     <td className="p-2 font-sans font-bold text-sky-300">
                       {team1Name}

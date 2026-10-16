@@ -14,6 +14,7 @@ import {
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
+import { InviteDialog } from "~/components/invite-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -372,11 +373,11 @@ export default async function PlayerPage({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
                 {user.full_name}
               </h1>
               {user.username && (
-                <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-primary shadow-xs">
+                <span className="inline-flex items-center rounded-md border border-border bg-muted px-2.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
                   @{user.username}
                 </span>
               )}
@@ -388,6 +389,11 @@ export default async function PlayerPage({
               <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
                 {user.email}
               </p>
+            )}
+            {isSelf && (
+              <div className="mt-2.5">
+                <InviteDialog className="h-9 gap-1.5 text-xs font-semibold sm:text-sm" />
+              </div>
             )}
 
             {/* Quick Affiliations / Teams */}
@@ -433,7 +439,7 @@ export default async function PlayerPage({
             </div>
           </div>
           <div className="text-center">
-            <div className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
+            <div className="text-xl font-bold tabular-nums">
               {totalRuns}
             </div>
             <div className="text-xs font-medium text-muted-foreground">

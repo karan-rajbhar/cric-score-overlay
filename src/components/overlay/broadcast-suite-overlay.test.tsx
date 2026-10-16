@@ -99,7 +99,7 @@ describe("BroadcastSuiteOverlay", () => {
       />,
     );
 
-    expect(screen.getByText(/Mumbai Indians · BATTING CARD/i)).toBeDefined();
+    expect(screen.getByText(/Mumbai Indians · Batting/i)).toBeDefined();
     const closeBtn = screen.getByRole("button", { name: "Close Card" });
     fireEvent.click(closeBtn);
     expect(handleClose).toHaveBeenCalled();
@@ -107,21 +107,19 @@ describe("BroadcastSuiteOverlay", () => {
 
   it("renders Bowling Team 1 card (view 3)", () => {
     render(<BroadcastSuiteOverlay state={mockState} activeView="3" />);
-    expect(
-      screen.getByText(/Chennai Super Kings · BOWLING CARD/i),
-    ).toBeDefined();
+    expect(screen.getByText(/Chennai Super Kings · Bowling/i)).toBeDefined();
   });
 
   it("renders Match Intro splash banner (view 13)", () => {
     render(<BroadcastSuiteOverlay state={mockState} activeView="13" />);
     expect(screen.getByText("Indian Premier League")).toBeDefined();
-    expect(screen.getByText("WE WILL BE STARTING SOON")).toBeDefined();
-    expect(screen.getByText("VS")).toBeDefined();
+    expect(screen.getByText("Starting soon")).toBeDefined();
+    expect(screen.getByText("vs")).toBeDefined();
   });
 
   it("renders Partnership breakdown card (view 23)", () => {
     render(<BroadcastSuiteOverlay state={mockState} activeView="23" />);
-    expect(screen.getByText("CURRENT PARTNERSHIP")).toBeDefined();
+    expect(screen.getByText("Current partnership")).toBeDefined();
   });
 
   it("has all 29 valid view configurations defined in BROADCAST_VIEW_OPTIONS", () => {
