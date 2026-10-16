@@ -1,8 +1,8 @@
 /**
- * Row predicates for the query builder. Equality and `in` filters are pushed
- * to Firestore; everything else (ilike, or, neq, ranges) is evaluated here
- * on the fetched documents. Collections are small (club-sized data), so
- * in-memory evaluation keeps the index surface tiny.
+ * Row predicates for the query builder. Equality, `in` and single-field
+ * range filters are pushed to Firestore; everything else (ilike, or, neq,
+ * is, contains) is evaluated here on the fetched documents. Every filter is
+ * also re-checked here after the native fetch.
  */
 
 export type Filter =

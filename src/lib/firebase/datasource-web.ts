@@ -12,7 +12,10 @@ import {
   doc,
   documentId,
   getDoc,
+  getCountFromServer,
   getDocs,
+  limit,
+  orderBy,
   query,
   setDoc,
   where,
@@ -26,6 +29,7 @@ import {
   type DataSource,
   type Doc,
   type NativeFilter,
+  type QueryOptions,
 } from "./datasource";
 
 function toDoc(id: string, data: DocumentData | undefined): Doc {
@@ -55,14 +59,30 @@ export class WebDataSource implements DataSource {
     return out;
   }
 
-  async query(table: string, filters: NativeFilter[]): Promise<Doc[]> {
+  async query(
+    table: string,
+    filters: NativeFilter[],
+    options?: QueryOptions,
+  ): Promise<Doc[]> {
     const constraints: QueryConstraint[] = filters.map((f) =>
       where(f.field, f.op, f.value),
     );
+    for (const o of options?.orderBy ?? []) {
+      constraints.push(orderBy(o.field, o.direction));
+    }
+    if (options?.limit !== undefined) constraints.push(limit(options.limit));
     const snap = await getDocs(
       query(collection(this.db, table), ...constraints),
     );
     return snap.docs.map((d) => toDoc(d.id, d.data()));
+  }
+
+  async count(table: string, filters: NativeFilter[]): Promise<number> {
+    const constraints = filters.map((f) => where(f.field, f.op, f.value));
+    const snap = await getCountFromServer(
+      query(collection(this.db, table), ...constraints),
+    );
+    return snap.data().count;
   }
 
   async insert(table: string, docs: Doc[]): Promise<void> {
