@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/firebase/server";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { friendlyError } from "./errors";
 import type {
@@ -44,7 +45,9 @@ export async function createMatch(formData: MatchFormData) {
   ] = await Promise.all([
     db
       .from("teams")
-      .select("id, name, created_by, captain_id, vice_captain_id, club_id")
+      .select(
+        "id, name, short_name, logo_url, created_by, captain_id, vice_captain_id, club_id",
+      )
       .in("id", [formData.team1Id, formData.team2Id]),
     formData.tournamentId
       ? db
@@ -242,6 +245,8 @@ export async function createMatch(formData: MatchFormData) {
       overs_per_innings: formData.oversPerInnings,
       team1_id: formData.team1Id,
       team2_id: formData.team2Id,
+      team1_snapshot: teamSnapshot(team1),
+      team2_snapshot: teamSnapshot(team2),
       venue: formData.venue,
       scheduled_at: formData.scheduledAt,
       umpire1_name: formData.umpire1Name,
@@ -1257,17 +1262,9 @@ export async function awardTeamPenalty(
       });
       await db.rpc("recompute_innings", { p_innings_id: currentInnings.id });
     } else {
-      if (match.current_innings === 1) {
-        await db.from("match_events").insert({
-          match_id: matchId,
-          event_type: "penalty",
-          event_data: {
-            team_id: params.teamId,
-            runs: params.runs,
-            reason: params.reason,
-          },
-        });
-      } else {
+      // First-innings awards to the fielding side have nothing to adjust
+      // yet (there is no target); they were only ever logged before.
+      if (match.current_innings !== 1) {
         const newTarget = Math.max(1, (currentInnings.target_runs ?? 0) - params.runs);
         await db
           .from("innings")
@@ -1523,8 +1520,54 @@ export async function reassignCurrentOverBowler(
 export interface MatchScorerUser {
   id: string;
   full_name: string;
-  email: string | null;
   avatar_url: string | null;
+}
+
+const SCORER_FIELDS = "id, full_name, avatar_url";
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Finds registered players for the scorer picker: by id, by exact email
+ * (looked up in server-only users_private, never returned) or by name.
+ */
+async function findScorerCandidates(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  target: string,
+  limit: number,
+): Promise<{ data: MatchScorerUser[]; error: string | null }> {
+  if (UUID_RE.test(target)) {
+    const { data, error } = await db
+      .from("users")
+      .select(SCORER_FIELDS)
+      .eq("id", target)
+      .limit(limit);
+    return { data: (data ?? []) as MatchScorerUser[], error: error?.message ?? null };
+  }
+  if (target.includes("@")) {
+    const { data: matches, error } = await db
+      .from("users_private")
+      .select("id")
+      .eq("email", target.toLowerCase())
+      .limit(limit);
+    if (error) return { data: [], error: error.message };
+    const ids = (matches ?? []).map((m: { id: string }) => m.id);
+    if (ids.length === 0) return { data: [], error: null };
+    const { data, error: usersError } = await db
+      .from("users")
+      .select(SCORER_FIELDS)
+      .in("id", ids);
+    return {
+      data: (data ?? []) as MatchScorerUser[],
+      error: usersError?.message ?? null,
+    };
+  }
+  const { data, error } = await db
+    .from("users")
+    .select(SCORER_FIELDS)
+    .ilike("full_name", `%${target}%`)
+    .limit(limit);
+  return { data: (data ?? []) as MatchScorerUser[], error: error?.message ?? null };
 }
 
 export async function getMatchScorers(matchId: string): Promise<{
@@ -1560,7 +1603,7 @@ export async function getMatchScorers(matchId: string): Promise<{
 
     const { data: users, error: userErr } = await db
       .from("users")
-      .select("id, full_name, email, avatar_url")
+      .select(SCORER_FIELDS)
       .in("id", allUserIds);
 
     if (userErr) {
@@ -1595,29 +1638,12 @@ export async function searchScorers(
     }
 
     const db = await createServerClient();
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        trimmed,
-      );
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) return { data: [], error: "You must be logged in" };
 
-    let q = db
-      .from("users")
-      .select("id, full_name, email, avatar_url");
-
-    if (isUuid) {
-      q = q.eq("id", trimmed);
-    } else if (trimmed.includes("@")) {
-      q = q.or(`email.ilike.%${trimmed}%,email.eq.${trimmed}`);
-    } else {
-      q = q.or(`full_name.ilike.%${trimmed}%,email.ilike.%${trimmed}%`);
-    }
-
-    const { data, error } = await q.limit(6);
-    if (error) {
-      return { data: [], error: error.message };
-    }
-
-    return { data: (data ?? []) as MatchScorerUser[], error: null };
+    return await findScorerCandidates(db, trimmed, 6);
   } catch (err) {
     console.error("searchScorers error:", err);
     return { data: [], error: "Search failed" };
@@ -1659,34 +1685,18 @@ export async function addMatchScorer(
       return { success: false, error: "Please enter a user name, email, or ID" };
     }
 
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        queryTarget,
-      );
-
-    let query = db
-      .from("users")
-      .select("id, full_name, email, avatar_url");
-    if (isUuid) {
-      query = query.eq("id", queryTarget);
-    } else if (queryTarget.includes("@")) {
-      query = query.or(`email.ilike.%${queryTarget}%,email.eq.${queryTarget}`);
-    } else {
-      query = query.or(
-        `full_name.ilike.%${queryTarget}%,email.ilike.%${queryTarget}%`,
-      );
-    }
-
-    const { data: targetUsers, error: userFindErr } = await query.limit(1);
+    const isUuid = UUID_RE.test(queryTarget);
+    const { data: targetUsers, error: userFindErr } =
+      await findScorerCandidates(db, queryTarget, 1);
     if (userFindErr) {
-      return { success: false, error: userFindErr.message };
+      return { success: false, error: userFindErr };
     }
 
     const targetUser = targetUsers?.[0] as MatchScorerUser | undefined;
     if (!targetUser) {
       return {
         success: false,
-        error: `No registered player found with ${isUuid ? "ID" : "email"} "${queryTarget}"`,
+        error: `No registered player found with ${isUuid ? "ID" : queryTarget.includes("@") ? "email" : "name"} "${queryTarget}"`,
       };
     }
 

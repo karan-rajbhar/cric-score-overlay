@@ -37,14 +37,12 @@ describe("MatchScorersDialog Component", () => {
     createdBy: {
       id: "u-creator",
       full_name: "Lead Scorer",
-      email: "lead@test.com",
       avatar_url: null,
     },
     matchAdmins: [
       {
         id: "u-admin-1",
         full_name: "Assistant Scorer",
-        email: "asst@test.com",
         avatar_url: null,
       },
     ],
@@ -212,7 +210,6 @@ describe("MatchScorersDialog Component", () => {
         {
           id: "u-searched-1",
           full_name: "Virat Kohli",
-          email: "virat@cricket.com",
           avatar_url: null,
         },
       ],
@@ -223,7 +220,6 @@ describe("MatchScorersDialog Component", () => {
       user: {
         id: "u-searched-1",
         full_name: "Virat Kohli",
-        email: "virat@cricket.com",
         avatar_url: null,
       },
       error: null,

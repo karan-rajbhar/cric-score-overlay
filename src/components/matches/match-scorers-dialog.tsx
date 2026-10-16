@@ -401,11 +401,6 @@ export function MatchScorersDialog({
                         <div className="truncate font-semibold text-foreground">
                           {user.full_name}
                         </div>
-                        {user.email && (
-                          <div className="truncate text-2xs text-muted-foreground">
-                            {user.email}
-                          </div>
-                        )}
                       </div>
                     </div>
                     {isAlreadyScorer ? (
@@ -459,11 +454,6 @@ export function MatchScorersDialog({
                       <div className="font-semibold text-foreground truncate">
                         {createdBy.full_name}
                       </div>
-                      {createdBy.email && (
-                        <div className="text-xs text-muted-foreground truncate">
-                          {createdBy.email}
-                        </div>
-                      )}
                     </div>
                   </div>
                   <Badge variant="secondary" className="text-xs font-normal shrink-0">
@@ -485,11 +475,6 @@ export function MatchScorersDialog({
                       <div className="font-semibold text-foreground truncate">
                         {admin.full_name}
                       </div>
-                      {admin.email && (
-                        <div className="text-xs text-muted-foreground truncate">
-                          {admin.email}
-                        </div>
-                      )}
                     </div>
                   </div>
 

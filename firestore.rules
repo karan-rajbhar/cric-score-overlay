@@ -15,7 +15,8 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Public directory and profile data.
+    // Public directory and profile data. `users` holds no contact details;
+    // those live in users_private (server only, below).
     match /users/{id}                    { allow read: if true; allow write: if false; }
     match /clubs/{id}                    { allow read: if true; allow write: if false; }
     match /club_seasons/{id}             { allow read: if true; allow write: if false; }
@@ -35,7 +36,6 @@ service cloud.firestore {
     match /ball_by_ball/{id}             { allow read: if true; allow write: if false; }
     match /partnerships/{id}             { allow read: if true; allow write: if false; }
     match /fall_of_wickets/{id}          { allow read: if true; allow write: if false; }
-    match /match_events/{id}             { allow read: if true; allow write: if false; }
     // Denormalized live scoreboard (one doc per match), written by the scoring engine.
     match /live_state/{id}               { allow read: if true; allow write: if false; }
 
@@ -46,6 +46,8 @@ service cloud.firestore {
       allow write: if false;
     }
     match /club_invitations/{id}         { allow read, write: if false; }
+    // Contact details (email, phone) keyed by user id: Admin SDK only.
+    match /users_private/{id}            { allow read, write: if false; }
     match /invitations/{id}              { allow read, write: if false; }
 
     // Realtime broadcast messages (score pings, overlay producer commands).

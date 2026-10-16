@@ -7,6 +7,7 @@ interface ProfileClient {
     args?: Record<string, unknown>,
   ): Promise<{ error: { message: string } | null }>;
   from(table: "users"): QueryBuilder<"users">;
+  from(table: "users_private"): QueryBuilder<"users_private">;
 }
 
 /**
@@ -39,18 +40,25 @@ export async function ensureUserProfile(
     if (existingUser) return;
 
     // 3. Re-map a profile that was created ahead of signup (seed, invite).
-    if (user.email) {
-      const { data: userByEmail } = await client
-        .from("users")
+    //    Emails live in server-only users_private, keyed by the same id.
+    const email = user.email?.toLowerCase() ?? null;
+    if (email) {
+      const { data: byEmail } = await client
+        .from("users_private")
         .select("id")
-        .eq("email", user.email.toLowerCase())
+        .eq("email", email)
         .maybeSingle();
 
-      if (userByEmail) {
+      if (byEmail) {
+        const now = new Date().toISOString();
         await client
           .from("users")
-          .update({ id: user.id, updated_at: new Date().toISOString() })
-          .eq("id", userByEmail.id);
+          .update({ id: user.id, updated_at: now })
+          .eq("id", byEmail.id);
+        await client
+          .from("users_private")
+          .update({ id: user.id, updated_at: now })
+          .eq("id", byEmail.id);
         return;
       }
     }
@@ -64,10 +72,13 @@ export async function ensureUserProfile(
 
     await client.from("users").insert({
       id: user.id,
-      email: user.email ?? `player-${user.id.slice(0, 8)}@players.local`,
-      phone: user.phone ?? null,
       full_name: fullName,
       avatar_url: (user.user_metadata?.avatar_url as string) || null,
+    });
+    await client.from("users_private").insert({
+      id: user.id,
+      email: email ?? `player-${user.id.slice(0, 8)}@players.local`,
+      phone: user.phone ?? null,
     });
   } catch (err) {
     console.error("ensureUserProfile fallback failed:", err);

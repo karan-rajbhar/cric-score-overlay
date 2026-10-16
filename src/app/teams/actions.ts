@@ -106,7 +106,7 @@ export async function getTeam(id: string) {
       created_by_user:users!teams_created_by_fkey(full_name),
       team_players(
         *,
-        user:users!team_players_user_id_fkey(id, full_name, avatar_url, phone, email)
+        user:users!team_players_user_id_fkey(id, full_name, avatar_url)
       )
     `,
     )
@@ -486,7 +486,7 @@ export async function searchUsers(query: string) {
 
   const { data, error } = await db
     .from("users")
-    .select("id, full_name, email, avatar_url")
+    .select("id, full_name, avatar_url, username")
     .ilike("full_name", `%${query}%`)
     .limit(10);
 

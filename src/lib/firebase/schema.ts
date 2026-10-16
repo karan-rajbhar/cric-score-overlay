@@ -11,6 +11,7 @@ import type { TableName, ViewName } from "./types";
 
 export const TABLE_NAMES: readonly TableName[] = [
   "users",
+  "users_private",
   "clubs",
   "club_memberships",
   "club_invitations",
@@ -30,7 +31,6 @@ export const TABLE_NAMES: readonly TableName[] = [
   "partnerships",
   "fall_of_wickets",
   "player_career_stats",
-  "match_events",
 ] as const;
 
 export const VIEW_NAMES: readonly ViewName[] = [
@@ -50,8 +50,6 @@ export function isViewName(name: string): name is ViewName {
 export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
   users: [
     "id",
-    "email",
-    "phone",
     "full_name",
     "avatar_url",
     "location",
@@ -60,6 +58,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "created_at",
     "updated_at",
   ],
+  // Server-only (rules deny clients); keyed by the user's id.
+  users_private: ["id", "email", "phone", "created_at", "updated_at"],
   clubs: [
     "id",
     "name",
@@ -230,6 +230,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "noball_extras_to_batsman",
     "team1_id",
     "team2_id",
+    "team1_snapshot",
+    "team2_snapshot",
     "venue",
     "scheduled_at",
     "actual_start_time",
@@ -399,14 +401,6 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "economy_rate",
     "last_updated",
   ],
-  match_events: [
-    "id",
-    "match_id",
-    "event_type",
-    "event_data",
-    "created_by",
-    "created_at",
-  ],
 };
 
 /**
@@ -511,6 +505,7 @@ export const TABLE_DEFAULTS: Partial<
 export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
   {
     users: ["created_at", "updated_at"],
+    users_private: ["created_at", "updated_at"],
     clubs: ["created_at", "updated_at"],
     club_memberships: ["joined_at", "updated_at"],
     club_invitations: ["created_at", "updated_at"],
@@ -530,7 +525,6 @@ export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
     partnerships: ["created_at", "updated_at"],
     fall_of_wickets: ["created_at"],
     player_career_stats: ["last_updated"],
-    match_events: ["created_at"],
   };
 
 /** Unique constraints enforced before insert (Postgres error code 23505). */
@@ -544,9 +538,15 @@ export const UNIQUE_CONSTRAINTS: Partial<
     }[]
   >
 > = {
+  users_private: [
+    {
+      name: "users_private_email_key",
+      columns: ["email"],
+      caseInsensitive: true,
+    },
+    { name: "users_private_phone_key", columns: ["phone"] },
+  ],
   users: [
-    { name: "users_email_key", columns: ["email"], caseInsensitive: true },
-    { name: "users_phone_key", columns: ["phone"] },
     {
       name: "users_username_lower_idx",
       columns: ["username"],
@@ -659,7 +659,6 @@ export const CASCADE_RULES: Partial<
     { table: "ball_by_ball", column: "match_id", action: "cascade" },
     { table: "partnerships", column: "match_id", action: "cascade" },
     { table: "fall_of_wickets", column: "match_id", action: "cascade" },
-    { table: "match_events", column: "match_id", action: "cascade" },
   ],
   innings: [
     { table: "batting_performances", column: "innings_id", action: "cascade" },
@@ -673,6 +672,7 @@ export const CASCADE_RULES: Partial<
 /** Singular noun for each collection, used to infer `<singular>_id` columns. */
 export const SINGULAR: Record<TableName, string> = {
   users: "user",
+  users_private: "user_private",
   clubs: "club",
   club_memberships: "club_membership",
   club_invitations: "club_invitation",
@@ -692,7 +692,6 @@ export const SINGULAR: Record<TableName, string> = {
   partnerships: "partnership",
   fall_of_wickets: "fall_of_wicket",
   player_career_stats: "player_career_stat",
-  match_events: "match_event",
 };
 
 /**
@@ -738,7 +737,6 @@ export const USER_REFERENCES: readonly {
   { table: "fall_of_wickets", column: "bowler_id" },
   { table: "fall_of_wickets", column: "fielder_id" },
   { table: "player_career_stats", column: "user_id" },
-  { table: "match_events", column: "created_by" },
 ];
 
 export function hasColumn(table: TableName, column: string): boolean {

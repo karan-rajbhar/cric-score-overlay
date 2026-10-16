@@ -23,6 +23,10 @@ import {
 import { EmptyState } from "~/components/ui/empty-state";
 import { getTeam } from "../actions";
 import { createServerClient } from "~/lib/firebase/server";
+import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
@@ -174,7 +178,6 @@ export default async function TeamDetailsPage({
       user?: {
         id: string;
         full_name: string;
-        email?: string;
         avatar_url?: string;
       };
     }> | null) || [];
@@ -188,15 +191,17 @@ export default async function TeamDetailsPage({
       result_type, win_margin, win_margin_type, result_description, winning_team_id,
       tournament_id,
       tournament:tournaments(id, name),
-      team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-      team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
+      ${MATCH_TEAM_COLUMNS},
       innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
     `,
     )
     .or(`team1_id.eq.${id},team2_id.eq.${id}`)
     .order("scheduled_at", { ascending: false });
 
-  const teamMatches = (matchesData ?? []) as unknown as TeamMatchItem[];
+  const teamMatches = (await attachMatchTeams(
+    db,
+    matchesData ?? [],
+  )) as unknown as TeamMatchItem[];
 
   // Match statistics for this team
   const totalMatches = teamMatches.length;

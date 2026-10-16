@@ -21,6 +21,7 @@ import { callRpc } from "./rpc";
 import { maybeRecalculateStandings } from "./rpc/standings";
 import { SESSION_COOKIE_NAME, getUserFromSessionCookie } from "./session";
 import { storage } from "./storage";
+import { syncTeamSnapshots } from "./team-snapshot";
 import type { DbError, DbResult, MatchesRow, SourceName } from "./types";
 import { resolveView } from "./views";
 
@@ -67,6 +68,9 @@ function buildServerClient(sessionCookie: string | undefined): ServerClient {
           event.before as Partial<MatchesRow> | null,
           event.after as Partial<MatchesRow> | null,
         );
+      }
+      if (event.table === "matches" || event.table === "teams") {
+        await syncTeamSnapshots(ds, event);
       }
     },
   };

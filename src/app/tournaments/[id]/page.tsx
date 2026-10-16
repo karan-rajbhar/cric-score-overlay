@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
 import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -119,8 +123,7 @@ export default async function TournamentPage({
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, winning_team_id,
-                team1:teams!matches_team1_id_fkey(id, name, short_name),
-                team2:teams!matches_team2_id_fkey(id, name, short_name),
+                ${MATCH_TEAM_COLUMNS},
                 innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
             `,
       )
@@ -135,6 +138,7 @@ export default async function TournamentPage({
   ]);
 
   if (!tournament) notFound();
+  await attachMatchTeams(db, matches ?? []);
 
   const matchIds = ((matches ?? []) as unknown as MatchRow[]).map((m) => m.id);
 

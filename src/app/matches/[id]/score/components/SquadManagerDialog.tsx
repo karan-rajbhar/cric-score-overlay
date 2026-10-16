@@ -47,7 +47,11 @@ export interface SquadManagerDialogProps {
   isProcessing: boolean;
 }
 
-type FoundUser = { id: string; full_name?: string; email?: string | null };
+type FoundUser = {
+  id: string;
+  full_name?: string;
+  username?: string | null;
+};
 
 function roleLabel(role?: string | null): string | null {
   switch (role) {
@@ -305,9 +309,9 @@ function SquadPanel({
                       <span className="block truncate font-semibold">
                         {u.full_name ?? "Player"}
                       </span>
-                      {u.email && (
-                        <span className="block truncate text-2xs text-muted-foreground">
-                          {u.email}
+                      {u.username && (
+                        <span className="block truncate font-mono text-2xs text-muted-foreground">
+                          @{u.username}
                         </span>
                       )}
                     </span>

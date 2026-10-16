@@ -454,8 +454,9 @@ export async function inviteClubMember(clubId: string, email: string) {
     return { error: "A valid email address is required" };
   }
 
+  // Emails live in server-only users_private (same id as the profile).
   const { data: existingUser } = await db
-    .from("users")
+    .from("users_private")
     .select("id")
     .eq("email", cleanEmail)
     .maybeSingle();

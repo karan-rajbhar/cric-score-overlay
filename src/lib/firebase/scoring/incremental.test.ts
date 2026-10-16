@@ -186,9 +186,6 @@ class Replay {
 
   private async recordOn(side: Side, spec: BallSpec, costs: BallCost[]) {
     const p = await this.prepare(side, spec);
-    const events = await side.ds.query("match_events", [
-      { field: "match_id", op: "==", value: this.matchId },
-    ]);
     const fowBefore = (await side.ds.query("fall_of_wickets", [])).length;
     const partnershipsBefore = (await side.ds.query("partnerships", [])).length;
     const matchBefore = await this.match(side);
@@ -213,16 +210,12 @@ class Replay {
     const reads = side.stats.reads - snap.reads;
     const writes = side.stats.writes - snap.writes;
     const matchAfter = await this.match(side);
-    const eventsAfter = await side.ds.query("match_events", [
-      { field: "match_id", op: "==", value: this.matchId },
-    ]);
     const fowAfter = (await side.ds.query("fall_of_wickets", [])).length;
     const partnershipsAfter = (await side.ds.query("partnerships", [])).length;
     costs.push({
       reads,
       writes,
       normal:
-        eventsAfter.length === events.length &&
         fowAfter === fowBefore &&
         partnershipsAfter === partnershipsBefore &&
         matchAfter.current_innings === matchBefore.current_innings &&
@@ -304,7 +297,6 @@ async function snapshot(ds: MemoryDataSource, matchId: string) {
     "fall_of_wickets",
     "partnerships",
     "ball_by_ball",
-    "match_events",
     "live_state",
   ]) {
     const docs =
@@ -313,7 +305,7 @@ async function snapshot(ds: MemoryDataSource, matchId: string) {
         : await ds.query(table, [
             { field: "match_id", op: "==", value: matchId },
           ]);
-    const dropId = table === "ball_by_ball" || table === "match_events";
+    const dropId = table === "ball_by_ball";
     dump[table] = docs.map((d) => norm(d, dropId)).sort();
   }
   return dump;

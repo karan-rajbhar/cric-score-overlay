@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
+import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { StatTile } from "~/components/ui/stat-tile";
 import { Initials } from "~/components/ui/initials";
@@ -60,12 +64,12 @@ export default async function PlayerPage({
   const userQuery = isUuid
     ? db
         .from("users")
-        .select("id, full_name, avatar_url, email, username")
+        .select("id, full_name, avatar_url, username")
         .eq("id", cleanParam)
         .maybeSingle()
     : db
         .from("users")
-        .select("id, full_name, avatar_url, email, username")
+        .select("id, full_name, avatar_url, username")
         .ilike("username", cleanParam)
         .maybeSingle();
 
@@ -107,8 +111,7 @@ export default async function PlayerPage({
         match:matches!batting_performances_match_id_fkey(
           id, title, match_format, scheduled_at, status, venue,
           result_description, winning_team_id,
-          team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-          team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url)
+          ${MATCH_TEAM_COLUMNS}
         )
       `,
       )
@@ -123,8 +126,7 @@ export default async function PlayerPage({
         match:matches!bowling_performances_match_id_fkey(
           id, title, match_format, scheduled_at, status, venue,
           result_description, winning_team_id,
-          team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-          team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url)
+          ${MATCH_TEAM_COLUMNS}
         )
       `,
       )
@@ -134,7 +136,16 @@ export default async function PlayerPage({
 
   if (!user) notFound();
 
+  // Team names on embedded matches come from their snapshots.
+  await attachMatchTeams(db, [
+    ...(battingData ?? []).map((b) => b.match),
+    ...(bowlingData ?? []).map((b) => b.match),
+  ]);
+
   const isSelf = currentUserData?.user?.id === user.id;
+  // Contact details are not on the public profile; the signed-in user sees
+  // their own email from the session (no read).
+  const ownEmail = isSelf ? (currentUserData?.user?.email ?? null) : null;
   const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
   const batting = (battingData ?? []) as unknown as PlayerBattingPerformance[];
   const bowling = (bowlingData ?? []) as unknown as PlayerBowlingPerformance[];
@@ -215,8 +226,7 @@ export default async function PlayerPage({
         result_type, win_margin, win_margin_type, result_description, winning_team_id,
         tournament_id,
         tournament:tournaments(id, name),
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
+        ${MATCH_TEAM_COLUMNS},
         innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
       `,
       )
@@ -224,6 +234,7 @@ export default async function PlayerPage({
       .order("scheduled_at", { ascending: false });
 
     if (matchesData) {
+      await attachMatchTeams(db, matchesData);
       matchesList = matchesData.map((m) => {
         const playerBat = batting.find((b) => b.match_id === m.id);
         const playerBowl = bowling.find((b) => b.match_id === m.id);
@@ -385,9 +396,9 @@ export default async function PlayerPage({
                 <EditUsernameDialog currentUsername={user.username ?? ""} />
               )}
             </div>
-            {isSelf && user.email && (
+            {ownEmail && (
               <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
-                {user.email}
+                {ownEmail}
               </p>
             )}
             {isSelf && (

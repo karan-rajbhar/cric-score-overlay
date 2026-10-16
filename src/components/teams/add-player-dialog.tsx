@@ -24,7 +24,11 @@ interface AddPlayerDialogProps {
   onSuccess?: () => void;
 }
 
-type FoundUser = { id: string; email?: string | null; full_name?: string };
+type FoundUser = {
+  id: string;
+  full_name?: string;
+  username?: string | null;
+};
 
 /**
  * Adds a player to a team: search registered players as you type, or create
@@ -143,9 +147,9 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
                     <p className="truncate text-sm font-medium">
                       {user.full_name}
                     </p>
-                    {user.email && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {user.email}
+                    {user.username && (
+                      <p className="truncate font-mono text-xs text-muted-foreground">
+                        @{user.username}
                       </p>
                     )}
                   </div>

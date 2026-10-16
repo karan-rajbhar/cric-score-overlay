@@ -13,6 +13,7 @@ import type {
   MatchesRow,
   UsersRow,
 } from "../types";
+import { normaliseEmail, userIdsByEmail } from "../user-private";
 import { isMatchAdmin } from "./auth-helpers";
 
 /** Comma-separated emails that may always sign in (the first admins). */
@@ -23,11 +24,6 @@ export function allowedEmails(): Set<string> {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
   );
-}
-
-function normaliseEmail(email: string | null | undefined): string | null {
-  const clean = email?.trim().toLowerCase();
-  return clean && clean.includes("@") ? clean : null;
 }
 
 /**
@@ -45,10 +41,10 @@ export async function canSignIn(
   if (!email) return false;
   if (allowedEmails().has(email)) return true;
 
-  const byEmail = [{ field: "email", op: "==" as const, value: email }];
-  const profiles = (await ds.query("users", byEmail)) as unknown as UsersRow[];
-  if (profiles.length > 0) return true;
+  // A profile created ahead of sign-up (seeded, placeholder) with this email.
+  if ((await userIdsByEmail(ds, email)).length > 0) return true;
 
+  const byEmail = [{ field: "email", op: "==" as const, value: email }];
   const invites = (await ds.query(
     "invitations",
     byEmail,
@@ -147,9 +143,10 @@ export async function inviteEmail(
   }
 
   const byEmail = [{ field: "email", op: "==" as const, value: email }];
-  const member = (
-    (await ds.query("users", byEmail)) as unknown as UsersRow[]
-  )[0];
+  const [memberId] = await userIdsByEmail(ds, email);
+  const member = memberId
+    ? ((await ds.getById("users", memberId)) as unknown as UsersRow | null)
+    : null;
   if (member) {
     if (!matchId) return { status: "already_member", name: member.full_name };
     const match = (await ds.getById(

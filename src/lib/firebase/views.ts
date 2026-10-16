@@ -312,10 +312,21 @@ export async function loadMatchHeader(
   teams: Map<string, LiveStateTeam>;
   tournamentName: string | null;
 }> {
+  // Team fields come from the match's snapshots when present (no reads).
+  const teams = new Map<string, LiveStateTeam>();
+  for (const snap of [match.team1_snapshot, match.team2_snapshot]) {
+    if (snap?.id) {
+      teams.set(snap.id, {
+        name: snap.name ?? null,
+        short_name: snap.short_name ?? null,
+        logo_url: snap.logo_url ?? null,
+      });
+    }
+  }
   const teamIds = Array.from(
     new Set(
       [match.team1_id, match.team2_id, match.winning_team_id].filter(
-        (x): x is string => !!x,
+        (x): x is string => !!x && !teams.has(x),
       ),
     ),
   );
@@ -332,16 +343,13 @@ export async function loadMatchHeader(
         ) as Promise<unknown> as Promise<TournamentsRow | null>)
       : Promise.resolve(null),
   ]);
-  const teams = new Map<string, LiveStateTeam>(
-    teamDocs.map((t) => [
-      t.id,
-      {
-        name: t.name ?? null,
-        short_name: t.short_name ?? null,
-        logo_url: t.logo_url ?? null,
-      },
-    ]),
-  );
+  for (const t of teamDocs) {
+    teams.set(t.id, {
+      name: t.name ?? null,
+      short_name: t.short_name ?? null,
+      logo_url: t.logo_url ?? null,
+    });
+  }
   return { teams, tournamentName: tournament?.name ?? null };
 }
 

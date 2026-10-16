@@ -231,22 +231,6 @@ function writeRecompute(
   return { ...out, batting, bowling, fallOfWickets, partnerships };
 }
 
-function logEvent(
-  t: ScoringTx,
-  matchId: string,
-  eventType: string,
-  data: Record<string, unknown>,
-  now: string,
-) {
-  t.put("match_events", newId(), {
-    match_id: matchId,
-    event_type: eventType,
-    event_data: data,
-    created_by: null,
-    created_at: now,
-  });
-}
-
 function applyAdvance(
   t: ScoringTx,
   match: MatchesRow,
@@ -264,15 +248,29 @@ function applyAdvance(
   if (out.nextInnings) {
     t.put("innings", out.nextInnings.id, out.nextInnings);
   }
-  if (out.matchEndEvent) {
-    logEvent(t, match.id, "match_end", out.matchEndEvent, now);
-  }
   return out;
 }
 
-function teamNamesOf(teams: TeamsRow[]): Record<string, string | undefined> {
+/**
+ * Team names for the result text, from the match's snapshots when present
+ * (no reads), otherwise from the team docs.
+ */
+async function teamNamesOf(
+  t: ScoringTx,
+  match: MatchesRow,
+): Promise<Record<string, string | undefined>> {
   const names: Record<string, string | undefined> = {};
-  for (const team of teams) names[team.id] = team.name;
+  for (const snap of [match.team1_snapshot, match.team2_snapshot]) {
+    if (snap?.id) names[snap.id] = snap.name;
+  }
+  const missing = [match.team1_id, match.team2_id].filter(
+    (id) => !!id && !(id in names),
+  );
+  if (missing.length) {
+    for (const team of await t.docs<TeamsRow>("teams", missing)) {
+      names[team.id] = team.name;
+    }
+  }
   return names;
 }
 
@@ -408,44 +406,6 @@ function newBall(
     seq,
     created_at: now,
   };
-}
-
-function logBallEvents(
-  t: ScoringTx,
-  ball: BallByBallRow,
-  checked: CheckedBall,
-  now: string,
-) {
-  const matchId = ball.match_id ?? "";
-  if (checked.isWicket) {
-    logEvent(
-      t,
-      matchId,
-      "wicket",
-      {
-        batsman: checked.dismissedId,
-        dismissal: checked.dismissalType,
-        over: ball.over_number,
-      },
-      now,
-    );
-  } else if (ball.runs_scored === 4) {
-    logEvent(
-      t,
-      matchId,
-      "boundary_four",
-      { batsman: ball.batsman_id, over: ball.over_number },
-      now,
-    );
-  } else if (ball.runs_scored === 6) {
-    logEvent(
-      t,
-      matchId,
-      "boundary_six",
-      { batsman: ball.batsman_id, over: ball.over_number },
-      now,
-    );
-  }
 }
 
 function inningsComplete(match: MatchesRow, innings: InningsRow): boolean {
@@ -602,7 +562,6 @@ async function recordBallIncremental(
     out.partnerships,
     partnership ? [partnership] : [],
   );
-  logBallEvents(t, ball, checked, now);
 
   // ---- innings / match completion ----
   let matchAfter: MatchesRow = { ...match, ...matchPatch };
@@ -747,23 +706,18 @@ async function recordBallFull(
   const out = runRecompute(bundle, [...bundle.balls, ball], now);
   writeRecompute(t, bundle, out, now);
   t.patch("matches", matchId, { last_ball_seq: seq });
-  logBallEvents(t, ball, checked, now);
 
   const updatedInnings: WithId<InningsRow> = {
     ...innings,
     ...out.inningsPatch,
   };
   if (inningsComplete(match, updatedInnings)) {
-    const teams = await t.docs<TeamsRow>("teams", [
-      match.team1_id,
-      match.team2_id,
-    ]);
     applyAdvance(
       t,
       { ...match, ...out.matchPatch },
       updatedInnings,
       all.map((i) => (i.id === innings.id ? updatedInnings : i)),
-      teamNamesOf(teams),
+      await teamNamesOf(t, match),
       now,
     );
   }
@@ -1000,11 +954,7 @@ export async function endInnings(
     const { all, current } = await currentInningsOf(t, match);
     if (!current || current.is_completed)
       throw new DbQueryError("no_open_innings", "22000");
-    const teams = await t.docs<TeamsRow>("teams", [
-      match.team1_id,
-      match.team2_id,
-    ]);
-    applyAdvance(t, match, current, all, teamNamesOf(teams), now);
+    applyAdvance(t, match, current, all, await teamNamesOf(t, match), now);
     return match;
   });
 

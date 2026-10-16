@@ -15,15 +15,30 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+/**
+ * Public profile. Readable by anyone (see firestore.rules), so it must never
+ * hold contact details: those live in `users_private/{uid}`.
+ */
 export interface UsersRow {
   id: string;
-  email: string | null;
-  phone: string | null;
   full_name: string;
   avatar_url: string | null;
   location: string | null;
   username: string | null;
   is_active: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/**
+ * Server-only contact details for `users/{id}` (same document id). Rules
+ * deny all client access; only the Admin SDK reads or writes it.
+ */
+export interface UsersPrivateRow {
+  id: string;
+  /** Lower-cased. Placeholder players get `...@players.local`. */
+  email: string | null;
+  phone: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -124,6 +139,14 @@ export interface TeamsRow {
   updated_at: string | null;
 }
 
+/** Denormalized team fields stored on each match (`team1_snapshot`, ...). */
+export interface TeamSnapshot {
+  id: string;
+  name: string;
+  short_name: string | null;
+  logo_url: string | null;
+}
+
 export interface TeamPlayersRow {
   id: string;
   team_id: string | null;
@@ -211,6 +234,13 @@ export interface MatchesRow {
   noball_extras_to_batsman: boolean | null;
   team1_id: string;
   team2_id: string;
+  /**
+   * Display copy of each team (name, short code, logo) so match lists need
+   * no team reads. Written on create, refreshed when the team changes; may
+   * be missing on matches created before it existed.
+   */
+  team1_snapshot?: TeamSnapshot | null;
+  team2_snapshot?: TeamSnapshot | null;
   venue: string | null;
   scheduled_at: string | null;
   actual_start_time: string | null;
@@ -389,15 +419,6 @@ export interface PlayerCareerStatsRow {
   last_updated: string | null;
 }
 
-export interface MatchEventsRow {
-  id: string;
-  match_id: string | null;
-  event_type: string;
-  event_data: Json | null;
-  created_by: string | null;
-  created_at: string | null;
-}
-
 /** Denormalised read model for overlays and live pages (computed, not stored). */
 export interface LiveMatchStateRow {
   match_id: string | null;
@@ -480,6 +501,7 @@ export interface MatchOverSummariesRow {
 
 export interface Database {
   users: UsersRow;
+  users_private: UsersPrivateRow;
   clubs: ClubsRow;
   club_memberships: ClubMembershipsRow;
   club_invitations: ClubInvitationsRow;
@@ -499,7 +521,6 @@ export interface Database {
   partnerships: PartnershipsRow;
   fall_of_wickets: FallOfWicketsRow;
   player_career_stats: PlayerCareerStatsRow;
-  match_events: MatchEventsRow;
 }
 
 export interface Views {

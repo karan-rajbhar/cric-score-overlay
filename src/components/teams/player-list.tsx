@@ -35,7 +35,6 @@ interface Player {
   user?: {
     id: string;
     full_name: string;
-    email?: string;
     avatar_url?: string;
   };
 }
@@ -153,11 +152,6 @@ export function PlayerList({
                     >
                       {player.user?.full_name}
                     </Link>
-                    {allowEdit && player.user?.email && (
-                      <p className="truncate text-2xs text-muted-foreground sm:text-xs">
-                        {player.user.email}
-                      </p>
-                    )}
                   </div>
                 </div>
               </TableCell>

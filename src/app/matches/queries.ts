@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/firebase/server";
+import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -14,8 +15,6 @@ export async function getMatches(filters?: {
       .select(
         `
         *,
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
         innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
       `,
       )
@@ -29,7 +28,8 @@ export async function getMatches(filters?: {
       console.error("Error fetching matches:", error);
       return { data: null, error: error.message };
     }
-    return { data, error: null };
+    // Team names / logos come from the match's snapshot (no team reads).
+    return { data: await attachMatchTeams(db, data ?? []), error: null };
   } catch (err) {
     console.error("Error fetching matches:", err);
     return {
@@ -213,8 +213,6 @@ export async function getScoringState(matchId: string) {
       .select(
         `
         *,
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
         innings(
           *,
           batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
@@ -228,6 +226,7 @@ export async function getScoringState(matchId: string) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
     }
+    if (match) await attachMatchTeams(db, [match]);
     type InningsWithPerformances = {
       id: string;
       innings_number: number;

@@ -1,0 +1,103 @@
+import { describe, expect, it } from "vitest";
+import type { AppUser } from "../auth-types";
+import { MemoryDataSource } from "../datasource";
+import { createTeamPlayer, ensureOwnProfile } from "./profiles";
+
+function googleUser(id: string, email: string | null, name = "Ann"): AppUser {
+  return {
+    id,
+    email,
+    phone: null,
+    user_metadata: { full_name: name },
+    provider: "google.com",
+  };
+}
+
+describe("ensureOwnProfile and users_private", () => {
+  it("creates a public profile without contact details", async () => {
+    const ds = new MemoryDataSource();
+    const res = await ensureOwnProfile(ds, googleUser("u1", "Ann@Gmail.com"));
+    expect(res.action).toBe("created");
+    const profile = await ds.getById("users", "u1");
+    expect(profile).toMatchObject({ full_name: "Ann", username: "ann" });
+    expect(profile).not.toHaveProperty("email");
+    expect(profile).not.toHaveProperty("phone");
+    expect(await ds.getById("users_private", "u1")).toMatchObject({
+      email: "ann@gmail.com",
+      phone: null,
+    });
+  });
+
+  it("does not write when nothing changed", async () => {
+    const ds = new MemoryDataSource();
+    await ensureOwnProfile(ds, googleUser("u1", "ann@gmail.com"));
+    const profileBefore = await ds.getById("users", "u1");
+    const privateBefore = await ds.getById("users_private", "u1");
+    await new Promise((r) => setTimeout(r, 2));
+    const res = await ensureOwnProfile(ds, googleUser("u1", "ann@gmail.com"));
+    expect(res.action).toBe("updated");
+    expect(await ds.getById("users", "u1")).toEqual(profileBefore);
+    expect(await ds.getById("users_private", "u1")).toEqual(privateBefore);
+  });
+
+  it("fills users_private for a profile that predates it", async () => {
+    const ds = new MemoryDataSource({
+      users: [{ id: "u1", full_name: "Ann", username: "ann" }],
+    });
+    await ensureOwnProfile(ds, googleUser("u1", "ann@gmail.com"));
+    expect(await ds.getById("users_private", "u1")).toMatchObject({
+      email: "ann@gmail.com",
+    });
+  });
+
+  it("re-maps a seeded profile found by its private email", async () => {
+    const ds = new MemoryDataSource({
+      users: [{ id: "seed-1", full_name: "John Smith", username: "john" }],
+      users_private: [
+        { id: "seed-1", email: "john@email.com", phone: "+1234" },
+      ],
+      team_players: [{ id: "tp1", team_id: "t1", user_id: "seed-1" }],
+    });
+    const res = await ensureOwnProfile(
+      ds,
+      googleUser("auth-1", "John@email.com", "John"),
+    );
+    expect(res).toMatchObject({ action: "remapped", username: "john" });
+    expect(await ds.getById("users", "seed-1")).toBeNull();
+    expect(await ds.getById("users_private", "seed-1")).toBeNull();
+    expect(await ds.getById("users", "auth-1")).toMatchObject({
+      full_name: "John Smith",
+    });
+    expect(await ds.getById("users_private", "auth-1")).toMatchObject({
+      email: "john@email.com",
+      phone: "+1234",
+    });
+    expect(await ds.getById("team_players", "tp1")).toMatchObject({
+      user_id: "auth-1",
+    });
+  });
+
+  it("gives an account without email a placeholder private email", async () => {
+    const ds = new MemoryDataSource();
+    await ensureOwnProfile(ds, googleUser("abcdef1234", null));
+    expect(await ds.getById("users_private", "abcdef1234")).toMatchObject({
+      email: "player-abcdef12@players.local",
+    });
+  });
+});
+
+describe("createTeamPlayer", () => {
+  it("stores the placeholder email privately", async () => {
+    const ds = new MemoryDataSource({
+      teams: [{ id: "t1", created_by: "owner", club_id: null }],
+    });
+    const res = await createTeamPlayer(ds, "owner", "t1", "Sam Lee", 7);
+    const profile = await ds.getById("users", res.user_id);
+    expect(profile).toMatchObject({ full_name: "Sam Lee" });
+    expect(profile).not.toHaveProperty("email");
+    const priv = await ds.getById("users_private", res.user_id);
+    expect(String(priv?.email)).toMatch(
+      /^player\.samlee\.[0-9a-f]{8}@players\.local$/,
+    );
+  });
+});

@@ -7,7 +7,9 @@ function googleUser(id: string, email: string): AppUser {
   return { id, email, phone: null, user_metadata: {}, provider: "google.com" };
 }
 
-const member = { id: "member-1", email: "member@gmail.com" };
+// Profiles are public; their emails live in server-only users_private.
+const member = { id: "member-1" };
+const memberPrivate = { id: "member-1", email: "member@gmail.com" };
 
 describe("canSignIn", () => {
   afterEach(() => {
@@ -15,14 +17,20 @@ describe("canSignIn", () => {
   });
 
   it("rejects an email nobody invited", async () => {
-    const ds = new MemoryDataSource({ users: [member] });
+    const ds = new MemoryDataSource({
+      users: [member],
+      users_private: [memberPrivate],
+    });
     expect(
       await canSignIn(ds, googleUser("new", "stranger@gmail.com"), true),
     ).toBe(false);
   });
 
   it("allows an existing profile by uid or by email", async () => {
-    const ds = new MemoryDataSource({ users: [member] });
+    const ds = new MemoryDataSource({
+      users: [member],
+      users_private: [memberPrivate],
+    });
     expect(await canSignIn(ds, googleUser("member-1", "x@y.z"), false)).toBe(
       true,
     );
@@ -75,6 +83,26 @@ describe("canSignIn", () => {
     );
   });
 
+  it("does not match emails left on the public profile", async () => {
+    // Pre-migration shape: the email is only on users. It must not count.
+    const ds = new MemoryDataSource({
+      users: [{ id: "old", email: "legacy@gmail.com" }],
+    });
+    expect(
+      await canSignIn(ds, googleUser("new", "legacy@gmail.com"), true),
+    ).toBe(false);
+  });
+
+  it("matches a placeholder profile by its private email", async () => {
+    const ds = new MemoryDataSource({
+      users: [{ id: "p1", full_name: "Placeholder" }],
+      users_private: [{ id: "p1", email: "seeded@email.com" }],
+    });
+    expect(
+      await canSignIn(ds, googleUser("new", "Seeded@Email.com"), true),
+    ).toBe(true);
+  });
+
   it("allows bootstrap emails from ALLOWED_EMAILS", async () => {
     process.env.ALLOWED_EMAILS = "Owner@Gmail.com, second@gmail.com";
     const ds = new MemoryDataSource();
@@ -93,7 +121,10 @@ describe("inviteEmail", () => {
   });
 
   it("creates one pending invite per email", async () => {
-    const ds = new MemoryDataSource({ users: [member] });
+    const ds = new MemoryDataSource({
+      users: [member],
+      users_private: [memberPrivate],
+    });
     expect(await inviteEmail(ds, "member-1", " New@Gmail.com ")).toEqual({
       status: "invited",
     });
@@ -110,14 +141,20 @@ describe("inviteEmail", () => {
   });
 
   it("reports people who already have access", async () => {
-    const ds = new MemoryDataSource({ users: [member] });
+    const ds = new MemoryDataSource({
+      users: [member],
+      users_private: [memberPrivate],
+    });
     expect(await inviteEmail(ds, "member-1", "member@gmail.com")).toEqual({
       status: "already_member",
     });
   });
 
   it("rejects an invalid email", async () => {
-    const ds = new MemoryDataSource({ users: [member] });
+    const ds = new MemoryDataSource({
+      users: [member],
+      users_private: [memberPrivate],
+    });
     await expect(inviteEmail(ds, "member-1", "not-an-email")).rejects.toThrow(
       "valid email",
     );
@@ -135,7 +172,11 @@ describe("scorer invites", () => {
 
   it("only lets the match's scorers invite scorers", async () => {
     const ds = new MemoryDataSource({
-      users: [member, { id: "outsider", email: "out@gmail.com" }],
+      users: [member, { id: "outsider" }],
+      users_private: [
+        memberPrivate,
+        { id: "outsider", email: "out@gmail.com" },
+      ],
       matches: [match],
     });
     await expect(
@@ -145,7 +186,8 @@ describe("scorer invites", () => {
 
   it("adds an existing user as scorer straight away", async () => {
     const ds = new MemoryDataSource({
-      users: [member, { id: "u2", email: "u2@gmail.com", full_name: "Two" }],
+      users: [member, { id: "u2", full_name: "Two" }],
+      users_private: [memberPrivate, { id: "u2", email: "u2@gmail.com" }],
       matches: [match],
     });
     expect(await inviteEmail(ds, "member-1", "U2@gmail.com", "m1")).toEqual({
@@ -164,6 +206,7 @@ describe("scorer invites", () => {
   it("makes a new invitee a scorer when they first sign in", async () => {
     const ds = new MemoryDataSource({
       users: [member],
+      users_private: [memberPrivate],
       matches: [match, { ...match, id: "m2" }],
     });
     expect(await inviteEmail(ds, "member-1", "new@gmail.com", "m1")).toEqual({

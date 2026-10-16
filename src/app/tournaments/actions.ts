@@ -3,6 +3,8 @@
 import { createServerClient } from "~/lib/firebase/server";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import { teamSnapshot } from "~/lib/firebase/team-snapshot";
+import type { TeamSnapshot } from "~/lib/firebase/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -384,7 +386,7 @@ export async function generateTournamentFixtures(tournamentId: string) {
   // Fetch confirmed teams
   const { data: regs, error: regError } = await db
     .from("tournament_registrations")
-    .select("team_id, team:teams(id, name)")
+    .select("team_id, team:teams(id, name, short_name, logo_url)")
     .eq("tournament_id", tournamentId)
     .eq("status", "confirmed");
 
@@ -399,10 +401,10 @@ export async function generateTournamentFixtures(tournamentId: string) {
 
   if (pairings.length === 0) return { error: "No pairings could be generated" };
 
-  const teamNameMap = new Map<string, string>();
+  const teamById = new Map<string, TeamSnapshot>();
   regs.forEach((r) => {
     if (r.team && !Array.isArray(r.team)) {
-      teamNameMap.set(r.team_id, (r.team as { id: string; name: string }).name);
+      teamById.set(r.team_id, teamSnapshot(r.team as TeamSnapshot));
     }
   });
 
@@ -411,8 +413,10 @@ export async function generateTournamentFixtures(tournamentId: string) {
     : new Date();
 
   const matchesToInsert = pairings.map((p) => {
-    const team1Name = teamNameMap.get(p.homeTeamId) ?? "Team 1";
-    const team2Name = teamNameMap.get(p.awayTeamId) ?? "Team 2";
+    const team1 = teamById.get(p.homeTeamId) ?? null;
+    const team2 = teamById.get(p.awayTeamId) ?? null;
+    const team1Name = team1?.name ?? "Team 1";
+    const team2Name = team2?.name ?? "Team 2";
     const matchDate = new Date(startDate.getTime() + (p.round - 1) * 86400000);
 
     return {
@@ -421,6 +425,8 @@ export async function generateTournamentFixtures(tournamentId: string) {
       overs_per_innings: tournament.overs_per_innings ?? 20,
       team1_id: p.homeTeamId,
       team2_id: p.awayTeamId,
+      team1_snapshot: team1,
+      team2_snapshot: team2,
       tournament_id: tournament.id,
       club_id: tournament.club_id,
       season_id: tournament.season_id,

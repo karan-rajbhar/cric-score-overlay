@@ -220,7 +220,7 @@ describe("advanceAfterInnings", () => {
       current_over: 0,
       current_ball: 0,
     });
-    expect(out.matchEndEvent).toBeNull();
+    expect(out.matchPatch.status).toBeUndefined();
   });
 
   it("names the winner with the correct margin", () => {

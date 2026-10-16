@@ -2,6 +2,10 @@ import Link from "next/link";
 import { Initials } from "~/components/ui/initials";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
+import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
 import { Card, CardContent } from "~/components/ui/card";
 import { StatTile } from "~/components/ui/stat-tile";
 import { Badge } from "~/components/ui/badge";
@@ -114,7 +118,6 @@ interface MemberRow {
     id: string;
     full_name: string;
     avatar_url: string | null;
-    email: string | null;
   } | null;
 }
 
@@ -191,8 +194,7 @@ export default async function ClubPage({
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, season_id,
-                team1:teams!matches_team1_id_fkey(id, name, short_name),
-                team2:teams!matches_team2_id_fkey(id, name, short_name),
+                ${MATCH_TEAM_COLUMNS},
                 innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
             `,
       )
@@ -201,7 +203,7 @@ export default async function ClubPage({
     db
       .from("club_memberships")
       .select(
-        "id, role, status, joined_at, user:users(id, full_name, avatar_url, email)",
+        "id, role, status, joined_at, user:users(id, full_name, avatar_url)",
       )
       .eq("club_id", id)
       .order("joined_at", { ascending: true }),
@@ -226,7 +228,10 @@ export default async function ClubPage({
 
   const typedTeams = (teams ?? []) as unknown as TeamRow[];
   const typedTournaments = (tournaments ?? []) as unknown as TournamentRow[];
-  const typedMatches = (matches ?? []) as unknown as MatchRow[];
+  const typedMatches = (await attachMatchTeams(
+    db,
+    matches ?? [],
+  )) as unknown as MatchRow[];
   const typedMembers = (members ?? []) as unknown as MemberRow[];
   const typedSeasons = (seasons ?? []) as unknown as SeasonRow[];
   const typedHallOfFame = (hallOfFame ?? []) as unknown as HallOfFameRow[];
