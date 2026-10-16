@@ -10,7 +10,7 @@ import {
   updateMatchSettings,
   reassignCurrentOverBowler,
 } from "./mutations";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({
@@ -20,7 +20,7 @@ vi.mock("~/lib/match-cache", () => ({
   invalidateMatchCache: vi.fn(),
 }));
 
-vi.mock("~/lib/supabase/server", () => ({
+vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(),
 }));
 

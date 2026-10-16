@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { supabase } from "~/lib/supabase";
+import { firebase } from "~/lib/firebase";
 import type {
   LiveMatchState,
   OverlayTheme,
@@ -396,7 +396,7 @@ export function ControlClient({
 
   const [activeDeckTab, setActiveDeckTab] = useState<string>("scorebars");
   const monitorRef = useRef<HTMLDivElement>(null);
-  const controlChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
+  const controlChannelRef = useRef<ReturnType<typeof firebase.channel> | null>(
     null,
   );
 
@@ -418,21 +418,21 @@ export function ControlClient({
     return () => ro.disconnect();
   }, [setMonitorScale]);
 
-  // Realtime Supabase broadcast channel
+  // Realtime broadcast channel to the overlay
   useEffect(() => {
-    const channel = supabase.channel(`overlay_control_${matchId}`);
+    const channel = firebase.channel(`overlay_control_${matchId}`);
     controlChannelRef.current = channel;
     channel.subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void firebase.removeChannel(channel);
     };
   }, [matchId]);
 
   // Live database polling for real matches
   const refetch = useCallback(async () => {
     if (!isRealUuid) return;
-    const { data } = await supabase
+    const { data } = await firebase
       .from("live_match_state")
       .select("*")
       .eq("match_id", matchId)

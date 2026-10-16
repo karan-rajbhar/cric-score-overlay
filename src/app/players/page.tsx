@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Search, UserX } from "lucide-react";
@@ -13,16 +13,16 @@ export default async function PlayersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const cleanQ = q.trim().replace(/^@/, "");
-  let query = supabase
+  let query = db
     .from("users")
     .select("id, full_name, avatar_url, username")
     .order("full_name")
     .limit(30);
   if (cleanQ.length >= 2) {
-    query = supabase
+    query = db
       .from("users")
       .select("id, full_name, avatar_url, username")
       .or(`full_name.ilike.%${cleanQ}%,username.ilike.%${cleanQ}%`)

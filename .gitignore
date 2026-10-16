@@ -35,9 +35,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Supabase
-.supabase/
-supabase/.env
+# Firebase emulators
+.firebase/
+firebase/emulator-data/
+*-debug.log
 
 # IDEs and editors
 .vscode/

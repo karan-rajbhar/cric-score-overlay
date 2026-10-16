@@ -1,41 +1,43 @@
-# 🤖 AGENTS.md — Agent Operating Contract
+# AGENTS.md
 
-Welcome, Agent. You are operating on the **Cricket Platform** (`cric-score-overlay`).
+Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 
----
+## Stack
 
-## 🛠️ Project Standards & Tech Stack
+- Next.js 16 (App Router, Server Actions), React 19, TypeScript
+- Firebase: Auth, Firestore, Storage. Local dev uses the Emulator Suite (`npm run emulators`, `npm run seed`)
+- Tailwind CSS + shadcn/ui primitives
+- Vitest + Testing Library (jsdom)
+- Dev server on port 3005 (`npm run dev`)
 
-- **Framework**: Next.js 16 (App Router, Server Actions), React 19
-- **Backend / Database**: Supabase (PostgreSQL, Realtime, Auth, Storage)
-- **Styling**: Tailwind CSS + shadcn/ui primitives
-- **Testing**: Vitest (`vitest run`), jsdom, `@testing-library/react`
-- **Port Allocation**: Dev server runs on port `3001` (`npm run dev`)
+## Data layer
 
----
+- Server code uses `createServerClient()` from `~/lib/firebase/server`; browser code uses `createClient()` / `firebase` from `~/lib/firebase`.
+- Queries use the chainable builder in `~/lib/firebase/query-builder.ts` (`from().select().eq().order()...`). Embedded relations are resolved from `<singular>_id` columns or `table_column_fkey` hints.
+- Named procedures (`rpc("record_ball", ...)`) are TypeScript functions in `~/lib/firebase/rpc/`. The scoring engine recomputes every innings from the ball log inside a Firestore transaction.
+- Collection metadata (columns, defaults, unique constraints, cascades) lives in `~/lib/firebase/schema.ts`. Add a column there and in `types.ts` when the model changes.
+- Writes never happen from the browser; `firestore.rules` only allows public reads.
 
-## 📋 Development Guidelines
+## Working guidelines
 
-1. **Focused & Minimal Changes**:
-   - Implement clean, direct solutions without unrequested bloat or synthetic loops.
-   - Preserve existing functionality and APIs.
+1. Keep changes focused and minimal. Preserve existing behaviour and APIs.
+2. Verify what you touch:
+   ```bash
+   npx vitest run <path/to/test.ts>
+   npm run typecheck
+   npm run lint
+   ```
+3. Frontend: responsive and accessible (ARIA, labels), `text-wrap: balance` for titles, `tabular-nums` for score figures, `content-visibility: auto` for long lists.
 
-2. **Targeted Verification**:
-   - Run targeted unit/integration tests for modified files:
-     ```bash
-     npx vitest run <path/to/test.ts>
-     ```
-   - Check TypeScript when modifying types:
-     ```bash
-     npm run typecheck
-     ```
-   - Check linting:
-     ```bash
-     npm run lint
-     ```
+## Local testing
 
-3. **Frontend Best Practices**:
-   - Responsive layouts and accessibility (ARIA semantics, proper labels).
-   - Use `text-wrap: balance` for titles/cards and `tabular-nums` for score figures.
-   - Defer rendering of heavy lists with `.content-visibility-auto`.
-   - Form validation with `[&&:user-invalid]` and proper `autoComplete`/`inputMode`.
+- `npm run emulators` (Auth :9099, Firestore :8088, Storage :9199, UI :4000), then `npm run seed`, then `npm run dev` (port 3005). `npm run dev:local` does all three.
+- Sign in with any seeded account, e.g. `john.smith@email.com` / `password123`. Sign-up is email + password or Google; phone sign-in is planned but not built.
+- Emulator data lives in memory: re-seed after restarting the emulators.
+- See "Troubleshooting" in `README.md` for the two environment traps (leftover service worker on port 3005, stale Turbopack cache after deleting files).
+
+## Scoring screen
+
+- `src/app/matches/[id]/score/page.tsx` composes `LiveMatchHUD`, `ScoringPanel` and the dialogs under `score/components/`. Match-level actions live in the Match Tools menu; squads are managed in `SquadManagerDialog`.
+- Below 640px the layout is a single column that must fit one phone screen without scrolling: the HUD hides card headers and shows its controls inline (`useMediaQuery`), and the keypad grows to fill the remaining height (`max-sm:flex-1`). Keep new elements out of that column or hide them on phones.
+- Undo removes the last ball and reopens the innings/match it closed; the ball log is the source of truth, so never patch totals directly.

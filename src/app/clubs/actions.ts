@@ -1,18 +1,18 @@
 "use server";
 
-import { createServerClient } from "~/lib/supabase/server";
-import { ensureUserProfile } from "~/lib/supabase/user-profile";
+import { createServerClient } from "~/lib/firebase/server";
+import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 export async function createClub(formData: FormData) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { error: "You must be logged in" };
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
   const name = (formData.get("name") as string)?.trim();
   if (!name) return { error: "Club name is required" };
@@ -21,7 +21,7 @@ export async function createClub(formData: FormData) {
   const validTypes = ["community", "corporate", "school", "professional"];
   const safeType = validTypes.includes(clubType) ? clubType : "community";
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("clubs")
     .insert({
       name,
@@ -44,7 +44,7 @@ export async function createClub(formData: FormData) {
   }
 
   // Auto-add creator as owner member
-  const { error: memError } = await supabase.from("club_memberships").insert({
+  const { error: memError } = await db.from("club_memberships").insert({
     club_id: data.id,
     user_id: user.id,
     role: "owner",
@@ -60,17 +60,17 @@ export async function createClub(formData: FormData) {
 }
 
 export async function joinClub(clubId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in to join a club" };
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
   // Check if membership record already exists
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("club_memberships")
     .select("id, status, role")
     .eq("club_id", clubId)
@@ -81,7 +81,7 @@ export async function joinClub(clubId: string) {
     if (existing.status === "active") {
       return { success: true };
     }
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("club_memberships")
       .update({ status: "active", role: "member" })
       .eq("id", existing.id);
@@ -94,7 +94,7 @@ export async function joinClub(clubId: string) {
     return { success: true };
   }
 
-  const { error } = await supabase.from("club_memberships").insert({
+  const { error } = await db.from("club_memberships").insert({
     club_id: clubId,
     user_id: user.id,
     role: "member",
@@ -111,15 +111,15 @@ export async function joinClub(clubId: string) {
 }
 
 export async function leaveClub(clubId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
   // Check if user is the club owner
-  const { data: club } = await supabase
+  const { data: club } = await db
     .from("clubs")
     .select("owner_id")
     .eq("id", clubId)
@@ -132,7 +132,7 @@ export async function leaveClub(clubId: string) {
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("club_memberships")
     .delete()
     .eq("club_id", clubId)
@@ -148,12 +148,12 @@ export async function leaveClub(clubId: string) {
 }
 
 async function checkClubAdminAuth(
-  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  db: Awaited<ReturnType<typeof createServerClient>>,
   clubId: string,
   userId: string,
   requireOwnerOnly = false,
 ): Promise<boolean> {
-  const { data: club } = await supabase
+  const { data: club } = await db
     .from("clubs")
     .select("owner_id")
     .eq("id", clubId)
@@ -162,7 +162,7 @@ async function checkClubAdminAuth(
   if (club?.owner_id === userId) return true;
   if (requireOwnerOnly) return false;
 
-  const { data: membership } = await supabase
+  const { data: membership } = await db
     .from("club_memberships")
     .select("role")
     .eq("club_id", clubId)
@@ -178,19 +178,19 @@ export async function updateMemberRole(
   membershipId: string,
   newRole: "admin" | "member",
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const isOwner = await checkClubAdminAuth(supabase, clubId, user.id, true);
+  const isOwner = await checkClubAdminAuth(db, clubId, user.id, true);
   if (!isOwner) {
     return { error: "Only the club owner can change member roles" };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("club_memberships")
     .update({ role: newRole })
     .eq("id", membershipId)
@@ -212,27 +212,27 @@ export async function createSeason(
   endDate?: string | null,
   isCurrent?: boolean,
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to manage seasons for this club" };
   }
 
   if (isCurrent) {
     // Reset previous is_current flags for this club
-    await supabase
+    await db
       .from("club_seasons")
       .update({ is_current: false })
       .eq("club_id", clubId);
   }
 
-  const { error } = await supabase.from("club_seasons").insert({
+  const { error } = await db.from("club_seasons").insert({
     club_id: clubId,
     name: name.trim(),
     start_date: startDate || null,
@@ -260,16 +260,16 @@ export async function inductHallOfFame(
     recordMetric?: string | null;
   },
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return {
       error:
@@ -277,7 +277,7 @@ export async function inductHallOfFame(
     };
   }
 
-  const { error } = await supabase.from("club_hall_of_fame").insert({
+  const { error } = await db.from("club_hall_of_fame").insert({
     club_id: clubId,
     player_id: data.playerId,
     category: data.category,
@@ -301,19 +301,19 @@ export async function updateClubSocialLinks(
   clubId: string,
   socialLinks: Record<string, string>,
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to update this club's links" };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("clubs")
     .update({ social_links: socialLinks })
     .eq("id", clubId);
@@ -328,14 +328,14 @@ export async function updateClubSocialLinks(
 }
 
 export async function updateClub(clubId: string, formData: FormData) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to update this club" };
   }
@@ -360,7 +360,7 @@ export async function updateClub(clubId: string, formData: FormData) {
   const safeType = validTypes.includes(clubType) ? clubType : "community";
   const is_public = formData.get("is_public") !== "false";
 
-  const { error } = await supabase
+  const { error } = await db
     .from("clubs")
     .update({
       name,
@@ -388,21 +388,21 @@ export async function updateClub(clubId: string, formData: FormData) {
 }
 
 export async function removeMember(clubId: string, membershipId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const isOwner = await checkClubAdminAuth(supabase, clubId, user.id, true);
-  const isAdmin = await checkClubAdminAuth(supabase, clubId, user.id, false);
+  const isOwner = await checkClubAdminAuth(db, clubId, user.id, true);
+  const isAdmin = await checkClubAdminAuth(db, clubId, user.id, false);
 
   if (!isAdmin) {
     return { error: "You are not authorized to remove members from this club" };
   }
 
-  const { data: targetMembership, error: fetchErr } = await supabase
+  const { data: targetMembership, error: fetchErr } = await db
     .from("club_memberships")
     .select("id, role, user_id")
     .eq("id", membershipId)
@@ -421,7 +421,7 @@ export async function removeMember(clubId: string, membershipId: string) {
     return { error: "Only the club owner can remove club administrators" };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("club_memberships")
     .delete()
     .eq("id", membershipId)
@@ -437,14 +437,14 @@ export async function removeMember(clubId: string, membershipId: string) {
 }
 
 export async function inviteClubMember(clubId: string, email: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to invite members to this club" };
   }
@@ -454,14 +454,14 @@ export async function inviteClubMember(clubId: string, email: string) {
     return { error: "A valid email address is required" };
   }
 
-  const { data: existingUser } = await supabase
+  const { data: existingUser } = await db
     .from("users")
     .select("id")
     .eq("email", cleanEmail)
     .maybeSingle();
 
   if (existingUser) {
-    const { data: existingMember } = await supabase
+    const { data: existingMember } = await db
       .from("club_memberships")
       .select("id, status")
       .eq("club_id", clubId)
@@ -473,7 +473,7 @@ export async function inviteClubMember(clubId: string, email: string) {
     }
   }
 
-  const { error } = await supabase.from("club_invitations").insert({
+  const { error } = await db.from("club_invitations").insert({
     club_id: clubId,
     invited_by: user.id,
     email: cleanEmail,
@@ -491,19 +491,19 @@ export async function inviteClubMember(clubId: string, email: string) {
 }
 
 export async function deleteSeason(seasonId: string, clubId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to manage seasons for this club" };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("club_seasons")
     .delete()
     .eq("id", seasonId)
@@ -519,19 +519,19 @@ export async function deleteSeason(seasonId: string, clubId: string) {
 }
 
 export async function removeHallOfFame(hallOfFameId: string, clubId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return { error: "You are not authorized to manage the Hall of Fame" };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("club_hall_of_fame")
     .delete()
     .eq("id", hallOfFameId)
@@ -565,13 +565,13 @@ export async function updateClubLogo(
   clubId: string,
   file: File,
 ): Promise<{ data: string | null; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { data: null, error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return {
       data: null,
@@ -592,7 +592,7 @@ export async function updateClubLogo(
       : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
   const path = `${clubId}/logo-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from("club-assets")
     .upload(path, file, { contentType: file.type, upsert: true });
 
@@ -604,11 +604,11 @@ export async function updateClubLogo(
     };
   }
 
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = db.storage
     .from("club-assets")
     .getPublicUrl(path);
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("clubs")
     .update({
       logo_url: urlData.publicUrl,
@@ -629,13 +629,13 @@ export async function updateClubLogo(
 export async function removeClubLogo(
   clubId: string,
 ): Promise<{ success: boolean; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { success: false, error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return {
       success: false,
@@ -643,7 +643,7 @@ export async function removeClubLogo(
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("clubs")
     .update({
       logo_url: null,
@@ -665,13 +665,13 @@ export async function updateClubBanner(
   clubId: string,
   file: File,
 ): Promise<{ data: string | null; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { data: null, error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return {
       data: null,
@@ -689,7 +689,7 @@ export async function updateClubBanner(
   const ext = (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
   const path = `${clubId}/banner-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from("club-assets")
     .upload(path, file, { contentType: file.type, upsert: true });
 
@@ -701,11 +701,11 @@ export async function updateClubBanner(
     };
   }
 
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = db.storage
     .from("club-assets")
     .getPublicUrl(path);
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("clubs")
     .update({
       banner_url: urlData.publicUrl,
@@ -726,13 +726,13 @@ export async function updateClubBanner(
 export async function removeClubBanner(
   clubId: string,
 ): Promise<{ success: boolean; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { success: false, error: "You must be logged in" };
 
-  const canManage = await checkClubAdminAuth(supabase, clubId, user.id);
+  const canManage = await checkClubAdminAuth(db, clubId, user.id);
   if (!canManage) {
     return {
       success: false,
@@ -740,7 +740,7 @@ export async function removeClubBanner(
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("clubs")
     .update({
       banner_url: null,

@@ -9,7 +9,7 @@ const mockGetUser = vi.fn();
 const mockFrom = vi.fn();
 const mockRpc = vi.fn();
 
-vi.mock("~/lib/supabase/server", () => ({
+vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: mockGetUser,
@@ -19,7 +19,7 @@ vi.mock("~/lib/supabase/server", () => ({
   })),
 }));
 
-vi.mock("~/lib/supabase/user-profile", () => ({
+vi.mock("~/lib/firebase/user-profile", () => ({
   ensureUserProfile: vi.fn(),
 }));
 

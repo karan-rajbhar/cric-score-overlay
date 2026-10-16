@@ -5,8 +5,8 @@ import { getScoringState, getTeamPlayers } from "../../queries";
 import { setCurrentBowler } from "../../mutations";
 import { getPendingActions } from "~/lib/offline-queue";
 
-vi.mock("~/lib/supabase/client", () => ({
-  supabase: {
+vi.mock("~/lib/firebase/client", () => ({
+  firebase: {
     channel: vi.fn().mockReturnValue({
       subscribe: vi.fn(),
       send: vi.fn(),

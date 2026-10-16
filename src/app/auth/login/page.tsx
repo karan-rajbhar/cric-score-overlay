@@ -16,31 +16,16 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
-import {
-  Eye,
-  EyeOff,
-  Mail,
-  Lock,
-  ArrowRight,
-  AlertCircle,
-  Phone,
-  MessageCircle,
-} from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
 
 function LoginPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
-  const { signIn, signInWithGoogle, signInWithPhone, verifyOTP, user } =
-    useAuth();
+  const { signIn, signInWithGoogle, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -120,41 +105,8 @@ function LoginPageInner() {
     // Don't set loading to false here as the redirect will happen
   };
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpSent) {
-      // Send OTP
-      setOtpLoading(true);
-      setError(null);
-
-      const { error } = await signInWithPhone(phone);
-
-      if (error) {
-        setError(error.message);
-        setOtpLoading(false);
-      } else {
-        setOtpSent(true);
-        setOtpLoading(false);
-      }
-    } else {
-      // Verify OTP
-      setOtpLoading(true);
-      setError(null);
-
-      const { error } = await verifyOTP(phone, otp);
-
-      if (error) {
-        setError(error.message);
-        setOtpLoading(false);
-      } else {
-        // Auth context will handle redirect
-        setOtpLoading(false);
-      }
-    }
-  };
-
   return (
-    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <div className="flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="space-y-2 text-center">
@@ -171,7 +123,7 @@ function LoginPageInner() {
               Sign in
             </CardTitle>
             <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
-              Choose your preferred sign-in method
+              Use your email or Google account
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-4 sm:p-6">
@@ -230,243 +182,93 @@ function LoginPageInner() {
               </div>
             </div>
 
-            {/* Login Method Toggle */}
-            <div className="flex rounded-lg bg-muted/30 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginMethod("email");
-                  setError(null);
-                  setOtpSent(false);
-                }}
-                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  loginMethod === "email"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Mail className="mr-2 inline h-4 w-4 shrink-0" />
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoginMethod("phone");
-                  setError(null);
-                  setOtpSent(false);
-                }}
-                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  loginMethod === "phone"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Phone className="mr-2 inline h-4 w-4 shrink-0" />
-                Phone
-              </button>
-            </div>
-
             {/* Email Login Form */}
-            {loginMethod === "email" && (
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                {/* Email Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="email"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Email address
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="password"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="form-input pl-10 pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Eye className="h-4 w-4 shrink-0" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Forgot Password Link */}
-                <div className="flex justify-end">
-                  <Link
-                    href="/auth/forgot-password"
-                    className="text-sm font-medium text-cricket-primary transition-colors hover:text-cricket-primary/80"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="h-11 w-full"
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              {/* Email Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-foreground"
                 >
-                  {loading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign in
-                      <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
-                    </>
-                  )}
-                </Button>
-              </form>
-            )}
-
-            {/* Phone Login Form */}
-            {loginMethod === "phone" && (
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                {/* Phone Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="phone"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Phone number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="phone"
-                      name="tel"
-                      type="tel"
-                      autoComplete="tel"
-                      inputMode="tel"
-                      placeholder="+1 (555) 123-4567"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                      disabled={otpSent}
-                    />
-                  </div>
-                  {!otpSent && (
-                    <p className="text-xs text-muted-foreground">
-                      We'll send you a verification code via SMS
-                    </p>
-                  )}
+                  Email address
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="form-input pl-10"
+                    required
+                  />
                 </div>
+              </div>
 
-                {/* OTP Field (only shown after phone number is submitted) */}
-                {otpSent && (
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="otp"
-                      className="text-sm font-medium text-foreground"
-                    >
-                      Verification code
-                    </Label>
-                    <div className="relative">
-                      <MessageCircle className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                      <Input
-                        id="otp"
-                        name="one-time-code"
-                        type="text"
-                        autoComplete="one-time-code"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="Enter 6-digit code"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        className="form-input pl-10"
-                        maxLength={6}
-                        required
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground">
-                        Didn't receive the code?
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOtpSent(false);
-                          setOtp("");
-                        }}
-                        className="text-xs font-medium text-cricket-primary transition-colors hover:text-cricket-primary/80"
-                      >
-                        Try again
-                      </button>
-                    </div>
-                  </div>
+              {/* Password Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="password"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="form-input pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Eye className="h-4 w-4 shrink-0" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Forgot Password Link */}
+              <div className="flex justify-end">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm font-medium text-cricket-primary transition-colors hover:text-cricket-primary/80"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
+
+              {/* Submit Button */}
+              <Button type="submit" disabled={loading} className="h-11 w-full">
+                {loading ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
+                  </>
                 )}
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={otpLoading}
-                  className="h-11 w-full"
-                >
-                  {otpLoading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                      {otpSent ? "Verifying..." : "Sending code..."}
-                    </>
-                  ) : (
-                    <>
-                      {otpSent ? (
-                        <>
-                          Verify & Sign in
-                          <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
-                        </>
-                      ) : (
-                        <>
-                          Send verification code
-                          <MessageCircle className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:scale-110" />
-                        </>
-                      )}
-                    </>
-                  )}
-                </Button>
-              </form>
-            )}
+              </Button>
+            </form>
 
             {/* Divider */}
             <div className="relative">

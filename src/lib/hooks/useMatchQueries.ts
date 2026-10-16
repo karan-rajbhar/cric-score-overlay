@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { createClient } from "~/lib/supabase/client";
+import { createClient } from "~/lib/firebase/client";
 import {
   getPartnerships,
   getOverSummaries,
@@ -49,38 +49,38 @@ export interface MatchWizardData {
 
 /**
  * High-performance TanStack Query hook for Match Creation Wizard.
- * Fetches directly via browser Supabase client to bypass Next.js Server Action serialization,
+ * Fetches directly via the browser Firestore client to bypass Next.js Server Action serialization,
  * and caches data for 5 minutes.
  */
 export function useMatchWizardDataQuery(userId?: string | null) {
   return useQuery<MatchWizardData>({
     queryKey: ["matchWizardData", userId ?? "anon"],
     queryFn: async () => {
-      const supabase = createClient();
+      const db = createClient();
       const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
         await Promise.all([
-          supabase
+          db
             .from("teams")
             .select(
               "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
             )
             .order("name"),
-          supabase
+          db
             .from("tournaments")
             .select("id, name, match_format, custom_overs, created_by, club_id")
             .order("created_at", { ascending: false }),
-          supabase
+          db
             .from("clubs")
             .select("id, name, short_name, owner_id")
             .order("name"),
           userId
-            ? supabase
+            ? db
                 .from("team_players")
                 .select("team_id")
                 .eq("user_id", userId)
             : Promise.resolve({ data: [] }),
           userId
-            ? supabase
+            ? db
                 .from("club_memberships")
                 .select("club_id")
                 .eq("user_id", userId)
@@ -145,8 +145,8 @@ export function usePartnershipsQuery(matchId: string) {
       );
     if (!isUuid) return;
 
-    const supabase = createClient();
-    const channel = supabase
+    const db = createClient();
+    const channel = db
       // NOTE: the scorer broadcasts on `match_detail_${matchId}` (see
       // useScoring broadcastScoreUpdate) — subscribe to that topic, not a
       // private rt_* topic nobody sends to.
@@ -173,7 +173,7 @@ export function usePartnershipsQuery(matchId: string) {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void db.removeChannel(channel);
     };
   }, [matchId, queryClient]);
 
@@ -205,8 +205,8 @@ export function useOverSummariesQuery(matchId: string) {
       );
     if (!isUuid) return;
 
-    const supabase = createClient();
-    const channel = supabase
+    const db = createClient();
+    const channel = db
       // Same shared topic the scorer broadcasts on (see useScoring).
       .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
@@ -231,7 +231,7 @@ export function useOverSummariesQuery(matchId: string) {
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void db.removeChannel(channel);
     };
   }, [matchId, queryClient]);
 
@@ -266,8 +266,8 @@ export function useMatchBallLogQuery(
       );
     if (!isUuid) return;
 
-    const supabase = createClient();
-    const channel = supabase
+    const db = createClient();
+    const channel = db
       // Same shared topic the scorer broadcasts on (see useScoring).
       .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
@@ -292,7 +292,7 @@ export function useMatchBallLogQuery(
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(channel);
+      void db.removeChannel(channel);
     };
   }, [matchId, queryClient]);
 
@@ -336,14 +336,14 @@ export function useUserManagedClubsQuery(
     queryKey: ["userManagedClubs", userId ?? "anon", prefilledClubId ?? ""],
     queryFn: async () => {
       if (!userId) return [];
-      const supabase = createClient();
+      const db = createClient();
       const [ownedClubsRes, memberClubsRes] = await Promise.all([
-        supabase
+        db
           .from("clubs")
           .select("id, name, short_name")
           .eq("owner_id", userId)
           .order("name"),
-        supabase
+        db
           .from("club_memberships")
           .select("club:clubs(id, name, short_name)")
           .eq("user_id", userId)
@@ -361,7 +361,7 @@ export function useUserManagedClubsQuery(
       });
 
       if (prefilledClubId && !clubMap.has(prefilledClubId)) {
-        const { data: prefClub } = await supabase
+        const { data: prefClub } = await db
           .from("clubs")
           .select("id, name, short_name")
           .eq("id", prefilledClubId)
@@ -387,10 +387,10 @@ export function useUserAdminClubIdsQuery(userId?: string | null) {
     queryKey: ["userAdminClubIds", userId ?? "anon"],
     queryFn: async () => {
       if (!userId) return new Set<string>();
-      const supabase = createClient();
+      const db = createClient();
       const [{ data: owned }, { data: mems }] = await Promise.all([
-        supabase.from("clubs").select("id").eq("owner_id", userId),
-        supabase
+        db.from("clubs").select("id").eq("owner_id", userId),
+        db
           .from("club_memberships")
           .select("club_id")
           .eq("user_id", userId)
@@ -438,8 +438,8 @@ export function useHeadToHeadQuery(
   return useQuery<HistoricalMatchSummary[]>({
     queryKey: ["headToHead", team1Id, team2Id, currentMatchId],
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
+      const db = createClient();
+      const { data, error } = await db
         .from("matches")
         .select(
           `
@@ -478,8 +478,8 @@ export function useTournamentRegistrationsQuery(tournamentId?: string | null) {
     queryKey: ["tournamentRegistrations", tournamentId ?? ""],
     queryFn: async () => {
       if (!tournamentId) return new Set<string>();
-      const supabase = createClient();
-      const { data, error } = await supabase
+      const db = createClient();
+      const { data, error } = await db
         .from("tournament_registrations")
         .select("team_id")
         .eq("tournament_id", tournamentId);
@@ -507,8 +507,8 @@ export function useMatchAdminQuery(
     queryKey: ["isMatchAdmin", matchId ?? "", userId ?? "anon"],
     queryFn: async () => {
       if (!matchId || !userId) return false;
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc("is_match_admin", {
+      const db = createClient();
+      const { data, error } = await db.rpc("is_match_admin", {
         p_match_id: matchId,
       });
       if (error) {
@@ -553,9 +553,9 @@ export function useMatchDetailQuery(matchId?: string | null) {
       );
     if (!isUuid) return;
 
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`rt_match_detail_${matchId}`)
+    const db = createClient();
+    const channel = db
+      .channel(`match_detail_${matchId}`)
       .on("broadcast", { event: "score_update" }, () => {
         void queryClient.invalidateQueries({
           queryKey: ["matchDetail", matchId],
@@ -608,7 +608,7 @@ export function useMatchDetailQuery(matchId?: string | null) {
       });
 
     return () => {
-      void supabase.removeChannel(channel);
+      void db.removeChannel(channel);
       setIsConnected(false);
     };
   }, [matchId, queryClient]);

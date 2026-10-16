@@ -47,41 +47,6 @@ export function MatchCardSkeleton() {
 }
 
 /**
- * Skeleton for data tables (e.g. Standings, Scorecards)
- */
-export function TableSkeleton({
-  rows = 5,
-  cols = 6,
-}: {
-  rows?: number;
-  cols?: number;
-}) {
-  return (
-    <div className="w-full overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 p-4">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-8 w-24 rounded-md" />
-      </div>
-      <div className="divide-y divide-border/40 p-2">
-        {Array.from({ length: rows }).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between gap-4 px-3 py-3"
-          >
-            {Array.from({ length: cols }).map((_, j) => (
-              <Skeleton
-                key={j}
-                className={cn("h-4", j === 0 ? "w-40" : "w-12")}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
  * Skeleton for KPI statistics counter card
  */
 export function StatCardSkeleton() {

@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -8,8 +8,8 @@ export async function getMatches(filters?: {
   limit?: number;
 }) {
   try {
-    const supabase = await createServerClient();
-    let query = supabase
+    const db = await createServerClient();
+    let query = db
       .from("matches")
       .select(
         `
@@ -81,8 +81,8 @@ export async function getMatch(
 
   const queryPromise = (async () => {
     try {
-      const supabase = await createServerClient();
-      const { data, error } = await supabase
+      const db = await createServerClient();
+      const { data, error } = await db
         .from("matches")
         .select(
           `
@@ -156,8 +156,8 @@ export async function getLiveMatchState(
 
   const queryPromise = (async () => {
     try {
-      const supabase = await createServerClient();
-      const { data, error } = await supabase
+      const db = await createServerClient();
+      const { data, error } = await db
         .from("live_match_state")
         .select("*")
         .eq("match_id", matchId)
@@ -185,8 +185,8 @@ export async function getScoringState(matchId: string) {
   }
 
   try {
-    const supabase = await createServerClient();
-    const { data: match, error } = await supabase
+    const db = await createServerClient();
+    const { data: match, error } = await db
       .from("matches")
       .select(
         `
@@ -269,7 +269,7 @@ export async function getScoringState(matchId: string) {
       // Only when NO bowler is assigned yet (at over boundary, awaiting bowler selection) do we show the completed over for review.
       const displayOver = isOverBoundary && !bowler ? ongoingOver - 1 : ongoingOver;
 
-      const { data: balls } = await supabase
+      const { data: balls } = await db
         .from("ball_by_ball")
         .select(
           "id, over_number, ball_number, runs_scored, extras, extra_type, is_wicket, dismissal_type, bowler_id, batsman_id, dismissed_player_id",
@@ -281,7 +281,7 @@ export async function getScoringState(matchId: string) {
 
       if (ongoingOver > 0 || isOverBoundary) {
         const overToCheck = ongoingOver > 0 ? ongoingOver - 1 : 0;
-        const { data: lastOverBall } = await supabase
+        const { data: lastOverBall } = await db
           .from("ball_by_ball")
           .select("bowler_id")
           .eq("innings_id", current.id)
@@ -314,8 +314,8 @@ export async function getScoringState(matchId: string) {
 
 export async function getTeamPlayers(teamId: string) {
   try {
-    const supabase = await createServerClient();
-    const { data, error } = await supabase
+    const db = await createServerClient();
+    const { data, error } = await db
       .from("team_players")
       .select(
         `
@@ -338,8 +338,8 @@ export async function getTeamPlayers(teamId: string) {
 
 export async function getMatchBallLog(matchId: string) {
   try {
-    const supabase = await createServerClient();
-    const { data, error } = await supabase
+    const db = await createServerClient();
+    const { data, error } = await db
       .from("ball_by_ball")
       .select(
         `
@@ -413,8 +413,8 @@ export async function getFullMatchForExport(matchId: string) {
 
 export async function getOverSummaries(matchId: string) {
   try {
-    const supabase = await createServerClient();
-    const { data, error } = await supabase
+    const db = await createServerClient();
+    const { data, error } = await db
       .from("match_over_summaries")
       .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler, extras_total")
       .eq("match_id", matchId)
@@ -423,7 +423,7 @@ export async function getOverSummaries(matchId: string) {
       // Pre-migration DBs lack extras_total — retry without it; the chart
       // falls back to extras_off_bat_and_bowler.
       if (error.message.includes("extras_total")) {
-        const retry = await supabase
+        const retry = await db
           .from("match_over_summaries")
           .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
           .eq("match_id", matchId)
@@ -449,8 +449,8 @@ export async function getOverSummaries(matchId: string) {
 
 export async function getPartnerships(matchId: string) {
   try {
-    const supabase = await createServerClient();
-    const { data, error } = await supabase
+    const db = await createServerClient();
+    const { data, error } = await db
       .from("partnerships")
       .select(
         `

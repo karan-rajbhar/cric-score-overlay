@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Uploads are performed by server actions with the Admin SDK (after the
+// caller's permissions are checked), so clients only need read access to
+// the public asset folders.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /team-logos/{allPaths=**}  { allow read: if true; allow write: if false; }
+    match /club-assets/{allPaths=**} { allow read: if true; allow write: if false; }
+    match /{allPaths=**}             { allow read, write: if false; }
+  }
+}

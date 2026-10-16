@@ -1,4 +1,4 @@
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { getMatch } from "~/app/matches/queries";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 import { ControlClient } from "./control-client";
@@ -54,10 +54,10 @@ export default async function OverlayControlPage({
     );
   }
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return (
@@ -87,7 +87,7 @@ export default async function OverlayControlPage({
     );
   }
 
-  const { data: isAdmin } = await supabase.rpc("is_match_admin", {
+  const { data: isAdmin } = await db.rpc("is_match_admin", {
     p_match_id: matchId,
     p_user_id: user.id,
   });
@@ -127,7 +127,7 @@ export default async function OverlayControlPage({
   }
 
   const [liveResult, matchResult] = await Promise.all([
-    supabase
+    db
       .from("live_match_state")
       .select("*")
       .eq("match_id", matchId)

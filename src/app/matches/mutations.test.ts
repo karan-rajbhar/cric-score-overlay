@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { friendlyError, ERROR_MESSAGES } from "./errors";
 
 vi.mock("server-only", () => ({}));
-vi.mock("~/lib/supabase/server", () => ({
+vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => ({ data: { user: { id: "u1" } }, error: null })),

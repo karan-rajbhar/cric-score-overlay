@@ -1,7 +1,7 @@
 "use server";
 
-import { createServerClient } from "~/lib/supabase/server";
-import { ensureUserProfile } from "~/lib/supabase/user-profile";
+import { createServerClient } from "~/lib/firebase/server";
+import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -11,17 +11,17 @@ export async function getTeams(filters?: {
   /** Only return teams the current user has a stake in. */
   mine?: boolean;
 }) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (filters?.mine && !user) {
     return { data: [], error: null };
   }
 
-  let query = supabase.from("teams").select(`
+  let query = db.from("teams").select(`
       *,
       captain:users!teams_captain_id_fkey(full_name),
       _count:team_players(count)
@@ -31,7 +31,7 @@ export async function getTeams(filters?: {
   // squad member). Without it (e.g. match-creation picker) all teams are
   // visible so opponents can be selected.
   if (user && filters?.mine) {
-    const { data: playerRows, error: playerErr } = await supabase
+    const { data: playerRows, error: playerErr } = await db
       .from("team_players")
       .select("team_id")
       .eq("user_id", user.id);
@@ -74,7 +74,7 @@ export async function getTeams(filters?: {
   }
 
   // Calculate player count from the _count aggregation
-  // Supabase returns count as an array of objects
+  // Count relations come back as a one-element array
   const teamsWithCount = data.map((team) => ({
     ...team,
     player_count:
@@ -93,9 +93,9 @@ export async function getTeam(id: string) {
     return { data: null, error: "Invalid team ID" };
   }
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("teams")
     .select(
       `
@@ -121,7 +121,7 @@ export async function getTeam(id: string) {
 }
 
 export async function createTeam(formData: FormData) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const name = (formData.get("name") as string)?.trim();
   const short_name = (formData.get("short_name") as string)?.trim() || null;
   const description = (formData.get("description") as string)?.trim() || null;
@@ -131,20 +131,20 @@ export async function createTeam(formData: FormData) {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { error: "You must be logged in to create a team" };
   }
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
   if (!name) {
     return { error: "Team name is required" };
   }
 
   if (club_id) {
-    const { data: club } = await supabase
+    const { data: club } = await db
       .from("clubs")
       .select("owner_id")
       .eq("id", club_id)
@@ -155,7 +155,7 @@ export async function createTeam(formData: FormData) {
     }
 
     if (club.owner_id !== user.id) {
-      const { data: membership } = await supabase
+      const { data: membership } = await db
         .from("club_memberships")
         .select("id")
         .eq("club_id", club_id)
@@ -173,7 +173,7 @@ export async function createTeam(formData: FormData) {
     }
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("teams")
     .insert({
       name,
@@ -193,7 +193,7 @@ export async function createTeam(formData: FormData) {
   }
 
   // Auto-add creator as playing squad captain
-  await supabase.from("team_players").insert({
+  await db.from("team_players").insert({
     team_id: data.id,
     user_id: user.id,
     role_in_team: "captain",
@@ -213,24 +213,24 @@ export async function createTeam(formData: FormData) {
  * "new team" inside the create-match wizard.
  */
 export async function createTeamQuick(name: string, shortName?: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { data: null, error: "You must be logged in to create a team" };
   }
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
   const trimmed = name.trim();
   if (!trimmed) {
     return { data: null, error: "Team name is required" };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("teams")
     .insert({
       name: trimmed,
@@ -258,19 +258,19 @@ export async function createTeamQuick(name: string, shortName?: string) {
  */
 export async function createPlayerQuick(teamId: string, fullName: string) {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to add players" };
     }
 
-    await ensureUserProfile(supabase, user);
+    await ensureUserProfile(db, user);
 
-    const { data, error } = await supabase.rpc("create_team_player", {
+    const { data, error } = await db.rpc("create_team_player", {
       p_team_id: teamId,
       p_full_name: fullName,
     });
@@ -302,11 +302,11 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
 }
 
 async function checkTeamManageAuth(
-  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  db: Awaited<ReturnType<typeof createServerClient>>,
   teamId: string,
   userId: string,
 ): Promise<boolean> {
-  const { data: team } = await supabase
+  const { data: team } = await db
     .from("teams")
     .select("created_by, captain_id, vice_captain_id, club_id")
     .eq("id", teamId)
@@ -323,7 +323,7 @@ async function checkTeamManageAuth(
   }
 
   if (team.club_id) {
-    const { data: club } = await supabase
+    const { data: club } = await db
       .from("clubs")
       .select("owner_id")
       .eq("id", team.club_id)
@@ -331,7 +331,7 @@ async function checkTeamManageAuth(
 
     if (club?.owner_id === userId) return true;
 
-    const { data: mem } = await supabase
+    const { data: mem } = await db
       .from("club_memberships")
       .select("id")
       .eq("club_id", team.club_id)
@@ -346,62 +346,22 @@ async function checkTeamManageAuth(
   return false;
 }
 
-export async function updateTeam(id: string, formData: FormData) {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { error: "You must be logged in to update a team" };
-
-  const canManage = await checkTeamManageAuth(supabase, id, user.id);
-  if (!canManage) {
-    return {
-      error:
-        "Only team captains, creators, or club admins can update this team",
-    };
-  }
-
-  const name = (formData.get("name") as string)?.trim();
-  if (!name) return { error: "Team name is required" };
-  const short_name = (formData.get("short_name") as string)?.trim() || null;
-  const description = (formData.get("description") as string)?.trim() || null;
-
-  const { error } = await supabase
-    .from("teams")
-    .update({
-      name,
-      short_name,
-      description,
-    })
-    .eq("id", id);
-
-  if (error) {
-    console.error("Error updating team:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath(`/teams/${id}`);
-  revalidatePath("/teams");
-  return { success: true };
-}
-
 export async function addPlayerToTeam(
   teamId: string,
   userId: string,
   role: string = "player",
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in to add players" };
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
-  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  const canManage = await checkTeamManageAuth(db, teamId, user.id);
   if (!canManage) {
     return {
       error:
@@ -409,7 +369,7 @@ export async function addPlayerToTeam(
     };
   }
 
-  const { error } = await supabase.from("team_players").insert({
+  const { error } = await db.from("team_players").insert({
     team_id: teamId,
     user_id: userId,
     role_in_team: role,
@@ -433,17 +393,17 @@ export async function removePlayerFromTeam(
   teamId: string,
   userInputId: string,
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in to remove players" };
 
   const isSelf = user.id === userInputId;
   if (!isSelf) {
-    const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+    const canManage = await checkTeamManageAuth(db, teamId, user.id);
     if (!canManage) {
       return {
         error:
@@ -452,7 +412,7 @@ export async function removePlayerFromTeam(
     }
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("team_players")
     .delete()
     .eq("team_id", teamId)
@@ -472,15 +432,15 @@ export async function updatePlayerRole(
   userId: string,
   role: string,
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) return { error: "You must be logged in to change player roles" };
 
-  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  const canManage = await checkTeamManageAuth(db, teamId, user.id);
   if (!canManage) {
     return {
       error:
@@ -491,19 +451,19 @@ export async function updatePlayerRole(
   // Start a transaction-like update if we're setting captain
   if (role === "captain") {
     // Update team captain_id
-    await supabase
+    await db
       .from("teams")
       .update({ captain_id: userId })
       .eq("id", teamId);
   } else if (role === "vice_captain") {
     // Update team vice_captain_id
-    await supabase
+    await db
       .from("teams")
       .update({ vice_captain_id: userId })
       .eq("id", teamId);
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("team_players")
     .update({ role_in_team: role })
     .eq("team_id", teamId)
@@ -519,11 +479,11 @@ export async function updatePlayerRole(
 }
 
 export async function searchUsers(query: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   if (!query || query.length < 2) return { data: [] };
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from("users")
     .select("id, full_name, email, avatar_url")
     .ilike("full_name", `%${query}%`)
@@ -551,14 +511,14 @@ const ALLOWED_LOGO_TYPES = [
  * RLS via the team-logos/<team_id>/ folder convention).
  */
 export async function updateTeamLogo(teamId: string, file: File) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { data: null, error: "You must be logged in" };
 
-  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  const canManage = await checkTeamManageAuth(db, teamId, user.id);
   if (!canManage) {
     return {
       data: null,
@@ -579,7 +539,7 @@ export async function updateTeamLogo(teamId: string, file: File) {
       : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
   const path = `${teamId}/logo-${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from("team-logos")
     .upload(path, file, { contentType: file.type, upsert: true });
 
@@ -591,11 +551,11 @@ export async function updateTeamLogo(teamId: string, file: File) {
     };
   }
 
-  const { data: urlData } = supabase.storage
+  const { data: urlData } = db.storage
     .from("team-logos")
     .getPublicUrl(path);
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("teams")
     .update({ logo_url: urlData.publicUrl })
     .eq("id", teamId);
@@ -610,14 +570,14 @@ export async function updateTeamLogo(teamId: string, file: File) {
 }
 
 export async function removeTeamLogo(teamId: string) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkTeamManageAuth(supabase, teamId, user.id);
+  const canManage = await checkTeamManageAuth(db, teamId, user.id);
   if (!canManage) {
     return {
       error:
@@ -625,7 +585,7 @@ export async function removeTeamLogo(teamId: string) {
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("teams")
     .update({ logo_url: null })
     .eq("id", teamId);

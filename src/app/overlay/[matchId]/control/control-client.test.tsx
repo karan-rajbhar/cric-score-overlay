@@ -2,8 +2,8 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-vi.mock("~/lib/supabase", () => ({
-  supabase: {
+vi.mock("~/lib/firebase", () => ({
+  firebase: {
     channel: vi.fn(() => ({
       subscribe: vi.fn(),
       send: vi.fn(),

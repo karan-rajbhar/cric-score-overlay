@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "~/lib/supabase";
+import { firebase } from "~/lib/firebase";
 import {
   Settings,
   X,
@@ -171,7 +171,7 @@ export function OverlayClient({
 
   const refetch = useCallback(async () => {
     if (!isRealUuid) return;
-    const { data } = await supabase
+    const { data } = await firebase
       .from("live_match_state")
       .select("*")
       .eq("match_id", matchId)
@@ -421,7 +421,7 @@ export function OverlayClient({
 
   // Realtime Subscriptions & Remote Producer Channel
   useEffect(() => {
-    const controlChannel = supabase
+    const controlChannel = firebase
       .channel(`overlay_control_${matchId}`)
       .on(
         "broadcast",
@@ -499,7 +499,7 @@ export function OverlayClient({
 
     if (!isRealUuid) {
       return () => {
-        void supabase.removeChannel(controlChannel);
+        void firebase.removeChannel(controlChannel);
       };
     }
 
@@ -508,7 +508,7 @@ export function OverlayClient({
       fetchTimer.current = setTimeout(() => void refetch(), 250);
     };
 
-    const dataChannel = supabase
+    const dataChannel = firebase
       .channel(`overlay_${matchId}`)
       .on(
         "broadcast",
@@ -556,8 +556,8 @@ export function OverlayClient({
     const poll = setInterval(() => void refetch(), 15000);
 
     return () => {
-      void supabase.removeChannel(controlChannel);
-      void supabase.removeChannel(dataChannel);
+      void firebase.removeChannel(controlChannel);
+      void firebase.removeChannel(dataChannel);
       clearInterval(poll);
       if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };

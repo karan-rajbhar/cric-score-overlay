@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -10,8 +10,8 @@ import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 export const dynamic = "force-dynamic";
 
 export default async function TournamentsPage() {
-  const supabase = await createServerClient();
-  const { data: tournaments } = await supabase
+  const db = await createServerClient();
+  const { data: tournaments } = await db
     .from("tournaments")
     .select(
       "id, name, description, status, tournament_format, start_date, end_date, venue",

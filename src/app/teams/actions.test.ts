@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { createTeamQuick } from "./actions";
 
-// Mock Supabase server client
+// Mock the server data client
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
 const mockSelect = vi.fn();
@@ -9,7 +9,7 @@ const mockSingle = vi.fn();
 const mockFrom = vi.fn();
 const mockRpc = vi.fn();
 
-vi.mock("~/lib/supabase/server", () => ({
+vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: mockGetUser,

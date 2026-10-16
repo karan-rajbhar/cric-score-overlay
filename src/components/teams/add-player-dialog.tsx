@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,72 +8,91 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Search, UserPlus, Loader2, Check } from "lucide-react";
-import { searchUsers, addPlayerToTeam } from "~/app/teams/actions";
+import { Search, UserPlus, Loader2 } from "lucide-react";
+import {
+  searchUsers,
+  addPlayerToTeam,
+  createPlayerQuick,
+} from "~/app/teams/actions";
 import { toast } from "sonner";
-import { cn } from "~/lib/utils";
 
 interface AddPlayerDialogProps {
   teamId: string;
   onSuccess?: () => void;
 }
 
+type FoundUser = { id: string; email?: string | null; full_name?: string };
+
+/**
+ * Adds a player to a team: search registered players as you type, or create
+ * a new player record from a name when they are not on the platform yet.
+ */
 export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [users, setUsers] = useState<
-    { id: string; email: string; full_name?: string }[]
-  >([]);
-  const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [users, setUsers] = useState<FoundUser[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.length < 2) return;
+  const trimmed = query.trim();
 
-    setSearching(true);
-    setUsers([]);
-    setSelectedUser(null);
-
-    try {
-      const { data, error } = await searchUsers(query);
-      if (error) {
-        toast.error("Search failed");
-      } else {
-        setUsers(data || []);
+  useEffect(() => {
+    if (trimmed.length < 2) return;
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data, error } = await searchUsers(trimmed);
+        if (cancelled) return;
+        if (error) toast.error("Search failed");
+        else setUsers((data ?? []) as FoundUser[]);
+      } finally {
+        if (!cancelled) setSearching(false);
       }
-    } catch {
-      toast.error("Failed to search users");
-    } finally {
-      setSearching(false);
-    }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [trimmed]);
+
+  const results = trimmed.length >= 2 ? users : [];
+
+  const finish = (message: string) => {
+    toast.success(message);
+    setOpen(false);
+    setQuery("");
+    setUsers([]);
+    onSuccess?.();
   };
 
-  const handleAddPlayer = async () => {
-    if (!selectedUser) return;
-
-    setAdding(true);
+  const addExisting = async (user: FoundUser) => {
+    setBusy(user.id);
     try {
-      const result = await addPlayerToTeam(teamId, selectedUser);
-      if (result.error) {
-        toast.error(result.error);
-      } else {
-        toast.success("Player added successfully");
-        setOpen(false);
-        setQuery("");
-        setUsers([]);
-        setSelectedUser(null);
-        if (onSuccess) onSuccess();
-      }
+      const result = await addPlayerToTeam(teamId, user.id);
+      if (result.error) toast.error(result.error);
+      else finish(`${user.full_name ?? "Player"} added to the squad`);
     } catch {
       toast.error("Failed to add player");
     } finally {
-      setAdding(false);
+      setBusy(null);
+    }
+  };
+
+  const createNew = async () => {
+    if (!trimmed) return;
+    setBusy("new");
+    try {
+      const result = await createPlayerQuick(teamId, trimmed);
+      if (result.error) toast.error(result.error);
+      else finish(`${trimmed} added to the squad`);
+    } catch {
+      toast.error("Failed to add player");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -85,85 +104,89 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
           Add Player
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Add Player to Squad</DialogTitle>
           <DialogDescription>
-            Search registered players by name and assign them to this team
-            roster.
+            Type a name to find a registered player, or add them as a new player
+            if they are not on CricScore yet.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
+        <div className="space-y-3 py-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name..."
+              placeholder="Player name"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              type="submit"
-              disabled={searching || query.length < 2}
               aria-label="Search players"
-            >
-              {searching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
+              autoFocus
+              className="pl-9"
+            />
+          </div>
 
           <div className="max-h-[300px] space-y-2 overflow-y-auto">
-            {users.length > 0 ? (
-              users.map((user) => (
-                <div
-                  key={user.id}
-                  className={cn(
-                    "flex cursor-pointer items-center justify-between rounded-md border p-3 transition-colors hover:bg-muted",
-                    selectedUser === user.id &&
-                      "border-primary bg-primary/5 ring-1 ring-primary",
-                  )}
-                  onClick={() => setSelectedUser(user.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                      {user.full_name?.substring(0, 1)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{user.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
+            {results.map((user) => (
+              <button
+                key={user.id}
+                type="button"
+                disabled={busy !== null}
+                onClick={() => void addExisting(user)}
+                className="flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                    {user.full_name?.substring(0, 1)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {user.full_name}
+                    </p>
+                    {user.email && (
+                      <p className="truncate text-xs text-muted-foreground">
                         {user.email}
                       </p>
-                    </div>
+                    )}
                   </div>
-                  {selectedUser === user.id && (
-                    <Check className="h-4 w-4 text-primary" />
-                  )}
                 </div>
-              ))
-            ) : query.length >= 2 && !searching && users.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No users found
-              </p>
-            ) : null}
-          </div>
-        </div>
+                {busy === user.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus className="h-4 w-4 shrink-0 text-primary" />
+                )}
+              </button>
+            ))}
 
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            disabled={adding}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleAddPlayer} disabled={!selectedUser || adding}>
-            {adding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Add Selected
-          </Button>
-        </DialogFooter>
+            {trimmed.length >= 2 && !searching && results.length === 0 && (
+              <p className="px-1 py-2 text-xs text-muted-foreground">
+                No registered player matches “{trimmed}”.
+              </p>
+            )}
+            {searching && (
+              <p className="px-1 py-2 text-xs text-muted-foreground">
+                Searching…
+              </p>
+            )}
+          </div>
+
+          {trimmed.length >= 2 && (
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => void createNew()}
+              disabled={busy !== null}
+            >
+              {busy === "new" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
+              Add “{trimmed}” as a new player
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

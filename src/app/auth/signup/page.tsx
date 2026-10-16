@@ -25,7 +25,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Trophy,
-  Phone,
 } from "lucide-react";
 
 function SignupPageInner() {
@@ -33,15 +32,13 @@ function SignupPageInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [signupMethod, setSignupMethod] = useState<"email" | "phone">("email");
-  const { signUp, signUpWithPhone, signInWithGoogle, user } = useAuth();
+  const { signUp, signInWithGoogle, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -128,34 +125,6 @@ function SignupPageInner() {
     }
   };
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      setLoading(false);
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await signUpWithPhone(phone, password, fullName);
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      setSuccess(true);
-      setLoading(false);
-    }
-  };
-
   const handleGoogleSignUp = async () => {
     setGoogleLoading(true);
     setError(null);
@@ -172,7 +141,7 @@ function SignupPageInner() {
   // Success State
   if (success) {
     return (
-      <div className="flex min-h-screen w-full max-w-full overflow-x-hidden items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+      <div className="flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
           <Card>
             <CardContent className="space-y-6 p-6 text-center sm:p-8">
@@ -184,29 +153,12 @@ function SignupPageInner() {
 
               <div className="space-y-4">
                 <h2 className="text-2xl font-bold text-foreground">
-                  {signupMethod === "email"
-                    ? "Check your email!"
-                    : "Verify your phone!"}
+                  "You're all set!"
                 </h2>
                 <p className="leading-relaxed text-muted-foreground">
-                  {signupMethod === "email" ? (
-                    <>
-                      We've sent a confirmation link to{" "}
-                      <strong className="text-cricket-secondary">
-                        {email}
-                      </strong>
-                      . Please check your email and click the link to verify
-                      your account.
-                    </>
-                  ) : (
-                    <>
-                      We've sent a verification code to{" "}
-                      <strong className="text-cricket-secondary">
-                        {phone}
-                      </strong>
-                      . Please enter the code to complete your account setup.
-                    </>
-                  )}
+                  Your account for{" "}
+                  <strong className="text-cricket-secondary">{email}</strong> is
+                  ready. You are signed in and can start scoring.
                 </p>
               </div>
 
@@ -238,7 +190,7 @@ function SignupPageInner() {
 
   // Signup Form
   return (
-    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden items-center justify-center px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
+    <div className="flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
       <div className="w-full max-w-md space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="space-y-2 text-center">
@@ -255,7 +207,7 @@ function SignupPageInner() {
               Create account
             </CardTitle>
             <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
-              Choose your preferred sign-up method
+              Use your email or Google account
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-4 sm:p-6">
@@ -314,379 +266,174 @@ function SignupPageInner() {
               </div>
             </div>
 
-            {/* Signup Method Toggle */}
-            <div className="flex rounded-lg bg-muted/30 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setSignupMethod("email");
-                  setError(null);
-                }}
-                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  signupMethod === "email"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Mail className="mr-2 inline h-4 w-4 shrink-0" />
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSignupMethod("phone");
-                  setError(null);
-                }}
-                className={`flex-1 min-h-[40px] flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-all ${
-                  signupMethod === "phone"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Phone className="mr-2 inline h-4 w-4 shrink-0" />
-                Phone
-              </button>
-            </div>
-
             {/* Email Signup Form */}
-            {signupMethod === "email" && (
-              <form onSubmit={handleEmailSubmit} className="space-y-4">
-                {/* Full Name Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="fullName"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Full name
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="fullName"
-                      name="name"
-                      type="text"
-                      autoComplete="name"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Email Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="email"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Email address
-                  </Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="password"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="password"
-                      name="new-password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder="Create a password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="form-input pl-10 pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Eye className="h-4 w-4 shrink-0" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Password Requirements */}
-                  {password && (
-                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Password requirements:
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {passwordRequirements.map((req, index) => (
-                          <div key={index} className="flex items-center gap-1">
-                            <div
-                              className={`h-2 w-2 rounded-full ${req.met ? "bg-cricket-secondary" : "bg-muted-foreground/30"}`}
-                            ></div>
-                            <span
-                              className={`text-xs ${req.met ? "text-cricket-secondary" : "text-muted-foreground"}`}
-                            >
-                              {req.text}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm Password Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="confirmPassword"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Confirm password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="confirmPassword"
-                      name="confirm-password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="form-input pl-10 pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Eye className="h-4 w-4 shrink-0" />
-                      )}
-                    </button>
-                  </div>
-                  {confirmPassword && password !== confirmPassword && (
-                    <p className="text-xs text-destructive">
-                      Passwords do not match
-                    </p>
-                  )}
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={loading || password !== confirmPassword}
-                  className="h-11 w-full"
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+              {/* Full Name Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="fullName"
+                  className="text-sm font-medium text-foreground"
                 >
-                  {loading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      <Trophy className="mr-2 h-4 w-4 shrink-0 group-hover:animate-bounce" />
-                      Create account with Email
-                    </>
-                  )}
-                </Button>
-              </form>
-            )}
+                  Full name
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="fullName"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="form-input pl-10"
+                    required
+                  />
+                </div>
+              </div>
 
-            {/* Phone Signup Form */}
-            {signupMethod === "phone" && (
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                {/* Full Name Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="fullNamePhone"
-                    className="text-sm font-medium text-foreground"
+              {/* Email Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Email address
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="form-input pl-10"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="password"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="password"
+                    name="new-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Create a password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="form-input pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Full name
-                  </Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="fullNamePhone"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                    />
-                  </div>
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Eye className="h-4 w-4 shrink-0" />
+                    )}
+                  </button>
                 </div>
 
-                {/* Phone Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="phoneSignup"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Phone number
-                  </Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="phoneSignup"
-                      type="tel"
-                      placeholder="+1 (555) 123-4567"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="form-input pl-10"
-                      required
-                    />
+                {/* Password Requirements */}
+                {password && (
+                  <div className="space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Password requirements:
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {passwordRequirements.map((req, index) => (
+                        <div key={index} className="flex items-center gap-1">
+                          <div
+                            className={`h-2 w-2 rounded-full ${req.met ? "bg-cricket-secondary" : "bg-muted-foreground/30"}`}
+                          ></div>
+                          <span
+                            className={`text-xs ${req.met ? "text-cricket-secondary" : "text-muted-foreground"}`}
+                          >
+                            {req.text}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    We'll send you a verification code via SMS
+                )}
+              </div>
+
+              {/* Confirm Password Field */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="confirmPassword"
+                  className="text-sm font-medium text-foreground"
+                >
+                  Confirm password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    name="confirm-password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="form-input pl-10 pr-10"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <Eye className="h-4 w-4 shrink-0" />
+                    )}
+                  </button>
+                </div>
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-destructive">
+                    Passwords do not match
                   </p>
-                </div>
+                )}
+              </div>
 
-                {/* Password Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="passwordPhone"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="passwordPhone"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Create a password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="form-input pl-10 pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transform text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Eye className="h-4 w-4 shrink-0" />
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Password Requirements */}
-                  {password && (
-                    <div className="space-y-2 rounded-lg border border-border/50 bg-muted/30 p-3">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Password requirements:
-                      </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {passwordRequirements.map((req, index) => (
-                          <div key={index} className="flex items-center gap-1">
-                            <div
-                              className={`h-2 w-2 rounded-full ${req.met ? "bg-cricket-secondary" : "bg-muted-foreground/30"}`}
-                            ></div>
-                            <span
-                              className={`text-xs ${req.met ? "text-cricket-secondary" : "text-muted-foreground"}`}
-                            >
-                              {req.text}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm Password Field */}
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="confirmPasswordPhone"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    Confirm password
-                  </Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                    <Input
-                      id="confirmPasswordPhone"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm your password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="form-input pl-10 pr-10"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 transform text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4 shrink-0" />
-                      ) : (
-                        <Eye className="h-4 w-4 shrink-0" />
-                      )}
-                    </button>
-                  </div>
-                  {confirmPassword && password !== confirmPassword && (
-                    <p className="text-xs text-destructive">
-                      Passwords do not match
-                    </p>
-                  )}
-                </div>
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={loading || password !== confirmPassword}
-                  className="h-11 w-full"
-                >
-                  {loading ? (
-                    <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      <Phone className="mr-2 h-4 w-4 shrink-0 group-hover:animate-bounce" />
-                      Create account with Phone
-                    </>
-                  )}
-                </Button>
-              </form>
-            )}
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={loading || password !== confirmPassword}
+                className="h-11 w-full"
+              >
+                {loading ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                    Creating account...
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="mr-2 h-4 w-4 shrink-0 group-hover:animate-bounce" />
+                    Create account with Email
+                  </>
+                )}
+              </Button>
+            </form>
 
             {/* Divider */}
             <div className="relative">

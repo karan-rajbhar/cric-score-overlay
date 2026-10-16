@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { getTeam } from "../actions";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
@@ -71,10 +71,10 @@ export default async function TeamDetailsPage({
 
   const { data: team, error } = await getTeam(id);
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   let tournamentInfo: { id: string; name: string } | null = null;
   if (
@@ -83,7 +83,7 @@ export default async function TeamDetailsPage({
       tournamentId,
     )
   ) {
-    const { data: t } = await supabase
+    const { data: t } = await db
       .from("tournaments")
       .select("id, name")
       .eq("id", tournamentId)
@@ -100,7 +100,7 @@ export default async function TeamDetailsPage({
       targetClubId,
     )
   ) {
-    const { data: c } = await supabase
+    const { data: c } = await db
       .from("clubs")
       .select("id, name, owner_id")
       .eq("id", targetClubId)
@@ -113,7 +113,7 @@ export default async function TeamDetailsPage({
     if (clubInfo?.owner_id === user.id) {
       isClubAdmin = true;
     } else {
-      const { data: mem } = await supabase
+      const { data: mem } = await db
         .from("club_memberships")
         .select("id")
         .eq("club_id", targetClubId)
@@ -178,7 +178,7 @@ export default async function TeamDetailsPage({
     }> | null) || [];
 
   // Fetch all matches for this team
-  const { data: matchesData } = await supabase
+  const { data: matchesData } = await db
     .from("matches")
     .select(
       `

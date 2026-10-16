@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import {
   Card,
   CardContent,
@@ -83,7 +83,7 @@ export default async function TournamentPage({
     notFound();
   }
   const resolvedSearchParams = await searchParams;
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const [
     { data: tournament },
@@ -92,12 +92,12 @@ export default async function TournamentPage({
     { data: matches },
     { data: allTeams },
   ] = await Promise.all([
-    supabase
+    db
       .from("tournaments")
       .select("*, club:clubs(id, name, short_name)")
       .eq("id", id)
       .single(),
-    supabase
+    db
       .from("tournament_standings")
       .select(
         "*, team:teams!tournament_standings_team_id_fkey(id, name, short_name, logo_url)",
@@ -105,14 +105,14 @@ export default async function TournamentPage({
       .eq("tournament_id", id)
       .order("points", { ascending: false })
       .order("net_run_rate", { ascending: false }),
-    supabase
+    db
       .from("tournament_registrations")
       .select(
         "*, team:teams(id, name, short_name, logo_url, captain:users!teams_captain_id_fkey(full_name), team_players(count))",
       )
       .eq("tournament_id", id)
       .order("registered_at", { ascending: true }),
-    supabase
+    db
       .from("matches")
       .select(
         `
@@ -125,7 +125,7 @@ export default async function TournamentPage({
       )
       .eq("tournament_id", id)
       .order("scheduled_at", { ascending: true }),
-    supabase
+    db
       .from("teams")
       .select(
         "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
@@ -143,19 +143,19 @@ export default async function TournamentPage({
   if (matchIds.length > 0) {
     const [battingRes, bowlingRes, fowRes] =
       await Promise.all([
-        supabase
+        db
           .from("batting_performances")
           .select(
             "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
-        supabase
+        db
           .from("bowling_performances")
           .select(
             "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
-        supabase
+        db
           .from("fall_of_wickets")
           .select(
             "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
@@ -182,11 +182,11 @@ export default async function TournamentPage({
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   let isClubAdmin = false;
   if (user && tournament.club_id) {
-    const { data: club } = await supabase
+    const { data: club } = await db
       .from("clubs")
       .select("owner_id")
       .eq("id", tournament.club_id)
@@ -195,7 +195,7 @@ export default async function TournamentPage({
     if (club?.owner_id === user.id) {
       isClubAdmin = true;
     } else {
-      const { data: mem } = await supabase
+      const { data: mem } = await db
         .from("club_memberships")
         .select("id")
         .eq("club_id", tournament.club_id)
@@ -214,14 +214,14 @@ export default async function TournamentPage({
   const myTeamIds = new Set<string>();
   if (user && !isTournamentAdmin) {
     const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
-      supabase.from("team_players").select("team_id").eq("user_id", user.id),
-      supabase
+      db.from("team_players").select("team_id").eq("user_id", user.id),
+      db
         .from("club_memberships")
         .select("club_id")
         .eq("user_id", user.id)
         .in("role", ["owner", "admin"])
         .eq("status", "active"),
-      supabase.from("clubs").select("id").eq("owner_id", user.id),
+      db.from("clubs").select("id").eq("owner_id", user.id),
     ]);
 
     const adminClubIds = new Set<string>([

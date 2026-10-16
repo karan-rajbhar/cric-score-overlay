@@ -1,6 +1,6 @@
 "use server";
 
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 
 export interface GlobalSearchResult {
   matches: Array<{
@@ -33,33 +33,33 @@ export async function globalSearch(
     return { matches: [], teams: [], players: [], clubs: [], tournaments: [] };
   }
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const like = `%${q}%`;
   const cleanUserQ = q.replace(/^@/, "");
 
   const [matchesRes, teamsRes, playersRes, clubsRes, tournamentsRes] =
     await Promise.all([
-      supabase
+      db
         .from("matches")
         .select("id, title, status, venue")
         .ilike("title", like)
         .limit(5),
-      supabase
+      db
         .from("teams")
         .select("id, name, short_name")
         .ilike("name", like)
         .limit(5),
-      supabase
+      db
         .from("users")
         .select("id, full_name, avatar_url, username")
         .or(`full_name.ilike.%${cleanUserQ}%,username.ilike.%${cleanUserQ}%`)
         .limit(5),
-      supabase
+      db
         .from("clubs")
         .select("id, name, location")
         .ilike("name", like)
         .limit(5),
-      supabase
+      db
         .from("tournaments")
         .select("id, name, status")
         .ilike("name", like)

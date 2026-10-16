@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -55,16 +55,16 @@ export default async function PlayerPage({
   const { teamId, tournamentId, matchId, clubId, tab } =
     resolvedSearchParams ?? {};
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   // Find user by UUID or by @username handle
   const userQuery = isUuid
-    ? supabase
+    ? db
         .from("users")
         .select("id, full_name, avatar_url, email, username")
         .eq("id", cleanParam)
         .maybeSingle()
-    : supabase
+    : db
         .from("users")
         .select("id, full_name, avatar_url, email, username")
         .ilike("username", cleanParam)
@@ -85,9 +85,9 @@ export default async function PlayerPage({
     { data: battingData },
     { data: bowlingData },
   ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.from("player_career_stats").select("*").eq("user_id", id).single(),
-    supabase
+    db.auth.getUser(),
+    db.from("player_career_stats").select("*").eq("user_id", id).single(),
+    db
       .from("team_players")
       .select(
         `
@@ -97,7 +97,7 @@ export default async function PlayerPage({
       )
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("batting_performances")
       .select(
         `
@@ -115,7 +115,7 @@ export default async function PlayerPage({
       )
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("bowling_performances")
       .select(
         `
@@ -148,7 +148,7 @@ export default async function PlayerPage({
       teamId,
     )
   ) {
-    const { data: t } = await supabase
+    const { data: t } = await db
       .from("teams")
       .select("id, name")
       .eq("id", teamId)
@@ -163,7 +163,7 @@ export default async function PlayerPage({
       tournamentId,
     )
   ) {
-    const { data: tr } = await supabase
+    const { data: tr } = await db
       .from("tournaments")
       .select("id, name")
       .eq("id", tournamentId)
@@ -208,7 +208,7 @@ export default async function PlayerPage({
 
   let matchesList: PlayerMatchItem[] = [];
   if (orConditions.length > 0) {
-    const { data: matchesData } = await supabase
+    const { data: matchesData } = await db
       .from("matches")
       .select(
         `

@@ -17,12 +17,9 @@ import {
   RotateCcw,
   AlertTriangle,
   Compass,
-  Sun,
   Zap,
   Flame,
   Sparkles,
-  Volume2,
-  VolumeX,
   Keyboard,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
@@ -58,10 +55,52 @@ interface ScoringPanelProps {
   keyboardSuppressed?: boolean;
   isFreeHit?: boolean;
   sunlightMode?: boolean;
-  onToggleSunlightMode?: () => void;
   wagonWheelPrompt?: boolean;
-  onToggleWagonWheelPrompt?: () => void;
+  /** Controlled visibility of the keyboard shortcuts sheet (the `?` key toggles it too). */
+  shortcutsOpen?: boolean;
+  onShortcutsOpenChange?: (open: boolean) => void;
 }
+
+const EXTRA_TYPES = [
+  {
+    type: "wide",
+    label: "Wide",
+    shortLabel: "Wd",
+    activeClass: "bg-amber-500 text-white",
+  },
+  {
+    type: "no_ball",
+    label: "No ball",
+    shortLabel: "Nb",
+    activeClass: "bg-orange-500 text-white",
+  },
+  {
+    type: "bye",
+    label: "Bye",
+    shortLabel: "Bye",
+    activeClass: "bg-sky-600 text-white",
+  },
+  {
+    type: "leg_bye",
+    label: "Leg bye",
+    shortLabel: "Lb",
+    activeClass: "bg-violet-500 text-white",
+  },
+  {
+    type: "penalty",
+    label: "Penalty",
+    shortLabel: "Pen",
+    activeClass: "bg-rose-600 text-white",
+  },
+  {
+    type: "bonus",
+    label: "Bonus",
+    shortLabel: "Bon",
+    activeClass: "bg-emerald-600 text-white",
+  },
+];
+
+const RUN_BUTTONS = [0, 1, 2, 3, 4, 6, 5];
 
 export function ScoringPanel({
   onScore,
@@ -78,73 +117,29 @@ export function ScoringPanel({
   keyboardSuppressed = false,
   isFreeHit = false,
   sunlightMode: propSunlightMode,
-  onToggleSunlightMode,
   wagonWheelPrompt: propWagonWheelPrompt,
-  onToggleWagonWheelPrompt,
+  shortcutsOpen,
+  onShortcutsOpenChange,
 }: ScoringPanelProps) {
   const storeSunlightMode = usePreferencesStore((s) => s.sunlightMode);
-  const toggleStoreSunlightMode = usePreferencesStore(
-    (s) => s.toggleSunlightMode,
-  );
-  const [internalSunlightMode, setInternalSunlightMode] = useState<
-    boolean | null
-  >(null);
-
-  const toggleStoreWagonWheelPrompt = usePreferencesStore(
-    (s) => s.toggleWagonWheelPrompt,
-  );
-  const [internalWagonWheelPrompt, setInternalWagonWheelPrompt] = useState<
-    boolean | null
-  >(null);
-
-  const sunlightMode =
-    propSunlightMode !== undefined
-      ? propSunlightMode
-      : internalSunlightMode !== null
-        ? internalSunlightMode
-        : storeSunlightMode;
-
-  const wagonWheelPrompt =
-    propWagonWheelPrompt !== undefined
-      ? propWagonWheelPrompt
-      : internalWagonWheelPrompt !== null
-        ? internalWagonWheelPrompt
-        : true;
-
-  const handleToggleSunlight = () => {
-    if (onToggleSunlightMode) {
-      onToggleSunlightMode();
-    } else {
-      toggleStoreSunlightMode();
-      setInternalSunlightMode((prev) =>
-        prev === null ? !storeSunlightMode : !prev,
-      );
-    }
-  };
-
-  const handleToggleWagonWheel = () => {
-    if (onToggleWagonWheelPrompt) {
-      onToggleWagonWheelPrompt();
-    } else {
-      toggleStoreWagonWheelPrompt();
-      setInternalWagonWheelPrompt((prev) =>
-        prev === null ? !wagonWheelPrompt : !prev,
-      );
-    }
-  };
-
-  const voiceAnnouncements = usePreferencesStore((s) => s.voiceAnnouncements);
-  const toggleVoiceAnnouncements = usePreferencesStore(
-    (s) => s.toggleVoiceAnnouncements,
-  );
   const wagonWheelMode = usePreferencesStore((s) => s.wagonWheelMode);
 
-  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const sunlightMode = propSunlightMode ?? storeSunlightMode;
+  const wagonWheelPrompt = propWagonWheelPrompt ?? true;
+
+  const [internalShortcuts, setInternalShortcuts] = useState(false);
+  const showShortcutsHelp = shortcutsOpen ?? internalShortcuts;
+  const setShowShortcutsHelp = useCallback(
+    (open: boolean) => {
+      setInternalShortcuts(open);
+      onShortcutsOpenChange?.(open);
+    },
+    [onShortcutsOpenChange],
+  );
 
   const [selectedExtra, setSelectedExtra] = useState<string | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const [isWagonWheelModalOpen, setIsWagonWheelModalOpen] =
-    useState<boolean>(false);
+  const [isWagonWheelModalOpen, setIsWagonWheelModalOpen] = useState(false);
   const [pendingScore, setPendingScore] = useState<{
     runs: number;
     extra?: { type: string; runs: number };
@@ -172,8 +167,6 @@ export function ScoringPanel({
     }
     return { runs, wickets };
   }, [lastBalls]);
-
-  const runButtons = [0, 1, 2, 3, 4, 6, 5];
 
   const getRunSubLabel = (runs: number) => {
     if (selectedExtra === "wide") {
@@ -233,45 +226,6 @@ export function ScoringPanel({
     },
     [wagonWheelPrompt, wagonWheelMode],
   );
-
-  const extraTypes = [
-    {
-      type: "wide",
-      label: "Wide",
-      shortLabel: "Wd",
-      activeClass: "bg-amber-500 text-white",
-    },
-    {
-      type: "no_ball",
-      label: "No ball",
-      shortLabel: "Nb",
-      activeClass: "bg-orange-500 text-white",
-    },
-    {
-      type: "bye",
-      label: "Bye",
-      shortLabel: "Bye",
-      activeClass: "bg-sky-600 text-white",
-    },
-    {
-      type: "leg_bye",
-      label: "Leg bye",
-      shortLabel: "Lb",
-      activeClass: "bg-violet-500 text-white",
-    },
-    {
-      type: "penalty",
-      label: "Penalty",
-      shortLabel: "Pen",
-      activeClass: "bg-rose-600 text-white",
-    },
-    {
-      type: "bonus",
-      label: "Bonus",
-      shortLabel: "Bon",
-      activeClass: "bg-emerald-600 text-white",
-    },
-  ];
 
   const calculateScorePayload = (runs: number, extraType: string | null) => {
     let effectiveRuns = runs;
@@ -369,7 +323,7 @@ export function ScoringPanel({
       }
       if (key === "?") {
         e.preventDefault();
-        setShowShortcutsHelp((prev) => !prev);
+        setShowShortcutsHelp(!showShortcutsHelp);
         return;
       }
       if (disabled) return;
@@ -408,6 +362,7 @@ export function ScoringPanel({
   }, [
     isWagonWheelModalOpen,
     showShortcutsHelp,
+    setShowShortcutsHelp,
     disabled,
     keyboardSuppressed,
     undoDisabled,
@@ -484,11 +439,11 @@ export function ScoringPanel({
     <Card
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
-        "card-data bg-card/90",
+        "card-data bg-card/90 max-sm:flex max-sm:flex-1 max-sm:flex-col",
         sunlightMode && "sunlight-mode border-2 border-black shadow-md",
       )}
     >
-      <CardContent className="space-y-1.5 p-2 sm:space-y-4 sm:p-6">
+      <CardContent className="space-y-2 p-2.5 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
         {/* Screen-reader live summary of over state */}
         <p aria-live="polite" className="sr-only">
           Over {currentOver}.{currentBall}
@@ -497,127 +452,43 @@ export function ScoringPanel({
             : ", no balls yet this over"}
           {selectedExtra ? `, ${selectedExtra.replace("_", " ")} pending` : ""}
         </p>
-        {/* Row 1: Over Header & Uniform Quick Tools Bar */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="tabular shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-score text-xs font-black leading-none text-emerald-800 dark:text-emerald-300 sm:px-3 sm:py-1 sm:text-base">
-              Over {currentOver}.{currentBall}
-            </span>
-            <h3 className="score-heading hidden text-xs font-extrabold tracking-tight text-foreground sm:inline-block sm:text-sm">
-              Score delivery
-            </h3>
-          </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-            {/* Voice announcer toggle */}
-            <button
-              type="button"
-              onClick={toggleVoiceAnnouncements}
-              aria-pressed={voiceAnnouncements}
-              aria-label={`Voice announcements ${voiceAnnouncements ? "on" : "off"}`}
-              title="Voice announcements for live scoring (screen-free awareness)"
-              className={cn(
-                "touch-target flex h-7 w-7 sm:h-8 sm:w-auto items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors active:scale-95 sm:px-2.5 sm:py-1",
-                voiceAnnouncements
-                  ? "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300 shadow-sm"
-                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {voiceAnnouncements ? (
-                <Volume2 className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <VolumeX className="h-3.5 w-3.5 shrink-0" />
-              )}
-              <span className="hidden sm:inline">
-                Voice {voiceAnnouncements ? "ON" : "OFF"}
-              </span>
-            </button>
-            {/* Keyboard shortcuts modal trigger (desktop only, no physical keyboard on mobile) */}
-            <button
-              type="button"
-              onClick={() => setShowShortcutsHelp(true)}
-              aria-label="Keyboard shortcuts cheat sheet"
-              title="Keyboard shortcuts (?)"
-              className="touch-target hidden sm:inline-flex h-8 w-auto items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted active:scale-95 px-2.5 py-1 text-xs font-bold"
-            >
-              <Keyboard className="h-3.5 w-3.5 shrink-0" />
-              <span>Keys (?)</span>
-            </button>
-            {/* Sunlight mode for outdoor scoring */}
-            <button
-              type="button"
-              onClick={handleToggleSunlight}
-              aria-pressed={sunlightMode}
-              aria-label={`Sunlight mode ${sunlightMode ? "on" : "off"} for outdoor scoring`}
-              title="High-contrast mode for bright sunlight"
-              className={cn(
-                "touch-target flex h-7 w-7 sm:h-8 sm:w-auto items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors active:scale-95 sm:px-2.5 sm:py-1",
-                sunlightMode
-                  ? "border-black bg-black text-white shadow-sm ring-2 ring-black"
-                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-              )}
-            >
-              <Sun className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">
-                Sun {sunlightMode ? "ON" : "OFF"}
-              </span>
-            </button>
-            {/* Toggle auto wagon wheel prompt */}
-            <button
-              type="button"
-              onClick={handleToggleWagonWheel}
-              aria-label={`Toggle Wagon Wheel prompt on scoring (${wagonWheelPrompt ? "ON" : "OFF"})`}
-              aria-pressed={wagonWheelPrompt}
-              className={cn(
-                "touch-target flex h-7 w-7 sm:h-8 sm:w-auto items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors active:scale-95 sm:px-2.5 sm:py-1",
-                wagonWheelPrompt
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shadow-sm"
-                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-              )}
-              title="Toggle Wagon Wheel shot selector on scoring"
-            >
-              <Compass className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">WW: {wagonWheelPrompt ? "ON" : "OFF"}</span>
-            </button>
-          </div>
-        </div>
 
-        {/* Row 2: This over ball-by-ball pill trail (scrollable if many extras) */}
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[11px] sm:text-xs font-bold text-muted-foreground">
-              This over:
-            </span>
-            {lastBalls.length > 0 && (
-              <span className="rounded-full bg-muted/80 px-1.5 py-0.2 text-[10px] font-bold text-foreground tabular-nums">
-                {overSummary.runs}r{overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
-              </span>
-            )}
-          </div>
+        {/* Over position + this-over ball trail (tap a ball to edit it) */}
+        <div className="flex items-center gap-2">
+          <span className="tabular shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-black leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
+            Over {currentOver}.{currentBall}
+          </span>
           {lastBalls.length > 0 ? (
-            <div
-              className="flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar flex-1"
-              role="group"
-              aria-label="Balls this over"
-            >
-              {lastBalls.map((ball, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onSelectBall?.(idx)}
-                  className={cn(
-                    "touch-target flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center border text-[11px] sm:text-xs transition-colors hover:brightness-95 active:scale-95 shrink-0",
-                    getBallDisplay(ball),
-                  )}
-                  title={`Ball ${idx + 1}: ${getBallLabel(ball)}`}
-                  aria-label={`Ball ${idx + 1}: ${getBallLabel(ball)}`}
-                >
-                  {ball}
-                </button>
-              ))}
-            </div>
+            <>
+              <div
+                className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5"
+                role="group"
+                aria-label="Balls this over"
+              >
+                {lastBalls.map((ball, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => onSelectBall?.(idx)}
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center border text-[11px] transition-colors hover:brightness-95 active:scale-95 sm:h-9 sm:w-9 sm:text-xs",
+                      getBallDisplay(ball),
+                    )}
+                    title={`Ball ${idx + 1}: ${getBallLabel(ball)} (tap to edit)`}
+                    aria-label={`Ball ${idx + 1}: ${getBallLabel(ball)}`}
+                  >
+                    {ball}
+                  </button>
+                ))}
+              </div>
+              <span className="tabular shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-[11px] font-bold text-foreground">
+                {overSummary.runs}r
+                {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
+              </span>
+            </>
           ) : (
-            <span className="text-[11px] sm:text-xs font-medium text-muted-foreground/70">
-              Awaiting first ball of over...
+            <span className="truncate text-[11px] font-medium text-muted-foreground/80 sm:text-xs">
+              New over · awaiting first ball
             </span>
           )}
         </div>
@@ -626,15 +497,15 @@ export function ScoringPanel({
         {isFreeHit && (
           <div
             className={cn(
-              "flex items-center gap-2 rounded-2xl border px-3.5 py-2.5 shadow-sm animate-pulse",
+              "flex animate-pulse items-center gap-2 rounded-xl border px-3 py-2 shadow-sm",
               sunlightMode
-                ? "border-2 border-black bg-amber-400 text-black font-black"
+                ? "border-2 border-black bg-amber-400 font-black text-black"
                 : "border-amber-500/50 bg-amber-500/15 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/60 dark:text-amber-200",
             )}
           >
             <Zap className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="text-xs font-black tracking-wide">
-              FREE HIT DELIVERY — Batsman cannot be dismissed Bowled, Caught, LBW, or Stumped (MCC Law 21.19)!
+              FREE HIT — batter can only be run out (MCC Law 21.19)
             </span>
           </div>
         )}
@@ -643,13 +514,13 @@ export function ScoringPanel({
         {selectedExtra && (
           <div
             className={cn(
-              "flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-2xl border px-3.5 py-2.5 shadow-sm",
+              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm",
               sunlightMode
-                ? "border-2 border-black bg-amber-300 text-black font-black shadow-none"
+                ? "border-2 border-black bg-amber-300 font-black text-black shadow-none"
                 : "border-amber-500/40 bg-amber-500/10 dark:border-amber-500/50 dark:bg-amber-950/40",
             )}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <AlertTriangle
                 className={cn(
                   "h-4 w-4 shrink-0",
@@ -660,7 +531,7 @@ export function ScoringPanel({
                 className={cn(
                   "text-xs font-bold",
                   sunlightMode
-                    ? "text-black font-black"
+                    ? "font-black text-black"
                     : "text-amber-900 dark:text-amber-200",
                 )}
               >
@@ -671,26 +542,25 @@ export function ScoringPanel({
               variant="ghost"
               size="sm"
               className={cn(
-                "h-6 px-2 text-xs font-bold rounded-lg self-end sm:self-auto",
+                "h-7 shrink-0 rounded-lg px-2 text-xs font-bold",
                 sunlightMode
                   ? "text-black hover:bg-black/10"
                   : "text-amber-900 hover:bg-amber-500/20 dark:text-amber-200",
               )}
               onClick={() => setSelectedExtra(null)}
             >
-              Cancel (Esc)
+              Cancel
             </Button>
           </div>
         )}
 
-
-        {/* Responsive Keypad Grid (Thumb-Zone Optimization) */}
+        {/* Run keypad: 4 columns on phones (two rows that grow to fill the screen), one row from sm up */}
         <div
-          className="grid grid-cols-4 gap-1.5 sm:grid-cols-8 sm:gap-2.5"
+          className="grid grid-cols-4 gap-1.5 max-sm:flex-1 max-sm:auto-rows-fr sm:grid-cols-8 sm:gap-2.5"
           role="group"
           aria-label="Runs scored"
         >
-          {runButtons.map((runs) => {
+          {RUN_BUTTONS.map((runs) => {
             const isFour = runs === 4;
             const isSix = runs === 6;
             const isFive = runs === 5;
@@ -720,19 +590,15 @@ export function ScoringPanel({
                         : `${runs} runs (${runs})`
                 }
                 className={cn(
-                  "score-display tabular touch-target flex h-11 flex-col items-center justify-center rounded-xl border-2 text-xl font-black transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl select-none",
+                  "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-black leading-none transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
                   sunlightMode
                     ? cn(
                         "border-2 font-black shadow-none",
-                        isDot &&
-                          "border-black bg-white text-black hover:bg-neutral-100",
-                        runs === 1 &&
-                          "border-black bg-white text-black hover:bg-neutral-100",
-                        runs === 2 &&
-                          "border-black bg-white text-black hover:bg-neutral-100",
-                        runs === 3 &&
-                          "border-black bg-white text-black hover:bg-neutral-100",
-                        isFive &&
+                        (isDot ||
+                          runs === 1 ||
+                          runs === 2 ||
+                          runs === 3 ||
+                          isFive) &&
                           "border-black bg-white text-black hover:bg-neutral-100",
                         isFour &&
                           "border-black bg-emerald-600 text-white hover:bg-emerald-700",
@@ -741,15 +607,15 @@ export function ScoringPanel({
                       )
                     : cn(
                         isDot &&
-                          "border-border/80 bg-background/90 text-muted-foreground shadow-2xs hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/90 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
+                          "shadow-2xs border-border/80 bg-background/90 text-muted-foreground hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/90 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
                         runs === 1 &&
-                          "border-amber-500/30 bg-amber-500/5 text-amber-900 shadow-2xs hover:bg-amber-500/15 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20",
+                          "shadow-2xs border-amber-500/30 bg-amber-500/5 text-amber-900 hover:bg-amber-500/15 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20",
                         runs === 2 &&
-                          "border-amber-500/40 bg-amber-500/10 text-amber-950 shadow-2xs hover:bg-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25",
+                          "shadow-2xs border-amber-500/40 bg-amber-500/10 text-amber-950 hover:bg-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100 dark:hover:bg-amber-500/25",
                         runs === 3 &&
-                          "border-orange-500/40 bg-orange-500/10 text-orange-950 shadow-2xs hover:bg-orange-500/20 dark:border-orange-500/40 dark:bg-orange-500/15 dark:text-orange-100 dark:hover:bg-orange-500/25",
+                          "shadow-2xs border-orange-500/40 bg-orange-500/10 text-orange-950 hover:bg-orange-500/20 dark:border-orange-500/40 dark:bg-orange-500/15 dark:text-orange-100 dark:hover:bg-orange-500/25",
                         isFive &&
-                          "border-sky-500/40 bg-sky-500/10 text-sky-950 shadow-2xs hover:bg-sky-500/20 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-100 dark:hover:bg-sky-500/25",
+                          "shadow-2xs border-sky-500/40 bg-sky-500/10 text-sky-950 hover:bg-sky-500/20 dark:border-sky-500/40 dark:bg-sky-500/15 dark:text-sky-100 dark:hover:bg-sky-500/25",
                         isFour &&
                           "border-emerald-500/60 bg-emerald-500/15 text-emerald-700 shadow-md ring-2 ring-emerald-500/20 hover:bg-emerald-500/25 dark:border-emerald-500/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.35),0_0_16px_-3px_rgba(16,185,129,0.35)] dark:ring-0 dark:hover:bg-emerald-900/60",
                         isSix &&
@@ -758,13 +624,15 @@ export function ScoringPanel({
                 )}
                 onClick={() => handleRunClick(runs)}
               >
-                <span>{runs}</span>
+                <span className="leading-none">{runs}</span>
                 {subLabel && (
                   <span
                     className={cn(
-                      "font-sans text-[10px] font-black tracking-wider sm:text-xs",
+                      "mt-1 font-sans text-[9px] font-black leading-none tracking-wider sm:text-[11px]",
                       sunlightMode
-                        ? "text-white"
+                        ? isFour || isSix
+                          ? "text-white"
+                          : "text-black"
                         : runs === 4
                           ? "text-emerald-600 dark:text-emerald-400"
                           : runs === 6
@@ -772,7 +640,7 @@ export function ScoringPanel({
                             : runs === 5
                               ? "text-sky-600 dark:text-sky-400"
                               : selectedExtra
-                                ? "text-amber-700 dark:text-amber-300 font-extrabold"
+                                ? "font-extrabold text-amber-700 dark:text-amber-300"
                                 : "text-muted-foreground",
                     )}
                   >
@@ -791,18 +659,20 @@ export function ScoringPanel({
             title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
             onClick={() => setShowMoreRuns((prev) => !prev)}
             className={cn(
-              "score-display tabular touch-target flex h-11 flex-col items-center justify-center rounded-xl border-2 text-xs font-black transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-base select-none",
+              "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-transform duration-75 active:scale-95 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
               sunlightMode
                 ? showMoreRuns
                   ? "border-2 border-black bg-black text-white shadow-none"
-                  : "border-2 border-black bg-white text-black hover:bg-neutral-100 shadow-none"
+                  : "border-2 border-black bg-white text-black shadow-none hover:bg-neutral-100"
                 : showMoreRuns
                   ? "border-primary bg-primary/15 text-primary shadow-sm"
                   : "border-border/80 bg-background/80 text-muted-foreground shadow-sm hover:border-slate-400 hover:text-foreground dark:border-border/80 dark:bg-card/80 dark:text-muted-foreground dark:hover:border-border dark:hover:bg-muted/80 dark:hover:text-foreground",
             )}
           >
-            <span className="text-sm font-black sm:text-lg">+More</span>
-            <span className="font-sans text-[8px] font-bold text-muted-foreground sm:text-[10px]">
+            <span className="text-base font-black leading-none sm:text-lg">
+              +More
+            </span>
+            <span className="mt-1 font-sans text-[9px] font-bold leading-none text-muted-foreground sm:text-[10px]">
               7–13+
             </span>
           </button>
@@ -810,7 +680,7 @@ export function ScoringPanel({
 
         {/* High runs / extras expandable drawer (7 to 13+) */}
         {showMoreRuns && (
-          <div className="rounded-2xl border border-border/80 bg-muted/40 p-3 space-y-2.5 dark:border-border/80 dark:bg-card/90">
+          <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:border-border/80 dark:bg-card/90">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-foreground">
                 High Runs / Extras (7 to 13+):
@@ -831,7 +701,7 @@ export function ScoringPanel({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 min-w-[42px] rounded-xl font-bold text-xs"
+                  className="h-9 min-w-[42px] rounded-xl text-xs font-bold"
                   onClick={() => {
                     handleRunClick(r);
                     setShowMoreRuns(false);
@@ -875,13 +745,13 @@ export function ScoringPanel({
           </div>
         )}
 
-        {/* Extras as Playful Capsules: Single Row on All Screen Sizes */}
+        {/* Extras: single row of toggles */}
         <div
           className="grid grid-cols-6 gap-1 sm:gap-2"
           role="group"
           aria-label="Extras"
         >
-          {extraTypes.map(({ type, label, shortLabel, activeClass }) => (
+          {EXTRA_TYPES.map(({ type, label, shortLabel, activeClass }) => (
             <button
               key={type}
               type="button"
@@ -890,26 +760,30 @@ export function ScoringPanel({
               aria-pressed={selectedExtra === type}
               aria-label={label}
               className={cn(
-                "touch-target h-8 sm:h-11 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold transition-colors active:scale-95",
+                "h-10 rounded-lg text-[11px] font-bold transition-colors active:scale-95 disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
                 sunlightMode
                   ? selectedExtra === type
                     ? "border-2 border-black bg-black font-black text-white shadow-none"
-                    : "border-2 border-black bg-white font-black text-black hover:bg-neutral-100 shadow-none"
+                    : "border-2 border-black bg-white font-black text-black shadow-none hover:bg-neutral-100"
                   : selectedExtra === type
                     ? `${activeClass} border-transparent font-black shadow-md`
-                    : "border border-border/80 bg-background/80 text-foreground shadow-sm hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:hover:bg-muted/80 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]",
+                    : "border border-border/80 bg-background/80 text-foreground shadow-sm hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] dark:hover:bg-muted/80",
               )}
             >
-              <span className="sm:hidden" aria-hidden="true">{shortLabel}</span>
-              <span className="hidden sm:inline" aria-hidden="true">{label}</span>
+              <span className="sm:hidden" aria-hidden="true">
+                {shortLabel}
+              </span>
+              <span className="hidden sm:inline" aria-hidden="true">
+                {label}
+              </span>
             </button>
           ))}
         </div>
 
-        {/* Primary Action Row: Destructive Wicket + Prominent Undo */}
+        {/* Primary actions: Wicket + Undo */}
         <div
           className={cn(
-            "grid gap-2 sm:gap-3.5",
+            "grid gap-2 sm:gap-3",
             onUndo ? "grid-cols-2" : "grid-cols-1",
           )}
           role="group"
@@ -919,10 +793,10 @@ export function ScoringPanel({
             variant="destructive"
             size="lg"
             className={cn(
-              "touch-target h-10 sm:h-12 gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black tracking-wider shadow-sm",
+              "h-11 gap-1.5 rounded-xl text-xs font-black tracking-wider shadow-sm sm:h-12 sm:gap-2 sm:rounded-2xl sm:text-sm",
               sunlightMode
-                ? "border-2 border-black bg-red-600 font-black text-white hover:bg-red-700 shadow-none"
-                : "dark:bg-rose-950/70 dark:border dark:border-rose-500/60 dark:text-rose-100 dark:hover:bg-rose-900/80 dark:shadow-[inset_0_1px_0_0_rgba(244,63,94,0.35),0_0_16px_-4px_rgba(244,63,94,0.35)]",
+                ? "border-2 border-black bg-red-600 font-black text-white shadow-none hover:bg-red-700"
+                : "dark:border dark:border-rose-500/60 dark:bg-rose-950/70 dark:text-rose-100 dark:shadow-[inset_0_1px_0_0_rgba(244,63,94,0.35),0_0_16px_-4px_rgba(244,63,94,0.35)] dark:hover:bg-rose-900/80",
             )}
             onClick={() => {
               hapticWicket();
@@ -932,13 +806,17 @@ export function ScoringPanel({
             }}
             disabled={disabled}
             aria-label="Wicket dismissal"
-            title={isFreeHit ? "Wicket dismissal (W) — Run Out Only on Free Hit" : "Wicket dismissal (W)"}
+            title={
+              isFreeHit
+                ? "Wicket dismissal (W) — Run Out Only on Free Hit"
+                : "Wicket dismissal (W)"
+            }
           >
             <Zap className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span aria-hidden="true">
               WICKET<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
-                <span className="ml-1 text-[10px] text-amber-200 font-bold tracking-normal">
+                <span className="ml-1 text-[10px] font-bold tracking-normal text-amber-200">
                   (Run Out)
                 </span>
               )}
@@ -958,10 +836,10 @@ export function ScoringPanel({
               title="Undo last ball (U)"
               aria-label="Undo last ball"
               className={cn(
-                "touch-target h-10 sm:h-12 gap-1.5 sm:gap-2 rounded-xl sm:rounded-2xl border-2 text-xs sm:text-sm font-black tracking-wide px-2 sm:px-4",
+                "h-11 gap-1.5 rounded-xl border-2 px-2 text-xs font-black tracking-wide sm:h-12 sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-sm",
                 sunlightMode
                   ? "border-black bg-white text-black hover:bg-neutral-100"
-                  : "border-border/80 bg-background/80 text-foreground hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:hover:bg-muted/80 dark:text-foreground dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]",
+                  : "border-border/80 bg-background/80 text-foreground hover:bg-muted dark:border-border/80 dark:bg-card/80 dark:text-foreground dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] dark:hover:bg-muted/80",
               )}
             >
               <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -972,11 +850,12 @@ export function ScoringPanel({
           )}
         </div>
 
-        <p className="hidden sm:block text-center text-[11px] text-muted-foreground">
-          Keys 0–6 score, . dot, W wicket, U undo, S swap, ? help
+        <p className="hidden text-center text-[11px] text-muted-foreground sm:block">
+          Keys 0–6 score · . dot · W wicket · U undo · S swap · D/N/B/L extras ·
+          ? help
         </p>
 
-        {/* Stumps App Style Wagon Wheel Selection Dialog */}
+        {/* Wagon wheel shot-direction prompt */}
         <Dialog
           open={isWagonWheelModalOpen}
           onOpenChange={(open) => {
@@ -985,7 +864,7 @@ export function ScoringPanel({
             if (!open) handleCancelModal();
           }}
         >
-          <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">
+          <DialogContent className="max-w-md rounded-3xl p-4 sm:p-6">
             <DialogHeader className="text-center sm:text-center">
               <div className="mx-auto flex items-center gap-2">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
@@ -996,7 +875,8 @@ export function ScoringPanel({
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground">
-                Tap the wagon wheel sector where the shot was played, or tap Score Directly
+                Tap where the shot went. The delivery is recorded as soon as you
+                tap.
               </DialogDescription>
             </DialogHeader>
 
@@ -1028,8 +908,7 @@ export function ScoringPanel({
               </div>
             )}
 
-            {/* Interactive Wagon Wheel Selector */}
-            <div className="py-2">
+            <div className="py-1">
               <WagonWheelSelector
                 selectedZone={selectedZone}
                 onSelectZone={(zone) => {
@@ -1041,7 +920,7 @@ export function ScoringPanel({
               />
             </div>
 
-            <DialogFooter className="flex flex-col-reverse sm:flex-row items-center justify-between gap-2">
+            <DialogFooter className="flex flex-col-reverse items-center justify-between gap-2 sm:flex-row">
               <Button
                 type="button"
                 variant="ghost"
@@ -1056,7 +935,7 @@ export function ScoringPanel({
                 variant="default"
                 size="sm"
                 onClick={handleSkipZone}
-                className="w-full sm:w-auto text-xs font-bold"
+                className="w-full text-xs font-bold sm:w-auto"
               >
                 Skip (Score without zone)
               </Button>
@@ -1064,7 +943,7 @@ export function ScoringPanel({
           </DialogContent>
         </Dialog>
 
-        {/* Rapid-Scoring Keyboard Shortcuts Dialog */}
+        {/* Keyboard shortcuts sheet */}
         <Dialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp}>
           <DialogContent className="max-w-md rounded-3xl p-5 sm:p-6">
             <DialogHeader>
@@ -1075,51 +954,36 @@ export function ScoringPanel({
                 </DialogTitle>
               </div>
               <DialogDescription className="text-xs text-muted-foreground">
-                Desktop hotkeys designed for high-speed, zero-mouse cricket scoring.
+                Desktop hotkeys for high-speed, zero-mouse scoring.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-2 text-xs py-2">
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">0 – 6 / .</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Score (Dot)</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">W</span>
-                <Badge variant="destructive" className="font-sans text-[11px]">Wicket</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">D</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Wide Ball</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">N</span>
-                <Badge variant="outline" className="font-sans text-[11px]">No Ball</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">B</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Bye</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">L</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Leg Bye</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">S</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Swap Strike</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">E</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Edit Last Ball</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">U</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Undo Ball</Badge>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono">
-                <span className="font-bold">Esc</span>
-                <Badge variant="outline" className="font-sans text-[11px]">Clear Extra</Badge>
-              </div>
+            <div className="grid grid-cols-2 gap-2 py-2 text-xs">
+              {[
+                ["0 – 6 / .", "Score (Dot)", "outline"],
+                ["W", "Wicket", "destructive"],
+                ["D", "Wide Ball", "outline"],
+                ["N", "No Ball", "outline"],
+                ["B", "Bye", "outline"],
+                ["L", "Leg Bye", "outline"],
+                ["S", "Swap Strike", "outline"],
+                ["E", "Edit Last Ball", "outline"],
+                ["U", "Undo Ball", "outline"],
+                ["Esc", "Clear Extra", "outline"],
+              ].map(([key, label, variant]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-xl bg-muted/60 p-2.5 font-mono"
+                >
+                  <span className="font-bold">{key}</span>
+                  <Badge
+                    variant={variant as "outline" | "destructive"}
+                    className="font-sans text-[11px]"
+                  >
+                    {label}
+                  </Badge>
+                </div>
+              ))}
             </div>
 
             <DialogFooter>

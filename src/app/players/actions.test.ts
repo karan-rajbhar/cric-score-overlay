@@ -10,7 +10,7 @@ const mockFrom = vi.fn();
 const mockRpc = vi.fn();
 const mockUpdateUser = vi.fn();
 
-vi.mock("~/lib/supabase/server", () => ({
+vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({
     auth: {
       getUser: mockGetUser,

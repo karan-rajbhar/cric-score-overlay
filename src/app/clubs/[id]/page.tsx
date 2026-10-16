@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -153,11 +153,11 @@ export default async function ClubPage({
     notFound();
   }
   const resolvedSearchParams = await searchParams;
-  const supabase = await createServerClient();
+  const db = await createServerClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   const [
     { data: club },
@@ -168,22 +168,22 @@ export default async function ClubPage({
     { data: seasons },
     { data: hallOfFame },
   ] = await Promise.all([
-    supabase.from("clubs").select("*").eq("id", id).single(),
-    supabase
+    db.from("clubs").select("*").eq("id", id).single(),
+    db
       .from("teams")
       .select(
         "id, name, short_name, team_type, captain:users!teams_captain_id_fkey(full_name), team_players(count)",
       )
       .eq("club_id", id)
       .order("name"),
-    supabase
+    db
       .from("tournaments")
       .select(
         "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings",
       )
       .eq("club_id", id)
       .order("start_date", { ascending: false }),
-    supabase
+    db
       .from("matches")
       .select(
         `
@@ -196,19 +196,19 @@ export default async function ClubPage({
       )
       .eq("club_id", id)
       .order("scheduled_at", { ascending: false }),
-    supabase
+    db
       .from("club_memberships")
       .select(
         "id, role, status, joined_at, user:users(id, full_name, avatar_url, email)",
       )
       .eq("club_id", id)
       .order("joined_at", { ascending: true }),
-    supabase
+    db
       .from("club_seasons")
       .select("id, name, start_date, end_date, is_current")
       .eq("club_id", id)
       .order("created_at", { ascending: false }),
-    supabase
+    db
       .from("club_hall_of_fame")
       .select(
         `
@@ -233,6 +233,9 @@ export default async function ClubPage({
   const myMembership = typedMembers.find((m) => m.user?.id === user?.id);
   const isAdmin = isOwner || myMembership?.role === "admin";
   const isMember = !!myMembership;
+
+  // Private clubs are only visible to their owner and members.
+  if (club.is_public === false && !isOwner && !isMember) notFound();
 
   const socialLinks =
     (club.social_links as Record<string, string> | null) ?? {};
@@ -286,19 +289,19 @@ export default async function ClubPage({
   if (matchIds.length > 0) {
     const [battingRes, bowlingRes, fowRes] =
       await Promise.all([
-        supabase
+        db
           .from("batting_performances")
           .select(
             "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
-        supabase
+        db
           .from("bowling_performances")
           .select(
             "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
           )
           .in("match_id", matchIds),
-        supabase
+        db
           .from("fall_of_wickets")
           .select(
             "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",

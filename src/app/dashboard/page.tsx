@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/supabase/client";
+import { createClient } from "~/lib/firebase/client";
 import { Button } from "~/components/ui/button";
 import { MatchCard } from "~/components/matches/match-card";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -25,8 +25,8 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user?.id) return;
     let isMounted = true;
-    const supabase = createClient();
-    void supabase
+    const db = createClient();
+    void db
       .from("users")
       .select("username")
       .eq("id", user.id)

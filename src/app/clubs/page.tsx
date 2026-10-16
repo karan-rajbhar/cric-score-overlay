@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -63,20 +63,20 @@ function ClubCard({ club }: { club: ClubRow }) {
 }
 
 export default async function ClubsPage() {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   // If logged in, fetch clubs where user is owner or member
   let myClubIds: string[] = [];
   if (user) {
     const [{ data: mems }, { data: owned }] = await Promise.all([
-      supabase
+      db
         .from("club_memberships")
         .select("club_id")
         .eq("user_id", user.id),
-      supabase.from("clubs").select("id").eq("owner_id", user.id),
+      db.from("clubs").select("id").eq("owner_id", user.id),
     ]);
     myClubIds = Array.from(
       new Set([
@@ -88,7 +88,7 @@ export default async function ClubsPage() {
 
   const myClubs =
     myClubIds.length > 0
-      ? ((await supabase
+      ? ((await db
           .from("clubs")
           .select(
             "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",
@@ -99,7 +99,7 @@ export default async function ClubsPage() {
       : null;
 
   // Public directory, excluding clubs already shown above.
-  const { data: publicClubs } = (await supabase
+  const { data: publicClubs } = (await db
     .from("clubs")
     .select(
       "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",

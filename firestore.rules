@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// All writes go through Next.js server actions using the Admin SDK, which
+// bypasses these rules. Browsers only read, and only the data the app shows
+// publicly (live scores, directories, profiles) plus the caller's own rows.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Public directory and profile data.
+    match /users/{id}                    { allow read: if true; allow write: if false; }
+    match /clubs/{id}                    { allow read: if true; allow write: if false; }
+    match /club_seasons/{id}             { allow read: if true; allow write: if false; }
+    match /club_hall_of_fame/{id}        { allow read: if true; allow write: if false; }
+    match /teams/{id}                    { allow read: if true; allow write: if false; }
+    match /team_players/{id}             { allow read: if true; allow write: if false; }
+    match /tournaments/{id}              { allow read: if true; allow write: if false; }
+    match /tournament_registrations/{id} { allow read: if true; allow write: if false; }
+    match /tournament_standings/{id}     { allow read: if true; allow write: if false; }
+    match /player_career_stats/{id}      { allow read: if true; allow write: if false; }
+
+    // Live scoring data is public so spectators and overlays can follow.
+    match /matches/{id}                  { allow read: if true; allow write: if false; }
+    match /innings/{id}                  { allow read: if true; allow write: if false; }
+    match /batting_performances/{id}     { allow read: if true; allow write: if false; }
+    match /bowling_performances/{id}     { allow read: if true; allow write: if false; }
+    match /ball_by_ball/{id}             { allow read: if true; allow write: if false; }
+    match /partnerships/{id}             { allow read: if true; allow write: if false; }
+    match /fall_of_wickets/{id}          { allow read: if true; allow write: if false; }
+    match /match_events/{id}             { allow read: if true; allow write: if false; }
+
+    // A signed-in user may read their own memberships; everything else is
+    // server-rendered.
+    match /club_memberships/{id} {
+      allow read: if signedIn() && resource.data.user_id == request.auth.uid;
+      allow write: if false;
+    }
+    match /club_invitations/{id}         { allow read, write: if false; }
+
+    // Realtime broadcast messages (score pings, overlay producer commands).
+    match /broadcasts/{topic}/messages/{id} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['event', 'ts'])
+        && request.resource.data.event is string;
+      allow update, delete: if false;
+    }
+  }
+}

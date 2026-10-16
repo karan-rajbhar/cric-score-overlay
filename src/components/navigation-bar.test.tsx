@@ -16,7 +16,7 @@ vi.mock("~/lib/auth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock("~/lib/supabase/client", () => ({
+vi.mock("~/lib/firebase/client", () => ({
   createClient: () => ({
     from: () => ({
       select: () => ({

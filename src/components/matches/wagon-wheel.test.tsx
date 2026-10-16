@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { WagonWheel } from "./wagon-wheel";
 import type { Match, BallEvent } from "~/lib/match-types";
 
-// Mock useMatchBallLogQuery to avoid real Supabase network calls in tests
+// Mock useMatchBallLogQuery to avoid real network calls in tests
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchBallLogQuery: () => ({
     data: [],

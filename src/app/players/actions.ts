@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 import { validateUsername, cleanHandle } from "~/lib/username";
 
 export interface UsernameCheckResult {
@@ -31,13 +31,13 @@ export async function checkUsernameAvailability(
     };
   }
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   // Call the database-level availability function
-  const { data, error } = await supabase.rpc("check_username_available", {
+  const { data, error } = await db.rpc("check_username_available", {
     p_username: validation.cleanUsername,
     p_current_user_id: user?.id ?? undefined,
   });
@@ -45,7 +45,7 @@ export async function checkUsernameAvailability(
   if (error) {
     console.error("check_username_available RPC error:", error);
     // Fallback: direct table query
-    const { data: existing } = await supabase
+    const { data: existing } = await db
       .from("users")
       .select("id")
       .eq("username", validation.cleanUsername)
@@ -87,10 +87,10 @@ export async function updateUsername(
     };
   }
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return {
@@ -100,14 +100,14 @@ export async function updateUsername(
   }
 
   // Use the security definer RPC which performs atomic checks and updates
-  const { data, error } = await supabase.rpc("update_own_username", {
+  const { data, error } = await db.rpc("update_own_username", {
     p_username: validation.cleanUsername,
   });
 
   if (error) {
     console.error("update_own_username RPC error:", error);
     // Fallback to direct update using authenticated RLS
-    const { error: updateError } = await supabase
+    const { error: updateError } = await db
       .from("users")
       .update({
         username: validation.cleanUsername,
@@ -139,7 +139,7 @@ export async function updateUsername(
 
   // Update user auth metadata if possible so client sessions have it immediately
   try {
-    await supabase.auth.updateUser({
+    await db.auth.updateUser({
       data: { username: validation.cleanUsername },
     });
   } catch {
@@ -165,14 +165,14 @@ export async function getPlayerByIdOrHandle(idOrHandle: string) {
   const clean = cleanHandle(idOrHandle);
   if (!clean) return null;
 
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const isUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
       clean,
     );
 
   if (isUuid) {
-    const { data } = await supabase
+    const { data } = await db
       .from("users")
       .select("id, full_name, avatar_url, email, username, location")
       .eq("id", clean)
@@ -180,7 +180,7 @@ export async function getPlayerByIdOrHandle(idOrHandle: string) {
     return data;
   }
 
-  const { data } = await supabase
+  const { data } = await db
     .from("users")
     .select("id, full_name, avatar_url, email, username, location")
     .eq("username", clean)

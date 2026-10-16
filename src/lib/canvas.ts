@@ -22,7 +22,7 @@ export const COLORS = {
 } as const;
 
 /** Generate a QR data URL for the given text. */
-export async function generateQRDataUrl(
+async function generateQRDataUrl(
   text: string,
   width: number = CANVAS.QR.WIDTH,
 ): Promise<string> {
@@ -34,7 +34,7 @@ export async function generateQRDataUrl(
 }
 
 /** Load an image from a data URL — resolves when decoded. */
-export function loadImage(src: string): Promise<HTMLImageElement> {
+function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);

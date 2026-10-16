@@ -8,7 +8,7 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
-import type { Tables } from "~/lib/supabase/types";
+import type { Tables } from "~/lib/firebase/types";
 
 export type DbMatch = Tables<"matches">;
 export type DbInnings = Tables<"innings">;

@@ -26,7 +26,9 @@ describe("ScoringPanel accessibility upgrades", () => {
 
   it("labels ball trail with text meaning, not color alone", () => {
     render(<ScoringPanel {...baseProps} />);
-    expect(screen.getByRole("button", { name: /ball 2: four/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ball 2: four/i }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /ball 3: wicket/i }),
     ).toBeInTheDocument();
@@ -40,12 +42,12 @@ describe("ScoringPanel accessibility upgrades", () => {
     expect(wide).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("toggles sunlight mode with aria-pressed", () => {
-    render(<ScoringPanel {...baseProps} />);
-    const sun = screen.getByRole("button", { name: /sunlight mode/i });
-    expect(sun).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(sun);
-    expect(sun).toHaveAttribute("aria-pressed", "true");
+  it("reflects sunlight mode on the panel container", () => {
+    render(<ScoringPanel {...baseProps} sunlightMode />);
+    const panel = screen
+      .getByRole("group", { name: /runs scored/i })
+      .closest("[data-sunlight]");
+    expect(panel).toHaveAttribute("data-sunlight", "true");
   });
 
   it("announces over state via live region", () => {
@@ -59,9 +61,7 @@ describe("ScoringPanel accessibility upgrades", () => {
     const user = userEvent.setup();
     const onWicket = vi.fn();
     const onUndo = vi.fn();
-    render(
-      <ScoringPanel {...baseProps} onWicket={onWicket} onUndo={onUndo} />,
-    );
+    render(<ScoringPanel {...baseProps} onWicket={onWicket} onUndo={onUndo} />);
 
     await user.keyboard("4");
     expect(screen.getByText(/select shot direction/i)).toBeInTheDocument();

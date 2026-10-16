@@ -1,6 +1,5 @@
 /**
- * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially useful
- * for Docker builds.
+ * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
  */
 await import("./src/env.js");
 
@@ -8,27 +7,18 @@ await import("./src/env.js");
 const config = {
   output: "standalone",
   reactStrictMode: true,
-  allowedDevOrigins: [
-    "*.trycloudflare.com",
-    "*.loca.lt",
-  ],
+  allowedDevOrigins: ["*.trycloudflare.com", "*.loca.lt"],
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-        pathname: "/**",
-      },
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "storage.googleapis.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "http", hostname: "127.0.0.1", port: "9199" },
+      { protocol: "http", hostname: "localhost", port: "9199" },
     ],
   },
   async rewrites() {
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321";
     return [
-      {
-        source: "/api/supabase/:path*",
-        destination: `${supabaseUrl}/:path*`,
-      },
       {
         source: "/:handle(@[a-zA-Z0-9_]{3,30})",
         destination: "/players/:handle",

@@ -19,7 +19,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { BrandMark, BrandWordmark } from "~/components/brand";
-import { createClient } from "~/lib/supabase/client";
+import { createClient } from "~/lib/firebase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,8 +43,8 @@ export function NavigationBar() {
   useEffect(() => {
     if (!user?.id) return;
     let isMounted = true;
-    const supabase = createClient();
-    void supabase
+    const db = createClient();
+    void db
       .from("users")
       .select("username")
       .eq("id", user.id)

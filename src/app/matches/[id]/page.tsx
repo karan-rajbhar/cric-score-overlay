@@ -24,7 +24,7 @@ import {
 } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { TeamLogo } from "~/components/teams/team-logo";
-import { supabase } from "~/lib/supabase";
+import { firebase } from "~/lib/firebase";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
 
@@ -133,7 +133,7 @@ function MatchDetailsPageContent() {
           updates.clubName = match.club.name;
           resolvedRef.current.clubId = clubId;
         } else {
-          const { data } = await supabase
+          const { data } = await firebase
             .from("clubs")
             .select("name")
             .eq("id", clubId)
@@ -150,7 +150,7 @@ function MatchDetailsPageContent() {
           updates.tournamentName = match.tournament.name;
           resolvedRef.current.tournamentId = tournamentId;
         } else {
-          const { data } = await supabase
+          const { data } = await firebase
             .from("tournaments")
             .select("name")
             .eq("id", tournamentId)
@@ -180,7 +180,7 @@ function MatchDetailsPageContent() {
           updates.playerName = foundName;
           resolvedRef.current.playerId = playerId;
         } else {
-          const { data } = await supabase
+          const { data } = await firebase
             .from("users")
             .select("full_name")
             .eq("id", playerId)

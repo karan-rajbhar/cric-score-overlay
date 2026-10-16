@@ -30,6 +30,7 @@ export function WagonWheelSelector({
   const [clickDistanceRatio, setClickDistanceRatio] = useState<number | null>(
     null,
   );
+  const [clickAngle, setClickAngle] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   // SVG coordinate constants
@@ -60,8 +61,12 @@ export function WagonWheelSelector({
       // Clamp distance between 0.35 and 1.0 of grass radius
       const ratio = Math.max(0.35, Math.min(1.0, dist / R_GRASS));
       setClickDistanceRatio(ratio);
+      let angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+      if (angle < 0) angle += 360;
+      setClickAngle(angle);
     } else {
       setClickDistanceRatio(0.92);
+      setClickAngle(null);
     }
 
     if (selectedZone === sectorId) {
@@ -100,6 +105,7 @@ export function WagonWheelSelector({
     const sector = getSectorFromAngle(angle);
     const ratio = Math.max(0.35, Math.min(1.0, dist / R_GRASS));
     setClickDistanceRatio(ratio);
+    setClickAngle(angle);
     onSelectZone(sector.id);
   };
 
@@ -112,14 +118,14 @@ export function WagonWheelSelector({
     <div
       role="region"
       aria-label="Interactive Wagon Wheel Shot Direction Selector"
-      className={cn("flex flex-col items-center select-none", className)}
+      className={cn("flex select-none flex-col items-center", className)}
     >
       {/* Visual Cricket Ground SVG */}
       <div className="relative aspect-square w-full max-w-[340px] sm:max-w-[380px]">
         <svg
           ref={svgRef}
           viewBox="0 0 400 400"
-          className="h-full w-full drop-shadow-md cursor-pointer"
+          className="h-full w-full cursor-pointer drop-shadow-md"
           role="img"
           aria-label="Cricket ground wagon wheel shot direction map"
           onClick={handleSvgClick}
@@ -241,11 +247,7 @@ export function WagonWheelSelector({
                 <path
                   d={donutD}
                   fill={
-                    isSelected
-                      ? "#047857"
-                      : isHovered
-                        ? "#334155"
-                        : "#1e293b"
+                    isSelected ? "#047857" : isHovered ? "#334155" : "#1e293b"
                   }
                   stroke={isSelected ? "#10b981" : "#0f172a"}
                   strokeWidth={isSelected ? "2" : "1.2"}
@@ -299,11 +301,7 @@ export function WagonWheelSelector({
                   x={txtPos.x}
                   y={txtPos.y}
                   fill={
-                    isSelected
-                      ? "#a7f3d0"
-                      : isHovered
-                        ? "#38bdf8"
-                        : "#f8fafc"
+                    isSelected ? "#a7f3d0" : isHovered ? "#38bdf8" : "#f8fafc"
                   }
                   fontSize="8.5"
                   fontWeight={isSelected || isHovered ? "800" : "600"}
@@ -368,12 +366,11 @@ export function WagonWheelSelector({
             <g className="pointer-events-none transition-all duration-200">
               {(() => {
                 const ratio = clickDistanceRatio ?? 0.92;
-                const endPt = polarToCartesian(
-                  CX,
-                  CY,
-                  R_GRASS * ratio,
-                  activeSector.midAngle,
-                );
+                const angle =
+                  clickAngle !== null && selectedZone === activeSector.id
+                    ? clickAngle
+                    : activeSector.midAngle;
+                const endPt = polarToCartesian(CX, CY, R_GRASS * ratio, angle);
                 return (
                   <>
                     <line

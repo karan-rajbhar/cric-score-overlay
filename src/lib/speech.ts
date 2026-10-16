@@ -5,7 +5,7 @@ import { usePreferencesStore } from "./stores/usePreferencesStore";
  * Allows scorers and umpires to hear recorded actions without looking away from the field.
  * Safely guards against non-browser environments and respects user voice preferences.
  */
-export function speakAnnouncement(text: string, options?: { rate?: number; pitch?: number }): void {
+function speakAnnouncement(text: string, options?: { rate?: number; pitch?: number }): void {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     return;
   }
@@ -95,16 +95,6 @@ export function announceDelivery(params: {
   } else {
     speakAnnouncement(`${runs} runs`);
   }
-}
-
-/** Announce over completion */
-export function announceOverComplete(overNumber: number, scoreDisplay: string): void {
-  speakAnnouncement(`Over ${overNumber} complete. Score is ${scoreDisplay}.`);
-}
-
-/** Announce strike rotation */
-export function announceStrikeChange(strikerName: string): void {
-  speakAnnouncement(`${strikerName} on strike.`);
 }
 
 /** Announce undo action */

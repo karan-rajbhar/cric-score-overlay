@@ -1,10 +1,5 @@
 node_modules
 .next
 coverage
-build
-dist
-.temp
-supabase/.temp
-supabase/.branches
-*.pdf
-eval/report.json
+firebase/seed/data.json
+package-lock.json

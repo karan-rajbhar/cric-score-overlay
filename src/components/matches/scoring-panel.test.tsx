@@ -133,7 +133,13 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
   it("supports custom penalty runs when selecting penalty and a run value", () => {
     const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
     const penaltyBtn = screen.getByRole("button", { name: /^penalty$/i });
     fireEvent.click(penaltyBtn);
     const twoBtn = screen.getByRole("button", { name: /^2 runs$/i });
@@ -148,7 +154,13 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
   it("supports awarding bonus runs via Bonus extra button", () => {
     const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
     const bonusBtn = screen.getByRole("button", { name: /^bonus$/i });
     fireEvent.click(bonusBtn);
     const zeroBtn = screen.getByRole("button", { name: /0 runs/i });
@@ -163,7 +175,13 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
   it("supports scoring 5 runs directly from the keypad", () => {
     const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
     const fiveBtn = screen.getByRole("button", { name: /^5 runs$/i });
     fireEvent.click(fiveBtn);
 
@@ -172,7 +190,13 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
 
   it("opens high runs drawer on +More and allows selecting 7 to 13 runs", () => {
     const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} wagonWheelPrompt={false} />);
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
     const moreBtn = screen.getByRole("button", { name: /more run options/i });
     fireEvent.click(moreBtn);
 
@@ -183,22 +207,23 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(onScore).toHaveBeenCalledWith(7, undefined, undefined);
   });
 
-  it("allows toggling auto wagon wheel prompt off for direct 1-tap scoring", () => {
+  it("scores directly in 1-tap when the wagon wheel prompt preference is off", () => {
     const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} />);
+    render(
+      <ScoringPanel
+        {...defaultProps}
+        onScore={onScore}
+        wagonWheelPrompt={false}
+      />,
+    );
 
-    // Find the Wagon Wheel toggle button
-    const toggleButton = screen.getByRole("button", {
-      name: /wagon wheel.*(on|prompt)/i,
-    });
-    fireEvent.click(toggleButton);
-
-    // Now clicking 1 run should score directly without opening dialog
     const oneButton = screen.getByRole("button", { name: /^1 run$/i });
     fireEvent.click(oneButton);
 
     expect(onScore).toHaveBeenCalledWith(1, undefined, undefined);
-    expect(screen.queryByText(/select shot direction/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/select shot direction/i),
+    ).not.toBeInTheDocument();
   });
 
   it("triggers onUndo when undo button is clicked", () => {
@@ -223,23 +248,17 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(onWicket).toHaveBeenCalledTimes(1);
   });
 
-  it("supports outdoor sunlight high-contrast mode toggle", () => {
-    render(<ScoringPanel {...defaultProps} />);
-    const sunBtn = screen.getByRole("button", { name: /sunlight mode/i });
-    expect(sunBtn).toHaveAttribute("aria-pressed", "false");
+  it("exposes the sunlight preference on the panel for high-contrast styling", () => {
+    const { rerender } = render(
+      <ScoringPanel {...defaultProps} sunlightMode={false} />,
+    );
+    const panel = screen
+      .getByRole("group", { name: /runs scored/i })
+      .closest("[data-sunlight]");
+    expect(panel).toHaveAttribute("data-sunlight", "false");
 
-    fireEvent.click(sunBtn);
-    expect(sunBtn).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("provides a prominent undo button in the scoring controls", () => {
-    const onUndo = vi.fn();
-    render(<ScoringPanel {...defaultProps} onUndo={onUndo} />);
-
-    const undoButtons = screen.getAllByRole("button", { name: /undo/i });
-    expect(undoButtons.length).toBeGreaterThanOrEqual(1);
-    fireEvent.click(undoButtons[0]!);
-    expect(onUndo).toHaveBeenCalledTimes(1);
+    rerender(<ScoringPanel {...defaultProps} sunlightMode={true} />);
+    expect(panel).toHaveAttribute("data-sunlight", "true");
   });
 
   it("renders visible high-contrast extras buttons with no dark: background classes when sunlightMode is active", () => {
@@ -288,7 +307,9 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     fireEvent.click(fourBtn);
 
     expect(onScore).toHaveBeenCalledWith(4, undefined, undefined);
-    expect(screen.queryByText(/select shot direction/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/select shot direction/i),
+    ).not.toBeInTheDocument();
   });
 });
 

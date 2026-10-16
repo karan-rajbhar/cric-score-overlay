@@ -1,0 +1,162 @@
+/**
+ * Tournament points table, ported from `recalculate_tournament_standings`
+ * (ICC net-run-rate rules, abandoned matches count as no-results).
+ */
+
+import type { DataSource } from "../datasource";
+import { newId } from "../query-builder";
+import type { InningsRow, MatchesRow, TournamentStandingsRow } from "../types";
+
+function round(n: number, digits: number): number {
+  const f = 10 ** digits;
+  return Math.round(n * f) / f;
+}
+
+export async function recalculateTournamentStandings(
+  ds: DataSource,
+  tournamentId: string,
+): Promise<void> {
+  const [registrations, matchDocs, standingsDocs] = await Promise.all([
+    ds.query("tournament_registrations", [
+      { field: "tournament_id", op: "==", value: tournamentId },
+    ]),
+    ds.query("matches", [
+      { field: "tournament_id", op: "==", value: tournamentId },
+    ]) as Promise<unknown> as Promise<MatchesRow[]>,
+    ds.query("tournament_standings", [
+      { field: "tournament_id", op: "==", value: tournamentId },
+    ]) as Promise<unknown> as Promise<TournamentStandingsRow[]>,
+  ]);
+
+  const teamIds = new Set<string>();
+  for (const r of registrations)
+    if (typeof r.team_id === "string") teamIds.add(r.team_id);
+  for (const m of matchDocs) {
+    if (m.team1_id) teamIds.add(m.team1_id);
+    if (m.team2_id) teamIds.add(m.team2_id);
+  }
+  if (teamIds.size === 0) return;
+
+  const completedMatchIds = matchDocs
+    .filter((m) => m.status === "completed")
+    .map((m) => m.id);
+  const inningsByMatch = new Map<string, InningsRow[]>();
+  if (completedMatchIds.length) {
+    const inningsDocs = (
+      await Promise.all(
+        completedMatchIds.map((id) =>
+          ds.query("innings", [{ field: "match_id", op: "==", value: id }]),
+        ),
+      )
+    ).flat() as unknown as InningsRow[];
+    for (const inn of inningsDocs) {
+      if (!inn.match_id) continue;
+      const list = inningsByMatch.get(inn.match_id) ?? [];
+      list.push(inn);
+      inningsByMatch.set(inn.match_id, list);
+    }
+  }
+
+  const now = new Date().toISOString();
+
+  for (const teamId of teamIds) {
+    const existing = standingsDocs.find((s) => s.team_id === teamId) ?? null;
+    const adjustment = existing?.points_adjustment ?? 0;
+
+    const played = matchDocs.filter(
+      (m) =>
+        (m.status === "completed" || m.status === "abandoned") &&
+        (m.team1_id === teamId || m.team2_id === teamId),
+    );
+    const wins = played.filter((m) => m.winning_team_id === teamId).length;
+    const losses = played.filter(
+      (m) =>
+        m.winning_team_id &&
+        m.winning_team_id !== teamId &&
+        m.result_type === "win",
+    ).length;
+    const ties = played.filter((m) => m.result_type === "tie").length;
+    const noResults = played.filter(
+      (m) => m.result_type === "no_result" || m.result_type === "abandoned",
+    ).length;
+
+    const basePoints = wins * 2 + ties + noResults;
+    const finalPoints = basePoints + adjustment;
+
+    let runsScored = 0;
+    let runsConceded = 0;
+    let oversFaced = 0;
+    let oversBowled = 0;
+
+    for (const m of matchDocs) {
+      if (m.status !== "completed") continue;
+      if (m.team1_id !== teamId && m.team2_id !== teamId) continue;
+      const bpo = m.balls_per_over ?? 6;
+      const wicketsCap = m.wickets_per_innings ?? 10;
+      const oversQuota = m.overs_per_innings ?? 20;
+      for (const inn of inningsByMatch.get(m.id) ?? []) {
+        const balls = inn.total_balls ?? 0;
+        const overs =
+          (inn.total_wickets ?? 0) >= wicketsCap
+            ? oversQuota
+            : Math.floor(balls / bpo) + (balls % bpo) / bpo;
+        if (inn.team_id === teamId) {
+          runsScored += inn.total_runs ?? 0;
+          oversFaced += overs;
+        } else {
+          runsConceded += inn.total_runs ?? 0;
+          oversBowled += overs;
+        }
+      }
+    }
+
+    const nrr =
+      oversFaced > 0 && oversBowled > 0
+        ? round(runsScored / oversFaced - runsConceded / oversBowled, 2)
+        : 0;
+
+    const row: Omit<TournamentStandingsRow, "id"> = {
+      tournament_id: tournamentId,
+      team_id: teamId,
+      matches_played: played.length,
+      wins,
+      losses,
+      ties,
+      no_results: noResults,
+      points: finalPoints,
+      points_adjustment: adjustment,
+      adjustment_reason: existing?.adjustment_reason ?? null,
+      qualification_status: existing?.qualification_status ?? "in_contention",
+      runs_scored: runsScored,
+      runs_conceded: runsConceded,
+      overs_faced: round(oversFaced, 1),
+      overs_bowled: round(oversBowled, 1),
+      net_run_rate: nrr,
+      updated_at: now,
+    };
+
+    if (existing) {
+      await ds.update("tournament_standings", existing.id, row);
+    } else {
+      await ds.insert("tournament_standings", [{ id: newId(), ...row }]);
+    }
+  }
+}
+
+/**
+ * Mirrors the `trg_matches_recalc_standings` trigger: recompute the table
+ * whenever a tournament match reaches (or leaves) a terminal state.
+ */
+export async function maybeRecalculateStandings(
+  ds: DataSource,
+  before: Partial<MatchesRow> | null,
+  after: Partial<MatchesRow> | null,
+): Promise<void> {
+  const tournamentId = after?.tournament_id ?? before?.tournament_id ?? null;
+  if (!tournamentId) return;
+  const terminal = (s: string | null | undefined) =>
+    s === "completed" || s === "abandoned";
+  if (terminal(after?.status) || terminal(before?.status) || !after) {
+    await recalculateTournamentStandings(ds, tournamentId);
+  }
+}

@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createServerClient } from "~/lib/supabase/server";
-import { ensureUserProfile } from "~/lib/supabase/user-profile";
+import { createServerClient } from "~/lib/firebase/server";
+import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { friendlyError } from "./errors";
 import type {
@@ -16,16 +16,16 @@ import { calculatePlayerOfTheMatch } from "~/lib/cricket";
 import type { Match } from "~/lib/match-types";
 
 export async function createMatch(formData: MatchFormData) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
   if (authError || !user) {
     return { data: null, error: "You must be logged in to create a match" };
   }
 
-  await ensureUserProfile(supabase, user);
+  await ensureUserProfile(db, user);
 
   if (!formData.team1Id || !formData.team2Id) {
     return { data: null, error: "Both Team 1 and Team 2 must be selected" };
@@ -41,24 +41,24 @@ export async function createMatch(formData: MatchFormData) {
     playerMembershipsRes,
     tournRegsRes,
   ] = await Promise.all([
-    supabase
+    db
       .from("teams")
       .select("id, name, created_by, captain_id, vice_captain_id, club_id")
       .in("id", [formData.team1Id, formData.team2Id]),
     formData.tournamentId
-      ? supabase
+      ? db
           .from("tournaments")
           .select("id, created_by, club_id")
           .eq("id", formData.tournamentId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase
+    db
       .from("team_players")
       .select("team_id")
       .eq("user_id", user.id)
       .in("team_id", [formData.team1Id, formData.team2Id]),
     formData.tournamentId
-      ? supabase
+      ? db
           .from("tournament_registrations")
           .select("team_id")
           .eq("tournament_id", formData.tournamentId)
@@ -92,11 +92,11 @@ export async function createMatch(formData: MatchFormData) {
   const [clubsRes, clubMembershipsRes] =
     relevantClubIds.length > 0
       ? await Promise.all([
-          supabase
+          db
             .from("clubs")
             .select("id, owner_id")
             .in("id", relevantClubIds),
-          supabase
+          db
             .from("club_memberships")
             .select("club_id")
             .eq("user_id", user.id)
@@ -233,7 +233,7 @@ export async function createMatch(formData: MatchFormData) {
     }
   }
 
-  const { data: match, error: matchError } = await supabase
+  const { data: match, error: matchError } = await db
     .from("matches")
     .insert({
       title: formData.title,
@@ -266,11 +266,11 @@ export async function createMatch(formData: MatchFormData) {
 }
 
 async function checkMatchAdminAuth(
-  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  db: Awaited<ReturnType<typeof createServerClient>>,
   matchId: string,
   userId: string,
 ): Promise<boolean> {
-  const { data: match } = await supabase
+  const { data: match } = await db
     .from("matches")
     .select("created_by, match_admins, club_id, tournament_id")
     .eq("id", matchId)
@@ -285,7 +285,7 @@ async function checkMatchAdminAuth(
   if (match.club_id) {
     checks.push(
       (async () => {
-        const { data: club } = await supabase
+        const { data: club } = await db
           .from("clubs")
           .select("owner_id")
           .eq("id", match.club_id)
@@ -293,7 +293,7 @@ async function checkMatchAdminAuth(
 
         if (club?.owner_id === userId) return true;
 
-        const { data: mem } = await supabase
+        const { data: mem } = await db
           .from("club_memberships")
           .select("id")
           .eq("club_id", match.club_id)
@@ -310,7 +310,7 @@ async function checkMatchAdminAuth(
   if (match.tournament_id) {
     checks.push(
       (async () => {
-        const { data: tournament } = await supabase
+        const { data: tournament } = await db
           .from("tournaments")
           .select("created_by, club_id")
           .eq("id", match.tournament_id)
@@ -319,7 +319,7 @@ async function checkMatchAdminAuth(
         if (tournament?.created_by === userId) return true;
 
         if (tournament?.club_id) {
-          const { data: club } = await supabase
+          const { data: club } = await db
             .from("clubs")
             .select("owner_id")
             .eq("id", tournament.club_id)
@@ -327,7 +327,7 @@ async function checkMatchAdminAuth(
 
           if (club?.owner_id === userId) return true;
 
-          const { data: mem } = await supabase
+          const { data: mem } = await db
             .from("club_memberships")
             .select("id")
             .eq("club_id", tournament.club_id)
@@ -356,16 +356,16 @@ export async function startMatch(
   tossWinnerId: string,
   tossDecision: "bat" | "bowl",
 ) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { data: null, error: "You must be logged in to start the match" };
   }
 
-  const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+  const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
   if (!isMatchAdmin) {
     return {
       data: null,
@@ -373,7 +373,7 @@ export async function startMatch(
     };
   }
 
-  const { data: match, error: matchError } = await supabase
+  const { data: match, error: matchError } = await db
     .from("matches")
     .select("team1_id, team2_id")
     .eq("id", matchId)
@@ -387,7 +387,7 @@ export async function startMatch(
       : tossWinnerId === match.team1_id
         ? match.team2_id
         : match.team1_id;
-  const { error: updateError } = await supabase
+  const { error: updateError } = await db
     .from("matches")
     .update({
       status: "live",
@@ -402,7 +402,7 @@ export async function startMatch(
   if (updateError) {
     return { data: null, error: updateError.message };
   }
-  const { data: innings, error: inningsError } = await supabase
+  const { data: innings, error: inningsError } = await db
     .from("innings")
     .insert({
       match_id: matchId,
@@ -427,17 +427,17 @@ export async function recordBall(params: {
   event: BallEvent;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to record scores" };
     }
 
     const isAuthorized = await checkMatchAdminAuth(
-      supabase,
+      db,
       params.matchId,
       user.id,
     );
@@ -449,7 +449,7 @@ export async function recordBall(params: {
       };
     }
 
-    const { data, error } = await supabase.rpc("record_ball", {
+    const { data, error } = await db.rpc("record_ball", {
       p_match_id: params.matchId,
       p_bowler_id: params.bowlerId,
       p_batsman_id: params.batsmanId,
@@ -472,7 +472,7 @@ export async function recordBall(params: {
     revalidatePath(`/matches/${params.matchId}`);
 
     if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await supabase
+      const { data: matchData } = await db
         .from("matches")
         .select("tournament_id, club_id")
         .eq("id", params.matchId)
@@ -511,16 +511,16 @@ export async function undoLastBall(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to undo deliveries" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isAuthorized) {
       return {
         data: null,
@@ -529,7 +529,7 @@ export async function undoLastBall(
       };
     }
 
-    const { data, error } = await supabase.rpc("undo_last_ball", {
+    const { data, error } = await db.rpc("undo_last_ball", {
       p_match_id: matchId,
     });
     if (error) {
@@ -556,16 +556,16 @@ export async function setCurrentBatsmen(
   nonStrikerId: string,
 ): Promise<{ error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { error: "You must be logged in to set batsmen" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isAuthorized) {
       return {
         error:
@@ -573,7 +573,7 @@ export async function setCurrentBatsmen(
       };
     }
 
-    const { error } = await supabase.rpc("set_current_batsmen", {
+    const { error } = await db.rpc("set_current_batsmen", {
       p_match_id: matchId,
       p_striker_id: strikerId,
       p_non_striker_id: nonStrikerId,
@@ -600,16 +600,16 @@ export async function setCurrentBowler(
   bowlerId: string,
 ): Promise<{ error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { error: "You must be logged in to set bowler" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isAuthorized) {
       return {
         error:
@@ -617,7 +617,7 @@ export async function setCurrentBowler(
       };
     }
 
-    const { error } = await supabase.rpc("set_current_bowler", {
+    const { error } = await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: bowlerId,
     });
@@ -642,16 +642,16 @@ export async function endInnings(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to end innings" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isAuthorized) {
       return {
         data: null,
@@ -660,7 +660,7 @@ export async function endInnings(
       };
     }
 
-    const { data, error } = await supabase.rpc("end_innings", {
+    const { data, error } = await db.rpc("end_innings", {
       p_match_id: matchId,
     });
     if (error) {
@@ -672,7 +672,7 @@ export async function endInnings(
     revalidatePath(`/matches/${matchId}/score`);
 
     if ((data as ScoringState)?.match_completed) {
-      const { data: matchData } = await supabase
+      const { data: matchData } = await db
         .from("matches")
         .select("tournament_id, club_id")
         .eq("id", matchId)
@@ -711,16 +711,16 @@ export async function setPlayerOfTheMatch(
   matchId: string,
   playerId: string,
 ): Promise<{ success: boolean; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { success: false, error: "You must be logged in" };
   }
 
-  const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+  const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
   if (!isMatchAdmin) {
     return {
       success: false,
@@ -728,7 +728,7 @@ export async function setPlayerOfTheMatch(
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("matches")
     .update({ player_of_the_match_id: playerId })
     .eq("id", matchId);
@@ -769,8 +769,8 @@ export async function autoAssignPlayerOfTheMatch(
       };
     }
 
-    const supabase = await createServerClient();
-    const { error } = await supabase
+    const db = await createServerClient();
+    const { error } = await db
       .from("matches")
       .update({ player_of_the_match_id: topPlayer.playerId })
       .eq("id", matchId);
@@ -803,16 +803,16 @@ export async function updateDlsTarget(
   inningsId: string,
   targetRuns: number,
 ): Promise<{ success: boolean; error: string | null }> {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   if (!user) {
     return { success: false, error: "You must be logged in" };
   }
 
-  const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+  const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
   if (!isMatchAdmin) {
     return {
       success: false,
@@ -820,7 +820,7 @@ export async function updateDlsTarget(
     };
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("innings")
     .update({ target_runs: targetRuns })
     .eq("id", inningsId)
@@ -851,17 +851,17 @@ export async function updateBall(params: {
   bowlerId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to edit deliveries" };
     }
 
     const isAuthorized = await checkMatchAdminAuth(
-      supabase,
+      db,
       params.matchId,
       user.id,
     );
@@ -877,13 +877,13 @@ export async function updateBall(params: {
       const playerUpdates: Record<string, string> = {};
       if (params.batsmanId) playerUpdates.batsman_id = params.batsmanId;
       if (params.bowlerId) playerUpdates.bowler_id = params.bowlerId;
-      await supabase
+      await db
         .from("ball_by_ball")
         .update(playerUpdates)
         .eq("id", params.ballId);
     }
 
-    const { data, error } = await supabase.rpc("update_ball", {
+    const { data, error } = await db.rpc("update_ball", {
       p_match_id: params.matchId,
       p_ball_id: params.ballId,
       p_runs_scored: params.runsScored ?? 0,
@@ -919,16 +919,16 @@ export async function startSuperOver(
   matchId: string,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!user) {
       return { data: null, error: "You must be logged in to start a super over" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isAuthorized) {
       return {
         data: null,
@@ -937,7 +937,7 @@ export async function startSuperOver(
       };
     }
 
-    const { data, error } = await supabase.rpc("start_super_over", {
+    const { data, error } = await db.rpc("start_super_over", {
       p_match_id: matchId,
     });
 
@@ -1001,11 +1001,11 @@ export async function updateMatchSettings(
       };
     }
 
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return {
         success: false,
@@ -1013,7 +1013,7 @@ export async function updateMatchSettings(
       };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1046,7 +1046,7 @@ export async function updateMatchSettings(
       matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
 
     if (Object.keys(matchUpdates).length > 0) {
-      const { error: matchErr } = await supabase
+      const { error: matchErr } = await db
         .from("matches")
         .update(matchUpdates)
         .eq("id", matchId);
@@ -1057,14 +1057,14 @@ export async function updateMatchSettings(
     }
 
     if (settings.targetRuns !== undefined) {
-      const { data: matchData } = await supabase
+      const { data: matchData } = await db
         .from("matches")
         .select("current_innings")
         .eq("id", matchId)
         .single();
 
       const currentInningsNum = matchData?.current_innings ?? 2;
-      const { error: innErr } = await supabase
+      const { error: innErr } = await db
         .from("innings")
         .update({ target_runs: settings.targetRuns })
         .eq("match_id", matchId)
@@ -1103,16 +1103,16 @@ export async function abandonMatch(
   },
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "You must be logged in to abandon a match" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1135,7 +1135,7 @@ export async function abandonMatch(
       updatePayload.winning_team_id = params.winningTeamId;
     }
 
-    const { error: matchErr } = await supabase
+    const { error: matchErr } = await db
       .from("matches")
       .update(updatePayload)
       .eq("id", matchId);
@@ -1146,7 +1146,7 @@ export async function abandonMatch(
     }
 
     // End active innings
-    await supabase
+    await db
       .from("innings")
       .update({ is_completed: true })
       .eq("match_id", matchId);
@@ -1177,16 +1177,16 @@ export async function awardTeamPenalty(
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const awardType = params.type ?? "penalty";
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "You must be logged in to award penalty runs" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1194,7 +1194,7 @@ export async function awardTeamPenalty(
       };
     }
 
-    const { data: match } = await supabase
+    const { data: match } = await db
       .from("matches")
       .select("*, innings(*)")
       .eq("id", matchId)
@@ -1213,14 +1213,14 @@ export async function awardTeamPenalty(
     const isBattingTeam = currentInnings.team_id === params.teamId;
 
     if (isBattingTeam) {
-      const striker = await supabase
+      const striker = await db
         .from("batting_performances")
         .select("user_id")
         .eq("innings_id", currentInnings.id)
         .eq("is_striker", true)
         .maybeSingle();
 
-      const nonStriker = await supabase
+      const nonStriker = await db
         .from("batting_performances")
         .select("user_id")
         .eq("innings_id", currentInnings.id)
@@ -1228,14 +1228,14 @@ export async function awardTeamPenalty(
         .eq("is_striker", false)
         .maybeSingle();
 
-      const bowler = await supabase
+      const bowler = await db
         .from("bowling_performances")
         .select("user_id")
         .eq("innings_id", currentInnings.id)
         .eq("is_current_bowler", true)
         .maybeSingle();
 
-      await supabase.from("ball_by_ball").insert({
+      await db.from("ball_by_ball").insert({
         match_id: matchId,
         innings_id: currentInnings.id,
         over_number: match.current_over ?? 0,
@@ -1248,10 +1248,10 @@ export async function awardTeamPenalty(
         extra_type: awardType,
         commentary: `${awardType === "bonus" ? "Bonus" : "Penalty"}: +${params.runs} runs awarded to batting team (${params.reason})`,
       });
-      await supabase.rpc("recompute_innings", { p_innings_id: currentInnings.id });
+      await db.rpc("recompute_innings", { p_innings_id: currentInnings.id });
     } else {
       if (match.current_innings === 1) {
-        await supabase.from("match_events").insert({
+        await db.from("match_events").insert({
           match_id: matchId,
           event_type: "penalty",
           event_data: {
@@ -1262,7 +1262,7 @@ export async function awardTeamPenalty(
         });
       } else {
         const newTarget = Math.max(1, (currentInnings.target_runs ?? 0) - params.runs);
-        await supabase
+        await db
           .from("innings")
           .update({ target_runs: newTarget })
           .eq("id", currentInnings.id);
@@ -1291,16 +1291,16 @@ export async function retirePlayer(
   },
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "You must be logged in to retire a player" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1308,7 +1308,7 @@ export async function retirePlayer(
       };
     }
 
-    const { data: match } = await supabase
+    const { data: match } = await db
       .from("matches")
       .select("current_innings, current_over, current_ball")
       .eq("id", matchId)
@@ -1316,7 +1316,7 @@ export async function retirePlayer(
 
     if (!match) return { success: false, error: "Match not found" };
 
-    const { data: innings } = await supabase
+    const { data: innings } = await db
       .from("innings")
       .select("id, total_wickets, total_runs, total_balls")
       .eq("match_id", matchId)
@@ -1325,7 +1325,7 @@ export async function retirePlayer(
 
     if (!innings) return { success: false, error: "Active innings not found" };
 
-    const { error: ballErr } = await supabase.from("ball_by_ball").insert({
+    const { error: ballErr } = await db.from("ball_by_ball").insert({
       match_id: matchId,
       innings_id: innings.id,
       over_number: match.current_over ?? 0,
@@ -1347,7 +1347,7 @@ export async function retirePlayer(
       return { success: false, error: friendlyError(ballErr.message) };
     }
 
-    await supabase.rpc("recompute_innings", { p_innings_id: innings.id });
+    await db.rpc("recompute_innings", { p_innings_id: innings.id });
 
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
@@ -1370,16 +1370,16 @@ export async function updateTargetRuns(
   },
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return { success: false, error: "You must be logged in to update target" };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1387,7 +1387,7 @@ export async function updateTargetRuns(
       };
     }
 
-    const { data: match } = await supabase
+    const { data: match } = await db
       .from("matches")
       .select("current_innings")
       .eq("id", matchId)
@@ -1395,7 +1395,7 @@ export async function updateTargetRuns(
 
     const currentInningsNum = match?.current_innings ?? 2;
 
-    const { error: innErr } = await supabase
+    const { error: innErr } = await db
       .from("innings")
       .update({ target_runs: params.targetRuns })
       .eq("match_id", matchId)
@@ -1406,7 +1406,7 @@ export async function updateTargetRuns(
     }
 
     if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
-      await supabase
+      await db
         .from("matches")
         .update({ overs_per_innings: params.overs })
         .eq("id", matchId);
@@ -1430,11 +1430,11 @@ export async function reassignCurrentOverBowler(
   newBowlerId: string,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user },
       error: authError,
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
     if (authError || !user) {
       return {
         success: false,
@@ -1442,7 +1442,7 @@ export async function reassignCurrentOverBowler(
       };
     }
 
-    const isMatchAdmin = await checkMatchAdminAuth(supabase, matchId, user.id);
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
     if (!isMatchAdmin) {
       return {
         success: false,
@@ -1451,7 +1451,7 @@ export async function reassignCurrentOverBowler(
       };
     }
 
-    const { data: matchData, error: matchErr } = await supabase
+    const { data: matchData, error: matchErr } = await db
       .from("matches")
       .select("current_innings, current_over, current_ball")
       .eq("id", matchId)
@@ -1461,7 +1461,7 @@ export async function reassignCurrentOverBowler(
       return { success: false, error: "Match not found" };
     }
 
-    const { data: innData } = await supabase
+    const { data: innData } = await db
       .from("innings")
       .select("id")
       .eq("match_id", matchId)
@@ -1472,12 +1472,12 @@ export async function reassignCurrentOverBowler(
       return { success: false, error: "Innings not found" };
     }
 
-    await supabase.rpc("set_current_bowler", {
+    await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: newBowlerId,
     });
 
-    const { error: ballUpdateErr } = await supabase
+    const { error: ballUpdateErr } = await db
       .from("ball_by_ball")
       .update({ bowler_id: newBowlerId })
       .eq("innings_id", innData.id)
@@ -1490,7 +1490,7 @@ export async function reassignCurrentOverBowler(
       );
     }
 
-    await supabase.rpc("recompute_innings", {
+    await db.rpc("recompute_innings", {
       p_innings_id: innData.id,
     });
 
@@ -1526,8 +1526,8 @@ export async function getMatchScorers(matchId: string): Promise<{
   error: string | null;
 }> {
   try {
-    const supabase = await createServerClient();
-    const { data: match, error: matchErr } = await supabase
+    const db = await createServerClient();
+    const { data: match, error: matchErr } = await db
       .from("matches")
       .select("created_by, match_admins")
       .eq("id", matchId)
@@ -1549,7 +1549,7 @@ export async function getMatchScorers(matchId: string): Promise<{
       return { data: { createdBy: null, matchAdmins: [] }, error: null };
     }
 
-    const { data: users, error: userErr } = await supabase
+    const { data: users, error: userErr } = await db
       .from("users")
       .select("id, full_name, email, avatar_url")
       .in("id", allUserIds);
@@ -1585,13 +1585,13 @@ export async function searchScorers(
       return { data: [], error: null };
     }
 
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         trimmed,
       );
 
-    let q = supabase
+    let q = db
       .from("users")
       .select("id, full_name, email, avatar_url");
 
@@ -1624,17 +1624,17 @@ export async function addMatchScorer(
   error: string | null;
 }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user: currentUser },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!currentUser) {
       return { success: false, error: "You must be logged in" };
     }
 
     const authorized = await checkMatchAdminAuth(
-      supabase,
+      db,
       matchId,
       currentUser.id,
     );
@@ -1655,7 +1655,7 @@ export async function addMatchScorer(
         queryTarget,
       );
 
-    let query = supabase
+    let query = db
       .from("users")
       .select("id, full_name, email, avatar_url");
     if (isUuid) {
@@ -1681,7 +1681,7 @@ export async function addMatchScorer(
       };
     }
 
-    const { data: match, error: matchErr } = await supabase
+    const { data: match, error: matchErr } = await db
       .from("matches")
       .select("created_by, match_admins")
       .eq("id", matchId)
@@ -1703,7 +1703,7 @@ export async function addMatchScorer(
     }
 
     const updatedAdmins = [...existingAdmins, targetUser.id];
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await db
       .from("matches")
       .update({ match_admins: updatedAdmins })
       .eq("id", matchId);
@@ -1730,17 +1730,17 @@ export async function removeMatchScorer(
   error: string | null;
 }> {
   try {
-    const supabase = await createServerClient();
+    const db = await createServerClient();
     const {
       data: { user: currentUser },
-    } = await supabase.auth.getUser();
+    } = await db.auth.getUser();
 
     if (!currentUser) {
       return { success: false, error: "You must be logged in" };
     }
 
     const authorized = await checkMatchAdminAuth(
-      supabase,
+      db,
       matchId,
       currentUser.id,
     );
@@ -1751,7 +1751,7 @@ export async function removeMatchScorer(
       };
     }
 
-    const { data: match, error: matchErr } = await supabase
+    const { data: match, error: matchErr } = await db
       .from("matches")
       .select("created_by, match_admins")
       .eq("id", matchId)
@@ -1772,7 +1772,7 @@ export async function removeMatchScorer(
       (id: string) => id !== scorerUserId,
     );
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await db
       .from("matches")
       .update({ match_admins: updatedAdmins })
       .eq("id", matchId);

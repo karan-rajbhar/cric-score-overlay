@@ -7,7 +7,7 @@ import { getTeams } from "./actions";
 import { TeamCard } from "~/components/teams/team-card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
-import { createServerClient } from "~/lib/supabase/server";
+import { createServerClient } from "~/lib/firebase/server";
 
 export default async function TeamsPage({
   searchParams,
@@ -18,10 +18,10 @@ export default async function TeamsPage({
     view?: "mine" | "all";
   }>;
 }) {
-  const supabase = await createServerClient();
+  const db = await createServerClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await db.auth.getUser();
 
   const resolvedParams = await searchParams;
   const defaultView = user ? "mine" : "all";

@@ -2,7 +2,6 @@
 
 _A Manifesto of Sunlit Space, Playful Momentum, and Vibrant Geometric Delight_
 
-![Chromatic Joy Canvas Artwork](./chromatic-joy.png)
 
 Chromatic Joy posits that sport and data observation are fundamentally celebrations of human vitality, meant to be experienced in full sunlight with lightness, optimism, and uninhibited delight. Space is conceived not as a sterile void or dark chamber, but as an open, sun-drenched canvas alive with air, brightness, and warmth. Forms possess natural buoyancy—curves are generous and rounded, trajectories arc with playful exuberance, and concentric boundaries petal outward like summer flowers under open skies. Every radius and sweeping contour is meticulously crafted, achieving a weightless harmony that reveals the product of deep expertise, where mathematical precision meets the infectious exuberance of play.
 

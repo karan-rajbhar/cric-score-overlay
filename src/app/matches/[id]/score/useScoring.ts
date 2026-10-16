@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "~/lib/supabase/client";
+import { firebase } from "~/lib/firebase/client";
 import { getMatch, getTeamPlayers, getScoringState } from "../../queries";
 import {
   startMatch,
@@ -117,25 +117,25 @@ export function useScoring(
       matchId,
     );
   const overlayBroadcastRef = useRef<ReturnType<
-    typeof supabase.channel
+    typeof firebase.channel
   > | null>(null);
-  const detailBroadcastRef = useRef<ReturnType<typeof supabase.channel> | null>(
+  const detailBroadcastRef = useRef<ReturnType<typeof firebase.channel> | null>(
     null,
   );
 
   useEffect(() => {
     if (!isRealUuid) return;
-    const overlayCh = supabase.channel(`overlay_${matchId}`);
+    const overlayCh = firebase.channel(`overlay_${matchId}`);
     overlayCh.subscribe();
     overlayBroadcastRef.current = overlayCh;
 
-    const detailCh = supabase.channel(`match_detail_${matchId}`);
+    const detailCh = firebase.channel(`match_detail_${matchId}`);
     detailCh.subscribe();
     detailBroadcastRef.current = detailCh;
 
     return () => {
-      void supabase.removeChannel(overlayCh);
-      void supabase.removeChannel(detailCh);
+      void firebase.removeChannel(overlayCh);
+      void firebase.removeChannel(detailCh);
     };
   }, [isRealUuid, matchId]);
 
