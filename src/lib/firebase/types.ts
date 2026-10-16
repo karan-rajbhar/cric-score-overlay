@@ -71,6 +71,19 @@ export interface ClubInvitationsRow {
   updated_at: string | null;
 }
 
+/** App-level invite: lets an email sign in with Google (invite-only app). */
+export interface InvitationsRow {
+  id: string;
+  email: string;
+  invited_by: string | null;
+  status: "pending" | "accepted";
+  accepted_by: string | null;
+  /** Matches the invitee becomes a scorer for when they first sign in. */
+  scorer_match_ids?: string[] | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface ClubSeasonsRow {
   id: string;
   club_id: string;
@@ -470,6 +483,7 @@ export interface Database {
   clubs: ClubsRow;
   club_memberships: ClubMembershipsRow;
   club_invitations: ClubInvitationsRow;
+  invitations: InvitationsRow;
   club_seasons: ClubSeasonsRow;
   club_hall_of_fame: ClubHallOfFameRow;
   teams: TeamsRow;

@@ -44,6 +44,8 @@ export function toAuthError(err: unknown): AuthError {
         ? err
         : "Authentication failed";
   const friendly: Record<string, string> = {
+    "app/invite-only":
+      "CricScore is invite-only. Ask someone who uses it to invite your Google email.",
     "auth/invalid-credential": "Invalid email or password.",
     "auth/invalid-login-credentials": "Invalid email or password.",
     "auth/wrong-password": "Invalid email or password.",

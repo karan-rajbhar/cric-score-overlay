@@ -15,6 +15,7 @@ import {
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
+import { inviteEmail } from "./access";
 import {
   checkUsernameAvailable,
   createTeamPlayer,
@@ -97,6 +98,13 @@ export async function callRpc(
       return null;
     case "ensure_own_profile":
       return ensureOwnProfile(ctx.ds, ctx.user);
+    case "invite_email":
+      return inviteEmail(
+        ctx.ds,
+        ctx.uid,
+        str(args, "p_email"),
+        optStr(args, "p_match_id"),
+      );
     case "update_own_username":
       return updateOwnUsername(ctx.ds, ctx.uid, str(args, "p_username"));
     case "check_username_available":

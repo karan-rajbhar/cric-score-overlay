@@ -31,6 +31,11 @@ import {
   type MatchScorerUser,
 } from "~/app/matches/mutations";
 import { toast } from "sonner";
+import { inviteToApp } from "~/app/invitations/actions";
+import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { useAuth } from "~/lib/auth";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface MatchScorersDialogProps {
   matchId: string;
@@ -48,6 +53,8 @@ export function MatchScorersDialog({
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState("");
   const [copied, setCopied] = useState(false);
+  const [shareText, setShareText] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // Scorers state
   const [createdBy, setCreatedBy] = useState<MatchScorerUser | null>(null);
@@ -82,6 +89,7 @@ export function MatchScorersDialog({
     } else {
       setQuery("");
       setSearchResults([]);
+      setShareText(null);
     }
   };
 
@@ -133,13 +141,35 @@ export function MatchScorersDialog({
     }
 
     setSubmitting(true);
+    setShareText(null);
     try {
+      // An email adds an existing user, or invites someone new as a scorer.
+      if (EMAIL_PATTERN.test(cleanTarget)) {
+        const invite = await inviteToApp(cleanTarget, matchId);
+        if ("error" in invite) {
+          toast.error(invite.error ?? "Failed to invite scorer");
+          return;
+        }
+        toast.success(invite.message);
+        if (invite.shareEmail) {
+          const name =
+            typeof user?.user_metadata?.full_name === "string"
+              ? user.user_metadata.full_name
+              : undefined;
+          setShareText(inviteMessage(name, invite.shareEmail, matchId));
+        }
+        setQuery("");
+        setSearchResults([]);
+        void fetchScorers();
+        return;
+      }
+
       const res = await addMatchScorer(matchId, cleanTarget);
       if (!res.success) {
         toast.error(res.error ?? "Failed to add scorer");
       } else {
         toast.success(
-          `Added ${res.user?.full_name ?? "scorer"} as match scorer!`
+          `Added ${res.user?.full_name ?? "scorer"} as match scorer`
         );
         setQuery("");
         setSearchResults([]);
@@ -252,8 +282,8 @@ export function MatchScorersDialog({
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <Users className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Scorer Delegation
+            <span className="text-xs font-medium">
+              Scorers
             </span>
           </div>
           <DialogTitle className="text-xl">Match Scorers</DialogTitle>
@@ -315,6 +345,10 @@ export function MatchScorersDialog({
           <label htmlFor="scorer-search-input" className="text-xs font-semibold text-foreground">
             Add Scorer by Name or Email
           </label>
+          <p className="text-[11px] text-muted-foreground">
+            Not on CricScore yet? Enter their Google email to invite them as a
+            scorer.
+          </p>
           <form onSubmit={handleFormSubmit} className="relative flex gap-2">
             <div className="relative flex-1">
               <Input
@@ -361,7 +395,7 @@ export function MatchScorersDialog({
                     className="flex items-center justify-between p-2.5 text-xs hover:bg-muted/40 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0 pr-2">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
                         {(user.full_name || "U")[0]?.toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -398,11 +432,13 @@ export function MatchScorersDialog({
           )}
         </div>
 
+        {shareText && <InviteShare text={shareText} />}
+
         {/* Authorized Scorers Roster */}
         <div className="space-y-2 pt-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Authorized Match Scorers
+            <span className="text-xs font-medium text-muted-foreground">
+              Current scorers
             </span>
             <span className="text-[11px] text-muted-foreground">
               {(createdBy ? 1 : 0) + matchAdmins.length} active

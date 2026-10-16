@@ -1,0 +1,197 @@
+/**
+ * Invite-only access. A Google account may get a session when it already has
+ * a profile, its email is on the ALLOWED_EMAILS bootstrap list, or someone
+ * invited that email (app invite or a pending club invite).
+ */
+
+import type { AppUser } from "../auth-types";
+import type { DataSource } from "../datasource";
+import { DbQueryError, newId } from "../query-builder";
+import type {
+  ClubInvitationsRow,
+  InvitationsRow,
+  MatchesRow,
+  UsersRow,
+} from "../types";
+import { isMatchAdmin } from "./auth-helpers";
+
+/** Comma-separated emails that may always sign in (the first admins). */
+export function allowedEmails(): Set<string> {
+  return new Set(
+    (process.env.ALLOWED_EMAILS ?? "")
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function normaliseEmail(email: string | null | undefined): string | null {
+  const clean = email?.trim().toLowerCase();
+  return clean && clean.includes("@") ? clean : null;
+}
+
+/**
+ * `emailVerified` must be true for email-based matches, so an unverified
+ * address cannot claim someone else's invite or profile.
+ */
+export async function canSignIn(
+  ds: DataSource,
+  user: AppUser,
+  emailVerified: boolean,
+): Promise<boolean> {
+  if (await ds.getById("users", user.id)) return true;
+
+  const email = emailVerified ? normaliseEmail(user.email) : null;
+  if (!email) return false;
+  if (allowedEmails().has(email)) return true;
+
+  const byEmail = [{ field: "email", op: "==" as const, value: email }];
+  const profiles = (await ds.query("users", byEmail)) as unknown as UsersRow[];
+  if (profiles.length > 0) return true;
+
+  const invites = (await ds.query(
+    "invitations",
+    byEmail,
+  )) as unknown as InvitationsRow[];
+  if (invites.some((i) => i.status === "pending")) return true;
+
+  const now = Date.now();
+  const clubInvites = (await ds.query(
+    "club_invitations",
+    byEmail,
+  )) as unknown as ClubInvitationsRow[];
+  return clubInvites.some(
+    (i) =>
+      i.status === "pending" &&
+      (!i.expires_at || new Date(i.expires_at).getTime() > now),
+  );
+}
+
+/** Adds `userId` to a match's scorers (no-op if already one). */
+async function addScorer(
+  ds: DataSource,
+  matchId: string,
+  userId: string,
+): Promise<void> {
+  const match = (await ds.getById(
+    "matches",
+    matchId,
+  )) as unknown as MatchesRow | null;
+  if (!match) return;
+  const admins = match.match_admins ?? [];
+  if (match.created_by === userId || admins.includes(userId)) return;
+  await ds.update("matches", matchId, {
+    match_admins: [...admins, userId],
+    updated_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * Marks the email's pending app invites as used by `uid` and makes them a
+ * scorer for any matches they were invited to score.
+ */
+export async function acceptInvitations(
+  ds: DataSource,
+  email: string | null,
+  uid: string,
+): Promise<void> {
+  const clean = normaliseEmail(email);
+  if (!clean) return;
+  const invites = (await ds.query("invitations", [
+    { field: "email", op: "==", value: clean },
+  ])) as unknown as InvitationsRow[];
+  const now = new Date().toISOString();
+  for (const invite of invites.filter((i) => i.status === "pending")) {
+    for (const matchId of invite.scorer_match_ids ?? []) {
+      await addScorer(ds, matchId, uid);
+    }
+    await ds.update("invitations", invite.id, {
+      status: "accepted",
+      accepted_by: uid,
+      updated_at: now,
+    });
+  }
+}
+
+export type InviteStatus =
+  | "invited"
+  | "already_invited"
+  | "already_member"
+  | "added_scorer"
+  | "already_scorer";
+
+/**
+ * Lets an existing user invite an email. Idempotent: inviting the same
+ * email twice keeps one pending invite.
+ *
+ * With `matchId` the caller must be able to score that match, and the
+ * invitee becomes a scorer: immediately if they already have access,
+ * otherwise on their first sign-in.
+ */
+export async function inviteEmail(
+  ds: DataSource,
+  callerId: string | null,
+  rawEmail: string,
+  matchId?: string | null,
+): Promise<{ status: InviteStatus; name?: string | null }> {
+  if (!callerId || !(await ds.getById("users", callerId))) {
+    throw new DbQueryError("Authentication required", "42501");
+  }
+  const email = normaliseEmail(rawEmail);
+  if (!email) throw new DbQueryError("Enter a valid email address", "22023");
+  if (matchId && !(await isMatchAdmin(ds, matchId, callerId))) {
+    throw new DbQueryError(
+      "Only this match's scorers can invite scorers",
+      "42501",
+    );
+  }
+
+  const byEmail = [{ field: "email", op: "==" as const, value: email }];
+  const member = (
+    (await ds.query("users", byEmail)) as unknown as UsersRow[]
+  )[0];
+  if (member) {
+    if (!matchId) return { status: "already_member", name: member.full_name };
+    const match = (await ds.getById(
+      "matches",
+      matchId,
+    )) as unknown as MatchesRow | null;
+    const already =
+      match?.created_by === member.id ||
+      (match?.match_admins ?? []).includes(member.id);
+    if (!already) await addScorer(ds, matchId, member.id);
+    return {
+      status: already ? "already_scorer" : "added_scorer",
+      name: member.full_name,
+    };
+  }
+
+  const now = new Date().toISOString();
+  const pending = (
+    (await ds.query("invitations", byEmail)) as unknown as InvitationsRow[]
+  ).find((i) => i.status === "pending");
+  if (pending) {
+    const matchIds = pending.scorer_match_ids ?? [];
+    if (matchId && !matchIds.includes(matchId)) {
+      await ds.update("invitations", pending.id, {
+        scorer_match_ids: [...matchIds, matchId],
+        updated_at: now,
+      });
+    }
+    return { status: "already_invited" };
+  }
+
+  await ds.insert("invitations", [
+    {
+      id: newId(),
+      email,
+      invited_by: callerId,
+      status: "pending",
+      accepted_by: null,
+      scorer_match_ids: matchId ? [matchId] : [],
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
+  return { status: "invited" };
+}

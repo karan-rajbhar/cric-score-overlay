@@ -16,6 +16,10 @@ vi.mock("~/lib/auth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+vi.mock("~/app/invitations/actions", () => ({
+  inviteToApp: vi.fn(),
+}));
+
 vi.mock("~/lib/firebase/client", () => ({
   createClient: () => ({
     from: () => ({
@@ -56,7 +60,8 @@ describe("NavigationBar Component", () => {
 
     expect(screen.getByText("CricScore")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /get started|join/i })).toBeInTheDocument();
+    // Invite-only: there is no sign-up link.
+    expect(screen.queryByRole("link", { name: /get started|join/i })).not.toBeInTheDocument();
   });
 
   it("renders authenticated controls and user menu when user is logged in", () => {

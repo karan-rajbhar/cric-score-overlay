@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getAdminFirestore } from "~/lib/firebase/admin";
+import { getAdminAuth, getAdminFirestore } from "~/lib/firebase/admin";
 import { AdminDataSource } from "~/lib/firebase/datasource-admin";
+import { acceptInvitations, canSignIn } from "~/lib/firebase/rpc/access";
 import { ensureOwnProfile } from "~/lib/firebase/rpc/profiles";
 import {
   SESSION_COOKIE_NAME,
@@ -15,6 +16,9 @@ import {
  * Exchanges a Firebase ID token for an HTTP-only session cookie and makes
  * sure the signed-in account has a `users` profile. A readable hint cookie
  * is set alongside so the browser can detect a stale server session.
+ *
+ * The app is invite-only: an account nobody invited gets a 403, and the
+ * Firebase Auth account that Google sign-in just created is deleted.
  */
 export async function POST(request: NextRequest) {
   let idToken: string | undefined;
@@ -31,9 +35,18 @@ export async function POST(request: NextRequest) {
   try {
     const decoded = await verifyIdToken(idToken);
     const user = decodedTokenToUser(decoded);
+    const ds = new AdminDataSource(getAdminFirestore());
+
+    if (!(await canSignIn(ds, user, decoded.email_verified === true))) {
+      await getAdminAuth()
+        .deleteUser(user.id)
+        .catch(() => undefined);
+      return NextResponse.json({ error: "invite_only" }, { status: 403 });
+    }
 
     try {
-      await ensureOwnProfile(new AdminDataSource(getAdminFirestore()), user);
+      await ensureOwnProfile(ds, user);
+      await acceptInvitations(ds, user.email, user.id);
     } catch (err) {
       console.error("ensureOwnProfile failed during session creation:", err);
     }
