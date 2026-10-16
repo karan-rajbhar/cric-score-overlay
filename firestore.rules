@@ -29,13 +29,12 @@ service cloud.firestore {
     match /player_career_stats/{id}      { allow read: if true; allow write: if false; }
 
     // Live scoring data is public so spectators and overlays can follow.
+    // Innings carry their scorecard; the ball log is one document per over.
     match /matches/{id}                  { allow read: if true; allow write: if false; }
     match /innings/{id}                  { allow read: if true; allow write: if false; }
-    match /batting_performances/{id}     { allow read: if true; allow write: if false; }
-    match /bowling_performances/{id}     { allow read: if true; allow write: if false; }
-    match /ball_by_ball/{id}             { allow read: if true; allow write: if false; }
-    match /partnerships/{id}             { allow read: if true; allow write: if false; }
-    match /fall_of_wickets/{id}          { allow read: if true; allow write: if false; }
+    match /overs/{id}                    { allow read: if true; allow write: if false; }
+    // Per-player record of each match (career and player pages).
+    match /player_matches/{id}           { allow read: if true; allow write: if false; }
     // Denormalized live scoreboard (one doc per match), written by the scoring engine.
     match /live_state/{id}               { allow read: if true; allow write: if false; }
 

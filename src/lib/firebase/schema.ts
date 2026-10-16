@@ -30,8 +30,27 @@ export const TABLE_NAMES: readonly TableName[] = [
   "ball_by_ball",
   "partnerships",
   "fall_of_wickets",
+  "overs",
+  "player_matches",
   "player_career_stats",
 ] as const;
+
+/**
+ * Legacy row collections that are no longer stored (schema stage 2): reads
+ * are served from innings arrays / over documents by `legacy-rows.ts`, and
+ * writes go through the scoring engine.
+ */
+export const DERIVED_TABLES: readonly TableName[] = [
+  "batting_performances",
+  "bowling_performances",
+  "ball_by_ball",
+  "partnerships",
+  "fall_of_wickets",
+] as const;
+
+export function isDerivedTable(name: string): boolean {
+  return (DERIVED_TABLES as readonly string[]).includes(name);
+}
 
 export const VIEW_NAMES: readonly ViewName[] = [
   "live_match_state",
@@ -284,6 +303,12 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "extras_bonuses",
     "is_completed",
     "target_runs",
+    "batting",
+    "bowling",
+    "fall_of_wickets",
+    "partnerships",
+    "last_ball",
+    "last_over_bowler_id",
     "created_at",
     "updated_at",
   ],
@@ -371,6 +396,20 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "bowler_id",
     "fielder_id",
     "created_at",
+  ],
+  overs: ["id", "match_id", "innings_id", "over_number", "balls", "updated_at"],
+  player_matches: [
+    "id",
+    "user_id",
+    "match_id",
+    "tournament_id",
+    "club_id",
+    "season_id",
+    "match_date",
+    "batting",
+    "bowling",
+    "fielding",
+    "updated_at",
   ],
   player_career_stats: [
     "id",
@@ -476,6 +515,12 @@ export const TABLE_DEFAULTS: Partial<
     extras_bonuses: 0,
     is_completed: false,
     target_runs: null,
+    batting: [],
+    bowling: [],
+    fall_of_wickets: [],
+    partnerships: [],
+    last_ball: null,
+    last_over_bowler_id: null,
   },
   batting_performances: {
     runs_scored: 0,
@@ -524,6 +569,8 @@ export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
     ball_by_ball: ["created_at"],
     partnerships: ["created_at", "updated_at"],
     fall_of_wickets: ["created_at"],
+    overs: ["updated_at"],
+    player_matches: ["updated_at"],
     player_career_stats: ["last_updated"],
   };
 
@@ -654,19 +701,10 @@ export const CASCADE_RULES: Partial<
   ],
   matches: [
     { table: "innings", column: "match_id", action: "cascade" },
-    { table: "batting_performances", column: "match_id", action: "cascade" },
-    { table: "bowling_performances", column: "match_id", action: "cascade" },
-    { table: "ball_by_ball", column: "match_id", action: "cascade" },
-    { table: "partnerships", column: "match_id", action: "cascade" },
-    { table: "fall_of_wickets", column: "match_id", action: "cascade" },
+    { table: "overs", column: "match_id", action: "cascade" },
+    { table: "player_matches", column: "match_id", action: "cascade" },
   ],
-  innings: [
-    { table: "batting_performances", column: "innings_id", action: "cascade" },
-    { table: "bowling_performances", column: "innings_id", action: "cascade" },
-    { table: "ball_by_ball", column: "innings_id", action: "cascade" },
-    { table: "partnerships", column: "innings_id", action: "cascade" },
-    { table: "fall_of_wickets", column: "innings_id", action: "cascade" },
-  ],
+  innings: [{ table: "overs", column: "innings_id", action: "cascade" }],
 };
 
 /** Singular noun for each collection, used to infer `<singular>_id` columns. */
@@ -691,6 +729,8 @@ export const SINGULAR: Record<TableName, string> = {
   ball_by_ball: "ball",
   partnerships: "partnership",
   fall_of_wickets: "fall_of_wicket",
+  overs: "over",
+  player_matches: "player_match",
   player_career_stats: "player_career_stat",
 };
 
@@ -722,21 +762,9 @@ export const USER_REFERENCES: readonly {
   { table: "matches", column: "created_by" },
   { table: "matches", column: "player_of_the_match_id" },
   { table: "matches", column: "match_admins", array: true },
-  { table: "batting_performances", column: "user_id" },
-  { table: "batting_performances", column: "bowler_id" },
-  { table: "batting_performances", column: "fielder_id" },
-  { table: "bowling_performances", column: "user_id" },
-  { table: "ball_by_ball", column: "bowler_id" },
-  { table: "ball_by_ball", column: "batsman_id" },
-  { table: "ball_by_ball", column: "non_striker_id" },
-  { table: "ball_by_ball", column: "fielder_id" },
-  { table: "ball_by_ball", column: "dismissed_player_id" },
-  { table: "partnerships", column: "batsman1_id" },
-  { table: "partnerships", column: "batsman2_id" },
-  { table: "fall_of_wickets", column: "batsman_out_id" },
-  { table: "fall_of_wickets", column: "bowler_id" },
-  { table: "fall_of_wickets", column: "fielder_id" },
   { table: "player_career_stats", column: "user_id" },
+  // Scorecards (innings arrays, over documents, player_matches) embed user
+  // ids inside nested values; `remapScorecardUserId` rewrites those.
 ];
 
 export function hasColumn(table: TableName, column: string): boolean {

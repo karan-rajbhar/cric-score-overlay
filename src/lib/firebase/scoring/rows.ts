@@ -13,12 +13,27 @@ function norm(value: unknown): unknown {
   return value === undefined ? null : value;
 }
 
+/** JSON with object keys sorted (Firestore does not keep map key order). */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const out: Record<string, unknown> = {};
+      for (const k of Object.keys(v).sort()) {
+        const field = (v as Record<string, unknown>)[k];
+        out[k] = field === undefined ? null : field;
+      }
+      return out;
+    }
+    return v;
+  });
+}
+
 function sameValue(a: unknown, b: unknown): boolean {
   const x = norm(a);
   const y = norm(b);
   if (x === y) return true;
   if (typeof x === "object" && typeof y === "object" && x && y) {
-    return JSON.stringify(x) === JSON.stringify(y);
+    return canonical(x) === canonical(y);
   }
   return false;
 }

@@ -28,6 +28,7 @@ import {
   useFirebaseEmulators,
 } from "./config";
 import { WebDataSource } from "./datasource-web";
+import { expandEmbedded, legacyRowsDataSource } from "./legacy-rows";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
 import { RealtimeChannel } from "./realtime";
 import {
@@ -83,7 +84,8 @@ export class BrowserClient {
   constructor(private readonly db: Firestore) {
     this.ds = new WebDataSource(db);
     this.ctx = {
-      ds: this.ds,
+      ds: legacyRowsDataSource(this.ds),
+      expandEmbedded,
       resolveView: (view, filters) => resolveView(this.ds, view, filters),
     };
   }

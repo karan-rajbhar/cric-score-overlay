@@ -23,9 +23,12 @@ import {
   updateOwnUsername,
 } from "./profiles";
 import {
+  awardPenaltyRuns,
   endInnings,
+  reassignOverBowler,
   recomputeInningsRpc,
   recordBall,
+  retireBatter,
   setCurrentBatsmen,
   setCurrentBowler,
   startSuperOver,
@@ -78,6 +81,25 @@ export async function callRpc(
       return startSuperOver(scoring, str(args, "p_match_id"));
     case "recompute_innings":
       return recomputeInningsRpc(scoring, str(args, "p_innings_id"));
+    case "award_penalty_runs":
+      return awardPenaltyRuns(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_runs: Number(args.p_runs),
+        p_type: str(args, "p_type"),
+        p_reason: optStr(args, "p_reason"),
+      });
+    case "retire_batter":
+      return retireBatter(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_player_id: str(args, "p_player_id"),
+        p_type: str(args, "p_type"),
+        p_reason: optStr(args, "p_reason"),
+      });
+    case "reassign_over_bowler":
+      return reassignOverBowler(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_bowler_id: str(args, "p_bowler_id"),
+      });
     case "set_current_batsmen":
       return setCurrentBatsmen(
         scoring,

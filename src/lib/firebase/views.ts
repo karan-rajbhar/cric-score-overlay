@@ -4,13 +4,26 @@
  *
  * They run on any DataSource so both the server (Admin SDK) and the browser
  * (web SDK, for the overlay control room) produce identical rows. The live
- * state reads only the rows the scoreboard shows (~15 documents), and the
- * scoring engine writes the same row to `live_state/{matchId}` (see
- * `live-state.ts`) so viewers can subscribe to one document instead.
+ * state reads the match, its current innings (which carries the scorecard
+ * and the last ball) and the current over document, and the scoring engine
+ * writes the same row to `live_state/{matchId}` (see `live-state.ts`) so
+ * viewers can subscribe to one document instead.
  */
 
 import type { DataSource, Doc } from "./datasource";
 import type { Filter } from "./filters";
+import {
+  ballLogOf,
+  ballRowsOf,
+  battingRowsOf,
+  bowlingRowsOf,
+  bySeq,
+  lastBallRowOf,
+  overDocId,
+  OVERS_COLLECTION,
+  partnershipRowsOf,
+  type OversRow,
+} from "./scorecard";
 import { inningsLimits } from "./scoring/result";
 import type { DocReader } from "./scoring/tx";
 import type {
@@ -90,10 +103,6 @@ export interface LiveStateParts {
   thisOver: BallByBallRow[];
   lastBall: BallByBallRow | null;
   nameOf: (id: string | null | undefined) => string | null;
-}
-
-function bySeq(a: { seq?: number | null }, b: { seq?: number | null }) {
-  return (a.seq ?? 0) - (b.seq ?? 0);
 }
 
 /** Player ids whose names the live state shows. */
@@ -274,34 +283,57 @@ export async function loadCurrentInnings(
   return docs[0] ?? null;
 }
 
+/** The over documents of one innings (one read per over). */
+export async function loadInningsOvers(
+  reader: DocReader,
+  inningsId: string,
+): Promise<OversRow[]> {
+  return (await reader.query(OVERS_COLLECTION, [
+    { field: "innings_id", op: "==", value: inningsId },
+  ])) as unknown as OversRow[];
+}
+
+/** Balls of one over in `seq` order (one read). */
+export async function loadOverBalls(
+  reader: DocReader,
+  inningsId: string,
+  overNumber: number,
+): Promise<BallByBallRow[]> {
+  const over = (await reader.getById(
+    OVERS_COLLECTION,
+    overDocId(inningsId, overNumber),
+  )) as unknown as OversRow | null;
+  return over ? ballRowsOf(over).sort(bySeq) : [];
+}
+
 /**
- * Last ball of the innings by `seq`. `matches.last_ball_seq` points at it
- * directly; after an undo (or for a fresh innings) the whole innings log is
- * read instead.
+ * Last ball of the innings by `seq`: the innings' `last_ball` cache, or for
+ * documents that predate it, the whole innings log.
  */
 export async function loadLastBall(
   reader: DocReader,
-  inningsId: string,
-  lastBallSeq: number | null | undefined,
-  known: BallByBallRow[] = [],
+  innings: InningsRow,
 ): Promise<BallByBallRow | null> {
-  let candidates: BallByBallRow[] = [];
-  if (lastBallSeq !== null && lastBallSeq !== undefined) {
-    candidates = (await reader.query("ball_by_ball", [
-      { field: "innings_id", op: "==", value: inningsId },
-      { field: "seq", op: "==", value: lastBallSeq },
-    ])) as unknown as BallByBallRow[];
-  }
-  if (!candidates.length) {
-    candidates = (await reader.query("ball_by_ball", [
-      { field: "innings_id", op: "==", value: inningsId },
-    ])) as unknown as BallByBallRow[];
-  } else {
-    candidates = [...candidates, ...known];
-  }
-  if (!candidates.length) return null;
-  const sorted = [...candidates].sort(bySeq);
-  return sorted[sorted.length - 1]!;
+  if (innings.last_ball !== undefined) return lastBallRowOf(innings);
+  const balls = ballLogOf(await loadInningsOvers(reader, innings.id));
+  return balls.length ? balls[balls.length - 1]! : null;
+}
+
+/** Rows flagged current in the innings scorecard (as the flag queries did). */
+export function currentRowsOf(innings: InningsRow): {
+  batters: BattingPerformancesRow[];
+  bowlers: BowlingPerformancesRow[];
+  partnerships: PartnershipsRow[];
+} {
+  return {
+    batters: battingRowsOf(innings).filter(
+      (b) => b.is_current_batsman === true,
+    ),
+    bowlers: bowlingRowsOf(innings).filter((b) => b.is_current_bowler === true),
+    partnerships: partnershipRowsOf(innings).filter(
+      (p) => p.is_current === true,
+    ),
+  };
 }
 
 /** Team / tournament display fields for a match. */
@@ -381,9 +413,9 @@ export function nameLookup(names: Record<string, string | null>) {
 }
 
 /**
- * Loads only what the live scoreboard shows: the current innings, its
- * current batters / bowler / partnership (equality queries on the flags),
- * the balls of the current over and the last ball.
+ * Loads only what the live scoreboard shows: the match, the current innings
+ * (current batters / bowler / partnership and the last ball come from its
+ * scorecard) and the current over document.
  */
 export async function loadLiveStateParts(
   reader: DocReader,
@@ -420,37 +452,17 @@ export async function loadLiveStateParts(
 
   const bpo = inningsLimits(match, ci.innings_number).ballsPerOver;
   const thisOverNumber = Math.floor((ci.total_balls ?? 0) / bpo);
-  const [battingDocs, bowlingDocs, partnershipDocs, overDocs] =
-    await Promise.all([
-      reader.query("batting_performances", [
-        { field: "innings_id", op: "==", value: ci.id },
-        { field: "is_current_batsman", op: "==", value: true },
-      ]) as Promise<unknown> as Promise<BattingPerformancesRow[]>,
-      reader.query("bowling_performances", [
-        { field: "innings_id", op: "==", value: ci.id },
-        { field: "is_current_bowler", op: "==", value: true },
-      ]) as Promise<unknown> as Promise<BowlingPerformancesRow[]>,
-      reader.query("partnerships", [
-        { field: "innings_id", op: "==", value: ci.id },
-        { field: "is_current", op: "==", value: true },
-      ]) as Promise<unknown> as Promise<PartnershipsRow[]>,
-      reader.query("ball_by_ball", [
-        { field: "innings_id", op: "==", value: ci.id },
-        { field: "over_number", op: "==", value: thisOverNumber },
-      ]) as Promise<unknown> as Promise<BallByBallRow[]>,
-    ]);
-  const thisOver = [...overDocs].sort(bySeq);
+  const [thisOver, lastBall] = await Promise.all([
+    loadOverBalls(reader, ci.id, thisOverNumber),
+    loadLastBall(reader, ci),
+  ]);
+  const current = currentRowsOf(ci);
   parts.thisOver = thisOver;
-  parts.striker = battingDocs.find((b) => b.is_striker) ?? null;
-  parts.nonStriker = battingDocs.find((b) => !b.is_striker) ?? null;
-  parts.bowler = bowlingDocs[0] ?? null;
-  parts.partnership = partnershipDocs[0] ?? null;
-  parts.lastBall = await loadLastBall(
-    reader,
-    ci.id,
-    match.last_ball_seq,
-    thisOver,
-  );
+  parts.striker = current.batters.find((b) => b.is_striker) ?? null;
+  parts.nonStriker = current.batters.find((b) => !b.is_striker) ?? null;
+  parts.bowler = current.bowlers[0] ?? null;
+  parts.partnership = current.partnerships[0] ?? null;
+  parts.lastBall = lastBall;
 
   const names = await loadNames(reader, liveStateUserIds(parts));
   parts.nameOf = nameLookup(names);
@@ -469,10 +481,11 @@ export async function buildOverSummaries(
   ds: DataSource,
   matchId: string,
 ): Promise<MatchOverSummariesRow[]> {
-  const balls = (await ds.query("ball_by_ball", [
+  // One read per over document instead of one per ball.
+  const overs = (await ds.query(OVERS_COLLECTION, [
     { field: "match_id", op: "==", value: matchId },
-  ])) as unknown as BallByBallRow[];
-  balls.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  ])) as unknown as OversRow[];
+  const balls = ballLogOf(overs);
 
   const groups = new Map<string, MatchOverSummariesRow>();
   for (const b of balls) {

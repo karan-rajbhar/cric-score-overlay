@@ -62,6 +62,15 @@ export interface BuilderContext {
   ds: DataSource;
   /** Computes rows for a virtual view (`live_match_state`, ...). */
   resolveView?: (view: string, filters: Filter[]) => Promise<Doc[]>;
+  /**
+   * Children of an embedded one-to-many relation already held by the parent
+   * documents (e.g. innings scorecard arrays), or null to query them.
+   */
+  expandEmbedded?: (
+    source: string,
+    target: string,
+    parents: Doc[],
+  ) => Doc[] | null;
   /** Called after each successful row write (server-side triggers). */
   afterWrite?: (event: WriteEvent) => Promise<void>;
   now?: () => string;
@@ -790,7 +799,9 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
       }
 
       const parentIds = Array.from(new Set(rows.map((row) => row.id)));
-      if (rel.countOnly && this.pushdownEnabled) {
+      const embedded =
+        this.ctx.expandEmbedded?.(source, rel.target, rows) ?? null;
+      if (rel.countOnly && this.pushdownEnabled && !embedded) {
         // One count() aggregation per parent (1 billed read each) instead
         // of reading every child document.
         const counts = await Promise.all(
@@ -810,14 +821,17 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
         }
         continue;
       }
-      const batches = await Promise.all(
-        chunk(parentIds, IN_CHUNK_SIZE).map((ids) =>
-          this.ctx.ds.query(rel.target, [
-            { field: strategy.foreignField, op: "in", value: ids },
-          ]),
-        ),
-      );
-      const children = batches.flat();
+      const children =
+        embedded ??
+        (
+          await Promise.all(
+            chunk(parentIds, IN_CHUNK_SIZE).map((ids) =>
+              this.ctx.ds.query(rel.target, [
+                { field: strategy.foreignField, op: "in", value: ids },
+              ]),
+            ),
+          )
+        ).flat();
       this.remember(rel.target, children);
       const grouped = new Map<string, Doc[]>();
       for (const child of children) {
@@ -929,21 +943,6 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     }
   }
 
-  private async assignBallSequence(doc: Doc): Promise<void> {
-    if (typeof doc.seq === "number") return;
-    const matchId = doc.match_id;
-    if (typeof matchId !== "string") {
-      doc.seq = Date.now();
-      return;
-    }
-    const match = await this.ctx.ds.getById("matches", matchId);
-    const next =
-      (typeof match?.last_ball_seq === "number" ? match.last_ball_seq : 0) + 1;
-    doc.seq = next;
-    if (match)
-      await this.ctx.ds.update("matches", matchId, { last_ball_seq: next });
-  }
-
   private async runInsert(): Promise<DbResult<unknown>> {
     const table = this.requireTable();
     const list = Array.isArray(this.payload)
@@ -954,7 +953,6 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     const docs: Doc[] = [];
     for (const values of list) {
       const doc = this.normalizeInsert(table, values);
-      if (table === "ball_by_ball") await this.assignBallSequence(doc);
       await this.assertUnique(table, doc);
       docs.push(doc);
     }

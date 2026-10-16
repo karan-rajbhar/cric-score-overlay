@@ -883,19 +883,11 @@ export async function updateBall(params: {
       };
     }
 
-    if (params.batsmanId || params.bowlerId) {
-      const playerUpdates: Record<string, string> = {};
-      if (params.batsmanId) playerUpdates.batsman_id = params.batsmanId;
-      if (params.bowlerId) playerUpdates.bowler_id = params.bowlerId;
-      await db
-        .from("ball_by_ball")
-        .update(playerUpdates)
-        .eq("id", params.ballId);
-    }
-
     const { data, error } = await db.rpc("update_ball", {
       p_match_id: params.matchId,
       p_ball_id: params.ballId,
+      p_batsman_id: params.batsmanId ?? null,
+      p_bowler_id: params.bowlerId ?? null,
       p_runs_scored: params.runsScored ?? 0,
       p_extras: params.extras ?? 0,
       p_extra_type: params.extraType ?? null,
@@ -1225,42 +1217,17 @@ export async function awardTeamPenalty(
     const isBattingTeam = currentInnings.team_id === params.teamId;
 
     if (isBattingTeam) {
-      const striker = await db
-        .from("batting_performances")
-        .select("user_id")
-        .eq("innings_id", currentInnings.id)
-        .eq("is_striker", true)
-        .maybeSingle();
-
-      const nonStriker = await db
-        .from("batting_performances")
-        .select("user_id")
-        .eq("innings_id", currentInnings.id)
-        .eq("is_current_batsman", true)
-        .eq("is_striker", false)
-        .maybeSingle();
-
-      const bowler = await db
-        .from("bowling_performances")
-        .select("user_id")
-        .eq("innings_id", currentInnings.id)
-        .eq("is_current_bowler", true)
-        .maybeSingle();
-
-      await db.from("ball_by_ball").insert({
-        match_id: matchId,
-        innings_id: currentInnings.id,
-        over_number: match.current_over ?? 0,
-        ball_number: Math.min(20, Math.max(1, (match.current_ball ?? 0) + 1)),
-        bowler_id: bowler.data?.user_id ?? null,
-        batsman_id: striker.data?.user_id ?? null,
-        non_striker_id: nonStriker.data?.user_id ?? null,
-        runs_scored: 0,
-        extras: params.runs,
-        extra_type: awardType,
-        commentary: `${awardType === "bonus" ? "Bonus" : "Penalty"}: +${params.runs} runs awarded to batting team (${params.reason})`,
+      // Logged in the ball log at the current crease, then the innings is
+      // recomputed (one transaction).
+      const { error: awardErr } = await db.rpc("award_penalty_runs", {
+        p_match_id: matchId,
+        p_runs: params.runs,
+        p_type: awardType,
+        p_reason: params.reason,
       });
-      await db.rpc("recompute_innings", { p_innings_id: currentInnings.id });
+      if (awardErr) {
+        return { success: false, error: friendlyError(awardErr.message) };
+      }
     } else {
       // First-innings awards to the fielding side have nothing to adjust
       // yet (there is no target); they were only ever logged before.
@@ -1313,46 +1280,23 @@ export async function retirePlayer(
       };
     }
 
-    const { data: match } = await db
-      .from("matches")
-      .select("current_innings, current_over, current_ball")
-      .eq("id", matchId)
-      .single();
-
-    if (!match) return { success: false, error: "Match not found" };
-
-    const { data: innings } = await db
-      .from("innings")
-      .select("id, total_wickets, total_runs, total_balls")
-      .eq("match_id", matchId)
-      .eq("innings_number", match.current_innings)
-      .single();
-
-    if (!innings) return { success: false, error: "Active innings not found" };
-
-    const { error: ballErr } = await db.from("ball_by_ball").insert({
-      match_id: matchId,
-      innings_id: innings.id,
-      over_number: match.current_over ?? 0,
-      ball_number: Math.min(20, Math.max(1, (match.current_ball ?? 0) + 1)),
-      bowler_id: null,
-      batsman_id: params.playerId,
-      non_striker_id: null,
-      runs_scored: 0,
-      extras: 0,
-      extra_type: null,
-      is_wicket: true,
-      dismissal_type: params.type,
-      dismissed_player_id: params.playerId,
-      commentary: `Player ${params.type === "retired_hurt" ? "retired hurt" : "retired out"}${params.reason ? `: ${params.reason}` : ""}`,
+    const { error: retireErr } = await db.rpc("retire_batter", {
+      p_match_id: matchId,
+      p_player_id: params.playerId,
+      p_type: params.type,
+      p_reason: params.reason ?? null,
     });
 
-    if (ballErr) {
-      console.error("retirePlayer failed on ball_by_ball insert:", ballErr);
-      return { success: false, error: friendlyError(ballErr.message) };
+    if (retireErr) {
+      console.error("retirePlayer failed:", retireErr);
+      if (retireErr.message === "match_not_found") {
+        return { success: false, error: "Match not found" };
+      }
+      if (retireErr.message === "no_open_innings") {
+        return { success: false, error: "Active innings not found" };
+      }
+      return { success: false, error: friendlyError(retireErr.message) };
     }
-
-    await db.rpc("recompute_innings", { p_innings_id: innings.id });
 
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
@@ -1457,48 +1401,27 @@ export async function reassignCurrentOverBowler(
       };
     }
 
-    const { data: matchData, error: matchErr } = await db
-      .from("matches")
-      .select("current_innings, current_over, current_ball")
-      .eq("id", matchId)
-      .single();
-
-    if (matchErr || !matchData) {
-      return { success: false, error: "Match not found" };
-    }
-
-    const { data: innData } = await db
-      .from("innings")
-      .select("id")
-      .eq("match_id", matchId)
-      .eq("innings_number", matchData.current_innings)
-      .single();
-
-    if (!innData) {
-      return { success: false, error: "Innings not found" };
-    }
-
     await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: newBowlerId,
     });
 
-    const { error: ballUpdateErr } = await db
-      .from("ball_by_ball")
-      .update({ bowler_id: newBowlerId })
-      .eq("innings_id", innData.id)
-      .eq("over_number", matchData.current_over);
-
-    if (ballUpdateErr) {
-      console.error(
-        "Failed to reassign ball_by_ball to new bowler:",
-        ballUpdateErr,
-      );
-    }
-
-    await db.rpc("recompute_innings", {
-      p_innings_id: innData.id,
+    // Credits the current over's deliveries to the new bowler and
+    // recomputes the innings.
+    const { error: reassignErr } = await db.rpc("reassign_over_bowler", {
+      p_match_id: matchId,
+      p_bowler_id: newBowlerId,
     });
+    if (reassignErr) {
+      console.error("Failed to reassign the over to the new bowler:", reassignErr);
+      if (reassignErr.message === "match_not_found") {
+        return { success: false, error: "Match not found" };
+      }
+      if (reassignErr.message === "no_open_innings") {
+        return { success: false, error: "Innings not found" };
+      }
+      return { success: false, error: friendlyError(reassignErr.message) };
+    }
 
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);

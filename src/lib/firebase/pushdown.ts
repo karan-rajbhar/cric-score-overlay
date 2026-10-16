@@ -15,7 +15,6 @@
 const ORDERABLE: Record<string, readonly string[]> = {
   matches: ["scheduled_at", "created_at"],
   users: ["full_name", "created_at"],
-  ball_by_ball: ["seq", "over_number", "created_at"],
 };
 
 /**
@@ -25,7 +24,6 @@ const ORDERABLE: Record<string, readonly string[]> = {
 const NON_NULL: Record<string, readonly string[]> = {
   matches: ["created_at"],
   users: ["created_at"],
-  ball_by_ball: ["seq", "created_at"],
 };
 
 export function isOrderable(table: string, field: string): boolean {

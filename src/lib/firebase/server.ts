@@ -17,8 +17,10 @@ import {
   QueryBuilder,
   type BuilderContext,
 } from "./query-builder";
+import { expandEmbedded, legacyRowsDataSource } from "./legacy-rows";
 import { callRpc } from "./rpc";
 import { maybeRecalculateStandings } from "./rpc/standings";
+import { syncPlayerMatchesAfterWrite } from "./scorecard-sync";
 import { SESSION_COOKIE_NAME, getUserFromSessionCookie } from "./session";
 import { storage } from "./storage";
 import { syncTeamSnapshots } from "./team-snapshot";
@@ -59,7 +61,10 @@ function buildServerClient(sessionCookie: string | undefined): ServerClient {
     (userPromise ??= getUserFromSessionCookie(sessionCookie));
 
   const ctx: BuilderContext = {
-    ds,
+    // Reads of the former row collections are served from innings / over
+    // documents; everything else passes through.
+    ds: legacyRowsDataSource(ds),
+    expandEmbedded,
     resolveView: (view, filters) => resolveView(ds, view, filters),
     afterWrite: async (event) => {
       if (event.table === "matches") {
@@ -71,6 +76,9 @@ function buildServerClient(sessionCookie: string | undefined): ServerClient {
       }
       if (event.table === "matches" || event.table === "teams") {
         await syncTeamSnapshots(ds, event);
+      }
+      if (event.table === "matches" || event.table === "innings") {
+        await syncPlayerMatchesAfterWrite(ds, event);
       }
     },
   };

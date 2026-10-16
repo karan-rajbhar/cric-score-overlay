@@ -93,7 +93,7 @@ export function firestoreCompare(a: unknown, b: unknown): number {
 }
 
 /** Evaluates a native filter with Firestore semantics (strict, type-aware). */
-function memoryMatches(doc: Doc, f: NativeFilter): boolean {
+export function memoryMatches(doc: Doc, f: NativeFilter): boolean {
   const actual = doc[f.field];
   switch (f.op) {
     case "==":
@@ -117,6 +117,38 @@ function memoryMatches(doc: Doc, f: NativeFilter): boolean {
       return c >= 0;
     }
   }
+}
+
+/**
+ * Applies Firestore ordering / limit semantics to already-filtered documents
+ * (the order of `docs` is used as the stable document-id order).
+ */
+export function applyQueryOptions(
+  docs: Doc[],
+  filters: NativeFilter[],
+  options?: QueryOptions,
+): Doc[] {
+  let out = docs;
+  let orders = options?.orderBy ?? [];
+  if (orders.length === 0) {
+    // Firestore orders by the inequality field when no order is given.
+    const inequality = filters.find((f) => f.op !== "==" && f.op !== "in");
+    if (inequality) orders = [{ field: inequality.field, direction: "asc" }];
+  }
+  if (orders.length > 0) {
+    out = out.filter((doc) => orders.every((o) => doc[o.field] !== undefined));
+    const tieDirection =
+      orders[orders.length - 1]!.direction === "desc" ? -1 : 1;
+    out = [...out].sort((a, b) => {
+      for (const o of orders) {
+        const c = firestoreCompare(a[o.field], b[o.field]);
+        if (c !== 0) return o.direction === "desc" ? -c : c;
+      }
+      return tieDirection * (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    });
+  }
+  if (options?.limit !== undefined) out = out.slice(0, options.limit);
+  return out;
 }
 
 /**
@@ -175,28 +207,7 @@ export class MemoryDataSource implements DataSource {
     options?: QueryOptions,
   ): Promise<Doc[]> {
     this.queryCount++;
-    let out = this.match(table, filters);
-    let orders = options?.orderBy ?? [];
-    if (orders.length === 0) {
-      // Firestore orders by the inequality field when no order is given.
-      const inequality = filters.find((f) => f.op !== "==" && f.op !== "in");
-      if (inequality) orders = [{ field: inequality.field, direction: "asc" }];
-    }
-    if (orders.length > 0) {
-      out = out.filter((doc) =>
-        orders.every((o) => doc[o.field] !== undefined),
-      );
-      const tieDirection =
-        orders[orders.length - 1]!.direction === "desc" ? -1 : 1;
-      out.sort((a, b) => {
-        for (const o of orders) {
-          const c = firestoreCompare(a[o.field], b[o.field]);
-          if (c !== 0) return o.direction === "desc" ? -c : c;
-        }
-        return tieDirection * (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-      });
-    }
-    if (options?.limit !== undefined) out = out.slice(0, options.limit);
+    const out = applyQueryOptions(this.match(table, filters), filters, options);
     this.docsRead += out.length;
     return out.map((doc) => structuredClone(doc));
   }

@@ -16,6 +16,7 @@ import {
   userIdsByEmail,
   userIdsByPhone,
 } from "../user-private";
+import { remapScorecardUserId } from "../scorecard-sync";
 import { isClubAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
@@ -209,6 +210,8 @@ export async function remapUserId(
   newId: string,
 ): Promise<void> {
   if (oldId === newId) return;
+  // Nested ids first: it finds the matches through the old team_players.
+  await remapScorecardUserId(ds, oldId, newId);
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
       const rows = await ds.query(ref.table, []);

@@ -2,9 +2,9 @@
  * `record_state`: the JSON snapshot every scoring mutation returns.
  *
  * `composeScoringState` is the pure projection; `record_ball` feeds it the
- * rows it already holds inside its transaction, and `recordState` loads
- * only the rows it needs (current batters / bowler by flag, the last ball by
- * `seq`) for the other mutations.
+ * rows it already holds inside its transaction, and `recordState` reads the
+ * match and its current innings (whose scorecard, `last_ball` and
+ * `last_over_bowler_id` hold everything else) plus player names.
  */
 
 import type { ScoringState } from "~/app/matches/types";
@@ -17,10 +17,13 @@ import type {
   InningsRow,
   MatchesRow,
 } from "../types";
+import { bowlingRowsOf, lastOverBowlerOf } from "../scorecard";
 import {
+  currentRowsOf,
   loadCurrentInnings,
   loadLastBall,
   loadNames,
+  loadOverBalls,
   nameLookup,
 } from "../views";
 
@@ -108,37 +111,27 @@ export function composeScoringState(p: ScoringStateParts): ScoringState {
  * Bowler of the previous completed over. At an over boundary that is the
  * last ball's bowler; mid-over it is the bowler of the over-ending ball of
  * the previous over (its `ball_number` equals balls-per-over), falling back
- * to the whole over's balls if that lookup finds nothing.
+ * to the whole over's balls. The innings keeps that answer in
+ * `last_over_bowler_id`; documents that predate it read the previous over.
  */
 export async function findLastOverBowler(
   reader: DocReader,
-  inningsId: string,
-  totalBalls: number,
+  innings: Pick<InningsRow, "id" | "total_balls" | "last_over_bowler_id">,
   ballsPerOver: number,
   lastBall: BallByBallRow | null,
 ): Promise<string | null> {
   const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
+  const totalBalls = innings.total_balls ?? 0;
   if (totalBalls > 0 && totalBalls % bpo === 0) {
     return lastBall?.bowler_id ?? null;
   }
-  if (Math.floor(totalBalls / bpo) <= 0) return null;
-  const previousOver = Math.floor((totalBalls - 1) / bpo) - 1;
-  let candidates = (await reader.query("ball_by_ball", [
-    { field: "innings_id", op: "==", value: inningsId },
-    { field: "over_number", op: "==", value: previousOver },
-    { field: "ball_number", op: "==", value: bpo },
-  ])) as unknown as BallByBallRow[];
-  if (!candidates.length) {
-    candidates = (await reader.query("ball_by_ball", [
-      { field: "innings_id", op: "==", value: inningsId },
-      { field: "over_number", op: "==", value: previousOver },
-    ])) as unknown as BallByBallRow[];
+  const current = Math.floor(totalBalls / bpo);
+  if (current <= 0) return null;
+  if (innings.last_over_bowler_id !== undefined) {
+    return innings.last_over_bowler_id;
   }
-  if (!candidates.length) return null;
-  const last = [...candidates].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))[
-    candidates.length - 1
-  ]!;
-  return last.bowler_id ?? null;
+  const previous = await loadOverBalls(reader, innings.id, current - 1);
+  return lastOverBowlerOf(previous, totalBalls, bpo);
 }
 
 export async function recordState(
@@ -154,32 +147,21 @@ export async function recordState(
   const innings = await loadCurrentInnings(ds, match);
   if (!innings) throw new DbQueryError("no_open_innings", "22000");
 
-  const [battingDocs, bowlingDocs] = await Promise.all([
-    ds.query("batting_performances", [
-      { field: "innings_id", op: "==", value: innings.id },
-      { field: "is_current_batsman", op: "==", value: true },
-    ]) as Promise<unknown> as Promise<BattingPerformancesRow[]>,
-    ds.query("bowling_performances", [
-      { field: "innings_id", op: "==", value: innings.id },
-      { field: "is_current_bowler", op: "==", value: true },
-    ]) as Promise<unknown> as Promise<BowlingPerformancesRow[]>,
-  ]);
+  const current = currentRowsOf(innings);
+  const battingDocs = current.batters;
   const striker = battingDocs.find((b) => b.is_striker) ?? null;
   const nonStriker = battingDocs.find((b) => !b.is_striker) ?? null;
-  const bowler = bowlingDocs[0] ?? null;
-  const lastBall = await loadLastBall(ds, innings.id, match.last_ball_seq);
+  const bowler = current.bowlers[0] ?? null;
+  const lastBall = await loadLastBall(ds, innings);
 
   let lastBowlerPerf: BowlingPerformancesRow | null = null;
   if (lastBall?.bowler_id) {
     lastBowlerPerf =
       bowler?.user_id === lastBall.bowler_id
         ? bowler
-        : ((
-            (await ds.query("bowling_performances", [
-              { field: "innings_id", op: "==", value: innings.id },
-              { field: "user_id", op: "==", value: lastBall.bowler_id },
-            ])) as unknown as BowlingPerformancesRow[]
-          )[0] ?? null);
+        : (bowlingRowsOf(innings).find(
+            (b) => b.user_id === lastBall.bowler_id,
+          ) ?? null);
   }
 
   const bpo =
@@ -191,7 +173,7 @@ export async function recordState(
     lastBall,
   };
   const [lastOverBowlerId, names] = await Promise.all([
-    findLastOverBowler(ds, innings.id, innings.total_balls ?? 0, bpo, lastBall),
+    findLastOverBowler(ds, innings, bpo, lastBall),
     loadNames(ds, scoringStateUserIds(parts)),
   ]);
 

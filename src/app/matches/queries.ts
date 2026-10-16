@@ -1,5 +1,6 @@
 "use server";
 
+import { withoutScorecardStorage } from "~/lib/firebase/scorecard";
 import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 
@@ -133,6 +134,13 @@ export async function getMatch(
         console.error("Error fetching match:", error);
         return { data: null, error: error.message };
       }
+      // The scorecard rows above come from the innings documents themselves
+      // (no extra reads); drop their storage arrays from the payload.
+      if (data?.innings) {
+        data.innings = (data.innings as object[]).map((inn) =>
+          withoutScorecardStorage(inn, ["fall_of_wickets"]),
+        );
+      }
 
       const result = { data, error: null };
       setCachedMatch(
@@ -225,6 +233,11 @@ export async function getScoringState(matchId: string) {
     if (error) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
+    }
+    if (match?.innings) {
+      match.innings = (match.innings as object[]).map((inn) =>
+        withoutScorecardStorage(inn),
+      );
     }
     if (match) await attachMatchTeams(db, [match]);
     type InningsWithPerformances = {

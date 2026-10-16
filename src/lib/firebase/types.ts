@@ -7,6 +7,26 @@
  * objects.
  */
 
+import type {
+  BattingEntry,
+  BowlingEntry,
+  FallOfWicketEntry,
+  LastBall,
+  OversRow,
+  PartnershipEntry,
+  PlayerMatchesRow,
+} from "./scorecard";
+
+export type {
+  BattingEntry,
+  BowlingEntry,
+  FallOfWicketEntry,
+  LastBall,
+  OversRow,
+  PartnershipEntry,
+  PlayerMatchesRow,
+};
+
 export type Json =
   | string
   | number
@@ -297,8 +317,21 @@ export interface InningsRow {
   target_runs: number | null;
   created_at: string | null;
   updated_at: string | null;
+  // Scorecard and caches (schema stage 2, see `scorecard.ts`).
+  batting?: BattingEntry[];
+  bowling?: BowlingEntry[];
+  fall_of_wickets?: FallOfWicketEntry[];
+  partnerships?: PartnershipEntry[];
+  last_ball?: LastBall | null;
+  last_over_bowler_id?: string | null;
 }
 
+/**
+ * The legacy row shapes below (batting / bowling performances, ball by
+ * ball, partnerships, fall of wickets) are no longer stored as documents:
+ * they are read from innings arrays and over documents (`scorecard.ts`,
+ * `legacy-rows.ts`).
+ */
 export interface BattingPerformancesRow {
   id: string;
   match_id: string | null;
@@ -520,6 +553,8 @@ export interface Database {
   ball_by_ball: BallByBallRow;
   partnerships: PartnershipsRow;
   fall_of_wickets: FallOfWicketsRow;
+  overs: OversRow;
+  player_matches: PlayerMatchesRow;
   player_career_stats: PlayerCareerStatsRow;
 }
 

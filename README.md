@@ -96,7 +96,12 @@ src/
 ```
 
 **Data.** Each Firestore collection mirrors one domain table (`matches`, `innings`,
-`ball_by_ball`, ...). Documents use snake_case fields and ISO timestamps.
+`teams`, ...). Documents use snake_case fields and ISO timestamps. An innings
+document holds its own scorecard (batting, bowling, fall of wickets and
+partnership arrays), the ball log is one `overs/{inningsId}_{over}` document per
+over, and `player_matches` keeps each player's figures per match for career
+pages (see `lib/firebase/scorecard.ts`). Queries on the former row collections
+(`batting_performances`, `ball_by_ball`, ...) are answered from those documents.
 
 **Auth.** The browser signs in with Firebase Auth and posts its ID token to
 `/api/auth/session`, which sets an HTTP-only session cookie and ensures a

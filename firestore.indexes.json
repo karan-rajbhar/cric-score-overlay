@@ -24,15 +24,6 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "scheduled_at", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "ball_by_ball",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "innings_id", "order": "ASCENDING" },
-        { "fieldPath": "over_number", "order": "ASCENDING" },
-        { "fieldPath": "seq", "order": "DESCENDING" }
-      ]
     }
   ],
   "fieldOverrides": [
@@ -41,6 +32,36 @@
       "fieldPath": "expires_at",
       "ttl": true,
       "indexes": []
-    }
+    },
+    { "collectionGroup": "innings", "fieldPath": "batting", "indexes": [] },
+    { "collectionGroup": "innings", "fieldPath": "bowling", "indexes": [] },
+    {
+      "collectionGroup": "innings",
+      "fieldPath": "fall_of_wickets",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "innings",
+      "fieldPath": "partnerships",
+      "indexes": []
+    },
+    { "collectionGroup": "innings", "fieldPath": "last_ball", "indexes": [] },
+    { "collectionGroup": "overs", "fieldPath": "balls", "indexes": [] },
+    {
+      "collectionGroup": "player_matches",
+      "fieldPath": "batting",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "player_matches",
+      "fieldPath": "bowling",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "player_matches",
+      "fieldPath": "fielding",
+      "indexes": []
+    },
+    { "collectionGroup": "live_state", "fieldPath": "refs", "indexes": [] }
   ]
 }
