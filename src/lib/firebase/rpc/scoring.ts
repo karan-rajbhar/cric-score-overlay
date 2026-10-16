@@ -4,19 +4,46 @@
  * `start_super_over`, `recompute_innings`, `set_current_batsmen` and
  * `set_current_bowler`.
  *
- * Each mutation runs inside one Firestore transaction: every document is
- * read first, the new innings state is derived with the pure recompute
- * engine, and all derived rows are written together so a crash can never
- * leave half-updated scorecards.
+ * Each mutation runs inside one Firestore transaction and writes all of its
+ * rows together so a crash can never leave half-updated scorecards.
+ *
+ * `record_ball` applies a normal delivery incrementally (see
+ * `scoring/incremental.ts`): it reads only the rows the ball touches. Any
+ * case it cannot apply exactly falls back to the full recompute of the
+ * innings from its ball log, which every history-editing mutation (undo,
+ * update, recompute) uses and which remains the source of truth. Only rows
+ * whose values changed are written. Every mutation refreshes
+ * `live_state/{matchId}` (see `live-state.ts`).
  */
 
 import "server-only";
-import type { Firestore, Transaction } from "firebase-admin/firestore";
+import type { Firestore } from "firebase-admin/firestore";
 import type { ScoringState } from "~/app/matches/types";
 import type { DataSource } from "../datasource";
+import {
+  headerFromCache,
+  LIVE_STATE_COLLECTION,
+  stageLiveState,
+  writeLiveState,
+  type LiveStateDoc,
+} from "../live-state";
 import { DbQueryError, newId } from "../query-builder";
+import {
+  applyBallIncrementally,
+  startsNewPartnership,
+} from "../scoring/incremental";
 import { recomputeInnings, type RecomputeOutput } from "../scoring/recompute";
-import { advanceAfterInnings, inningsLimits } from "../scoring/result";
+import {
+  advanceAfterInnings,
+  inningsLimits,
+  type AdvanceOutput,
+} from "../scoring/result";
+import { diffRows, sameRow } from "../scoring/rows";
+import {
+  runScoringTransaction,
+  type ScoringTx,
+  type WithId,
+} from "../scoring/tx";
 import type {
   BallByBallRow,
   BattingPerformancesRow,
@@ -28,14 +55,23 @@ import type {
   TeamPlayersRow,
   TeamsRow,
 } from "../types";
+import { liveStateUserIds, loadCurrentInnings, loadNames } from "../views";
 import { isMatchAdmin } from "./auth-helpers";
 import { maybeRecalculateStandings } from "./standings";
-import { recordState } from "./state";
+import {
+  composeScoringState,
+  findLastOverBowler,
+  recordState,
+  scoringStateUserIds,
+} from "./state";
 
 export interface ScoringContext {
-  db: Firestore;
+  /** Admin Firestore. Without it mutations run on `ds` (tests only). */
+  db?: Firestore | null;
   ds: DataSource;
   uid: string | null;
+  /** Apply plain deliveries incrementally (default). Tests turn it off. */
+  incremental?: boolean;
 }
 
 const EXTRA_TYPES = new Set([
@@ -60,66 +96,6 @@ const DISMISSAL_TYPES = new Set([
   "retired_out",
 ]);
 
-type WithId<T> = T & { id: string };
-
-function stripId(data: object): Record<string, unknown> {
-  const copy: Record<string, unknown> = { ...data };
-  delete copy.id;
-  return copy;
-}
-
-/** Thin wrapper so every read goes through the transaction. */
-class Tx {
-  constructor(
-    private readonly db: Firestore,
-    private readonly tx: Transaction,
-  ) {}
-
-  async doc<T>(table: string, id: string): Promise<WithId<T> | null> {
-    const snap = await this.tx.get(this.db.collection(table).doc(id));
-    return snap.exists
-      ? ({ ...(snap.data() as T), id: snap.id } as WithId<T>)
-      : null;
-  }
-
-  async docs<T>(table: string, ids: string[]): Promise<WithId<T>[]> {
-    const unique = Array.from(new Set(ids.filter(Boolean)));
-    if (!unique.length) return [];
-    const snaps = await this.tx.getAll(
-      ...unique.map((id) => this.db.collection(table).doc(id)),
-    );
-    return snaps
-      .filter((s) => s.exists)
-      .map((s) => ({ ...(s.data() as T), id: s.id }) as WithId<T>);
-  }
-
-  async where<T>(
-    table: string,
-    clauses: [string, "==" | "in", unknown][],
-  ): Promise<WithId<T>[]> {
-    let q: FirebaseFirestore.Query = this.db.collection(table);
-    for (const [field, op, value] of clauses) q = q.where(field, op, value);
-    const snap = await this.tx.get(q);
-    return snap.docs.map(
-      (d) => ({ ...(d.data() as T), id: d.id }) as WithId<T>,
-    );
-  }
-
-  put(table: string, id: string, data: object): void {
-    this.tx.set(this.db.collection(table).doc(id), stripId(data));
-  }
-
-  patch(table: string, id: string, data: object): void {
-    this.tx.set(this.db.collection(table).doc(id), stripId(data), {
-      merge: true,
-    });
-  }
-
-  delete(table: string, id: string): void {
-    this.tx.delete(this.db.collection(table).doc(id));
-  }
-}
-
 interface InningsBundle {
   match: WithId<MatchesRow>;
   innings: WithId<InningsRow>;
@@ -135,7 +111,7 @@ function sortBySeq<T extends { seq?: number | null }>(balls: T[]): T[] {
 }
 
 async function loadInningsBundle(
-  t: Tx,
+  t: ScoringTx,
   match: WithId<MatchesRow>,
   innings: WithId<InningsRow>,
 ): Promise<InningsBundle> {
@@ -183,49 +159,80 @@ function runRecompute(
   });
 }
 
+/** Stage rows that differ from the loaded ones (timestamps ignored). */
+function writeChangedRows<T extends { id: string }>(
+  t: ScoringTx,
+  table: string,
+  next: T[],
+  loaded: readonly T[],
+): T[] {
+  const { changed, merged } = diffRows(next, loaded);
+  for (const row of changed) t.put(table, row.id, row);
+  return merged;
+}
+
+function patchInningsIfChanged(
+  t: ScoringTx,
+  innings: WithId<InningsRow>,
+  patch: Partial<InningsRow>,
+): void {
+  if (!sameRow({ ...innings, ...patch }, innings)) {
+    t.patch("innings", innings.id, patch);
+  }
+}
+
+/**
+ * Stage the recompute result, writing only rows that changed. Returns the
+ * output with unchanged rows replaced by their stored versions.
+ */
 function writeRecompute(
-  t: Tx,
+  t: ScoringTx,
   bundle: InningsBundle,
   out: RecomputeOutput,
   now: string,
-): void {
-  t.patch(
-    "innings",
-    bundle.innings.id,
-    out.inningsPatch as Record<string, unknown>,
-  );
+): RecomputeOutput {
+  patchInningsIfChanged(t, bundle.innings, out.inningsPatch);
   t.patch("matches", bundle.match.id, { ...out.matchPatch, updated_at: now });
-  for (const bp of out.batting)
-    t.put(
-      "batting_performances",
-      bp.id,
-      bp as unknown as Record<string, unknown>,
-    );
-  for (const bw of out.bowling)
-    t.put(
-      "bowling_performances",
-      bw.id,
-      bw as unknown as Record<string, unknown>,
-    );
+  const batting = writeChangedRows(
+    t,
+    "batting_performances",
+    out.batting,
+    bundle.batting,
+  );
+  const bowling = writeChangedRows(
+    t,
+    "bowling_performances",
+    out.bowling,
+    bundle.bowling,
+  );
 
   const keepFow = new Set(out.fallOfWickets.map((f) => f.id));
   for (const existing of bundle.fallOfWickets) {
     if (!keepFow.has(existing.id)) t.delete("fall_of_wickets", existing.id);
   }
-  for (const f of out.fallOfWickets)
-    t.put("fall_of_wickets", f.id, f as unknown as Record<string, unknown>);
+  const fallOfWickets = writeChangedRows(
+    t,
+    "fall_of_wickets",
+    out.fallOfWickets,
+    bundle.fallOfWickets,
+  );
 
   const keepPartnerships = new Set(out.partnerships.map((p) => p.id));
   for (const existing of bundle.partnerships) {
     if (!keepPartnerships.has(existing.id))
       t.delete("partnerships", existing.id);
   }
-  for (const p of out.partnerships)
-    t.put("partnerships", p.id, p as unknown as Record<string, unknown>);
+  const partnerships = writeChangedRows(
+    t,
+    "partnerships",
+    out.partnerships,
+    bundle.partnerships,
+  );
+  return { ...out, batting, bowling, fallOfWickets, partnerships };
 }
 
 function logEvent(
-  t: Tx,
+  t: ScoringTx,
   matchId: string,
   eventType: string,
   data: Record<string, unknown>,
@@ -241,35 +248,32 @@ function logEvent(
 }
 
 function applyAdvance(
-  t: Tx,
+  t: ScoringTx,
   match: MatchesRow,
   completed: InningsRow,
   allInnings: InningsRow[],
-  teams: TeamsRow[],
+  teamNames: Record<string, string | undefined>,
   now: string,
-): void {
-  const teamNames: Record<string, string | undefined> = {};
-  for (const team of teams) teamNames[team.id] = team.name;
+): AdvanceOutput {
   const out = advanceAfterInnings(
     { match, completed, allInnings, teamNames, now },
     newId(),
   );
-  t.patch(
-    "innings",
-    completed.id,
-    out.completedInningsPatch as Record<string, unknown>,
-  );
-  t.patch("matches", match.id, out.matchPatch as Record<string, unknown>);
+  t.patch("innings", completed.id, out.completedInningsPatch);
+  t.patch("matches", match.id, out.matchPatch);
   if (out.nextInnings) {
-    t.put(
-      "innings",
-      out.nextInnings.id,
-      out.nextInnings as unknown as Record<string, unknown>,
-    );
+    t.put("innings", out.nextInnings.id, out.nextInnings);
   }
   if (out.matchEndEvent) {
     logEvent(t, match.id, "match_end", out.matchEndEvent, now);
   }
+  return out;
+}
+
+function teamNamesOf(teams: TeamsRow[]): Record<string, string | undefined> {
+  const names: Record<string, string | undefined> = {};
+  for (const team of teams) names[team.id] = team.name;
+  return names;
 }
 
 async function requireAdmin(
@@ -281,8 +285,26 @@ async function requireAdmin(
   }
 }
 
+/**
+ * Same rule as `isMatchAdmin`, answered from the match row already read in
+ * the transaction when possible (creator / listed admin), so the hot path
+ * does not read the match twice.
+ */
+async function requireAdminOf(
+  ctx: ScoringContext,
+  matchId: string,
+  match: MatchesRow | null,
+): Promise<void> {
+  if (match && ctx.uid) {
+    if (match.created_by === ctx.uid) return;
+    if ((match.match_admins ?? []).includes(ctx.uid)) return;
+  }
+  if (!match) throw new DbQueryError("not_authorized", "42501");
+  await requireAdmin(ctx, matchId);
+}
+
 async function currentInningsOf(
-  t: Tx,
+  t: ScoringTx,
   match: WithId<MatchesRow>,
 ): Promise<{ all: WithId<InningsRow>[]; current: WithId<InningsRow> | null }> {
   const all = await t.where<InningsRow>("innings", [
@@ -303,7 +325,8 @@ async function finishWithState(
     matchId,
   )) as unknown as MatchesRow | null;
   await maybeRecalculateStandings(ctx.ds, before, after);
-  return recordState(ctx.ds, matchId);
+  await writeLiveState(ctx.ds, matchId, ctx.db);
+  return recordState(ctx.ds, matchId, after);
 }
 
 // ---------------------------------------------------------------------------
@@ -326,13 +349,14 @@ export interface RecordBallArgs {
   p_shot_zone?: string | null;
 }
 
-export async function recordBall(
-  ctx: ScoringContext,
-  args: RecordBallArgs,
-): Promise<ScoringState> {
-  const matchId = args.p_match_id;
-  await requireAdmin(ctx, matchId);
+interface CheckedBall {
+  extraType: string | null;
+  isWicket: boolean;
+  dismissalType: string | null;
+  dismissedId: string | null;
+}
 
+function checkBallArgs(args: RecordBallArgs): CheckedBall {
   const extraType = args.p_extra_type ?? null;
   if (extraType && !EXTRA_TYPES.has(extraType))
     throw new DbQueryError("invalid_input", "22000");
@@ -351,147 +375,430 @@ export async function recordBall(
       throw new DbQueryError("dismissed_player_not_at_crease", "22000");
     }
   }
+  return { extraType, isWicket, dismissalType, dismissedId };
+}
 
+function newBall(
+  args: RecordBallArgs,
+  checked: CheckedBall,
+  innings: WithId<InningsRow>,
+  bpo: number,
+  seq: number,
+  now: string,
+): WithId<BallByBallRow> {
+  const totalBalls = innings.total_balls ?? 0;
+  return {
+    id: newId(),
+    match_id: args.p_match_id,
+    innings_id: innings.id,
+    over_number: Math.floor(totalBalls / bpo),
+    ball_number: (totalBalls % bpo) + 1,
+    bowler_id: args.p_bowler_id,
+    batsman_id: args.p_batsman_id,
+    non_striker_id: args.p_non_striker_id,
+    runs_scored: args.p_runs_scored ?? 0,
+    extras: args.p_extras ?? 0,
+    extra_type: checked.extraType,
+    is_wicket: checked.isWicket,
+    dismissal_type: checked.isWicket ? checked.dismissalType : null,
+    fielder_id: args.p_fielder_id ?? null,
+    dismissed_player_id: checked.dismissedId,
+    commentary: args.p_commentary ?? null,
+    shot_zone: args.p_shot_zone ?? null,
+    seq,
+    created_at: now,
+  };
+}
+
+function logBallEvents(
+  t: ScoringTx,
+  ball: BallByBallRow,
+  checked: CheckedBall,
+  now: string,
+) {
+  const matchId = ball.match_id ?? "";
+  if (checked.isWicket) {
+    logEvent(
+      t,
+      matchId,
+      "wicket",
+      {
+        batsman: checked.dismissedId,
+        dismissal: checked.dismissalType,
+        over: ball.over_number,
+      },
+      now,
+    );
+  } else if (ball.runs_scored === 4) {
+    logEvent(
+      t,
+      matchId,
+      "boundary_four",
+      { batsman: ball.batsman_id, over: ball.over_number },
+      now,
+    );
+  } else if (ball.runs_scored === 6) {
+    logEvent(
+      t,
+      matchId,
+      "boundary_six",
+      { batsman: ball.batsman_id, over: ball.over_number },
+      now,
+    );
+  }
+}
+
+function inningsComplete(match: MatchesRow, innings: InningsRow): boolean {
+  const limits = inningsLimits(match, innings.innings_number);
+  const targetReached =
+    innings.target_runs !== null &&
+    innings.target_runs !== undefined &&
+    (innings.total_runs ?? 0) >= innings.target_runs;
+  return (
+    targetReached ||
+    (innings.total_wickets ?? 0) >= limits.wicketsCap ||
+    (innings.total_balls ?? 0) >= limits.maxBalls
+  );
+}
+
+interface RecordOutcome {
+  before: MatchesRow;
+  /** Set by the incremental path, which also builds the state in the tx. */
+  after: MatchesRow | null;
+  state: ScoringState | null;
+}
+
+/**
+ * Fast path: read only the rows this delivery touches and apply it to the
+ * running totals. Returns null when the ball must go through a full
+ * recompute instead (including every validation failure, so the full path
+ * raises the usual error).
+ */
+async function recordBallIncremental(
+  t: ScoringTx,
+  match: WithId<MatchesRow>,
+  args: RecordBallArgs,
+  checked: CheckedBall,
+  now: string,
+): Promise<RecordOutcome | null> {
+  if (
+    match.max_balls_per_over !== null &&
+    match.max_balls_per_over !== undefined
+  )
+    return null;
+  if (match.last_ball_seq === null || match.last_ball_seq === undefined)
+    return null;
+
+  const innings = (await loadCurrentInnings(
+    t,
+    match,
+  )) as WithId<InningsRow> | null;
+  if (!innings || innings.is_completed) return null;
+
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  const overNumber = Math.floor((innings.total_balls ?? 0) / bpo);
+  const strikerId = `${innings.id}_${args.p_batsman_id}`;
+  const nonStrikerId = `${innings.id}_${args.p_non_striker_id}`;
+  const [battingRows, bowlingRows, currentPartnerships, overBalls, prevLive] =
+    await Promise.all([
+      t.docs<BattingPerformancesRow>("batting_performances", [
+        strikerId,
+        nonStrikerId,
+      ]),
+      t.docs<BowlingPerformancesRow>("bowling_performances", [
+        `${innings.id}_${args.p_bowler_id}`,
+      ]),
+      t.where<PartnershipsRow>("partnerships", [
+        ["innings_id", "==", innings.id],
+        ["is_current", "==", true],
+      ]),
+      t.where<BallByBallRow>("ball_by_ball", [
+        ["innings_id", "==", innings.id],
+        ["over_number", "==", overNumber],
+      ]),
+      t.doc<LiveStateDoc>(LIVE_STATE_COLLECTION, match.id),
+    ]);
+
+  const striker = battingRows.find((b) => b.id === strikerId);
+  const nonStriker = battingRows.find((b) => b.id === nonStrikerId);
+  const bowler = bowlingRows[0];
+  if (
+    !striker ||
+    striker.innings_id !== innings.id ||
+    striker.user_id !== args.p_batsman_id ||
+    !striker.is_current_batsman ||
+    !striker.is_striker
+  )
+    return null;
+  if (
+    !nonStriker ||
+    nonStriker.innings_id !== innings.id ||
+    nonStriker.user_id !== args.p_non_striker_id ||
+    !nonStriker.is_current_batsman ||
+    nonStriker.is_striker
+  )
+    return null;
+  if (
+    !bowler ||
+    bowler.innings_id !== innings.id ||
+    bowler.user_id !== args.p_bowler_id ||
+    !bowler.is_current_bowler
+  )
+    return null;
+  if (currentPartnerships.length > 1) return null;
+  const partnership = currentPartnerships[0] ?? null;
+
+  const sortedOver = sortBySeq(overBalls);
+  const maxOverSeq = sortedOver.length
+    ? (sortedOver[sortedOver.length - 1]!.seq ?? 0)
+    : 0;
+  const seq = Math.max(match.last_ball_seq, maxOverSeq) + 1;
+  const ball = newBall(args, checked, innings, bpo, seq, now);
+
+  let partnershipCount: number | null = null;
+  if (startsNewPartnership(ball, partnership)) {
+    partnershipCount = (
+      await t.where<PartnershipsRow>("partnerships", [
+        ["innings_id", "==", innings.id],
+      ])
+    ).length;
+  }
+
+  const out = applyBallIncrementally({
+    match,
+    innings,
+    ball,
+    striker,
+    nonStriker,
+    bowler,
+    partnership,
+    partnershipCount,
+    overBalls: sortedOver,
+    now,
+  });
+  if (!out) return null;
+
+  // ---- writes (buffered until the callback returns) ----
+  t.put("ball_by_ball", ball.id, ball);
+  patchInningsIfChanged(t, innings, out.inningsPatch);
+  const matchPatch: Partial<MatchesRow> = {
+    ...out.matchPatch,
+    last_ball_seq: seq,
+    updated_at: now,
+  };
+  t.patch("matches", match.id, matchPatch);
+  const batting = writeChangedRows(t, "batting_performances", out.batting, [
+    striker,
+    nonStriker,
+  ]);
+  const bowling = writeChangedRows(t, "bowling_performances", out.bowling, [
+    bowler,
+  ]);
+  for (const f of out.fallOfWickets) t.put("fall_of_wickets", f.id, f);
+  const partnerships = writeChangedRows(
+    t,
+    "partnerships",
+    out.partnerships,
+    partnership ? [partnership] : [],
+  );
+  logBallEvents(t, ball, checked, now);
+
+  // ---- innings / match completion ----
+  let matchAfter: MatchesRow = { ...match, ...matchPatch };
+  let inningsAfter: WithId<InningsRow> = { ...innings, ...out.inningsPatch };
+  let header: Awaited<ReturnType<typeof headerFromCache>> | undefined;
+  let advance: AdvanceOutput | null = null;
+  if (inningsComplete(match, inningsAfter)) {
+    const all = await t.where<InningsRow>("innings", [
+      ["match_id", "==", match.id],
+    ]);
+    header = await headerFromCache(t, match, prevLive);
+    const teamNames: Record<string, string | undefined> = {};
+    for (const [id, team] of header.teams)
+      teamNames[id] = team.name ?? undefined;
+    advance = applyAdvance(
+      t,
+      matchAfter,
+      inningsAfter,
+      all.map((i) => (i.id === innings.id ? inningsAfter : i)),
+      teamNames,
+      now,
+    );
+    matchAfter = { ...matchAfter, ...advance.matchPatch };
+    inningsAfter = { ...inningsAfter, ...advance.completedInningsPatch };
+  }
+
+  // ---- live state + returned scoring state ----
+  const nextInnings = advance?.nextInnings ?? null;
+  const currentInnings: InningsRow = nextInnings ?? inningsAfter;
+  const sameInnings = !nextInnings;
+  const curStriker = sameInnings
+    ? (batting.find((b) => b.is_current_batsman && b.is_striker) ?? null)
+    : null;
+  const curNonStriker = sameInnings
+    ? (batting.find((b) => b.is_current_batsman && !b.is_striker) ?? null)
+    : null;
+  const bowlerAfter = bowling[0]!;
+  const curBowler =
+    sameInnings && bowlerAfter.is_current_bowler ? bowlerAfter : null;
+  const curPartnership = sameInnings
+    ? (partnerships.find((p) => p.is_current) ?? null)
+    : null;
+  const thisOverNumber = Math.floor((currentInnings.total_balls ?? 0) / bpo);
+  const thisOver =
+    sameInnings && thisOverNumber === overNumber ? [...sortedOver, ball] : [];
+  const lastBall = sameInnings ? ball : null;
+
+  const liveParts = {
+    match: matchAfter,
+    innings: currentInnings,
+    striker: curStriker,
+    nonStriker: curNonStriker,
+    bowler: curBowler,
+    partnership: curPartnership,
+    thisOver,
+    lastBall,
+  };
+  const ids = Array.from(
+    new Set([
+      ...liveStateUserIds(liveParts),
+      ...scoringStateUserIds(liveParts),
+    ]),
+  );
+  const [names, lastOverBowlerId] = await Promise.all([
+    loadNames(t, ids, prevLive?.refs?.names ?? {}),
+    findLastOverBowler(
+      t,
+      currentInnings.id,
+      currentInnings.total_balls ?? 0,
+      bpo,
+      lastBall,
+    ),
+  ]);
+  await stageLiveState(t, liveParts, prevLive, now, header, names);
+
+  const state = composeScoringState({
+    match: matchAfter,
+    innings: currentInnings,
+    striker: curStriker,
+    nonStriker: curNonStriker,
+    currentBatsmen: (curStriker ? 1 : 0) + (curNonStriker ? 1 : 0),
+    bowler: curBowler,
+    lastBall,
+    lastBowlerPerf: sameInnings ? bowlerAfter : null,
+    lastOverBowlerId,
+    nameOf: (id) => (id ? (names[id] ?? null) : null),
+  });
+  return { before: match, after: matchAfter, state };
+}
+
+/** Full path: recompute the whole innings from its ball log. */
+async function recordBallFull(
+  t: ScoringTx,
+  match: WithId<MatchesRow>,
+  args: RecordBallArgs,
+  checked: CheckedBall,
+  now: string,
+): Promise<RecordOutcome> {
+  const matchId = match.id;
+  const { all, current: innings } = await currentInningsOf(t, match);
+  if (!innings || innings.is_completed)
+    throw new DbQueryError("no_open_innings", "22000");
+
+  const bundle = await loadInningsBundle(t, match, innings);
+
+  if (bundle.batting.filter((b) => b.is_current_batsman).length < 2) {
+    throw new DbQueryError("awaiting_new_batsman", "22000");
+  }
+  if (
+    !bundle.bowling.some(
+      (b) => b.is_current_bowler && b.user_id === args.p_bowler_id,
+    )
+  ) {
+    throw new DbQueryError("bowler_not_set", "22000");
+  }
+  if (
+    !bundle.batting.some(
+      (b) =>
+        b.is_current_batsman && b.is_striker && b.user_id === args.p_batsman_id,
+    )
+  ) {
+    throw new DbQueryError("striker_mismatch", "22000");
+  }
+  if (
+    !bundle.batting.some(
+      (b) =>
+        b.is_current_batsman &&
+        !b.is_striker &&
+        b.user_id === args.p_non_striker_id,
+    )
+  ) {
+    throw new DbQueryError("non_striker_mismatch", "22000");
+  }
+
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  const maxSeq = bundle.balls.reduce((m, b) => Math.max(m, b.seq ?? 0), 0);
+  const seq = Math.max(match.last_ball_seq ?? 0, maxSeq) + 1;
+  const ball = newBall(args, checked, innings, bpo, seq, now);
+  t.put("ball_by_ball", ball.id, ball);
+
+  const out = runRecompute(bundle, [...bundle.balls, ball], now);
+  writeRecompute(t, bundle, out, now);
+  t.patch("matches", matchId, { last_ball_seq: seq });
+  logBallEvents(t, ball, checked, now);
+
+  const updatedInnings: WithId<InningsRow> = {
+    ...innings,
+    ...out.inningsPatch,
+  };
+  if (inningsComplete(match, updatedInnings)) {
+    const teams = await t.docs<TeamsRow>("teams", [
+      match.team1_id,
+      match.team2_id,
+    ]);
+    applyAdvance(
+      t,
+      { ...match, ...out.matchPatch },
+      updatedInnings,
+      all.map((i) => (i.id === innings.id ? updatedInnings : i)),
+      teamNamesOf(teams),
+      now,
+    );
+  }
+  return { before: match, after: null, state: null };
+}
+
+export async function recordBall(
+  ctx: ScoringContext,
+  args: RecordBallArgs,
+): Promise<ScoringState> {
+  const matchId = args.p_match_id;
   const now = new Date().toISOString();
-  const before = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const outcome = await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
+    await requireAdminOf(ctx, matchId, match);
+    const checked = checkBallArgs(args);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     if (match.status !== "live")
       throw new DbQueryError("match_not_live", "22000");
 
-    const { all, current: innings } = await currentInningsOf(t, match);
-    if (!innings || innings.is_completed)
-      throw new DbQueryError("no_open_innings", "22000");
-
-    const [bundle, teams] = await Promise.all([
-      loadInningsBundle(t, match, innings),
-      t.docs<TeamsRow>("teams", [match.team1_id, match.team2_id]),
-    ]);
-
-    if (bundle.batting.filter((b) => b.is_current_batsman).length < 2) {
-      throw new DbQueryError("awaiting_new_batsman", "22000");
+    if (ctx.incremental !== false) {
+      const fast = await recordBallIncremental(t, match, args, checked, now);
+      if (fast) return fast;
     }
-    if (
-      !bundle.bowling.some(
-        (b) => b.is_current_bowler && b.user_id === args.p_bowler_id,
-      )
-    ) {
-      throw new DbQueryError("bowler_not_set", "22000");
-    }
-    if (
-      !bundle.batting.some(
-        (b) =>
-          b.is_current_batsman &&
-          b.is_striker &&
-          b.user_id === args.p_batsman_id,
-      )
-    ) {
-      throw new DbQueryError("striker_mismatch", "22000");
-    }
-    if (
-      !bundle.batting.some(
-        (b) =>
-          b.is_current_batsman &&
-          !b.is_striker &&
-          b.user_id === args.p_non_striker_id,
-      )
-    ) {
-      throw new DbQueryError("non_striker_mismatch", "22000");
-    }
-
-    const bpo =
-      match.balls_per_over && match.balls_per_over > 0
-        ? match.balls_per_over
-        : 6;
-    const totalBalls = innings.total_balls ?? 0;
-    const maxSeq = bundle.balls.reduce((m, b) => Math.max(m, b.seq ?? 0), 0);
-    const seq = Math.max(match.last_ball_seq ?? 0, maxSeq) + 1;
-
-    const ball: WithId<BallByBallRow> = {
-      id: newId(),
-      match_id: matchId,
-      innings_id: innings.id,
-      over_number: Math.floor(totalBalls / bpo),
-      ball_number: (totalBalls % bpo) + 1,
-      bowler_id: args.p_bowler_id,
-      batsman_id: args.p_batsman_id,
-      non_striker_id: args.p_non_striker_id,
-      runs_scored: args.p_runs_scored ?? 0,
-      extras: args.p_extras ?? 0,
-      extra_type: extraType,
-      is_wicket: isWicket,
-      dismissal_type: isWicket ? dismissalType : null,
-      fielder_id: args.p_fielder_id ?? null,
-      dismissed_player_id: dismissedId,
-      commentary: args.p_commentary ?? null,
-      shot_zone: args.p_shot_zone ?? null,
-      seq,
-      created_at: now,
-    };
-    t.put("ball_by_ball", ball.id, ball);
-
-    const out = runRecompute(bundle, [...bundle.balls, ball], now);
-    writeRecompute(t, bundle, out, now);
-    t.patch("matches", matchId, { last_ball_seq: seq });
-
-    if (isWicket) {
-      logEvent(
-        t,
-        matchId,
-        "wicket",
-        {
-          batsman: dismissedId,
-          dismissal: dismissalType,
-          over: ball.over_number,
-        },
-        now,
-      );
-    } else if (ball.runs_scored === 4) {
-      logEvent(
-        t,
-        matchId,
-        "boundary_four",
-        { batsman: ball.batsman_id, over: ball.over_number },
-        now,
-      );
-    } else if (ball.runs_scored === 6) {
-      logEvent(
-        t,
-        matchId,
-        "boundary_six",
-        { batsman: ball.batsman_id, over: ball.over_number },
-        now,
-      );
-    }
-
-    const updatedInnings: WithId<InningsRow> = {
-      ...innings,
-      ...out.inningsPatch,
-    };
-    const limits = inningsLimits(match, innings.innings_number);
-    const targetReached =
-      updatedInnings.target_runs !== null &&
-      updatedInnings.target_runs !== undefined &&
-      (updatedInnings.total_runs ?? 0) >= updatedInnings.target_runs;
-    if (
-      targetReached ||
-      (updatedInnings.total_wickets ?? 0) >= limits.wicketsCap ||
-      (updatedInnings.total_balls ?? 0) >= limits.maxBalls
-    ) {
-      applyAdvance(
-        t,
-        { ...match, ...out.matchPatch },
-        updatedInnings,
-        all.map((i) => (i.id === innings.id ? updatedInnings : i)),
-        teams,
-        now,
-      );
-    }
-    return match;
+    return recordBallFull(t, match, args, checked, now);
   });
 
-  const state = await finishWithState(ctx, matchId, before);
+  const { before } = outcome;
+  let state: ScoringState;
+  if (outcome.state && outcome.after) {
+    await maybeRecalculateStandings(ctx.ds, before, outcome.after);
+    state = outcome.state;
+  } else {
+    state = await finishWithState(ctx, matchId, before);
+  }
   if (state.current_innings !== (before.current_innings ?? 1)) {
     state.innings_break = true;
   }
@@ -509,8 +816,7 @@ export async function undoLastBall(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const before = await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
 
@@ -640,8 +946,7 @@ export async function updateBall(
   }
   const now = new Date().toISOString();
 
-  const before = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const before = await runScoringTransaction(ctx, async (t) => {
     const [match, ball] = await Promise.all([
       t.doc<MatchesRow>("matches", matchId),
       t.doc<BallByBallRow>("ball_by_ball", args.p_ball_id),
@@ -689,8 +994,7 @@ export async function endInnings(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const before = await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all, current } = await currentInningsOf(t, match);
@@ -700,7 +1004,7 @@ export async function endInnings(
       match.team1_id,
       match.team2_id,
     ]);
-    applyAdvance(t, match, current, all, teams, now);
+    applyAdvance(t, match, current, all, teamNamesOf(teams), now);
     return match;
   });
 
@@ -718,8 +1022,7 @@ export async function startSuperOver(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const before = await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all } = await currentInningsOf(t, match);
@@ -781,8 +1084,7 @@ export async function recomputeInningsRpc(
   inningsId: string,
 ): Promise<null> {
   const now = new Date().toISOString();
-  const matchId = await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  const matchId = await runScoringTransaction(ctx, async (t) => {
     const innings = await t.doc<InningsRow>("innings", inningsId);
     if (!innings?.match_id) return null;
     const match = await t.doc<MatchesRow>("matches", innings.match_id);
@@ -798,6 +1100,7 @@ export async function recomputeInningsRpc(
       matchId,
     )) as unknown as MatchesRow | null;
     await maybeRecalculateStandings(ctx.ds, match, match);
+    await writeLiveState(ctx.ds, matchId, ctx.db);
   }
   return null;
 }
@@ -817,8 +1120,7 @@ export async function setCurrentBatsmen(
     throw new DbQueryError("invalid_input", "22000");
   const now = new Date().toISOString();
 
-  await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { current } = await currentInningsOf(t, match);
@@ -861,10 +1163,16 @@ export async function setCurrentBatsmen(
       .sort();
 
     for (const b of batting) {
+      const isCurrent = b.user_id === strikerId || b.user_id === nonStrikerId;
+      const isStriker = b.user_id === strikerId;
+      if (
+        Boolean(b.is_current_batsman) === isCurrent &&
+        Boolean(b.is_striker) === isStriker
+      )
+        continue;
       t.patch("batting_performances", b.id, {
-        is_current_batsman:
-          b.user_id === strikerId || b.user_id === nonStrikerId,
-        is_striker: b.user_id === strikerId,
+        is_current_batsman: isCurrent,
+        is_striker: isStriker,
         updated_at: now,
       });
     }
@@ -898,6 +1206,7 @@ export async function setCurrentBatsmen(
     }
   });
 
+  await writeLiveState(ctx.ds, matchId, ctx.db);
   return { ok: true };
 }
 
@@ -913,25 +1222,36 @@ export async function setCurrentBowler(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  await ctx.db.runTransaction(async (tx) => {
-    const t = new Tx(ctx.db, tx);
+  await runScoringTransaction(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { current } = await currentInningsOf(t, match);
     if (!current) throw new DbQueryError("no_open_innings", "22000");
 
-    const [batting, bowlerTeams, balls, bowling] = await Promise.all([
-      t.where<BattingPerformancesRow>("batting_performances", [
-        ["innings_id", "==", current.id],
-      ]),
-      t.where<TeamPlayersRow>("team_players", [["user_id", "==", bowlerId]]),
-      t.where<BallByBallRow>("ball_by_ball", [
-        ["innings_id", "==", current.id],
-      ]),
-      t.where<BowlingPerformancesRow>("bowling_performances", [
-        ["innings_id", "==", current.id],
-      ]),
-    ]);
+    const currentOver = match.current_over ?? 0;
+    const [batting, bowlerTeams, previousOverBalls, currentBowlers, own] =
+      await Promise.all([
+        t.where<BattingPerformancesRow>("batting_performances", [
+          ["innings_id", "==", current.id],
+          ["is_current_batsman", "==", true],
+        ]),
+        t.where<TeamPlayersRow>("team_players", [["user_id", "==", bowlerId]]),
+        currentOver > 0
+          ? t.where<BallByBallRow>("ball_by_ball", [
+              ["innings_id", "==", current.id],
+              ["over_number", "==", currentOver - 1],
+              ["bowler_id", "==", bowlerId],
+            ])
+          : Promise.resolve([]),
+        t.where<BowlingPerformancesRow>("bowling_performances", [
+          ["innings_id", "==", current.id],
+          ["is_current_bowler", "==", true],
+        ]),
+        t.where<BowlingPerformancesRow>("bowling_performances", [
+          ["innings_id", "==", current.id],
+          ["user_id", "==", bowlerId],
+        ]),
+      ]);
 
     if (batting.some((b) => b.is_current_batsman && b.user_id === bowlerId)) {
       throw new DbQueryError("bowler_is_current_batsman", "22000");
@@ -945,19 +1265,20 @@ export async function setCurrentBowler(
       throw new DbQueryError("bowler_in_batting_team", "22000");
     }
 
-    const currentOver = match.current_over ?? 0;
-    if (currentOver > 0) {
-      const bowledPrevious = balls.some(
-        (b) => b.bowler_id === bowlerId && b.over_number === currentOver - 1,
-      );
-      if (bowledPrevious)
-        throw new DbQueryError("same_bowler_next_over", "22000");
+    if (previousOverBalls.length > 0) {
+      throw new DbQueryError("same_bowler_next_over", "22000");
     }
 
-    const existing = bowling.find((b) => b.user_id === bowlerId);
-    for (const b of bowling) {
+    // Only rows whose flag flips are written: the bowlers currently flagged
+    // and the chosen bowler's own row.
+    const existing = own[0];
+    const touched = new Map(currentBowlers.map((b) => [b.id, b]));
+    for (const b of own) touched.set(b.id, b);
+    for (const b of touched.values()) {
+      const isCurrent = b.user_id === bowlerId;
+      if (Boolean(b.is_current_bowler) === isCurrent) continue;
       t.patch("bowling_performances", b.id, {
-        is_current_bowler: b.user_id === bowlerId,
+        is_current_bowler: isCurrent,
         updated_at: now,
       });
     }
@@ -986,5 +1307,6 @@ export async function setCurrentBowler(
     }
   });
 
+  await writeLiveState(ctx.ds, matchId, ctx.db);
   return { ok: true };
 }
