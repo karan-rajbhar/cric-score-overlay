@@ -19,6 +19,7 @@ import { LowerThirdStraps } from "~/components/overlay/lower-third-straps";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 import type { Match } from "~/lib/match-types";
 import { useBroadcastStore } from "~/lib/stores/useBroadcastStore";
+import { useLiveState } from "~/lib/hooks/useLiveState";
 import {
   playFourFanfare,
   playSixExplosion,
@@ -419,22 +420,22 @@ export function ControlClient({
     };
   }, [matchId]);
 
-  // Live database polling for real matches
-  const refetch = useCallback(async () => {
-    if (!isRealUuid) return;
-    const { data } = await firebase
-      .from("live_match_state")
-      .select("*")
-      .eq("match_id", matchId)
-      .single();
-    if (data) setState(data as LiveMatchState);
-  }, [isRealUuid, matchId]);
-
-  useEffect(() => {
-    if (!isRealUuid) return;
-    const interval = setInterval(refetch, 3000);
-    return () => clearInterval(interval);
-  }, [isRealUuid, refetch]);
+  // Live scoreboard: one listener on live_state/{matchId} (1 read per
+  // change). Once the match is completed or abandoned it stops; the
+  // producer can resume it (e.g. after a scorer undoes the final ball).
+  const [resumeLive, setResumeLive] = useState(false);
+  const isFinished =
+    state?.status === "completed" || state?.status === "abandoned";
+  const live = useLiveState(matchId, {
+    enabled: isRealUuid && (!isFinished || resumeLive),
+    pauseWhenHidden: false,
+  });
+  // Adopt each new snapshot; keep the last one after the listener stops.
+  const [seenLive, setSeenLive] = useState<LiveMatchState | null>(null);
+  if (live.state && live.state !== seenLive) {
+    setSeenLive(live.state);
+    setState(live.state);
+  }
 
   // Command dispatcher
   const sendCommand = useCallback((cmd: Omit<ProducerCommand, "timestamp">) => {
@@ -879,6 +880,17 @@ export function ControlClient({
 
           {/* Quick Production Tools */}
           <div className="flex items-center gap-1.5 sm:gap-2">
+            {isRealUuid && isFinished && !resumeLive && (
+              <button
+                type="button"
+                onClick={() => setResumeLive(true)}
+                className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+                title="Live updates stop when the match ends"
+              >
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                <span>Resume live updates</span>
+              </button>
+            )}
             <button
               onClick={copyObsUrl}
               className={`flex min-h-[36px] items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition ${
@@ -947,7 +959,7 @@ export function ControlClient({
                   <span className="font-semibold text-slate-200">
                     Program Feed
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-2xs text-slate-400">
                     1920×1080 · 60fps
                   </span>
                 </div>
@@ -957,7 +969,7 @@ export function ControlClient({
                     onClick={() =>
                       setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
                     }
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-semibold text-slate-300 transition hover:bg-white/10"
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-2xs font-semibold text-slate-300 transition hover:bg-white/10"
                     title="Toggle preview backdrop between stadium cam and transparency grid"
                   >
                     {monitorBg === "stadium" ? (
@@ -974,7 +986,7 @@ export function ControlClient({
                   <button
                     onClick={handleToggleAudio}
                     className={cn(
-                      "flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition",
+                      "flex items-center gap-1 rounded-lg border px-2 py-1 text-2xs font-bold transition",
                       audioEnabled
                         ? "border-white/20 bg-white/10 text-white"
                         : "border-white/10 bg-white/5 text-slate-400",
@@ -1033,7 +1045,7 @@ export function ControlClient({
               </div>
 
               {/* Active Layers Status HUD */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/40 px-3 py-2 text-[11px]">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/40 px-3 py-2 text-2xs">
                 <div className="flex items-center gap-3">
                   <span className="text-slate-400">Layers:</span>
                   <span className="font-medium text-slate-200">
@@ -1070,7 +1082,7 @@ export function ControlClient({
                 <h2 className="text-sm font-semibold text-slate-100">
                   Event cards
                 </h2>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-2xs text-slate-400">
                   <span className="hidden sm:inline">Click or use hotkeys</span>
                   <span className="sm:hidden">Tap to show</span>
                 </span>
@@ -1261,7 +1273,7 @@ export function ControlClient({
                 <h2 className="text-sm font-semibold text-slate-100">
                   Graphics
                 </h2>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-2xs text-slate-400">
                   Select graphic to push live
                 </span>
               </div>
@@ -1296,7 +1308,7 @@ export function ControlClient({
 
               {/* Views Grid for Active Phase */}
               <div className="mt-3.5 space-y-2">
-                <p className="text-[11px] text-slate-400">
+                <p className="text-2xs text-slate-400">
                   {activeDeck.description}:
                 </p>
 
@@ -1324,7 +1336,7 @@ export function ControlClient({
                             {v.label}
                           </span>
                           {isLive ? (
-                            <span className="flex items-center gap-1 text-[11px] font-medium text-red-300">
+                            <span className="flex items-center gap-1 text-2xs font-medium text-red-300">
                               <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
                               <span>On air</span>
                             </span>
@@ -1334,7 +1346,7 @@ export function ControlClient({
                             </span>
                           )}
                         </div>
-                        <span className="mt-1 text-[11px] text-slate-400">
+                        <span className="mt-1 text-2xs text-slate-400">
                           {v.desc}
                         </span>
                       </button>
@@ -1350,7 +1362,7 @@ export function ControlClient({
                 <h2 className="text-sm font-semibold text-slate-100">
                   Notices
                 </h2>
-                <span className="text-[11px] text-slate-400">Presets</span>
+                <span className="text-2xs text-slate-400">Presets</span>
               </div>
 
               {/* 1-Click Notice Badges */}
@@ -1489,31 +1501,31 @@ export function ControlClient({
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Four</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [4]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Six</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [6]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Wicket</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [W]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Milestone (50/100)</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [M]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Free hit</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [F]
                     </span>
                   </div>
@@ -1525,31 +1537,31 @@ export function ControlClient({
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Back to scorebar</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [Space / Esc]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Striker</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [B]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Bowler</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [O]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Partnership</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [P]
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-300">
                     <span>Chase</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-[11px]">
+                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
                       [T]
                     </span>
                   </div>

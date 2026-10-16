@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/firebase/server";
+import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -522,6 +523,8 @@ export async function updateTournament(
     console.error("updateTournament error:", error);
     return { error: error.message };
   }
+
+  await refreshLiveMatchesFor(db, { tournamentId });
 
   revalidatePath(`/tournaments/${tournamentId}`);
   revalidatePath("/tournaments");

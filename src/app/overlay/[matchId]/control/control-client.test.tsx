@@ -1,6 +1,25 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+
+const watches: Array<{
+  table: string;
+  id: string;
+  next: (data: Record<string, unknown> | null) => void;
+}> = [];
+
+vi.mock("~/lib/firebase/client", () => ({ getFirebaseDb: () => ({}) }));
+vi.mock("~/lib/firebase/realtime", () => ({
+  watchDoc: (
+    _db: unknown,
+    table: string,
+    id: string,
+    handlers: { next: (data: Record<string, unknown> | null) => void },
+  ) => {
+    watches.push({ table, id, next: handlers.next });
+    return () => {};
+  },
+}));
 
 vi.mock("~/lib/firebase", () => ({
   firebase: {
@@ -27,6 +46,7 @@ vi.mock("~/components/overlay/sound-effects", () => ({
   playFreeHitAlert: vi.fn(),
 }));
 
+import { firebase } from "~/lib/firebase";
 import { ControlClient } from "./control-client";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 
@@ -36,7 +56,12 @@ class MockResizeObserver {
   disconnect = vi.fn();
 }
 
+const REAL_ID = "11111111-2222-4333-8444-555555555555";
+// Separate id: the shared listener for REAL_ID lingers briefly after unmount.
+const DONE_ID = "22222222-2222-4333-8444-555555555555";
+
 beforeEach(() => {
+  watches.length = 0;
   window.ResizeObserver =
     MockResizeObserver as unknown as typeof ResizeObserver;
   Object.defineProperty(navigator, "clipboard", {
@@ -210,5 +235,54 @@ describe("ControlClient Component", () => {
     fireEvent.keyDown(window, { key: "w" });
     // Fire keydown for Space
     fireEvent.keyDown(window, { key: " " });
+  });
+
+  it("follows live_state with a single doc listener instead of polling", () => {
+    const intervalSpy = vi.spyOn(globalThis, "setInterval");
+    render(
+      <ControlClient
+        matchId={REAL_ID}
+        initialState={{ ...DEMO_MATCH_STATE, match_id: REAL_ID }}
+        initialMatch={DEMO_MATCH_DETAILS}
+      />,
+    );
+
+    expect(watches.map((w) => [w.table, w.id])).toEqual([
+      ["live_state", REAL_ID],
+    ]);
+    expect(firebase.from).not.toHaveBeenCalled();
+    expect(
+      intervalSpy.mock.calls.some(([, ms]) => typeof ms === "number" && ms <= 15000),
+    ).toBe(false);
+
+    act(() =>
+      watches[0]!.next({
+        ...DEMO_MATCH_STATE,
+        match_id: REAL_ID,
+        total_runs: 201,
+        version: 9,
+      }),
+    );
+    expect(screen.getAllByText(/201\//).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("stops live updates for a finished match until the producer resumes them", () => {
+    render(
+      <ControlClient
+        matchId={DONE_ID}
+        initialState={{
+          ...DEMO_MATCH_STATE,
+          match_id: DONE_ID,
+          status: "completed",
+        }}
+        initialMatch={DEMO_MATCH_DETAILS}
+      />,
+    );
+    expect(watches).toHaveLength(0);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Resume live updates/i }),
+    );
+    expect(watches.map((w) => w.table)).toEqual(["live_state"]);
   });
 });

@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
@@ -17,7 +18,6 @@ import {
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
 import {
-  formatStatus,
   inningsBalls,
   oversFromBalls,
   formatMatchResult,
@@ -83,19 +83,27 @@ import {
 } from "lucide-react";
 import { LiveIndicator } from "~/components/matches/live-indicator";
 
+/** Tabs that need the full match (performances) refetched on each ball. */
+const FULL_MATCH_TABS = new Set(["summary", "scorecard", "superstars"]);
+
 function MatchDetailsPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
   const matchId = params.id as string;
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("summary");
   const {
     data: matchData,
     isLoading: loading,
     error: matchQueryError,
     refetch: refetchQuery,
     isConnected,
-  } = useMatchDetailQuery(matchId);
+  } = useMatchDetailQuery(matchId, {
+    // Only these tabs show per-player figures; the header and the other
+    // tabs run off the live totals or their own (ball log) queries.
+    refetchOnChange: FULL_MATCH_TABS.has(activeTab),
+  });
   const match = matchData ?? null;
   const error = matchQueryError ? matchQueryError.message : null;
   const refetchMatch = useCallback(() => {
@@ -205,19 +213,6 @@ function MatchDetailsPageContent() {
   }, [clubId, tournamentId, playerId, match]);
 
 
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "live":
-        return null;
-      case "completed":
-        return <Badge variant="success">Result</Badge>;
-      case "scheduled":
-        return <Badge variant="outline">Scheduled</Badge>;
-      default:
-        return <Badge variant="outline">{formatStatus(status)}</Badge>;
-    }
-  };
 
   if (loading) {
     return <MatchDetailLoading />;
@@ -394,7 +389,7 @@ function MatchDetailsPageContent() {
                 variant="ghost"
                 size="sm"
                 asChild
-                className="interactive-button shrink-0 pl-0 text-xs font-medium sm:text-sm"
+                className="shrink-0 pl-0 text-xs font-medium sm:text-sm"
               >
                 <Link href={matchBackHref} onClick={handleBackClick}>
                   <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
@@ -448,7 +443,7 @@ function MatchDetailsPageContent() {
                   </span>
                 </span>
               )}
-              {getStatusBadge(match.status)}
+              {match.status !== "live" && <StatusBadge status={match.status} />}
               <Badge variant="outline" className="hidden sm:inline-flex">
                 {match.match_format}
               </Badge>
@@ -506,7 +501,7 @@ function MatchDetailsPageContent() {
                   <span className="truncate max-w-[120px] sm:max-w-none">{match.club.name}</span>
                 </span>
               )}
-              <span className="rounded-full border border-board-line px-2.5 py-0.5 font-medium text-[11px] text-board-foreground/90">
+              <span className="rounded-full border border-board-line px-2.5 py-0.5 font-medium text-2xs text-board-foreground/90">
                 {match.match_format} · {match.overs_per_innings} overs
               </span>
               {match.venue && (
@@ -721,53 +716,57 @@ function MatchDetailsPageContent() {
 
       {/* Tabs Content */}
       <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
-        <Tabs defaultValue="summary" className="space-y-6">
-          <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl border border-border bg-card/60 p-1.5 shadow-sm sm:grid sm:grid-cols-7 sm:justify-stretch">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-6"
+        >
+          <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 sm:grid sm:grid-cols-7 sm:justify-stretch">
             <TabsTrigger
               value="summary"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Summary
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Scorecard</span>
             </TabsTrigger>
             <TabsTrigger
               value="superstars"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Top performers</span>
             </TabsTrigger>
             <TabsTrigger
               value="stats"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Stats
             </TabsTrigger>
             <TabsTrigger
               value="balls"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Balls</span>
             </TabsTrigger>
             <TabsTrigger
               value="info"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Info
             </TabsTrigger>
             <TabsTrigger
               value="h2h"
-              className="shrink-0 gap-1.5 px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-h-[40px] sm:min-h-0 sm:text-sm"
+              className="shrink-0 gap-1.5"
             >
               <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Head to Head</span>

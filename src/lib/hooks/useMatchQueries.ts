@@ -1,7 +1,11 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
 import { createClient } from "~/lib/firebase/client";
 import {
   getPartnerships,
@@ -11,6 +15,46 @@ import {
   getMatch,
 } from "~/app/matches/queries";
 import type { Match } from "~/lib/match-types";
+import {
+  applyLiveState,
+  scheduleInvalidate,
+  useLiveState,
+  useOnLiveChange,
+} from "./useLiveState";
+
+/** Poll interval used only while the live listener is in error. */
+const LIVE_FALLBACK_POLL_MS = 30_000;
+
+const MATCH_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isMatchId(id: string | null | undefined): id is string {
+  return !!id && MATCH_ID_RE.test(id);
+}
+
+/**
+ * Refetch `queryKey` once per live change (debounced, deduplicated across
+ * components). Only mounted queries refetch, so data behind a closed tab
+ * costs nothing. Falls back to a slow poll while the listener is in error.
+ */
+function useRefetchOnLiveChange(matchId: string, queryKey: QueryKey) {
+  const queryClient = useQueryClient();
+  const live = useLiveState(isMatchId(matchId) ? matchId : null);
+  const keyHash = JSON.stringify(queryKey);
+
+  useOnLiveChange(live, () =>
+    scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey),
+  );
+
+  useEffect(() => {
+    if (live.status !== "error") return;
+    const poll = setInterval(
+      () => scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey),
+      LIVE_FALLBACK_POLL_MS,
+    );
+    return () => clearInterval(poll);
+  }, [live.status, queryClient, keyHash]);
+}
 
 export interface WizardTeam {
   id: string;
@@ -123,9 +167,7 @@ export function useMatchWizardDataQuery(userId?: string | null) {
  * TanStack Query hook for Match Partnerships with Realtime Invalidation
  */
 export function usePartnershipsQuery(matchId: string) {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
+    const query = useQuery({
     queryKey: ["matchPartnerships", matchId],
     queryFn: async () => {
       const res = await getPartnerships(matchId);
@@ -137,45 +179,7 @@ export function usePartnershipsQuery(matchId: string) {
   });
 
   // Realtime subscription invalidation
-  useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
-
-    const db = createClient();
-    const channel = db
-      // NOTE: the scorer broadcasts on `match_detail_${matchId}` (see
-      // useScoring broadcastScoreUpdate) — subscribe to that topic, not a
-      // private rt_* topic nobody sends to.
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchPartnerships", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "partnerships",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchPartnerships", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
+  useRefetchOnLiveChange(matchId, ["matchPartnerships", matchId]);
 
   return query;
 }
@@ -184,9 +188,7 @@ export function usePartnershipsQuery(matchId: string) {
  * TanStack Query hook for Manhattan Over Summaries
  */
 export function useOverSummariesQuery(matchId: string) {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
+    const query = useQuery({
     queryKey: ["overSummaries", matchId],
     queryFn: async () => {
       const res = await getOverSummaries(matchId);
@@ -197,43 +199,7 @@ export function useOverSummariesQuery(matchId: string) {
     staleTime: 15 * 1000,
   });
 
-  useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
-
-    const db = createClient();
-    const channel = db
-      // Same shared topic the scorer broadcasts on (see useScoring).
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["overSummaries", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["overSummaries", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
+  useRefetchOnLiveChange(matchId, ["overSummaries", matchId]);
 
   return query;
 }
@@ -245,9 +211,7 @@ export function useMatchBallLogQuery(
   matchId: string,
   inningsNumber?: number,
 ) {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
+    const query = useQuery({
     queryKey: ["matchBallLog", matchId, inningsNumber],
     queryFn: async () => {
       const res = await getMatchBallLog(matchId);
@@ -258,43 +222,7 @@ export function useMatchBallLogQuery(
     staleTime: 15 * 1000,
   });
 
-  useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
-
-    const db = createClient();
-    const channel = db
-      // Same shared topic the scorer broadcasts on (see useScoring).
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchBallLog", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchBallLog", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
+  useRefetchOnLiveChange(matchId, ["matchBallLog", matchId]);
 
   return query;
 }
@@ -315,6 +243,9 @@ export function useMatchesQuery(filters?: {
       return (res.data ?? []) as unknown as Match[];
     },
     staleTime: 30 * 1000, // 30 seconds
+    // No listeners here: a live-matches query listener would bill a read
+    // for every ball of every live match. Refetch on return instead.
+    refetchOnWindowFocus: filters?.status === "live",
   });
 }
 
@@ -523,96 +454,89 @@ export function useMatchAdminQuery(
 }
 
 /**
- * TanStack Query hook for Match Details with automatic Realtime Invalidation
+ * Match details (full scorecard, ~110-160 reads per fetch) kept current by
+ * the `live_state/{matchId}` listener instead of polling:
+ *
+ * - `data` is patched with the live totals on every change (no refetch),
+ *   so headers move with each ball.
+ * - The full match is refetched once per change (debounced) only while
+ *   `refetchOnChange` is true, i.e. a tab that shows per-player detail is
+ *   open, or when the status / innings changes. A skipped change marks the
+ *   data dirty and the next `refetchOnChange` flip catches up once.
+ * - A 30s poll runs only while the listener is in error.
  */
-export function useMatchDetailQuery(matchId?: string | null) {
+export function useMatchDetailQuery(
+  matchId?: string | null,
+  options: { refetchOnChange?: boolean } = {},
+) {
   const queryClient = useQueryClient();
-  const [isConnected, setIsConnected] = useState(false);
+  const refetchOnChange = options.refetchOnChange ?? true;
+  const live = useLiveState(isMatchId(matchId) ? matchId : null);
+  const version = useRef(live.version);
+  useEffect(() => {
+    version.current = live.version;
+  }, [live.version]);
 
   const query = useQuery<Match | null>({
     queryKey: ["matchDetail", matchId ?? ""],
     queryFn: async () => {
       if (!matchId) return null;
-      const res = await getMatch(matchId, { skipCache: true });
+      // Keyed by live version, so the server micro-cache can share one
+      // fetch between every viewer reacting to the same ball.
+      const res = await getMatch(
+        matchId,
+        version.current === null
+          ? { skipCache: true }
+          : { version: version.current },
+      );
       if (res.error) throw new Error(res.error);
       return (res.data as Match) ?? null;
     },
     enabled: Boolean(matchId),
     staleTime: 30 * 1000,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return data?.status === "live" ? 15000 : false;
-    },
+    refetchInterval: (q) =>
+      live.status === "error" && q.state.data?.status === "live"
+        ? LIVE_FALLBACK_POLL_MS
+        : false,
+  });
+
+  const fetched = useRef(query.data);
+  useEffect(() => {
+    fetched.current = query.data;
+  }, [query.data]);
+  const dirty = useRef(false);
+
+  useOnLiveChange(live, (state) => {
+    if (!matchId) return;
+    const current = fetched.current;
+    const structural =
+      !current ||
+      (state?.status ?? current.status) !== current.status ||
+      (state?.innings_number != null &&
+        !current.innings?.some((i) => i.innings_number === state.innings_number));
+    if (refetchOnChange || structural) {
+      dirty.current = false;
+      scheduleInvalidate(queryClient, ["matchDetail", matchId]);
+    } else {
+      dirty.current = true;
+    }
   });
 
   useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
+    if (!refetchOnChange || !dirty.current || !matchId) return;
+    dirty.current = false;
+    scheduleInvalidate(queryClient, ["matchDetail", matchId]);
+  }, [refetchOnChange, matchId, queryClient]);
 
-    const db = createClient();
-    const channel = db
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchDetail", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches",
-          filter: `id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "innings",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .subscribe((status) => {
-        setIsConnected(status === "SUBSCRIBED");
-      });
+  const data = useMemo(
+    () => (query.data ? applyLiveState(query.data, live.state) : query.data),
+    [query.data, live.state],
+  );
 
-    return () => {
-      void db.removeChannel(channel);
-      setIsConnected(false);
-    };
-  }, [matchId, queryClient]);
-
-  return { ...query, isConnected };
+  return {
+    ...query,
+    data,
+    isConnected: live.status === "connected",
+    live,
+  };
 }
-

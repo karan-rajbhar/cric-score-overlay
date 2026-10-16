@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/firebase/server";
+import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { friendlyError } from "./errors";
@@ -414,6 +415,7 @@ export async function startMatch(
   if (inningsError) {
     return { data: null, error: inningsError.message };
   }
+  await refreshLiveState(db, matchId);
   invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   return { data: { match, innings }, error: null };
@@ -738,6 +740,7 @@ export async function setPlayerOfTheMatch(
     return { success: false, error: friendlyError(error.message) };
   }
 
+  await refreshLiveState(db, matchId);
   invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
@@ -784,6 +787,7 @@ export async function autoAssignPlayerOfTheMatch(
       };
     }
 
+    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -831,6 +835,7 @@ export async function updateDlsTarget(
     return { success: false, error: friendlyError(error.message) };
   }
 
+  await refreshLiveState(db, matchId);
   invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   revalidatePath(`/matches/${matchId}/score`);
@@ -1078,6 +1083,7 @@ export async function updateMatchSettings(
       }
     }
 
+    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1151,6 +1157,7 @@ export async function abandonMatch(
       .update({ is_completed: true })
       .eq("match_id", matchId);
 
+    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1269,6 +1276,7 @@ export async function awardTeamPenalty(
       }
     }
 
+    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1412,6 +1420,7 @@ export async function updateTargetRuns(
         .eq("id", matchId);
     }
 
+    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);

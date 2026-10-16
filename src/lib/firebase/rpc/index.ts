@@ -35,6 +35,7 @@ import {
   type UpdateBallArgs,
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
+import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
 
 export interface RpcContext {
   db: Firestore;
@@ -90,6 +91,16 @@ export async function callRpc(
         str(args, "p_match_id"),
         str(args, "p_bowler_id"),
       );
+    case "refresh_live_state":
+      // Server-only (the browser client rejects unknown names): server
+      // actions call this after changing anything the scoreboard shows.
+      return writeLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "get_live_state": {
+      // The scoreboard row from `live_state` (1 read), built once for
+      // matches that predate it.
+      const doc = await ensureLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
+      return doc ? liveRowOf(doc) : null;
+    }
     case "recalculate_tournament_standings":
       await recalculateTournamentStandings(
         ctx.ds,

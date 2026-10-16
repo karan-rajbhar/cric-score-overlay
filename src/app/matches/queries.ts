@@ -55,24 +55,41 @@ import {
   clearPendingLiveQuery,
 } from "~/lib/match-cache";
 
+/**
+ * A versioned entry describes the match as of that live_state version, so it
+ * can be shared longer than the 2s micro-cache.
+ */
+const VERSIONED_MATCH_TTL_MS = 15_000;
+
 export async function getMatch(
   matchId: string,
-  options?: { skipCache?: boolean },
+  options?: {
+    skipCache?: boolean;
+    /**
+     * `live_state.version` the caller is reacting to. Cache entries are then
+     * per version, so viewers refetching after the same ball share one
+     * server read and can never get data from before that change.
+     */
+    version?: number | null;
+  },
 ) {
   if (!UUID_REGEX.test(matchId)) {
     return { data: null, error: "Invalid match ID" };
   }
+  const version = options?.version;
+  const versioned = typeof version === "number";
+  const cacheKey = versioned ? `${matchId}@v${version}` : matchId;
 
   if (!options?.skipCache) {
     const cached = getCachedMatch<{ data: unknown; error: string | null }>(
-      matchId,
+      cacheKey,
     );
     if (cached) {
       return cached;
     }
 
     const inFlight = getPendingQuery<{ data: unknown; error: string | null }>(
-      matchId,
+      cacheKey,
     );
     if (inFlight) {
       return inFlight;
@@ -118,14 +135,18 @@ export async function getMatch(
       }
 
       const result = { data, error: null };
-      setCachedMatch(matchId, result);
+      setCachedMatch(
+        cacheKey,
+        result,
+        versioned ? VERSIONED_MATCH_TTL_MS : undefined,
+      );
       return result;
     } finally {
-      clearPendingQuery(matchId);
+      clearPendingQuery(cacheKey);
     }
   })();
 
-  setPendingQuery(matchId, queryPromise);
+  setPendingQuery(cacheKey, queryPromise);
   return queryPromise;
 }
 
@@ -156,16 +177,17 @@ export async function getLiveMatchState(
 
   const queryPromise = (async () => {
     try {
+      // One read of `live_state/{matchId}` (built once for older matches)
+      // instead of composing the `live_match_state` view (~15 reads).
       const db = await createServerClient();
-      const { data, error } = await db
-        .from("live_match_state")
-        .select("*")
-        .eq("match_id", matchId)
-        .single();
+      const { data, error } = await db.rpc("get_live_state", {
+        p_match_id: matchId,
+      });
 
       if (error) {
         return { data: null, error: error.message };
       }
+      if (!data) return { data: null, error: "Match not found" };
 
       const result = { data, error: null };
       setCachedLiveState(matchId, result);

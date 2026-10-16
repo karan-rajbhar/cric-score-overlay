@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/firebase/server";
+import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -565,6 +566,7 @@ export async function updateTeamLogo(teamId: string, file: File) {
     return { data: null, error: updateError.message };
   }
 
+  await refreshLiveMatchesFor(db, { teamId });
   revalidatePath(`/teams/${teamId}`);
   return { data: urlData.publicUrl, error: null };
 }
@@ -595,6 +597,7 @@ export async function removeTeamLogo(teamId: string) {
     return { error: error.message };
   }
 
+  await refreshLiveMatchesFor(db, { teamId });
   revalidatePath(`/teams/${teamId}`);
   return { error: null };
 }

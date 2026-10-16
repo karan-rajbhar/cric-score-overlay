@@ -43,6 +43,7 @@ import {
   playFreeHitAlert,
 } from "~/components/overlay/sound-effects";
 import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
+import { useLiveState } from "~/lib/hooks/useLiveState";
 
 export type { LiveMatchState, LayoutMode, OverlayTheme };
 
@@ -69,10 +70,7 @@ export function OverlayClient({
   initialSponsor = "",
   initialSafeZone = false,
 }: OverlayClientProps) {
-  const [state, setState] = useState<LiveMatchState | null>(initial);
   const [matchData] = useState<Match | null>(initialMatch);
-  const [isConnected, setIsConnected] = useState(matchId === "test");
-  const fetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Customization & Producer states
   const [layout, setLayout] = useState<LayoutMode>(
@@ -139,6 +137,15 @@ export function OverlayClient({
       matchId,
     );
 
+  // One listener on live_state/{matchId}: 1 read per ball. Never paused,
+  // since OBS may report the source hidden while it is still on air.
+  const live = useLiveState(matchId, {
+    enabled: isRealUuid,
+    pauseWhenHidden: false,
+  });
+  const isConnected = matchId === "test" || live.status === "connected";
+  const state: LiveMatchState | null = live.state ?? initial;
+
   // Stat Carousel rotator (every 8s)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -164,16 +171,6 @@ export function OverlayClient({
     prevRuns.current = state.total_runs;
     prevWickets.current = state.total_wickets;
   }, [state]);
-
-  const refetch = useCallback(async () => {
-    if (!isRealUuid) return;
-    const { data } = await firebase
-      .from("live_match_state")
-      .select("*")
-      .eq("match_id", matchId)
-      .single();
-    if (data) setState(data as LiveMatchState);
-  }, [isRealUuid, matchId]);
 
   // Delivery Event Detector: Triggers animated stings & SFX audio
   useEffect(() => {
@@ -415,7 +412,15 @@ export function OverlayClient({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [triggerManualSting, triggerStrap]);
 
-  // Realtime Subscriptions & Remote Producer Channel
+  // Handlers change with every ball; the producer channel reads them
+  // through a ref so it subscribes once per match, not once per ball.
+  const triggerManualStingRef = useRef(triggerManualSting);
+  useEffect(() => {
+    triggerManualStingRef.current = triggerManualSting;
+  }, [triggerManualSting]);
+
+  // Remote producer channel (control room commands). Scores come from the
+  // live_state listener above.
   useEffect(() => {
     const controlChannel = firebase
       .channel(`overlay_control_${matchId}`)
@@ -449,7 +454,7 @@ export function OverlayClient({
           ) {
             setSponsor(payload.sponsorText);
           } else if (payload.type === "TRIGGER_STING" && payload.stingType) {
-            triggerManualSting(payload.stingType);
+            triggerManualStingRef.current(payload.stingType);
           } else if (payload.type === "SHOW_STRAP" && payload.strap) {
             setActiveStrap(payload.strap);
           } else if (payload.type === "HIDE_STRAP") {
@@ -493,78 +498,10 @@ export function OverlayClient({
       )
       .subscribe();
 
-    if (!isRealUuid) {
-      return () => {
-        void firebase.removeChannel(controlChannel);
-      };
-    }
-
-    const scheduleRefetch = () => {
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
-      fetchTimer.current = setTimeout(() => void refetch(), 250);
-    };
-
-    const dataChannel = firebase
-      .channel(`overlay_${matchId}`)
-      .on(
-        "broadcast",
-        { event: "score_update" },
-        ({ payload }: { payload?: { liveState?: LiveMatchState } }) => {
-          if (payload?.liveState && payload.liveState.match_id === matchId) {
-            setState(payload.liveState);
-          } else {
-            void refetch();
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches",
-          filter: `id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "innings",
-          filter: `match_id=eq.${matchId}`,
-        },
-        scheduleRefetch,
-      )
-      .subscribe((status) => setIsConnected(status === "SUBSCRIBED"));
-
-    const poll = setInterval(() => void refetch(), 15000);
-
     return () => {
       void firebase.removeChannel(controlChannel);
-      void firebase.removeChannel(dataChannel);
-      clearInterval(poll);
-      if (fetchTimer.current) clearTimeout(fetchTimer.current);
     };
-  }, [
-    isRealUuid,
-    matchId,
-    refetch,
-    setAudioEnabled,
-    setAudioVolume,
-    triggerManualSting,
-  ]);
+  }, [matchId, setAudioEnabled, setAudioVolume]);
 
   const copyObsUrl = () => {
     if (typeof window === "undefined") return;
@@ -681,10 +618,10 @@ export function OverlayClient({
           role="img"
           aria-label="Broadcast safe-zone guides: action safe 90 percent, title safe 80 percent, 1920 by 1080 canvas"
         >
-          <div className="absolute inset-[5%] border border-dashed border-amber-400/50 p-2 font-mono text-[11px] text-amber-300">
+          <div className="absolute inset-[5%] border border-dashed border-amber-400/50 p-2 font-mono text-2xs text-amber-300">
             Action safe (90%) · 1920×1080
           </div>
-          <div className="absolute inset-[10%] border border-dashed border-sky-400/50 p-2 font-mono text-[11px] text-sky-300">
+          <div className="absolute inset-[10%] border border-dashed border-sky-400/50 p-2 font-mono text-2xs text-sky-300">
             Title safe (80%) · keep score bug inside
           </div>
         </div>
@@ -949,7 +886,7 @@ export function OverlayClient({
                   className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score transition-colors duration-300"
                 >
                   {/* TOP HEADER SUB-STRIP: TOURNAMENT & MATCH PACE */}
-                  <div className="flex items-center justify-between border-x border-t border-white/20 bg-black/95 px-3.5 py-1 font-score text-[11px] font-semibold text-slate-300">
+                  <div className="flex items-center justify-between border-x border-t border-white/20 bg-black/95 px-3.5 py-1 font-score text-2xs font-semibold text-slate-300">
                     <div className="flex items-center gap-2.5">
                       <span className="font-semibold text-amber-400">
                         {state.tournament_name ?? state.title}
@@ -962,11 +899,11 @@ export function OverlayClient({
                     </div>
                     <div className="flex items-center gap-3">
                       {sponsor && (
-                        <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/80">
+                        <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-2xs font-medium text-white/80">
                           {sponsor}
                         </span>
                       )}
-                      <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/80">
+                      <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-2xs font-medium text-white/80">
                         CRR {state.current_run_rate ?? "—"}
                       </span>
                     </div>
@@ -1042,7 +979,7 @@ export function OverlayClient({
                             <span className="font-score text-base font-bold tabular-nums text-amber-300">
                               {state.striker_runs ?? 0}
                             </span>
-                            <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
+                            <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
                               ({state.striker_balls ?? 0}b)
                             </span>
                             {strikerSr && (
@@ -1067,7 +1004,7 @@ export function OverlayClient({
                             <span className="font-score text-base font-bold tabular-nums text-slate-200">
                               {state.non_striker_runs ?? 0}
                             </span>
-                            <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
+                            <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
                               ({state.non_striker_balls ?? 0}b)
                             </span>
                           </div>
@@ -1088,7 +1025,7 @@ export function OverlayClient({
                           <span className="font-score text-base font-bold tabular-nums text-sky-300">
                             {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
                           </span>
-                          <span className="font-score text-[11px] font-medium tabular-nums text-slate-400">
+                          <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
                             ({oversText(state.bowler_balls)})
                           </span>
                           <span className="rounded bg-white/10 px-1.5 py-0.5 font-score text-[10px] font-medium tabular-nums text-white/70">
@@ -1116,7 +1053,7 @@ export function OverlayClient({
                             ))}
                           </>
                         ) : (
-                          <span className="font-score text-[11px] font-bold text-slate-500">
+                          <span className="font-score text-2xs font-bold text-slate-500">
                             Over in progress
                           </span>
                         )}
@@ -1137,7 +1074,7 @@ export function OverlayClient({
                         <>
                           {state.target_runs !== null ? (
                             <div className="flex items-center gap-3">
-                              <span className="rounded bg-amber-400 px-2 py-0.5 text-[11px] font-semibold text-black">
+                              <span className="rounded bg-amber-400 px-2 py-0.5 text-2xs font-semibold text-black">
                                 Target {state.target_runs}
                               </span>
                               <span className="text-white">
@@ -1191,7 +1128,7 @@ export function OverlayClient({
                       {carouselIdx === 1 && (
                         <>
                           <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="rounded bg-white/15 px-2 py-0.5 text-2xs font-semibold text-white">
                               Partnership
                             </span>
                             <span className="text-white">
@@ -1253,7 +1190,7 @@ export function OverlayClient({
                       {carouselIdx === 2 && (
                         <>
                           <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/15 px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="rounded bg-white/15 px-2 py-0.5 text-2xs font-semibold text-white">
                               Bowler
                             </span>
                             <span className="text-white">
@@ -1279,7 +1216,7 @@ export function OverlayClient({
                       {carouselIdx === 3 && (
                         <>
                           <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/20 px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="rounded bg-white/20 px-2 py-0.5 text-2xs font-semibold text-white">
                               Match
                             </span>
                             <span className="text-white">
@@ -1384,7 +1321,7 @@ export function OverlayClient({
                       <span className="truncate text-xs font-semibold text-amber-400">
                         {state.tournament_name ?? state.title}
                       </span>
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-medium text-white/80">
+                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-2xs font-medium text-white/80">
                         CRR {state.current_run_rate ?? "—"}
                       </span>
                     </div>
@@ -1404,7 +1341,7 @@ export function OverlayClient({
                           >
                             {state.total_runs ?? 0}/{state.total_wickets ?? 0}
                           </p>
-                          <span className="mt-0.5 block text-[11px] font-bold text-slate-300">
+                          <span className="mt-0.5 block text-2xs font-bold text-slate-300">
                             {oversText(state.total_balls)} /{" "}
                             {state.overs_per_innings} ov
                           </span>

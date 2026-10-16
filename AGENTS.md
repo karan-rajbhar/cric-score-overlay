@@ -17,6 +17,7 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 - Named procedures (`rpc("record_ball", ...)`) are TypeScript functions in `~/lib/firebase/rpc/`. The scoring engine recomputes every innings from the ball log inside a Firestore transaction.
 - Collection metadata (columns, defaults, unique constraints, cascades) lives in `~/lib/firebase/schema.ts`. Add a column there and in `types.ts` when the model changes.
 - Writes never happen from the browser; `firestore.rules` only allows public reads.
+- Realtime: viewers listen to the single `live_state/{matchId}` doc (`useLiveState`, `watchDoc`); its `version` is the change signal and heavier data refetches once per change, debounced. No polling and no collection listeners (their first snapshot bills every document). A server action that changes what viewers see must call `refreshLiveState` / `refreshLiveMatchesFor` from `~/lib/firebase/live-sync`.
 
 ## Working guidelines
 
