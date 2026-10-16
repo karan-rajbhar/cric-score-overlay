@@ -1,7 +1,10 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { LiveMatchHUD } from "./live-match-hud";
 import type { Match, Innings } from "~/lib/match-types";
+
+vi.mock("~/lib/hooks/useMediaQuery", () => ({ useMediaQuery: () => false }));
 
 describe("LiveMatchHUD Component", () => {
   const mockMatchChasing: Match = {
@@ -99,7 +102,9 @@ describe("LiveMatchHUD Component", () => {
     );
 
     // Target = 168, current = 134 -> Need 34 runs from 22 balls (120 total - 98 bowled = 22 remaining)
-    expect(screen.getByTestId("chase-equation-title")).toHaveTextContent(/Need 34 runs from 22 balls/i);
+    expect(screen.getByTestId("chase-equation-title")).toHaveTextContent(
+      /Need 34 runs from 22 balls/i,
+    );
     expect(screen.getByText(/Target:/i)).toBeInTheDocument();
     expect(screen.getAllByText("168").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/wickets in hand/i)).toBeInTheDocument();
@@ -123,7 +128,9 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByText(/Virat Kohli \*/i)).toBeInTheDocument();
     expect(screen.getByText(/Hardik Pandya/i)).toBeInTheDocument();
 
-    const swapBtn = screen.getByRole("button", { name: /swap active striker/i });
+    const swapBtn = screen.getByRole("button", {
+      name: /swap active striker/i,
+    });
     fireEvent.click(swapBtn);
     expect(onSwapStriker).toHaveBeenCalledTimes(1);
   });
@@ -186,8 +193,24 @@ describe("LiveMatchHUD Component", () => {
 
     // rawDeliveries contains deliveries from Over 0 (e.g. 6 runs scored in Over 0)
     const rawDeliveries = [
-      { id: "b1", over_number: 0, ball_number: 1, runs_scored: 4, extras: 0, extra_type: null, is_wicket: false },
-      { id: "b2", over_number: 0, ball_number: 2, runs_scored: 2, extras: 0, extra_type: null, is_wicket: false },
+      {
+        id: "b1",
+        over_number: 0,
+        ball_number: 1,
+        runs_scored: 4,
+        extras: 0,
+        extra_type: null,
+        is_wicket: false,
+      },
+      {
+        id: "b2",
+        over_number: 0,
+        ball_number: 2,
+        runs_scored: 2,
+        extras: 0,
+        extra_type: null,
+        is_wicket: false,
+      },
     ];
 
     render(
@@ -212,28 +235,83 @@ describe("LiveMatchHUD Component", () => {
     // This Over runs for the new bowler in over 1 should be 0, not 6!
     expect(screen.getByText(/0 runs/i)).toBeInTheDocument();
     expect(screen.queryByText(/6 runs/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Awaiting first ball of over/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Awaiting first ball of over/i),
+    ).toBeInTheDocument();
+  });
+});
+
+const endInningsFixture = {
+  id: "inn-1",
+  match_id: "m1",
+  innings_number: 1,
+  total_runs: 142,
+  total_wickets: 6,
+  total_overs: 17.2,
+  fall_of_wickets: [],
+} as unknown as Innings;
+
+function renderHud(innings_number = 1) {
+  const onEndInnings = vi.fn();
+  const match = {
+    id: "m1",
+    title: "Test match",
+    status: "live",
+    current_innings: innings_number,
+    overs_per_innings: 20,
+    wickets_per_innings: 10,
+    balls_per_over: 6,
+    innings: [{ ...endInningsFixture, innings_number }],
+  } as unknown as Match;
+  render(
+    <LiveMatchHUD
+      match={match}
+      currentInnings={{ ...endInningsFixture, innings_number }}
+      striker={null}
+      nonStriker={null}
+      bowler={null}
+      lastBalls={[]}
+      battingTeamName="Strikers"
+      onEndInnings={onEndInnings}
+    />,
+  );
+  return { onEndInnings, user: userEvent.setup() };
+}
+
+describe("LiveMatchHUD end innings", () => {
+  it("asks for confirmation and can be cancelled", async () => {
+    const { onEndInnings, user } = renderHud();
+    await user.click(screen.getByRole("button", { name: "End inns" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "End this innings?",
+    });
+    expect(dialog).toHaveTextContent("Strikers 142/6 after");
+    expect(dialog).toHaveTextContent("target of 143");
+
+    await user.click(screen.getByRole("button", { name: "Keep scoring" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onEndInnings).not.toHaveBeenCalled();
   });
 
-  it("requires a second confirming tap before ending innings", () => {
-    const onEndInnings = vi.fn();
-    render(
-      <LiveMatchHUD
-        match={mockMatchChasing}
-        currentInnings={mockCurrentInningsChasing}
-        striker={mockStriker}
-        nonStriker={mockNonStriker}
-        bowler={mockBowler}
-        lastBalls={["1", "4"]}
-        onEndInnings={onEndInnings}
-      />,
-    );
+  it("closes on Escape without ending the innings", async () => {
+    const { onEndInnings, user } = renderHud();
+    await user.click(screen.getByRole("button", { name: "End inns" }));
+    await screen.findByRole("dialog");
 
-    const endBtn = screen.getByRole("button", { name: /^end inns$/i });
-    fireEvent.click(endBtn);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(onEndInnings).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /confirm end inns/i }));
+  it("ends the innings once when confirmed", async () => {
+    const { onEndInnings, user } = renderHud(2);
+    await user.click(screen.getByRole("button", { name: "End inns" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("No more balls can be scored");
+
+    await user.click(screen.getByRole("button", { name: "End innings" }));
     expect(onEndInnings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
