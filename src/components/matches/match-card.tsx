@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardContent } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { MapPin, CalendarDays, PlayCircle } from "lucide-react";
@@ -16,21 +16,6 @@ interface MatchCardProps {
   canScore?: boolean;
   /** Optional context query params (e.g. from=matches or clubId=xxx) */
   contextQuery?: string;
-}
-
-function StatusBadge({ status }: { status: Match["status"] }) {
-  switch (status) {
-    case "live":
-      return <Badge variant="live">Live</Badge>;
-    case "completed":
-      return <Badge variant="success">Result</Badge>;
-    case "scheduled":
-      return <Badge variant="outline">Scheduled</Badge>;
-    case "abandoned":
-      return <Badge variant="warning">Abandoned</Badge>;
-    default:
-      return <Badge variant="outline">{formatStatus(status)}</Badge>;
-  }
 }
 
 function TeamRow({
@@ -105,13 +90,13 @@ export function MatchCard({
   return (
     <Link
       href={`/matches/${match.id}${contextQuery ? `?${contextQuery}` : ""}`}
-      className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       aria-label={`${match.team1.name} versus ${match.team2.name}, ${formatStatus(match.status)}`}
     >
-      <Card className="card-data overflow-hidden transition-colors duration-150 group-hover:border-primary/40">
+      <Card className="h-full overflow-hidden transition-colors group-hover:border-primary/40">
         <CardContent className="p-0">
           {/* Meta strip */}
-          <div className="flex items-center justify-between border-b border-border/80 px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <StatusBadge status={match.status} />
             <span className="text-xs font-medium text-muted-foreground">
               {match.match_format}, {match.overs_per_innings} overs
@@ -129,7 +114,7 @@ export function MatchCard({
           </div>
 
           {/* Result / timing */}
-          <div className="border-t border-border/80 px-4 py-2.5">
+          <div className="border-t border-border px-4 py-2.5">
             {match.result_description ? (
               <p className="truncate text-sm font-semibold text-primary">
                 {formatMatchResult(match)}
@@ -152,7 +137,7 @@ export function MatchCard({
 
           {/* Actions */}
           {showActions && (
-            <div className="flex gap-2 border-t border-border/80 px-4 py-3">
+            <div className="flex gap-2 border-t border-border px-4 py-3">
               <Button asChild size="sm" variant="outline" className="flex-1">
                 <span>Scorecard</span>
               </Button>

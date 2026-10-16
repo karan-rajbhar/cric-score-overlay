@@ -132,14 +132,14 @@ export function ClubMediaDialog({
         ) : (
           <Button variant="outline" size="sm" className="gap-1.5">
             <Camera className="h-4 w-4" />
-            <span>Branding & Media</span>
+            <span>Branding & media</span>
           </Button>
         )}
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Club Branding & Media</DialogTitle>
+          <DialogTitle>Club branding & media</DialogTitle>
           <DialogDescription>
             Customize your club identity with an official crest and banner image.
           </DialogDescription>
@@ -150,7 +150,7 @@ export function ClubMediaDialog({
           <div className="rounded-xl border border-border/70 p-4 space-y-3 bg-muted/20">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-semibold">Club Emblem / Logo</h4>
+                <h4 className="text-sm font-semibold">Club emblem / logo</h4>
                 <p className="text-xs text-muted-foreground">
                   Square crest or shield · PNG, JPG, WebP, SVG (max 2 MB)
                 </p>
@@ -212,7 +212,7 @@ export function ClubMediaDialog({
           {/* Section: Club Banner */}
           <div className="rounded-xl border border-border/70 p-4 space-y-3 bg-muted/20">
             <div>
-              <h4 className="text-sm font-semibold">Club Hero Banner</h4>
+              <h4 className="text-sm font-semibold">Club hero banner</h4>
               <p className="text-xs text-muted-foreground">
                 Wide landscape cover · PNG, JPG, or WebP (max 5 MB)
               </p>

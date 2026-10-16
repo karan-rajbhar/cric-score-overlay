@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { Initials } from "~/components/ui/initials";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent } from "~/components/ui/card";
+import { StatTile } from "~/components/ui/stat-tile";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
@@ -50,6 +52,7 @@ import {
   formatTeamType,
 } from "~/lib/cricket";
 import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
+import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
@@ -357,11 +360,11 @@ export default async function ClubPage({
   };
 
   return (
-    <div className="container mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       <Button variant="ghost" size="sm" asChild className="mb-4">
         <Link href="/clubs">
           <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-          All Clubs
+          All clubs
         </Link>
       </Button>
 
@@ -405,7 +408,7 @@ export default async function ClubPage({
                     <Calendar className="h-3 w-3 shrink-0" />
                     <span>{s.name}</span>
                     {s.is_current && (
-                      <span className="text-[10px] font-normal opacity-80">
+                      <span className="text-2xs font-normal opacity-80">
                         (Active)
                       </span>
                     )}
@@ -553,39 +556,19 @@ export default async function ClubPage({
         </div>
 
         {/* Club Stats Counters */}
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-border/50 pt-4 text-center sm:grid-cols-4">
-          <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">
-              {typedTeams.length}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Teams
-            </div>
-          </div>
-          <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">
-              {typedTournaments.length}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Tournaments
-            </div>
-          </div>
-          <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">
-              {typedHallOfFame.length}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Hall of Fame
-            </div>
-          </div>
-          <div>
-            <div className="text-xl font-bold tabular-nums text-foreground">
-              {typedMembers.length}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Members
-            </div>
-          </div>
+        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
+          <StatTile bordered={false} label="Teams" value={typedTeams.length} />
+          <StatTile
+            bordered={false}
+            label="Tournaments"
+            value={typedTournaments.length}
+          />
+          <StatTile
+            bordered={false}
+            label="Hall of fame"
+            value={typedHallOfFame.length}
+          />
+          <StatTile bordered={false} label="Members" value={typedMembers.length} />
         </div>
       </div>
 
@@ -594,45 +577,39 @@ export default async function ClubPage({
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-6 sm:max-w-3xl sm:justify-stretch">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:grid sm:grid-cols-6 sm:max-w-3xl sm:justify-stretch">
           <TabsTrigger
             value="teams"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Shield className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Teams ({typedTeams.length})
           </TabsTrigger>
           <TabsTrigger
             value="tournaments"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Tournaments ({typedTournaments.length})
           </TabsTrigger>
           <TabsTrigger
             value="matches"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Matches ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="stats"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Stats & Records
+            Stats & records
           </TabsTrigger>
           <TabsTrigger
             value="hall-of-fame"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Award className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Hall of Fame ({typedHallOfFame.length})
           </TabsTrigger>
           <TabsTrigger
             value="members"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Members ({typedMembers.length})
@@ -652,7 +629,7 @@ export default async function ClubPage({
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/teams/create?clubId=${club.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
-                  Add Team
+                  Add team
                 </Link>
               </Button>
             )}
@@ -795,7 +772,7 @@ export default async function ClubPage({
                           </Badge>
                           <div className="flex items-center gap-1.5">
                             {entry.season_or_year && (
-                              <span className="font-mono text-[11px] text-muted-foreground">
+                              <span className="font-mono text-2xs text-muted-foreground">
                                 {entry.season_or_year}
                               </span>
                             )}
@@ -812,9 +789,7 @@ export default async function ClubPage({
                         </div>
 
                         <div className="mb-3 flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-muted text-sm font-semibold text-muted-foreground">
-                            {(entry.player?.full_name ?? "L")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={entry.player?.full_name} fallback="L" className="h-11 w-11 text-sm" />
                           <div>
                             <h3 className="text-base font-semibold leading-tight text-foreground">
                               {entry.player?.full_name ?? "Honored Member"}
@@ -838,7 +813,7 @@ export default async function ClubPage({
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-[10px] text-muted-foreground">
+                      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-2xs text-muted-foreground">
                         <span>Inducted</span>
                         {entry.inducted_at && (
                           <span>
@@ -896,9 +871,7 @@ export default async function ClubPage({
                         className="flex items-center justify-between p-4"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                            {(m.user?.full_name ?? "U")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={m.user?.full_name} fallback="U" className="h-9 w-9" />
                           <div>
                             <div className="font-semibold text-foreground">
                               {m.user?.full_name ?? "Unnamed Member"}
@@ -949,6 +922,6 @@ export default async function ClubPage({
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

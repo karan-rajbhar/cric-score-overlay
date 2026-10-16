@@ -4,24 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "~/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
   {
     variants: {
       variant: {
         default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+          "border-transparent bg-primary text-primary-foreground",
         secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "border-transparent bg-secondary text-secondary-foreground",
         destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
+          "border-transparent bg-destructive text-destructive-foreground",
         outline: "border-border text-foreground",
-        live: "border-destructive/30 bg-destructive/10 text-destructive [&::before]:mr-1.5 [&::before]:inline-block [&::before]:h-1.5 [&::before]:w-1.5 [&::before]:animate-pulse [&::before]:rounded-full [&::before]:bg-destructive [&::before]:content-['']",
+        live: "border-destructive/30 bg-destructive/10 text-destructive [&::before]:mr-1.5 [&::before]:inline-block [&::before]:h-1.5 [&::before]:w-1.5 [&::before]:animate-pulse motion-reduce:[&::before]:animate-none [&::before]:rounded-full [&::before]:bg-destructive [&::before]:content-['']",
         success: "border-primary/25 bg-primary/10 text-primary",
+        loss: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400",
         warning: "border-gold/30 bg-gold/10 text-amber-800 dark:text-gold",
-        violet: "border-border bg-muted text-foreground",
-        magenta: "border-border bg-muted text-foreground",
-        citrus: "border-gold/30 bg-gold/10 text-amber-800 dark:text-gold",
-        sky: "border-border bg-muted text-foreground",
       },
     },
     defaultVariants: {

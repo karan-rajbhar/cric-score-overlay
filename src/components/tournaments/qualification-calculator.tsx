@@ -104,7 +104,7 @@ export function QualificationCalculator({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            Qualification & Cutoff Calculator
+            Qualification & cutoff calculator
           </DialogTitle>
           <DialogDescription>
             Qualification scenarios for{" "}
@@ -160,14 +160,14 @@ export function QualificationCalculator({
                   </div>
                   <div>
                     {isQ && (
-                      <Badge className="border-emerald-500/40 bg-emerald-500/20 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <Badge className="border-emerald-500/40 bg-emerald-500/20 text-2xs font-bold text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="mr-1 h-3 w-3" /> Qualified (Q)
                       </Badge>
                     )}
                     {isE && (
                       <Badge
                         variant="destructive"
-                        className="text-[11px] font-bold"
+                        className="text-2xs font-bold"
                       >
                         <XCircle className="mr-1 h-3 w-3" /> Eliminated (E)
                       </Badge>
@@ -175,9 +175,9 @@ export function QualificationCalculator({
                     {!isQ && !isE && (
                       <Badge
                         variant="secondary"
-                        className="text-[11px] font-bold"
+                        className="text-2xs font-bold"
                       >
-                        <HelpCircle className="mr-1 h-3 w-3" /> In Contention
+                        <HelpCircle className="mr-1 h-3 w-3" /> In contention
                       </Badge>
                     )}
                   </div>

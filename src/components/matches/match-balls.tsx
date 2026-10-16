@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Badge } from "~/components/ui/badge";
+import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
 import { cn } from "~/lib/utils";
 import { Loader2 } from "lucide-react";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
@@ -107,28 +108,24 @@ export function MatchBalls({ match }: MatchBallsProps) {
   return (
     <div className="space-y-4">
       {/* Filter Buttons */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Badge
-          variant={filter === "all" ? "default" : "outline"}
-          className="cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
-          onClick={() => setFilter("all")}
-        >
-          All deliveries
-        </Badge>
-        <Badge
-          variant={filter === "boundaries" ? "magenta" : "outline"}
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
-          onClick={() => setFilter("boundaries")}
-        >
-          Boundaries (4s &amp; 6s)
-        </Badge>
-        <Badge
-          variant={filter === "wickets" ? "destructive" : "outline"}
-          className="inline-flex items-center gap-1.5 cursor-pointer rounded-full px-3 py-1 font-medium transition-colors"
-          onClick={() => setFilter("wickets")}
-        >
-          Wickets
-        </Badge>
+      <div role="group" aria-label="Filter deliveries" className={segmentedTrack}>
+        {(
+          [
+            ["all", "All deliveries"],
+            ["boundaries", "Boundaries (4s & 6s)"],
+            ["wickets", "Wickets"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={filter === value}
+            onClick={() => setFilter(value)}
+            className={segmentedItem(filter === value)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <Tabs
@@ -139,12 +136,12 @@ export function MatchBalls({ match }: MatchBallsProps) {
         }
         className="w-full"
       >
-        <TabsList className="mb-4 grid h-auto w-full max-w-xs grid-cols-2 gap-1 p-1">
+        <TabsList className="mb-4 grid h-auto w-full max-w-xs grid-cols-2">
           {sortedInnings.map((innings) => (
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="justify-center px-2 py-1.5 text-xs font-semibold sm:px-4 sm:text-sm"
+              className="px-2 sm:px-4"
             >
               {innings.innings_number === 1 ? "1st" : "2nd"} Innings
             </TabsTrigger>
@@ -291,7 +288,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                     {ball.extra_type && (
                                       <Badge
                                         variant="outline"
-                                        className="text-[10px] px-1.5 py-0 uppercase"
+                                        className="text-2xs px-1.5 py-0 uppercase"
                                       >
                                         {formatExtraType(ball.extra_type)}
                                       </Badge>

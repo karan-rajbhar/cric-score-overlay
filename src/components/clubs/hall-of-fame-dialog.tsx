@@ -94,7 +94,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Hall of Fame Induction</DialogTitle>
+          <DialogTitle className="text-xl">Hall of Fame induction</DialogTitle>
           <DialogDescription>
             Recognise a player or record holder in the club&apos;s Hall of
             Fame.
@@ -103,7 +103,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="player">Select Member / Legend</Label>
+            <Label htmlFor="player">Select member / legend</Label>
             <Select value={playerId} onValueChange={setPlayerId}>
               <SelectTrigger id="player">
                 <SelectValue placeholder="Choose a member..." />
@@ -125,21 +125,21 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="legend">Club Legend (General)</SelectItem>
+                <SelectItem value="legend">Club legend (general)</SelectItem>
                 <SelectItem value="top_scorer">
-                  All-Time Top Run Scorer
+                  All-time top run scorer
                 </SelectItem>
                 <SelectItem value="top_wicket_taker">
-                  Record Wicket Taker
+                  Record wicket taker
                 </SelectItem>
-                <SelectItem value="champion">Championship Winner</SelectItem>
-                <SelectItem value="record">Historic Milestone</SelectItem>
+                <SelectItem value="champion">Championship winner</SelectItem>
+                <SelectItem value="record">Historic milestone</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Honor / Title</Label>
+            <Label htmlFor="title">Honor / title</Label>
             <Input
               id="title"
               value={title}
@@ -149,7 +149,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="metric">Record Metric (Optional)</Label>
+            <Label htmlFor="metric">Record metric (optional)</Label>
             <Input
               id="metric"
               value={recordMetric}
@@ -159,7 +159,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="season">Season / Era (Optional)</Label>
+            <Label htmlFor="season">Season / era (optional)</Label>
             <Input
               id="season"
               value={seasonOrYear}
@@ -169,7 +169,7 @@ export function HallOfFameDialog({ clubId, members }: HallOfFameDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Citation / Description</Label>
+            <Label htmlFor="description">Citation / description</Label>
             <Textarea
               id="description"
               value={description}

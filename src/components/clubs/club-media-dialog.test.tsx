@@ -29,9 +29,9 @@ describe("ClubMediaDialog", () => {
     expect(trigger).toBeInTheDocument();
     fireEvent.click(trigger);
 
-    expect(screen.getByText("Club Branding & Media")).toBeInTheDocument();
+    expect(screen.getByText("Club branding & media")).toBeInTheDocument();
     expect(screen.getByText(/Club Emblem \/ Logo/i)).toBeInTheDocument();
-    expect(screen.getByText(/Club Hero Banner/i)).toBeInTheDocument();
+    expect(screen.getByText(/Club hero banner/i)).toBeInTheDocument();
   });
 
   it("triggers logo upload on file selection", async () => {

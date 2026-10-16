@@ -281,12 +281,12 @@ export function PointsTableShare({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Share2 className="h-4 w-4" />
-          Share Table
+          Share table
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Share Points Table Graphic</DialogTitle>
+          <DialogTitle>Share points table graphic</DialogTitle>
           <DialogDescription>
             Download or copy the points table as an image to share.
           </DialogDescription>

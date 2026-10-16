@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Input } from "~/components/ui/input";
 import {
   Select,
@@ -54,13 +55,6 @@ interface ClubMatchesTabProps {
   matches: ClubMatchItem[];
   seasons: ClubSeasonItem[];
   isAdmin: boolean;
-}
-
-function formatStatus(status: string) {
-  return status
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 }
 
 export function ClubMatchesTab({
@@ -114,7 +108,7 @@ export function ClubMatchesTab({
       {/* Header with action */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-bold sm:text-lg">Club Matches</h2>
+          <h2 className="text-base font-bold sm:text-lg">Club matches</h2>
           <p className="text-xs text-muted-foreground">
             Live scores, schedules, and past results for matches hosted by this club.
           </p>
@@ -123,7 +117,7 @@ export function ClubMatchesTab({
           <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
             <Link href={`/matches/create?clubId=${clubId}`}>
               <Plus className="h-4 w-4 shrink-0" />
-              Schedule Match
+              Schedule match
             </Link>
           </Button>
         )}
@@ -154,7 +148,7 @@ export function ClubMatchesTab({
                   <SelectValue placeholder="Season" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Seasons</SelectItem>
+                  <SelectItem value="all">All seasons</SelectItem>
                   {seasons.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} {s.is_current ? "(Active)" : ""}
@@ -172,8 +166,8 @@ export function ClubMatchesTab({
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="live">Live Now</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="live">Live now</SelectItem>
                 <SelectItem value="upcoming">Upcoming</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
@@ -206,7 +200,6 @@ export function ClubMatchesTab({
         <div className="grid gap-4 md:grid-cols-2">
           {filteredMatches.map((m) => {
             const isLive = m.status === "live";
-            const isCompleted = m.status === "completed";
             const inn1 = m.innings?.find((i) => i.team_id === m.team1?.id);
             const inn2 = m.innings?.find((i) => i.team_id === m.team2?.id);
             const seasonName = m.season_id ? seasonMap.get(m.season_id) : null;
@@ -223,24 +216,14 @@ export function ClubMatchesTab({
                       {seasonName && (
                         <Badge
                           variant="secondary"
-                          className="gap-1 text-[10px]"
+                          className="gap-1 text-2xs"
                         >
                           <Calendar className="h-2.5 w-2.5 shrink-0" />
                           {seasonName}
                         </Badge>
                       )}
                     </div>
-                    <Badge
-                      variant={
-                        isLive
-                          ? "live"
-                          : isCompleted
-                            ? "secondary"
-                            : "outline"
-                      }
-                    >
-                      {formatStatus(m.status)}
-                    </Badge>
+                    <StatusBadge status={m.status} />
                   </div>
 
                   <div className="space-y-2">
@@ -304,7 +287,7 @@ export function ClubMatchesTab({
                       className="h-7 text-xs"
                     >
                       <Link href={`/matches/${m.id}?clubId=${clubId}`}>
-                        {isLive ? "Match Center" : "View Scorecard"}
+                        {isLive ? "Match center" : "View scorecard"}
                       </Link>
                     </Button>
                   </div>

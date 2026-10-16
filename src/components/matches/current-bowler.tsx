@@ -64,7 +64,7 @@ export function CurrentBowler({
               }
             >
               <Repeat className="h-3.5 w-3.5 text-sky-600" />
-              Change Bowler
+              Change bowler
             </button>
           )}
         </div>
@@ -96,7 +96,7 @@ export function CurrentBowler({
                     : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3.5 py-1.5 text-xs font-bold text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300"
                 }
               >
-                Select Bowler
+                Select bowler
               </button>
             )}
           </div>
@@ -121,8 +121,8 @@ export function CurrentBowler({
               <p
                 className={
                   sunlightMode
-                    ? "tabular mt-0.5 text-xs font-bold text-black"
-                    : "tabular mt-0.5 text-xs text-muted-foreground"
+                    ? "tabular-nums mt-0.5 text-xs font-bold text-black"
+                    : "tabular-nums mt-0.5 text-xs text-muted-foreground"
                 }
               >
                 <span
@@ -143,8 +143,8 @@ export function CurrentBowler({
             <p
               className={
                 sunlightMode
-                  ? "score-display tabular shrink-0 text-3xl font-bold leading-none text-black sm:text-4xl"
-                  : "score-display tabular shrink-0 text-2xl font-bold leading-none text-foreground sm:text-3xl"
+                  ? "score-display tabular-nums shrink-0 text-3xl font-bold leading-none text-black sm:text-4xl"
+                  : "score-display tabular-nums shrink-0 text-2xl font-bold leading-none text-foreground sm:text-3xl"
               }
             >
               <span

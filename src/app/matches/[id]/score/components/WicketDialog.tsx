@@ -163,7 +163,7 @@ export function WicketDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record Wicket</DialogTitle>
+          <DialogTitle>Record wicket</DialogTitle>
           <DialogDescription>
             Specify the dismissal mode and involved players to record the fall
             of wicket.
@@ -234,7 +234,7 @@ export function WicketDialog({
           {strikerId && nonStrikerId && onDismissedPlayerChange && (
             <div>
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Batsman Dismissed</label>
+                <label className="text-sm font-medium">Batsman dismissed</label>
                 {dismissalType !== "run_out" && (
                   <span className="text-xs text-muted-foreground">
                     (Striker)
@@ -311,7 +311,7 @@ export function WicketDialog({
             onClick={onConfirm}
             disabled={isProcessing}
           >
-            Confirm Wicket
+            Confirm wicket
           </Button>
         </div>
       </DialogContent>

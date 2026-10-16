@@ -25,6 +25,7 @@ import { createTeam } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
 import { ChevronLeft, Loader2, Users, Shield } from "lucide-react";
+import { PageContainer } from "~/components/layout/page";
 
 
 function CreateTeamForm() {
@@ -69,7 +70,7 @@ function CreateTeamForm() {
             Team registration
           </span>
         </div>
-        <CardTitle className="text-xl">Create New Team</CardTitle>
+        <CardTitle className="text-xl">Create new team</CardTitle>
         <CardDescription>
           Form a new squad, assign team identity, and optionally link with a
           registered club.
@@ -78,7 +79,7 @@ function CreateTeamForm() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Team Name *</Label>
+            <Label htmlFor="name">Team name *</Label>
             <Input
               id="name"
               name="name"
@@ -90,7 +91,7 @@ function CreateTeamForm() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div>
-              <Label htmlFor="short_name">Short Name / Code</Label>
+              <Label htmlFor="short_name">Short name / code</Label>
               <Input
                 id="short_name"
                 name="short_name"
@@ -101,22 +102,22 @@ function CreateTeamForm() {
             </div>
 
             <div>
-              <Label htmlFor="team_type">Team Type</Label>
+              <Label htmlFor="team_type">Team type</Label>
               <Select name="team_type" defaultValue="club">
                 <SelectTrigger id="team_type" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="club">Club Team</SelectItem>
-                  <SelectItem value="tournament">Tournament Squad</SelectItem>
-                  <SelectItem value="match">Match-only Team</SelectItem>
+                  <SelectItem value="club">Club team</SelectItem>
+                  <SelectItem value="tournament">Tournament squad</SelectItem>
+                  <SelectItem value="match">Match-only team</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="club_select">Affiliated Club (Optional)</Label>
+            <Label htmlFor="club_select">Affiliated club (optional)</Label>
             <Select
               value={selectedClubId || "none"}
               onValueChange={(val) =>
@@ -128,7 +129,7 @@ function CreateTeamForm() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
-                  Independent (No club affiliation)
+                  Independent (no club affiliation)
                 </SelectItem>
                 {clubs.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
@@ -148,7 +149,7 @@ function CreateTeamForm() {
           </div>
 
           <div>
-            <Label htmlFor="description">About the Team</Label>
+            <Label htmlFor="description">About the team</Label>
             <Textarea
               id="description"
               name="description"
@@ -223,12 +224,12 @@ export default function CreateTeamPage() {
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
             <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
-            <h2 className="mb-1 text-lg font-semibold">Sign In Required</h2>
+            <h2 className="mb-1 text-lg font-semibold">Sign in required</h2>
             <p className="mb-4 text-sm text-muted-foreground">
               You must be signed in to create and manage teams.
             </p>
             <Button asChild>
-              <Link href="/auth/login?redirect=/teams/create">Sign In</Link>
+              <Link href="/auth/login?redirect=/teams/create">Sign in</Link>
             </Button>
           </CardContent>
         </Card>
@@ -237,8 +238,7 @@ export default function CreateTeamPage() {
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-screen bg-background py-6 sm:py-8">
-      <div className="container mx-auto max-w-xl px-3 sm:px-4">
+    <PageContainer size="form" stack={false}>
         <Suspense fallback={null}>
           <CreateTeamBackButton />
         </Suspense>
@@ -252,7 +252,6 @@ export default function CreateTeamPage() {
         >
           <CreateTeamForm />
         </Suspense>
-      </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -68,7 +68,7 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByText("Tournament Leaderboard")).toBeInTheDocument();
     expect(screen.getByText("Orange Cap")).toBeInTheDocument();
     expect(screen.getByText("Purple Cap")).toBeInTheDocument();
-    expect(screen.getByText("MVP Leader")).toBeInTheDocument();
+    expect(screen.getByText("MVP leader")).toBeInTheDocument();
 
     // Check top run scorer in highlight card
     expect(screen.getAllByText("Virat Kohli").length).toBeGreaterThan(0);
@@ -125,10 +125,10 @@ describe("LeaderboardView Component", () => {
     const mvpTabTrigger = screen.getByRole("tab", { name: /mvp/i });
     fireEvent.click(mvpTabTrigger);
 
-    expect(screen.getByText("Total Points")).toBeInTheDocument();
-    expect(screen.getByText("Bat Pts")).toBeInTheDocument();
-    expect(screen.getByText("Bowl Pts")).toBeInTheDocument();
-    expect(screen.getByText("Field Pts")).toBeInTheDocument();
+    expect(screen.getByText("Total points")).toBeInTheDocument();
+    expect(screen.getByText("Bat pts")).toBeInTheDocument();
+    expect(screen.getByText("Bowl pts")).toBeInTheDocument();
+    expect(screen.getByText("Field pts")).toBeInTheDocument();
   });
 
   it("filters player list by search query", () => {

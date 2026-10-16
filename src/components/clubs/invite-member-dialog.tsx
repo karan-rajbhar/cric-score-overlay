@@ -57,12 +57,12 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
           <UserPlus className="h-3.5 w-3.5" />
-          <span>Invite Member</span>
+          <span>Invite member</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Invite Player or Staff</DialogTitle>
+          <DialogTitle className="text-xl">Invite player or staff</DialogTitle>
           <DialogDescription>
             Send a club invitation to a cricketer, scorer, or coach by their
             email address.
@@ -71,7 +71,7 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
 
         <form onSubmit={handleInvite} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="invite-email">Email Address</Label>
+            <Label htmlFor="invite-email">Email address</Label>
             <Input
               id="invite-email"
               type="email"

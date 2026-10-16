@@ -206,11 +206,11 @@ export function DlsCalculatorModal({
 
           {/* Par Score Calculator */}
           <div className="space-y-2 rounded-lg border p-3">
-            <p className="text-xs font-semibold">Live Par Score Checker</p>
+            <p className="text-xs font-semibold">Live par score checker</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-[11px] text-muted-foreground">
-                  Overs Bowled
+                <Label className="text-2xs text-muted-foreground">
+                  Overs bowled
                 </Label>
                 <Input
                   type="number"
@@ -224,8 +224,8 @@ export function DlsCalculatorModal({
                 />
               </div>
               <div>
-                <Label className="text-[11px] text-muted-foreground">
-                  Wickets Lost
+                <Label className="text-2xs text-muted-foreground">
+                  Wickets lost
                 </Label>
                 <Input
                   type="number"

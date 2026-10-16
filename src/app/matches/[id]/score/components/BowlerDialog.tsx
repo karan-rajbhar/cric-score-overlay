@@ -107,7 +107,7 @@ export function BowlerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Select / Change Bowler</DialogTitle>
+          <DialogTitle>Select / change bowler</DialogTitle>
           <DialogDescription>
             Choose the bowler. If the wrong bowler was selected mid-game, you
             can reassign the over deliveries to the correct bowler.
@@ -117,7 +117,7 @@ export function BowlerDialog({
           {uniqueBowlingPlayers.length > 0 && (
             <div>
               <label className="text-xs font-medium text-muted-foreground">
-                Quick Select Bowler
+                Quick select bowler
               </label>
               <div
                 className="mt-1.5 flex flex-wrap gap-1.5"
@@ -270,7 +270,7 @@ export function BowlerDialog({
               isProcessing
             }
           >
-            Confirm Bowler
+            Confirm bowler
           </Button>
         </div>
       </DialogContent>

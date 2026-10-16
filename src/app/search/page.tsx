@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { globalSearch } from "./actions";
-import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
-import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { Initials } from "~/components/ui/initials";
+import { PageContainer, PageHeader, SectionHeader } from "~/components/layout/page";
 import { Search } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { formatStatus } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +20,14 @@ function Section<T>({
 }) {
   if (items.length === 0) return null;
   return (
-    <div>
-      <div className="mb-2.5 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        <span className="tabular-nums text-xs font-medium text-muted-foreground">
-          {items.length} {items.length === 1 ? "result" : "results"}
-        </span>
-      </div>
-      <div className="grid gap-2">{items.map(render)}</div>
-    </div>
+    <section className="space-y-3">
+      <SectionHeader title={title} count={items.length} />
+      <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+        {items.map((item, i) => (
+          <li key={i}>{render(item)}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -49,14 +48,14 @@ export default async function SearchPage({
       result.tournaments.length > 0);
 
   return (
-    <div className="container mx-auto w-full max-w-3xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Search</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Teams, matches, players, clubs and tournaments
-      </p>
+    <PageContainer size="narrow">
+      <PageHeader
+        title="Search"
+        description="Teams, matches, players, clubs and tournaments"
+      />
 
-      <form action="/search" method="GET" className="relative mt-6">
-        <Search className="absolute left-3.5 top-3.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      <form action="/search" method="GET" role="search" className="relative">
+        <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           id="search-query"
           name="q"
@@ -64,6 +63,7 @@ export default async function SearchPage({
           autoComplete="off"
           enterKeyHint="search"
           defaultValue={q}
+          aria-label="Search"
           placeholder="Search matches, teams, players, clubs, tournaments…"
           className="h-11 pl-10 text-base sm:text-sm"
           autoFocus
@@ -71,7 +71,7 @@ export default async function SearchPage({
       </form>
 
       {q && !result && (
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Type at least 2 characters
         </p>
       )}
@@ -79,22 +79,21 @@ export default async function SearchPage({
       {result && !hasResults && (
         <EmptyState
           icon={Search}
-          title={`No Results for "${q}"`}
-          description="We couldn't find any matches, teams, tournaments, clubs, or players matching your search query. Try checking for typos or searching a broader term."
+          title={`No results for "${q}"`}
+          description="Nothing matched. Check the spelling or try a shorter term."
           primaryAction={{
-            label: "Explore Matches",
+            label: "Browse matches",
             href: "/matches",
           }}
           secondaryAction={{
-            label: "Browse Tournaments",
+            label: "Browse tournaments",
             href: "/tournaments",
           }}
-          className="mt-6"
         />
       )}
 
       {result && hasResults && (
-        <div className="mt-6 space-y-6">
+        <div className="space-y-6">
           <Section
             title="Matches"
             items={result.matches}
@@ -105,20 +104,16 @@ export default async function SearchPage({
               venue: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/matches/${x.id}?from=search`}>
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                <Link className="block transition-colors hover:bg-muted/50" href={`/matches/${x.id}?from=search`}>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{x.title}</p>
                         <p className="truncate text-xs text-muted-foreground">
                           {x.venue ?? "—"}
                         </p>
                       </div>
-                      <Badge variant="outline" className="shrink-0">
-                        {formatStatus(x.status)}
-                      </Badge>
-                    </CardContent>
-                  </Card>
+                      <StatusBadge status={x.status} className="shrink-0" />
+                    </div>
                 </Link>
               );
             }}
@@ -133,17 +128,15 @@ export default async function SearchPage({
               short_name: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/teams/${x.id}`}>
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="p-4">
+                <Link className="block transition-colors hover:bg-muted/50" href={`/teams/${x.id}`}>
+                  <div className="px-4 py-3">
                       <p className="truncate font-medium">{x.name}</p>
                       {x.short_name && (
                         <p className="truncate text-xs text-muted-foreground">
                           {x.short_name}
                         </p>
                       )}
-                    </CardContent>
-                  </Card>
+                    </div>
                 </Link>
               );
             }}
@@ -159,23 +152,17 @@ export default async function SearchPage({
               username?: string | null;
             }) => {
               return (
-                <Link
-                  key={x.id}
-                  href={`/players/${x.username ? `@${x.username}` : x.id}`}
+                <Link className="block transition-colors hover:bg-muted/50" href={`/players/${x.username ? `@${x.username}` : x.id}`}
                 >
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        {(x.full_name ?? "P")[0]?.toUpperCase()}
-                      </div>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                      <Initials name={x.full_name} fallback="P" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{x.full_name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {x.username ? `@${x.username}` : "Player Profile"}
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          {x.username ? `@${x.username}` : "Player profile"}
                         </p>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
                 </Link>
               );
             }}
@@ -190,15 +177,13 @@ export default async function SearchPage({
               location: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/clubs/${x.id}`}>
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="p-4">
+                <Link className="block transition-colors hover:bg-muted/50" href={`/clubs/${x.id}`}>
+                  <div className="px-4 py-3">
                       <p className="truncate font-medium">{x.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {x.location ?? "—"}
                       </p>
-                    </CardContent>
-                  </Card>
+                    </div>
                 </Link>
               );
             }}
@@ -213,23 +198,19 @@ export default async function SearchPage({
               status: string | null;
             }) => {
               return (
-                <Link key={x.id} href={`/tournaments/${x.id}`}>
-                  <Card className="transition-colors hover:border-primary/40">
-                    <CardContent className="flex items-center justify-between gap-3 p-4">
+                <Link className="block transition-colors hover:bg-muted/50" href={`/tournaments/${x.id}`}>
+                  <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <p className="min-w-0 flex-1 truncate font-medium">
                         {x.name}
                       </p>
-                      <Badge variant="outline" className="shrink-0">
-                        {formatStatus(x.status) || "—"}
-                      </Badge>
-                    </CardContent>
-                  </Card>
+                      <StatusBadge status={x.status} className="shrink-0" />
+                    </div>
                 </Link>
               );
             }}
           />
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -150,7 +150,7 @@ export function PotmDialog({
             </span>
           </div>
           <DialogTitle className="text-xl">
-            Award Player of the Match
+            Award player of the match
           </DialogTitle>
           <DialogDescription>
             {topPerformer

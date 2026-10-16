@@ -101,12 +101,12 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
-          Add Player
+          Add player
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Add Player to Squad</DialogTitle>
+          <DialogTitle>Add player to squad</DialogTitle>
           <DialogDescription>
             Type a name to find a registered player, or add them as a new player
             if they are not on CricScore yet.

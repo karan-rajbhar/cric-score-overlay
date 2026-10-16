@@ -12,8 +12,6 @@ import {
   ArrowRight,
   Trophy,
   Filter,
-  CheckCircle2,
-  XCircle,
   Clock,
   Swords,
 } from "lucide-react";
@@ -127,23 +125,18 @@ export function TeamMatchesView({
     if (match.status === "completed") {
       if (!match.winning_team_id) {
         return (
-          <Badge
-            variant="outline"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-          >
+          <Badge variant="warning">
             Tied / NR
           </Badge>
         );
       }
       const isWinner = match.winning_team_id === currentTeamId;
       return isWinner ? (
-        <Badge className="border-emerald-500/30 bg-emerald-500/15 font-semibold text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" />
+        <Badge variant="success">
           Won
         </Badge>
       ) : (
-        <Badge className="border-rose-500/30 bg-rose-500/15 font-semibold text-rose-600 dark:text-rose-400">
-          <XCircle className="mr-1 h-3 w-3 shrink-0" />
+        <Badge variant="loss">
           Lost
         </Badge>
       );
@@ -301,7 +294,7 @@ export function TeamMatchesView({
                           <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn1.total_runs}/{inn1.total_wickets}
                           </p>
-                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-2xs text-muted-foreground">
                             {inn1.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -343,7 +336,7 @@ export function TeamMatchesView({
                           <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn2.total_runs}/{inn2.total_wickets}
                           </p>
-                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-2xs text-muted-foreground">
                             {inn2.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -392,7 +385,7 @@ export function TeamMatchesView({
                             : ""
                         }`}
                       >
-                        <span>View Match Scorecard</span>
+                        <span>View match scorecard</span>
                         <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                       </Link>
                     </Button>

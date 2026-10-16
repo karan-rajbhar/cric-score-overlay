@@ -54,7 +54,7 @@ export function EmptyState({
                 asChild
                 size="sm"
                 variant={primaryAction.variant ?? "default"}
-                className="interactive-button gap-1.5"
+                className="gap-1.5"
               >
                 <Link href={primaryAction.href}>
                   {primaryAction.icon && (
@@ -68,7 +68,7 @@ export function EmptyState({
                 size="sm"
                 variant={primaryAction.variant ?? "default"}
                 onClick={primaryAction.onClick}
-                className="interactive-button gap-1.5"
+                className="gap-1.5"
               >
                 {primaryAction.icon && (
                   <primaryAction.icon className="h-4 w-4" />
@@ -83,7 +83,7 @@ export function EmptyState({
                 asChild
                 size="sm"
                 variant={secondaryAction.variant ?? "outline"}
-                className="interactive-button gap-1.5"
+                className="gap-1.5"
               >
                 <Link href={secondaryAction.href}>
                   {secondaryAction.icon && (
@@ -97,7 +97,7 @@ export function EmptyState({
                 size="sm"
                 variant={secondaryAction.variant ?? "outline"}
                 onClick={secondaryAction.onClick}
-                className="interactive-button gap-1.5"
+                className="gap-1.5"
               >
                 {secondaryAction.icon && (
                   <secondaryAction.icon className="h-4 w-4" />

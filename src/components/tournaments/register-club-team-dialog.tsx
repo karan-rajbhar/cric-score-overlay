@@ -105,7 +105,7 @@ export function RegisterClubTeamDialog({
             aria-label={`Enrol club squad into ${tournament.name}`}
           >
             <UserPlus className="h-3.5 w-3.5 text-primary" />
-            Enrol Squad
+            Enrol squad
           </Button>
         )}
       </DialogTrigger>
@@ -113,7 +113,7 @@ export function RegisterClubTeamDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">
             <Shield className="h-4 w-4 text-primary" />
-            Enrol Squad in Tournament
+            Enrol squad in tournament
           </DialogTitle>
           <DialogDescription className="text-xs">
             Enrol one of your club&apos;s registered playing squads into{" "}
@@ -134,7 +134,7 @@ export function RegisterClubTeamDialog({
           ) : (
             <div className="space-y-2">
               <Label htmlFor="club-team-select" className="text-xs font-semibold">
-                Select Club Squad
+                Select club squad
               </Label>
               <Select
                 value={selectedTeamId}

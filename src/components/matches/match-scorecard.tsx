@@ -51,7 +51,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
       defaultValue={defaultTab}
       className="w-full"
     >
-      <TabsList className="mb-4 grid h-auto w-full max-w-md grid-cols-2 gap-1 p-1">
+      <TabsList className="mb-4 grid h-auto w-full max-w-md grid-cols-2">
         {sortedInnings.map((innings) => {
           const t =
             innings.team_id === match.team1_id ? match.team1 : match.team2;
@@ -60,7 +60,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="flex min-w-0 items-center justify-center px-2.5 py-2 text-xs font-semibold min-h-[40px] sm:px-3 sm:text-sm"
+              className="min-w-0"
             >
               <span className="truncate">
                 {shortName} {innings.total_runs}/{innings.total_wickets}
@@ -167,14 +167,14 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                   {!bp.is_out && (
                                     <Badge
                                       variant="outline"
-                                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-[10px] sm:text-xs font-semibold"
+                                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-2xs sm:text-xs font-semibold"
                                     >
                                       not out
                                     </Badge>
                                   )}
                                 </div>
                                 {bp.is_out && (
-                                  <p className="text-[11px] text-muted-foreground sm:text-xs">
+                                  <p className="text-2xs text-muted-foreground sm:text-xs">
                                     {dismissalText(
                                       bp,
                                       innings.fall_of_wickets ?? [],

@@ -145,7 +145,7 @@ describe("Advanced Scoring Dialogs", () => {
       );
 
       // Select retired out option
-      const retiredOutOption = screen.getByText("Retire Out");
+      const retiredOutOption = screen.getByText("Retire out");
       fireEvent.click(retiredOutOption);
 
       const confirmButton = screen.getByRole("button", { name: /retire out \(wicket\)/i });

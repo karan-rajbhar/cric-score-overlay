@@ -18,7 +18,7 @@ describe("MatchInfo", () => {
 
     render(<MatchInfo match={match} />);
 
-    expect(screen.getByText("Match Info")).toBeInTheDocument();
+    expect(screen.getByText("Match info")).toBeInTheDocument();
     expect(screen.getByText("Squads")).toBeInTheDocument();
     expect(screen.getByText("T20")).toBeInTheDocument();
     expect(screen.getByText("Wankhede Stadium")).toBeInTheDocument();

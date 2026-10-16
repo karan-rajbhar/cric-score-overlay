@@ -1197,7 +1197,7 @@ export default function ScoringPage() {
                 variant="outline"
                 disabled={isProcessing}
                 onClick={() => flushOfflineQueue()}
-                className="h-7 gap-1 px-2 text-[11px] font-semibold"
+                className="h-7 gap-1 px-2 text-2xs font-semibold"
               >
                 <RefreshCw
                   className={cn("h-3 w-3", isProcessing && "animate-spin")}
@@ -1210,7 +1210,7 @@ export default function ScoringPage() {
                 variant="ghost"
                 disabled={isProcessing}
                 onClick={() => handleSkipHeadAction()}
-                className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+                className="h-7 px-2 text-2xs font-semibold text-muted-foreground hover:text-destructive"
                 title="Discard the current head item from queue if it is failing validation or causing a deadlock"
               >
                 Skip stuck item
@@ -1280,7 +1280,7 @@ export default function ScoringPage() {
                     </p>
                     {match.status === "live" && <LiveIndicator />}
                   </div>
-                  <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                  <p className="truncate text-2xs text-muted-foreground sm:text-xs">
                     {user
                       ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
                       : "Sign in with scorer credentials to record deliveries and manage match state."}
@@ -1385,7 +1385,7 @@ export default function ScoringPage() {
                 <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
                   Innings complete
                 </p>
-                <p className="text-[11px] text-muted-foreground sm:text-xs">
+                <p className="text-2xs text-muted-foreground sm:text-xs">
                   {match.current_innings === 1
                     ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
                     : "Match has reached target or overs limit."}
@@ -1411,7 +1411,7 @@ export default function ScoringPage() {
                 <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
                   Over {match.current_over} complete
                 </p>
-                <p className="text-[11px] text-muted-foreground sm:text-xs">
+                <p className="text-2xs text-muted-foreground sm:text-xs">
                   Select the bowler for over {match.current_over + 1} to resume
                   scoring.
                 </p>
@@ -1438,7 +1438,7 @@ export default function ScoringPage() {
                   <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
                     Select batters to continue
                   </p>
-                  <p className="text-[11px] text-muted-foreground sm:text-xs">
+                  <p className="text-2xs text-muted-foreground sm:text-xs">
                     A wicket has fallen or batsmen need to be set to resume
                     scoring.
                   </p>
@@ -1512,7 +1512,7 @@ export default function ScoringPage() {
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-2.5">
-                                <span className="tabular w-8 shrink-0 font-score text-xs font-bold text-muted-foreground">
+                                <span className="tabular-nums w-8 shrink-0 font-score text-xs font-bold text-muted-foreground">
                                   {d.over_number}.{d.ball_number}
                                 </span>
                                 <div className="min-w-0">
@@ -1591,7 +1591,7 @@ export default function ScoringPage() {
                   size="sm"
                   variant="ghost"
                   asChild
-                  className="h-6 text-[11px] font-bold"
+                  className="h-6 text-2xs font-bold"
                 >
                   <Link href={`/matches/${matchId}`}>Full scorecard</Link>
                 </Button>
@@ -1688,7 +1688,7 @@ export default function ScoringPage() {
                       <Badge
                         key={p.playerId}
                         variant="secondary"
-                        className="text-[11px] font-semibold"
+                        className="text-2xs font-semibold"
                       >
                         {p.name}
                       </Badge>
@@ -1777,7 +1777,7 @@ export default function ScoringPage() {
                           )}
                         </span>
                       </div>
-                      <div className="shrink-0 space-x-1.5 text-right font-mono text-[11px] font-bold tabular-nums text-foreground">
+                      <div className="shrink-0 space-x-1.5 text-right font-mono text-2xs font-bold tabular-nums text-foreground">
                         <span>{sp.overs}ov</span>
                         <span className="text-muted-foreground">
                           {sp.maidens}m

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Initials } from "~/components/ui/initials";
 import {
   Dialog,
   DialogContent,
@@ -272,7 +273,7 @@ export function MatchScorersDialog({
             title="Invite co-scorers to record balls live"
           >
             <UserPlus className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Invite Scorer</span>
+            <span className="hidden sm:inline">Invite scorer</span>
             <span className="sm:hidden">Scorers</span>
           </Button>
         )}
@@ -286,7 +287,7 @@ export function MatchScorersDialog({
               Scorers
             </span>
           </div>
-          <DialogTitle className="text-xl">Match Scorers</DialogTitle>
+          <DialogTitle className="text-xl">Match scorers</DialogTitle>
           <DialogDescription>
             Authorize multiple scorers (home & away scorers, substitute scorers)
             to record balls and edit events live.
@@ -297,8 +298,8 @@ export function MatchScorersDialog({
         <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="font-semibold text-foreground">Direct Scoring Link</div>
-              <div className="truncate text-muted-foreground text-[11px]">
+              <div className="font-semibold text-foreground">Direct scoring link</div>
+              <div className="truncate text-muted-foreground text-2xs">
                 /matches/{matchId}/score
               </div>
             </div>
@@ -335,7 +336,7 @@ export function MatchScorersDialog({
               )}
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Anyone with this link can open live scoring once authorized below.
           </p>
         </div>
@@ -343,9 +344,9 @@ export function MatchScorersDialog({
         {/* Search & Add Scorer Form */}
         <div className="space-y-2 pt-1">
           <label htmlFor="scorer-search-input" className="text-xs font-semibold text-foreground">
-            Add Scorer by Name or Email
+            Add scorer by name or email
           </label>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Not on CricScore yet? Enter their Google email to invite them as a
             scorer.
           </p>
@@ -395,22 +396,20 @@ export function MatchScorersDialog({
                     className="flex items-center justify-between p-2.5 text-xs hover:bg-muted/40 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0 pr-2">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground">
-                        {(user.full_name || "U")[0]?.toUpperCase()}
-                      </div>
+                      <Initials name={user.full_name} fallback="U" className="h-7 w-7" />
                       <div className="min-w-0">
                         <div className="truncate font-semibold text-foreground">
                           {user.full_name}
                         </div>
                         {user.email && (
-                          <div className="truncate text-[11px] text-muted-foreground">
+                          <div className="truncate text-2xs text-muted-foreground">
                             {user.email}
                           </div>
                         )}
                       </div>
                     </div>
                     {isAlreadyScorer ? (
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                      <Badge variant="secondary" className="text-2xs shrink-0">
                         Authorized
                       </Badge>
                     ) : (
@@ -440,7 +439,7 @@ export function MatchScorersDialog({
             <span className="text-xs font-medium text-muted-foreground">
               Current scorers
             </span>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {(createdBy ? 1 : 0) + matchAdmins.length} active
             </span>
           </div>
@@ -455,9 +454,7 @@ export function MatchScorersDialog({
               {createdBy && (
                 <div className="flex items-center justify-between p-3 text-sm bg-primary/5">
                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                      {(createdBy.full_name || "U")[0]?.toUpperCase()}
-                    </div>
+                    <Initials name={createdBy.full_name} fallback="U" className="h-8 w-8" />
                     <div className="min-w-0">
                       <div className="font-semibold text-foreground truncate">
                         {createdBy.full_name}
@@ -483,9 +480,7 @@ export function MatchScorersDialog({
                   className="flex items-center justify-between p-3 text-sm"
                 >
                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                      {(admin.full_name || "S")[0]?.toUpperCase()}
-                    </div>
+                    <Initials name={admin.full_name} fallback="S" className="h-8 w-8" />
                     <div className="min-w-0">
                       <div className="font-semibold text-foreground truncate">
                         {admin.full_name}

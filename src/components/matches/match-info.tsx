@@ -56,17 +56,17 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
   return (
     <Tabs defaultValue="match-info" className="w-full">
-      <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-1 p-1">
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-2">
         <TabsTrigger
           value="match-info"
-          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+          className="px-1.5 sm:px-3"
         >
           <Hash className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-          <span className="truncate">Match Info</span>
+          <span className="truncate">Match info</span>
         </TabsTrigger>
         <TabsTrigger
           value="squads"
-          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+          className="px-1.5 sm:px-3"
         >
           <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
           <span className="truncate">Squads</span>
@@ -79,7 +79,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
           {/* Basic Info */}
           <Card className="overflow-hidden border-border bg-card">
             <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Match Details</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Match details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
@@ -117,7 +117,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Ball Type
+                      Ball type
                     </p>
                     <p className="font-semibold capitalize text-foreground text-sm sm:text-base">
                       {match.ball_type}
@@ -147,7 +147,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Date & Time
+                      Date & time
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatDate(match.scheduled_at)}
@@ -166,7 +166,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Actual Start
+                      Actual start
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatTime(match.actual_start_time)}
@@ -180,7 +180,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
           {/* Toss & Conditions */}
           <Card className="overflow-hidden border-border bg-card">
             <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Toss & Conditions</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Toss & conditions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
@@ -261,7 +261,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
           {/* Match ID & Meta */}
           <Card className="md:col-span-2 overflow-hidden border-border bg-card">
             <CardHeader className="border-b border-border/50 py-3">
-              <CardTitle className="text-base">Additional Info</CardTitle>
+              <CardTitle className="text-base">Additional info</CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
               <div className="grid gap-4 sm:grid-cols-3">

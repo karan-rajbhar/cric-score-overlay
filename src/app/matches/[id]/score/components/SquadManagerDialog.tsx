@@ -153,7 +153,7 @@ function SquadPanel({
             Squad ({team.players.length})
           </p>
           {team.players.length < 11 && (
-            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            <span className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
               {11 - team.players.length} short of XI
             </span>
           )}
@@ -192,12 +192,12 @@ function SquadPanel({
                       </span>
                     )}
                     {active && (
-                      <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                      <span className="text-2xs font-medium text-emerald-700 dark:text-emerald-300">
                         {side === "batting" ? "Batting" : "Bowling"}
                       </span>
                     )}
                     {out && (
-                      <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                      <span className="text-2xs font-medium text-rose-600 dark:text-rose-400">
                         Out
                       </span>
                     )}
@@ -306,7 +306,7 @@ function SquadPanel({
                         {u.full_name ?? "Player"}
                       </span>
                       {u.email && (
-                        <span className="block truncate text-[11px] text-muted-foreground">
+                        <span className="block truncate text-2xs text-muted-foreground">
                           {u.email}
                         </span>
                       )}

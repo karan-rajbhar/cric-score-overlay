@@ -4,12 +4,6 @@
 
 @layer base {
   :root {
-    --font-sans:
-      "Barlow", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-score:
-      "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
-
     /*
      * Light theme: "Sightscreen". Neutral grey-green paper so the dark
      * scoreboard panel and the few meaningful colours (4 / 6 / W / extras)
@@ -40,12 +34,6 @@
     --ruby-foreground: 0 0% 100%;
     --gold: 38 88% 42%;
     --gold-foreground: 0 0% 100%;
-    --sky: 200 62% 38%;
-    --sky-foreground: 0 0% 100%;
-    --violet: 262 38% 48%;
-    --violet-foreground: 0 0% 100%;
-    --magenta: 330 48% 48%;
-    --magenta-foreground: 0 0% 100%;
 
     --border: 150 9% 87%;
     --input: 150 9% 83%;
@@ -57,30 +45,7 @@
     --board-muted: 150 14% 72%;
     --board-line: 160 32% 21%;
 
-    --surface-base: 150 12% 96.5%;
-    --surface-card: 0 0% 100%;
-    --surface-elevated: 150 10% 95%;
-    --surface-hover: 150 12% 91%;
-
-    --sidebar-background: 150 12% 96.5%;
-    --sidebar-foreground: 160 28% 10%;
-    --sidebar-border: 150 9% 88%;
-    --sidebar-active: 0 0% 100%;
-    --sidebar-active-foreground: 155 58% 24%;
-
     --radius: 0.625rem;
-
-    --chart-1: 155 58% 30%;
-    --chart-2: 200 62% 40%;
-    --chart-3: 38 88% 46%;
-    --chart-4: 0 66% 48%;
-    --chart-5: 262 38% 52%;
-
-    /* Legacy compatibility aliases */
-    --cricket-primary: 155 58% 26%;
-    --cricket-secondary: 160 50% 13%;
-    --cricket-accent: 0 66% 44%;
-    --cricket-neutral: 150 10% 93%;
   }
 
   .dark {
@@ -108,12 +73,6 @@
     --ruby-foreground: 0 0% 100%;
     --gold: 40 85% 56%;
     --gold-foreground: 40 90% 10%;
-    --sky: 200 60% 60%;
-    --sky-foreground: 200 90% 10%;
-    --violet: 262 45% 70%;
-    --violet-foreground: 262 60% 10%;
-    --magenta: 330 50% 68%;
-    --magenta-foreground: 330 60% 10%;
 
     --border: 160 12% 17%;
     --input: 160 12% 21%;
@@ -123,28 +82,6 @@
     --board-foreground: 80 20% 95%;
     --board-muted: 150 14% 68%;
     --board-line: 158 30% 20%;
-
-    --surface-base: 160 22% 6%;
-    --surface-card: 160 18% 9%;
-    --surface-elevated: 160 16% 11%;
-    --surface-hover: 160 12% 16%;
-
-    --sidebar-background: 160 22% 6%;
-    --sidebar-foreground: 80 15% 94%;
-    --sidebar-border: 160 12% 15%;
-    --sidebar-active: 160 18% 11%;
-    --sidebar-active-foreground: 150 50% 62%;
-
-    --chart-1: 150 50% 50%;
-    --chart-2: 200 60% 60%;
-    --chart-3: 40 85% 58%;
-    --chart-4: 0 68% 60%;
-    --chart-5: 262 45% 70%;
-
-    --cricket-primary: 150 50% 48%;
-    --cricket-secondary: 158 42% 11%;
-    --cricket-accent: 0 68% 56%;
-    --cricket-neutral: 160 12% 14%;
   }
 }
 
@@ -198,17 +135,10 @@
     text-wrap: pretty;
   }
 
-  /* Numeric alignment and tabular figures */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
-  }
-
   /* Condensed display type for scores and titles */
   .score-display {
     font-family: var(--font-score);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
     letter-spacing: 0.01em;
   }
 
@@ -236,9 +166,9 @@
 }
 
 @layer components {
-  /* Standardized Data Table Container */
+  /* Data table: bordered card that scrolls sideways on narrow screens */
   .data-table-container {
-    @apply w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm;
+    @apply w-full overflow-x-auto rounded-xl border border-border bg-card dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)];
     -webkit-overflow-scrolling: touch;
   }
 
@@ -262,68 +192,8 @@
     @apply border-b-0;
   }
 
-  /* Section heading with divider rule — Barlow Condensed carries score identity */
-  .section-heading {
-    @apply flex items-center gap-3 text-lg font-bold text-foreground;
-    font-family: var(--font-score);
-    letter-spacing: 0.01em;
-  }
-  .section-heading::after {
-    content: "";
-    @apply h-px flex-1 bg-border;
-  }
-
-  /* Condensed display heading for page titles and figures */
-  .score-heading {
-    font-family: var(--font-score);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.005em;
-    text-wrap: balance;
-  }
-
-  /* Status pills */
-  .status-pill {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold;
-  }
-  .status-live {
-    @apply status-pill border-destructive/30 bg-destructive/10 text-destructive;
-  }
-  .status-completed {
-    @apply status-pill border-primary/25 bg-primary/10 text-primary;
-  }
-  .status-upcoming {
-    @apply status-pill border-border bg-muted text-muted-foreground;
-  }
-
-  /* Tactile interactive button states — no lift, press only */
-  .interactive-button {
-    @apply transition-colors duration-150 active:scale-[0.98];
-  }
-
   /*
-   * Card hierarchy. One radius per level: panels 12px, controls 8px, pills full.
-   * Borders do the separating; no drop shadows on light, a hairline rim on dark.
-   */
-  .card-hero {
-    @apply rounded-xl border border-border bg-card;
-  }
-  .card-data {
-    @apply rounded-xl border border-border bg-card shadow-none;
-  }
-  .card-action {
-    @apply rounded-xl border border-border bg-card transition-colors hover:border-primary/40 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
-  }
-
-  .dark .card-hero,
-  .dark .card-data,
-  .dark .card-action,
-  .dark [data-slot="card"],
-  .dark .data-table-container {
-    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
-  }
-
-  /*
-   * Scoreboard panel — the one bold surface in the product. Painted board
+   * Scoreboard panel: the one bold surface in the product. Painted board
    * green with chalk-white condensed figures, in both themes.
    */
   .scoreboard {
@@ -334,7 +204,6 @@
   .scoreboard-figure {
     font-family: var(--font-score);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1;
     font-weight: 700;
     line-height: 0.9;
     letter-spacing: -0.01em;
@@ -343,91 +212,45 @@
     @apply text-xs font-medium text-board-muted;
   }
 
-  /* Plain app canvas (kept for API compatibility; decoration removed) */
-  .sunlit-canvas {
-    background-color: hsl(var(--background));
-  }
-
-  /* Pill tag */
-  .pill-bubble {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold;
-  }
-
-
   /* High-contrast sunlight mode for outdoor scorers in direct sunlight */
   .sunlight-mode,
-  [data-sunlight="true"],
-  .dark .sunlight-mode,
-  .dark [data-sunlight="true"] {
-    --background: 0 0% 100% !important;
-    --foreground: 0 0% 0% !important;
-    --card: 0 0% 100% !important;
-    --card-foreground: 0 0% 0% !important;
-    --popover: 0 0% 100% !important;
-    --popover-foreground: 0 0% 0% !important;
-    --muted: 0 0% 92% !important;
-    --muted-foreground: 0 0% 12% !important;
-    --border: 0 0% 0% !important;
-    --primary: 0 0% 0% !important;
-    --primary-foreground: 0 0% 100% !important;
-    --secondary: 0 0% 90% !important;
-    --secondary-foreground: 0 0% 0% !important;
-    --destructive: 0 84% 42% !important;
-    --destructive-foreground: 0 0% 100% !important;
-    --board: 0 0% 0% !important;
-    --board-foreground: 0 0% 100% !important;
-    --board-muted: 0 0% 85% !important;
-    --board-line: 0 0% 0% !important;
-    color-scheme: light !important;
+  [data-sunlight="true"] {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 12%;
+    --border: 0 0% 0%;
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 90%;
+    --secondary-foreground: 0 0% 0%;
+    --destructive: 0 84% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --board: 0 0% 0%;
+    --board-foreground: 0 0% 100%;
+    --board-muted: 0 0% 85%;
+    --board-line: 0 0% 0%;
+    color-scheme: light;
+    background-color: #ffffff;
+    color: #000000;
   }
 
-  .sunlight-mode,
-  [data-sunlight="true"],
-  .dark .sunlight-mode,
-  .dark [data-sunlight="true"] {
-    background-color: #ffffff !important;
+  :is(.sunlight-mode, [data-sunlight="true"]) .score-display {
+    font-weight: 700 !important;
     color: #000000 !important;
   }
 
-  .sunlight-mode .score-display,
-  .sunlight-mode .score-heading,
-  [data-sunlight="true"] .score-display,
-  [data-sunlight="true"] .score-heading,
-  .dark .sunlight-mode .score-display,
-  .dark .sunlight-mode .score-heading,
-  .dark [data-sunlight="true"] .score-display,
-  .dark [data-sunlight="true"] .score-heading {
-    font-weight: 900 !important;
-    color: #000000 !important;
-  }
-
-  .sunlight-mode .text-muted-foreground,
-  [data-sunlight="true"] .text-muted-foreground,
-  .dark .sunlight-mode .text-muted-foreground,
-  .dark [data-sunlight="true"] .text-muted-foreground {
+  :is(.sunlight-mode, [data-sunlight="true"]) .text-muted-foreground {
     color: #1a1a1a !important;
     font-weight: 600 !important;
   }
 
-  .sunlight-mode .touch-target,
-  [data-sunlight="true"] .touch-target,
-  .dark .sunlight-mode .touch-target,
-  .dark [data-sunlight="true"] .touch-target {
+  :is(.sunlight-mode, [data-sunlight="true"]) .touch-target {
     border-color: #000000 !important;
-  }
-
-  /* Reset any dark mode shadow washes in sunlight mode */
-  .dark .sunlight-mode .card-hero,
-  .dark .sunlight-mode .card-data,
-  .dark .sunlight-mode .card-action,
-  .dark [data-sunlight="true"] .card-hero,
-  .dark [data-sunlight="true"] .card-data,
-  .dark [data-sunlight="true"] .card-action,
-  .dark [data-sunlight="true"] [data-slot="card"] {
-    box-shadow: none !important;
-    border-color: #000000 !important;
-    background-color: #ffffff !important;
-    color: #000000 !important;
   }
 
   /* Minimum 44px touch targets for scoring controls */
@@ -453,42 +276,9 @@
     transition-duration: 0.01ms !important;
   }
   .animate-marquee,
-  .animate-shockwave,
-  .animate-sparkle,
-  .animate-lightning-flash,
-  .animate-cosmic-orbit,
-  .animate-flame-flicker,
-  .animate-pulse-glow,
-  .animate-light-sweep,
-  .animate-score-pulse,
-  .animate-stinger-entry,
-  .animate-sub-bar-flip,
-  .animate-ping,
-  .animate-pulse,
-  .animate-bounce {
+  .animate-pulse {
     animation: none !important;
   }
-}
-
-/* Shimmer pulse for skeletons */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 0%,
-    hsl(var(--accent)) 50%,
-    hsl(var(--muted)) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s infinite ease-in-out;
 }
 
 /* Broadcast Marquee Ticker */
@@ -507,323 +297,6 @@
   animation: marquee 30s linear infinite;
 }
 
-/* Score change celebration pulse */
-@keyframes scorePulse {
-  0% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0));
-  }
-  50% {
-    transform: scale(1.08);
-    filter: drop-shadow(0 0 16px rgba(250, 204, 21, 0.9));
-  }
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 0 rgba(250, 204, 21, 0));
-  }
-}
-
-.animate-score-pulse {
-  animation: scorePulse 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Authentic TV Broadcast Angled Shapes & Glass Sheens */
-.clip-slant-right {
-  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%);
-}
-
-.clip-slant-left {
-  clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%);
-}
-
-.clip-chamfer-both {
-  clip-path: polygon(
-    12px 0%,
-    calc(100% - 12px) 0%,
-    100% 12px,
-    100% calc(100% - 12px),
-    calc(100% - 12px) 100%,
-    12px 100%,
-    0% calc(100% - 12px),
-    0% 12px
-  );
-}
-
-.broadcast-gloss {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0.04) 49%,
-    rgba(0, 0, 0, 0.22) 51%,
-    rgba(0, 0, 0, 0.65) 100%
-  );
-}
-
-.broadcast-bevel {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
-    0 8px 24px rgba(0, 0, 0, 0.85);
-}
-
-/* Broadcast Specular Light Sweep */
-@keyframes lightSweep {
-  0% {
-    transform: translateX(-150%) skewX(-20deg);
-  }
-  50%,
-  100% {
-    transform: translateX(250%) skewX(-20deg);
-  }
-}
-
-.animate-light-sweep {
-  animation: lightSweep 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-/* Fast Broadcast Stinger Spring Entry */
-@keyframes stingerEntry {
-  0% {
-    opacity: 0;
-    transform: scale(0.92) translateY(24px);
-  }
-  65% {
-    opacity: 1;
-    transform: scale(1.02) translateY(-2px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-.animate-stinger-entry {
-  animation: stingerEntry 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* In-Bug Sub-Bar Flip Transition */
-@keyframes subBarFlip {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-sub-bar-flip {
-  animation: subBarFlip 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Television Parallelogram Over-Ball Tiles */
-.skew-tile {
-  transform: skewX(-12deg);
-}
-
-.skew-tile-content {
-  transform: skewX(12deg);
-}
-
-/* Broadcast Pro / Premium Broadcast Animations & Motifs */
-
-/* 1. Thunder Shockwave Blast */
-@keyframes shockwave {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.9;
-  }
-  50% {
-    transform: scale(1.15);
-    opacity: 0.4;
-  }
-  100% {
-    transform: scale(1.45);
-    opacity: 0;
-  }
-}
-
-.animate-shockwave {
-  animation: shockwave 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-}
-
-/* 2. Apex Gold Sparkle Embers */
-@keyframes sparkle {
-  0%,
-  100% {
-    transform: scale(0) rotate(0deg);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.25) rotate(90deg);
-    opacity: 1;
-    filter: drop-shadow(0 0 8px #f59e0b);
-  }
-}
-
-.animate-sparkle {
-  animation: sparkle 2.2s ease-in-out infinite;
-}
-
-/* 3. Volt Cyber Lightning Flash */
-@keyframes lightningFlash {
-  0%,
-  100% {
-    opacity: 0.2;
-    filter: drop-shadow(0 0 2px #00ff66);
-  }
-  12% {
-    opacity: 1;
-    filter: drop-shadow(0 0 20px #00f0ff);
-  }
-  24% {
-    opacity: 0.35;
-  }
-  36% {
-    opacity: 0.95;
-    filter: drop-shadow(0 0 28px #00ff66);
-  }
-  55% {
-    opacity: 0.3;
-  }
-  75% {
-    opacity: 0.85;
-    filter: drop-shadow(0 0 16px #00f0ff);
-  }
-}
-
-.animate-lightning-flash {
-  animation: lightningFlash 2s ease-in-out infinite;
-}
-
-/* 4. Nakshatra Celestial Orbit */
-@keyframes cosmicOrbit {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.animate-cosmic-orbit {
-  animation: cosmicOrbit 14s linear infinite;
-}
-
-/* 5. Dharma Royal Banner Unfurl */
-@keyframes bannerUnfurl {
-  0% {
-    transform: scaleY(0.15) scaleX(0.9);
-    opacity: 0;
-  }
-  60% {
-    transform: scaleY(1.04) scaleX(1.02);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleY(1) scaleX(1);
-    opacity: 1;
-  }
-}
-
-.animate-banner-unfurl {
-  animation: bannerUnfurl 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* 6. Pulse Glow */
-@keyframes pulseGlow {
-  0%,
-  100% {
-    opacity: 0.6;
-    filter: drop-shadow(0 0 8px currentColor);
-  }
-  50% {
-    opacity: 1;
-    filter: drop-shadow(0 0 22px currentColor);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
-}
-
-/* Hexagon & Tech Clip Paths */
-.clip-hexagon {
-  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-}
-
-.clip-notch-card {
-  clip-path: polygon(
-    0 0,
-    calc(100% - 16px) 0,
-    100% 16px,
-    100% 100%,
-    16px 100%,
-    0 calc(100% - 16px)
-  );
-}
-
-/* Carbon Fiber Matrix Background */
-.carbon-matrix {
-  background-color: #0d0d11;
-  background-image:
-    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0),
-    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
-  background-size: 8px 8px;
-  background-position:
-    0 0,
-    4px 4px;
-}
-
-/* 7. Agni Magma & Flame Keyframes */
-@keyframes flameFlicker {
-  0%,
-  100% {
-    transform: scaleY(1) scaleX(1) translateY(0);
-    filter: drop-shadow(0 0 12px #ff4500) drop-shadow(0 0 24px #ff8c00);
-  }
-  25% {
-    transform: scaleY(1.06) scaleX(0.97) translateY(-3px);
-    filter: drop-shadow(0 0 22px #ff2200) drop-shadow(0 0 35px #ffaa00);
-  }
-  50% {
-    transform: scaleY(0.98) scaleX(1.03) translateY(1px);
-    filter: drop-shadow(0 0 14px #ff3b00) drop-shadow(0 0 20px #ff6600);
-  }
-  75% {
-    transform: scaleY(1.04) scaleX(0.99) translateY(-2px);
-    filter: drop-shadow(0 0 26px #ff0000) drop-shadow(0 0 38px #ffd700);
-  }
-}
-
-.animate-flame-flicker {
-  animation: flameFlicker 1.8s ease-in-out infinite;
-}
-
-/* Agni Magma Matrix Texture */
-.magma-matrix {
-  background-color: #120502;
-  background-image:
-    radial-gradient(rgba(255, 69, 0, 0.16) 1.5px, transparent 0),
-    radial-gradient(rgba(255, 140, 0, 0.09) 1.5px, transparent 0);
-  background-size: 10px 10px;
-  background-position:
-    0 0,
-    5px 5px;
-}
-
-.clip-flame-badge {
-  clip-path: polygon(
-    0 0,
-    calc(100% - 12px) 0,
-    100% 50%,
-    calc(100% - 12px) 100%,
-    0 100%,
-    12px 50%
-  );
-}
-
 @layer utilities {
   /* Hide scrollbar while preserving touch scrolling functionality */
   .no-scrollbar::-webkit-scrollbar {
@@ -834,10 +307,5 @@
     scrollbar-width: none;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
-  }
-
-  /* Safe area padding utilities */
-  .pb-safe {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
   }
 }

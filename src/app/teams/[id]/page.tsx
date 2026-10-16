@@ -9,6 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "~/components/ui/card";
+import { StatTile } from "~/components/ui/stat-tile";
 import {
   ChevronLeft,
   ChevronRight,
@@ -33,6 +34,7 @@ import {
   TeamMatchesView,
   type TeamMatchItem,
 } from "~/components/teams/team-matches-view";
+import { PageContainer } from "~/components/layout/page";
 
 function TeamLogoStatic({
   name,
@@ -211,7 +213,7 @@ export default async function TeamDetailsPage({
     completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
 
   return (
-    <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -290,7 +292,7 @@ export default async function TeamDetailsPage({
 
         <Button
           variant="ghost"
-          className="interactive-button w-fit pl-0 text-sm font-medium"
+          className="w-fit pl-0 text-sm font-medium"
           asChild
         >
           <Link href={backHref}>
@@ -348,7 +350,7 @@ export default async function TeamDetailsPage({
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center text-muted-foreground">
                     <Users className="mr-2 h-4 w-4 shrink-0" />
-                    Squad Size
+                    Squad size
                   </div>
                   <span className="font-medium tabular-nums">{players.length}</span>
                 </div>
@@ -406,29 +408,11 @@ export default async function TeamDetailsPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular-nums text-xl font-bold">
-                    {totalMatches}
-                  </div>
-                  <div className="text-[11px] font-medium text-muted-foreground">
-                    Played
-                  </div>
-                </div>
-                <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-                  <div className="tabular-nums text-xl font-bold">{wonMatches}</div>
-                  <div className="text-[11px] font-medium">Won</div>
-                </div>
-                <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
-                  <div className="tabular-nums text-xl font-bold">{lostMatches}</div>
-                  <div className="text-[11px] font-medium">Lost</div>
-                </div>
-                <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular-nums text-xl font-bold">{tiedMatches}</div>
-                  <div className="text-[11px] font-medium text-muted-foreground">
-                    Tied/NR
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StatTile label="Played" value={totalMatches} />
+                <StatTile label="Won" value={wonMatches} tone="positive" />
+                <StatTile label="Lost" value={lostMatches} tone="negative" />
+                <StatTile label="Tied/NR" value={tiedMatches} />
               </div>
               {winRate !== null && (
                 <div className="flex items-center justify-between border-t pt-2 text-xs">
@@ -449,10 +433,9 @@ export default async function TeamDetailsPage({
             className="w-full"
           >
             <div className="flex items-center justify-between border-b pb-4">
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:w-auto">
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
                 <TabsTrigger
                   value="matches"
-                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Swords className="h-4 w-4 shrink-0" />
                   Matches
@@ -465,7 +448,6 @@ export default async function TeamDetailsPage({
                 </TabsTrigger>
                 <TabsTrigger
                   value="squad"
-                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   Squad
@@ -518,6 +500,6 @@ export default async function TeamDetailsPage({
           </Tabs>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

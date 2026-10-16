@@ -92,7 +92,7 @@ export function PointsOverrideDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            Points & Qualification Override
+            Points & qualification override
           </DialogTitle>
           <DialogDescription>
             Manually adjust points (penalties, bonuses, decimals) or override
@@ -103,7 +103,7 @@ export function PointsOverrideDialog({
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="adjustment">Points Adjustment</Label>
+            <Label htmlFor="adjustment">Points adjustment</Label>
             <Input
               id="adjustment"
               type="number"
@@ -112,14 +112,14 @@ export function PointsOverrideDialog({
               onChange={(e) => setAdjustment(e.target.value)}
               placeholder="e.g. -1 for penalty, +0.5 for bonus"
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Negative values subtract points (e.g. -1.0 for slow over rate).
               Positive values award bonus points.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="reason">Adjustment Reason</Label>
+            <Label htmlFor="reason">Adjustment reason</Label>
             <Input
               id="reason"
               value={reason}
@@ -129,7 +129,7 @@ export function PointsOverrideDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="status">Qualification Status Flag</Label>
+            <Label htmlFor="status">Qualification status flag</Label>
             <Select
               value={status}
               onValueChange={(val) =>
@@ -141,13 +141,13 @@ export function PointsOverrideDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="in_contention">
-                  In Contention (Normal)
+                  In contention (normal)
                 </SelectItem>
                 <SelectItem value="qualified">
-                  Qualified (Q) — Top Spot Secured
+                  Qualified (Q) — top spot secured
                 </SelectItem>
                 <SelectItem value="eliminated">
-                  Eliminated (E) — Out of Contention
+                  Eliminated (E) — out of contention
                 </SelectItem>
               </SelectContent>
             </Select>

@@ -66,7 +66,7 @@ export function TeamCard({ team }: TeamCardProps) {
       <CardFooter className="pt-0">
         <Button
           asChild
-          className="interactive-button w-full"
+          className="w-full"
           variant="outline"
           size="sm"
         >

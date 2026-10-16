@@ -94,11 +94,11 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
             </div>
             <div className="border-x border-border/60 px-3">
               <p className="text-xl font-bold text-muted-foreground tabular-nums">{total}</p>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {total === 1 ? "Match" : "Matches"}
               </p>
               {tiesOrNr > 0 && (
-                <p className="mt-0.5 text-[10px] text-muted-foreground/70 tabular-nums">
+                <p className="mt-0.5 text-2xs text-muted-foreground/70 tabular-nums">
                   {tiesOrNr} Tied/NR
                 </p>
               )}

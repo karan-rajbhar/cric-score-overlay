@@ -151,7 +151,7 @@ export function NavigationBar() {
               placeholder="Search matches, tournaments, players"
               className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-12 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted-foreground sm:inline-block">
+            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
               Ctrl K
             </kbd>
           </form>
@@ -179,7 +179,7 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  className="interactive-button h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
+                  className="h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
@@ -261,7 +261,7 @@ export function NavigationBar() {
                       @{username}
                     </div>
                   )}
-                  <div className="truncate text-[11px] text-muted-foreground">
+                  <div className="truncate text-2xs text-muted-foreground">
                     {user.email}
                   </div>
                 </div>

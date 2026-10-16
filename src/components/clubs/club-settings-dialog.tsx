@@ -119,12 +119,12 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
           <Settings className="h-3.5 w-3.5" />
-          <span>Club Settings</span>
+          <span>Club settings</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl">Club Settings & Profile</DialogTitle>
+          <DialogTitle className="text-xl">Club settings & profile</DialogTitle>
           <DialogDescription>
             Update your club identity, community contacts, and social media
             links.
@@ -140,8 +140,8 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
               className="h-9 w-9 rounded-lg text-xs"
             />
             <div>
-              <p className="text-xs font-semibold">Club Emblem & Banner</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs font-semibold">Club emblem & banner</p>
+              <p className="text-2xs text-muted-foreground">
                 Manage custom crest logo and hero cover
               </p>
             </div>
@@ -159,7 +159,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 size="sm"
                 className="h-8 min-h-[32px] text-xs"
               >
-                Edit Branding
+                Edit branding
               </Button>
             }
           />
@@ -168,7 +168,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-4 py-2 text-sm">
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="club-name">Club Name *</Label>
+              <Label htmlFor="club-name">Club name *</Label>
               <Input
                 id="club-name"
                 value={name}
@@ -178,7 +178,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="club-short-name">Short Name</Label>
+              <Label htmlFor="club-short-name">Short name</Label>
               <Input
                 id="club-short-name"
                 value={shortName}
@@ -191,21 +191,21 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="club-type">Club Type</Label>
+              <Label htmlFor="club-type">Club type</Label>
               <Select value={clubType} onValueChange={setClubType}>
                 <SelectTrigger id="club-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="community">Community / Local</SelectItem>
-                  <SelectItem value="corporate">Corporate / League</SelectItem>
-                  <SelectItem value="school">School / University</SelectItem>
+                  <SelectItem value="community">Community / local</SelectItem>
+                  <SelectItem value="corporate">Corporate / league</SelectItem>
+                  <SelectItem value="school">School / university</SelectItem>
                   <SelectItem value="professional">Professional</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="club-founded">Founded Year</Label>
+              <Label htmlFor="club-founded">Founded year</Label>
               <Input
                 id="club-founded"
                 type="number"
@@ -219,7 +219,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="club-location">Home Ground / Location</Label>
+            <Label htmlFor="club-location">Home ground / location</Label>
             <Input
               id="club-location"
               value={location}
@@ -229,7 +229,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="club-description">About / Bio</Label>
+            <Label htmlFor="club-description">About / bio</Label>
             <Textarea
               id="club-description"
               value={description}
@@ -242,13 +242,13 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
           {/* Contact Details */}
           <div className="border-t border-border/60 pt-3">
             <div className="mb-2 text-sm font-medium text-foreground">
-              Contact & Links
+              Contact & links
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="club-email" className="text-xs">
                   <Mail className="mr-1 inline h-3 w-3" />
-                  Contact Email
+                  Contact email
                 </Label>
                 <Input
                   id="club-email"
@@ -262,7 +262,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
               <div className="space-y-1">
                 <Label htmlFor="club-phone" className="text-xs">
                   <Phone className="mr-1 inline h-3 w-3" />
-                  Phone Number
+                  Phone number
                 </Label>
                 <Input
                   id="club-phone"
@@ -292,11 +292,11 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
           {/* Social Profiles */}
           <div className="border-t border-border/60 pt-3">
             <div className="mb-2 text-sm font-medium text-foreground">
-              Social Media Handles
+              Social media handles
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <Label htmlFor="club-twitter" className="text-[11px]">
+                <Label htmlFor="club-twitter" className="text-2xs">
                   X / Twitter
                 </Label>
                 <Input
@@ -308,7 +308,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="club-instagram" className="text-[11px]">
+                <Label htmlFor="club-instagram" className="text-2xs">
                   Instagram
                 </Label>
                 <Input
@@ -320,7 +320,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="club-youtube" className="text-[11px]">
+                <Label htmlFor="club-youtube" className="text-2xs">
                   YouTube
                 </Label>
                 <Input

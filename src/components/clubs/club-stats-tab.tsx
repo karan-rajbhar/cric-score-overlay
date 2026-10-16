@@ -1,6 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Initials } from "~/components/ui/initials";
+import { StatTile } from "~/components/ui/stat-tile";
 import { Activity } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
@@ -80,7 +82,7 @@ export function ClubStatsTab({
     <div className="space-y-6">
       <div>
         <h2 className="text-base font-bold sm:text-lg">
-          Club Statistics & Records
+          Club statistics & records
         </h2>
         <p className="text-xs text-muted-foreground">
           Aggregated performances, milestones, and leaderboards across matches
@@ -90,63 +92,30 @@ export function ClubStatsTab({
 
       {/* Key Milestones Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Matches Played</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold tabular-nums">
-              {milestones.totalMatches}
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              {milestones.completedMatches} completed
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Runs Scored</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold tabular-nums">
-              {milestones.totalRuns}
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              Across all club fixtures
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Wickets Taken</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold tabular-nums">
-              {milestones.totalWickets}
-            </div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">
-              Dismissals recorded
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Highest Total</span>
-            </div>
-            <div className="mt-2 text-2xl font-bold tabular-nums">
-              {milestones.highestTeamScore
-                ? `${milestones.highestTeamScore.runs}/${milestones.highestTeamScore.wickets}`
-                : "—"}
-            </div>
-            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {milestones.highestTeamScore?.teamName ?? "No completed innings"}
-            </div>
-          </CardContent>
-        </Card>
+        <StatTile
+          label="Matches played"
+          value={milestones.totalMatches}
+          hint={`${milestones.completedMatches} completed`}
+        />
+        <StatTile
+          label="Runs scored"
+          value={milestones.totalRuns}
+          hint="Across all club fixtures"
+        />
+        <StatTile
+          label="Wickets taken"
+          value={milestones.totalWickets}
+          hint="Dismissals recorded"
+        />
+        <StatTile
+          label="Highest total"
+          value={
+            milestones.highestTeamScore
+              ? `${milestones.highestTeamScore.runs}/${milestones.highestTeamScore.wickets}`
+              : "—"
+          }
+          hint={milestones.highestTeamScore?.teamName ?? "No completed innings"}
+        />
       </div>
 
       {/* Leaderboards */}
@@ -164,7 +133,7 @@ export function ClubStatsTab({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">
-                  Leading Run Scorers
+                  Leading run scorers
                 </CardTitle>
               </div>
             </CardHeader>
@@ -181,17 +150,15 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                           {idx + 1}
                         </span>
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
-                          {(b.name ?? "P")[0]?.toUpperCase()}
-                        </div>
+                        <Initials name={b.name} fallback="P" className="h-8 w-8" />
                         <div>
                           <div className="font-semibold text-foreground">
                             {b.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {b.inningsCount} inn • HS: {b.highestScore} • SR:{" "}
                             {b.strikeRate}
                           </div>
@@ -202,7 +169,7 @@ export function ClubStatsTab({
                         <div className="font-bold text-sm tabular-nums text-foreground">
                           {b.runs}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-2xs text-muted-foreground">
                           {b.fours} 4s, {b.sixes} 6s
                         </div>
                       </div>
@@ -218,7 +185,7 @@ export function ClubStatsTab({
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-semibold">
-                  Leading Wicket Takers
+                  Leading wicket takers
                 </CardTitle>
               </div>
             </CardHeader>
@@ -235,17 +202,15 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                           {idx + 1}
                         </span>
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-bold text-xs">
-                          {(bw.name ?? "B")[0]?.toUpperCase()}
-                        </div>
+                        <Initials name={bw.name} fallback="B" className="h-8 w-8" />
                         <div>
                           <div className="font-semibold text-foreground">
                             {bw.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {bw.overs} ov • Econ: {bw.economy}
                           </div>
                         </div>
@@ -256,7 +221,7 @@ export function ClubStatsTab({
                           {bw.wickets}{" "}
                           <span className="text-xs font-normal">wkts</span>
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-2xs text-muted-foreground">
                           {bw.runs} runs conceded
                         </div>
                       </div>

@@ -154,7 +154,7 @@ export function PlayerList({
                       {player.user?.full_name}
                     </Link>
                     {allowEdit && player.user?.email && (
-                      <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                      <p className="truncate text-2xs text-muted-foreground sm:text-xs">
                         {player.user.email}
                       </p>
                     )}
@@ -210,14 +210,14 @@ export function PlayerList({
                           handleRoleChange(player.user_id, "player")
                         }
                       >
-                        Set as Regular Player
+                        Set as regular player
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-600"
                         onClick={() => handleRemove(player.user_id)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" /> Remove from Team
+                        <Trash2 className="mr-2 h-4 w-4" /> Remove from team
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

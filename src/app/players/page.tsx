@@ -4,6 +4,8 @@ import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Search, UserX } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Initials } from "~/components/ui/initials";
+import { PageContainer, PageHeader } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
@@ -33,43 +35,44 @@ export default async function PlayersPage({
   const { data: players } = await query;
 
   return (
-    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
-      <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Players</h1>
-      <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-        All players on the platform
-      </p>
+    <PageContainer>
+      <PageHeader title="Players" description="All players on the platform" />
 
       <form
         action="/players"
         method="GET"
-        className="relative mt-4 w-full max-w-md sm:mt-6"
+        className="relative w-full max-w-md"
       >
-        <Search className="absolute left-3 top-3 h-4 w-4 shrink-0 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           name="q"
+          type="search"
+          aria-label="Search players"
           defaultValue={q}
           placeholder="Search by name or @handle…"
           className="h-10 pl-9 text-sm"
         />
       </form>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {(players ?? []).map((p) => (
           <Link
             key={p.id}
             href={`/players/${p.username ? `@${p.username}` : p.id}`}
           >
-            <Card className="transition-colors hover:border-primary/40">
+            <Card className="h-full transition-colors hover:border-primary/40">
               <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary">
-                  {p.full_name.slice(0, 2).toUpperCase()}
-                </div>
+                <Initials
+                  name={p.full_name}
+                  letters={2}
+                  className="h-10 w-10 text-sm"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-foreground">
                     {p.full_name}
                   </p>
                   {p.username ? (
-                    <p className="font-mono text-xs font-semibold text-primary">
+                    <p className="truncate font-mono text-xs text-muted-foreground">
                       @{p.username}
                     </p>
                   ) : (
@@ -103,6 +106,6 @@ export default async function PlayersPage({
           />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

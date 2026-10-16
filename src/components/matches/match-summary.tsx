@@ -357,7 +357,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 {getTopScorer(team1Innings) && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
-                      Top Scorer
+                      Top scorer
                     </span>
                     <span className="font-medium tabular-nums text-foreground">
                       {getTopScorer(team1Innings)?.user?.full_name} -{" "}
@@ -371,7 +371,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 )}
                 <div className="flex items-center justify-between border-t border-border/40 pt-2">
                   <span className="text-xs font-medium text-muted-foreground">
-                    Run Rate
+                    Run rate
                   </span>
                   <span className="font-semibold tabular-nums text-foreground">
                     {team1RunRate}
@@ -456,7 +456,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 {getTopScorer(team2Innings) && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-muted-foreground">
-                      Top Scorer
+                      Top scorer
                     </span>
                     <span className="font-medium tabular-nums text-foreground">
                       {getTopScorer(team2Innings)?.user?.full_name} -{" "}
@@ -470,7 +470,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 )}
                 <div className="flex items-center justify-between border-t border-border/40 pt-2">
                   <span className="text-xs font-medium text-muted-foreground">
-                    Run Rate
+                    Run rate
                   </span>
                   <span className="font-semibold tabular-nums text-foreground">
                     {team2RunRate}
@@ -522,8 +522,8 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 <h4 className="text-sm font-semibold text-foreground">
                   Top batters
                 </h4>
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  Runs (Balls)
+                <span className="text-2xs font-medium text-muted-foreground">
+                  Runs (balls)
                 </span>
               </div>
               <div className="space-y-2">
@@ -538,7 +538,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                         className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-bold text-muted-foreground">
                             {idx + 1}
                           </span>
                           <span className="truncate font-medium text-foreground">
@@ -547,7 +547,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {(bp.fours > 0 || bp.sixes > 0) && (
-                            <span className="hidden sm:inline-block text-[11px] text-muted-foreground tabular-nums">
+                            <span className="hidden sm:inline-block text-2xs text-muted-foreground tabular-nums">
                               {bp.fours}×4 {bp.sixes}×6
                             </span>
                           )}
@@ -578,8 +578,8 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                 <h4 className="text-sm font-semibold text-foreground">
                   Top bowlers
                 </h4>
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  W/R (Overs)
+                <span className="text-2xs font-medium text-muted-foreground">
+                  W/R (overs)
                 </span>
               </div>
               <div className="space-y-2">
@@ -594,7 +594,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                         className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm transition-colors hover:bg-muted/40"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-bold text-muted-foreground">
                             {idx + 1}
                           </span>
                           <span className="truncate font-medium text-foreground">
@@ -630,7 +630,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         <CardHeader className="border-b border-border/50 pb-3">
           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
             <Clock className="h-5 w-5 text-primary" />
-            Key Moments
+            Key moments
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-4">
@@ -660,7 +660,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge
                         variant="outline"
-                        className="px-1.5 py-0 text-[10px] font-medium"
+                        className="px-1.5 py-0 text-2xs font-medium"
                       >
                         {m.badge}
                       </Badge>

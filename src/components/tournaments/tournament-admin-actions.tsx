@@ -73,7 +73,7 @@ export function QualificationCalculatorButton({
         onClick={() => setOpen(true)}
       >
         <Calculator className="h-3.5 w-3.5 text-primary" />
-        Qualification Calculator
+        Qualification calculator
       </Button>
       <QualificationCalculator
         open={open}

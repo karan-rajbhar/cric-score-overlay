@@ -7,6 +7,11 @@ import { Shield, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ClubLogo } from "~/components/clubs/club-logo";
 import { formatClubType } from "~/lib/cricket";
+import {
+  PageContainer,
+  PageHeader,
+  SectionHeader,
+} from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
@@ -25,20 +30,20 @@ function ClubCard({ club }: { club: ClubRow }) {
   const teamCount = club.teams?.[0]?.count ?? 0;
   return (
     <Link href={`/clubs/${club.id}`} className="group">
-      <Card className="transition-colors group-hover:border-primary/50">
-        <CardContent className="p-4 sm:p-5">
+      <Card className="h-full transition-colors group-hover:border-primary/40">
+        <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <ClubLogo
               name={club.name}
               shortName={club.short_name}
               logoUrl={club.logo_url}
-              className="h-10 w-10 shrink-0 text-sm rounded-xl"
+              className="h-10 w-10 shrink-0 rounded-lg text-sm"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
-                <h2 className="truncate font-semibold">{club.name}</h2>
+                <h3 className="truncate font-semibold">{club.name}</h3>
                 {club.short_name && (
-                  <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-xs font-bold text-secondary-foreground">
+                  <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                     {club.short_name}
                   </span>
                 )}
@@ -111,31 +116,25 @@ export default async function ClubsPage() {
   const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
 
   return (
-    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-6 sm:px-4 sm:py-10">
-      <header className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-            Clubs
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            Clubs you belong to, plus public clubs on the platform.
-          </p>
-        </div>
-        {user && (
-          <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
-            <Link href="/clubs/create">
-              <Plus className="mr-1.5 h-4 w-4 shrink-0" />
-              Create club
-            </Link>
-          </Button>
-        )}
-      </header>
+    <PageContainer>
+      <PageHeader
+        title="Clubs"
+        description="Clubs you belong to, plus public clubs on the platform."
+        actions={
+          user && (
+            <Button asChild size="sm">
+              <Link href="/clubs/create">
+                <Plus />
+                Create club
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       {user && (
-        <section className="mb-10">
-          <h2 className="section-heading mb-4 text-sm font-semibold text-foreground">
-            My clubs
-          </h2>
+        <section className="space-y-4">
+          <SectionHeader title="My clubs" count={myClubs?.length ?? 0} />
           {myClubs?.length ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {myClubs.map((club) => (
@@ -157,11 +156,12 @@ export default async function ClubsPage() {
         </section>
       )}
 
-      <section>
-        {!user && (
-          <h2 className="section-heading mb-4 text-sm font-semibold text-foreground">
-            Public clubs
-          </h2>
+      <section className="space-y-4">
+        {(!user || explore.length > 0) && (
+          <SectionHeader
+            title="Public clubs"
+            count={explore.length || undefined}
+          />
         )}
         {explore.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -174,16 +174,15 @@ export default async function ClubsPage() {
             <EmptyState
               icon={Shield}
               title="No public clubs found"
-              description="No public cricket clubs have been registered on the platform yet. Sign in to create the first club!"
+              description="No public cricket clubs have been registered on the platform yet. Sign in to create the first club."
               primaryAction={{
-                label: "Sign In to Create Club",
+                label: "Sign in",
                 href: "/auth/login",
               }}
             />
           )
         )}
-        {user && !explore.length && null}
       </section>
-    </div>
+    </PageContainer>
   );
 }

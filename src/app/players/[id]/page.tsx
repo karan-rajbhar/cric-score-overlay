@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { StatTile } from "~/components/ui/stat-tile";
+import { Initials } from "~/components/ui/initials";
 import { Button } from "~/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -15,16 +17,12 @@ import {
 } from "~/components/players/player-activity-tabs";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
+import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
 function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border bg-card p-3 text-center">
-      <div className="text-xl font-bold tabular-nums sm:text-2xl">{value}</div>
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-    </div>
-  );
+  return <StatTile label={label} value={value} className="bg-muted/30" />;
 }
 
 export default async function PlayerPage({
@@ -261,7 +259,7 @@ export default async function PlayerPage({
     Math.max(matchesList.length, batting.length, bowling.length);
 
   return (
-    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -355,7 +353,7 @@ export default async function PlayerPage({
           variant="ghost"
           size="sm"
           asChild
-          className="interactive-button min-h-[36px] w-fit pl-0"
+          className="min-h-[36px] w-fit pl-0"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
@@ -366,18 +364,20 @@ export default async function PlayerPage({
       </div>
 
       {/* Profile Header */}
-      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-bold text-primary sm:h-16 sm:w-16 sm:text-2xl">
-            {user.full_name.slice(0, 2).toUpperCase()}
-          </div>
+          <Initials
+            name={user.full_name}
+            letters={2}
+            className="h-12 w-12 text-lg sm:h-16 sm:w-16 sm:text-xl"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-semibold tracking-tight">
                 {user.full_name}
               </h1>
               {user.username && (
-                <span className="inline-flex items-center rounded-md border border-border bg-muted px-2.5 py-0.5 font-mono text-xs font-medium text-muted-foreground">
+                <span className="font-mono text-sm text-muted-foreground">
                   @{user.username}
                 </span>
               )}
@@ -392,7 +392,7 @@ export default async function PlayerPage({
             )}
             {isSelf && (
               <div className="mt-2.5">
-                <InviteDialog className="h-9 gap-1.5 text-xs font-semibold sm:text-sm" />
+                <InviteDialog />
               </div>
             )}
 
@@ -409,7 +409,7 @@ export default async function PlayerPage({
                       name={tm.team.name}
                       shortName={tm.team.short_name}
                       logoUrl={tm.team.logo_url}
-                      className="h-4 w-4 shrink-0 text-[9px]"
+                      className="h-4 w-4 shrink-0 text-2xs"
                     />
                     <span>{tm.team.name}</span>
                     {tm.jersey_number !== undefined &&
@@ -419,7 +419,7 @@ export default async function PlayerPage({
                         </span>
                       )}
                     {tm.role_in_team && (
-                      <span className="font-semibold text-primary">
+                      <span className="text-muted-foreground">
                         ({formatPlayerRole(tm.role_in_team)})
                       </span>
                     )}
@@ -431,29 +431,10 @@ export default async function PlayerPage({
         </div>
 
         {/* Quick Highlights Pill */}
-        <div className="flex items-center justify-around gap-4 border-t pt-4 sm:justify-start sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums">{totalMatches}</div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Matches
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums">
-              {totalRuns}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Runs
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
-              {totalWickets}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Wickets
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-6 border-t pt-4 sm:flex sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+          <StatTile bordered={false} label="Matches" value={totalMatches} />
+          <StatTile bordered={false} label="Runs" value={totalRuns} />
+          <StatTile bordered={false} label="Wickets" value={totalWickets} />
         </div>
       </div>
 
@@ -461,8 +442,8 @@ export default async function PlayerPage({
       <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Batting Career
+            <CardTitle className="text-base">
+              Batting
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -477,8 +458,8 @@ export default async function PlayerPage({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Bowling Career
+            <CardTitle className="text-base">
+              Bowling
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -491,8 +472,8 @@ export default async function PlayerPage({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Fielding Career
+            <CardTitle className="text-base">
+              Fielding
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-3">
@@ -516,6 +497,6 @@ export default async function PlayerPage({
           initialTab={tab}
         />
       </div>
-    </div>
+    </PageContainer>
   );
 }

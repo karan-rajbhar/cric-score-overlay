@@ -294,12 +294,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5 text-emerald-400" />
             <CardTitle className="text-base sm:text-lg font-bold tracking-tight text-white">
-              Wagon Wheel
+              Wagon wheel
             </CardTitle>
           </div>
           <Badge
             variant="outline"
-            className="border-slate-600 bg-slate-800/80 text-[11px] font-semibold text-slate-200"
+            className="border-slate-600 bg-slate-800/80 text-2xs font-semibold text-slate-200"
           >
             360° Circular Wagon Wheel
           </Badge>
@@ -319,7 +319,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               viewBox="0 0 500 500"
               className="h-full w-full select-none"
             >
-              <title>Cricket Wagon Wheel Shot Distribution Map</title>
+              <title>Cricket wagon wheel shot distribution map</title>
               <defs>
                 {/* Lawn Turf Radial Gradients */}
                 <radialGradient id="turfLawn" cx="50%" cy="50%" r="50%">
@@ -646,7 +646,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Left Section: Runs, Balls, SR */}
             <div className="grid grid-cols-3 text-center px-1 sm:px-2">
               <div>
-                <div className="text-[11px] font-medium text-muted-foreground">
+                <div className="text-2xs font-medium text-muted-foreground">
                   Runs
                 </div>
                 <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
@@ -656,7 +656,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-medium text-muted-foreground">
+                <div className="text-2xs font-medium text-muted-foreground">
                   Balls
                 </div>
                 <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
@@ -666,7 +666,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-medium text-muted-foreground">
+                <div className="text-2xs font-medium text-muted-foreground">
                   SR
                 </div>
                 <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
@@ -680,7 +680,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             {/* Right Section: Off-S, Leg-S */}
             <div className="grid grid-cols-2 text-center px-1 sm:px-2">
               <div>
-                <div className="text-[11px] font-medium text-muted-foreground">
+                <div className="text-2xs font-medium text-muted-foreground">
                   Off-S
                 </div>
                 <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
@@ -690,7 +690,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 </div>
               </div>
               <div>
-                <div className="text-[11px] font-medium text-muted-foreground">
+                <div className="text-2xs font-medium text-muted-foreground">
                   Leg-S
                 </div>
                 <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
@@ -857,7 +857,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-xs sm:text-sm font-medium">
-                  All Players
+                  All players
                 </SelectItem>
                 {batters.map((b) => (
                   <SelectItem
@@ -880,7 +880,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             onClick={() => setShowDetailedBreakdown((prev) => !prev)}
             className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
           >
-            <span>Detailed Scoring Zones Breakdown</span>
+            <span>Detailed scoring zones breakdown</span>
             {showDetailedBreakdown ? (
               <ChevronUp className="h-4 w-4" />
             ) : (
@@ -930,12 +930,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                       </span>
                       <span className="font-bold tabular-nums">
                         {st.runs} runs{" "}
-                        <span className="text-[10px] text-muted-foreground font-normal">
+                        <span className="text-2xs text-muted-foreground font-normal">
                           ({pct}%)
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div className="mt-1 flex items-center justify-between text-2xs text-muted-foreground">
                       <span>{st.balls} balls</span>
                       <span className="flex items-center gap-2">
                         {st.fours > 0 && (

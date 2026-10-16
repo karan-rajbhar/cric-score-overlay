@@ -19,6 +19,7 @@ import { createTournament } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
 import { ChevronLeft, Loader2, Shield } from "lucide-react";
+import { PageContainer } from "~/components/layout/page";
 
 function CreateTournamentForm() {
   const searchParams = useSearchParams();
@@ -57,7 +58,7 @@ function CreateTournamentForm() {
 
           {clubs.length > 0 && (
             <div>
-              <Label htmlFor="club_id">Hosting Club (Optional)</Label>
+              <Label htmlFor="club_id">Hosting club (optional)</Label>
               <Select
                 value={selectedClubId || "none"}
                 onValueChange={(val) =>
@@ -69,7 +70,7 @@ function CreateTournamentForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">
-                    None (Independent Tournament)
+                    None (independent tournament)
                   </SelectItem>
                   {clubs.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -119,7 +120,7 @@ function CreateTournamentForm() {
                   <SelectItem value="league">League</SelectItem>
                   <SelectItem value="knockout">Knockout</SelectItem>
                   <SelectItem value="mixed">Mixed</SelectItem>
-                  <SelectItem value="round_robin">Round Robin</SelectItem>
+                  <SelectItem value="round_robin">Round robin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -237,8 +238,7 @@ export default function CreateTournamentPage() {
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-screen bg-background py-6 sm:py-8">
-      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
+    <PageContainer size="form" stack={false}>
         <Suspense fallback={null}>
           <CreateTournamentBackButton />
         </Suspense>
@@ -252,7 +252,6 @@ export default function CreateTournamentPage() {
         >
           <CreateTournamentForm />
         </Suspense>
-      </div>
-    </div>
+    </PageContainer>
   );
 }

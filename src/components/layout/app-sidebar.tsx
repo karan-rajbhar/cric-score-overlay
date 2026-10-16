@@ -156,7 +156,7 @@ export function AppSidebar() {
                       <span className="flex-1 truncate">{item.label}</span>
                     )}
                     {(!collapsed || isMobile) && item.badge && (
-                      <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
                         {item.badge}
                       </span>
                     )}

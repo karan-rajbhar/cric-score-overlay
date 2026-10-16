@@ -88,7 +88,7 @@ export function MatchStats({ match }: MatchStatsProps) {
           className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
         >
           <BarChart3 className="h-3.5 w-3.5 text-amber-500" />
-          Runs / Over
+          Runs / over
         </button>
         <button
           type="button"
@@ -166,32 +166,32 @@ export function MatchStats({ match }: MatchStatsProps) {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
-                      <span className="text-muted-foreground block text-[11px]">Best over</span>
+                      <span className="text-muted-foreground block text-2xs">Best over</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {best ? `Over ${best.over} (${best.runs} runs)` : "—"}
                       </span>
                     </div>
                     <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
-                      <span className="text-muted-foreground block text-[11px]">Run rate</span>
+                      <span className="text-muted-foreground block text-2xs">Run rate</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {runRate(innings.total_runs, inningsBallCount(innings))}
                       </span>
                     </div>
                     <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
-                      <span className="text-muted-foreground block text-[11px]">Last 5 ov</span>
+                      <span className="text-muted-foreground block text-2xs">Last 5 ov</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {last5.runs}/{last5.wickets}
                       </span>
                     </div>
                     <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
-                      <span className="text-muted-foreground block text-[11px]">Extras</span>
+                      <span className="text-muted-foreground block text-2xs">Extras</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {extrasSplit(innings).total}
                       </span>
                     </div>
                   </div>
                   <div className="space-y-2 border-t border-border/50 pt-3">
-                    <span className="text-[11px] font-medium text-muted-foreground block">
+                    <span className="text-2xs font-medium text-muted-foreground block">
                       Phase analysis
                     </span>
                     {phases.map((p) => {
@@ -234,7 +234,7 @@ export function MatchStats({ match }: MatchStatsProps) {
       {/* 6. Delivery breakdown */}
       <Card id="stats-breakdown" className="scroll-mt-16 border-border">
         <CardHeader className="border-b border-border/50 pb-3">
-          <CardTitle className="text-balance text-base sm:text-lg">Delivery Breakdown</CardTitle>
+          <CardTitle className="text-balance text-base sm:text-lg">Delivery breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-2">
@@ -380,7 +380,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="mt-4 flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
                         Wd {ex.wides}
                       </span>

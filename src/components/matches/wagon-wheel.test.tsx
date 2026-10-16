@@ -202,7 +202,7 @@ describe("WagonWheel Component (Stumps App Design)", () => {
   it("renders the Wagon Wheel header and circular SVG map", () => {
     render(<WagonWheel match={dummyMatch} />);
 
-    expect(screen.getByText("Wagon Wheel")).toBeInTheDocument();
+    expect(screen.getByText("Wagon wheel")).toBeInTheDocument();
     expect(
       screen.getByText(/visual shot direction analysis/i),
     ).toBeInTheDocument();

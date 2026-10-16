@@ -436,7 +436,7 @@ export function ScoringPanel({
     <Card
       data-sunlight={sunlightMode ? "true" : "false"}
       className={cn(
-        "card-data bg-card/90 max-sm:flex max-sm:flex-1 max-sm:flex-col",
+        "max-sm:flex max-sm:flex-1 max-sm:flex-col",
         sunlightMode && "sunlight-mode border-2 border-black",
       )}
     >
@@ -452,7 +452,7 @@ export function ScoringPanel({
 
         {/* Over position + this-over ball trail (tap a ball to edit it) */}
         <div className="flex items-center gap-2">
-          <span className="tabular shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-bold leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
+          <span className="tabular-nums shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-bold leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
             Over {currentOver}.{currentBall}
           </span>
           {lastBalls.length > 0 ? (
@@ -468,7 +468,7 @@ export function ScoringPanel({
                     type="button"
                     onClick={() => onSelectBall?.(idx)}
                     className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center border text-[11px] transition-colors hover:brightness-95 active:scale-95 sm:h-9 sm:w-9 sm:text-xs",
+                      "flex h-8 w-8 shrink-0 items-center justify-center border text-2xs transition-colors hover:brightness-95 active:scale-95 sm:h-9 sm:w-9 sm:text-xs",
                       getBallDisplay(ball),
                     )}
                     title={`Ball ${idx + 1}: ${getBallLabel(ball)} (tap to edit)`}
@@ -478,13 +478,13 @@ export function ScoringPanel({
                   </button>
                 ))}
               </div>
-              <span className="tabular shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-[11px] font-bold text-foreground">
+              <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
                 {overSummary.runs}r
                 {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
               </span>
             </>
           ) : (
-            <span className="truncate text-[11px] font-medium text-muted-foreground/80 sm:text-xs">
+            <span className="truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
               New over · awaiting first ball
             </span>
           )}
@@ -586,7 +586,7 @@ export function ScoringPanel({
                         : `${runs} runs (${runs})`
                 }
                 className={cn(
-                  "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
+                  "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
                   sunlightMode
                     ? cn(
                         "border-2 font-bold shadow-none",
@@ -624,7 +624,7 @@ export function ScoringPanel({
                 {subLabel && (
                   <span
                     className={cn(
-                      "mt-1 font-sans text-[9px] font-semibold leading-none sm:text-[11px]",
+                      "mt-1 font-sans text-[9px] font-semibold leading-none sm:text-2xs",
                       sunlightMode
                         ? isFour || isSix
                           ? "text-white"
@@ -653,7 +653,7 @@ export function ScoringPanel({
             title="More run options (7, 8, 9, 10, 11, 12, 13, custom)"
             onClick={() => setShowMoreRuns((prev) => !prev)}
             className={cn(
-              "score-display tabular flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
+              "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl",
               sunlightMode
                 ? showMoreRuns
                   ? "border-2 border-black bg-black text-white shadow-none"
@@ -754,7 +754,7 @@ export function ScoringPanel({
               aria-pressed={selectedExtra === type}
               aria-label={label}
               className={cn(
-                "h-10 rounded-lg text-[11px] font-semibold transition-colors disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
+                "h-10 rounded-lg text-2xs font-semibold transition-colors disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
                 sunlightMode
                   ? selectedExtra === type
                     ? "border-2 border-black bg-black font-bold text-white shadow-none"
@@ -843,7 +843,7 @@ export function ScoringPanel({
           )}
         </div>
 
-        <p className="hidden text-center text-[11px] text-muted-foreground sm:block">
+        <p className="hidden text-center text-2xs text-muted-foreground sm:block">
           Keys 0–6 score · . dot · W wicket · U undo · S swap · D/N/B/L extras ·
           ? help
         </p>
@@ -969,7 +969,7 @@ export function ScoringPanel({
                   <span className="font-bold">{key}</span>
                   <Badge
                     variant={variant as "outline" | "destructive"}
-                    className="font-sans text-[11px]"
+                    className="font-sans text-2xs"
                   >
                     {label}
                   </Badge>

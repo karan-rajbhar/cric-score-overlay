@@ -95,7 +95,7 @@ export function PenaltyBonusDialog({
                 )}
               </span>
               <DialogTitle className="text-lg font-semibold">
-                Award Penalty or Bonus Runs
+                Award penalty or bonus runs
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -106,7 +106,7 @@ export function PenaltyBonusDialog({
           <div className="space-y-4 py-4">
             {/* Type selector */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Award Type</Label>
+              <Label className="text-xs font-bold">Award type</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Button
                   type="button"
@@ -118,7 +118,7 @@ export function PenaltyBonusDialog({
                     setRuns(5);
                   }}
                 >
-                  Penalty Runs
+                  Penalty runs
                 </Button>
                 <Button
                   type="button"
@@ -130,7 +130,7 @@ export function PenaltyBonusDialog({
                     setRuns(1);
                   }}
                 >
-                  Bonus Runs
+                  Bonus runs
                 </Button>
               </div>
             </div>
@@ -138,7 +138,7 @@ export function PenaltyBonusDialog({
             {/* Recipient Team */}
             <div className="space-y-1.5">
               <Label htmlFor="recipient-team" className="text-xs font-bold">
-                Award Runs To
+                Award runs to
               </Label>
               <Select
                 value={targetTeamId || battingTeam?.id || ""}
@@ -160,7 +160,7 @@ export function PenaltyBonusDialog({
                   )}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Under MCC Law 41/42, penalty runs can be awarded to either team.
               </p>
             </div>
@@ -169,9 +169,9 @@ export function PenaltyBonusDialog({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="penalty-runs" className="text-xs font-bold">
-                  Number of Runs
+                  Number of runs
                 </Label>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   Standard Law 41/42 is 5 runs
                 </span>
               </div>
@@ -206,7 +206,7 @@ export function PenaltyBonusDialog({
             {/* Reason */}
             <div className="space-y-1.5">
               <Label htmlFor="penalty-reason" className="text-xs font-bold">
-                Reason / Violation
+                Reason / violation
               </Label>
               <Select value={reason} onValueChange={setReason}>
                 <SelectTrigger id="penalty-reason" className="h-9 text-xs">
@@ -225,7 +225,7 @@ export function PenaltyBonusDialog({
             {reason === "Other infraction" && (
               <div className="space-y-1.5">
                 <Label htmlFor="custom-reason" className="text-xs font-bold">
-                  Specify Reason
+                  Specify reason
                 </Label>
                 <Input
                   id="custom-reason"

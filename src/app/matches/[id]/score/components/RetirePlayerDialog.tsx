@@ -70,7 +70,7 @@ export function RetirePlayerDialog({
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold">Retirement Type</Label>
+              <Label className="text-xs font-bold">Retirement type</Label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -82,9 +82,9 @@ export function RetirePlayerDialog({
                   }`}
                 >
                   <span className="text-xs font-bold text-foreground">
-                    Retire Hurt
+                    Retire hurt
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     Law 25.4: Injury/Illness. <strong>NOT OUT</strong>. Team wickets do not increase.
                   </span>
                 </button>
@@ -99,9 +99,9 @@ export function RetirePlayerDialog({
                   }`}
                 >
                   <span className="text-xs font-bold text-foreground">
-                    Retire Out
+                    Retire out
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     Law 25.4: Tactical retirement. <strong>OUT</strong>. Counts as a wicket down.
                   </span>
                 </button>
@@ -110,7 +110,7 @@ export function RetirePlayerDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="retire-reason" className="text-xs font-bold">
-                Reason / Injury Notes (Optional)
+                Reason / injury notes (optional)
               </Label>
               <Input
                 id="retire-reason"

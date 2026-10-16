@@ -179,7 +179,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
           two — blue is the first-named batter, purple the second-named batter,
           grey is extras. Bar length = stand runs as a share of the team total.
         </CardDescription>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-2xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <span className="h-2 w-2 rounded-full bg-sky-500" /> Batter 1 (first name)
           </span>
@@ -212,7 +212,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
                   <p className="text-xs font-medium text-muted-foreground">
                     {g.teamName}
                   </p>
-                  <p className="text-[11px] tabular-nums text-muted-foreground">
+                  <p className="text-2xs tabular-nums text-muted-foreground">
                     {g.rows.length} stand{g.rows.length === 1 ? "" : "s"} ·{" "}
                     {g.inningsTotal} total
                   </p>
@@ -260,7 +260,7 @@ export function MatchPartnerships({ match }: { match: Match }) {
                         <div className="flex items-center justify-between gap-2 text-sm">
                           <span className="flex min-w-0 items-center gap-1.5">
                             <span
-                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold tabular-nums text-muted-foreground"
+                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-bold tabular-nums text-muted-foreground"
                               title={`Wicket ${idx + 1} stand`}
                             >
                               {idx + 1}
@@ -271,12 +271,12 @@ export function MatchPartnerships({ match }: { match: Match }) {
                               <span className="text-violet-600 dark:text-violet-400">{name2}</span>
                             </span>
                             {p.is_current ? (
-                              <LiveIndicator className="shrink-0 text-[10px]" />
+                              <LiveIndicator className="shrink-0 text-2xs" />
                             ) : null}
                             {isBest ? (
                               <Badge
                                 variant="outline"
-                                className="shrink-0 px-1.5 py-0 text-[10px] font-medium"
+                                className="shrink-0 px-1.5 py-0 text-2xs font-medium"
                               >
                                 Best
                               </Badge>
@@ -317,13 +317,13 @@ export function MatchPartnerships({ match }: { match: Match }) {
                             />
                           )}
                           {p.runs === 0 && (
-                            <span className="flex w-full items-center justify-center text-[10px] text-muted-foreground">
+                            <span className="flex w-full items-center justify-center text-2xs text-muted-foreground">
                               Duck — no runs
                             </span>
                           )}
                         </div>
 
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] tabular-nums">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-2xs tabular-nums">
                           {split ? (
                             <>
                               <span className="flex items-center gap-1">

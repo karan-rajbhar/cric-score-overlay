@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { Initials } from "~/components/ui/initials";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -494,9 +495,7 @@ function LeaderSpotlightBanner({
         {leader && heroValue && (
           <div className="flex items-center gap-3 self-start sm:self-auto rounded-lg border border-border/60 bg-card/90 p-2.5 sm:min-w-[290px]">
             <div className="relative shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
-                {(leader.name ?? "P")[0]?.toUpperCase()}
-              </div>
+              <Initials name={leader.name} fallback="P" className="h-10 w-10" />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -510,11 +509,11 @@ function LeaderSpotlightBanner({
                   {heroValue}
                 </span>
               </div>
-              <div className="text-[10px] text-muted-foreground truncate">
+              <div className="text-2xs text-muted-foreground truncate">
                 {heroLabel}
               </div>
               {contextStats && contextStats.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground border-t border-border/40 pt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-muted-foreground border-t border-border/40 pt-1">
                   {contextStats.slice(0, 3).map((st) => (
                     <span key={st.label} className="truncate">
                       <span className="font-semibold text-foreground tabular-nums">
@@ -666,7 +665,7 @@ export function LeaderboardView({
               }`}
             >
               Batting
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.batting.length}
               </Badge>
             </button>
@@ -682,7 +681,7 @@ export function LeaderboardView({
               }`}
             >
               Bowling
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.bowling.length}
               </Badge>
             </button>
@@ -698,7 +697,7 @@ export function LeaderboardView({
               }`}
             >
               Fielding
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.fielding.length}
               </Badge>
             </button>
@@ -714,7 +713,7 @@ export function LeaderboardView({
               }`}
             >
               MVP
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.mvp.length}
               </Badge>
             </button>
@@ -746,7 +745,7 @@ export function LeaderboardView({
                           <div className="truncate font-semibold text-foreground">
                             {data.highlights.orangeCap.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.orangeCap.innings} inn • Avg:{" "}
                             {data.highlights.orangeCap.averageDisplay} • SR:{" "}
                             {data.highlights.orangeCap.strikeRateDisplay}
@@ -783,7 +782,7 @@ export function LeaderboardView({
                           <div className="truncate font-semibold text-foreground">
                             {data.highlights.purpleCap.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.purpleCap.overs} ov • Avg:{" "}
                             {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
                             {data.highlights.purpleCap.economyDisplay}
@@ -806,7 +805,7 @@ export function LeaderboardView({
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-foreground">
-                        MVP Leader
+                        MVP leader
                       </span>
                       <span className="text-xs text-muted-foreground">
                         All-round points
@@ -820,7 +819,7 @@ export function LeaderboardView({
                           <div className="truncate font-semibold text-foreground">
                             {data.highlights.mvpLeader.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.mvpLeader.summary}
                           </div>
                         </div>
@@ -841,7 +840,7 @@ export function LeaderboardView({
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Most Sixes (Max)
+                        Most sixes (max)
                       </span>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
@@ -852,7 +851,7 @@ export function LeaderboardView({
                         {data.highlights.mostSixes?.sixes ?? 0}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.mostSixes
                         ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
                         : "No sixes recorded"}
@@ -865,7 +864,7 @@ export function LeaderboardView({
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Highest Individual Score
+                        Highest individual score
                       </span>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
@@ -876,7 +875,7 @@ export function LeaderboardView({
                         {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.highestScore
                         ? data.highlights.highestScore.highestScoreBalls
                           ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
@@ -891,7 +890,7 @@ export function LeaderboardView({
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Best Bowling Figures
+                        Best bowling figures
                       </span>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
@@ -902,7 +901,7 @@ export function LeaderboardView({
                         {data.highlights.bestBowling?.bestBowling.display ?? "—"}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.bestBowling
                         ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
                         : "No bowling figures recorded"}
@@ -915,7 +914,7 @@ export function LeaderboardView({
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Top Fielder
+                        Top fielder
                       </span>
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
@@ -926,7 +925,7 @@ export function LeaderboardView({
                         {data.highlights.topFielder?.totalDismissals ?? 0}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.topFielder
                         ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
                         : "No dismissals recorded"}
@@ -966,17 +965,15 @@ export function LeaderboardView({
                           className="flex items-center justify-between p-3"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                               {idx + 1}
                             </span>
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                              {(b.name ?? "P")[0]?.toUpperCase()}
-                            </div>
+                            <Initials name={b.name} fallback="P" className="h-7 w-7" />
                             <div>
                               <div className="font-semibold text-foreground">
                                 {b.name}
                               </div>
-                              <div className="text-[11px] text-muted-foreground">
+                              <div className="text-2xs text-muted-foreground">
                                 {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
                                 {b.strikeRateDisplay}
                               </div>
@@ -986,7 +983,7 @@ export function LeaderboardView({
                             <div className="text-sm font-bold tabular-nums text-foreground">
                               {b.runs}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {b.fours}×4, {b.sixes}×6
                             </div>
                           </div>
@@ -1025,17 +1022,15 @@ export function LeaderboardView({
                           className="flex items-center justify-between p-3"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                               {idx + 1}
                             </span>
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                              {(bw.name ?? "B")[0]?.toUpperCase()}
-                            </div>
+                            <Initials name={bw.name} fallback="B" className="h-7 w-7" />
                             <div>
                               <div className="font-semibold text-foreground">
                                 {bw.name}
                               </div>
-                              <div className="text-[11px] text-muted-foreground">
+                              <div className="text-2xs text-muted-foreground">
                                 {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
                                 {bw.bestBowling.display}
                               </div>
@@ -1045,7 +1040,7 @@ export function LeaderboardView({
                             <div className="text-sm font-bold tabular-nums text-foreground">
                               {bw.wickets}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               Avg {bw.averageDisplay}
                             </div>
                           </div>
@@ -1086,7 +1081,7 @@ export function LeaderboardView({
                     variant={battingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBattingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1100,24 +1095,24 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Focused Knock View
+                    Focused knock view
                   </button>
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    All Columns
+                    All columns
                   </button>
                 </div>
               )}
@@ -1159,17 +1154,15 @@ export function LeaderboardView({
                     <Card key={b.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(b.name ?? "P")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={b.name} fallback="P" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {b.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {b.matches} matches • {b.innings} innings
                             </div>
                           </div>
@@ -1179,13 +1172,13 @@ export function LeaderboardView({
                           <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -1207,22 +1200,22 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
                           <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
-                            High Score (HS)
+                            High score (HS)
                           </th>
-                          <th className="px-3 py-2.5 text-center">Balls (Knock)</th>
-                          <th className="px-3 py-2.5 text-right">SR (Knock)</th>
+                          <th className="px-3 py-2.5 text-center">Balls (knock)</th>
+                          <th className="px-3 py-2.5 text-right">SR (knock)</th>
                           <th className="px-3 py-2.5 text-center">Knock 4s</th>
                           <th className="px-3 py-2.5 text-center">Knock 6s</th>
                           <th className="px-3 py-2.5 text-center">Innings</th>
                           <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total Tournament Runs
+                            Total tournament runs
                           </th>
-                          <th className="px-3 py-2.5 text-right">Overall Avg</th>
+                          <th className="px-3 py-2.5 text-right">Overall avg</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -1242,9 +1235,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(b.name ?? "P")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {b.name}
                                 </span>
@@ -1287,7 +1278,7 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1404,9 +1395,7 @@ export function LeaderboardView({
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                    {(b.name ?? "P")[0]?.toUpperCase()}
-                                  </div>
+                                  <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
                                   <span className="font-semibold text-foreground truncate max-w-[160px]">
                                     {b.name}
                                   </span>
@@ -1540,7 +1529,7 @@ export function LeaderboardView({
                     variant={bowlingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBowlingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1554,24 +1543,24 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Focused Spell View
+                    Focused spell view
                   </button>
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    All Columns
+                    All columns
                   </button>
                 </div>
               )}
@@ -1613,17 +1602,15 @@ export function LeaderboardView({
                     <Card key={bw.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(bw.name ?? "B")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={bw.name} fallback="B" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {bw.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {bw.matches} matches • {bw.innings} innings
                             </div>
                           </div>
@@ -1633,13 +1620,13 @@ export function LeaderboardView({
                           <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -1661,21 +1648,21 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
                           <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
-                            Best Figures (BBI)
+                            Best figures (BBI)
                           </th>
-                          <th className="px-3 py-2.5 text-center">Overs in Spell</th>
-                          <th className="px-3 py-2.5 text-right">Spell Economy</th>
+                          <th className="px-3 py-2.5 text-center">Overs in spell</th>
+                          <th className="px-3 py-2.5 text-right">Spell economy</th>
                           <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total Tournament Wkts
+                            Total tournament wkts
                           </th>
-                          <th className="px-3 py-2.5 text-center">Total Overs</th>
-                          <th className="px-3 py-2.5 text-right">Overall Econ</th>
-                          <th className="px-3 py-2.5 text-right">Bowling Avg</th>
+                          <th className="px-3 py-2.5 text-center">Total overs</th>
+                          <th className="px-3 py-2.5 text-right">Overall econ</th>
+                          <th className="px-3 py-2.5 text-right">Bowling avg</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -1695,9 +1682,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(bw.name ?? "B")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {bw.name}
                                 </span>
@@ -1737,7 +1722,7 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1846,9 +1831,7 @@ export function LeaderboardView({
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                    {(bw.name ?? "B")[0]?.toUpperCase()}
-                                  </div>
+                                  <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
                                   <span className="font-semibold text-foreground truncate max-w-[160px]">
                                     {bw.name}
                                   </span>
@@ -1971,7 +1954,7 @@ export function LeaderboardView({
                   variant={fieldingSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setFieldingSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                 >
                   {chip.label}
                 </Button>
@@ -2014,17 +1997,15 @@ export function LeaderboardView({
                     <Card key={f.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(f.name ?? "F")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={f.name} fallback="F" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {f.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {f.matches} matches
                             </div>
                           </div>
@@ -2034,13 +2015,13 @@ export function LeaderboardView({
                           <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -2061,7 +2042,7 @@ export function LeaderboardView({
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 w-10 text-center">#</th>
                         <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2073,7 +2054,7 @@ export function LeaderboardView({
                               : "font-bold text-foreground"
                           }`}
                         >
-                          Total Dismissals
+                          Total dismissals
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
@@ -2100,7 +2081,7 @@ export function LeaderboardView({
                               : ""
                           }`}
                         >
-                          Run Outs (RO)
+                          Run outs (RO)
                         </th>
                       </tr>
                     </thead>
@@ -2131,9 +2112,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(f.name ?? "F")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={f.name} fallback="F" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[180px]">
                                   {f.name}
                                 </span>
@@ -2210,7 +2189,7 @@ export function LeaderboardView({
                   variant={mvpSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setMvpSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                 >
                   {chip.label}
                 </Button>
@@ -2253,17 +2232,15 @@ export function LeaderboardView({
                     <Card key={m.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(m.name ?? "P")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={m.name} fallback="P" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {m.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground truncate">
+                            <div className="text-2xs text-muted-foreground truncate">
                               {m.summary}
                             </div>
                           </div>
@@ -2273,13 +2250,13 @@ export function LeaderboardView({
                           <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -2300,7 +2277,7 @@ export function LeaderboardView({
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 w-10 text-center">#</th>
                         <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2312,7 +2289,7 @@ export function LeaderboardView({
                               : "font-bold text-foreground"
                           }`}
                         >
-                          Total Points
+                          Total points
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
@@ -2321,7 +2298,7 @@ export function LeaderboardView({
                               : ""
                           }`}
                         >
-                          Bat Pts
+                          Bat pts
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
@@ -2330,7 +2307,7 @@ export function LeaderboardView({
                               : ""
                           }`}
                         >
-                          Bowl Pts
+                          Bowl pts
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
@@ -2339,9 +2316,9 @@ export function LeaderboardView({
                               : ""
                           }`}
                         >
-                          Field Pts
+                          Field pts
                         </th>
-                        <th className="px-3 py-2.5 min-w-[180px]">Key Stats</th>
+                        <th className="px-3 py-2.5 min-w-[180px]">Key stats</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -2371,9 +2348,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(m.name ?? "P")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={m.name} fallback="P" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {m.name}
                                 </span>

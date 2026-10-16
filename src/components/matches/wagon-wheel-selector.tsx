@@ -388,7 +388,7 @@ export function WagonWheelSelector({
         </svg>
       </div>
 
-      <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+      <p className="mt-1.5 text-2xs font-medium text-muted-foreground">
         Tap anywhere inside the boundary or at the boundary to select shot
       </p>
     </div>

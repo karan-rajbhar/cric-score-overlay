@@ -93,7 +93,7 @@ export function MatchWormChart({ match, ballLog: ballLogProp }: MatchWormChartPr
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-balance text-lg">
-          Worm Chart · Cumulative Run Progression
+          Worm chart · cumulative run progression
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -276,7 +276,7 @@ export function MatchWormChart({ match, ballLog: ballLogProp }: MatchWormChartPr
               })}
               {/* Wicket fallback dots in red when overlapping not needed — kept subtle */}
             </svg>
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+            <div className="mt-1 flex justify-between text-2xs text-muted-foreground">
               <span>Over 1</span>
               <span className="tabular-nums">Over {totalOversMax}</span>
             </div>

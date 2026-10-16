@@ -71,7 +71,7 @@ function BatsmanRow({
             }
           >
             <UserPlus className="h-3.5 w-3.5" />
-            Select Batter
+            Select batter
           </button>
         )}
       </div>
@@ -127,7 +127,7 @@ function BatsmanRow({
               }
               className={
                 sunlightMode
-                  ? "inline-flex min-h-[30px] items-center gap-1 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-[11px] font-bold text-black"
+                  ? "inline-flex min-h-[30px] items-center gap-1 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-2xs font-bold text-black"
                   : "inline-flex min-h-[30px] items-center gap-1 rounded-full border border-border/80 bg-background/80 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-300"
               }
             >
@@ -143,7 +143,7 @@ function BatsmanRow({
               title="Retire batter hurt (injury/illness) or retire out"
               className={
                 sunlightMode
-                  ? "inline-flex min-h-[30px] items-center gap-1 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-[11px] font-bold text-black"
+                  ? "inline-flex min-h-[30px] items-center gap-1 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-2xs font-bold text-black"
                   : "inline-flex min-h-[30px] items-center gap-1 rounded-full border border-border/80 bg-background/80 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground transition-colors hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400"
               }
             >
@@ -155,8 +155,8 @@ function BatsmanRow({
         <p
           className={
             sunlightMode
-              ? "tabular mt-0.5 text-xs font-bold text-black"
-              : "tabular mt-0.5 text-xs text-muted-foreground"
+              ? "tabular-nums mt-0.5 text-xs font-bold text-black"
+              : "tabular-nums mt-0.5 text-xs text-muted-foreground"
           }
         >
           <span
@@ -185,8 +185,8 @@ function BatsmanRow({
       <p
         className={
           sunlightMode
-            ? "score-display tabular shrink-0 text-3xl font-bold leading-none text-black sm:text-4xl"
-            : "score-display tabular shrink-0 text-2xl font-bold leading-none text-foreground sm:text-3xl"
+            ? "score-display tabular-nums shrink-0 text-3xl font-bold leading-none text-black sm:text-4xl"
+            : "score-display tabular-nums shrink-0 text-2xl font-bold leading-none text-foreground sm:text-3xl"
         }
       >
         {batsman.runs}
@@ -254,7 +254,7 @@ export function CurrentBatsmen({
                 }
               >
                 <ArrowLeftRight className="h-3.5 w-3.5 text-emerald-600" />
-                Swap Strike
+                Swap strike
               </button>
             )}
             {onSelectNewBatsman && (
@@ -269,7 +269,7 @@ export function CurrentBatsmen({
                 title="Change or replace batters at the crease"
               >
                 <Users className="h-3.5 w-3.5" />
-                Change Batters
+                Change batters
               </button>
             )}
           </div>

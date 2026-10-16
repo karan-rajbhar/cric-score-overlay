@@ -67,7 +67,7 @@ export function MemberRoleAction({
       ) : (
         <>
           <ShieldCheck className="h-3 w-3 text-sky-500" />
-          <span>Make Admin</span>
+          <span>Make admin</span>
         </>
       )}
     </Button>

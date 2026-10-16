@@ -66,12 +66,12 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
           <Plus className="h-3.5 w-3.5" />
-          New Season
+          New season
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Create Club Season</DialogTitle>
+          <DialogTitle className="text-xl">Create club season</DialogTitle>
           <DialogDescription>
             Organize tournaments, team rosters, and stats under a periodic
             season or quarter.
@@ -80,7 +80,7 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
 
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="seasonName">Season Name</Label>
+            <Label htmlFor="seasonName">Season name</Label>
             <Input
               id="seasonName"
               value={name}
@@ -91,7 +91,7 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="start">Start Date</Label>
+              <Label htmlFor="start">Start date</Label>
               <Input
                 id="start"
                 type="date"
@@ -100,7 +100,7 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="end">End Date</Label>
+              <Label htmlFor="end">End date</Label>
               <Input
                 id="end"
                 type="date"

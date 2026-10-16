@@ -12,6 +12,11 @@ import {
 } from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
+import {
+  PageContainer,
+  PageHeader,
+  SectionHeader,
+} from "~/components/layout/page";
 import { Plus, Search, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
@@ -74,28 +79,7 @@ export default function MatchesPage() {
   const renderSection = (title: string, items: Match[], live = false) =>
     items.length > 0 && (
       <section className="space-y-4">
-        <div className="section-heading">
-          <div className="flex items-center gap-2">
-            {live ? (
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
-              </span>
-            ) : null}
-            <span
-              className={cn(
-                live
-                  ? "font-bold text-red-600 dark:text-red-400"
-                  : "font-bold text-foreground",
-              )}
-            >
-              {title}
-            </span>
-            <span className="tabular-nums rounded-full bg-muted/80 px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-              {items.length}
-            </span>
-          </div>
-        </div>
+        <SectionHeader title={title} count={items.length} live={live} />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((match) => (
             <MatchCard
@@ -118,52 +102,49 @@ export default function MatchesPage() {
     );
 
   return (
-    <div className="space-y-8 w-full max-w-full overflow-x-hidden">
-      {/* Header + search & filter controls */}
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
-            Match Center
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            Real-time scores, upcoming fixtures, and archived scorecards
-          </p>
-        </div>
-        {user && (
-          <Button
-            asChild
-            size="sm"
-            className="interactive-button w-full gap-1.5 sm:w-auto"
-          >
-            <Link href="/matches/create">
-              <Plus className="h-4 w-4 shrink-0" />
-              Score New Match
-            </Link>
-          </Button>
-        )}
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Matches"
+        description="Live scores, fixtures and results"
+        actions={
+          user && (
+            <Button asChild size="sm">
+              <Link href="/matches/create">
+                <Plus />
+                New match
+              </Link>
+            </Button>
+          )
+        }
+      />
 
-      <div className="flex flex-col gap-3 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground shrink-0" />
           <Input
+            aria-label="Search matches"
             placeholder="Search teams, titles or venues…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 w-full pl-9 text-xs"
+            className="h-9 w-full pl-9"
           />
         </div>
 
-        <div className="flex w-full overflow-x-auto no-scrollbar gap-1.5 rounded-xl border border-border/80 bg-muted/40 p-1 sm:w-auto">
+        <div
+          role="group"
+          aria-label="Filter by status"
+          className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1 sm:w-auto"
+        >
           {statusOptions.map((option) => (
             <button
               key={option.value}
               type="button"
+              aria-pressed={statusFilter === option.value}
               onClick={() => setStatusFilter(option.value)}
               className={cn(
-                "interactive-button shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-center text-xs font-semibold min-h-[38px] transition-all sm:px-3 sm:py-1.5 sm:min-h-0",
+                "min-h-9 flex-1 shrink-0 whitespace-nowrap rounded-md px-3 text-center text-sm font-medium transition-colors sm:min-h-8 sm:flex-none",
                 statusFilter === option.value
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
               )}
             >
@@ -191,22 +172,22 @@ export default function MatchesPage() {
               <Button
                 size="sm"
                 onClick={() => void refetch()}
-                className="interactive-button gap-2"
+                className="gap-2"
               >
                 <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                Try Again
+                Try again
               </Button>
             </CardContent>
           </Card>
         ) : filteredMatches.length === 0 ? (
           <EmptyState
             icon={Radio}
-            title="No Matches Found"
+            title="No matches found"
             description={
               searchQuery
-                ? `No fixtures match "${searchQuery}". Try refining your search query or reset status filters.`
+                ? `No fixtures match "${searchQuery}". Try a different search or clear the status filter.`
                 : statusFilter === "live"
-                  ? "There are currently no active live matches being scored."
+                  ? "No matches are being scored right now."
                   : statusFilter === "scheduled"
                     ? "No upcoming matches on the schedule."
                     : "No matches match the selected criteria."
@@ -214,12 +195,12 @@ export default function MatchesPage() {
             primaryAction={
               user
                 ? {
-                    label: "Score First Match",
+                    label: "New match",
                     href: "/matches/create",
                     icon: Plus,
                   }
                 : {
-                    label: "Sign in to Create",
+                    label: "Sign in",
                     href: "/auth/login",
                   }
             }
@@ -233,6 +214,6 @@ export default function MatchesPage() {
           </>
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

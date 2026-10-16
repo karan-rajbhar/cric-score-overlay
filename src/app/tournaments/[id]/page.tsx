@@ -38,6 +38,7 @@ import {
 import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
 import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
+import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
@@ -322,7 +323,7 @@ export default async function TournamentPage({
       : "All Tournaments";
 
   return (
-    <div className="container mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Top Back Nav & Breadcrumbs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button
@@ -446,7 +447,7 @@ export default async function TournamentPage({
               >
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
-                  Schedule Match
+                  Schedule match
                 </Link>
               </Button>
             )}
@@ -459,34 +460,30 @@ export default async function TournamentPage({
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-4 sm:max-w-xl sm:justify-stretch">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:grid sm:grid-cols-4 sm:max-w-xl sm:justify-stretch">
           <TabsTrigger
             value="standings"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Points Table
+            Points table
           </TabsTrigger>
           <TabsTrigger
             value="fixtures"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Fixtures ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="teams"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Teams ({(registrations ?? []).length})
           </TabsTrigger>
           <TabsTrigger
             value="analysis"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Leaderboard & Stats
+            Leaderboard & stats
           </TabsTrigger>
         </TabsList>
 
@@ -496,7 +493,7 @@ export default async function TournamentPage({
             <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-base sm:text-lg">
-                  Tournament Standings
+                  Tournament standings
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
                   Points table with automated ICC Net Run Rate (NRR)
@@ -587,7 +584,7 @@ export default async function TournamentPage({
                                 {teamObj?.short_name && (
                                   <Badge
                                     variant="secondary"
-                                    className="px-1.5 py-0 text-[10px]"
+                                    className="px-1.5 py-0 text-2xs"
                                   >
                                     {teamObj.short_name}
                                   </Badge>
@@ -596,21 +593,21 @@ export default async function TournamentPage({
                             </td>
                             <td className="px-3 py-3 text-center">
                               {s.qualification_status === "qualified" && (
-                                <Badge className="border-emerald-500/40 bg-emerald-500/20 px-1.5 py-0 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <Badge className="border-emerald-500/40 bg-emerald-500/20 px-1.5 py-0 text-2xs font-bold text-emerald-600 dark:text-emerald-400">
                                   Q
                                 </Badge>
                               )}
                               {s.qualification_status === "eliminated" && (
                                 <Badge
                                   variant="destructive"
-                                  className="px-1.5 py-0 text-[10px] font-bold"
+                                  className="px-1.5 py-0 text-2xs font-bold"
                                 >
                                   E
                                 </Badge>
                               )}
                               {(!s.qualification_status ||
                                 s.qualification_status === "in_contention") && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-2xs text-muted-foreground/60">
                                   —
                                 </span>
                               )}
@@ -631,7 +628,7 @@ export default async function TournamentPage({
                               <div>{s.points}</div>
                               {s.points_adjustment &&
                                 Number(s.points_adjustment) !== 0 && (
-                                  <span className="block text-[10px] font-normal text-muted-foreground">
+                                  <span className="block text-2xs font-normal text-muted-foreground">
                                     {Number(s.points_adjustment) > 0
                                       ? `+${s.points_adjustment}`
                                       : s.points_adjustment}{" "}
@@ -682,7 +679,7 @@ export default async function TournamentPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">
-                Tournament Fixtures & Matches
+                Tournament fixtures & matches
               </h2>
               <p className="text-xs text-muted-foreground">
                 Track live scores, upcoming matches, and completed match
@@ -696,7 +693,7 @@ export default async function TournamentPage({
               <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
-                  Schedule Match
+                  Schedule match
                 </Link>
               </Button>
             </div>
@@ -875,7 +872,7 @@ export default async function TournamentPage({
                         </div>
                         <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
                           <span>
-                            <span className="tabular-nums">{playerCount}</span> Players in Squad
+                            <span className="tabular-nums">{playerCount}</span> Players in squad
                           </span>
                           <span className="font-medium text-emerald-500">
                             {formatStatus(r.status)}
@@ -900,7 +897,7 @@ export default async function TournamentPage({
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 

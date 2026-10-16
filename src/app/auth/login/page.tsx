@@ -10,7 +10,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "~/components/ui/card";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { AlertCircle } from "lucide-react";
@@ -84,12 +83,12 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <div className="w-full max-w-md space-y-6 sm:space-y-8">
+    <div className="flex min-h-[65vh] w-full items-center justify-center py-4 sm:py-8">
+      <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">
           <h1 className="text-balance text-2xl font-semibold tracking-tight">
-            Welcome back
+            Sign in to CricScore
           </h1>
           <p className="text-sm text-muted-foreground">
             CricScore is invite-only. Anyone can follow matches from a shared
@@ -99,11 +98,8 @@ function LoginPageInner() {
 
         {/* Login Form */}
         <Card>
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-center text-xl text-foreground sm:text-2xl">
-              Sign in
-            </CardTitle>
-            <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
+          <CardHeader className="pb-4">
+            <CardDescription className="text-center text-sm">
               {inviteEmail ? (
                 <>
                   Sign in with Google using{" "}
@@ -116,7 +112,7 @@ function LoginPageInner() {
               )}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5 p-4 sm:p-6">
+          <CardContent className="space-y-4">
             {/* Error Display */}
             {displayError && (
               <Alert variant="destructive">
@@ -135,7 +131,7 @@ function LoginPageInner() {
               {googleLoading ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Signing in with Google...
+                  Signing in with Google…
                 </>
               ) : (
                 <>
@@ -170,14 +166,14 @@ function LoginPageInner() {
             By signing in, you agree to our{" "}
             <Link
               href="#"
-              className="text-cricket-primary transition-colors hover:text-cricket-primary/80"
+              className="text-primary underline-offset-4 hover:underline"
             >
               Terms of Service
             </Link>{" "}
             and{" "}
             <Link
               href="#"
-              className="text-cricket-primary transition-colors hover:text-cricket-primary/80"
+              className="text-primary underline-offset-4 hover:underline"
             >
               Privacy Policy
             </Link>
