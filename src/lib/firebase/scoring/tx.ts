@@ -16,6 +16,7 @@ import type {
   Transaction,
 } from "firebase-admin/firestore";
 import type { DataSource, Doc, NativeFilter } from "../datasource";
+import { stageInningsSummaries } from "../innings-summary";
 
 export type WithId<T> = T & { id: string };
 
@@ -41,6 +42,23 @@ function stripId(data: object): Record<string, unknown> {
 
 export abstract class ScoringTx implements DocReader {
   private readonly writes = new Map<string, PendingWrite>();
+  /** Documents read in this transaction, as stored (before its writes). */
+  private readonly seen = new Map<string, Doc>();
+
+  protected remember(table: string, docs: Doc[]): Doc[] {
+    for (const d of docs) this.seen.set(`${table}/${d.id}`, d);
+    return docs;
+  }
+
+  /** A document already read in this transaction (as stored), if any. */
+  known<T = Doc>(table: string, id: string): WithId<T> | null {
+    return (this.seen.get(`${table}/${id}`) as unknown as WithId<T>) ?? null;
+  }
+
+  /** The staged write for a document, if any. */
+  pending(table: string, id: string): PendingWrite | undefined {
+    return this.writes.get(`${table}/${id}`);
+  }
 
   abstract getById(table: string, id: string): Promise<Doc | null>;
   abstract getByIds(table: string, ids: string[]): Promise<Doc[]>;
@@ -107,9 +125,10 @@ export class FirestoreScoringTx extends ScoringTx {
 
   async getById(table: string, id: string): Promise<Doc | null> {
     const snap = await this.tx.get(this.db.collection(table).doc(id));
-    return snap.exists
-      ? { ...(snap.data() as DocumentData), id: snap.id }
-      : null;
+    if (!snap.exists) return null;
+    const doc = { ...(snap.data() as DocumentData), id: snap.id };
+    this.remember(table, [doc]);
+    return doc;
   }
 
   async getByIds(table: string, ids: string[]): Promise<Doc[]> {
@@ -118,16 +137,22 @@ export class FirestoreScoringTx extends ScoringTx {
     const snaps = await this.tx.getAll(
       ...unique.map((id) => this.db.collection(table).doc(id)),
     );
-    return snaps
-      .filter((s) => s.exists)
-      .map((s) => ({ ...(s.data() as DocumentData), id: s.id }));
+    return this.remember(
+      table,
+      snaps
+        .filter((s) => s.exists)
+        .map((s) => ({ ...(s.data() as DocumentData), id: s.id })),
+    );
   }
 
   async query(table: string, filters: NativeFilter[]): Promise<Doc[]> {
     let q: FirebaseFirestore.Query = this.db.collection(table);
     for (const f of filters) q = q.where(f.field, f.op, f.value);
     const snap = await this.tx.get(q);
-    return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+    return this.remember(
+      table,
+      snap.docs.map((d) => ({ ...d.data(), id: d.id })),
+    );
   }
 
   flush(): void {
@@ -145,15 +170,8 @@ export class FirestoreScoringTx extends ScoringTx {
  * writes are applied in sequence after the callback returns.
  */
 export class DataSourceScoringTx extends ScoringTx {
-  private readonly seen = new Map<string, Doc>();
-
   constructor(private readonly ds: DataSource) {
     super();
-  }
-
-  private remember(table: string, docs: Doc[]): Doc[] {
-    for (const d of docs) this.seen.set(`${table}/${d.id}`, d);
-    return docs;
   }
 
   async getById(table: string, id: string): Promise<Doc | null> {
@@ -179,7 +197,7 @@ export class DataSourceScoringTx extends ScoringTx {
       } else if (w.kind === "set") {
         await this.ds.insert(w.table, [{ ...w.data, id: w.id }]);
       } else {
-        const known = this.seen.get(`${w.table}/${w.id}`);
+        const known = this.known(w.table, w.id);
         if (known) {
           await this.ds.insert(w.table, [{ ...known, ...w.data, id: w.id }]);
         } else {
@@ -191,26 +209,47 @@ export class DataSourceScoringTx extends ScoringTx {
 }
 
 export interface TxContext {
-  /** Admin Firestore; when absent the DataSource is used (tests). */
+  /**
+   * Admin Firestore; when absent, the one behind `ds` (Admin data source,
+   * possibly wrapped) or else the DataSource itself (tests).
+   */
   db?: Firestore | null;
   ds: DataSource;
+}
+
+/** The Admin Firestore behind a (possibly wrapped) data source, if any. */
+export function firestoreOf(ds: DataSource): Firestore | null {
+  let cur: unknown = ds;
+  for (let depth = 0; cur && depth < 5; depth += 1) {
+    const fs = (cur as { firestore?: Firestore }).firestore;
+    if (fs) return fs;
+    cur = (cur as { inner?: unknown }).inner;
+  }
+  return null;
+}
+
+/** Derived fields staged just before a transaction commits. */
+async function finalize(t: ScoringTx): Promise<void> {
+  await stageInningsSummaries(t);
 }
 
 export async function runScoringTransaction<R>(
   ctx: TxContext,
   fn: (t: ScoringTx) => Promise<R>,
 ): Promise<R> {
-  if (ctx.db) {
-    const db = ctx.db;
+  const db = ctx.db ?? firestoreOf(ctx.ds);
+  if (db) {
     return db.runTransaction(async (tx) => {
       const t = new FirestoreScoringTx(db, tx);
       const result = await fn(t);
+      await finalize(t);
       t.flush();
       return result;
     });
   }
   const t = new DataSourceScoringTx(ctx.ds);
   const result = await fn(t);
+  await finalize(t);
   await t.commit();
   return result;
 }

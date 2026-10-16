@@ -8,7 +8,15 @@
 
 export type Doc = Record<string, unknown> & { id: string };
 
-export type NativeOp = "==" | "!=" | "in" | "<" | "<=" | ">" | ">=";
+export type NativeOp =
+  | "=="
+  | "!="
+  | "in"
+  | "<"
+  | "<="
+  | ">"
+  | ">="
+  | "array-contains";
 
 export interface NativeFilter {
   field: string;
@@ -30,6 +38,11 @@ export interface NativeOrder {
 export interface QueryOptions {
   orderBy?: NativeOrder[];
   limit?: number;
+  /**
+   * Keyset cursor: the values of the `orderBy` fields followed by the
+   * document id of the last row already seen (ascending orders only).
+   */
+  startAfter?: unknown[];
 }
 
 export interface DataSource {
@@ -106,6 +119,8 @@ export function memoryMatches(doc: Doc, f: NativeFilter): boolean {
       );
     case "!=":
       return actual !== undefined && actual !== null && actual !== f.value;
+    case "array-contains":
+      return Array.isArray(actual) && actual.includes(f.value);
     default: {
       // Range filters only match values of the same type.
       if (actual === undefined || actual === null) return false;
@@ -147,6 +162,18 @@ export function applyQueryOptions(
       return tieDirection * (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
     });
   }
+  if (options?.startAfter && orders.length > 0) {
+    const cursor = options.startAfter;
+    const after = (doc: Doc) => {
+      for (let i = 0; i < orders.length; i += 1) {
+        const c = firestoreCompare(doc[orders[i]!.field], cursor[i]);
+        if (c !== 0) return orders[i]!.direction === "desc" ? c < 0 : c > 0;
+      }
+      const id = String(cursor[orders.length] ?? "");
+      return doc.id > id;
+    };
+    out = out.filter(after);
+  }
   if (options?.limit !== undefined) out = out.slice(0, options.limit);
   return out;
 }
@@ -162,6 +189,13 @@ export class MemoryDataSource implements DataSource {
   docsRead = 0;
   queryCount = 0;
   countQueries = 0;
+  /**
+   * Reads as Firestore bills them: one per document returned or looked up
+   * (missing ones too), and at least one per query or count aggregation.
+   */
+  billedReads = 0;
+  /** Documents written or deleted. */
+  writes = 0;
 
   constructor(seed?: Record<string, Doc[]>) {
     if (seed) {
@@ -186,12 +220,14 @@ export class MemoryDataSource implements DataSource {
     this.queryCount++;
     const doc = this.table(table).get(id);
     this.docsRead++;
+    this.billedReads++;
     return doc ? structuredClone(doc) : null;
   }
 
   async getByIds(table: string, ids: string[]): Promise<Doc[]> {
     this.queryCount++;
     this.docsRead += new Set(ids).size;
+    this.billedReads += new Set(ids).size;
     const map = this.table(table);
     const out: Doc[] = [];
     for (const id of ids) {
@@ -209,12 +245,14 @@ export class MemoryDataSource implements DataSource {
     this.queryCount++;
     const out = applyQueryOptions(this.match(table, filters), filters, options);
     this.docsRead += out.length;
+    this.billedReads += Math.max(1, out.length);
     return out.map((doc) => structuredClone(doc));
   }
 
   async count(table: string, filters: NativeFilter[]): Promise<number> {
     this.queryCount++;
     this.countQueries++;
+    this.billedReads++;
     return this.match(table, filters).length;
   }
 
@@ -228,6 +266,7 @@ export class MemoryDataSource implements DataSource {
 
   async insert(table: string, docs: Doc[]): Promise<void> {
     const map = this.table(table);
+    this.writes += docs.length;
     for (const doc of docs) map.set(doc.id, structuredClone(doc));
   }
 
@@ -238,11 +277,13 @@ export class MemoryDataSource implements DataSource {
   ): Promise<void> {
     const map = this.table(table);
     const existing = map.get(id);
+    this.writes++;
     if (!existing) return;
     map.set(id, { ...existing, ...structuredClone(patch), id });
   }
 
   async delete(table: string, id: string): Promise<void> {
+    this.writes++;
     this.table(table).delete(id);
   }
 

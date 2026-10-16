@@ -111,6 +111,25 @@ export function overDocId(inningsId: string, overNumber: number): string {
   return `${inningsId}_${overNumber}`;
 }
 
+/**
+ * Id for a new delivery: its over document id, `~`, then a random part, so
+ * `update_ball` reads that one over document instead of the match's whole
+ * ball log (deliveries never move between overs). Older ids are plain
+ * UUIDs; {@link overDocIdOfBall} returns null for them.
+ */
+export function newBallId(
+  inningsId: string,
+  overNumber: number,
+  random: string,
+): string {
+  return `${overDocId(inningsId, overNumber)}~${random}`;
+}
+
+export function overDocIdOfBall(ballId: string): string | null {
+  const cut = ballId.lastIndexOf("~");
+  return cut > 0 ? ballId.slice(0, cut) : null;
+}
+
 export function playerMatchId(matchId: string, userId: string): string {
   return `${matchId}_${userId}`;
 }

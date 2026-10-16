@@ -35,7 +35,9 @@ import {
   type NativeFilter,
   type QueryOptions,
 } from "./datasource";
-import { DbQueryError } from "./query-builder";
+import { DbQueryError, type EmbeddedRows } from "./query-builder";
+import type { Selection } from "./select-parser";
+import { INNINGS_SUMMARY_FIELDS, ROSTER_USER_FIELDS } from "./derive.mjs";
 import {
   ballRowsOf,
   battingRowsOf,
@@ -98,16 +100,70 @@ function unsupported(table: string, what: string): DbQueryError {
   );
 }
 
+const byDocId = (a: Doc, b: Doc) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/** Columns a selection reads (null for `*`). */
+function selectedColumns(selection: Selection | undefined): string[] | null {
+  if (!selection || selection.star) return null;
+  return selection.columns;
+}
+
 /**
- * Embedded one-to-many relations served from parent innings documents
- * (e.g. `innings(*, batting_performances(*))`). Returns null when the
- * parents do not carry the arrays (callers then query).
+ * Embedded one-to-many relations served from the parent documents at no
+ * extra read, when every parent carries the copy:
+ *
+ * - `innings(*, batting_performances(*))` etc. from the innings arrays;
+ * - `teams(team_players(*, user:users(...)))` from `teams.roster`, whose
+ *   player snapshots also answer the nested `users` lookups;
+ * - `matches(innings(<summary columns>))` from `matches.innings_summary`
+ *   (only when the selection names summary columns and no relations).
+ *
+ * Returns null when the parents do not carry them (callers then query).
  */
 export function expandEmbedded(
   source: string,
   target: string,
   parents: Doc[],
-): Doc[] | null {
+  selection?: Selection,
+): Doc[] | EmbeddedRows | null {
+  if (source === "teams" && target === "team_players") {
+    if (!parents.every((p) => Array.isArray(p.roster))) return null;
+    const rows: Doc[] = [];
+    const users: Doc[] = [];
+    for (const team of parents) {
+      for (const entry of team.roster as Doc[]) {
+        const { user, ...row } = entry as Doc & { user?: Doc | null };
+        rows.push({ ...row, team_id: row.team_id ?? team.id } as Doc);
+        if (user && typeof user.id === "string") users.push(user);
+      }
+    }
+    return {
+      rows: rows.sort(byDocId),
+      snapshots: [{ table: "users", columns: ROSTER_USER_FIELDS, docs: users }],
+    };
+  }
+  if (source === "matches" && target === "innings") {
+    const columns = selectedColumns(selection);
+    if (
+      !columns ||
+      selection!.relations.length ||
+      !columns.every(
+        (c) => c === "match_id" || INNINGS_SUMMARY_FIELDS.includes(c as never),
+      )
+    ) {
+      return null;
+    }
+    if (!parents.every((p) => Array.isArray(p.innings_summary))) return null;
+    const rows = parents.flatMap((m) =>
+      (m.innings_summary as Doc[]).map(
+        (e) => ({ ...e, match_id: m.id }) as Doc,
+      ),
+    );
+    return {
+      rows: rows.sort(byDocId),
+      partial: [...INNINGS_SUMMARY_FIELDS, "match_id"],
+    };
+  }
   if (source !== "innings") return null;
   const spec = FROM_INNINGS[target];
   if (!spec) return null;

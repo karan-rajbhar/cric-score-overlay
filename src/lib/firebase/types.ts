@@ -17,6 +17,10 @@ import type {
   PlayerMatchesRow,
 } from "./scorecard";
 
+import type { BoardPlayer, StatsAcc } from "./stats.mjs";
+
+export type { BoardPlayer, StatsAcc };
+
 export type {
   BattingEntry,
   BowlingEntry,
@@ -46,6 +50,9 @@ export interface UsersRow {
   location: string | null;
   username: string | null;
   is_active: boolean | null;
+  /** Search keys (stage 3, `derive.mjs`); maintained on every write. */
+  name_lower?: string;
+  search_prefixes?: string[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -79,6 +86,8 @@ export interface ClubsRow {
   founded_year: number | null;
   owner_id: string;
   social_links: Json | null;
+  name_lower?: string;
+  search_prefixes?: string[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -89,6 +98,8 @@ export interface ClubMembershipsRow {
   user_id: string | null;
   role: string | null;
   status: string | null;
+  /** Display copy of the member's profile (stage 3). */
+  user_snapshot?: RosterUser | null;
   joined_at: string | null;
   updated_at: string | null;
 }
@@ -155,9 +166,26 @@ export interface TeamsRow {
   team_type: string | null;
   is_template: boolean | null;
   created_by: string;
+  name_lower?: string;
+  search_prefixes?: string[];
+  /**
+   * The team's team_players documents, each with a `user` snapshot
+   * (id, full_name, avatar_url, username); refreshed on roster and
+   * profile writes. Serves rosters and player names without user reads.
+   */
+  roster?: RosterEntry[];
   created_at: string | null;
   updated_at: string | null;
 }
+
+export interface RosterUser {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  username: string | null;
+}
+
+export type RosterEntry = TeamPlayersRow & { user: RosterUser | null };
 
 /** Denormalized team fields stored on each match (`team1_snapshot`, ...). */
 export interface TeamSnapshot {
@@ -203,6 +231,8 @@ export interface TournamentsRow {
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
   created_by: string;
+  name_lower?: string;
+  search_prefixes?: string[];
   created_at: string | null;
   updated_at: string | null;
 }
@@ -293,9 +323,39 @@ export interface MatchesRow {
   golden_ball: boolean | null;
   /** Monotonic counter used to order ball_by_ball documents. */
   last_ball_seq: number | null;
+  /** Score line of each innings (stage 3, see `innings-summary.ts`). */
+  innings_summary?: InningsSummaryEntry[] | null;
+  /** Display copies of the tournament / club (`match-snapshots.ts`). */
+  tournament_snapshot?: {
+    id: string;
+    name: string | null;
+    tournament_format: string | null;
+    venue: string | null;
+  } | null;
+  club_snapshot?: {
+    id: string;
+    name: string | null;
+    short_name: string | null;
+  } | null;
+  title_lower?: string;
+  search_prefixes?: string[];
   created_at: string | null;
   updated_at: string | null;
 }
+
+export type InningsSummaryEntry = Pick<
+  InningsRow,
+  | "id"
+  | "team_id"
+  | "innings_number"
+  | "total_runs"
+  | "total_wickets"
+  | "total_overs"
+  | "total_balls"
+  | "extras_total"
+  | "is_completed"
+  | "target_runs"
+>;
 
 export interface InningsRow {
   id: string;
@@ -449,7 +509,18 @@ export interface PlayerCareerStatsRow {
   strike_rate: number | null;
   bowling_average: number | null;
   economy_rate: number | null;
+  /** Exact running totals the columns above are derived from (stats.mjs). */
+  acc?: StatsAcc;
   last_updated: string | null;
+}
+
+/** `leaderboards/{scope}_{scopeId}` (stage 3, see `stats.mjs`). */
+export interface LeaderboardsRow {
+  id: string;
+  scope: "tournament" | "club";
+  scope_id: string;
+  players: Record<string, BoardPlayer>;
+  updated_at: string | null;
 }
 
 /** Denormalised read model for overlays and live pages (computed, not stored). */
@@ -556,6 +627,7 @@ export interface Database {
   overs: OversRow;
   player_matches: PlayerMatchesRow;
   player_career_stats: PlayerCareerStatsRow;
+  leaderboards: LeaderboardsRow;
 }
 
 export interface Views {

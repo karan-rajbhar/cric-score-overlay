@@ -1,7 +1,21 @@
 /**
  * Detailed cricket leaderboard computation engine for tournaments and clubs.
  * Computes batting, bowling, fielding, and MVP statistics with sorting and filtering.
+ *
+ * Figures come from per-player accumulators (`lib/firebase/stats.mjs`):
+ * the stored `leaderboards/*` documents, or raw rows folded the same way.
  */
+
+import {
+  applyBatting,
+  applyBowling,
+  batLine,
+  bowlLine,
+  emptyAcc,
+  fieldingPoints,
+  legalDeliveries,
+  type StatsAcc,
+} from "~/lib/firebase/stats.mjs";
 
 export interface RawBattingRecord {
   match_id: string;
@@ -212,15 +226,7 @@ function resolveUserInfo(
  * Converts overs notation (e.g. 3.4) or raw balls to total legal deliveries.
  */
 export function getLegalDeliveries(balls?: number | null, overs?: number | null): number {
-  if (balls !== undefined && balls !== null && balls > 0) {
-    return balls;
-  }
-  if (overs !== undefined && overs !== null && overs > 0) {
-    const fullOvers = Math.floor(overs);
-    const remainderBalls = Math.round((overs - fullOvers) * 10);
-    return fullOvers * 6 + remainderBalls;
-  }
-  return 0;
+  return legalDeliveries(balls, overs);
 }
 
 /**
@@ -232,457 +238,149 @@ export function formatOvers(balls: number): string {
   return `${completeOvers}.${remainder}`;
 }
 
-export function buildLeaderboardData(params: {
-  batting?: RawBattingRecord[] | null;
-  bowling?: RawBowlingRecord[] | null;
-  fallOfWickets?: RawFallOfWicketRecord[] | null;
-}): LeaderboardData {
-  const battingRecords = params.batting ?? [];
-  const bowlingRecords = params.bowling ?? [];
-  const fowRecords = params.fallOfWickets ?? [];
+/** A player's figures in some scope plus who they are (see stats.mjs). */
+export type LeaderboardPlayer = StatsAcc & {
+  name: string | null;
+  avatar_url: string | null;
+};
 
-  // Track matches participated in across all roles
-  const playerMatchesMap = new Map<string, Set<string>>();
-  const playerNamesMap = new Map<string, { name: string; avatar: string | null }>();
+/**
+ * Leaderboard rows from per-player accumulators: stored ones
+ * (`leaderboards/{scope}_{id}`, see stats.mjs) or ones folded from raw
+ * records by {@link buildLeaderboardData}. Every figure is defined here.
+ */
+export function leaderboardFromPlayers(
+  players: Record<string, LeaderboardPlayer>,
+): LeaderboardData {
+  const battingList: BattingLeaderboardEntry[] = [];
+  const bowlingList: BowlingLeaderboardEntry[] = [];
+  const fieldingList: FieldingLeaderboardEntry[] = [];
+  const mvpList: MvpLeaderboardEntry[] = [];
 
-  const registerPlayerMatch = (
-    userId: string,
-    matchId: string,
-    userInfo: { name: string; avatar: string | null },
-  ) => {
-    if (!playerMatchesMap.has(userId)) {
-      playerMatchesMap.set(userId, new Set());
-    }
-    playerMatchesMap.get(userId)!.add(matchId);
+  for (const [userId, p] of Object.entries(players)) {
+    const name = p.name?.trim() || "Player";
+    const avatar = p.avatar_url ?? null;
+    const matches = Math.max(1, p.m);
 
-    if (!playerNamesMap.has(userId) || playerNamesMap.get(userId)!.name === "Player") {
-      playerNamesMap.set(userId, userInfo);
-    }
-  };
-
-  // 1. Compute Batting Statistics
-  const batterMap = new Map<
-    string,
-    {
-      runs: number;
-      balls: number;
-      fours: number;
-      sixes: number;
-      innings: number;
-      notOuts: number;
-      highestScore: number;
-      isHighestNotOut: boolean;
-      highestScoreBalls: number;
-      highestScoreFours: number;
-      highestScoreSixes: number;
-      centuries: number;
-      fifties: number;
-      battingPoints: number;
-    }
-  >();
-
-  for (const b of battingRecords) {
-    if (!b.user_id) continue;
-    const user = resolveUserInfo(b.user, "Batter");
-    registerPlayerMatch(b.user_id, b.match_id, user);
-
-    const stats = batterMap.get(b.user_id) ?? {
-      runs: 0,
-      balls: 0,
-      fours: 0,
-      sixes: 0,
-      innings: 0,
-      notOuts: 0,
-      highestScore: 0,
-      isHighestNotOut: false,
-      highestScoreBalls: 0,
-      highestScoreFours: 0,
-      highestScoreSixes: 0,
-      centuries: 0,
-      fifties: 0,
-      battingPoints: 0,
-    };
-
-    const runs = b.runs_scored ?? 0;
-    const balls = b.balls_faced ?? 0;
-    const fours = b.fours ?? 0;
-    const sixes = b.sixes ?? 0;
-    const isOut = b.is_out ?? false;
-
-    stats.runs += runs;
-    stats.balls += balls;
-    stats.fours += fours;
-    stats.sixes += sixes;
-    stats.innings += 1;
-
-    if (!isOut) {
-      stats.notOuts += 1;
-    }
-
-    if (runs > stats.highestScore) {
-      stats.highestScore = runs;
-      stats.isHighestNotOut = !isOut;
-      stats.highestScoreBalls = balls;
-      stats.highestScoreFours = fours;
-      stats.highestScoreSixes = sixes;
-    } else if (runs === stats.highestScore) {
-      if (!isOut && !stats.isHighestNotOut) {
-        stats.isHighestNotOut = true;
-        stats.highestScoreBalls = balls;
-        stats.highestScoreFours = fours;
-        stats.highestScoreSixes = sixes;
-      } else if (
-        balls > 0 &&
-        (stats.highestScoreBalls === 0 || balls < stats.highestScoreBalls)
-      ) {
-        stats.highestScoreBalls = balls;
-        stats.highestScoreFours = fours;
-        stats.highestScoreSixes = sixes;
-      }
-    }
-
-    if (runs >= 100) {
-      stats.centuries += 1;
-    } else if (runs >= 50) {
-      stats.fifties += 1;
-    }
-
-    // Batting MVP Points Calculation
-    let batPts = runs;
-    batPts += fours * 1;
-    batPts += sixes * 2;
-    if (runs >= 100) batPts += 30;
-    else if (runs >= 50) batPts += 15;
-    else if (runs >= 30) batPts += 5;
-
-    if (balls >= 10) {
-      const sr = (runs / balls) * 100;
-      if (sr >= 200) batPts += 12;
-      else if (sr >= 150) batPts += 6;
-      else if (sr < 80) batPts -= 4;
-    }
-
-    if (!isOut && runs >= 20) {
-      batPts += 5;
-    }
-
-    stats.battingPoints += batPts;
-    batterMap.set(b.user_id, stats);
-  }
-
-  const battingList: BattingLeaderboardEntry[] = Array.from(batterMap.entries()).map(
-    ([userId, s]) => {
-      const userInfo = playerNamesMap.get(userId) ?? { name: "Player", avatar: null };
-      const dismissals = s.innings - s.notOuts;
-      const avg = dismissals > 0 ? s.runs / dismissals : null;
-      const sr = s.balls > 0 ? (s.runs / s.balls) * 100 : 0;
-      const boundaryRuns = s.fours * 4 + s.sixes * 6;
-      const boundaryPct =
-        s.runs > 0 ? ((boundaryRuns / s.runs) * 100).toFixed(1) + "%" : "0.0%";
-      const hsBalls = s.highestScoreBalls ?? 0;
-      const hsSr =
-        hsBalls > 0 ? ((s.highestScore / hsBalls) * 100).toFixed(2) : "—";
-
-      return {
+    if (p.bi > 0) {
+      const dismissals = p.bi - p.no;
+      const avg = dismissals > 0 ? p.r / dismissals : null;
+      const sr = p.b > 0 ? (p.r / p.b) * 100 : 0;
+      const boundaryRuns = p.f4 * 4 + p.f6 * 6;
+      const hs = p.hs ?? { r: 0, no: false, b: 0, f4: 0, f6: 0, n: 0 };
+      battingList.push({
         userId,
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        matches: playerMatchesMap.get(userId)?.size ?? 1,
-        innings: s.innings,
-        notOuts: s.notOuts,
-        runs: s.runs,
-        balls: s.balls,
-        fours: s.fours,
-        sixes: s.sixes,
-        highestScore: s.highestScore,
-        isHighestNotOut: s.isHighestNotOut,
-        highestScoreDisplay: `${s.highestScore}${s.isHighestNotOut ? "*" : ""}`,
-        highestScoreBalls: hsBalls,
-        highestScoreFours: s.highestScoreFours,
-        highestScoreSixes: s.highestScoreSixes,
-        highestScoreStrikeRateDisplay: hsSr,
+        name,
+        avatar,
+        matches,
+        innings: p.bi,
+        notOuts: p.no,
+        runs: p.r,
+        balls: p.b,
+        fours: p.f4,
+        sixes: p.f6,
+        highestScore: hs.r,
+        isHighestNotOut: hs.no,
+        highestScoreDisplay: `${hs.r}${hs.no ? "*" : ""}`,
+        highestScoreBalls: hs.b,
+        highestScoreFours: hs.f4,
+        highestScoreSixes: hs.f6,
+        highestScoreStrikeRateDisplay:
+          hs.b > 0 ? ((hs.r / hs.b) * 100).toFixed(2) : "—",
         average: avg,
         averageDisplay:
-          avg !== null ? avg.toFixed(2) : s.runs > 0 ? `${s.runs}*` : "—",
+          avg !== null ? avg.toFixed(2) : p.r > 0 ? `${p.r}*` : "—",
         strikeRate: sr,
         strikeRateDisplay: sr.toFixed(2),
-        centuries: s.centuries,
-        fifties: s.fifties,
-        boundaryPercent: boundaryPct,
-      };
-    },
-  );
-
-  // 2. Compute Bowling Statistics
-  const bowlerMap = new Map<
-    string,
-    {
-      balls: number;
-      maidens: number;
-      runsConceded: number;
-      wickets: number;
-      innings: number;
-      bestBowling: BestBowlingFigures;
-      threeWickets: number;
-      fiveWickets: number;
-      bowlingPoints: number;
-    }
-  >();
-
-  for (const b of bowlingRecords) {
-    if (!b.user_id) continue;
-    const user = resolveUserInfo(b.user, "Bowler");
-    registerPlayerMatch(b.user_id, b.match_id, user);
-
-    const stats = bowlerMap.get(b.user_id) ?? {
-      balls: 0,
-      maidens: 0,
-      runsConceded: 0,
-      wickets: 0,
-      innings: 0,
-      bestBowling: {
-        wickets: 0,
-        runs: 9999,
-        display: "0/0",
-        overs: "0.0",
-        economy: "0.00",
-      },
-      threeWickets: 0,
-      fiveWickets: 0,
-      bowlingPoints: 0,
-    };
-
-    const deliveries = getLegalDeliveries(b.balls_bowled, b.overs_bowled);
-    const runs = b.runs_conceded ?? 0;
-    const wkts = b.wickets_taken ?? 0;
-    const maidens = b.maidens ?? 0;
-
-    stats.balls += deliveries;
-    stats.runsConceded += runs;
-    stats.wickets += wkts;
-    stats.maidens += maidens;
-    stats.innings += 1;
-
-    // Track best bowling in an innings
-    const currentBest = stats.bestBowling;
-    const spellOvers = formatOvers(deliveries);
-    const spellEcon =
-      deliveries > 0 ? (runs / (deliveries / 6)).toFixed(2) : "0.00";
-    if (
-      wkts > currentBest.wickets ||
-      (wkts === currentBest.wickets && runs < currentBest.runs) ||
-      currentBest.display === "0/0"
-    ) {
-      stats.bestBowling = {
-        wickets: wkts,
-        runs,
-        display: `${wkts}/${runs}`,
-        overs: spellOvers,
-        economy: spellEcon,
-      };
+        centuries: p.c100,
+        fifties: p.c50,
+        boundaryPercent:
+          p.r > 0 ? ((boundaryRuns / p.r) * 100).toFixed(1) + "%" : "0.0%",
+      });
     }
 
-    if (wkts >= 5) {
-      stats.fiveWickets += 1;
-    } else if (wkts >= 3) {
-      stats.threeWickets += 1;
-    }
-
-    // Bowling MVP Points Calculation
-    let bowlPts = wkts * 25;
-    if (wkts >= 5) bowlPts += 30;
-    else if (wkts >= 3) bowlPts += 15;
-
-    bowlPts += maidens * 12;
-
-    if (deliveries >= 12) {
-      const econ = (runs / deliveries) * 6;
-      if (econ < 5.0) bowlPts += 15;
-      else if (econ < 6.5) bowlPts += 8;
-      else if (econ > 10.0) bowlPts -= 6;
-    }
-
-    stats.bowlingPoints += bowlPts;
-    bowlerMap.set(b.user_id, stats);
-  }
-
-  const bowlingList: BowlingLeaderboardEntry[] = Array.from(bowlerMap.entries()).map(
-    ([userId, s]) => {
-      const userInfo = playerNamesMap.get(userId) ?? { name: "Player", avatar: null };
-      const avg = s.wickets > 0 ? s.runsConceded / s.wickets : null;
-      const oversDec = s.balls / 6;
-      const econ = oversDec > 0 ? s.runsConceded / oversDec : 0;
-      const sr = s.wickets > 0 ? s.balls / s.wickets : null;
-
-      return {
+    if (p.wi > 0) {
+      const avg = p.w > 0 ? p.rc / p.w : null;
+      const oversDec = p.wb / 6;
+      const econ = oversDec > 0 ? p.rc / oversDec : 0;
+      const sr = p.w > 0 ? p.wb / p.w : null;
+      const bb = p.bb ?? { w: 0, r: p.rc, b: p.wb, n: 0 };
+      bowlingList.push({
         userId,
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        matches: playerMatchesMap.get(userId)?.size ?? 1,
-        innings: s.innings,
-        overs: formatOvers(s.balls),
-        balls: s.balls,
-        maidens: s.maidens,
-        runsConceded: s.runsConceded,
-        wickets: s.wickets,
-        bestBowling:
-          s.bestBowling.display === "0/0" && s.wickets === 0
-            ? {
-                wickets: 0,
-                runs: s.runsConceded,
-                display: `0/${s.runsConceded}`,
-                overs: formatOvers(s.balls),
-                economy: econ.toFixed(2),
-              }
-            : s.bestBowling,
+        name,
+        avatar,
+        matches,
+        innings: p.wi,
+        overs: formatOvers(p.wb),
+        balls: p.wb,
+        maidens: p.md,
+        runsConceded: p.rc,
+        wickets: p.w,
+        bestBowling: {
+          wickets: bb.w,
+          runs: bb.r,
+          display: `${bb.w}/${bb.r}`,
+          overs: formatOvers(bb.b),
+          economy: bb.b > 0 ? (bb.r / (bb.b / 6)).toFixed(2) : "0.00",
+        },
         average: avg,
         averageDisplay: avg !== null ? avg.toFixed(2) : "—",
         economy: econ,
         economyDisplay: econ.toFixed(2),
         strikeRate: sr,
         strikeRateDisplay: sr !== null ? sr.toFixed(1) : "—",
-        threeWickets: s.threeWickets,
-        fiveWickets: s.fiveWickets,
-      };
-    },
-  );
-
-  // 3. Compute Fielding Statistics
-  const fielderMap = new Map<
-    string,
-    {
-      catches: number;
-      stumpings: number;
-      runOuts: number;
-      fieldingPoints: number;
+        threeWickets: p.w3,
+        fiveWickets: p.w5,
+      });
     }
-  >();
 
-  // Helper to record a fielding dismissal
-  const recordFieldingEvent = (
-    fielderId: string,
-    dismissalType: string | null | undefined,
-    matchId: string,
-    userInfo?: { name: string; avatar: string | null },
-  ) => {
-    if (!fielderId) return;
-    if (userInfo) {
-      registerPlayerMatch(fielderId, matchId, userInfo);
-    }
-    const stats = fielderMap.get(fielderId) ?? {
-      catches: 0,
-      stumpings: 0,
-      runOuts: 0,
-      fieldingPoints: 0,
-    };
-
-    const type = (dismissalType ?? "").toLowerCase();
-    if (type.includes("stump")) {
-      stats.stumpings += 1;
-      stats.fieldingPoints += 15;
-    } else if (type.includes("run")) {
-      stats.runOuts += 1;
-      stats.fieldingPoints += 15;
-    } else {
-      stats.catches += 1;
-      stats.fieldingPoints += 10;
-    }
-    fielderMap.set(fielderId, stats);
-  };
-
-  // Process fall_of_wickets first
-  const processedFowKeys = new Set<string>();
-  for (const fow of fowRecords) {
-    if (fow.fielder_id) {
-      const user = resolveUserInfo(fow.fielder, "Fielder");
-      const batsmanId = fow.batsman_out_id ?? fow.batsman_id ?? "";
-      const key = `${fow.match_id}_${batsmanId}_${fow.fielder_id}`;
-      processedFowKeys.add(key);
-      recordFieldingEvent(fow.fielder_id, fow.dismissal_type, fow.match_id, user);
-    }
-  }
-
-  // Fallback to batting_performances fielder_id for any not captured in fow
-  for (const b of battingRecords) {
-    if (b.fielder_id && b.is_out) {
-      const key = `${b.match_id}_${b.user_id}_${b.fielder_id}`;
-      if (!processedFowKeys.has(key)) {
-        const user = resolveUserInfo(b.fielder, "Fielder");
-        recordFieldingEvent(b.fielder_id, b.dismissal_type, b.match_id, user);
-      }
-    }
-  }
-
-  const fieldingList: FieldingLeaderboardEntry[] = Array.from(fielderMap.entries()).map(
-    ([userId, s]) => {
-      const userInfo = playerNamesMap.get(userId) ?? { name: "Player", avatar: null };
-      return {
+    const dismissals = p.ct + p.st + p.ro;
+    if (dismissals > 0) {
+      fieldingList.push({
         userId,
-        name: userInfo.name,
-        avatar: userInfo.avatar,
-        matches: playerMatchesMap.get(userId)?.size ?? 1,
-        catches: s.catches,
-        stumpings: s.stumpings,
-        runOuts: s.runOuts,
-        totalDismissals: s.catches + s.stumpings + s.runOuts,
-      };
-    },
-  );
+        name,
+        avatar,
+        matches,
+        catches: p.ct,
+        stumpings: p.st,
+        runOuts: p.ro,
+        totalDismissals: dismissals,
+      });
+    }
 
-  // 4. Compute MVP Leaderboard
-  const allUserIds = new Set<string>([
-    ...Array.from(batterMap.keys()),
-    ...Array.from(bowlerMap.keys()),
-    ...Array.from(fielderMap.keys()),
-  ]);
+    if (p.bi > 0 || p.wi > 0 || dismissals > 0) {
+      const fieldPts = fieldingPoints(p);
+      const summaryParts: string[] = [];
+      if (p.r > 0) summaryParts.push(`${p.r} runs`);
+      if (p.w > 0) summaryParts.push(`${p.w} wkts`);
+      if (dismissals > 0) summaryParts.push(`${dismissals} dism`);
+      mvpList.push({
+        userId,
+        name,
+        avatar,
+        matches,
+        totalPoints: p.bp + p.wp + fieldPts,
+        battingPoints: p.bp,
+        bowlingPoints: p.wp,
+        fieldingPoints: fieldPts,
+        runs: p.r,
+        wickets: p.w,
+        catches: p.ct,
+        stumpings: p.st,
+        runOuts: p.ro,
+        summary:
+          summaryParts.length > 0 ? summaryParts.join(" • ") : "No impact stats",
+      });
+    }
+  }
 
-  const mvpList: MvpLeaderboardEntry[] = Array.from(allUserIds).map((userId) => {
-    const userInfo = playerNamesMap.get(userId) ?? { name: "Player", avatar: null };
-    const bat = batterMap.get(userId);
-    const bowl = bowlerMap.get(userId);
-    const field = fielderMap.get(userId);
-
-    const batPts = bat?.battingPoints ?? 0;
-    const bowlPts = bowl?.bowlingPoints ?? 0;
-    const fieldPts = field?.fieldingPoints ?? 0;
-    const totalPts = batPts + bowlPts + fieldPts;
-
-    const runs = bat?.runs ?? 0;
-    const wkts = bowl?.wickets ?? 0;
-    const catches = field?.catches ?? 0;
-    const stumpings = field?.stumpings ?? 0;
-    const runOuts = field?.runOuts ?? 0;
-
-    const summaryParts: string[] = [];
-    if (runs > 0) summaryParts.push(`${runs} runs`);
-    if (wkts > 0) summaryParts.push(`${wkts} wkts`);
-    const totalDism = catches + stumpings + runOuts;
-    if (totalDism > 0) summaryParts.push(`${totalDism} dism`);
-    const summary = summaryParts.length > 0 ? summaryParts.join(" • ") : "No impact stats";
-
-    return {
-      userId,
-      name: userInfo.name,
-      avatar: userInfo.avatar,
-      matches: playerMatchesMap.get(userId)?.size ?? 1,
-      totalPoints: totalPts,
-      battingPoints: batPts,
-      bowlingPoints: bowlPts,
-      fieldingPoints: fieldPts,
-      runs,
-      wickets: wkts,
-      catches,
-      stumpings,
-      runOuts,
-      summary,
-    };
-  });
-
-  // Default Sorts
-  battingList.sort((a, b) => b.runs - a.runs || b.strikeRate - a.strikeRate);
-  bowlingList.sort((a, b) => b.wickets - a.wickets || a.economy - b.economy);
-  fieldingList.sort((a, b) => b.totalDismissals - a.totalDismissals);
-  mvpList.sort((a, b) => b.totalPoints - a.totalPoints || b.runs - a.runs);
+  // Default sorts (ties by player id, so the order never depends on input).
+  const byId = (a: { userId: string }, b: { userId: string }) =>
+    a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0;
+  battingList.sort((a, b) => b.runs - a.runs || b.strikeRate - a.strikeRate || byId(a, b));
+  bowlingList.sort((a, b) => b.wickets - a.wickets || a.economy - b.economy || byId(a, b));
+  fieldingList.sort((a, b) => b.totalDismissals - a.totalDismissals || byId(a, b));
+  mvpList.sort((a, b) => b.totalPoints - a.totalPoints || b.runs - a.runs || byId(a, b));
 
   // Compute Highlights
   const firstBatter = battingList[0];
@@ -748,6 +446,86 @@ export function buildLeaderboardData(params: {
       topFielder,
     },
   };
+}
+
+/**
+ * Leaderboard from raw scorecard rows (batting / bowling performances and
+ * fall of wickets), e.g. a match's own superstars. Folds them into the same
+ * accumulators the stored leaderboards hold.
+ */
+export function buildLeaderboardData(params: {
+  batting?: RawBattingRecord[] | null;
+  bowling?: RawBowlingRecord[] | null;
+  fallOfWickets?: RawFallOfWicketRecord[] | null;
+}): LeaderboardData {
+  const players = new Map<string, LeaderboardPlayer>();
+  const matchIds = new Map<string, Set<string>>();
+  const playerOf = (
+    userId: string,
+    matchId: string,
+    user: { name: string; avatar: string | null },
+    fallback: string,
+  ) => {
+    let p = players.get(userId);
+    if (!p) {
+      p = { ...emptyAcc(), name: null, avatar_url: null };
+      players.set(userId, p);
+    }
+    if (!p.name && user.name !== fallback) {
+      p.name = user.name;
+      p.avatar_url = user.avatar;
+    } else if (!p.name && !p.avatar_url) {
+      p.avatar_url = user.avatar;
+    }
+    const set = matchIds.get(userId) ?? new Set<string>();
+    set.add(matchId);
+    matchIds.set(userId, set);
+    return p;
+  };
+
+  for (const b of params.batting ?? []) {
+    if (!b.user_id) continue;
+    const p = playerOf(b.user_id, b.match_id, resolveUserInfo(b.user, "Batter"), "Batter");
+    applyBatting(p, batLine(b), 1);
+  }
+  for (const b of params.bowling ?? []) {
+    if (!b.user_id) continue;
+    const p = playerOf(b.user_id, b.match_id, resolveUserInfo(b.user, "Bowler"), "Bowler");
+    applyBowling(p, bowlLine(b), 1);
+  }
+
+  const field = (
+    fielderId: string,
+    dismissalType: string | null | undefined,
+    matchId: string,
+    user: unknown,
+  ) => {
+    const p = playerOf(fielderId, matchId, resolveUserInfo(user, "Fielder"), "Fielder");
+    const type = (dismissalType ?? "").toLowerCase();
+    if (type.includes("stump")) p.st += 1;
+    else if (type.includes("run")) p.ro += 1;
+    else p.ct += 1;
+  };
+  const seen = new Set<string>();
+  for (const fow of params.fallOfWickets ?? []) {
+    if (!fow.fielder_id) continue;
+    const batsmanId = fow.batsman_out_id ?? fow.batsman_id ?? "";
+    seen.add(`${fow.match_id}_${batsmanId}_${fow.fielder_id}`);
+    field(fow.fielder_id, fow.dismissal_type, fow.match_id, fow.fielder);
+  }
+  // Batting rows name a fielder the fall of wickets may not have.
+  for (const b of params.batting ?? []) {
+    if (!b.fielder_id || !b.is_out) continue;
+    if (seen.has(`${b.match_id}_${b.user_id}_${b.fielder_id}`)) continue;
+    field(b.fielder_id, b.dismissal_type, b.match_id, b.fielder);
+  }
+
+  const out: Record<string, LeaderboardPlayer> = {};
+  for (const [userId, p] of players) {
+    p.m = matchIds.get(userId)?.size ?? 1;
+    out[userId] = p;
+  }
+  return leaderboardFromPlayers(out);
 }
 
 /**

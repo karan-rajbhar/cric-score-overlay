@@ -13,8 +13,13 @@
 
 /** Columns present (possibly null) on every document of the collection. */
 const ORDERABLE: Record<string, readonly string[]> = {
-  matches: ["scheduled_at", "created_at"],
-  users: ["full_name", "created_at"],
+  matches: ["scheduled_at", "created_at", "title_lower"],
+  users: ["full_name", "created_at", "name_lower"],
+  // Search keys (stage 3): written on every insert / update by the
+  // derived-fields data source and backfilled by migrate-stage3.
+  teams: ["name_lower"],
+  clubs: ["name_lower"],
+  tournaments: ["name_lower"],
 };
 
 /**
@@ -22,8 +27,11 @@ const ORDERABLE: Record<string, readonly string[]> = {
  * needed to reproduce Postgres null placement.
  */
 const NON_NULL: Record<string, readonly string[]> = {
-  matches: ["created_at"],
-  users: ["created_at"],
+  matches: ["created_at", "title_lower"],
+  users: ["created_at", "name_lower"],
+  teams: ["name_lower"],
+  clubs: ["name_lower"],
+  tournaments: ["name_lower"],
 };
 
 export function isOrderable(table: string, field: string): boolean {

@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { MemoryDataSource } from "./datasource";
+import { builderContextFor } from "./server-client";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
 import { parseSelect } from "./select-parser";
 import { parseOrExpression } from "./filters";
@@ -246,7 +250,10 @@ describe("QueryBuilder", () => {
         { id: "m2_u1", match_id: "m2", user_id: "u1" },
       ],
     });
-    await new QueryBuilder({ ds }, "matches").delete().eq("id", "m1");
+    // Player records (and the statistics built from them) go through the
+    // server write hook, in a transaction.
+    const { ctx } = builderContextFor(ds, null);
+    await new QueryBuilder(ctx, "matches").delete().eq("id", "m1");
     expect(ds.all("innings").map((d) => d.id)).toEqual(["i2"]);
     expect(ds.all("overs").map((d) => d.id)).toEqual(["i2_0"]);
     expect(ds.all("player_matches").map((d) => d.id)).toEqual(["m2_u1"]);

@@ -11,53 +11,35 @@
  *   takes over an existing profile.
  */
 
-import type { DataSource, Doc } from "./datasource";
+import type { DataSource } from "./datasource";
 import type { WriteEvent } from "./query-builder";
 import {
   OVERS_COLLECTION,
   PLAYER_MATCHES_COLLECTION,
-  playerMatchDocs,
   SCORECARD_FIELDS,
 } from "./scorecard";
-import { sameRow } from "./scoring/rows";
+import { runScoringTransaction } from "./scoring/tx";
+import { syncMatchRecords } from "./stats-sync";
 import { chunk, IN_CHUNK_SIZE } from "./datasource";
-import type { InningsRow, MatchesRow, PlayerMatchesRow } from "./types";
+import type { InningsRow, MatchesRow } from "./types";
 
-/** Re-derive `player_matches` for one match; writes only what differs. */
+/**
+ * Re-derive `player_matches` for one match (and move the statistics with
+ * them) in one transaction; writes only what differs. A deleted match
+ * loses its records.
+ */
 export async function rebuildPlayerMatches(
   ds: DataSource,
   matchId: string,
 ): Promise<{ written: number; deleted: number }> {
-  const [match, innings, existing] = await Promise.all([
-    ds.getById(
-      "matches",
-      matchId,
-    ) as Promise<unknown> as Promise<MatchesRow | null>,
-    ds.query("innings", [
-      { field: "match_id", op: "==", value: matchId },
-    ]) as Promise<unknown> as Promise<InningsRow[]>,
-    ds.query(PLAYER_MATCHES_COLLECTION, [
-      { field: "match_id", op: "==", value: matchId },
-    ]) as Promise<unknown> as Promise<PlayerMatchesRow[]>,
-  ]);
-  const stored = new Map(existing.map((d) => [d.id, d]));
-  let written = 0;
-  let deleted = 0;
-  const wanted = match
-    ? playerMatchDocs(match, innings, new Date().toISOString())
-    : [];
-  for (const doc of wanted) {
-    const prev = stored.get(doc.id);
-    stored.delete(doc.id);
-    if (prev && sameRow(doc, prev)) continue;
-    await ds.insert(PLAYER_MATCHES_COLLECTION, [doc as unknown as Doc]);
-    written += 1;
-  }
-  for (const id of stored.keys()) {
-    await ds.delete(PLAYER_MATCHES_COLLECTION, id);
-    deleted += 1;
-  }
-  return { written, deleted };
+  const now = new Date().toISOString();
+  return runScoringTransaction({ ds }, async (t) => {
+    const [match, innings] = await Promise.all([
+      t.doc<MatchesRow>("matches", matchId),
+      t.where<InningsRow>("innings", [["match_id", "==", matchId]]),
+    ]);
+    return syncMatchRecords(t, matchId, match, innings, now);
+  });
 }
 
 const PLAYER_MATCH_MATCH_FIELDS = [
@@ -76,6 +58,10 @@ export async function syncPlayerMatchesAfterWrite(
   ds: DataSource,
   event: WriteEvent,
 ): Promise<void> {
+  if (event.table === "matches" && event.op === "delete" && event.before) {
+    await rebuildPlayerMatches(ds, event.before.id);
+    return;
+  }
   if (event.op !== "update" || !event.before || !event.after) return;
   if (event.table === "innings") {
     if (

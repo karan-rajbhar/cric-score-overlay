@@ -41,7 +41,7 @@ import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
 
 export interface RpcContext {
-  db: Firestore;
+  db: Firestore | null;
   ds: DataSource;
   uid: string | null;
   user: AppUser | null;

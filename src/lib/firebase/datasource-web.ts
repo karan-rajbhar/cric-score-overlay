@@ -18,6 +18,7 @@ import {
   orderBy,
   query,
   setDoc,
+  startAfter,
   where,
   writeBatch,
   type Firestore,
@@ -69,6 +70,12 @@ export class WebDataSource implements DataSource {
     );
     for (const o of options?.orderBy ?? []) {
       constraints.push(orderBy(o.field, o.direction));
+    }
+    if (options?.startAfter && options.orderBy?.length) {
+      constraints.push(
+        orderBy(documentId()),
+        startAfter(...options.startAfter),
+      );
     }
     if (options?.limit !== undefined) constraints.push(limit(options.limit));
     const snap = await getDocs(

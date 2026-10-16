@@ -20,6 +20,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { applyStage3, planStage3, planWrites } from "./lib/stage3.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const keep = process.argv.includes("--keep");
@@ -38,9 +39,19 @@ if (!remoteProject) {
   process.env.FIRESTORE_EMULATOR_HOST ||= `${HOST}:8088`;
   process.env.FIREBASE_AUTH_EMULATOR_HOST ||= `${HOST}:9099`;
 }
-const data = JSON.parse(
+const raw = JSON.parse(
   readFileSync(resolve(here, "../firebase/seed/data.json"), "utf8"),
 );
+// data.json is stored in the stage 3 shape (search keys, rosters, innings
+// summaries, statistics). If it was edited by hand, derive those again so
+// the seeded documents agree with what the app maintains.
+const stage3 = planStage3(raw, { now: "2024-06-01T00:00:00.000Z" });
+if (planWrites(stage3) > 0) {
+  console.log(
+    `data.json is missing ${planWrites(stage3)} derived stage 3 fields; deriving them.`,
+  );
+}
+const data = applyStage3(raw, stage3);
 
 async function assertEmulator() {
   try {

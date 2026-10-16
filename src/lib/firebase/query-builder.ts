@@ -31,7 +31,9 @@ import {
 import { isNonNull, isOrderable } from "./pushdown";
 import { defaultChildOrder, resolveRelation } from "./relations";
 import {
+  CARRIED_SNAPSHOTS,
   CASCADE_RULES,
+  HIDDEN_COLUMNS,
   TABLE_COLUMNS,
   TABLE_DEFAULTS,
   TIMESTAMP_DEFAULTS,
@@ -58,19 +60,42 @@ export interface WriteEvent {
   after: Doc | null;
 }
 
+/**
+ * Partial copies of documents carried by other documents (e.g. the player
+ * snapshots in a team roster). A relation whose selection only names
+ * `columns` is answered from them instead of reading the documents.
+ */
+export interface SnapshotDocs {
+  table: string;
+  columns: readonly string[];
+  docs: Doc[];
+}
+
+export interface EmbeddedRows {
+  rows: Doc[];
+  /**
+   * Set when the rows carry only these columns (a summary), so they must
+   * not stand in for the full documents elsewhere in the query.
+   */
+  partial?: readonly string[];
+  snapshots?: SnapshotDocs[];
+}
+
 export interface BuilderContext {
   ds: DataSource;
   /** Computes rows for a virtual view (`live_match_state`, ...). */
   resolveView?: (view: string, filters: Filter[]) => Promise<Doc[]>;
   /**
    * Children of an embedded one-to-many relation already held by the parent
-   * documents (e.g. innings scorecard arrays), or null to query them.
+   * documents (innings scorecard arrays, team rosters, innings summaries),
+   * or null to query them.
    */
   expandEmbedded?: (
     source: string,
     target: string,
     parents: Doc[],
-  ) => Doc[] | null;
+    selection: Selection,
+  ) => Doc[] | EmbeddedRows | null;
   /** Called after each successful row write (server-side triggers). */
   afterWrite?: (event: WriteEvent) => Promise<void>;
   now?: () => string;
@@ -97,6 +122,7 @@ interface NativePlan {
 interface PushdownSpec {
   orderBy: NativeOrder[];
   limit: number;
+  startAfter?: unknown[];
   /**
    * Postgres null placement differs from Firestore's (nulls lowest). When
    * the ordered page is full, a second `== null` (descending) or `!= null`
@@ -144,8 +170,16 @@ function toError(err: unknown): DbError {
   return { message: String(err) };
 }
 
-function projectRow(row: Doc, selection: Selection): Doc {
-  if (selection.star) return row;
+function projectRow(row: Doc, selection: Selection, table?: string): Doc {
+  if (selection.star) {
+    const hidden = table ? HIDDEN_COLUMNS[table as TableName] : undefined;
+    if (!hidden?.some((c) => c in row)) return row;
+    const out: Doc = { ...row };
+    for (const c of hidden) {
+      if (!selection.columns.includes(c)) delete out[c];
+    }
+    return out;
+  }
   const out: Doc = { id: row.id };
   for (const col of selection.columns) {
     out[col] = row[col] ?? null;
@@ -177,8 +211,14 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
   private countMode: "exact" | null = null;
   private headOnly = false;
   private upsertConflict: string[] | null = null;
+  private cursor: { value: unknown; id: string } | null = null;
   /** Per-execution memo of id lookups made while hydrating relations. */
   private docCache = new Map<string, Map<string, Doc | null>>();
+  /** Per-execution partial documents (see {@link SnapshotDocs}). */
+  private snapshotCache = new Map<
+    string,
+    Map<string, { doc: Doc; columns: ReadonlySet<string> }>
+  >();
 
   constructor(
     private readonly ctx: BuilderContext,
@@ -359,6 +399,16 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     return this;
   }
 
+  /**
+   * Keyset pagination: rows strictly after (`value`, `id`) in the single
+   * ascending `order()` column (ties broken by document id), e.g. the last
+   * row of the previous page. Pushed to Firestore with the order + limit.
+   */
+  after(value: unknown, id: string): this {
+    this.cursor = { value, id };
+    return this;
+  }
+
   single(): QueryBuilder<T, ResultRow<T>> {
     this.mode = "single";
     return this as unknown as QueryBuilder<T, ResultRow<T>>;
@@ -384,6 +434,7 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
 
   async execute(): Promise<DbResult<R>> {
     this.docCache = new Map();
+    this.snapshotCache = new Map();
     try {
       switch (this.op) {
         case "select":
@@ -447,9 +498,23 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
       this.pushdownEnabled && rangeFields.size === 1
         ? [...rangeFields][0]!
         : null;
+    let arrayContains = false;
     for (const f of this.filters) {
       if (f.type === "eq" && f.value !== undefined) {
         filters.push({ field: f.field, op: "==", value: f.value });
+      } else if (
+        f.type === "contains" &&
+        f.values.length === 1 &&
+        typeof f.values[0] === "string" &&
+        !arrayContains
+      ) {
+        // Firestore allows one array-contains per query.
+        arrayContains = true;
+        filters.push({
+          field: f.field,
+          op: "array-contains",
+          value: f.values[0],
+        });
       } else if (f.type === "in" && !inFilter) {
         inFilter = { field: f.field, values: f.values };
       } else if (
@@ -492,6 +557,26 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     if (!this.pushdownEnabled || !plan.exact) return null;
     const limit = this.effectiveLimit();
     if (limit === null) return null;
+    if (this.cursor) {
+      // Keyset pages need the native order (no null splitting, ascending).
+      const order = this.orders[0];
+      if (
+        this.orders.length !== 1 ||
+        !order!.ascending ||
+        plan.inFilter ||
+        (plan.rangeField && plan.rangeField !== order!.field) ||
+        (!plan.rangeField &&
+          !(isOrderable(table, order!.field) && isNonNull(table, order!.field)))
+      ) {
+        return null;
+      }
+      return {
+        orderBy: [{ field: order!.field, direction: "asc" }],
+        limit,
+        splitNulls: null,
+        startAfter: [this.cursor.value, this.cursor.id],
+      };
+    }
     if (plan.inFilter && plan.inFilter.values.length > IN_CHUNK_SIZE) {
       return null;
     }
@@ -540,6 +625,7 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
       rows = await ds.query(table, filters, {
         orderBy: spec.orderBy,
         limit: spec.limit,
+        ...(spec.startAfter ? { startAfter: spec.startAfter } : {}),
       });
     } else {
       const field = spec.orderBy[0]!.field;
@@ -710,8 +796,52 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     }
   }
 
+  private rememberSnapshots(snapshots: readonly SnapshotDocs[]): void {
+    for (const snap of snapshots) {
+      let cache = this.snapshotCache.get(snap.table);
+      if (!cache) {
+        cache = new Map();
+        this.snapshotCache.set(snap.table, cache);
+      }
+      const columns = new Set(snap.columns);
+      for (const doc of snap.docs) {
+        if (!cache.has(doc.id)) cache.set(doc.id, { doc, columns });
+      }
+    }
+  }
+
+  /** Partial documents that cover every column `selection` asks for. */
+  private fromSnapshots(
+    table: string,
+    ids: string[],
+    selection: Selection,
+  ): Map<string, Doc> {
+    const out = new Map<string, Doc>();
+    const cache = this.snapshotCache.get(table);
+    if (!cache || selection.star || selection.relations.length) return out;
+    for (const id of ids) {
+      const hit = cache.get(id);
+      if (hit && selection.columns.every((c) => hit.columns.has(c))) {
+        out.set(id, structuredClone(hit.doc));
+      }
+    }
+    return out;
+  }
+
   private applyOrderAndLimit(rows: Doc[]): Doc[] {
     let out = sortRows(rows, this.orders);
+    const cursor = this.cursor;
+    const order = this.orders[0];
+    if (cursor && order) {
+      // Same rows as the native keyset page (ascending, ties by id).
+      const after = (row: Doc) => {
+        const v = row[order.field];
+        if (v === undefined || v === null) return false;
+        if (v === cursor.value) return row.id > cursor.id;
+        return (v as string | number) > (cursor.value as string | number);
+      };
+      out = out.filter(after);
+    }
     if (this.rangeBounds) {
       out = out.slice(this.rangeBounds.from, this.rangeBounds.to + 1);
     }
@@ -781,26 +911,59 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
               ),
           ),
         );
-        const related = ids.length
-          ? await this.getManyCached(rel.target, ids)
-          : [];
+        const carried =
+          CARRIED_SNAPSHOTS[source as TableName]?.[strategy.localField];
+        if (carried && carried.table === rel.target) {
+          const docs = rows
+            .map((row) => row[carried.field] as Doc | null | undefined)
+            .filter(
+              (d): d is Doc =>
+                !!d && typeof d === "object" && typeof d.id === "string",
+            )
+            .filter((d) =>
+              rows.some((row) => row[strategy.localField] === d.id),
+            );
+          this.rememberSnapshots([
+            { table: carried.table, columns: carried.columns, docs },
+          ]);
+        }
+        const covered = this.fromSnapshots(rel.target, ids, rel.selection);
+        const rest = ids.filter((id) => !covered.has(id));
+        const related = [
+          ...covered.values(),
+          ...(rest.length ? await this.getManyCached(rel.target, rest) : []),
+        ];
         const hydratedRelated = await this.hydrate(
           related,
           rel.target,
           rel.selection,
         );
-        const byId = new Map(hydratedRelated.map((doc) => [doc.id, doc]));
+        // By position: projection drops `id` when the selection omits it.
+        const byId = new Map(
+          related.map((doc, i) => [doc.id, hydratedRelated[i]!]),
+        );
         for (const row of rows) {
           const key = row[strategy.localField];
           const doc = typeof key === "string" ? byId.get(key) : undefined;
-          row[rel.alias] = doc ? projectRow(doc, rel.selection) : null;
+          row[rel.alias] = doc
+            ? projectRow(doc, rel.selection, rel.target)
+            : null;
         }
         continue;
       }
 
       const parentIds = Array.from(new Set(rows.map((row) => row.id)));
-      const embedded =
-        this.ctx.expandEmbedded?.(source, rel.target, rows) ?? null;
+      const expansion =
+        this.ctx.expandEmbedded?.(source, rel.target, rows, rel.selection) ??
+        null;
+      const embedded = Array.isArray(expansion)
+        ? expansion
+        : (expansion?.rows ?? null);
+      if (expansion && !Array.isArray(expansion)) {
+        this.rememberSnapshots(expansion.snapshots ?? []);
+      }
+      const partial =
+        expansion && !Array.isArray(expansion) ? expansion.partial : undefined;
       if (rel.countOnly && this.pushdownEnabled && !embedded) {
         // One count() aggregation per parent (1 billed read each) instead
         // of reading every child document.
@@ -832,7 +995,13 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
             ),
           )
         ).flat();
-      this.remember(rel.target, children);
+      if (partial) {
+        this.rememberSnapshots([
+          { table: rel.target, columns: partial, docs: children },
+        ]);
+      } else {
+        this.remember(rel.target, children);
+      }
       const grouped = new Map<string, Doc[]>();
       for (const child of children) {
         const key = child[strategy.foreignField];
@@ -861,17 +1030,17 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
         rel.selection,
       );
       const hydratedById = new Map(
-        hydratedChildren.map((doc) => [doc.id, doc]),
+        children.map((doc, i) => [doc.id, hydratedChildren[i]!]),
       );
       for (const row of rows) {
         const list = (grouped.get(row.id) ?? [])
           .map((child) => hydratedById.get(child.id) ?? child)
-          .map((child) => projectRow(child, rel.selection));
+          .map((child) => projectRow(child, rel.selection, rel.target));
         row[rel.alias] = sortRows(list, orders);
       }
     }
 
-    return rows.map((row) => projectRow(row, selection));
+    return rows.map((row) => projectRow(row, selection, source));
   }
 
   // ---------------------------------------------------------------------
@@ -1108,6 +1277,14 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
         } else {
           await this.ctx.ds.update(rule.table, child.id, {
             [rule.column]: null,
+          });
+          // Hooks see the unlink like any other update (e.g. a match that
+          // leaves a deleted club moves its player records).
+          await this.ctx.afterWrite?.({
+            table: rule.table,
+            op: "update",
+            before: child,
+            after: { ...child, [rule.column]: null },
           });
         }
       }

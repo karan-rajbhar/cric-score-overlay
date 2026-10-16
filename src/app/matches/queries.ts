@@ -1,6 +1,7 @@
 "use server";
 
 import { withoutScorecardStorage } from "~/lib/firebase/scorecard";
+import { playerDirectory } from "~/lib/firebase/directory";
 import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 
@@ -42,6 +43,22 @@ export async function getMatches(filters?: {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Relations that load both teams' rosters (`teams.roster`, no extra
+ * reads) ahead of a scorecard, so its `users` lookups are answered from the
+ * roster snapshots. Removed from the result by {@link dropRosterNames}.
+ */
+const ROSTER_NAMES = `
+  _roster1:teams!matches_team1_id_fkey(team_players(user_id, user:users!team_players_user_id_fkey(id, full_name))),
+  _roster2:teams!matches_team2_id_fkey(team_players(user_id, user:users!team_players_user_id_fkey(id, full_name)))
+`;
+
+function dropRosterNames(row: Record<string, unknown>): void {
+  delete row._roster1;
+  delete row._roster2;
+}
+
 
 import {
   getCachedMatch,
@@ -216,11 +233,14 @@ export async function getScoringState(matchId: string) {
 
   try {
     const db = await createServerClient();
+    // The two team documents come first: their rosters carry every
+    // player's name, so the scorecard's user lookups need no reads.
     const { data: match, error } = await db
       .from("matches")
       .select(
         `
         *,
+        ${ROSTER_NAMES},
         innings(
           *,
           batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
@@ -230,6 +250,7 @@ export async function getScoringState(matchId: string) {
       )
       .eq("id", matchId)
       .single();
+    if (match) dropRosterNames(match);
     if (error) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
@@ -349,6 +370,32 @@ export async function getScoringState(matchId: string) {
 export async function getTeamPlayers(teamId: string) {
   try {
     const db = await createServerClient();
+    // One read: the team's roster carries its players with their profiles.
+    const { data: team, error: teamError } = await db
+      .from("teams")
+      .select(
+        "id, team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))",
+      )
+      .eq("id", teamId)
+      .maybeSingle();
+    if (teamError) return { data: null, error: teamError.message };
+    if (team) {
+      const rows = (team.team_players ?? []) as Array<{
+        batting_order: number | null;
+      }>;
+      // Same order as `.order("batting_order")` (nulls last, ties by id).
+      return {
+        data: [...rows].sort((a, b) => {
+          const x = a.batting_order;
+          const y = b.batting_order;
+          if (x === y) return 0;
+          if (x === null || x === undefined) return 1;
+          if (y === null || y === undefined) return -1;
+          return x - y;
+        }),
+        error: null,
+      };
+    }
     const { data, error } = await db
       .from("team_players")
       .select(
@@ -370,27 +417,50 @@ export async function getTeamPlayers(teamId: string) {
   }
 }
 
+const BALL_PLAYER_FIELDS = [
+  ["batsman", "batsman_id"],
+  ["bowler", "bowler_id"],
+  ["non_striker", "non_striker_id"],
+  ["fielder", "fielder_id"],
+  ["dismissed_player", "dismissed_player_id"],
+] as const;
+
 export async function getMatchBallLog(matchId: string) {
   try {
     const db = await createServerClient();
     const { data, error } = await db
       .from("ball_by_ball")
-      .select(
-        `
-          *,
-          batsman:users!ball_by_ball_batsman_id_fkey(id, full_name),
-          bowler:users!ball_by_ball_bowler_id_fkey(id, full_name),
-          non_striker:users!ball_by_ball_non_striker_id_fkey(id, full_name),
-          fielder:users!ball_by_ball_fielder_id_fkey(id, full_name),
-          dismissed_player:users!ball_by_ball_dismissed_player_id_fkey(id, full_name),
-          innings(innings_number, team_id)
-      `,
-      )
+      .select(`*, innings(innings_number, team_id)`)
       .eq("match_id", matchId)
       .order("seq");
     if (error) {
       console.error("Error fetching ball log:", error);
       return { data: null, error: error.message };
+    }
+    // Player names from the teams' rosters (2 reads) instead of a profile
+    // read per player.
+    const balls = (data ?? []) as Record<string, unknown>[];
+    const ids = new Set<string>();
+    for (const b of balls) {
+      for (const [, field] of BALL_PLAYER_FIELDS) {
+        if (typeof b[field] === "string") ids.add(b[field] as string);
+      }
+    }
+    const { data: teams } = await db
+      .from("matches")
+      .select("team1_id, team2_id")
+      .eq("id", matchId)
+      .maybeSingle();
+    const names = await playerDirectory(
+      db,
+      [teams?.team1_id, teams?.team2_id],
+      ids,
+    );
+    for (const b of balls) {
+      for (const [alias, field] of BALL_PLAYER_FIELDS) {
+        const id = b[field];
+        b[alias] = typeof id === "string" ? (names.get(id) ?? null) : null;
+      }
     }
     return { data, error: null };
   } catch (err) {

@@ -11,6 +11,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { inningsSummaryEntry, inningsSummaryOf } from "../../derive.mjs";
 import type { ScoringState } from "~/app/matches/types";
 import type { DataSource, Doc } from "../../datasource";
 import {
@@ -114,6 +115,15 @@ export const STAGE2_INNINGS_FIELDS = new Set([
   "last_over_bowler_id",
 ]);
 
+/** Fields stage 3 added to match documents (not part of the legacy row). */
+export const STAGE3_MATCH_FIELDS = new Set([
+  "innings_summary",
+  "title_lower",
+  "search_prefixes",
+  "tournament_snapshot",
+  "club_snapshot",
+]);
+
 const LEGACY_TABLES = [
   "matches",
   "innings",
@@ -140,6 +150,9 @@ export async function legacySnapshot(
       if (VOLATILE.has(k)) continue;
       if (table === "ball_by_ball" && k === "id") continue;
       if (k === "version" || k === "refs") continue;
+      // Stage 3 derived match fields (search keys, the innings summary,
+      // which incremental.test.ts checks against the innings instead).
+      if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;
       if (table === "innings" && STAGE2_INNINGS_FIELDS.has(k)) continue;
       out[k] = v === undefined ? null : v;
     }
@@ -532,6 +545,7 @@ export function freshMatchTables(legacySeed: Seed, matchId: string): Seed {
   };
   for (const k of STAGE2_INNINGS_FIELDS) delete fresh[k];
   base.innings = [fresh];
+  match.innings_summary = inningsSummaryOf([fresh]);
   return base;
 }
 
@@ -637,6 +651,20 @@ export function syntheticTables(overrides: Partial<MatchesRow> = {}): Seed {
         last_ball_seq: 0,
         created_by: ADMIN,
         match_admins: [],
+        innings_summary: [
+          inningsSummaryEntry({
+            id: "INN1",
+            team_id: "TA",
+            innings_number: 1,
+            total_runs: 0,
+            total_wickets: 0,
+            total_overs: 0,
+            total_balls: 0,
+            extras_total: 0,
+            is_completed: false,
+            target_runs: null,
+          }),
+        ],
         ...overrides,
       } as unknown as Doc,
     ],

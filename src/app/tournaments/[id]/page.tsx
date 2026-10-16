@@ -41,7 +41,11 @@ import {
 } from "~/components/tournaments/tournament-admin-actions";
 import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
-import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
+import type { LeaderboardData } from "~/lib/leaderboard";
+import {
+  loadScopeLeaderboard,
+  type ScopeMatch,
+} from "~/lib/firebase/leaderboards";
 import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +99,6 @@ export default async function TournamentPage({
     { data: standings },
     { data: registrations },
     { data: matches },
-    { data: allTeams },
   ] = await Promise.all([
     db
       .from("tournaments")
@@ -113,7 +116,9 @@ export default async function TournamentPage({
     db
       .from("tournament_registrations")
       .select(
-        "*, team:teams(id, name, short_name, logo_url, captain:users!teams_captain_id_fkey(full_name), team_players(count))",
+        // team_players(count) first: served from the roster, whose player
+        // snapshots then answer the captain lookup (no reads).
+        "*, team:teams(id, name, short_name, logo_url, team_players(count), captain:users!teams_captain_id_fkey(full_name))",
       )
       .eq("tournament_id", id)
       .order("registered_at", { ascending: true }),
@@ -124,66 +129,24 @@ export default async function TournamentPage({
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, winning_team_id,
                 ${MATCH_TEAM_COLUMNS},
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
+                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
             `,
       )
       .eq("tournament_id", id)
       .order("scheduled_at", { ascending: true }),
-    db
-      .from("teams")
-      .select(
-        "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
-      )
-      .order("name"),
   ]);
 
   if (!tournament) notFound();
   await attachMatchTeams(db, matches ?? []);
 
-  const matchIds = ((matches ?? []) as unknown as MatchRow[]).map((m) => m.id);
-
-  // Super Stars & Leaderboards computation
-  let leaderboardData: LeaderboardData = buildLeaderboardData({});
-
-  if (matchIds.length > 0) {
-    const [battingRes, bowlingRes, fowRes] =
-      await Promise.all([
-        db
-          .from("batting_performances")
-          .select(
-            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("bowling_performances")
-          .select(
-            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("fall_of_wickets")
-          .select(
-            "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-      ]);
-
-    if (battingRes.error) {
-      console.error("Error fetching tournament batting performances:", battingRes.error);
-    }
-    if (bowlingRes.error) {
-      console.error("Error fetching tournament bowling performances:", bowlingRes.error);
-    }
-    if (fowRes.error) {
-      console.error("Error fetching tournament fall of wickets:", fowRes.error);
-    }
-
-    leaderboardData = buildLeaderboardData({
-      batting: battingRes.data,
-      bowling: bowlingRes.data,
-      fallOfWickets: fowRes.data,
-    });
-  }
+  // Super Stars & Leaderboards: the tournament's stored leaderboard (one
+  // read) plus any innings still in play.
+  const leaderboardData: LeaderboardData = await loadScopeLeaderboard(
+    db,
+    "tournament",
+    id,
+    (matches ?? []) as unknown as ScopeMatch[],
+  );
 
   const {
     data: { user },
@@ -216,8 +179,18 @@ export default async function TournamentPage({
   const isTournamentAdmin =
     !!user && (tournament.created_by === user.id || isClubAdmin);
 
+  // Teams the viewer may register: every team for tournament admins,
+  // otherwise only teams they have a stake in (indexed queries instead of
+  // reading every team). Anonymous viewers need none.
+  const TEAM_COLUMNS =
+    "id, name, short_name, club_id, created_by, captain_id, vice_captain_id";
+  let allTeams: Array<{ id: string; name: string; short_name: string | null }> =
+    [];
   const myTeamIds = new Set<string>();
-  if (user && !isTournamentAdmin) {
+  if (user && isTournamentAdmin) {
+    const { data } = await db.from("teams").select(TEAM_COLUMNS).order("name");
+    allTeams = data ?? [];
+  } else if (user) {
     const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
       db.from("team_players").select("team_id").eq("user_id", user.id),
       db
@@ -237,7 +210,29 @@ export default async function TournamentPage({
       (teamPlayersRes.data ?? []).map((r) => r.team_id),
     );
 
-    (allTeams ?? []).forEach(
+    const stakes = await Promise.all([
+      db.from("teams").select(TEAM_COLUMNS).eq("created_by", user.id),
+      db.from("teams").select(TEAM_COLUMNS).eq("captain_id", user.id),
+      db.from("teams").select(TEAM_COLUMNS).eq("vice_captain_id", user.id),
+      playerTeamIds.size
+        ? db.from("teams").select(TEAM_COLUMNS).in("id", [...playerTeamIds])
+        : Promise.resolve({ data: [] }),
+      adminClubIds.size
+        ? db
+            .from("teams")
+            .select(TEAM_COLUMNS)
+            .in("club_id", [...adminClubIds])
+        : Promise.resolve({ data: [] }),
+    ]);
+    const byId = new Map<string, (typeof allTeams)[number]>();
+    for (const res of stakes) {
+      for (const t of (res.data ?? []) as typeof allTeams) byId.set(t.id, t);
+    }
+    allTeams = [...byId.values()].sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+
+    allTeams.forEach(
       (t: {
         id: string;
         club_id?: string | null;
@@ -260,8 +255,8 @@ export default async function TournamentPage({
 
   const availableTeams = (
     isTournamentAdmin
-      ? (allTeams ?? [])
-      : (allTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id))
+      ? allTeams
+      : allTeams.filter((t: { id: string }) => myTeamIds.has(t.id))
   ) as Array<{
     id: string;
     name: string;

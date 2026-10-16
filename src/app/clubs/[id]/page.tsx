@@ -55,7 +55,11 @@ import {
   formatClubType,
   formatTeamType,
 } from "~/lib/cricket";
-import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
+import type { LeaderboardData } from "~/lib/leaderboard";
+import {
+  loadScopeLeaderboard,
+  type ScopeMatch,
+} from "~/lib/firebase/leaderboards";
 import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
@@ -177,7 +181,9 @@ export default async function ClubPage({
     db
       .from("teams")
       .select(
-        "id, name, short_name, team_type, captain:users!teams_captain_id_fkey(full_name), team_players(count)",
+        // team_players(count) first: it is served from the roster, whose
+        // player snapshots then answer the captain lookup (no reads).
+        "id, name, short_name, team_type, team_players(count), captain:users!teams_captain_id_fkey(full_name)",
       )
       .eq("club_id", id)
       .order("name"),
@@ -195,7 +201,7 @@ export default async function ClubPage({
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, season_id,
                 ${MATCH_TEAM_COLUMNS},
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
+                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
             `,
       )
       .eq("club_id", id)
@@ -294,43 +300,13 @@ export default async function ClubPage({
   });
 
   if (matchIds.length > 0) {
-    const [battingRes, bowlingRes, fowRes] =
-      await Promise.all([
-        db
-          .from("batting_performances")
-          .select(
-            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("bowling_performances")
-          .select(
-            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("fall_of_wickets")
-          .select(
-            "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-      ]);
-
-    if (battingRes.error) {
-      console.error("Error fetching club batting performances:", battingRes.error);
-    }
-    if (bowlingRes.error) {
-      console.error("Error fetching club bowling performances:", bowlingRes.error);
-    }
-    if (fowRes.error) {
-      console.error("Error fetching club fall of wickets:", fowRes.error);
-    }
-
-    leaderboardData = buildLeaderboardData({
-      batting: battingRes.data,
-      bowling: bowlingRes.data,
-      fallOfWickets: fowRes.data,
-    });
+    // The club's stored leaderboard (one read) plus innings still in play.
+    leaderboardData = await loadScopeLeaderboard(
+      db,
+      "club",
+      id,
+      typedMatches as unknown as ScopeMatch[],
+    );
 
     battingLeaders = leaderboardData.batting.map((b) => ({
       userId: b.userId,

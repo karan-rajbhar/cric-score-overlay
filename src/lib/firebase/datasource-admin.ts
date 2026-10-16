@@ -3,7 +3,12 @@
  */
 
 import "server-only";
-import type { Firestore, Query, DocumentData } from "firebase-admin/firestore";
+import {
+  FieldPath,
+  type DocumentData,
+  type Firestore,
+  type Query,
+} from "firebase-admin/firestore";
 import {
   chunk,
   type DataSource,
@@ -22,6 +27,11 @@ export class AdminDataSource implements DataSource {
   readonly kind = "admin" as const;
 
   constructor(private readonly db: Firestore) {}
+
+  /** The Firestore behind this source (for transactions). */
+  get firestore(): Firestore {
+    return this.db;
+  }
 
   async getById(table: string, id: string): Promise<Doc | null> {
     const snap = await this.db.collection(table).doc(id).get();
@@ -57,6 +67,9 @@ export class AdminDataSource implements DataSource {
   ): Promise<Doc[]> {
     let q = this.build(table, filters);
     for (const o of options?.orderBy ?? []) q = q.orderBy(o.field, o.direction);
+    if (options?.startAfter && options.orderBy?.length) {
+      q = q.orderBy(FieldPath.documentId()).startAfter(...options.startAfter);
+    }
     if (options?.limit !== undefined) q = q.limit(options.limit);
     const snap = await q.get();
     return snap.docs.map((d) => toDoc(d.id, d.data()));

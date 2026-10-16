@@ -214,7 +214,9 @@ export async function remapUserId(
   await remapScorecardUserId(ds, oldId, newId);
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
-      const rows = await ds.query(ref.table, []);
+      const rows = await ds.query(ref.table, [
+        { field: ref.column, op: "array-contains", value: oldId },
+      ]);
       for (const row of rows) {
         const arr = row[ref.column];
         if (Array.isArray(arr) && arr.includes(oldId)) {

@@ -7,6 +7,7 @@
  * CASCADE`, and resolve embedded relations from column names.
  */
 
+import { MATCH_PARENT_SNAPSHOTS, ROSTER_USER_FIELDS } from "./derive.mjs";
 import type { TableName, ViewName } from "./types";
 
 export const TABLE_NAMES: readonly TableName[] = [
@@ -33,6 +34,7 @@ export const TABLE_NAMES: readonly TableName[] = [
   "overs",
   "player_matches",
   "player_career_stats",
+  "leaderboards",
 ] as const;
 
 /**
@@ -74,6 +76,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "location",
     "username",
     "is_active",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -95,6 +99,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "founded_year",
     "owner_id",
     "social_links",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -104,6 +110,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "user_id",
     "role",
     "status",
+    "user_snapshot",
     "joined_at",
     "updated_at",
   ],
@@ -163,6 +170,9 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "team_type",
     "is_template",
     "created_by",
+    "name_lower",
+    "search_prefixes",
+    "roster",
     "created_at",
     "updated_at",
   ],
@@ -201,6 +211,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "created_by",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -282,6 +294,11 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "last_ball_seq",
+    "innings_summary",
+    "tournament_snapshot",
+    "club_snapshot",
+    "title_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -438,8 +455,61 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "strike_rate",
     "bowling_average",
     "economy_rate",
+    "acc",
     "last_updated",
   ],
+  // `leaderboards/{scope}_{scopeId}`: per-player accumulators (stats.mjs).
+  leaderboards: ["id", "scope", "scope_id", "players", "updated_at"],
+};
+
+/**
+ * Storage-only fields (search keys, denormalized copies) left out of
+ * `select("*")` results unless named explicitly.
+ */
+export const HIDDEN_COLUMNS: Partial<Record<TableName, readonly string[]>> = {
+  users: ["name_lower", "search_prefixes"],
+  clubs: ["name_lower", "search_prefixes"],
+  teams: ["name_lower", "search_prefixes", "roster"],
+  tournaments: ["name_lower", "search_prefixes"],
+  matches: [
+    "title_lower",
+    "search_prefixes",
+    "innings_summary",
+    "tournament_snapshot",
+    "club_snapshot",
+  ],
+  club_memberships: ["user_snapshot"],
+};
+
+/**
+ * Many-to-one relations a row can answer from a copy it carries: for
+ * `club_memberships.user_id`, the profile snapshot in `user_snapshot`
+ * (kept in step by the derived-fields data source). A relation selecting
+ * only the copied columns then reads nothing.
+ */
+export const CARRIED_SNAPSHOTS: Partial<
+  Record<
+    TableName,
+    Record<
+      string,
+      { field: string; table: TableName; columns: readonly string[] }
+    >
+  >
+> = {
+  club_memberships: {
+    user_id: {
+      field: "user_snapshot",
+      table: "users",
+      columns: ROSTER_USER_FIELDS,
+    },
+  },
+  // `tournament_snapshot` / `club_snapshot` (see match-snapshots.ts).
+  matches: Object.fromEntries(
+    MATCH_PARENT_SNAPSHOTS.map((s) => [
+      s.local,
+      { field: s.field, table: s.table, columns: s.columns },
+    ]),
+  ),
 };
 
 /**
@@ -456,7 +526,7 @@ export const TABLE_DEFAULTS: Partial<
   club_invitations: { status: "pending" },
   invitations: { status: "pending" },
   club_seasons: { is_current: false },
-  teams: { team_type: "club", is_template: false },
+  teams: { team_type: "club", is_template: false, roster: [] },
   team_players: { is_playing_xi: false },
   tournaments: {
     tournament_format: "league",
@@ -500,6 +570,7 @@ export const TABLE_DEFAULTS: Partial<
     last_man_stands: false,
     golden_ball: false,
     last_ball_seq: 0,
+    innings_summary: [],
   },
   innings: {
     total_runs: 0,
@@ -572,6 +643,7 @@ export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
     overs: ["updated_at"],
     player_matches: ["updated_at"],
     player_career_stats: ["last_updated"],
+    leaderboards: ["updated_at"],
   };
 
 /** Unique constraints enforced before insert (Postgres error code 23505). */
@@ -699,10 +771,11 @@ export const CASCADE_RULES: Partial<
     },
     { table: "matches", column: "tournament_id", action: "setNull" },
   ],
+  // player_matches (and the statistics built from them) are removed by
+  // the matches write hook, inside a transaction.
   matches: [
     { table: "innings", column: "match_id", action: "cascade" },
     { table: "overs", column: "match_id", action: "cascade" },
-    { table: "player_matches", column: "match_id", action: "cascade" },
   ],
   innings: [{ table: "overs", column: "innings_id", action: "cascade" }],
 };
@@ -732,6 +805,7 @@ export const SINGULAR: Record<TableName, string> = {
   overs: "over",
   player_matches: "player_match",
   player_career_stats: "player_career_stat",
+  leaderboards: "leaderboard",
 };
 
 /**
@@ -762,9 +836,9 @@ export const USER_REFERENCES: readonly {
   { table: "matches", column: "created_by" },
   { table: "matches", column: "player_of_the_match_id" },
   { table: "matches", column: "match_admins", array: true },
-  { table: "player_career_stats", column: "user_id" },
   // Scorecards (innings arrays, over documents, player_matches) embed user
-  // ids inside nested values; `remapScorecardUserId` rewrites those.
+  // ids inside nested values; `remapScorecardUserId` rewrites those, and
+  // the statistics (career / leaderboards) follow the player records.
 ];
 
 export function hasColumn(table: TableName, column: string): boolean {

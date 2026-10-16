@@ -24,6 +24,54 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "scheduled_at", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "name_lower", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "teams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "name_lower", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "clubs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "name_lower", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tournaments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "name_lower", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "title_lower", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "teams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "team_type", "order": "ASCENDING" },
+        { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -62,6 +110,27 @@
       "fieldPath": "fielding",
       "indexes": []
     },
-    { "collectionGroup": "live_state", "fieldPath": "refs", "indexes": [] }
+    { "collectionGroup": "live_state", "fieldPath": "refs", "indexes": [] },
+    { "collectionGroup": "teams", "fieldPath": "roster", "indexes": [] },
+    {
+      "collectionGroup": "matches",
+      "fieldPath": "innings_summary",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "leaderboards",
+      "fieldPath": "players",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "player_career_stats",
+      "fieldPath": "acc",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "club_memberships",
+      "fieldPath": "user_snapshot",
+      "indexes": []
+    }
   ]
 }

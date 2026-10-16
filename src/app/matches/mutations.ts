@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
@@ -1485,12 +1486,15 @@ async function findScorerCandidates(
       error: usersError?.message ?? null,
     };
   }
-  const { data, error } = await db
-    .from("users")
-    .select(SCORER_FIELDS)
-    .ilike("full_name", `%${target}%`)
-    .limit(limit);
-  return { data: (data ?? []) as MatchScorerUser[], error: error?.message ?? null };
+  // Word-prefix match on name / @username: reads at most `limit` profiles.
+  const { data, error } = await prefixSearch(
+    db,
+    "users",
+    target,
+    SCORER_FIELDS,
+    limit,
+  );
+  return { data: data as unknown as MatchScorerUser[], error };
 }
 
 export async function getMatchScorers(matchId: string): Promise<{

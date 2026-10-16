@@ -20,8 +20,14 @@
  * innings from its ball log, which every history-editing mutation (undo,
  * update, recompute) uses and which remains the source of truth. Only
  * documents whose values changed are written. When the set of completed
- * innings changes, the match's `player_matches` records are updated too.
- * Every mutation refreshes `live_state/{matchId}` (see `live-state.ts`).
+ * innings changes, the match's `player_matches` records are updated too,
+ * and with them the career / leaderboard statistics (`stats-sync.ts`), in
+ * the same transaction. The match's `innings_summary` follows every innings
+ * write (`innings-summary.ts`). Every mutation refreshes
+ * `live_state/{matchId}` (see `live-state.ts`).
+ *
+ * New delivery ids name their over document (`newBallId`), so `update_ball`
+ * reads that over instead of the match's whole ball log.
  */
 
 import "server-only";
@@ -45,12 +51,12 @@ import {
   bySeq,
   fallOfWicketRowsOf,
   lastOverBowlerOf,
+  newBallId,
   overDocId,
+  overDocIdOfBall,
   OVERS_COLLECTION,
   oversOfBalls,
   partnershipRowsOf,
-  PLAYER_MATCHES_COLLECTION,
-  playerMatchDocs,
   scorecardFields,
   toBallEntry,
   toBattingEntry,
@@ -71,6 +77,7 @@ import {
   type AdvanceOutput,
 } from "../scoring/result";
 import { sameRow } from "../scoring/rows";
+import { syncMatchRecords } from "../stats-sync";
 import {
   runScoringTransaction,
   type ScoringTx,
@@ -281,31 +288,6 @@ function writeRecompute(
   return { ...bundle.innings, ...patch };
 }
 
-/**
- * Bring `player_matches` in line with the match's completed innings:
- * `before` is the innings set the stored records were built from, `after`
- * the set as it will be stored. Only records that change are written.
- */
-function syncPlayerMatches(
-  t: ScoringTx,
-  match: MatchesRow,
-  before: readonly InningsRow[],
-  after: readonly InningsRow[],
-  now: string,
-): void {
-  const prev = new Map(
-    playerMatchDocs(match, [...before], now).map((d) => [d.id, d]),
-  );
-  for (const doc of playerMatchDocs(match, [...after], now)) {
-    const old = prev.get(doc.id);
-    prev.delete(doc.id);
-    if (!old || !sameRow(doc, old)) {
-      t.put(PLAYER_MATCHES_COLLECTION, doc.id, doc);
-    }
-  }
-  for (const id of prev.keys()) t.delete(PLAYER_MATCHES_COLLECTION, id);
-}
-
 function replaceInnings(
   all: readonly WithId<InningsRow>[],
   updated: readonly WithId<InningsRow>[],
@@ -332,17 +314,23 @@ async function syncIfCompleted(
   const innings =
     all ??
     (await t.where<InningsRow>("innings", [["match_id", "==", match.id]]));
-  syncPlayerMatches(t, match, innings, replaceInnings(innings, [after]), now);
+  await syncMatchRecords(
+    t,
+    match.id,
+    match,
+    replaceInnings(innings, [after]),
+    now,
+  );
 }
 
-function applyAdvance(
+async function applyAdvance(
   t: ScoringTx,
   match: MatchesRow,
   completed: WithId<InningsRow>,
   allInnings: WithId<InningsRow>[],
   teamNames: Record<string, string | undefined>,
   now: string,
-): AdvanceOutput {
+): Promise<AdvanceOutput> {
   const out = advanceAfterInnings(
     { match, completed, allInnings, teamNames, now },
     newId(),
@@ -355,14 +343,11 @@ function applyAdvance(
       ...EMPTY_SCORECARD,
     });
   }
-  // `allInnings` is what is stored before; the completed innings joins the
-  // player records.
-  syncPlayerMatches(
+  // The completed innings joins the player records (and statistics).
+  await syncMatchRecords(
     t,
+    match.id,
     match,
-    allInnings.map((i) =>
-      i.id === completed.id ? { ...i, is_completed: false } : i,
-    ),
     replaceInnings(allInnings, [
       { ...completed, ...out.completedInningsPatch },
     ]),
@@ -560,11 +545,12 @@ function newBall(
   now: string,
 ): WithId<BallByBallRow> {
   const totalBalls = innings.total_balls ?? 0;
+  const overNumber = Math.floor(totalBalls / bpo);
   return {
-    id: newId(),
+    id: newBallId(innings.id, overNumber, newId()),
     match_id: args.p_match_id,
     innings_id: innings.id,
-    over_number: Math.floor(totalBalls / bpo),
+    over_number: overNumber,
     ball_number: (totalBalls % bpo) + 1,
     bowler_id: args.p_bowler_id,
     batsman_id: args.p_batsman_id,
@@ -766,7 +752,7 @@ async function recordBallIncremental(
     const teamNames: Record<string, string | undefined> = {};
     for (const [id, team] of header.teams)
       teamNames[id] = team.name ?? undefined;
-    advance = applyAdvance(
+    advance = await applyAdvance(
       t,
       matchAfter,
       inningsAfter,
@@ -892,7 +878,7 @@ async function recordBallFull(
   t.patch("matches", matchId, { last_ball_seq: seq });
 
   if (inningsComplete(match, updatedInnings)) {
-    applyAdvance(
+    await applyAdvance(
       t,
       { ...match, ...out.matchPatch },
       updatedInnings,
@@ -1026,7 +1012,7 @@ export async function undoLastBall(
         all.filter((i) => !(crossingBoundary && i.id === current?.id)),
         [targetAfter],
       );
-      syncPlayerMatches(t, match, all, after, now);
+      await syncMatchRecords(t, matchId, match, after, now);
     }
     return match;
   });
@@ -1074,16 +1060,28 @@ export async function updateBall(
   const now = new Date().toISOString();
 
   const before = await runScoringTransaction(ctx, async (t) => {
-    // The ball's over is not known from its id: read the match's ball log
-    // (one document per over).
-    const [match, matchOvers] = await Promise.all([
+    // New ball ids name their over document (1 read); older ones are
+    // found by reading the match's ball log (one document per over).
+    const hinted = overDocIdOfBall(args.p_ball_id);
+    const [match, hintedOver] = await Promise.all([
       t.doc<MatchesRow>("matches", matchId),
-      t.where<OversRow>(OVERS_COLLECTION, [["match_id", "==", matchId]]),
+      hinted
+        ? t.doc<OversRow>(OVERS_COLLECTION, hinted)
+        : Promise.resolve(null),
     ]);
     if (!match) throw new DbQueryError("match_not_found", "22000");
-    const over = matchOvers.find((o) =>
-      (o.balls ?? []).some((b) => b.id === args.p_ball_id),
-    );
+    const holds = (o: OversRow | null): o is WithId<OversRow> =>
+      !!o &&
+      o.match_id === matchId &&
+      (o.balls ?? []).some((b) => b.id === args.p_ball_id);
+    const matchOvers = holds(hintedOver)
+      ? null
+      : await t.where<OversRow>(OVERS_COLLECTION, [
+          ["match_id", "==", matchId],
+        ]);
+    const over = holds(hintedOver)
+      ? hintedOver
+      : (matchOvers ?? []).find(holds);
     const found = over
       ? ballRowsOf(over).find((b) => b.id === args.p_ball_id)
       : undefined;
@@ -1097,11 +1095,13 @@ export async function updateBall(
     };
     const innings = await t.doc<InningsRow>("innings", over.innings_id);
     if (!innings) throw new DbQueryError("ball_not_found", "22000");
-    const bundle = bundleOf(
-      match,
-      innings,
-      matchOvers.filter((o) => o.innings_id === innings.id),
-    );
+    const bundle = matchOvers
+      ? bundleOf(
+          match,
+          innings,
+          matchOvers.filter((o) => o.innings_id === innings.id),
+        )
+      : await loadInningsBundle(t, match, innings);
 
     const patch: Partial<BallByBallRow> = {
       runs_scored: args.p_runs_scored ?? 0,
@@ -1143,7 +1143,14 @@ export async function endInnings(
     const { all, current } = await currentInningsOf(t, match);
     if (!current || current.is_completed)
       throw new DbQueryError("no_open_innings", "22000");
-    applyAdvance(t, match, current, all, await teamNamesOf(t, match), now);
+    await applyAdvance(
+      t,
+      match,
+      current,
+      all,
+      await teamNamesOf(t, match),
+      now,
+    );
     return match;
   });
 
@@ -1224,7 +1231,7 @@ export async function recomputeInningsRpc(
   inningsId: string,
 ): Promise<null> {
   const now = new Date().toISOString();
-  const matchId = await runScoringTransaction(ctx, async (t) => {
+  const before = await runScoringTransaction(ctx, async (t) => {
     const innings = await t.doc<InningsRow>("innings", inningsId);
     if (!innings?.match_id) return null;
     const match = await t.doc<MatchesRow>("matches", innings.match_id);
@@ -1233,16 +1240,9 @@ export async function recomputeInningsRpc(
     const out = runRecompute(bundle, bundle.balls, now);
     const after = writeRecompute(t, bundle, out, bundle.balls, now);
     await syncIfCompleted(t, match, innings, after, now);
-    return match.id;
+    return match;
   });
-  if (matchId) {
-    const match = (await ctx.ds.getById(
-      "matches",
-      matchId,
-    )) as unknown as MatchesRow | null;
-    await maybeRecalculateStandings(ctx.ds, match, match);
-    await writeLiveState(ctx.ds, matchId, ctx.db);
-  }
+  if (before) await finishQuietly(ctx, before.id, before);
   return null;
 }
 
@@ -1291,11 +1291,12 @@ function eventBall(
   fields: Partial<BallByBallRow>,
   now: string,
 ): BallByBallRow {
+  const overNumber = match.current_over ?? 0;
   return {
-    id: newId(),
+    id: newBallId(innings.id, overNumber, newId()),
     match_id: match.id,
     innings_id: innings.id,
-    over_number: match.current_over ?? 0,
+    over_number: overNumber,
     ball_number: Math.min(20, Math.max(1, (match.current_ball ?? 0) + 1)),
     bowler_id: null,
     batsman_id: null,

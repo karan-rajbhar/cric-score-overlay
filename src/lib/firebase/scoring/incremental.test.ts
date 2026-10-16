@@ -26,7 +26,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+import { canonicalJson, inningsSummaryOf } from "../derive.mjs";
 import { liveRowOf, type LiveStateDoc } from "../live-state";
+import { rebuildStats } from "../stats.mjs";
 import { recordState } from "../rpc/state";
 import {
   ballLogOf,
@@ -80,6 +82,18 @@ const golden = JSON.parse(
 ) as { seed: Record<string, string[]>; synthetic: Record<string, string[]> };
 
 const VOLATILE = new Set(["created_at", "updated_at"]);
+
+/** Statistics documents without their timestamps, order-independent. */
+function statsDump(docs: object[]): string[] {
+  return docs
+    .map((d) => {
+      const c: Record<string, unknown> = { ...d };
+      delete c.last_updated;
+      delete c.updated_at;
+      return canonicalJson(c);
+    })
+    .sort();
+}
 
 function strip(rows: object[]): string[] {
   return rows
@@ -149,6 +163,21 @@ async function checkInvariants(side: Stage2Side, matchId: string) {
     { field: "match_id", op: "==", value: matchId },
   ])) as unknown as PlayerMatchesRow[];
   expect(strip(stored)).toEqual(strip(playerMatchDocs(match, innings, "x")));
+
+  // Stage 3: the match's innings summary, and the career / leaderboard
+  // statistics equal a rebuild from the stored player records.
+  expect(match.innings_summary).toEqual(inningsSummaryOf(innings));
+  const rebuilt = rebuildStats(
+    ds.all("player_matches") as unknown as PlayerMatchesRow[],
+    new Map(ds.all("users").map((u) => [u.id, u])),
+    "x",
+  );
+  expect(statsDump(ds.all("player_career_stats"))).toEqual(
+    statsDump(rebuilt.careers),
+  );
+  expect(statsDump(ds.all("leaderboards"))).toEqual(
+    statsDump(rebuilt.leaderboards),
+  );
 
   const live = (await ds.getById(
     "live_state",

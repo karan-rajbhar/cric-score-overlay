@@ -362,18 +362,25 @@ export async function loadMatchHeader(
       ),
     ),
   );
+  // The tournament name too, from the match's snapshot when it has one.
+  const tournamentSnap =
+    match.tournament_snapshot?.id === match.tournament_id
+      ? match.tournament_snapshot
+      : null;
   const [teamDocs, tournament] = await Promise.all([
     teamIds.length
       ? (reader.getByIds("teams", teamIds) as Promise<unknown> as Promise<
           TeamsRow[]
         >)
       : Promise.resolve([] as TeamsRow[]),
-    match.tournament_id
-      ? (reader.getById(
-          "tournaments",
-          match.tournament_id,
-        ) as Promise<unknown> as Promise<TournamentsRow | null>)
-      : Promise.resolve(null),
+    tournamentSnap
+      ? Promise.resolve({ name: tournamentSnap.name } as TournamentsRow)
+      : match.tournament_id
+        ? (reader.getById(
+            "tournaments",
+            match.tournament_id,
+          ) as Promise<unknown> as Promise<TournamentsRow | null>)
+        : Promise.resolve(null),
   ]);
   for (const t of teamDocs) {
     teams.set(t.id, {

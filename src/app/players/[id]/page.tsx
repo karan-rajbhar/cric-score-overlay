@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Doc } from "~/lib/firebase/datasource";
+import { playerDirectory } from "~/lib/firebase/directory";
+import { sortRows } from "~/lib/firebase/filters";
+import {
+  battingRowsOfPlayerMatch,
+  bowlingRowsOfPlayerMatch,
+} from "~/lib/firebase/scorecard";
 import { createServerClient } from "~/lib/firebase/server";
+import type { PlayerMatchesRow } from "~/lib/firebase/types";
 import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
@@ -60,7 +68,8 @@ export default async function PlayerPage({
 
   const db = await createServerClient();
 
-  // Find user by UUID or by @username handle
+  // Find user by UUID or by @username handle (usernames are stored lower
+  // case, so the handle is one equality lookup).
   const userQuery = isUuid
     ? db
         .from("users")
@@ -70,7 +79,7 @@ export default async function PlayerPage({
     : db
         .from("users")
         .select("id, full_name, avatar_url, username")
-        .ilike("username", cleanParam)
+        .eq("username", cleanParam)
         .maybeSingle();
 
   const { data: user } = await userQuery;
@@ -80,16 +89,17 @@ export default async function PlayerPage({
 
   const id = user.id;
 
-  // Concurrently fetch current user, career stats, teams, batting performances, and bowling performances
+  // Career figures are one document (player_career_stats/{userId}); the
+  // per-match history is the player's player_matches records, read once
+  // for both the batting and the bowling list.
   const [
     { data: currentUserData },
     { data: stats },
     { data: teamPlayersData },
-    { data: battingData },
-    { data: bowlingData },
+    { data: recordsData },
   ] = await Promise.all([
     db.auth.getUser(),
-    db.from("player_career_stats").select("*").eq("user_id", id).single(),
+    db.from("player_career_stats").select("*").eq("id", id).maybeSingle(),
     db
       .from("team_players")
       .select(
@@ -100,55 +110,132 @@ export default async function PlayerPage({
       )
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
-    db
-      .from("batting_performances")
-      .select(
-        `
-        id, match_id, innings_id, batting_position, runs_scored, balls_faced,
-        fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, created_at,
-        bowler:users!batting_performances_bowler_id_fkey(id, full_name),
-        fielder:users!batting_performances_fielder_id_fkey(id, full_name),
-        match:matches!batting_performances_match_id_fkey(
-          id, title, match_format, scheduled_at, status, venue,
-          result_description, winning_team_id,
-          ${MATCH_TEAM_COLUMNS}
-        )
-      `,
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    db
-      .from("bowling_performances")
-      .select(
-        `
-        id, match_id, innings_id, overs_bowled, balls_bowled, runs_conceded,
-        wickets_taken, maidens, wides, no_balls, created_at,
-        match:matches!bowling_performances_match_id_fkey(
-          id, title, match_format, scheduled_at, status, venue,
-          result_description, winning_team_id,
-          ${MATCH_TEAM_COLUMNS}
-        )
-      `,
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
+    db.from("player_matches").select("*").eq("user_id", id),
   ]);
 
-  if (!user) notFound();
+  const records = (recordsData ?? []) as unknown as PlayerMatchesRow[];
+  const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
 
-  // Team names on embedded matches come from their snapshots.
-  await attachMatchTeams(db, [
-    ...(battingData ?? []).map((b) => b.match),
-    ...(bowlingData ?? []).map((b) => b.match),
-  ]);
+  // Matches: the player's teams' fixtures plus any other match they have a
+  // record in (indexed queries, each match read once).
+  const teamIds = Array.from(
+    new Set(teams.map((tp) => tp.team?.id).filter(Boolean)),
+  ) as string[];
+  const matchColumns = `
+        id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+        result_type, win_margin, win_margin_type, result_description, winning_team_id,
+        tournament_id,
+        tournament:tournaments(id, name),
+        ${MATCH_TEAM_COLUMNS},
+        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+      `;
+  const byMatchId = new Map<string, Record<string, unknown>>();
+  if (teamIds.length > 0) {
+    const sides = await Promise.all(
+      (["team1_id", "team2_id"] as const).map((field) =>
+        db.from("matches").select(matchColumns).in(field, teamIds),
+      ),
+    );
+    for (const { data } of sides) {
+      for (const m of (data ?? []) as Record<string, unknown>[]) {
+        byMatchId.set(String(m.id), m);
+      }
+    }
+  }
+  const recordMatchIds = Array.from(new Set(records.map((r) => r.match_id)));
+  const otherIds = recordMatchIds.filter((mid) => !byMatchId.has(mid));
+  if (otherIds.length > 0) {
+    const { data } = await db
+      .from("matches")
+      .select(matchColumns)
+      .in("id", otherIds);
+    for (const m of (data ?? []) as Record<string, unknown>[]) {
+      byMatchId.set(String(m.id), m);
+    }
+  }
+  const matchesData = sortRows(
+    [...byMatchId.values()].sort((a, b) =>
+      String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0,
+    ) as Doc[],
+    [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
+  );
+  // Team and tournament names come from the matches' snapshots.
+  await attachMatchTeams(db, matchesData);
+
+  // Batting / bowling history from the records, newest first; dismissal
+  // names come from the rosters of the teams involved.
+  const byNewest = <T extends { id: string; created_at: string | null }>(
+    rows: T[],
+  ) =>
+    sortRows(
+      [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) as
+        unknown as Doc[],
+      [{ field: "created_at", ascending: false, nullsFirst: true }],
+    ) as unknown as T[];
+  const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
+  const bowlingRows = byNewest(records.flatMap(bowlingRowsOfPlayerMatch));
+  const names = await playerDirectory(
+    db,
+    matchesData.flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+    battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
+  );
+  const nameOf = (uid: string | null) => {
+    const u = uid ? names.get(uid) : undefined;
+    return u ? { id: u.id, full_name: u.full_name } : null;
+  };
+  const matchOf = (mid: string | null) => {
+    const m = mid ? byMatchId.get(mid) : undefined;
+    if (!m) return null;
+    return {
+      id: m.id,
+      title: m.title,
+      match_format: m.match_format,
+      scheduled_at: m.scheduled_at,
+      status: m.status,
+      venue: m.venue,
+      result_description: m.result_description,
+      winning_team_id: m.winning_team_id,
+      team1: m.team1,
+      team2: m.team2,
+    };
+  };
+  const batting = battingRows.map((b) => ({
+    id: b.id,
+    match_id: b.match_id,
+    innings_id: b.innings_id,
+    batting_position: b.batting_position,
+    runs_scored: b.runs_scored,
+    balls_faced: b.balls_faced,
+    fours: b.fours,
+    sixes: b.sixes,
+    is_out: b.is_out,
+    dismissal_type: b.dismissal_type,
+    bowler_id: b.bowler_id,
+    fielder_id: b.fielder_id,
+    created_at: b.created_at,
+    bowler: nameOf(b.bowler_id),
+    fielder: nameOf(b.fielder_id),
+    match: matchOf(b.match_id),
+  })) as unknown as PlayerBattingPerformance[];
+  const bowling = bowlingRows.map((b) => ({
+    id: b.id,
+    match_id: b.match_id,
+    innings_id: b.innings_id,
+    overs_bowled: b.overs_bowled,
+    balls_bowled: b.balls_bowled,
+    runs_conceded: b.runs_conceded,
+    wickets_taken: b.wickets_taken,
+    maidens: b.maidens,
+    wides: b.wides,
+    no_balls: b.no_balls,
+    created_at: b.created_at,
+    match: matchOf(b.match_id),
+  })) as unknown as PlayerBowlingPerformance[];
 
   const isSelf = currentUserData?.user?.id === user.id;
   // Contact details are not on the public profile; the signed-in user sees
   // their own email from the session (no read).
   const ownEmail = isSelf ? (currentUserData?.user?.email ?? null) : null;
-  const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
-  const batting = (battingData ?? []) as unknown as PlayerBattingPerformance[];
-  const bowling = (bowlingData ?? []) as unknown as PlayerBowlingPerformance[];
 
   // Contextual navigation resolution
   let teamInfo: { id: string; name: string } | null = null;
@@ -198,66 +285,27 @@ export default async function PlayerPage({
     backLabel = "Back to Match";
   }
 
-  // Fetch matches for the player's teams and performances
-  const teamIds = teams.map((tp) => tp.team?.id).filter(Boolean);
-  const perfMatchIds = Array.from(
-    new Set([
-      ...batting.map((b) => b.match_id),
-      ...bowling.map((b) => b.match_id),
-    ]),
-  ).filter(Boolean);
-
-  const orConditions: string[] = [];
-  if (teamIds.length > 0) {
-    orConditions.push(`team1_id.in.(${teamIds.join(",")})`);
-    orConditions.push(`team2_id.in.(${teamIds.join(",")})`);
-  }
-  if (perfMatchIds.length > 0) {
-    orConditions.push(`id.in.(${perfMatchIds.join(",")})`);
-  }
-
-  let matchesList: PlayerMatchItem[] = [];
-  if (orConditions.length > 0) {
-    const { data: matchesData } = await db
-      .from("matches")
-      .select(
-        `
-        id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-        result_type, win_margin, win_margin_type, result_description, winning_team_id,
-        tournament_id,
-        tournament:tournaments(id, name),
-        ${MATCH_TEAM_COLUMNS},
-        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
-      `,
-      )
-      .or(orConditions.join(","))
-      .order("scheduled_at", { ascending: false });
-
-    if (matchesData) {
-      await attachMatchTeams(db, matchesData);
-      matchesList = matchesData.map((m) => {
-        const playerBat = batting.find((b) => b.match_id === m.id);
-        const playerBowl = bowling.find((b) => b.match_id === m.id);
-        return {
-          ...m,
-          playerBatting: playerBat
-            ? {
-                runs_scored: playerBat.runs_scored,
-                balls_faced: playerBat.balls_faced,
-                is_out: playerBat.is_out,
-              }
-            : null,
-          playerBowling: playerBowl
-            ? {
-                wickets_taken: playerBowl.wickets_taken,
-                runs_conceded: playerBowl.runs_conceded,
-                overs_bowled: playerBowl.overs_bowled,
-              }
-            : null,
-        } as unknown as PlayerMatchItem;
-      });
-    }
-  }
+  const matchesList: PlayerMatchItem[] = matchesData.map((m) => {
+    const playerBat = batting.find((b) => b.match_id === m.id);
+    const playerBowl = bowling.find((b) => b.match_id === m.id);
+    return {
+      ...m,
+      playerBatting: playerBat
+        ? {
+            runs_scored: playerBat.runs_scored,
+            balls_faced: playerBat.balls_faced,
+            is_out: playerBat.is_out,
+          }
+        : null,
+      playerBowling: playerBowl
+        ? {
+            wickets_taken: playerBowl.wickets_taken,
+            runs_conceded: playerBowl.runs_conceded,
+            overs_bowled: playerBowl.overs_bowled,
+          }
+        : null,
+    } as unknown as PlayerMatchItem;
+  });
 
   // Summary figures for stats fallback if career aggregate row is absent
   const totalRuns =
