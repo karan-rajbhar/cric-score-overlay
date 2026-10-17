@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -117,7 +117,7 @@ function preloadScoringDialogs(): Promise<unknown> {
   ]);
 }
 import { useScoring } from "./useScoring";
-import { resolveScorerAccess } from "./scorer-access";
+import { isKnownSpectator, resolveScorerAccess } from "./scorer-access";
 import {
   forgetScorer,
   rememberScorer,
@@ -346,6 +346,18 @@ export default function ScoringPage() {
     offline: isOffline,
   });
   const isScorer = Boolean(isAuthorized);
+  // Visitors who cannot score follow the match from the match centre,
+  // which costs a fraction of this screen's reads per ball.
+  const router = useRouter();
+  const spectator = isKnownSpectator({
+    hasUser: Boolean(user),
+    authLoading,
+    isAdmin: isAdminData,
+    offline: isOffline,
+  });
+  useEffect(() => {
+    if (spectator) router.replace(`/matches/${matchId}`);
+  }, [spectator, router, matchId]);
   useEffect(() => {
     isScorerRef.current = isScorer;
   }, [isScorer]);
