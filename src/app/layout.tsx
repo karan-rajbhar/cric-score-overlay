@@ -3,6 +3,8 @@ import { Barlow, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
 import { ErrorReporter } from "~/components/error-reporter";
+import { ServiceWorkerRegistrar } from "~/components/pwa/service-worker-registrar";
+import { ViewportVars } from "~/components/viewport-vars";
 import { QueryProvider } from "~/providers/query-provider";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { AppShell } from "~/components/layout/app-shell";
@@ -35,6 +37,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Android: shrink the page when the on-screen keyboard opens so fixed
+  // dialogs stay visible. iOS ignores this; ViewportVars covers it there.
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f7f6" },
     { media: "(prefers-color-scheme: dark)", color: "#0c1411" },
@@ -71,11 +76,13 @@ export default async function RootLayout({
         className={`font-sans ${barlow.variable} ${barlowCondensed.variable} overflow-x-hidden antialiased`}
       >
         <ErrorReporter />
+        <ViewportVars />
         <ThemeProvider defaultTheme="light">
           <AuthProvider>
             <QueryProvider>
               <AppShell>{children}</AppShell>
               <Toaster richColors position="top-center" />
+              <ServiceWorkerRegistrar />
             </QueryProvider>
           </AuthProvider>
         </ThemeProvider>

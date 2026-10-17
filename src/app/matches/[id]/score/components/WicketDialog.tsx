@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -9,15 +9,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { PlayerPicker } from "./PlayerPicker";
+import { buildFielderRows } from "./player-rows";
 
 export const ALL_DISMISSAL_TYPES = [
   {
@@ -87,8 +82,16 @@ interface WicketDialogProps {
   onFielderChange: (v: string) => void;
   bowlingTeamPlayers: Array<{
     user_id: string;
+    role_in_team?: string | null;
     user?: { full_name: string } | null;
   }>;
+  bowlingTeamName?: string;
+  /** Marks the bowler in the fielder list (caught and bowled). */
+  bowlerId?: string | null;
+  /** Adds a (substitute) fielder to the bowling side; resolves to the new id. */
+  onCreateFielder?: (name: string) => Promise<string | null>;
+  /** Set while adding is impossible (e.g. offline). */
+  addPlayerDisabledReason?: string | null;
   strikerId?: string | null;
   nonStrikerId?: string | null;
   strikerName?: string | null;
@@ -111,6 +114,10 @@ export function WicketDialog({
   fielderId,
   onFielderChange,
   bowlingTeamPlayers,
+  bowlingTeamName,
+  bowlerId,
+  onCreateFielder,
+  addPlayerDisabledReason,
   strikerId,
   nonStrikerId,
   strikerName,
@@ -159,6 +166,16 @@ export function WicketDialog({
     (d) => d.value === dismissalType,
   );
 
+  const fielderRows = useMemo(
+    () =>
+      buildFielderRows({
+        players: bowlingTeamPlayers,
+        bowlerId,
+        keeperFirst: dismissalType === "stumped",
+      }),
+    [bowlingTeamPlayers, bowlerId, dismissalType],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -204,6 +221,7 @@ export function WicketDialog({
                 <button
                   key={d.value}
                   type="button"
+                  aria-pressed={dismissalType === d.value}
                   onClick={() => onDismissalTypeChange(d.value)}
                   className={cn(
                     "touch-target flex h-11 min-h-[44px] items-center justify-center rounded-xl border text-xs font-bold transition-all active:scale-95",
@@ -216,48 +234,54 @@ export function WicketDialog({
                 </button>
               ))}
             </div>
-            <Select value={dismissalType} onValueChange={onDismissalTypeChange}>
-              <SelectTrigger className="mt-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {availableDismissals.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
-          {/* Who was dismissed (Critical for Run Outs & general accuracy) */}
+          {/* Who was dismissed: only a run out can take the non-striker */}
           {strikerId && nonStrikerId && onDismissedPlayerChange && (
             <div>
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Batsman dismissed</label>
-                {dismissalType !== "run_out" && (
-                  <span className="text-xs text-muted-foreground">
-                    (Striker)
-                  </span>
-                )}
-              </div>
-              <Select
-                value={dismissedPlayerId || strikerId}
-                onValueChange={onDismissedPlayerChange}
-                disabled={dismissalType !== "run_out"}
+              <p className="text-sm font-medium" id="dismissed-batter-label">
+                Batsman dismissed
+              </p>
+              <div
+                className="mt-1.5 grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-labelledby="dismissed-batter-label"
               >
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={strikerId}>
-                    {strikerName || "Striker"} (Facing / Striker)
-                  </SelectItem>
-                  <SelectItem value={nonStrikerId}>
-                    {nonStrikerName || "Non-Striker"} (Non-Striker)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                {[
+                  { id: strikerId, name: strikerName || "Striker", end: "Striker" },
+                  {
+                    id: nonStrikerId,
+                    name: nonStrikerName || "Non-striker",
+                    end: "Non-striker",
+                  },
+                ].map((b) => {
+                  const selected = (dismissedPlayerId || strikerId) === b.id;
+                  const disabled = dismissalType !== "run_out" && b.id !== strikerId;
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={disabled}
+                      onClick={() => onDismissedPlayerChange(b.id)}
+                      className={cn(
+                        "flex min-h-11 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-1.5 text-left transition-colors disabled:opacity-50",
+                        selected
+                          ? "border-primary bg-primary/10"
+                          : "border-border/70 bg-background hover:bg-muted",
+                      )}
+                    >
+                      <span className="w-full truncate text-sm font-medium">
+                        {b.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {b.end}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -286,23 +310,29 @@ export function WicketDialog({
 
           {selectedDismissal?.needsFielder && (
             <div>
-              <label className="text-sm font-medium">
+              <p className="mb-1.5 text-sm font-medium">
                 {dismissalType === "run_out"
                   ? "Fielder (involved in run-out)"
-                  : "Fielder / Catcher / Keeper"}
-              </label>
-              <Select value={fielderId} onValueChange={onFielderChange}>
-                <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="Select fielder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bowlingTeamPlayers.map((player) => (
-                    <SelectItem key={player.user_id} value={player.user_id}>
-                      {player.user?.full_name ?? "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  : dismissalType === "stumped"
+                    ? "Keeper"
+                    : "Fielder / catcher"}
+              </p>
+              <PlayerPicker
+                label="Choose fielder"
+                rows={fielderRows}
+                selectedId={fielderId || null}
+                onSelect={onFielderChange}
+                addPlayer={
+                  onCreateFielder
+                    ? {
+                        teamName: bowlingTeamName ?? "the fielding side",
+                        onAdd: onCreateFielder,
+                        disabledReason: addPlayerDisabledReason,
+                      }
+                    : undefined
+                }
+                emptyMessage="No players in the fielding squad yet."
+              />
             </div>
           )}
 

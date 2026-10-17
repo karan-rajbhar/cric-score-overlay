@@ -242,9 +242,9 @@ export function useScoring(
     }
   }, [resolveSquadTeamIds]);
 
-  const syncFromDb = useCallback(async () => {
+  const syncFromDb = useCallback(async (): Promise<boolean> => {
     const result = await getScoringState(matchId);
-    if (result.error || !result.data) return;
+    if (result.error || !result.data) return false;
     const {
       match: m,
       strikerId: s,
@@ -301,6 +301,7 @@ export function useScoring(
     if (m.status === "live" && !b && s && ns) {
       optionsRef.current?.onNeedsBowler?.();
     }
+    return true;
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
   const loadMatch = useCallback(async () => {
@@ -314,27 +315,43 @@ export function useScoring(
 
   useEffect(() => {
     let cancelled = false;
+    /**
+     * The last state seen on this device (server state plus every action
+     * queued since), so the screen opens and scores without the network.
+     */
+    const restoreFromCache = (): boolean => {
+      const cached = getCachedMatchData(matchId);
+      if (!cached || cancelled) return false;
+      playersRef.current = {
+        batting: cached.battingTeamPlayers,
+        bowling: cached.bowlingTeamPlayers,
+      };
+      setMatch(cached.match);
+      setBattingTeamPlayers(cached.battingTeamPlayers);
+      setBowlingTeamPlayers(cached.bowlingTeamPlayers);
+      setStrikerId(cached.strikerId);
+      setNonStrikerId(cached.nonStrikerId);
+      setCurrentBowlerId(cached.bowlerId);
+      setLastOverBowlerId(cached.lastOverBowlerId);
+      setLastBalls(cached.lastBalls ?? []);
+      localCtxRef.current = buildContextFromMatch(
+        cached.match,
+        cached.strikerId,
+        cached.nonStrikerId,
+        cached.bowlerId,
+      );
+      setPendingCount(getPendingCount(matchId));
+      toast.info("Offline: showing the score saved on this device.");
+      return true;
+    };
     const init = async () => {
-      try {
-        await syncFromDb();
-      } catch {
-        // Server unreachable — try loading from offline cache
-        const cached = getCachedMatchData(matchId);
-        if (cached && !cancelled) {
-          setMatch(cached.match);
-          setBattingTeamPlayers(cached.battingTeamPlayers);
-          setBowlingTeamPlayers(cached.bowlingTeamPlayers);
-          setStrikerId(cached.strikerId);
-          setNonStrikerId(cached.nonStrikerId);
-          setCurrentBowlerId(cached.bowlerId);
-          setLastOverBowlerId(cached.lastOverBowlerId);
-          localCtxRef.current = buildContextFromMatch(
-            cached.match,
-            cached.strikerId,
-            cached.nonStrikerId,
-            cached.bowlerId,
-          );
-          toast.info("Loaded from offline cache — scoring available offline");
+      // Offline: don't wait for a server call that cannot succeed.
+      if (!(isOfflineNow() && restoreFromCache())) {
+        try {
+          await syncFromDb();
+        } catch {
+          // Server unreachable — fall back to the device copy.
+          restoreFromCache();
         }
       }
       if (!cancelled) setLoading(false);
@@ -345,28 +362,40 @@ export function useScoring(
     };
   }, [syncFromDb, matchId]);
 
+  useEffect(() => {
+    if (!match) return;
+    cacheMatchData(matchId, {
+      match,
+      battingTeamPlayers,
+      bowlingTeamPlayers,
+      strikerId,
+      nonStrikerId,
+      bowlerId: currentBowlerId,
+      lastOverBowlerId,
+      lastBalls,
+    });
+  }, [
+    matchId,
+    match,
+    battingTeamPlayers,
+    bowlingTeamPlayers,
+    strikerId,
+    nonStrikerId,
+    currentBowlerId,
+    lastOverBowlerId,
+    lastBalls,
+  ]);
+
   const flushOfflineQueue = useCallback(async () => {
     if (getPendingCount(matchId) === 0) return { synced: 0, failed: 0 };
     setIsProcessing(true);
     toast.info("Syncing offline deliveries with server...");
 
-    // Each action carries its queue id to the server as the idempotency key,
-    // so a replay after a lost response is not applied twice.
-    const res = await flushPendingActions(matchId, {
-      recordBall: (ball, id) => recordBall({ ...ball, clientActionId: id }),
-      setBatsmen: (sId, nsId) => setCurrentBatsmen(matchId, sId, nsId),
-      setBowler: (bId) => setCurrentBowler(matchId, bId),
-      endInnings: (id) => endInnings(matchId, id),
-      undoLastBall: (id) => undoLastBall(matchId, id),
-      startSuperOver: (id) => startSuperOver(matchId, id),
-      retireBatter: (p, id) =>
-        retirePlayer(matchId, { ...p, clientActionId: id }),
-      awardPenalty: (p, id) =>
-        awardTeamPenalty(matchId, { ...p, clientActionId: id }),
-      reassignOverBowler: (bId, id) =>
-        reassignCurrentOverBowler(matchId, bId, id),
-      updateBall: (p) => updateBall({ matchId, ...p }),
-    });
+    // Replayed through /api/scoring/replay, not server actions: their ids
+    // change with each deploy, and this queue may predate the current build.
+    // Each action carries its queue id as the idempotency key, so a replay
+    // after a lost response is not applied twice.
+    const res = await flushPendingActions(matchId);
 
     setPendingCount(getPendingCount(matchId));
     setDeadLetterCount(getDeadLetterCount(matchId));
@@ -374,7 +403,15 @@ export function useScoring(
       toast.success(`Successfully synced ${res.synced} offline item(s)!`);
       await syncFromDb();
     }
-    if (res.failed > 0) {
+    if (res.errorCode) {
+      toast.error(
+        res.errorCode === "not_authenticated"
+          ? "Sign in again to sync the queued actions. They are kept on this device."
+          : res.errorCode === "unsupported_version"
+            ? "The server cannot accept this app version's queued actions yet. They are kept on this device."
+            : `Could not sync queued actions (${res.errorMessage ?? res.errorCode}). They are kept on this device.`,
+      );
+    } else if (res.failed > 0) {
       toast.error(
         `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
       );
@@ -1469,6 +1506,7 @@ export function useScoring(
     currentStriker: string | null,
     currentNonStriker: string | null,
     currentBowler: string | null,
+    { autoAssign = true }: { autoAssign?: boolean } = {},
   ) => {
     if (!target || !name.trim() || !currentMatch) return null;
     const currentInnings = currentMatch.innings?.find(
@@ -1506,7 +1544,9 @@ export function useScoring(
         setBowlingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (!currentStriker) {
+        if (!autoAssign) {
+          // The caller (a player picker) selects the new player itself.
+        } else if (!currentStriker) {
           setStrikerId(newPlayer.user_id);
         } else if (!currentNonStriker && currentStriker !== newPlayer.user_id) {
           setNonStrikerId(newPlayer.user_id);
@@ -1519,7 +1559,7 @@ export function useScoring(
         setBattingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (!currentBowler) setCurrentBowlerId(newPlayer.user_id);
+        if (autoAssign && !currentBowler) setCurrentBowlerId(newPlayer.user_id);
       }
       toast.success(`${result.data.full_name} added to squad`);
       await loadPlayers(currentMatch);

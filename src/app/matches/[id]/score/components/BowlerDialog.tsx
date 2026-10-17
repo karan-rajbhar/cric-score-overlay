@@ -1,9 +1,7 @@
 "use client";
 
-import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
-
+import { useMemo, useRef } from "react";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,21 +9,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { UserPlus, X } from "lucide-react";
-import { cn } from "~/lib/utils";
-import type { TeamPlayer } from "~/lib/match-types";
+import type { BowlingPerformance, TeamPlayer } from "~/lib/match-types";
+import { focusPickerRow, PlayerPicker } from "./PlayerPicker";
+import { buildBowlerRows } from "./player-rows";
 
 interface BowlerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bowlingTeamPlayers: TeamPlayer[];
+  bowlingTeamName?: string;
+  /** This innings' bowling figures. */
+  bowlingPerformances?: BowlingPerformance[];
+  oversPerInnings?: number | null;
   currentBowlerId: string | null;
   lastOverBowlerId?: string | null;
   strikerId?: string | null;
@@ -35,19 +30,22 @@ interface BowlerDialogProps {
   reassignOverDeliveries?: boolean;
   onReassignOverDeliveriesChange?: (val: boolean) => void;
   onBowlerChange: (v: string) => void;
-  onConfirm: () => void;
+  /** Receives the bowler to confirm, including a preselected one. */
+  onConfirm: (bowlerId: string) => void;
   isProcessing: boolean;
-  addPlayerTarget?: string | null;
-  newPlayerName?: string;
-  onNewPlayerNameChange?: (v: string) => void;
-  onAddPlayer?: () => void;
-  onAddPlayerTargetChange?: (v: "batting" | "bowling" | null) => void;
+  /** Creates a player in the bowling side; resolves to the new id. */
+  onCreatePlayer?: (name: string) => Promise<string | null>;
+  /** Set while adding is impossible (e.g. offline). */
+  addPlayerDisabledReason?: string | null;
 }
 
 export function BowlerDialog({
   open,
   onOpenChange,
   bowlingTeamPlayers,
+  bowlingTeamName,
+  bowlingPerformances,
+  oversPerInnings,
   currentBowlerId,
   lastOverBowlerId,
   strikerId,
@@ -59,188 +57,101 @@ export function BowlerDialog({
   onBowlerChange,
   onConfirm,
   isProcessing,
-  addPlayerTarget: addPlayerTargetProp,
-  newPlayerName: newPlayerNameProp,
-  onNewPlayerNameChange,
-  onAddPlayer,
-  onAddPlayerTargetChange,
+  onCreatePlayer,
+  addPlayerDisabledReason,
 }: BowlerDialogProps) {
-  // When uncontrolled, subscribe straight to the store so typing only
-  // re-renders this dialog instead of the whole scoring page.
-  const storeAddPlayerTarget = useScoringUIStore((s) => s.addPlayerTarget);
-  const storeSetAddPlayerTarget = useScoringUIStore(
-    (s) => s.setAddPlayerTarget,
-  );
-  const storeNewPlayerName = useScoringUIStore((s) => s.newPlayerName);
-  const storeSetNewPlayerName = useScoringUIStore((s) => s.setNewPlayerName);
-
-  const addPlayerTarget = addPlayerTargetProp ?? storeAddPlayerTarget;
-  const newPlayerName = newPlayerNameProp ?? storeNewPlayerName;
-  const handleNameChange = onNewPlayerNameChange ?? storeSetNewPlayerName;
-  const handleTargetChange =
-    onAddPlayerTargetChange ?? storeSetAddPlayerTarget;
-  const isSelectedBowlerConsecutive = Boolean(
-    currentBowlerId && lastOverBowlerId && currentBowlerId === lastOverBowlerId,
-  );
-
-  const isSelectedBowlerBatting = Boolean(
-    currentBowlerId &&
-      ((strikerId && currentBowlerId === strikerId) ||
-        (nonStrikerId && currentBowlerId === nonStrikerId) ||
-        battingTeamPlayerIds?.has(currentBowlerId)),
+  const { rows, onlyEligibleId } = useMemo(
+    () =>
+      buildBowlerRows({
+        players: bowlingTeamPlayers,
+        performances: bowlingPerformances,
+        excludeIds: battingTeamPlayerIds,
+        batterIds: [strikerId, nonStrikerId],
+        currentBowlerId,
+        lastOverBowlerId,
+        oversPerInnings,
+      }),
+    [
+      bowlingTeamPlayers,
+      bowlingPerformances,
+      battingTeamPlayerIds,
+      strikerId,
+      nonStrikerId,
+      currentBowlerId,
+      lastOverBowlerId,
+      oversPerInnings,
+    ],
   );
 
-  const uniqueBowlingPlayers = Array.from(
-    new Map(
-      bowlingTeamPlayers
-        .filter(
-          (p) =>
-            p &&
-            p.user_id &&
-            (!battingTeamPlayerIds || !battingTeamPlayerIds.has(p.user_id)),
-        )
-        .map((p) => [p.user_id, p]),
-    ).values(),
-  );
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // With a single eligible bowler, preselect them; confirming applies it.
+  const draftBowlerId = currentBowlerId ?? onlyEligibleId;
+
+  const blockedReason = (id: string | null): string | null => {
+    if (!id) return null;
+    if (lastOverBowlerId && id === lastOverBowlerId)
+      return "This bowler completed the previous over. Please select a different bowler.";
+    if (
+      id === strikerId ||
+      id === nonStrikerId ||
+      battingTeamPlayerIds?.has(id)
+    )
+      return "This player is currently batting for the opposing team and cannot bowl.";
+    return null;
+  };
+  const selectedBlocked = blockedReason(draftBowlerId);
+  const canConfirm =
+    Boolean(draftBowlerId) && !selectedBlocked && !isProcessing;
+
+  const confirm = (id: string | null = draftBowlerId) => {
+    if (!id || blockedReason(id) || isProcessing) return;
+    if (id !== currentBowlerId) onBowlerChange(id);
+    onConfirm(id);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+      <DialogContent
+        ref={contentRef}
+        className="sm:max-w-md"
+        onOpenAutoFocus={(e) => focusPickerRow(e, contentRef.current)}
+      >
         <DialogHeader>
-          <DialogTitle>Select / change bowler</DialogTitle>
+          <DialogTitle>Select bowler</DialogTitle>
           <DialogDescription>
-            Choose the bowler. If the wrong bowler was selected mid-game, you
-            can reassign the over deliveries to the correct bowler.
+            Choose the bowler for this over. Figures are
+            overs-maidens-runs-wickets.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 pt-4">
-          {uniqueBowlingPlayers.length > 0 && (
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">
-                Quick select bowler
-              </label>
-              <div
-                className="mt-1.5 flex flex-wrap gap-1.5"
-                role="group"
-                aria-label="Quick Select Bowler"
-              >
-                {uniqueBowlingPlayers.map((player) => {
-                  const isConsecutive = Boolean(
-                    lastOverBowlerId && player.user_id === lastOverBowlerId,
-                  );
-                  const isBatting = Boolean(
-                    (strikerId && player.user_id === strikerId) ||
-                      (nonStrikerId && player.user_id === nonStrikerId) ||
-                      battingTeamPlayerIds?.has(player.user_id),
-                  );
-                  const isSelected = player.user_id === currentBowlerId;
-                  return (
-                    <button
-                      key={player.user_id}
-                      type="button"
-                      disabled={isConsecutive || isBatting}
-                      onClick={() => onBowlerChange(player.user_id)}
-                      className={cn(
-                        "touch-target flex h-10 items-center justify-center rounded-xl border px-3 text-xs font-bold transition-all active:scale-95 disabled:pointer-events-none disabled:opacity-40",
-                        isSelected
-                          ? "border-black bg-black font-bold text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
-                          : "border-border/80 bg-background text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {player.user?.full_name ?? "Unknown"}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        <div className="space-y-3">
+          <PlayerPicker
+            label="Choose bowler"
+            rows={rows}
+            selectedId={draftBowlerId}
+            onSelect={onBowlerChange}
+            onSubmit={(id) => confirm(id)}
+            addPlayer={
+              onCreatePlayer
+                ? {
+                    teamName: bowlingTeamName ?? "the bowling side",
+                    onAdd: onCreatePlayer,
+                    disabledReason: addPlayerDisabledReason,
+                  }
+                : undefined
+            }
+            emptyMessage="No players in the bowling squad yet."
+          />
 
-          <Select value={currentBowlerId || ""} onValueChange={onBowlerChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select bowler" />
-            </SelectTrigger>
-            <SelectContent>
-              {uniqueBowlingPlayers.length === 0 ? (
-                <div className="p-3 text-center text-xs text-muted-foreground">
-                  No players in bowling squad yet. Add one below.
-                </div>
-              ) : (
-                uniqueBowlingPlayers.map((player) => {
-                  const isConsecutive = Boolean(
-                    lastOverBowlerId && player.user_id === lastOverBowlerId,
-                  );
-                  const isBatting = Boolean(
-                    (strikerId && player.user_id === strikerId) ||
-                      (nonStrikerId && player.user_id === nonStrikerId) ||
-                      battingTeamPlayerIds?.has(player.user_id),
-                  );
-                  return (
-                    <SelectItem
-                      key={player.user_id}
-                      value={player.user_id}
-                      disabled={isConsecutive || isBatting}
-                    >
-                      {player.user?.full_name ?? "Unknown"}
-                      {isConsecutive ? " (Cannot bowl consecutive overs)" : ""}
-                      {isBatting ? " (Opposing Team / Batting)" : ""}
-                    </SelectItem>
-                  );
-                })
-              )}
-            </SelectContent>
-          </Select>
-
-          {isSelectedBowlerConsecutive && (
-            <p className="text-xs text-destructive">
-              This bowler completed the previous over. Please select a different
-              bowler.
-            </p>
-          )}
-          {isSelectedBowlerBatting && (
-            <p className="text-xs text-destructive">
-              This player is currently batting for the opposing team and cannot bowl.
-            </p>
-          )}
-
-          {addPlayerTarget === "bowling" ? (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Player name"
-                value={newPlayerName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && void onAddPlayer?.()}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void onAddPlayer?.()}
-                disabled={!newPlayerName.trim() || isProcessing}
-              >
-                Add
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Cancel adding bowler"
-                onClick={() => handleTargetChange(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleTargetChange("bowling")}
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              <UserPlus className="h-3.5 w-3.5" /> New player? Add to squad
-            </button>
+          {selectedBlocked && (
+            <p className="text-xs text-destructive">{selectedBlocked}</p>
           )}
 
           {currentBall !== undefined && currentBall > 0 && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3">
+            <label
+              htmlFor="reassign-bowler-over"
+              className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm"
+            >
               <input
                 id="reassign-bowler-over"
                 type="checkbox"
@@ -248,27 +159,19 @@ export function BowlerDialog({
                 onChange={(e) =>
                   onReassignOverDeliveriesChange?.(e.target.checked)
                 }
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
               />
-              <label
-                htmlFor="reassign-bowler-over"
-                className="cursor-pointer text-xs font-semibold text-sky-950 dark:text-sky-200"
-              >
-                Reassign {currentBall} ball{currentBall > 1 ? "s" : ""} bowled in
-                this over to this bowler (Correct wrong bowler selection)
-              </label>
-            </div>
+              <span>
+                Reassign {currentBall} ball{currentBall > 1 ? "s" : ""} bowled
+                in this over to this bowler (correct wrong bowler selection)
+              </span>
+            </label>
           )}
 
           <Button
-            className="w-full h-11 min-h-[44px] text-sm font-semibold"
-            onClick={onConfirm}
-            disabled={
-              !currentBowlerId ||
-              isSelectedBowlerConsecutive ||
-              isSelectedBowlerBatting ||
-              isProcessing
-            }
+            className="h-11 w-full text-sm font-semibold"
+            onClick={() => confirm()}
+            disabled={!canConfirm}
           >
             Confirm bowler
           </Button>

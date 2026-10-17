@@ -17,8 +17,6 @@ export interface ScoringUIStoreState {
   wicketExtraType: string | null;
   dismissedPlayerId: string | null;
   runsCompletedBeforeRunOut: number;
-  addPlayerTarget: "batting" | "bowling" | null;
-  newPlayerName: string;
 
   // Actions
   openWicketDialog: () => void;
@@ -37,7 +35,6 @@ export interface ScoringUIStoreState {
   setShowAddPlayerDialog: (open: boolean) => void;
   setShowPotmDialog: (open: boolean) => void;
   setAddPlayerTeam: (team: "batting" | "bowling") => void;
-  setAddPlayerTarget: (target: "batting" | "bowling" | null) => void;
   openEndInningsDialog: () => void;
   closeEndInningsDialog: () => void;
   openSuperOverDialog: () => void;
@@ -47,7 +44,6 @@ export interface ScoringUIStoreState {
   setWicketExtraType: (type: string | null) => void;
   setDismissedPlayerId: (id: string | null) => void;
   setRunsCompletedBeforeRunOut: (runs: number) => void;
-  setNewPlayerName: (name: string) => void;
   setTossDialogDismissed: (dismissed: boolean) => void;
   resetWicketForm: () => void;
   resetScoringUI: () => void;
@@ -73,8 +69,6 @@ const DEFAULT_SCORING_UI_STATE = {
   tossDialogDismissed: false,
 
   addPlayerTeam: "batting" as const,
-  addPlayerTarget: null as "batting" | "bowling" | null,
-  newPlayerName: "",
   ...DEFAULT_WICKET_FORM,
 };
 
@@ -88,14 +82,8 @@ export const useScoringUIStore = create<ScoringUIStoreState>((set) => ({
     set({
       showAddPlayerDialog: true,
       addPlayerTeam: team,
-      addPlayerTarget: team,
     }),
-  closeAddPlayerDialog: () =>
-    set({
-      showAddPlayerDialog: false,
-      addPlayerTarget: null,
-      newPlayerName: "",
-    }),
+  closeAddPlayerDialog: () => set({ showAddPlayerDialog: false }),
 
   openPotmDialog: () => set({ showPotmDialog: true }),
   closePotmDialog: () => set({ showPotmDialog: false }),
@@ -112,7 +100,6 @@ export const useScoringUIStore = create<ScoringUIStoreState>((set) => ({
   setShowAddPlayerDialog: (showAddPlayerDialog) => set({ showAddPlayerDialog }),
   setShowPotmDialog: (showPotmDialog) => set({ showPotmDialog }),
   setAddPlayerTeam: (addPlayerTeam) => set({ addPlayerTeam }),
-  setAddPlayerTarget: (addPlayerTarget) => set({ addPlayerTarget }),
 
   openEndInningsDialog: () => set({ showEndInningsDialog: true }),
   closeEndInningsDialog: () => set({ showEndInningsDialog: false }),
@@ -126,7 +113,6 @@ export const useScoringUIStore = create<ScoringUIStoreState>((set) => ({
   setDismissedPlayerId: (dismissedPlayerId) => set({ dismissedPlayerId }),
   setRunsCompletedBeforeRunOut: (runsCompletedBeforeRunOut) =>
     set({ runsCompletedBeforeRunOut }),
-  setNewPlayerName: (newPlayerName) => set({ newPlayerName }),
   setTossDialogDismissed: (tossDialogDismissed) => set({ tossDialogDismissed }),
 
   resetWicketForm: () => set({ ...DEFAULT_WICKET_FORM }),

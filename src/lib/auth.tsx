@@ -19,6 +19,7 @@ import {
   useState,
 } from "react";
 import { getFirebaseAuth, toAppUser } from "~/lib/firebase/client";
+import { clearAppCaches } from "~/lib/pwa/service-worker";
 import {
   toAuthError,
   type AppUser,
@@ -53,6 +54,18 @@ function hasServerSessionHint(): boolean {
 }
 
 const INVITE_ONLY_CODE = "app/invite-only";
+
+function isOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+/**
+ * How long app start waits for the session sync when the server already
+ * holds a session (hint cookie) before rendering anyway; on a weak signal
+ * the scoring screen must not sit behind a spinner. The sync still finishes
+ * in the background.
+ */
+export const SESSION_SYNC_GRACE_MS = 4000;
 
 /**
  * Popup failures where a full-page redirect still works (popup blockers,
@@ -135,20 +148,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [redirectError, setRedirectError] = useState<AuthError | null>(null);
   const router = useRouter();
   const syncedUidRef = useRef<string | null>(null);
+  /** Signed in locally but the server session still needs syncing. */
+  const resyncUidRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isOverlay) return;
 
     const auth = getFirebaseAuth();
+
+    // Offline (or the sync failed on the network): Firebase still has the
+    // user from IndexedDB, so keep them signed in and sync once back online.
+    const syncLater = (firebaseUser: FirebaseUser) => {
+      resyncUidRef.current = firebaseUser.uid;
+      setUser(toAppUser(firebaseUser));
+    };
+
+    const syncNow = async (firebaseUser: FirebaseUser) => {
+      await syncServerSession(firebaseUser);
+      syncedUidRef.current = firebaseUser.uid;
+      resyncUidRef.current = null;
+    };
+
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
           if (syncedUidRef.current !== firebaseUser.uid) {
-            await syncServerSession(firebaseUser);
-            syncedUidRef.current = firebaseUser.uid;
+            if (isOffline()) {
+              syncLater(firebaseUser);
+              return;
+            }
+            const sync = syncNow(firebaseUser);
+            if (hasServerSessionHint()) {
+              // Already signed in on the server: render after a short grace
+              // period even if the network is slow; the sync carries on.
+              const settled = await Promise.race([
+                sync.then(() => true),
+                new Promise<false>((resolve) =>
+                  setTimeout(() => resolve(false), SESSION_SYNC_GRACE_MS),
+                ),
+              ]);
+              if (!settled) {
+                syncLater(firebaseUser);
+                sync.catch((err: unknown) => {
+                  if (toAuthError(err).code === INVITE_ONLY_CODE) setUser(null);
+                });
+                return;
+              }
+            } else {
+              await sync;
+            }
           }
           setUser(toAppUser(firebaseUser));
         } else {
+          // Never clear the server session from an offline device.
+          if (isOffline()) {
+            setUser(null);
+            return;
+          }
           // The browser is signed out but the server may still hold a session
           // cookie (expired token, account recreated, emulator restart).
           // Clear it so server-rendered pages and the route guard agree.
@@ -162,13 +218,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Auth session sync failed:", err);
         const invited = toAuthError(err).code !== INVITE_ONLY_CODE;
-        setUser(firebaseUser && invited ? toAppUser(firebaseUser) : null);
+        if (firebaseUser && invited) {
+          syncLater(firebaseUser);
+        } else {
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    const onOnline = () => {
+      const current = auth.currentUser;
+      if (!current || resyncUidRef.current !== current.uid) return;
+      syncNow(current).catch((err: unknown) => {
+        console.error("Auth session resync failed:", err);
+        if (toAuthError(err).code === INVITE_ONLY_CODE) setUser(null);
+      });
+    };
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("online", onOnline);
+    };
   }, [isOverlay, router]);
 
   const finishSignIn = useCallback(async (firebaseUser: FirebaseUser) => {
@@ -225,7 +298,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await syncServerSession(null);
     syncedUidRef.current = null;
+    resyncUidRef.current = null;
     setUser(null);
+    // Cached scoring pages hold this user's view; don't leave them behind.
+    await clearAppCaches(true);
     router.push("/");
     router.refresh();
   }, [router]);

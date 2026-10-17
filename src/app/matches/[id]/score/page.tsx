@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -87,7 +87,35 @@ const InviteDialog = dynamic(
   () => import("~/components/invite-dialog").then((m) => m.InviteDialog),
   { ssr: false },
 );
+
+/** Fetches the code of the dialogs above (used before going offline). */
+function preloadScoringDialogs(): Promise<unknown> {
+  return Promise.allSettled([
+    import("./components/TossDialog"),
+    import("./components/BatsmenDialog"),
+    import("./components/BowlerDialog"),
+    import("./components/WicketDialog"),
+    import("./components/EditBallDialog"),
+    import("./components/SquadManagerDialog"),
+    import("./components/PotmDialog"),
+    import("./components/MatchSettingsDialog"),
+    import("./components/PenaltyBonusDialog"),
+    import("./components/AbandonMatchDialog"),
+    import("./components/RetirePlayerDialog"),
+    import("./components/ReviseTargetDialog"),
+    import("~/components/matches/dls-calculator-modal"),
+    import("~/components/matches/match-scorers-dialog"),
+    import("~/components/invite-dialog"),
+  ]);
+}
 import { useScoring } from "./useScoring";
+import { resolveScorerAccess } from "./scorer-access";
+import {
+  forgetScorer,
+  rememberScorer,
+  wasScorer,
+} from "~/lib/offline-match-cache";
+import { cacheCurrentPage } from "~/lib/pwa/service-worker";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
@@ -146,14 +174,6 @@ export default function ScoringPage() {
     matchId,
     user?.id,
   );
-  const isAuthorized = user
-    ? authCheckLoading
-      ? null
-      : Boolean(isAdminData)
-    : authLoading
-      ? null
-      : false;
-  const isScorer = Boolean(isAuthorized);
 
   const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
   const toggleSunlightMode = usePreferencesStore((s) => s.toggleSunlightMode);
@@ -174,6 +194,11 @@ export default function ScoringPage() {
   const setTossDialogDismissed = useScoringUIStore(
     (s) => s.setTossDialogDismissed,
   );
+  // The store outlives the page: a toss dismissed on another match must not
+  // keep this match's toss closed.
+  useEffect(() => {
+    setTossDialogDismissed(false);
+  }, [matchId, setTossDialogDismissed]);
   const showSelectBatsmen = useScoringUIStore((s) => s.showBatsmenDialog);
   const setShowSelectBatsmen = useScoringUIStore((s) => s.setShowSelectBatsmen);
   const showSelectBowler = useScoringUIStore((s) => s.showBowlerDialog);
@@ -254,6 +279,38 @@ export default function ScoringPage() {
     syncFromDb,
   } = useScoring(matchId, scoringOptions);
 
+  const rememberedScorer = useMemo(
+    () => wasScorer(matchId, user?.id),
+    [matchId, user?.id],
+  );
+  useEffect(() => {
+    if (!user?.id) return;
+    if (isAdminData === true) rememberScorer(matchId, user.id);
+    else if (isAdminData === false && !isOffline) forgetScorer(matchId);
+  }, [isAdminData, isOffline, matchId, user?.id]);
+  const isAuthorized = resolveScorerAccess({
+    hasUser: Boolean(user),
+    authLoading,
+    isAdmin: isAdminData,
+    adminCheckLoading: authCheckLoading,
+    rememberedScorer,
+    offline: isOffline,
+  });
+  const isScorer = Boolean(isAuthorized);
+
+  // Load every scoring dialog while online so none of them is missing
+  // offline, then ask the service worker to keep what the page loaded.
+  useEffect(() => {
+    if (!isScorer || isOffline) return;
+    if (typeof navigator === "undefined" || !navigator.serviceWorker?.controller) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void preloadScoringDialogs().then(() => cacheCurrentPage());
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [isScorer, isOffline]);
+
   const { isLocked: isScreenAwake } = useWakeLock(match?.status === "live");
 
   const [selectedTossWinner, setSelectedTossWinner] = useState<string>("");
@@ -292,7 +349,8 @@ export default function ScoringPage() {
 
   const showTossDialog =
     isScorer && match?.status === "scheduled" && !tossDialogDismissed;
-  const tossWinner = selectedTossWinner || match?.team1_id || "";
+  // No preselected winner: the scorer taps the team that won.
+  const tossWinner = selectedTossWinner;
 
   // Keyboard scoring hotkeys must stay inert while any dialog/menu is open or when user is not scorer,
   // otherwise typing in a dialog silently records balls behind it.
@@ -686,26 +744,6 @@ export default function ScoringPage() {
     }
   };
 
-  const onAddPlayer = async () => {
-    const {
-      addPlayerTarget,
-      newPlayerName,
-      setNewPlayerName,
-      setAddPlayerTarget,
-    } = useScoringUIStore.getState();
-    if (!newPlayerName.trim() || !addPlayerTarget) return;
-    await handleAddPlayerInline(
-      addPlayerTarget,
-      newPlayerName,
-      match,
-      strikerId,
-      nonStrikerId,
-      currentBowlerId,
-    );
-    setNewPlayerName("");
-    setAddPlayerTarget(null);
-  };
-
   const createSquadPlayer = async (side: "batting" | "bowling", name: string) =>
     handleAddPlayerInline(
       side,
@@ -715,6 +753,25 @@ export default function ScoringPage() {
       nonStrikerId,
       currentBowlerId,
     );
+
+  // Pickers add a player and select them in the slot being filled, so the
+  // hook must not also auto-assign them.
+  const createPickedPlayer =
+    (side: "batting" | "bowling") => async (name: string) => {
+      const res = await handleAddPlayerInline(
+        side,
+        name,
+        match,
+        strikerId,
+        nonStrikerId,
+        currentBowlerId,
+        { autoAssign: false },
+      );
+      return res?.data?.user_id ?? null;
+    };
+  const addPlayerDisabledReason = isOffline
+    ? "Adding players needs a connection. Use the squad you have or reconnect."
+    : null;
 
   const refreshSquads = async () => {
     if (match) await loadPlayers(match);
@@ -1823,6 +1880,8 @@ export default function ScoringPage() {
         open={showSelectBatsmen}
         onOpenChange={setShowSelectBatsmen}
         battingTeamPlayers={battingTeamPlayers}
+        battingTeamName={battingTeam?.name}
+        battingPerformances={currentInnings?.batting_performances}
         bowlingTeamPlayerIds={bowlingTeamPlayerIds}
         currentBowlerId={currentBowlerId}
         strikerId={strikerId}
@@ -1830,15 +1889,19 @@ export default function ScoringPage() {
         dismissedPlayerIds={dismissedPlayerIds}
         onStrikerChange={setStrikerId}
         onNonStrikerChange={setNonStrikerId}
-        onConfirm={async () => {
-          const res = await handleConfirmBatsmen(strikerId, nonStrikerId);
+        onConfirm={async (pair) => {
+          const res = await handleConfirmBatsmen(
+            pair.strikerId,
+            pair.nonStrikerId,
+          );
           if (!res.error) {
             setShowSelectBatsmen(false);
             if (!currentBowlerId) setShowSelectBowler(true);
           }
         }}
         isProcessing={isProcessing}
-        onAddPlayer={onAddPlayer}
+        onCreatePlayer={createPickedPlayer("batting")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
       />
 
       <BowlerDialog
@@ -1848,6 +1911,9 @@ export default function ScoringPage() {
           if (!open) setReassignOverDeliveries(false);
         }}
         bowlingTeamPlayers={bowlingTeamPlayers}
+        bowlingTeamName={bowlingTeam?.name}
+        bowlingPerformances={currentInnings?.bowling_performances}
+        oversPerInnings={match.overs_per_innings}
         currentBowlerId={currentBowlerId}
         lastOverBowlerId={lastOverBowlerId}
         strikerId={strikerId}
@@ -1857,13 +1923,9 @@ export default function ScoringPage() {
         reassignOverDeliveries={reassignOverDeliveries}
         onReassignOverDeliveriesChange={setReassignOverDeliveries}
         onBowlerChange={setCurrentBowlerId}
-        onConfirm={async () => {
-          if (
-            reassignOverDeliveries &&
-            currentBowlerId &&
-            (match.current_ball ?? 0) > 0
-          ) {
-            const res = await handleReassignOverBowler(currentBowlerId);
+        onConfirm={async (bowlerId) => {
+          if (reassignOverDeliveries && (match.current_ball ?? 0) > 0) {
+            const res = await handleReassignOverBowler(bowlerId);
             if (res.error) {
               toast.error(res.error);
             } else {
@@ -1877,7 +1939,7 @@ export default function ScoringPage() {
               if (!res.queued) await syncFromDb();
             }
           } else {
-            const res = await handleConfirmBowler(currentBowlerId);
+            const res = await handleConfirmBowler(bowlerId);
             if (!res.error) {
               setShowSelectBowler(false);
               setReassignOverDeliveries(false);
@@ -1885,7 +1947,8 @@ export default function ScoringPage() {
           }
         }}
         isProcessing={isProcessing}
-        onAddPlayer={onAddPlayer}
+        onCreatePlayer={createPickedPlayer("bowling")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
       />
 
       <SquadManagerDialog
@@ -1915,6 +1978,7 @@ export default function ScoringPage() {
         onCreatePlayer={createSquadPlayer}
         onChanged={refreshSquads}
         isProcessing={isProcessing}
+        isOffline={isOffline}
       />
 
       <WicketDialog
@@ -1925,6 +1989,10 @@ export default function ScoringPage() {
         fielderId={fielderId}
         onFielderChange={setFielderId}
         bowlingTeamPlayers={bowlingTeamPlayers}
+        bowlingTeamName={bowlingTeam?.name}
+        bowlerId={currentBowlerId}
+        onCreateFielder={createPickedPlayer("bowling")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         strikerName={

@@ -20,6 +20,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import { InviteDialog } from "~/components/invite-dialog";
+import {
+  InstallAppMenuItem,
+  useIosInstallHint,
+} from "~/components/pwa/install-app";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { createClient } from "~/lib/firebase/client";
 import {
@@ -42,6 +46,7 @@ export function NavigationBar() {
   const username =
     !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
   const { toggleCollapsed, toggleMobile } = useSidebar();
+  useIosInstallHint(Boolean(user));
 
   useEffect(() => {
     if (!user?.id) return;
@@ -294,6 +299,7 @@ export function NavigationBar() {
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
                   <Link href="/invitations">Manage invites</Link>
                 </DropdownMenuItem>
+                <InstallAppMenuItem />
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}

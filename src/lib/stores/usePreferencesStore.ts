@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { MatchFormat } from "~/app/matches/types";
 
 export interface PreferencesStoreState {
   soundEffectsEnabled: boolean;
@@ -10,8 +9,6 @@ export interface PreferencesStoreState {
   wagonWheelPrompt: boolean;
   wagonWheelMode: "off" | "boundaries" | "all";
   voiceAnnouncements: boolean;
-  defaultMatchFormat: MatchFormat;
-  defaultOvers: number;
 
   // Actions
   toggleSound: () => void;
@@ -26,7 +23,6 @@ export interface PreferencesStoreState {
   setWagonWheelMode: (mode: "off" | "boundaries" | "all") => void;
   toggleVoiceAnnouncements: () => void;
   setVoiceAnnouncements: (enabled: boolean) => void;
-  setDefaultFormat: (format: MatchFormat, overs?: number) => void;
   resetPreferences: () => void;
 }
 
@@ -38,8 +34,6 @@ const DEFAULT_PREFERENCES = {
   wagonWheelPrompt: false,
   wagonWheelMode: "all" as const,
   voiceAnnouncements: false,
-  defaultMatchFormat: "T20" as MatchFormat,
-  defaultOvers: 20,
 };
 
 export const usePreferencesStore = create<PreferencesStoreState>()(
@@ -82,18 +76,6 @@ export const usePreferencesStore = create<PreferencesStoreState>()(
         set((state) => ({ wagonWheelPrompt: !state.wagonWheelPrompt })),
 
       setWagonWheelPrompt: (wagonWheelPrompt) => set({ wagonWheelPrompt }),
-
-      setDefaultFormat: (defaultMatchFormat, overs) =>
-        set({
-          defaultMatchFormat,
-          defaultOvers:
-            overs ??
-            (defaultMatchFormat === "T20"
-              ? 20
-              : defaultMatchFormat === "ODI"
-                ? 50
-                : 20),
-        }),
 
       resetPreferences: () => set({ ...DEFAULT_PREFERENCES }),
     }),

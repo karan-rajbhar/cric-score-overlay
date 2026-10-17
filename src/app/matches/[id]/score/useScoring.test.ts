@@ -10,6 +10,7 @@ import {
   undoLastBall,
 } from "../../mutations";
 import { enqueueAction, getPendingActions } from "~/lib/offline-queue";
+import type { ReplayBatch, ReplayBatchAction } from "~/lib/scoring-replay/protocol";
 
 vi.mock("~/lib/firebase/client", () => ({
   firebase: {
@@ -53,6 +54,37 @@ vi.mock("sonner", () => ({
   },
 }));
 
+/**
+ * Stands in for POST /api/scoring/replay: answers each action with
+ * `answer(action)` in order, stopping at the first failure, and returns the
+ * batches it received.
+ */
+function mockReplayRoute(
+  answer: (action: ReplayBatchAction) => { status: "applied" | "duplicate" | "failed"; error?: string },
+): ReplayBatch[] {
+  const batches: ReplayBatch[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init: RequestInit) => {
+      expect(url).toBe("/api/scoring/replay");
+      expect(init.method).toBe("POST");
+      const batch = JSON.parse(String(init.body)) as ReplayBatch;
+      batches.push(batch);
+      const results = [];
+      for (const action of batch.actions) {
+        const r = answer(action);
+        results.push({ id: action.id, ...r });
+        if (r.status === "failed") break;
+      }
+      return new Response(JSON.stringify({ v: 1, results }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }),
+  );
+  return batches;
+}
+
 describe("useScoring", () => {
   const matchId = "1523c4af-11e9-40bb-90f3-c8bf28db670d";
 
@@ -75,6 +107,7 @@ describe("useScoring", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     vi.mocked(getTeamPlayers).mockResolvedValue({ data: [], error: null });
     vi.mocked(getScoringState).mockResolvedValue({
       data: mockScoringState,
@@ -596,36 +629,54 @@ describe("useScoring", () => {
       "retireBatter",
     ]);
 
-    // ---- back online ----
+    // ---- back online: replayed through the replay route, not server actions ----
     online.mockReturnValue(true);
-    vi.mocked(setCurrentBowler).mockResolvedValue({ error: null });
-    vi.mocked(setCurrentBatsmen).mockResolvedValue({ error: null });
-    vi.mocked(recordBall).mockResolvedValue({ data: null, error: null });
-    vi.mocked(retirePlayer).mockResolvedValue({ success: true, error: null });
-    const order: string[] = [];
-    for (const fn of [setCurrentBowler, setCurrentBatsmen, recordBall, retirePlayer]) {
-      vi.mocked(fn).mockImplementation((async () => {
-        order.push(fn === recordBall ? "ball" : fn === retirePlayer ? "retire" : "crease");
-        return { data: null, success: true, error: null };
-      }) as never);
-    }
+    const batches = mockReplayRoute(() => ({ status: "applied" }));
 
     const res = await result.current.flushOfflineQueue();
     expect(res).toEqual({ synced: 5, failed: 0 });
-    expect(order).toEqual(["crease", "crease", "ball", "ball", "retire"]);
-    // Each replay carries its queue id as the idempotency key.
-    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].clientActionId)).toEqual([
-      queued[2]!.queueId,
-      queued[3]!.queueId,
-    ]);
-    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].event.runsScored)).toEqual([0, 2]);
-    expect(retirePlayer).toHaveBeenCalledWith(matchId, {
+    expect(batches).toHaveLength(1);
+    const [batch] = batches;
+    expect(batch).toMatchObject({ v: 1, matchId });
+    // In order, each carrying its queue id as the idempotency key.
+    expect(batch!.actions.map((a) => [a.type, a.id])).toEqual(
+      queued.map((a) => [a.type, a.queueId]),
+    );
+    expect(
+      batch!.actions
+        .filter((a) => a.type === "recordBall")
+        .map((a) => (a.payload as { event: { runsScored: number } }).event.runsScored),
+    ).toEqual([0, 2]);
+    expect(batch!.actions[4]!.payload).toEqual({
       playerId: "u1",
       type: "retired_hurt",
       reason: "cramp",
-      clientActionId: queued[4]!.queueId,
     });
+    for (const fn of [setCurrentBowler, setCurrentBatsmen, recordBall, retirePlayer]) {
+      expect(fn).not.toHaveBeenCalled();
+    }
     expect(getPendingActions(matchId)).toHaveLength(0);
+  });
+
+  it("keeps the queue in order behind an action the route could not apply", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    enqueueAction(matchId, "setBowler", { bowlerId: "u3" });
+    enqueueAction(matchId, "setBatsmen", { strikerId: "u1", nonStrikerId: "u2" });
+    enqueueAction(matchId, "endInnings", {} as Record<string, never>);
+    const batches = mockReplayRoute((a) =>
+      a.type === "setBatsmen" ? { status: "failed", error: "Server busy" } : { status: "applied" },
+    );
+
+    const res = await result.current.flushOfflineQueue();
+    expect(res).toEqual({ synced: 1, failed: 1 });
+    expect(batches).toHaveLength(1);
+    const left = getPendingActions(matchId);
+    expect(left.map((a) => a.type)).toEqual(["setBatsmen", "endInnings"]);
+    expect(left[0]).toMatchObject({ retryCount: 1, lastError: "Server busy" });
   });
 
   it("queues a ball whose reply was lost under the id it was sent with", async () => {
@@ -653,7 +704,7 @@ describe("useScoring", () => {
       expect(result.current.loading).toBe(false);
     });
     enqueueAction(matchId, "setBowler", { bowlerId: "u3" });
-    vi.mocked(setCurrentBowler).mockResolvedValue({ error: "DB Error" });
+    mockReplayRoute(() => ({ status: "failed", error: "DB Error" }));
 
     const res = await result.current.handleRetireBatter({
       playerId: "p1",
@@ -665,5 +716,106 @@ describe("useScoring", () => {
       "setBowler",
       "retireBatter",
     ]);
+  });
+});
+
+describe("useScoring offline reload", () => {
+  const matchId = "0b0c0d0e-1111-4222-8333-444455556666";
+  const team1 = [
+    { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "A" } },
+    { id: "tp2", team_id: "team-1", user_id: "u2", user: { id: "u2", full_name: "B" } },
+  ];
+  const team2 = [
+    { id: "tp3", team_id: "team-2", user_id: "u3", user: { id: "u3", full_name: "C" } },
+    { id: "tp4", team_id: "team-2", user_id: "u4", user: { id: "u4", full_name: "D" } },
+  ];
+  const serverState = {
+    match: {
+      id: matchId,
+      status: "live",
+      current_innings: 1,
+      current_over: 0,
+      current_ball: 0,
+      overs_per_innings: 20,
+      team1_id: "team-1",
+      team2_id: "team-2",
+      innings: [
+        {
+          innings_number: 1,
+          team_id: "team-1",
+          total_runs: 10,
+          total_wickets: 0,
+          total_balls: 0,
+          batting_performances: [],
+          bowling_performances: [],
+        },
+      ],
+    },
+    strikerId: "u1",
+    nonStrikerId: "u2",
+    bowlerId: "u3",
+    lastOverBowlerId: null,
+    thisOverDeliveries: [],
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(getTeamPlayers).mockImplementation((teamId: string) =>
+      Promise.resolve({
+        data: (teamId === "team-1" ? team1 : team2) as never,
+        error: null,
+      }),
+    );
+    vi.mocked(getScoringState).mockResolvedValue({
+      data: serverState as never,
+      error: null,
+    });
+  });
+
+  it("reopens offline from the device copy, including balls scored offline", async () => {
+    // Online visit: the state is saved on the device.
+    const first = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+
+    // Signal lost: score a four, which is queued.
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await first.result.current.handleScore("u3", "u1", "u2", { runsScored: 4 });
+    await waitFor(() => expect(first.result.current.pendingCount).toBe(1));
+    first.unmount();
+
+    // Reload while offline: no server call, the four is still there.
+    vi.mocked(getScoringState).mockClear();
+    const second = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+
+    expect(getScoringState).not.toHaveBeenCalled();
+    const m = second.result.current.match!;
+    expect(m.innings?.[0]?.total_runs).toBe(14);
+    expect(second.result.current.lastBalls).toEqual(["4"]);
+    expect(second.result.current.strikerId).toBe("u1");
+    expect(second.result.current.currentBowlerId).toBe("u3");
+    expect(second.result.current.battingTeamPlayers).toHaveLength(2);
+    expect(second.result.current.pendingCount).toBe(1);
+
+    // And scoring continues from there.
+    await second.result.current.handleScore("u3", "u1", "u2", { runsScored: 1 });
+    await waitFor(() =>
+      expect(second.result.current.match?.innings?.[0]?.total_runs).toBe(15),
+    );
+    expect(getPendingActions(matchId)).toHaveLength(2);
+  });
+
+  it("falls back to the device copy when the server cannot be reached", async () => {
+    const first = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+
+    // navigator says online, but the request fails (weak signal).
+    vi.mocked(getScoringState).mockRejectedValue(new TypeError("Failed to fetch"));
+    const second = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+    expect(second.result.current.match?.id).toBe(matchId);
+    expect(second.result.current.strikerId).toBe("u1");
   });
 });

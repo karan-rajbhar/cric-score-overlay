@@ -29,9 +29,29 @@ export function firebaseAuthProxyRewrites() {
   ];
 }
 
+/**
+ * Identifies this build to the service worker (`/sw.js?v=<id>`), so each
+ * deploy installs a fresh worker and drops the previous build's caches. Set
+ * once per build process; child workers inherit it through the environment.
+ */
+function buildId() {
+  if (!process.env.CRICSCORE_BUILD_ID) {
+    const sha =
+      process.env.GIT_COMMIT_SHA ??
+      process.env.COMMIT_SHA ??
+      process.env.GITHUB_SHA ??
+      "";
+    process.env.CRICSCORE_BUILD_ID = [sha.slice(0, 12), Date.now().toString(36)]
+      .filter(Boolean)
+      .join("-");
+  }
+  return process.env.CRICSCORE_BUILD_ID;
+}
+
 /** @type {import("next").NextConfig} */
 const config = {
   output: "standalone",
+  env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   reactStrictMode: true,
   allowedDevOrigins: ["*.trycloudflare.com", "*.loca.lt"],
   images: {
@@ -42,6 +62,20 @@ const config = {
       { protocol: "http", hostname: "127.0.0.1", port: "9199" },
       { protocol: "http", hostname: "localhost", port: "9199" },
     ],
+  },
+  async headers() {
+    // The worker and its kill switch must never come from a cache.
+    const noStore = [
+      { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+    ];
+    return [
+      { source: "/sw.js", headers: noStore },
+      { source: "/sw-config.json", headers: noStore },
+      {
+        source: "/offline.html",
+        headers: [{ key: "Cache-Control", value: "no-cache" }],
+      },
+    ];
   },
   async rewrites() {
     return {

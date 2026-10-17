@@ -36,6 +36,28 @@ export async function createMatch(formData: MatchFormData) {
   if (formData.team1Id === formData.team2Id) {
     return { data: null, error: "Team 1 and Team 2 must be different teams" };
   }
+  if (
+    !Number.isInteger(formData.oversPerInnings) ||
+    formData.oversPerInnings < 1
+  ) {
+    return { data: null, error: "Overs per innings must be at least 1" };
+  }
+  if (
+    formData.ballsPerOver !== undefined &&
+    (!Number.isInteger(formData.ballsPerOver) ||
+      formData.ballsPerOver < 2 ||
+      formData.ballsPerOver > 12)
+  ) {
+    return { data: null, error: "Balls per over must be between 2 and 12" };
+  }
+  if (
+    formData.wicketsPerInnings !== undefined &&
+    (!Number.isInteger(formData.wicketsPerInnings) ||
+      formData.wicketsPerInnings < 1 ||
+      formData.wicketsPerInnings > 15)
+  ) {
+    return { data: null, error: "Wickets must be between 1 and 15" };
+  }
 
   // Parallel fetch of Team 1, Team 2, and optional tournament/registration context
   const [
@@ -241,9 +263,14 @@ export async function createMatch(formData: MatchFormData) {
   const { data: match, error: matchError } = await db
     .from("matches")
     .insert({
-      title: formData.title,
+      title: formData.title?.trim() || `${team1.name} vs ${team2.name}`,
       match_format: formData.matchFormat,
       overs_per_innings: formData.oversPerInnings,
+      balls_per_over: formData.ballsPerOver ?? 6,
+      max_balls_per_over: formData.maxBallsPerOver ?? null,
+      wide_counts_as_ball_faced: formData.wideCountsAsBallFaced ?? false,
+      wide_runs_to_batsman: formData.wideRunsToBatsman ?? false,
+      noball_extras_to_batsman: formData.noballExtrasToBatsman ?? false,
       team1_id: formData.team1Id,
       team2_id: formData.team2Id,
       team1_snapshot: teamSnapshot(team1),
@@ -557,6 +584,7 @@ export async function setCurrentBatsmen(
   matchId: string,
   strikerId: string,
   nonStrikerId: string,
+  clientActionId?: string | null,
 ): Promise<{ error: string | null }> {
   try {
     const db = await createServerClient();
@@ -580,6 +608,7 @@ export async function setCurrentBatsmen(
       p_match_id: matchId,
       p_striker_id: strikerId,
       p_non_striker_id: nonStrikerId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("set_current_batsmen failed:", error);
@@ -601,6 +630,7 @@ export async function setCurrentBatsmen(
 export async function setCurrentBowler(
   matchId: string,
   bowlerId: string,
+  clientActionId?: string | null,
 ): Promise<{ error: string | null }> {
   try {
     const db = await createServerClient();
@@ -623,6 +653,7 @@ export async function setCurrentBowler(
     const { error } = await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: bowlerId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("set_current_bowler failed:", error);
@@ -857,6 +888,8 @@ export async function updateBall(params: {
   dismissedPlayerId?: string | null;
   batsmanId?: string | null;
   bowlerId?: string | null;
+  /** Idempotency key (offline queue id): a replay is not applied twice. */
+  clientActionId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -893,6 +926,7 @@ export async function updateBall(params: {
       p_dismissal_type: params.dismissalType ?? null,
       p_fielder_id: params.fielderId ?? null,
       p_dismissed_player_id: params.dismissedPlayerId ?? null,
+      p_client_action_id: params.clientActionId ?? null,
     });
 
     if (error) {

@@ -1,19 +1,42 @@
 /**
  * Offline scoring end to end: actions queued while offline (balls, an undo
  * of a queued ball, a queued undo, a retirement, a new batter, penalty runs,
- * a bowler re-assignment and an edit of a synced ball) replay through the
- * current scoring rpcs in order, and a replay after a lost response (the
- * server applied the action, the client never heard back) is not applied
- * twice.
+ * a bowler re-assignment and an edit of a synced ball) replay in order
+ * through `POST /api/scoring/replay`, the real server-action code and the
+ * scoring engine (on an in-memory store), and a replay after a lost
+ * response (the server applied the batch, the client never heard back) is
+ * not applied twice.
+ *
+ * The browser side is the real offline queue with its default transport
+ * (`fetch`); only `fetch` is wired to the route handler. No server action
+ * (and so no build-specific action id) is involved: a queue written by one
+ * build replays against the next.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("~/lib/match-cache", () => ({ invalidateMatchCache: vi.fn() }));
 
+let side: Stage2Side;
+let signedIn: string | null;
+vi.mock("~/lib/firebase/server", () => ({
+  createServerClient: async () =>
+    serverClientFor({
+      ds: side.ds,
+      db: null,
+      getUser: async () =>
+        signedIn
+          ? { id: signedIn, email: null, phone: null, user_metadata: {} }
+          : null,
+    }),
+}));
+
+import { POST } from "~/app/api/scoring/replay/route";
+import type { NextRequest } from "next/server";
 import {
   awardPenaltyRuns,
-  reassignOverBowler,
   recordBall,
   retireBatter,
   setCurrentBatsmen,
@@ -23,7 +46,9 @@ import {
   type ScoringContext,
 } from "./firebase/rpc/scoring";
 import { ballLogOf, type OversRow } from "./firebase/scorecard";
+import { serverClientFor } from "./firebase/server-client";
 import {
+  ADMIN,
   GoldenReplay,
   SYNTHETIC_ROSTERS,
   syntheticTables,
@@ -32,7 +57,7 @@ import {
   stage2Driver,
   type Stage2Side,
 } from "./firebase/scoring/__fixtures__/stage2";
-import type { InningsRow } from "./firebase/types";
+import type { InningsRow, MatchesRow } from "./firebase/types";
 import {
   enqueueAction,
   enqueuePendingBall,
@@ -40,128 +65,70 @@ import {
   getDeadLetterCount,
   getPendingActions,
   popLastAction,
-  type ActionFlushHandlers,
 } from "./offline-queue";
+import type { ReplayBatch } from "./scoring-replay/protocol";
 
 const M = "M";
+const HOST = "cricscore.example.com";
 
-/** Handlers shaped like the server actions `useScoring` replays through. */
-function serverHandlers(
-  side: Stage2Side,
-  calls: string[],
-): ActionFlushHandlers {
-  const ctx = (id: string): ScoringContext => ({
-    ...side.ctx,
-    clientActionId: id,
-  });
-  const ok = async (fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-      return { error: null };
-    } catch (err) {
-      return { error: (err as Error).message };
-    }
-  };
-  return {
-    recordBall: (p, id) => {
-      calls.push(`ball:${id}`);
-      return ok(() =>
-        recordBall(ctx(id), {
-          p_match_id: p.matchId,
-          p_bowler_id: p.bowlerId,
-          p_batsman_id: p.batsmanId,
-          p_non_striker_id: p.nonStrikerId,
-          p_runs_scored: p.event.runsScored ?? 0,
-          p_extras: p.event.extras ?? 0,
-          p_extra_type: p.event.extraType ?? null,
-          p_is_wicket: p.event.isWicket ?? false,
-          p_dismissal_type: p.event.dismissalType ?? null,
-          p_dismissed_player_id: p.event.dismissedPlayerId ?? null,
-        }),
-      );
-    },
-    setBatsmen: (s, ns) => {
-      calls.push("batsmen");
-      return ok(() => setCurrentBatsmen(side.ctx, M, s, ns));
-    },
-    setBowler: (b) => {
-      calls.push("bowler");
-      return ok(() => setCurrentBowler(side.ctx, M, b));
-    },
-    endInnings: async () => ({ error: "unexpected" }),
-    undoLastBall: (id) => {
-      calls.push(`undo:${id}`);
-      return ok(() => undoLastBall(ctx(id), M));
-    },
-    retireBatter: (p, id) => {
-      calls.push(`retire:${id}`);
-      return ok(() =>
-        retireBatter(ctx(id), {
-          p_match_id: M,
-          p_player_id: p.playerId,
-          p_type: p.type,
-          p_reason: p.reason ?? null,
-        }),
-      );
-    },
-    awardPenalty: (p, id) => {
-      calls.push(`penalty:${id}`);
-      return ok(() =>
-        awardPenaltyRuns(ctx(id), {
-          p_match_id: M,
-          p_runs: p.runs,
-          p_type: p.type,
-          p_reason: p.reason,
-          p_team_id: p.teamId,
-        }),
-      );
-    },
-    reassignOverBowler: (b, id) => {
-      calls.push(`reassign:${id}`);
-      return ok(async () => {
-        await setCurrentBowler(side.ctx, M, b).catch(() => undefined);
-        await reassignOverBowler(ctx(id), { p_match_id: M, p_bowler_id: b });
-      });
-    },
-    updateBall: (p) => {
-      calls.push("update");
-      return ok(() =>
-        updateBall(side.ctx, {
-          p_match_id: M,
-          p_ball_id: p.ballId,
-          p_runs_scored: p.runsScored,
-          p_extras: p.extras,
-          p_extra_type: p.extraType ?? null,
-          p_is_wicket: p.isWicket,
-          p_dismissal_type: p.dismissalType,
-          p_batsman_id: p.batsmanId ?? null,
-          p_bowler_id: p.bowlerId ?? null,
-        }),
-      );
-    },
-  };
+interface Sent {
+  headers: Headers;
+  batch: ReplayBatch;
 }
 
-const inningsOf = (side: Stage2Side) =>
-  side.ds
+/**
+ * Wires the browser's `fetch` to the route handler, as a same-origin
+ * request from the score page. `loseReply(n)` drops the reply of the n-th
+ * request after the server handled it.
+ */
+function wireFetchToRoute(loseReply: (n: number) => boolean = () => false) {
+  const sent: Sent[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init: RequestInit) => {
+      const headers = new Headers(init.headers);
+      headers.set("Origin", `https://${HOST}`);
+      headers.set("Host", HOST);
+      sent.push({
+        headers,
+        batch: JSON.parse(String(init.body)) as ReplayBatch,
+      });
+      const res = await POST(
+        new Request(`https://${HOST}${url}`, {
+          method: init.method,
+          headers,
+          body: init.body,
+        }) as unknown as NextRequest,
+      );
+      if (loseReply(sent.length)) throw new TypeError("Failed to fetch");
+      return res;
+    }),
+  );
+  return sent;
+}
+
+const inningsOf = (s: Stage2Side) =>
+  s.ds
     .all("innings")
     .find((i) => i.innings_number === 1) as unknown as InningsRow;
-const ballLog = (side: Stage2Side) =>
-  ballLogOf(side.ds.all("overs") as unknown as OversRow[]);
+const ballLog = (s: Stage2Side) =>
+  ballLogOf(s.ds.all("overs") as unknown as OversRow[]);
+const matchOf = (s: Stage2Side) =>
+  s.ds.all("matches").find((m) => m.id === M) as unknown as MatchesRow;
 
 /** A started match: 3 balls in, a1 on strike with a2, b1 bowling. */
 async function startedMatch() {
-  const side = stage2Driver(syntheticTables({ overs_per_innings: 3 }), true);
-  const replay = new GoldenReplay(side, M, SYNTHETIC_ROSTERS);
+  const s = stage2Driver(syntheticTables({ overs_per_innings: 3 }), true);
+  const replay = new GoldenReplay(s, M, SYNTHETIC_ROSTERS);
   for (const runs of [1, 1, 0])
     await replay.step({ kind: "ball", ball: { runs } });
-  const inn = inningsOf(side);
+  const inn = inningsOf(s);
   const striker = inn.batting!.find((b) => b.is_striker)!.user_id;
   const nonStriker = inn.batting!.find(
     (b) => b.is_current_batsman && !b.is_striker,
   )!.user_id;
   const bowler = inn.bowling!.find((b) => b.is_current_bowler)!.user_id;
-  return { side, striker, nonStriker, bowler };
+  return { side: s, striker, nonStriker, bowler };
 }
 
 const ball = (
@@ -177,11 +144,17 @@ const ball = (
   event: { runsScored: runs },
 });
 
-describe("offline queue replay through the scoring rpcs", () => {
-  beforeEach(() => localStorage.clear());
+describe("offline queue replay through /api/scoring/replay", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+    signedIn = ADMIN;
+  });
 
   it("replays balls, undo, retirement, penalties, re-assignment and edits in order, once", async () => {
-    const { side, striker, nonStriker, bowler } = await startedMatch();
+    const started = await startedMatch();
+    side = started.side;
+    const { striker, nonStriker, bowler } = started;
     const synced = ballLog(side);
     expect(synced).toHaveLength(3);
 
@@ -232,124 +205,231 @@ describe("offline queue replay through the scoring rpcs", () => {
     const queued = getPendingActions(M);
     expect(queued).toHaveLength(13);
 
-    // ---- back online; the 2nd queued ball reaches the server but its reply
-    // is lost, so that flush stops there ----
-    const calls: string[] = [];
-    const handlers = serverHandlers(side, calls);
-    let dropped = false;
-    const lossy: ActionFlushHandlers = {
-      ...handlers,
-      recordBall: async (p, id) => {
-        const res = await handlers.recordBall(p, id);
-        if (!dropped && id === queued[1]!.queueId) {
-          dropped = true;
-          throw new Error("Failed to fetch");
-        }
-        return res;
-      },
-    };
-    expect(await flushPendingActions(M, lossy)).toEqual({
-      synced: 1,
-      failed: 1,
-    });
-    expect(ballLog(side)).toHaveLength(5);
-    expect(getPendingActions(M)).toHaveLength(12);
+    // ---- back online; the first batch (10 actions) reaches the server but
+    // its reply is lost, so that flush stops there ----
+    const sent = wireFetchToRoute((n) => n === 1);
+    expect(await flushPendingActions(M)).toEqual({ synced: 0, failed: 1 });
+    expect(getPendingActions(M)).toHaveLength(13);
 
-    // Retry: the 2nd ball is recognised (same id) and not recorded again.
+    // Retry: the first ten are recognised (same ids) and not applied again.
     // Two flushes at once (the "online" event and a tap) share one replay.
     const [a, b] = await Promise.all([
-      flushPendingActions(M, handlers),
-      flushPendingActions(M, handlers),
+      flushPendingActions(M),
+      flushPendingActions(M),
     ]);
-    expect(a).toEqual({ synced: 12, failed: 0 });
+    expect(a).toEqual({ synced: 13, failed: 0 });
     expect(b).toBe(a);
     expect(getPendingActions(M)).toHaveLength(0);
     expect(getDeadLetterCount(M)).toBe(0);
-    // Every queued action was sent once (the lost one twice), in order.
-    expect(calls).toEqual([
-      `ball:${queued[0]!.queueId}`,
-      `ball:${queued[1]!.queueId}`,
-      `ball:${queued[1]!.queueId}`,
-      `ball:${queued[2]!.queueId}`,
-      `undo:${queued[3]!.queueId}`,
-      `retire:${queued[4]!.queueId}`,
-      "batsmen",
-      `ball:${queued[6]!.queueId}`,
-      "bowler",
-      `ball:${queued[8]!.queueId}`,
-      `penalty:${queued[9]!.queueId}`,
-      `penalty:${queued[10]!.queueId}`,
-      `reassign:${queued[11]!.queueId}`,
-      "update",
+
+    // Batches of ten, in queue order; the lost one re-sent whole.
+    const ids = queued.map((q) => q.queueId);
+    expect(sent.map((s) => s.batch.actions.map((x) => x.id))).toEqual([
+      ids.slice(0, 10),
+      ids.slice(0, 10),
+      ids.slice(10),
     ]);
+    // No server action involved.
+    for (const s of sent) {
+      expect(s.headers.get("next-action")).toBeNull();
+      expect(s.batch.v).toBe(1);
+    }
 
     // ---- the server state: the first ball edited to 3; 1, 0 synced
     // before; 0, 2 (the 1 was undone), a retirement, 1, then 0 ----
     const log = ballLog(side);
-    const deliveries = log.filter((b) => !b.extra_type && !b.dismissal_type);
-    expect(deliveries.map((b) => b.runs_scored)).toEqual([3, 1, 0, 0, 2, 1, 0]);
-    expect(deliveries.map((b) => b.bowler_id)).toEqual([
+    const deliveries = log.filter((d) => !d.extra_type && !d.dismissal_type);
+    expect(deliveries.map((d) => d.runs_scored)).toEqual([3, 1, 0, 0, 2, 1, 0]);
+    expect(deliveries.map((d) => d.bowler_id)).toEqual([
       ...Array<string>(6).fill(bowler),
       "b9",
     ]);
     // The fielding side's award is not a delivery: it keeps no bowler.
-    expect(log.find((b) => b.penalty_team_id === "TB")!.bowler_id).toBeNull();
+    expect(log.find((d) => d.penalty_team_id === "TB")!.bowler_id).toBeNull();
     const inn = inningsOf(side);
     // 7 off the bat, +5 penalty runs to the batting side; the fielding
     // side's 5 wait for their innings.
     expect(inn.total_runs).toBe(12);
     expect(inn.extras_penalties).toBe(5);
-    const retired = inn.batting!.find((b) => b.user_id === striker)!;
+    const retired = inn.batting!.find((x) => x.user_id === striker)!;
     expect(retired).toMatchObject({
       is_out: false,
       dismissal_type: "retired_hurt",
       is_current_batsman: false,
     });
-    expect(log.filter((b) => b.dismissal_type === "retired_hurt")).toHaveLength(
+    expect(log.filter((d) => d.dismissal_type === "retired_hurt")).toHaveLength(
       1,
     );
-    expect(log.filter((b) => b.penalty_team_id === "TB")).toHaveLength(1);
+    expect(log.filter((d) => d.penalty_team_id === "TB")).toHaveLength(1);
   });
 
-  it("a replayed undo, retirement or penalty is not applied twice", async () => {
-    const { side, striker, nonStriker, bowler } = await startedMatch();
-    const handlers = serverHandlers(side, []);
+  it("replays a queue stored by an earlier build after a deploy", async () => {
+    const started = await startedMatch();
+    side = started.side;
+    const { striker, nonStriker, bowler } = started;
 
-    await handlers.recordBall(ball(bowler, striker, nonStriker, 1), "x1");
-    await handlers.recordBall(ball(bowler, nonStriker, striker, 1), "x2");
-    expect(ballLog(side)).toHaveLength(5);
-    // A ball replayed after the next one was recorded is still recognised.
-    await handlers.recordBall(ball(bowler, striker, nonStriker, 1), "x1");
-    expect(ballLog(side)).toHaveLength(5);
-
-    await handlers.undoLastBall("u1");
-    await handlers.undoLastBall("u1");
-    expect(ballLog(side)).toHaveLength(4);
-
-    await handlers.retireBatter!(
-      { playerId: striker, type: "retired_out" },
-      "r1",
+    // localStorage exactly as an earlier build left it: a ball under the
+    // pre-unified key, then actions in the unified queue (retry counters
+    // from failed attempts against the old deployment included).
+    localStorage.setItem(
+      `cric_pending_balls_${M}`,
+      JSON.stringify([
+        {
+          queueId: "1700000000000_old0001",
+          enqueuedAt: 1700000000000,
+          ...ball(bowler, striker, nonStriker, 2),
+        },
+      ]),
     );
-    expect(
-      await handlers.retireBatter!(
-        { playerId: striker, type: "retired_out" },
-        "r1",
-      ),
-    ).toEqual({ error: null });
-    expect(inningsOf(side).total_wickets).toBe(1);
+    localStorage.setItem(
+      `cric_pending_actions_${M}`,
+      JSON.stringify([
+        {
+          queueId: "1700000000001_old0002",
+          matchId: M,
+          type: "recordBall",
+          enqueuedAt: 1700000000001,
+          retryCount: 1,
+          lastError: "Failed to find Server Action",
+          payload: {
+            ...ball(bowler, striker, nonStriker, 4),
+            event: {
+              runsScored: 4,
+              extras: 0,
+              isWicket: false,
+              shotZone: null,
+            },
+          },
+        },
+        {
+          queueId: "1700000000002_old0003",
+          matchId: M,
+          type: "undoLastBall",
+          enqueuedAt: 1700000000002,
+          payload: {},
+        },
+      ]),
+    );
+
+    const sent = wireFetchToRoute();
+    expect(await flushPendingActions(M)).toEqual({ synced: 3, failed: 0 });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.batch.actions.map((x) => [x.type, x.id])).toEqual([
+      ["recordBall", "1700000000000_old0001"],
+      ["recordBall", "1700000000001_old0002"],
+      ["undoLastBall", "1700000000002_old0003"],
+    ]);
+    expect(getPendingActions(M)).toHaveLength(0);
+    // 3 synced balls, then 2 (the 4 was undone).
+    expect(ballLog(side).map((d) => d.runs_scored)).toEqual([1, 1, 0, 2]);
+    expect(matchOf(side).recent_client_actions).toEqual([
+      "1700000000000_old0001",
+      "1700000000001_old0002",
+      "1700000000002_old0003",
+    ]);
+  });
+
+  it("keeps the queue when the session has expired", async () => {
+    const started = await startedMatch();
+    side = started.side;
+    enqueuePendingBall(
+      ball(started.bowler, started.striker, started.nonStriker, 1),
+    );
+    signedIn = null;
+    wireFetchToRoute();
+    expect(await flushPendingActions(M)).toMatchObject({
+      synced: 0,
+      errorCode: "not_authenticated",
+    });
+    expect(getPendingActions(M)).toHaveLength(1);
+    expect(getDeadLetterCount(M)).toBe(0);
+    expect(ballLog(side)).toHaveLength(3);
+  });
+});
+
+describe("the scoring engine recognises replayed client actions", () => {
+  it("does not apply a replayed ball, undo, retirement, penalty, crease change or edit twice", async () => {
+    const { side: s, striker, nonStriker, bowler } = await startedMatch();
+    const ctx = (id: string): ScoringContext => ({
+      ...s.ctx,
+      clientActionId: id,
+    });
+    const recordArgs = (bat: string, non: string, runs: number) => ({
+      p_match_id: M,
+      p_bowler_id: bowler,
+      p_batsman_id: bat,
+      p_non_striker_id: non,
+      p_runs_scored: runs,
+    });
+
+    await recordBall(ctx("x1"), recordArgs(striker, nonStriker, 1));
+    await recordBall(ctx("x2"), recordArgs(nonStriker, striker, 1));
+    expect(ballLog(s)).toHaveLength(5);
+    // A ball replayed after the next one was recorded is still recognised.
+    await recordBall(ctx("x1"), recordArgs(striker, nonStriker, 1));
+    expect(ballLog(s)).toHaveLength(5);
+
+    await undoLastBall(ctx("u1"), M);
+    await undoLastBall(ctx("u1"), M);
+    expect(ballLog(s)).toHaveLength(4);
+
+    const retire = {
+      p_match_id: M,
+      p_player_id: striker,
+      p_type: "retired_out",
+    };
+    await retireBatter(ctx("r1"), retire);
+    await expect(retireBatter(ctx("r1"), retire)).resolves.toBeNull();
+    expect(inningsOf(s).total_wickets).toBe(1);
 
     const award = {
-      teamId: "TA",
-      runs: 5,
-      reason: "x",
-      type: "penalty" as const,
+      p_match_id: M,
+      p_team_id: "TA",
+      p_runs: 5,
+      p_reason: "x",
+      p_type: "penalty",
     };
-    await handlers.awardPenalty!(award, "p1");
-    await handlers.awardPenalty!(award, "p1");
-    expect(inningsOf(side).extras_penalties).toBe(5);
+    await awardPenaltyRuns(ctx("p1"), award);
+    await awardPenaltyRuns(ctx("p1"), award);
+    expect(inningsOf(s).extras_penalties).toBe(5);
 
-    // Only the last 20 ids are kept on the match.
-    const match = side.ds.all("matches").find((m) => m.id === M)!;
-    expect(match.recent_client_actions).toEqual(["x1", "x2", "u1", "r1", "p1"]);
+    // Crease changes: a replay after a later change must not undo it.
+    await setCurrentBatsmen(ctx("c1"), M, "a8", nonStriker);
+    await setCurrentBatsmen(ctx("c2"), M, nonStriker, "a8");
+    await setCurrentBatsmen(ctx("c1"), M, "a8", nonStriker);
+    const crease = inningsOf(s).batting!.find((x) => x.is_striker)!;
+    expect(crease.user_id).toBe(nonStriker);
+
+    await setCurrentBowler(ctx("w1"), M, bowler);
+    await setCurrentBowler(ctx("w2"), M, "b7");
+    await setCurrentBowler(ctx("w1"), M, bowler);
+    expect(
+      inningsOf(s).bowling!.find((x) => x.is_current_bowler)!.user_id,
+    ).toBe("b7");
+
+    const first = ballLog(s)[0]!.id;
+    const edit = (runs: number) => ({
+      p_match_id: M,
+      p_ball_id: first,
+      p_runs_scored: runs,
+    });
+    await updateBall(ctx("e1"), edit(2));
+    await updateBall(ctx("e2"), edit(6));
+    await updateBall(ctx("e1"), edit(2));
+    expect(ballLog(s)[0]!.runs_scored).toBe(6);
+
+    expect(matchOf(s).recent_client_actions).toEqual([
+      "x1",
+      "x2",
+      "u1",
+      "r1",
+      "p1",
+      "c1",
+      "c2",
+      "w1",
+      "w2",
+      "e1",
+      "e2",
+    ]);
   });
 });
