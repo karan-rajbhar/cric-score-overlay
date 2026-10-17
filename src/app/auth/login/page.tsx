@@ -17,7 +17,7 @@ import { AlertCircle } from "lucide-react";
 function LoginPageInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithGoogle, user } = useAuth();
+  const { signInWithGoogle, redirectError, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -40,7 +40,7 @@ function LoginPageInner() {
         return "Authentication failed. Please try again.";
     }
   })();
-  const displayError = error ?? urlError;
+  const displayError = error ?? redirectError?.message ?? urlError;
 
   // Invite links carry the invited email so Google suggests that account.
   const inviteEmail = (() => {
