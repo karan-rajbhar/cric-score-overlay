@@ -83,8 +83,9 @@ in `firebase.json` to drop 4000 and 9150.
 
 - **"module factory is not available" or stale chunks after a reload.** Another
   app that once ran on `localhost:3005` may have left a service worker behind
-  (this project has none). Unregister it in DevTools → Application → Service
-  Workers and clear its caches.
+  (this project's own worker, `public/sw.js`, registers only in production on
+  https, and dev unregisters any worker it finds). Unregister it in DevTools →
+  Application → Service Workers and clear its caches.
 - **`ENOENT ... stat <deleted file>` from `globals.css` after deleting a source
   file.** Turbopack cached the Tailwind file list. Stop the dev server, delete
   `.next`, and start it again.

@@ -667,3 +667,104 @@ describe("useScoring", () => {
     ]);
   });
 });
+
+describe("useScoring offline reload", () => {
+  const matchId = "0b0c0d0e-1111-4222-8333-444455556666";
+  const team1 = [
+    { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "A" } },
+    { id: "tp2", team_id: "team-1", user_id: "u2", user: { id: "u2", full_name: "B" } },
+  ];
+  const team2 = [
+    { id: "tp3", team_id: "team-2", user_id: "u3", user: { id: "u3", full_name: "C" } },
+    { id: "tp4", team_id: "team-2", user_id: "u4", user: { id: "u4", full_name: "D" } },
+  ];
+  const serverState = {
+    match: {
+      id: matchId,
+      status: "live",
+      current_innings: 1,
+      current_over: 0,
+      current_ball: 0,
+      overs_per_innings: 20,
+      team1_id: "team-1",
+      team2_id: "team-2",
+      innings: [
+        {
+          innings_number: 1,
+          team_id: "team-1",
+          total_runs: 10,
+          total_wickets: 0,
+          total_balls: 0,
+          batting_performances: [],
+          bowling_performances: [],
+        },
+      ],
+    },
+    strikerId: "u1",
+    nonStrikerId: "u2",
+    bowlerId: "u3",
+    lastOverBowlerId: null,
+    thisOverDeliveries: [],
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+    vi.mocked(getTeamPlayers).mockImplementation((teamId: string) =>
+      Promise.resolve({
+        data: (teamId === "team-1" ? team1 : team2) as never,
+        error: null,
+      }),
+    );
+    vi.mocked(getScoringState).mockResolvedValue({
+      data: serverState as never,
+      error: null,
+    });
+  });
+
+  it("reopens offline from the device copy, including balls scored offline", async () => {
+    // Online visit: the state is saved on the device.
+    const first = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+
+    // Signal lost: score a four, which is queued.
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await first.result.current.handleScore("u3", "u1", "u2", { runsScored: 4 });
+    await waitFor(() => expect(first.result.current.pendingCount).toBe(1));
+    first.unmount();
+
+    // Reload while offline: no server call, the four is still there.
+    vi.mocked(getScoringState).mockClear();
+    const second = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+
+    expect(getScoringState).not.toHaveBeenCalled();
+    const m = second.result.current.match!;
+    expect(m.innings?.[0]?.total_runs).toBe(14);
+    expect(second.result.current.lastBalls).toEqual(["4"]);
+    expect(second.result.current.strikerId).toBe("u1");
+    expect(second.result.current.currentBowlerId).toBe("u3");
+    expect(second.result.current.battingTeamPlayers).toHaveLength(2);
+    expect(second.result.current.pendingCount).toBe(1);
+
+    // And scoring continues from there.
+    await second.result.current.handleScore("u3", "u1", "u2", { runsScored: 1 });
+    await waitFor(() =>
+      expect(second.result.current.match?.innings?.[0]?.total_runs).toBe(15),
+    );
+    expect(getPendingActions(matchId)).toHaveLength(2);
+  });
+
+  it("falls back to the device copy when the server cannot be reached", async () => {
+    const first = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    first.unmount();
+
+    // navigator says online, but the request fails (weak signal).
+    vi.mocked(getScoringState).mockRejectedValue(new TypeError("Failed to fetch"));
+    const second = renderHook(() => useScoring(matchId));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+    expect(second.result.current.match?.id).toBe(matchId);
+    expect(second.result.current.strikerId).toBe("u1");
+  });
+});

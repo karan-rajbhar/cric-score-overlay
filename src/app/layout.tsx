@@ -3,6 +3,7 @@ import { Barlow, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
 import { ErrorReporter } from "~/components/error-reporter";
+import { ServiceWorkerRegistrar } from "~/components/pwa/service-worker-registrar";
 import { QueryProvider } from "~/providers/query-provider";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { AppShell } from "~/components/layout/app-shell";
@@ -76,6 +77,7 @@ export default async function RootLayout({
             <QueryProvider>
               <AppShell>{children}</AppShell>
               <Toaster richColors position="top-center" />
+              <ServiceWorkerRegistrar />
             </QueryProvider>
           </AuthProvider>
         </ThemeProvider>

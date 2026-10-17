@@ -242,9 +242,9 @@ export function useScoring(
     }
   }, [resolveSquadTeamIds]);
 
-  const syncFromDb = useCallback(async () => {
+  const syncFromDb = useCallback(async (): Promise<boolean> => {
     const result = await getScoringState(matchId);
-    if (result.error || !result.data) return;
+    if (result.error || !result.data) return false;
     const {
       match: m,
       strikerId: s,
@@ -301,6 +301,7 @@ export function useScoring(
     if (m.status === "live" && !b && s && ns) {
       optionsRef.current?.onNeedsBowler?.();
     }
+    return true;
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
   const loadMatch = useCallback(async () => {
@@ -314,27 +315,43 @@ export function useScoring(
 
   useEffect(() => {
     let cancelled = false;
+    /**
+     * The last state seen on this device (server state plus every action
+     * queued since), so the screen opens and scores without the network.
+     */
+    const restoreFromCache = (): boolean => {
+      const cached = getCachedMatchData(matchId);
+      if (!cached || cancelled) return false;
+      playersRef.current = {
+        batting: cached.battingTeamPlayers,
+        bowling: cached.bowlingTeamPlayers,
+      };
+      setMatch(cached.match);
+      setBattingTeamPlayers(cached.battingTeamPlayers);
+      setBowlingTeamPlayers(cached.bowlingTeamPlayers);
+      setStrikerId(cached.strikerId);
+      setNonStrikerId(cached.nonStrikerId);
+      setCurrentBowlerId(cached.bowlerId);
+      setLastOverBowlerId(cached.lastOverBowlerId);
+      setLastBalls(cached.lastBalls ?? []);
+      localCtxRef.current = buildContextFromMatch(
+        cached.match,
+        cached.strikerId,
+        cached.nonStrikerId,
+        cached.bowlerId,
+      );
+      setPendingCount(getPendingCount(matchId));
+      toast.info("Offline: showing the score saved on this device.");
+      return true;
+    };
     const init = async () => {
-      try {
-        await syncFromDb();
-      } catch {
-        // Server unreachable — try loading from offline cache
-        const cached = getCachedMatchData(matchId);
-        if (cached && !cancelled) {
-          setMatch(cached.match);
-          setBattingTeamPlayers(cached.battingTeamPlayers);
-          setBowlingTeamPlayers(cached.bowlingTeamPlayers);
-          setStrikerId(cached.strikerId);
-          setNonStrikerId(cached.nonStrikerId);
-          setCurrentBowlerId(cached.bowlerId);
-          setLastOverBowlerId(cached.lastOverBowlerId);
-          localCtxRef.current = buildContextFromMatch(
-            cached.match,
-            cached.strikerId,
-            cached.nonStrikerId,
-            cached.bowlerId,
-          );
-          toast.info("Loaded from offline cache — scoring available offline");
+      // Offline: don't wait for a server call that cannot succeed.
+      if (!(isOfflineNow() && restoreFromCache())) {
+        try {
+          await syncFromDb();
+        } catch {
+          // Server unreachable — fall back to the device copy.
+          restoreFromCache();
         }
       }
       if (!cancelled) setLoading(false);
@@ -344,6 +361,30 @@ export function useScoring(
       cancelled = true;
     };
   }, [syncFromDb, matchId]);
+
+  useEffect(() => {
+    if (!match) return;
+    cacheMatchData(matchId, {
+      match,
+      battingTeamPlayers,
+      bowlingTeamPlayers,
+      strikerId,
+      nonStrikerId,
+      bowlerId: currentBowlerId,
+      lastOverBowlerId,
+      lastBalls,
+    });
+  }, [
+    matchId,
+    match,
+    battingTeamPlayers,
+    bowlingTeamPlayers,
+    strikerId,
+    nonStrikerId,
+    currentBowlerId,
+    lastOverBowlerId,
+    lastBalls,
+  ]);
 
   const flushOfflineQueue = useCallback(async () => {
     if (getPendingCount(matchId) === 0) return { synced: 0, failed: 0 };

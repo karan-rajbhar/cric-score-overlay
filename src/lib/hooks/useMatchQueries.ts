@@ -607,11 +607,14 @@ export function useMatchAdminQuery(
       });
       if (error) {
         console.error("is_match_admin RPC error:", error);
-        return false;
+        // An error is "unknown", not "no": the scoring screen then falls
+        // back to the scorer remembered on this device (weak signal).
+        throw new Error("Could not check scoring access");
       }
       return Boolean(data);
     },
     enabled: Boolean(matchId && userId),
+    retry: 1,
     staleTime: 5 * 60 * 1000,
   });
 }
