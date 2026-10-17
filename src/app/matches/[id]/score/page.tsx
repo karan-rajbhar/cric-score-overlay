@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -176,6 +176,11 @@ export default function ScoringPage() {
   const setTossDialogDismissed = useScoringUIStore(
     (s) => s.setTossDialogDismissed,
   );
+  // The store outlives the page: a toss dismissed on another match must not
+  // keep this match's toss closed.
+  useEffect(() => {
+    setTossDialogDismissed(false);
+  }, [matchId, setTossDialogDismissed]);
   const showSelectBatsmen = useScoringUIStore((s) => s.showBatsmenDialog);
   const setShowSelectBatsmen = useScoringUIStore((s) => s.setShowSelectBatsmen);
   const showSelectBowler = useScoringUIStore((s) => s.showBowlerDialog);
@@ -291,7 +296,8 @@ export default function ScoringPage() {
 
   const showTossDialog =
     isScorer && match?.status === "scheduled" && !tossDialogDismissed;
-  const tossWinner = selectedTossWinner || match?.team1_id || "";
+  // No preselected winner: the scorer taps the team that won.
+  const tossWinner = selectedTossWinner;
 
   // Keyboard scoring hotkeys must stay inert while any dialog/menu is open or when user is not scorer,
   // otherwise typing in a dialog silently records balls behind it.
