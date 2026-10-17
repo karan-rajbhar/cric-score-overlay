@@ -433,6 +433,8 @@ export async function recordBall(params: {
   batsmanId: string;
   nonStrikerId: string;
   event: BallEvent;
+  /** Idempotency key (offline queue id): a replay is not recorded twice. */
+  clientActionId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -461,6 +463,7 @@ export async function recordBall(params: {
       p_commentary: params.event.commentary ?? null,
       p_dismissed_player_id: params.event.dismissedPlayerId ?? null,
       p_shot_zone: params.event.shotZone ?? undefined,
+      p_client_action_id: params.clientActionId ?? null,
     });
     if (error) {
       console.error("record_ball failed:", error);
@@ -507,6 +510,7 @@ export async function recordBall(params: {
 
 export async function undoLastBall(
   matchId: string,
+  clientActionId?: string | null,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -529,6 +533,7 @@ export async function undoLastBall(
 
     const { data, error } = await db.rpc("undo_last_ball", {
       p_match_id: matchId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("undo_last_ball failed:", error);
@@ -638,6 +643,7 @@ export async function setCurrentBowler(
 
 export async function endInnings(
   matchId: string,
+  clientActionId?: string | null,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -660,6 +666,7 @@ export async function endInnings(
 
     const { data, error } = await db.rpc("end_innings", {
       p_match_id: matchId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("end_innings failed:", error);
@@ -910,6 +917,7 @@ export async function updateBall(params: {
 
 export async function startSuperOver(
   matchId: string,
+  clientActionId?: string | null,
 ): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -932,6 +940,7 @@ export async function startSuperOver(
 
     const { data, error } = await db.rpc("start_super_over", {
       p_match_id: matchId,
+      p_client_action_id: clientActionId ?? null,
     });
 
     if (error) {
@@ -1168,6 +1177,7 @@ export async function awardTeamPenalty(
     runs: number;
     reason: string;
     type?: "penalty" | "bonus";
+    clientActionId?: string | null;
   },
 ): Promise<{ success: boolean; error: string | null }> {
   try {
@@ -1215,6 +1225,7 @@ export async function awardTeamPenalty(
       p_type: awardType,
       p_reason: params.reason,
       p_team_id: params.teamId,
+      p_client_action_id: params.clientActionId ?? null,
     });
     if (awardErr) {
       return { success: false, error: friendlyError(awardErr.message) };
@@ -1240,6 +1251,7 @@ export async function retirePlayer(
     playerId: string;
     type: "retired_hurt" | "retired_out";
     reason?: string | null;
+    clientActionId?: string | null;
   },
 ): Promise<{ success: boolean; error: string | null }> {
   try {
@@ -1265,6 +1277,7 @@ export async function retirePlayer(
       p_player_id: params.playerId,
       p_type: params.type,
       p_reason: params.reason ?? null,
+      p_client_action_id: params.clientActionId ?? null,
     });
 
     if (retireErr) {
@@ -1358,6 +1371,7 @@ export async function updateTargetRuns(
 export async function reassignCurrentOverBowler(
   matchId: string,
   newBowlerId: string,
+  clientActionId?: string | null,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -1391,6 +1405,7 @@ export async function reassignCurrentOverBowler(
     const { error: reassignErr } = await db.rpc("reassign_over_bowler", {
       p_match_id: matchId,
       p_bowler_id: newBowlerId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (reassignErr) {
       console.error("Failed to reassign the over to the new bowler:", reassignErr);

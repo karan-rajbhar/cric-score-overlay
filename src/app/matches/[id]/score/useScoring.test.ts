@@ -2,8 +2,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useScoring } from "./useScoring";
 import { getScoringState, getTeamPlayers } from "../../queries";
-import { setCurrentBowler } from "../../mutations";
-import { getPendingActions } from "~/lib/offline-queue";
+import {
+  recordBall,
+  retirePlayer,
+  setCurrentBatsmen,
+  setCurrentBowler,
+  undoLastBall,
+} from "../../mutations";
+import { enqueueAction, getPendingActions } from "~/lib/offline-queue";
 
 vi.mock("~/lib/firebase/client", () => ({
   firebase: {
@@ -30,6 +36,9 @@ vi.mock("../../mutations", () => ({
   setCurrentBowler: vi.fn(),
   endInnings: vi.fn(),
   startSuperOver: vi.fn(),
+  retirePlayer: vi.fn(),
+  awardTeamPenalty: vi.fn(),
+  reassignCurrentOverBowler: vi.fn(),
 }));
 
 vi.mock("../../../teams/actions", () => ({
@@ -550,5 +559,111 @@ describe("useScoring", () => {
     const actions = getPendingActions(matchId);
     expect(actions).toHaveLength(1);
     expect(actions[0]!.type).toBe("startSuperOver");
+  });
+
+  it("queues balls, an undo and a retirement offline, then replays them in order with their ids", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await result.current.handleConfirmBowler("u3");
+    await result.current.handleConfirmBatsmen("u1", "u2");
+    await result.current.handleScore("u3", "u1", "u2", { runsScored: 0 });
+    await result.current.handleScore("u3", "u1", "u2", { runsScored: 2 });
+    await result.current.handleScore("u3", "u1", "u2", { runsScored: 4 });
+    // Undo while offline drops the queued boundary instead of a server ball.
+    await result.current.handleUndo();
+    const retired = await result.current.handleRetireBatter({
+      playerId: "u1",
+      type: "retired_hurt",
+      reason: "cramp",
+    });
+    expect(retired).toEqual({ error: null, queued: true });
+    await waitFor(() => {
+      expect(result.current.strikerId).toBeNull();
+    });
+    expect(retirePlayer).not.toHaveBeenCalled();
+    expect(undoLastBall).not.toHaveBeenCalled();
+
+    const queued = getPendingActions(matchId);
+    expect(queued.map((a) => a.type)).toEqual([
+      "setBowler",
+      "setBatsmen",
+      "recordBall",
+      "recordBall",
+      "retireBatter",
+    ]);
+
+    // ---- back online ----
+    online.mockReturnValue(true);
+    vi.mocked(setCurrentBowler).mockResolvedValue({ error: null });
+    vi.mocked(setCurrentBatsmen).mockResolvedValue({ error: null });
+    vi.mocked(recordBall).mockResolvedValue({ data: null, error: null });
+    vi.mocked(retirePlayer).mockResolvedValue({ success: true, error: null });
+    const order: string[] = [];
+    for (const fn of [setCurrentBowler, setCurrentBatsmen, recordBall, retirePlayer]) {
+      vi.mocked(fn).mockImplementation((async () => {
+        order.push(fn === recordBall ? "ball" : fn === retirePlayer ? "retire" : "crease");
+        return { data: null, success: true, error: null };
+      }) as never);
+    }
+
+    const res = await result.current.flushOfflineQueue();
+    expect(res).toEqual({ synced: 5, failed: 0 });
+    expect(order).toEqual(["crease", "crease", "ball", "ball", "retire"]);
+    // Each replay carries its queue id as the idempotency key.
+    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].clientActionId)).toEqual([
+      queued[2]!.queueId,
+      queued[3]!.queueId,
+    ]);
+    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].event.runsScored)).toEqual([0, 2]);
+    expect(retirePlayer).toHaveBeenCalledWith(matchId, {
+      playerId: "u1",
+      type: "retired_hurt",
+      reason: "cramp",
+      clientActionId: queued[4]!.queueId,
+    });
+    expect(getPendingActions(matchId)).toHaveLength(0);
+  });
+
+  it("queues a ball whose reply was lost under the id it was sent with", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    vi.mocked(recordBall).mockRejectedValue(new Error("Failed to fetch"));
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    const res = await result.current.handleScore("u3", "p1", "p2", { runsScored: 1 });
+    expect(res.error).toBeNull();
+    const sentId = vi.mocked(recordBall).mock.calls[0]![0].clientActionId;
+    expect(sentId).toBeTruthy();
+    const queued = getPendingActions(matchId);
+    expect(queued).toHaveLength(1);
+    // The server may have recorded it: the replay uses the same key.
+    expect(queued[0]!.queueId).toBe(sentId);
+  });
+
+  it("sends a new action only after the queued ones, and queues it behind them if they cannot be sent", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    enqueueAction(matchId, "setBowler", { bowlerId: "u3" });
+    vi.mocked(setCurrentBowler).mockResolvedValue({ error: "DB Error" });
+
+    const res = await result.current.handleRetireBatter({
+      playerId: "p1",
+      type: "retired_out",
+    });
+    expect(res).toEqual({ error: null, queued: true });
+    expect(retirePlayer).not.toHaveBeenCalled();
+    expect(getPendingActions(matchId).map((a) => a.type)).toEqual([
+      "setBowler",
+      "retireBatter",
+    ]);
   });
 });

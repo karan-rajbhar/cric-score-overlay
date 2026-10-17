@@ -294,6 +294,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "last_ball_seq",
+    "recent_client_actions",
     "innings_summary",
     "tournament_snapshot",
     "club_snapshot",

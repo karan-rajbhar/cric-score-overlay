@@ -323,6 +323,12 @@ export interface MatchesRow {
   golden_ball: boolean | null;
   /** Monotonic counter used to order ball_by_ball documents. */
   last_ball_seq: number | null;
+  /**
+   * Ids of the last scoring actions sent with a client action id (offline
+   * queue replays), oldest first: a replay of one of them is not applied
+   * again (`rpc/scoring.ts`).
+   */
+  recent_client_actions?: string[] | null;
   /** Score line of each innings (stage 3, see `innings-summary.ts`). */
   innings_summary?: InningsSummaryEntry[] | null;
   /** Display copies of the tournament / club (`match-snapshots.ts`). */

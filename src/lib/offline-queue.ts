@@ -2,8 +2,14 @@
  * Offline-first action queue for live cricket scoring.
  * Prevents loss of scoring data during intermittent cellular/hotspot drops at match venues.
  *
- * Supports all scoring actions (recordBall, setBatsmen, setBowler, endInnings, undoLastBall)
- * and ensures strict sequential replay on reconnect to preserve cricket delivery order.
+ * Supports all scoring actions (recordBall, setBatsmen, setBowler, endInnings, undoLastBall,
+ * startSuperOver, retireBatter, awardPenalty, reassignOverBowler, updateBall) and ensures
+ * strict sequential replay on reconnect to preserve cricket delivery order.
+ *
+ * Every action's `queueId` doubles as its idempotency key: handlers send it to the server
+ * (`p_client_action_id`), which ignores an action it has already applied. A replay after a
+ * lost response (the server applied the action, the client never heard back) is therefore
+ * a no-op instead of a second ball. Only one flush per match runs at a time.
  */
 
 import type { BallEvent } from "~/app/matches/types";
@@ -35,7 +41,11 @@ export type QueuedActionType =
   | "setBowler"
   | "endInnings"
   | "undoLastBall"
-  | "startSuperOver";
+  | "startSuperOver"
+  | "retireBatter"
+  | "awardPenalty"
+  | "reassignOverBowler"
+  | "updateBall";
 
 export interface QueuedActionBase {
   queueId: string;
@@ -76,13 +86,62 @@ export interface QueuedStartSuperOver extends QueuedActionBase {
   payload: Record<string, never>;
 }
 
+export interface RetireBatterPayload {
+  playerId: string;
+  type: "retired_hurt" | "retired_out";
+  reason?: string | null;
+}
+
+export interface QueuedRetireBatter extends QueuedActionBase {
+  type: "retireBatter";
+  payload: RetireBatterPayload;
+}
+
+export interface AwardPenaltyPayload {
+  teamId: string;
+  runs: number;
+  reason: string;
+  type: "penalty" | "bonus";
+}
+
+export interface QueuedAwardPenalty extends QueuedActionBase {
+  type: "awardPenalty";
+  payload: AwardPenaltyPayload;
+}
+
+export interface QueuedReassignOverBowler extends QueuedActionBase {
+  type: "reassignOverBowler";
+  payload: { bowlerId: string };
+}
+
+/** An edit of a delivery the server already has (never an offline-queued one). */
+export interface UpdateBallPayload {
+  ballId: string;
+  runsScored: number;
+  extras: number;
+  extraType: BallEvent["extraType"] | null;
+  isWicket: boolean;
+  dismissalType: string | null;
+  batsmanId?: string | null;
+  bowlerId?: string | null;
+}
+
+export interface QueuedUpdateBall extends QueuedActionBase {
+  type: "updateBall";
+  payload: UpdateBallPayload;
+}
+
 export type QueuedAction =
   | QueuedRecordBall
   | QueuedSetBatsmen
   | QueuedSetBowler
   | QueuedEndInnings
   | QueuedUndoLastBall
-  | QueuedStartSuperOver;
+  | QueuedStartSuperOver
+  | QueuedRetireBatter
+  | QueuedAwardPenalty
+  | QueuedReassignOverBowler
+  | QueuedUpdateBall;
 
 // ---------------------------------------------------------------------------
 // Storage helpers
@@ -142,6 +201,15 @@ function safeRemoveItem(key: string): void {
 
 function generateQueueId(): string {
   return `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * A new action id. Generate it before calling the server directly so that, if the call
+ * fails on the network, the action can be queued under the same id (the server then
+ * recognises a replay of something it already applied).
+ */
+export function newActionId(): string {
+  return generateQueueId();
 }
 
 // ---------------------------------------------------------------------------
@@ -216,10 +284,11 @@ export function enqueueAction(
   matchId: string,
   type: QueuedActionType,
   payload: QueuedAction["payload"],
+  queueId: string = generateQueueId(),
 ): QueuedAction {
   const current = getPendingActions(matchId);
   const action = {
-    queueId: generateQueueId(),
+    queueId,
     matchId,
     type,
     payload,
@@ -402,8 +471,16 @@ export function hasPendingBalls(matchId: string): boolean {
 /**
  * Enqueue a ball delivery when network is unreachable.
  */
-export function enqueuePendingBall(params: PendingBallParams): QueuedBall {
-  const action = enqueueAction(params.matchId, "recordBall", params) as QueuedRecordBall;
+export function enqueuePendingBall(
+  params: PendingBallParams,
+  queueId?: string,
+): QueuedBall {
+  const action = enqueueAction(
+    params.matchId,
+    "recordBall",
+    params,
+    queueId,
+  ) as QueuedRecordBall;
   return {
     ...params,
     queueId: action.queueId,
@@ -461,14 +538,30 @@ export async function flushPendingBalls(
 // Flushing handlers
 // ---------------------------------------------------------------------------
 
+type FlushResult = Promise<{ error: string | null }>;
+
+/**
+ * Server calls per action type. Each receives the action's `queueId` as its last argument
+ * (`clientActionId`), to pass to the server as the idempotency key.
+ */
 export interface ActionFlushHandlers {
-  recordBall: (p: PendingBallParams) => Promise<{ error: string | null }>;
-  setBatsmen: (strikerId: string, nonStrikerId: string) => Promise<{ error: string | null }>;
-  setBowler: (bowlerId: string) => Promise<{ error: string | null }>;
-  endInnings: () => Promise<{ error: string | null }>;
-  undoLastBall: () => Promise<{ error: string | null }>;
-  startSuperOver?: () => Promise<{ error: string | null }>;
+  recordBall: (p: PendingBallParams, clientActionId: string) => FlushResult;
+  setBatsmen: (strikerId: string, nonStrikerId: string, clientActionId: string) => FlushResult;
+  setBowler: (bowlerId: string, clientActionId: string) => FlushResult;
+  endInnings: (clientActionId: string) => FlushResult;
+  undoLastBall: (clientActionId: string) => FlushResult;
+  startSuperOver?: (clientActionId: string) => FlushResult;
+  retireBatter?: (p: RetireBatterPayload, clientActionId: string) => FlushResult;
+  awardPenalty?: (p: AwardPenaltyPayload, clientActionId: string) => FlushResult;
+  reassignOverBowler?: (bowlerId: string, clientActionId: string) => FlushResult;
+  updateBall?: (p: UpdateBallPayload, clientActionId: string) => FlushResult;
 }
+
+/** A queued action with no handler stays queued (and is retried) rather than being dropped. */
+const NO_HANDLER = { error: "No sync handler for this action yet" };
+
+/** Flushes in progress, by match: a second flush waits for (and shares) the first. */
+const inFlight = new Map<string, Promise<{ synced: number; failed: number }>>();
 
 /**
  * Sequentially flush all pending actions to the server.
@@ -478,7 +571,23 @@ export interface ActionFlushHandlers {
  * fatal validation error or exceeds maxRetries (default 3), it is moved to DLQ
  * and removed from pending queue, unblocking subsequent valid deliveries.
  */
-export async function flushPendingActions(
+export function flushPendingActions(
+  matchId: string,
+  handlers: ActionFlushHandlers,
+  options?: FlushOptions,
+): Promise<{ synced: number; failed: number }> {
+  // Two flushes of one queue at once (the "online" event and a scorer's tap) would each
+  // send every pending action, recording each ball twice.
+  const running = inFlight.get(matchId);
+  if (running) return running;
+  const run = flushSequentially(matchId, handlers, options).finally(() => {
+    inFlight.delete(matchId);
+  });
+  inFlight.set(matchId, run);
+  return run;
+}
+
+async function flushSequentially(
   matchId: string,
   handlers: ActionFlushHandlers,
   options?: FlushOptions,
@@ -493,30 +602,52 @@ export async function flushPendingActions(
   for (const action of pending) {
     try {
       let res: { error: string | null };
+      const id = action.queueId;
 
       switch (action.type) {
         case "recordBall":
-          res = await handlers.recordBall(action.payload);
+          res = await handlers.recordBall(action.payload, id);
           break;
         case "setBatsmen":
           res = await handlers.setBatsmen(
             action.payload.strikerId,
             action.payload.nonStrikerId,
+            id,
           );
           break;
         case "setBowler":
-          res = await handlers.setBowler(action.payload.bowlerId);
+          res = await handlers.setBowler(action.payload.bowlerId, id);
           break;
         case "endInnings":
-          res = await handlers.endInnings();
+          res = await handlers.endInnings(id);
           break;
         case "undoLastBall":
-          res = await handlers.undoLastBall();
+          res = await handlers.undoLastBall(id);
           break;
         case "startSuperOver":
           res = handlers.startSuperOver
-            ? await handlers.startSuperOver()
+            ? await handlers.startSuperOver(id)
             : { error: null };
+          break;
+        case "retireBatter":
+          res = handlers.retireBatter
+            ? await handlers.retireBatter(action.payload, id)
+            : NO_HANDLER;
+          break;
+        case "awardPenalty":
+          res = handlers.awardPenalty
+            ? await handlers.awardPenalty(action.payload, id)
+            : NO_HANDLER;
+          break;
+        case "reassignOverBowler":
+          res = handlers.reassignOverBowler
+            ? await handlers.reassignOverBowler(action.payload.bowlerId, id)
+            : NO_HANDLER;
+          break;
+        case "updateBall":
+          res = handlers.updateBall
+            ? await handlers.updateBall(action.payload, id)
+            : NO_HANDLER;
           break;
         default:
           console.warn("OfflineQueue: Unknown action type:", action);

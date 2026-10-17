@@ -95,10 +95,7 @@ import { useWakeLock } from "~/lib/hooks/useWakeLock";
 import { cn } from "~/lib/utils";
 import {
   updateMatchSettings,
-  reassignCurrentOverBowler,
   abandonMatch,
-  awardTeamPenalty,
-  retirePlayer,
   updateTargetRuns,
 } from "../../mutations";
 import type { ExtraType } from "../../types";
@@ -244,6 +241,9 @@ export default function ScoringPage() {
     handleScore,
     handleUndo,
     handleUpdateBall,
+    handleRetireBatter,
+    handleAwardPenalty,
+    handleReassignOverBowler,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,
@@ -748,24 +748,23 @@ export default function ScoringPage() {
     reason?: string | null;
   }) => {
     if (!match) return;
-    const res = await retirePlayer(match.id, {
-      playerId,
-      type,
-      reason,
-    });
+    // Queued (and applied locally) when offline or behind queued actions.
+    const res = await handleRetireBatter({ playerId, type, reason });
     if (res.error) {
       toast.error(res.error);
     } else {
-      toast.success(
-        `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
-      );
+      if (!res.queued) {
+        toast.success(
+          `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
+        );
+      }
       if (strikerId === playerId) {
         setStrikerId(null);
       }
       if (nonStrikerId === playerId) {
         setNonStrikerId(null);
       }
-      await syncFromDb();
+      if (!res.queued) await syncFromDb();
       setShowSelectBatsmen(true);
     }
   };
@@ -777,10 +776,10 @@ export default function ScoringPage() {
     type: "penalty" | "bonus";
   }) => {
     if (!match) return;
-    const res = await awardTeamPenalty(match.id, params);
+    const res = await handleAwardPenalty(params);
     if (res.error) {
       toast.error(res.error);
-    } else {
+    } else if (!res.queued) {
       toast.success(
         `${params.type === "penalty" ? "Penalty" : "Bonus"} of ${params.runs} runs recorded`,
       );
@@ -1861,19 +1860,18 @@ export default function ScoringPage() {
             currentBowlerId &&
             (match.current_ball ?? 0) > 0
           ) {
-            const res = await reassignCurrentOverBowler(
-              match.id,
-              currentBowlerId,
-            );
+            const res = await handleReassignOverBowler(currentBowlerId);
             if (res.error) {
               toast.error(res.error);
             } else {
-              toast.success(
-                "Bowler updated and current over deliveries reassigned",
-              );
+              if (!res.queued) {
+                toast.success(
+                  "Bowler updated and current over deliveries reassigned",
+                );
+              }
               setShowSelectBowler(false);
               setReassignOverDeliveries(false);
-              await syncFromDb();
+              if (!res.queued) await syncFromDb();
             }
           } else {
             const res = await handleConfirmBowler(currentBowlerId);

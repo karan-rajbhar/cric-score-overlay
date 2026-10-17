@@ -71,6 +71,7 @@ const PER_BALL_MATCH_FIELDS = new Set([
   "current_over",
   "current_ball",
   "last_ball_seq",
+  "recent_client_actions",
   "innings_summary",
 ]);
 

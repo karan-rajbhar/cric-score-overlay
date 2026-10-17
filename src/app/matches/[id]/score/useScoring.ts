@@ -11,6 +11,9 @@ import {
   setCurrentBowler,
   endInnings,
   startSuperOver,
+  retirePlayer,
+  awardTeamPenalty,
+  reassignCurrentOverBowler,
 } from "../../mutations";
 import {
   enqueuePendingBall,
@@ -21,6 +24,9 @@ import {
   getPendingActions,
   getDeadLetterCount,
   skipHeadAction,
+  newActionId,
+  type AwardPenaltyPayload,
+  type RetireBatterPayload,
 } from "~/lib/offline-queue";
 import {
   processDeliveryLocally,
@@ -36,6 +42,54 @@ import type { BallEvent, ScoringState, ExtraType } from "../../types";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
 
 type Player = TeamPlayer;
+
+function isOfflineNow(): boolean {
+  return typeof navigator !== "undefined" && !navigator.onLine;
+}
+
+/** A thrown server-action call that never reached the server (or lost its reply). */
+function isNetworkError(err: unknown): boolean {
+  return (
+    isOfflineNow() ||
+    (err instanceof Error &&
+      (err.message.includes("fetch") ||
+        err.name === "NetworkError" ||
+        err.message.includes("Failed to fetch") ||
+        err.message.includes("network")))
+  );
+}
+
+/** A retirement on the local context (offline): the batter leaves the crease. */
+function retireLocally(
+  ctx: LocalScoringContext,
+  p: RetireBatterPayload,
+): LocalScoringContext {
+  return {
+    ...ctx,
+    strikerId: ctx.strikerId === p.playerId ? null : ctx.strikerId,
+    nonStrikerId: ctx.nonStrikerId === p.playerId ? null : ctx.nonStrikerId,
+    // Retired hurt is not out; retired out is a wicket.
+    totalWickets: ctx.totalWickets + (p.type === "retired_out" ? 1 : 0),
+  };
+}
+
+/**
+ * Penalty / bonus runs on the local context (offline): runs to the batting
+ * side count at once; runs to the fielding side are credited by the server
+ * to that side's own innings.
+ */
+function penaltyLocally(
+  ctx: LocalScoringContext,
+  p: AwardPenaltyPayload,
+  match: Pick<Match, "innings"> | null,
+): LocalScoringContext {
+  const battingTeam = match?.innings?.find(
+    (i) => i.innings_number === ctx.currentInnings,
+  )?.team_id;
+  return battingTeam && battingTeam === p.teamId
+    ? { ...ctx, totalRuns: ctx.totalRuns + p.runs }
+    : ctx;
+}
 
 function deliveryLabel(d: {
   runs_scored?: number | null;
@@ -296,13 +350,22 @@ export function useScoring(
     setIsProcessing(true);
     toast.info("Syncing offline deliveries with server...");
 
+    // Each action carries its queue id to the server as the idempotency key,
+    // so a replay after a lost response is not applied twice.
     const res = await flushPendingActions(matchId, {
-      recordBall: (ball) => recordBall(ball),
+      recordBall: (ball, id) => recordBall({ ...ball, clientActionId: id }),
       setBatsmen: (sId, nsId) => setCurrentBatsmen(matchId, sId, nsId),
       setBowler: (bId) => setCurrentBowler(matchId, bId),
-      endInnings: () => endInnings(matchId),
-      undoLastBall: () => undoLastBall(matchId),
-      startSuperOver: () => startSuperOver(matchId),
+      endInnings: (id) => endInnings(matchId, id),
+      undoLastBall: (id) => undoLastBall(matchId, id),
+      startSuperOver: (id) => startSuperOver(matchId, id),
+      retireBatter: (p, id) =>
+        retirePlayer(matchId, { ...p, clientActionId: id }),
+      awardPenalty: (p, id) =>
+        awardTeamPenalty(matchId, { ...p, clientActionId: id }),
+      reassignOverBowler: (bId, id) =>
+        reassignCurrentOverBowler(matchId, bId, id),
+      updateBall: (p) => updateBall({ matchId, ...p }),
     });
 
     setPendingCount(getPendingCount(matchId));
@@ -319,6 +382,18 @@ export function useScoring(
     setIsProcessing(false);
     return res;
   }, [matchId, syncFromDb]);
+
+  /**
+   * Before sending an action straight to the server: replay anything still
+   * queued first, so the server sees actions in the order they were made.
+   * Returns false when the queue could not be emptied; the caller then
+   * queues its action behind the others instead.
+   */
+  const drainQueue = useCallback(async (): Promise<boolean> => {
+    if (getPendingCount(matchId) === 0) return true;
+    await flushOfflineQueue();
+    return getPendingCount(matchId) === 0;
+  }, [matchId, flushOfflineQueue]);
 
   useEffect(() => {
     const handleOnline = async () => {
@@ -602,6 +677,7 @@ export function useScoring(
     batsmanId: string,
     nonStriker: string,
     event: BallEvent,
+    actionId?: string,
   ) => {
     if (!bowlerId) {
       toast.error("Select a bowler before scoring");
@@ -643,13 +719,16 @@ export function useScoring(
         bowlerId: bowlerId,
       };
 
-      enqueuePendingBall({
-        matchId,
-        bowlerId,
-        batsmanId,
-        nonStrikerId: nonStriker,
-        event,
-      });
+      enqueuePendingBall(
+        {
+          matchId,
+          bowlerId,
+          batsmanId,
+          nonStrikerId: nonStriker,
+          event,
+        },
+        actionId,
+      );
 
       const result = processDeliveryLocally(ctxToProcess, event);
       localCtxRef.current = result;
@@ -707,13 +786,18 @@ export function useScoring(
   ) => {
     setIsProcessing(true);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOfflineNow()) {
       return scoreOffline(bowlerId, batsmanId, nonStriker, event);
     }
 
+    // Sent with the request so that, should the reply be lost, the queued
+    // retry is recognised by the server instead of recording a second ball.
+    const actionId = newActionId();
     try {
-      if (getPendingCount(matchId) > 0) {
-        await flushOfflineQueue();
+      // Queued deliveries go first; if some could not be sent, this one
+      // waits behind them.
+      if (!(await drainQueue())) {
+        return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId);
       }
 
       const result = await recordBall({
@@ -722,6 +806,7 @@ export function useScoring(
         batsmanId,
         nonStrikerId: nonStriker,
         event,
+        clientActionId: actionId,
       });
       if (result.error) {
         toast.error(result.error);
@@ -731,15 +816,9 @@ export function useScoring(
       setIsProcessing(false);
       return result;
     } catch (err: unknown) {
-      const isNetwork =
-        (typeof navigator !== "undefined" && !navigator.onLine) ||
-        (err instanceof Error &&
-          (err.message.includes("fetch") ||
-            err.name === "NetworkError" ||
-            err.message.includes("Failed to fetch") ||
-            err.message.includes("network")));
-      if (isNetwork) {
-        return scoreOffline(bowlerId, batsmanId, nonStriker, event);
+      if (isNetworkError(err)) {
+        // Same id: if the server did record it, the replay is a no-op.
+        return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId);
       }
       console.error("handleScore error:", err);
       toast.error("Failed to record ball");
@@ -751,7 +830,9 @@ export function useScoring(
   const handleUndo = async () => {
     setIsProcessing(true);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    // While actions are still queued, the last action is a queued one: undo
+    // it locally rather than undoing the server's last ball out of order.
+    if (isOfflineNow() || !(await drainQueue())) {
       const lastAction = popLastAction(matchId);
       if (lastAction) {
         setPendingCount(getPendingCount(matchId));
@@ -780,8 +861,15 @@ export function useScoring(
             } else if (a.type === "setBatsmen") {
               replayCtx.strikerId = a.payload.strikerId;
               replayCtx.nonStrikerId = a.payload.nonStrikerId;
-            } else if (a.type === "setBowler") {
+            } else if (
+              a.type === "setBowler" ||
+              a.type === "reassignOverBowler"
+            ) {
               replayCtx.bowlerId = a.payload.bowlerId;
+            } else if (a.type === "retireBatter") {
+              replayCtx = retireLocally(replayCtx, a.payload);
+            } else if (a.type === "awardPenalty") {
+              replayCtx = penaltyLocally(replayCtx, a.payload, cached.match);
             } else if (a.type === "startSuperOver") {
               replayCtx.currentInnings = (replayCtx.currentInnings ?? 2) + 1;
               replayCtx.currentOver = 0;
@@ -844,26 +932,140 @@ export function useScoring(
     batsmanId?: string | null;
     bowlerId?: string | null;
   }) => {
-    setIsProcessing(true);
-    const result = await updateBall({
-      matchId,
-      ...params,
-    });
-    if (result.error) {
-      toast.error(result.error);
-    } else if (result.data) {
-      applyState(result.data);
-      toast.success("Delivery updated in place");
+    // A delivery recorded offline has no server id yet: it cannot be edited
+    // until it has synced (undo it and score it again instead).
+    if (params.ballId.startsWith("offline-ball-")) {
+      const err =
+        "This delivery has not synced yet. Undo it and score it again instead.";
+      toast.error(err);
+      return { data: null, error: err };
     }
-    await syncFromDb();
-    setIsProcessing(false);
-    return result;
+    setIsProcessing(true);
+    const queueIt = () => {
+      enqueueAction(matchId, "updateBall", params);
+      setPendingCount(getPendingCount(matchId));
+      setRawDeliveries((prev) =>
+        prev.map((d) =>
+          d.id === params.ballId
+            ? {
+                ...d,
+                runs_scored: params.runsScored,
+                extras: params.extras,
+                extra_type: params.extraType,
+                is_wicket: params.isWicket,
+                dismissal_type: params.dismissalType,
+                batsman_id: params.batsmanId ?? d.batsman_id,
+                bowler_id: params.bowlerId ?? d.bowler_id,
+              }
+            : d,
+        ),
+      );
+      toast.info("Offline: delivery edit queued for sync.");
+      setIsProcessing(false);
+      return { data: null, error: null };
+    };
+    try {
+      if (isOfflineNow() || !(await drainQueue())) return queueIt();
+      const result = await updateBall({
+        matchId,
+        ...params,
+      });
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        applyState(result.data);
+        toast.success("Delivery updated in place");
+      }
+      await syncFromDb();
+      setIsProcessing(false);
+      return result;
+    } catch (err) {
+      // update_ball sets the delivery's values, so a replay is harmless.
+      if (isNetworkError(err)) return queueIt();
+      setIsProcessing(false);
+      return { data: null, error: "Failed to update delivery" };
+    }
   };
+
+  /**
+   * Runs a match action that edits the ball log outside `record_ball`
+   * (retirement, penalty runs, re-assigning the over): straight to the
+   * server when nothing is queued, otherwise (or offline, or when the call
+   * fails on the network) queued behind the other actions under the id it
+   * was sent with, so a replay is never applied twice.
+   */
+  const runOrQueue = async (
+    send: (actionId: string) => Promise<{ error: string | null }>,
+    queue: (actionId: string) => void,
+  ): Promise<{ error: string | null; queued: boolean }> => {
+    setIsProcessing(true);
+    const actionId = newActionId();
+    const queueIt = () => {
+      queue(actionId);
+      setPendingCount(getPendingCount(matchId));
+      setIsProcessing(false);
+      return { error: null, queued: true };
+    };
+    try {
+      if (isOfflineNow() || !(await drainQueue())) return queueIt();
+      const res = await send(actionId);
+      setIsProcessing(false);
+      return { error: res.error, queued: false };
+    } catch (err) {
+      if (isNetworkError(err)) return queueIt();
+      setIsProcessing(false);
+      return {
+        error: err instanceof Error ? err.message : "Request failed",
+        queued: false,
+      };
+    }
+  };
+
+  const handleRetireBatter = (payload: RetireBatterPayload) =>
+    runOrQueue(
+      (id) => retirePlayer(matchId, { ...payload, clientActionId: id }),
+      (id) => {
+        enqueueAction(matchId, "retireBatter", payload, id);
+        if (localCtxRef.current) {
+          localCtxRef.current = retireLocally(localCtxRef.current, payload);
+        }
+        setStrikerId((id) => (id === payload.playerId ? null : id));
+        setNonStrikerId((id) => (id === payload.playerId ? null : id));
+        toast.info("Offline: retirement queued for sync.");
+      },
+    );
+
+  const handleAwardPenalty = (payload: AwardPenaltyPayload) =>
+    runOrQueue(
+      (id) => awardTeamPenalty(matchId, { ...payload, clientActionId: id }),
+      (id) => {
+        enqueueAction(matchId, "awardPenalty", payload, id);
+        if (localCtxRef.current) {
+          localCtxRef.current = penaltyLocally(
+            localCtxRef.current,
+            payload,
+            match,
+          );
+        }
+        toast.info("Offline: penalty runs queued for sync.");
+      },
+    );
+
+  const handleReassignOverBowler = (bowlerId: string) =>
+    runOrQueue(
+      (id) => reassignCurrentOverBowler(matchId, bowlerId, id),
+      (id) => {
+        enqueueAction(matchId, "reassignOverBowler", { bowlerId }, id);
+        if (localCtxRef.current) localCtxRef.current.bowlerId = bowlerId;
+        setCurrentBowlerId(bowlerId);
+        toast.info("Offline: bowler change queued for sync.");
+      },
+    );
 
   const handleStartSuperOver = async () => {
     setIsProcessing(true);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOfflineNow() || !(await drainQueue())) {
       enqueueAction(matchId, "startSuperOver", {});
       setPendingCount(getPendingCount(matchId));
 
@@ -980,8 +1182,9 @@ export function useScoring(
       return { data: null, error: null };
     }
 
+    const actionId = newActionId();
     try {
-      const result = await startSuperOver(matchId);
+      const result = await startSuperOver(matchId, actionId);
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
@@ -992,7 +1195,8 @@ export function useScoring(
       setIsProcessing(false);
       return result;
     } catch {
-      enqueueAction(matchId, "startSuperOver", {});
+      // Same id: if the server did start it, the replay is a no-op.
+      enqueueAction(matchId, "startSuperOver", {}, actionId);
       setPendingCount(getPendingCount(matchId));
       toast.success("Super Over queued for sync");
       setIsProcessing(false);
@@ -1024,7 +1228,7 @@ export function useScoring(
 
     setIsProcessing(true);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOfflineNow() || !(await drainQueue())) {
       setStrikerId(sId);
       setNonStrikerId(nsId);
       if (localCtxRef.current) {
@@ -1220,7 +1424,7 @@ export function useScoring(
       };
     });
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOfflineNow() || !(await drainQueue())) {
       enqueueAction(matchId, "setBowler", { bowlerId });
       setPendingCount(getPendingCount(matchId));
       if (match) {
@@ -1327,7 +1531,7 @@ export function useScoring(
   const handleEndInnings = async () => {
     setIsProcessing(true);
 
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
+    if (isOfflineNow() || !(await drainQueue())) {
       enqueueAction(matchId, "endInnings", {});
       setPendingCount(getPendingCount(matchId));
 
@@ -1421,7 +1625,7 @@ export function useScoring(
     }
 
     try {
-      const result = await endInnings(matchId);
+      const result = await endInnings(matchId, newActionId());
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
@@ -1473,6 +1677,9 @@ export function useScoring(
     handleScore,
     handleUndo,
     handleUpdateBall,
+    handleRetireBatter,
+    handleAwardPenalty,
+    handleReassignOverBowler,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,

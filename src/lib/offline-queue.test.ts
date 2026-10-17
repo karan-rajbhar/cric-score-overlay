@@ -172,6 +172,8 @@ describe("Offline Scorer Queue", () => {
       enqueueAction(matchId, "recordBall", dummyBall);
       enqueueAction(matchId, "undoLastBall", {} as Record<string, never>);
       enqueueAction(matchId, "endInnings", {} as Record<string, never>);
+      const queued = getPendingActions(matchId).map((a) => a.queueId);
+      const getQueueIds = () => queued;
 
       const handlers: ActionFlushHandlers = {
         setBatsmen: vi.fn().mockResolvedValue({ error: null }),
@@ -184,9 +186,11 @@ describe("Offline Scorer Queue", () => {
       const result = await flushPendingActions(matchId, handlers);
       expect(result.synced).toBe(5);
       expect(result.failed).toBe(0);
-      expect(handlers.setBatsmen).toHaveBeenCalledWith("bat-1", "bat-2");
-      expect(handlers.setBowler).toHaveBeenCalledWith("bowl-1");
-      expect(handlers.recordBall).toHaveBeenCalledWith(dummyBall);
+      // Each handler also gets the action's queueId (idempotency key).
+      const ids = getQueueIds();
+      expect(handlers.setBatsmen).toHaveBeenCalledWith("bat-1", "bat-2", ids[0]);
+      expect(handlers.setBowler).toHaveBeenCalledWith("bowl-1", ids[1]);
+      expect(handlers.recordBall).toHaveBeenCalledWith(dummyBall, ids[2]);
       expect(handlers.undoLastBall).toHaveBeenCalledTimes(1);
       expect(handlers.endInnings).toHaveBeenCalledTimes(1);
       expect(getPendingActions(matchId)).toHaveLength(0);

@@ -68,7 +68,13 @@ export async function callRpc(
   args: Args,
   ctx: RpcContext,
 ): Promise<unknown> {
-  const scoring = { db: ctx.db, ds: ctx.ds, uid: ctx.uid };
+  const scoring = {
+    db: ctx.db,
+    ds: ctx.ds,
+    uid: ctx.uid,
+    // Offline-queue replays: an action already applied is not applied again.
+    clientActionId: optStr(args, "p_client_action_id"),
+  };
   switch (name) {
     case "record_ball":
       return recordBall(scoring, args as unknown as RecordBallArgs);
