@@ -5,7 +5,6 @@ import {
   hasPendingBalls,
   removePendingBall,
   clearPendingBalls,
-  flushPendingBalls,
   enqueueAction,
   getPendingActions,
   getPendingCount,
@@ -18,9 +17,38 @@ import {
   getDeadLetterCount,
   clearDeadLetterActions,
   skipHeadAction,
-  type ActionFlushHandlers,
+  postReplayBatch,
   type PendingBallParams,
+  type QueuedActionType,
+  type ReplayTransport,
 } from "./offline-queue";
+import type { ReplayActionResult } from "./scoring-replay/protocol";
+
+type Handler = (payload: unknown, id: string) => Promise<{ error: string | null }>;
+type ActionFlushHandlers = Partial<Record<QueuedActionType, Handler>>;
+
+/**
+ * A stand-in for POST /api/scoring/replay: runs each action through its
+ * handler in order and stops at the first failure. A handler that throws
+ * loses the whole reply (the transport throws, like a dropped connection).
+ */
+function routeLike(handlers: ActionFlushHandlers): ReplayTransport {
+  return async (batch) => {
+    const results: ReplayActionResult[] = [];
+    for (const a of batch.actions) {
+      const handler = handlers[a.type as QueuedActionType];
+      const res = handler
+        ? await handler(a.payload, a.id)
+        : { error: `unsupported_action_type: ${a.type}` };
+      if (res.error) {
+        results.push({ id: a.id, status: "failed", error: res.error });
+        break;
+      }
+      results.push({ id: a.id, status: "applied" });
+    }
+    return { ok: true, response: { v: 1, results } };
+  };
+}
 
 describe("Offline Scorer Queue", () => {
   const matchId = "match-offline-123";
@@ -86,7 +114,10 @@ describe("Offline Scorer Queue", () => {
 
     const submitFn = vi.fn().mockResolvedValue({ error: null });
 
-    const result = await flushPendingBalls(matchId, submitFn);
+    const result = await flushPendingActions(
+      matchId,
+      routeLike({ recordBall: submitFn }),
+    );
     expect(result.synced).toBe(2);
     expect(result.failed).toBe(0);
     expect(submitFn).toHaveBeenCalledTimes(2);
@@ -100,7 +131,10 @@ describe("Offline Scorer Queue", () => {
     // First ball fails with network/server error
     const submitFn = vi.fn().mockResolvedValueOnce({ error: "Network timeout" });
 
-    const result = await flushPendingBalls(matchId, submitFn);
+    const result = await flushPendingActions(
+      matchId,
+      routeLike({ recordBall: submitFn }),
+    );
     expect(result.synced).toBe(0);
     expect(result.failed).toBe(1);
     expect(submitFn).toHaveBeenCalledTimes(1);
@@ -183,13 +217,16 @@ describe("Offline Scorer Queue", () => {
         endInnings: vi.fn().mockResolvedValue({ error: null }),
       };
 
-      const result = await flushPendingActions(matchId, handlers);
+      const result = await flushPendingActions(matchId, routeLike(handlers));
       expect(result.synced).toBe(5);
       expect(result.failed).toBe(0);
-      // Each handler also gets the action's queueId (idempotency key).
+      // Each action is sent with its queueId (idempotency key).
       const ids = getQueueIds();
-      expect(handlers.setBatsmen).toHaveBeenCalledWith("bat-1", "bat-2", ids[0]);
-      expect(handlers.setBowler).toHaveBeenCalledWith("bowl-1", ids[1]);
+      expect(handlers.setBatsmen).toHaveBeenCalledWith(
+        { strikerId: "bat-1", nonStrikerId: "bat-2" },
+        ids[0],
+      );
+      expect(handlers.setBowler).toHaveBeenCalledWith({ bowlerId: "bowl-1" }, ids[1]);
       expect(handlers.recordBall).toHaveBeenCalledWith(dummyBall, ids[2]);
       expect(handlers.undoLastBall).toHaveBeenCalledTimes(1);
       expect(handlers.endInnings).toHaveBeenCalledTimes(1);
@@ -208,7 +245,7 @@ describe("Offline Scorer Queue", () => {
         endInnings: vi.fn().mockResolvedValue({ error: null }),
       };
 
-      const result = await flushPendingActions(matchId, handlers);
+      const result = await flushPendingActions(matchId, routeLike(handlers));
       expect(result.synced).toBe(0);
       expect(result.failed).toBe(1);
       expect(handlers.setBowler).toHaveBeenCalledTimes(1);
@@ -227,7 +264,7 @@ describe("Offline Scorer Queue", () => {
         endInnings: vi.fn().mockResolvedValue({ error: null }),
       };
 
-      const result = await flushPendingActions(matchId, handlers);
+      const result = await flushPendingActions(matchId, routeLike(handlers));
       expect(result.synced).toBe(0);
       expect(result.failed).toBe(1);
       expect(getPendingActions(matchId)).toHaveLength(1);
@@ -250,7 +287,7 @@ describe("Offline Scorer Queue", () => {
         endInnings: vi.fn().mockResolvedValue({ error: null }),
       };
 
-      const result = await flushPendingActions(matchId, handlers);
+      const result = await flushPendingActions(matchId, routeLike(handlers));
       // Head action was moved to DLQ, 2nd action succeeded
       expect(result.failed).toBe(1);
       expect(result.synced).toBe(1);
@@ -280,21 +317,21 @@ describe("Offline Scorer Queue", () => {
       };
 
       // Attempt 1: retryCount becomes 1, queue stops to preserve order
-      const r1 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      const r1 = await flushPendingActions(matchId, routeLike(handlers), { maxRetries: 3 });
       expect(r1.failed).toBe(1);
       expect(r1.synced).toBe(0);
       expect(getPendingActions(matchId)).toHaveLength(2);
       expect(getDeadLetterCount(matchId)).toBe(0);
 
       // Attempt 2: retryCount becomes 2
-      const r2 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      const r2 = await flushPendingActions(matchId, routeLike(handlers), { maxRetries: 3 });
       expect(r2.failed).toBe(1);
       expect(r2.synced).toBe(0);
       expect(getPendingActions(matchId)).toHaveLength(2);
       expect(getDeadLetterCount(matchId)).toBe(0);
 
       // Attempt 3: retryCount reaches 3 -> moved to DLQ, subsequent recordBall drains!
-      const r3 = await flushPendingActions(matchId, handlers, { maxRetries: 3 });
+      const r3 = await flushPendingActions(matchId, routeLike(handlers), { maxRetries: 3 });
       expect(r3.failed).toBe(1);
       expect(r3.synced).toBe(1);
       expect(getPendingActions(matchId)).toHaveLength(0);
@@ -338,11 +375,174 @@ describe("Offline Scorer Queue", () => {
         startSuperOver: vi.fn().mockResolvedValue({ error: null }),
       };
 
-      const result = await flushPendingActions(matchId, handlers);
+      const result = await flushPendingActions(matchId, routeLike(handlers));
       expect(result.synced).toBe(1);
       expect(result.failed).toBe(0);
       expect(handlers.startSuperOver).toHaveBeenCalledTimes(1);
       expect(getPendingActions(matchId)).toHaveLength(0);
+    });
+  });
+});
+
+describe("Offline queue replay through /api/scoring/replay", () => {
+  const matchId = "match-replay-1";
+  const ball = (runs: number): PendingBallParams => ({
+    matchId,
+    bowlerId: "b1",
+    batsmanId: "a1",
+    nonStrikerId: "a2",
+    event: { runsScored: runs },
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the queue in order, in batches of at most batchSize", async () => {
+    for (let i = 0; i < 12; i++) enqueuePendingBall(ball(i % 4));
+    const ids = getPendingActions(matchId).map((a) => a.queueId);
+    const sent: string[][] = [];
+    const route = routeLike({ recordBall: async () => ({ error: null }) });
+    const result = await flushPendingActions(matchId, async (batch) => {
+      expect(batch).toMatchObject({ v: 1, matchId });
+      sent.push(batch.actions.map((a) => a.id));
+      return route(batch);
+    });
+    expect(result).toEqual({ synced: 12, failed: 0 });
+    expect(sent.map((s) => s.length)).toEqual([10, 2]);
+    expect(sent.flat()).toEqual(ids);
+  });
+
+  it("drops duplicates: a batch whose reply was lost is re-sent and recognised", async () => {
+    enqueuePendingBall(ball(1));
+    enqueuePendingBall(ball(2));
+    const applied = new Set<string>();
+    let loseReply = true;
+    const send: ReplayTransport = async (batch) => {
+      const results = batch.actions.map((a): ReplayActionResult => {
+        const dup = applied.has(a.id);
+        applied.add(a.id);
+        return { id: a.id, status: dup ? "duplicate" : "applied" };
+      });
+      if (loseReply) {
+        loseReply = false;
+        throw new TypeError("Failed to fetch");
+      }
+      return { ok: true, response: { v: 1, results } };
+    };
+
+    expect(await flushPendingActions(matchId, send)).toEqual({ synced: 0, failed: 1 });
+    expect(getPendingActions(matchId)).toHaveLength(2);
+    expect(getPendingActions(matchId)[0]!.retryCount).toBe(1);
+
+    expect(await flushPendingActions(matchId, send)).toEqual({ synced: 2, failed: 0 });
+    expect(getPendingActions(matchId)).toHaveLength(0);
+    expect(applied.size).toBe(2);
+  });
+
+  it("keeps the queue untouched when the server refuses the batch (unknown version, signed out)", async () => {
+    enqueuePendingBall(ball(1));
+    const before = getPendingActions(matchId);
+    for (const [status, code] of [
+      [400, "unsupported_version"],
+      [401, "not_authenticated"],
+    ] as const) {
+      const result = await flushPendingActions(matchId, async () => ({
+        ok: false,
+        status,
+        code,
+        message: "refused",
+      }));
+      expect(result).toEqual({
+        synced: 0,
+        failed: 0,
+        errorCode: code,
+        errorMessage: "refused",
+      });
+      expect(getPendingActions(matchId)).toEqual(before);
+      expect(getDeadLetterCount(matchId)).toBe(0);
+    }
+  });
+
+  it("treats a 5xx like a dropped connection: retried, then dead-lettered", async () => {
+    enqueuePendingBall(ball(1));
+    const down: ReplayTransport = async () => ({
+      ok: false,
+      status: 503,
+      code: "http_503",
+      message: "Service Unavailable",
+    });
+    expect(await flushPendingActions(matchId, down, { maxRetries: 2 })).toEqual({
+      synced: 0,
+      failed: 1,
+    });
+    expect(getPendingActions(matchId)[0]!.retryCount).toBe(1);
+    await flushPendingActions(matchId, down, { maxRetries: 2 });
+    expect(getPendingActions(matchId)).toHaveLength(0);
+    expect(getDeadLetterCount(matchId)).toBe(1);
+  });
+
+  it("runs one flush per match at a time", async () => {
+    enqueuePendingBall(ball(1));
+    const send = vi.fn(routeLike({ recordBall: async () => ({ error: null }) }));
+    const [a, b] = await Promise.all([
+      flushPendingActions(matchId, send),
+      flushPendingActions(matchId, send),
+    ]);
+    expect(b).toBe(a);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("postReplayBatch posts JSON (keepalive) and reads results or the error code", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ v: 1, results: [{ id: "x", status: "applied" }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: { code: "unsupported_version", message: "no v9" },
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response("<html>bad gateway</html>", { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const batch = {
+      v: 1,
+      matchId,
+      actions: [{ id: "x", type: "undoLastBall", payload: {} }],
+    };
+
+    expect(await postReplayBatch(batch)).toEqual({
+      ok: true,
+      response: { v: 1, results: [{ id: "x", status: "applied" }] },
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/scoring/replay");
+    expect(init).toMatchObject({
+      method: "POST",
+      keepalive: true,
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(JSON.parse(String(init.body))).toEqual(batch);
+
+    expect(await postReplayBatch(batch)).toEqual({
+      ok: false,
+      status: 400,
+      code: "unsupported_version",
+      message: "no v9",
+    });
+    expect(await postReplayBatch(batch)).toMatchObject({
+      ok: false,
+      status: 502,
+      code: "http_502",
     });
   });
 });

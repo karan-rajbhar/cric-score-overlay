@@ -6,13 +6,26 @@
  * startSuperOver, retireBatter, awardPenalty, reassignOverBowler, updateBall) and ensures
  * strict sequential replay on reconnect to preserve cricket delivery order.
  *
- * Every action's `queueId` doubles as its idempotency key: handlers send it to the server
- * (`p_client_action_id`), which ignores an action it has already applied. A replay after a
+ * The queue replays through `POST /api/scoring/replay` (a stable, versioned route; see
+ * `~/lib/scoring-replay/protocol.ts`), never through server actions, whose ids change with
+ * every build: a queue recorded on one deploy still replays after the next.
+ *
+ * Every action's `queueId` doubles as its idempotency key: the server receives it as
+ * `p_client_action_id` and ignores an action it has already applied. A replay after a
  * lost response (the server applied the action, the client never heard back) is therefore
  * a no-op instead of a second ball. Only one flush per match runs at a time.
  */
 
 import type { BallEvent } from "~/app/matches/types";
+import {
+  MAX_REPLAY_ACTIONS,
+  REPLAY_BATCH_SIZE,
+  REPLAY_PATH,
+  REPLAY_VERSION,
+  type ReplayBatch,
+  type ReplayErrorResponse,
+  type ReplayResponse,
+} from "~/lib/scoring-replay/protocol";
 
 // ---------------------------------------------------------------------------
 // Ball-specific types (backwards-compatible)
@@ -532,210 +545,222 @@ export function clearPendingBalls(matchId: string): void {
   safeRemoveItem(getLegacyKey(matchId));
 }
 
+// ---------------------------------------------------------------------------
+// Flushing: replay through POST /api/scoring/replay
+// ---------------------------------------------------------------------------
+
 export interface FlushOptions {
   maxRetries?: number;
+  /** Actions per request (at most MAX_REPLAY_ACTIONS). */
+  batchSize?: number;
 }
 
+export interface FlushResult {
+  synced: number;
+  failed: number;
+  /**
+   * Set when the server refused the whole batch (`unsupported_version`,
+   * `not_authenticated`, ...): nothing was applied and the queue is kept
+   * as it was, to retry later.
+   */
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+/** What a replay request came back with (a network failure throws). */
+export type ReplayTransportResult =
+  | { ok: true; response: ReplayResponse }
+  | { ok: false; status: number; code: string; message: string };
+
+/** Sends one replay batch. The default posts it to the replay route. */
+export type ReplayTransport = (
+  batch: ReplayBatch,
+) => Promise<ReplayTransportResult>;
+
+/** keepalive bodies share a 64 KiB budget per page; stay well inside it. */
+const KEEPALIVE_MAX_BYTES = 32 * 1024;
+
 /**
- * Sequentially flushes all pending offline balls to the server.
+ * POSTs a batch to the replay route. `keepalive` lets a small batch finish
+ * when the scorer closes or reloads the page mid-sync.
  */
-export async function flushPendingBalls(
+export const postReplayBatch: ReplayTransport = async (batch) => {
+  const body = JSON.stringify(batch);
+  const res = await fetch(REPLAY_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    credentials: "same-origin",
+    cache: "no-store",
+    keepalive: new TextEncoder().encode(body).byteLength <= KEEPALIVE_MAX_BYTES,
+  });
+  let json: unknown = null;
+  try {
+    json = await res.json();
+  } catch {
+    // Not JSON (a proxy error page): handled below by status.
+  }
+  const results = (json as Partial<ReplayResponse> | null)?.results;
+  if (res.ok && Array.isArray(results)) {
+    return { ok: true, response: json as ReplayResponse };
+  }
+  const error = (json as Partial<ReplayErrorResponse> | null)?.error;
+  return {
+    ok: false,
+    status: res.status,
+    code: error?.code ?? `http_${res.status}`,
+    message: error?.message ?? (res.statusText || `HTTP ${res.status}`),
+  };
+};
+
+export function toReplayBatch(
   matchId: string,
-  submitFn: (ball: PendingBallParams) => Promise<{ error: string | null }>,
-  options?: FlushOptions,
-): Promise<{ synced: number; failed: number }> {
-  return flushPendingActions(
+  actions: QueuedAction[],
+): ReplayBatch {
+  return {
+    v: REPLAY_VERSION,
     matchId,
-    {
-      recordBall: submitFn,
-      setBatsmen: async () => ({ error: null }),
-      setBowler: async () => ({ error: null }),
-      endInnings: async () => ({ error: null }),
-      undoLastBall: async () => ({ error: null }),
-      startSuperOver: async () => ({ error: null }),
-    },
-    options,
-  );
+    actions: actions.map((a) => ({
+      id: a.queueId,
+      type: a.type,
+      payload: a.payload,
+      queuedAt: a.enqueuedAt,
+    })),
+  };
 }
-
-// ---------------------------------------------------------------------------
-// Flushing handlers
-// ---------------------------------------------------------------------------
-
-type FlushResult = Promise<{ error: string | null }>;
-
-/**
- * Server calls per action type. Each receives the action's `queueId` as its last argument
- * (`clientActionId`), to pass to the server as the idempotency key.
- */
-export interface ActionFlushHandlers {
-  recordBall: (p: PendingBallParams, clientActionId: string) => FlushResult;
-  setBatsmen: (strikerId: string, nonStrikerId: string, clientActionId: string) => FlushResult;
-  setBowler: (bowlerId: string, clientActionId: string) => FlushResult;
-  endInnings: (clientActionId: string) => FlushResult;
-  undoLastBall: (clientActionId: string) => FlushResult;
-  startSuperOver?: (clientActionId: string) => FlushResult;
-  retireBatter?: (p: RetireBatterPayload, clientActionId: string) => FlushResult;
-  awardPenalty?: (p: AwardPenaltyPayload, clientActionId: string) => FlushResult;
-  reassignOverBowler?: (bowlerId: string, clientActionId: string) => FlushResult;
-  updateBall?: (p: UpdateBallPayload, clientActionId: string) => FlushResult;
-}
-
-/** A queued action with no handler stays queued (and is retried) rather than being dropped. */
-const NO_HANDLER = { error: "No sync handler for this action yet" };
 
 /** Flushes in progress, by match: a second flush waits for (and shares) the first. */
-const inFlight = new Map<string, Promise<{ synced: number; failed: number }>>();
+const inFlight = new Map<string, Promise<FlushResult>>();
 
 /**
- * Sequentially flush all pending actions to the server.
- * Each action type is dispatched to the appropriate server action via the handlers map.
+ * Replays all pending actions for a match, in order, through the replay
+ * route (not server actions, whose ids change with each deploy). Each
+ * action's queue id is its idempotency key, so a batch re-sent after a
+ * lost reply is not applied twice.
  *
- * Implements a Dead Letter Queue (DLQ): If an action encounters an unrecoverable
- * fatal validation error or exceeds maxRetries (default 3), it is moved to DLQ
- * and removed from pending queue, unblocking subsequent valid deliveries.
+ * Applied and duplicate actions leave the queue. A failed action is retried
+ * on the next flush; a fatal error (see {@link isFatalSyncError}) or more
+ * than `maxRetries` (default 3) failures move it to the Dead Letter Queue,
+ * unblocking the actions behind it.
  */
 export function flushPendingActions(
   matchId: string,
-  handlers: ActionFlushHandlers,
+  send: ReplayTransport = postReplayBatch,
   options?: FlushOptions,
-): Promise<{ synced: number; failed: number }> {
-  // Two flushes of one queue at once (the "online" event and a scorer's tap) would each
-  // send every pending action, recording each ball twice.
+): Promise<FlushResult> {
+  // Two flushes of one queue at once (the "online" event and a scorer's tap)
+  // would each send every pending action.
   const running = inFlight.get(matchId);
   if (running) return running;
-  const run = flushSequentially(matchId, handlers, options).finally(() => {
+  const run = flushSequentially(matchId, send, options).finally(() => {
     inFlight.delete(matchId);
   });
   inFlight.set(matchId, run);
   return run;
 }
 
+/**
+ * Records a failed attempt of `action`. Returns true when it was moved to
+ * the Dead Letter Queue (the queue can move on), false when it stays at
+ * the head to be retried.
+ */
+function recordFailure(
+  matchId: string,
+  action: QueuedAction,
+  error: string,
+  maxRetries: number,
+): boolean {
+  const retries = (action.retryCount ?? 0) + 1;
+  const updated: QueuedAction = {
+    ...action,
+    retryCount: retries,
+    lastError: error,
+  };
+  if (isFatalSyncError(error) || retries >= maxRetries) {
+    console.warn(
+      `OfflineQueue: Moving action ${action.type} (id: ${action.queueId}) to Dead Letter Queue:`,
+      error,
+    );
+    moveToDeadLetter(matchId, updated, error);
+    removeAction(matchId, action.queueId);
+    return true;
+  }
+  updateAction(matchId, updated);
+  return false;
+}
+
 async function flushSequentially(
   matchId: string,
-  handlers: ActionFlushHandlers,
+  send: ReplayTransport,
   options?: FlushOptions,
-): Promise<{ synced: number; failed: number }> {
+): Promise<FlushResult> {
   const maxRetries = options?.maxRetries ?? 3;
-  const pending = getPendingActions(matchId);
-  if (pending.length === 0) return { synced: 0, failed: 0 };
-
+  const batchSize = Math.min(
+    Math.max(1, options?.batchSize ?? REPLAY_BATCH_SIZE),
+    MAX_REPLAY_ACTIONS,
+  );
   let synced = 0;
   let failed = 0;
 
-  for (const action of pending) {
+  for (;;) {
+    const batch = getPendingActions(matchId).slice(0, batchSize);
+    const head = batch[0];
+    if (!head) break;
+
+    let out: ReplayTransportResult;
     try {
-      let res: { error: string | null };
-      const id = action.queueId;
-
-      switch (action.type) {
-        case "recordBall":
-          res = await handlers.recordBall(action.payload, id);
-          break;
-        case "setBatsmen":
-          res = await handlers.setBatsmen(
-            action.payload.strikerId,
-            action.payload.nonStrikerId,
-            id,
-          );
-          break;
-        case "setBowler":
-          res = await handlers.setBowler(action.payload.bowlerId, id);
-          break;
-        case "endInnings":
-          res = await handlers.endInnings(id);
-          break;
-        case "undoLastBall":
-          res = await handlers.undoLastBall(id);
-          break;
-        case "startSuperOver":
-          res = handlers.startSuperOver
-            ? await handlers.startSuperOver(id)
-            : { error: null };
-          break;
-        case "retireBatter":
-          res = handlers.retireBatter
-            ? await handlers.retireBatter(action.payload, id)
-            : NO_HANDLER;
-          break;
-        case "awardPenalty":
-          res = handlers.awardPenalty
-            ? await handlers.awardPenalty(action.payload, id)
-            : NO_HANDLER;
-          break;
-        case "reassignOverBowler":
-          res = handlers.reassignOverBowler
-            ? await handlers.reassignOverBowler(action.payload.bowlerId, id)
-            : NO_HANDLER;
-          break;
-        case "updateBall":
-          res = handlers.updateBall
-            ? await handlers.updateBall(action.payload, id)
-            : NO_HANDLER;
-          break;
-        default:
-          console.warn("OfflineQueue: Unknown action type:", action);
-          res = { error: null }; // Skip unknown actions
-      }
-
-      if (!res.error) {
-        removeAction(matchId, action.queueId);
-        synced++;
-      } else {
-        console.error(
-          `OfflineQueue: Failed to sync ${action.type}:`,
-          res.error,
-        );
-        const retries = (action.retryCount ?? 0) + 1;
-        const updated: QueuedAction = {
-          ...action,
-          retryCount: retries,
-          lastError: res.error,
-        };
-
-        if (isFatalSyncError(res.error) || retries >= maxRetries) {
-          console.warn(
-            `OfflineQueue: Moving unrecoverable action ${action.type} (id: ${action.queueId}) to Dead Letter Queue:`,
-            res.error,
-          );
-          moveToDeadLetter(matchId, updated, res.error);
-          removeAction(matchId, action.queueId);
-          failed++;
-          continue; // Unblock subsequent actions in queue
-        } else {
-          updateAction(matchId, updated);
-          failed++;
-          break; // Preserve sequential order on transient errors
-        }
-      }
+      out = await send(toReplayBatch(matchId, batch));
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(
-        `OfflineQueue: Network error during ${action.type} flush:`,
-        err,
-      );
-      const retries = (action.retryCount ?? 0) + 1;
-      const updated: QueuedAction = {
-        ...action,
-        retryCount: retries,
-        lastError: errorMsg,
-      };
+      // No reply (offline, or the reply was lost): the server may have
+      // applied some of the batch; the retry is recognised by id.
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("OfflineQueue: Network error during replay:", err);
+      failed++;
+      if (recordFailure(matchId, head, message, maxRetries)) continue;
+      break;
+    }
 
-      if (isFatalSyncError(errorMsg) || retries >= maxRetries) {
-        console.warn(
-          `OfflineQueue: Moving action ${action.type} (id: ${action.queueId}) to Dead Letter Queue after max retries/fatal error:`,
-          errorMsg,
-        );
-        moveToDeadLetter(matchId, updated, errorMsg);
-        removeAction(matchId, action.queueId);
+    if (!out.ok) {
+      if (out.status >= 500) {
         failed++;
-        continue; // Unblock subsequent actions
-      } else {
-        updateAction(matchId, updated);
-        failed++;
+        if (recordFailure(matchId, head, out.message, maxRetries)) continue;
         break;
       }
+      // The batch itself was refused: keep the queue untouched.
+      console.error(
+        `OfflineQueue: Replay refused (${out.status} ${out.code}):`,
+        out.message,
+      );
+      return {
+        synced,
+        failed,
+        errorCode: out.code,
+        errorMessage: out.message,
+      };
     }
+
+    const byId = new Map(out.response.results.map((r) => [r.id, r]));
+    let progressed = false;
+    let blocked = false;
+    for (const action of batch) {
+      const result = byId.get(action.queueId);
+      // No result: not attempted (an earlier action failed).
+      if (!result) break;
+      if (result.status === "applied" || result.status === "duplicate") {
+        removeAction(matchId, action.queueId);
+        synced++;
+        progressed = true;
+        continue;
+      }
+      const error = result.error ?? "Replay failed";
+      console.error(`OfflineQueue: Failed to sync ${action.type}:`, error);
+      failed++;
+      // A dead-lettered action unblocks the ones behind it.
+      if (recordFailure(matchId, action, error, maxRetries)) progressed = true;
+      else blocked = true;
+      break;
+    }
+    if (blocked || !progressed) break;
   }
 
   return { synced, failed };

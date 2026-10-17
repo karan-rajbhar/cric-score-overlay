@@ -10,6 +10,7 @@ import {
   undoLastBall,
 } from "../../mutations";
 import { enqueueAction, getPendingActions } from "~/lib/offline-queue";
+import type { ReplayBatch, ReplayBatchAction } from "~/lib/scoring-replay/protocol";
 
 vi.mock("~/lib/firebase/client", () => ({
   firebase: {
@@ -53,6 +54,37 @@ vi.mock("sonner", () => ({
   },
 }));
 
+/**
+ * Stands in for POST /api/scoring/replay: answers each action with
+ * `answer(action)` in order, stopping at the first failure, and returns the
+ * batches it received.
+ */
+function mockReplayRoute(
+  answer: (action: ReplayBatchAction) => { status: "applied" | "duplicate" | "failed"; error?: string },
+): ReplayBatch[] {
+  const batches: ReplayBatch[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init: RequestInit) => {
+      expect(url).toBe("/api/scoring/replay");
+      expect(init.method).toBe("POST");
+      const batch = JSON.parse(String(init.body)) as ReplayBatch;
+      batches.push(batch);
+      const results = [];
+      for (const action of batch.actions) {
+        const r = answer(action);
+        results.push({ id: action.id, ...r });
+        if (r.status === "failed") break;
+      }
+      return new Response(JSON.stringify({ v: 1, results }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }),
+  );
+  return batches;
+}
+
 describe("useScoring", () => {
   const matchId = "1523c4af-11e9-40bb-90f3-c8bf28db670d";
 
@@ -75,6 +107,7 @@ describe("useScoring", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
     vi.mocked(getTeamPlayers).mockResolvedValue({ data: [], error: null });
     vi.mocked(getScoringState).mockResolvedValue({
       data: mockScoringState,
@@ -596,36 +629,54 @@ describe("useScoring", () => {
       "retireBatter",
     ]);
 
-    // ---- back online ----
+    // ---- back online: replayed through the replay route, not server actions ----
     online.mockReturnValue(true);
-    vi.mocked(setCurrentBowler).mockResolvedValue({ error: null });
-    vi.mocked(setCurrentBatsmen).mockResolvedValue({ error: null });
-    vi.mocked(recordBall).mockResolvedValue({ data: null, error: null });
-    vi.mocked(retirePlayer).mockResolvedValue({ success: true, error: null });
-    const order: string[] = [];
-    for (const fn of [setCurrentBowler, setCurrentBatsmen, recordBall, retirePlayer]) {
-      vi.mocked(fn).mockImplementation((async () => {
-        order.push(fn === recordBall ? "ball" : fn === retirePlayer ? "retire" : "crease");
-        return { data: null, success: true, error: null };
-      }) as never);
-    }
+    const batches = mockReplayRoute(() => ({ status: "applied" }));
 
     const res = await result.current.flushOfflineQueue();
     expect(res).toEqual({ synced: 5, failed: 0 });
-    expect(order).toEqual(["crease", "crease", "ball", "ball", "retire"]);
-    // Each replay carries its queue id as the idempotency key.
-    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].clientActionId)).toEqual([
-      queued[2]!.queueId,
-      queued[3]!.queueId,
-    ]);
-    expect(vi.mocked(recordBall).mock.calls.map((c) => c[0].event.runsScored)).toEqual([0, 2]);
-    expect(retirePlayer).toHaveBeenCalledWith(matchId, {
+    expect(batches).toHaveLength(1);
+    const [batch] = batches;
+    expect(batch).toMatchObject({ v: 1, matchId });
+    // In order, each carrying its queue id as the idempotency key.
+    expect(batch!.actions.map((a) => [a.type, a.id])).toEqual(
+      queued.map((a) => [a.type, a.queueId]),
+    );
+    expect(
+      batch!.actions
+        .filter((a) => a.type === "recordBall")
+        .map((a) => (a.payload as { event: { runsScored: number } }).event.runsScored),
+    ).toEqual([0, 2]);
+    expect(batch!.actions[4]!.payload).toEqual({
       playerId: "u1",
       type: "retired_hurt",
       reason: "cramp",
-      clientActionId: queued[4]!.queueId,
     });
+    for (const fn of [setCurrentBowler, setCurrentBatsmen, recordBall, retirePlayer]) {
+      expect(fn).not.toHaveBeenCalled();
+    }
     expect(getPendingActions(matchId)).toHaveLength(0);
+  });
+
+  it("keeps the queue in order behind an action the route could not apply", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    enqueueAction(matchId, "setBowler", { bowlerId: "u3" });
+    enqueueAction(matchId, "setBatsmen", { strikerId: "u1", nonStrikerId: "u2" });
+    enqueueAction(matchId, "endInnings", {} as Record<string, never>);
+    const batches = mockReplayRoute((a) =>
+      a.type === "setBatsmen" ? { status: "failed", error: "Server busy" } : { status: "applied" },
+    );
+
+    const res = await result.current.flushOfflineQueue();
+    expect(res).toEqual({ synced: 1, failed: 1 });
+    expect(batches).toHaveLength(1);
+    const left = getPendingActions(matchId);
+    expect(left.map((a) => a.type)).toEqual(["setBatsmen", "endInnings"]);
+    expect(left[0]).toMatchObject({ retryCount: 1, lastError: "Server busy" });
   });
 
   it("queues a ball whose reply was lost under the id it was sent with", async () => {
@@ -653,7 +704,7 @@ describe("useScoring", () => {
       expect(result.current.loading).toBe(false);
     });
     enqueueAction(matchId, "setBowler", { bowlerId: "u3" });
-    vi.mocked(setCurrentBowler).mockResolvedValue({ error: "DB Error" });
+    mockReplayRoute(() => ({ status: "failed", error: "DB Error" }));
 
     const res = await result.current.handleRetireBatter({
       playerId: "p1",
