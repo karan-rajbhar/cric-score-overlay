@@ -151,6 +151,7 @@ function MatchSettingsForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="T20">Twenty20 (T20)</SelectItem>
+              <SelectItem value="T10">T10</SelectItem>
               <SelectItem value="ODI">One day (ODI)</SelectItem>
               <SelectItem value="Custom">
                 Custom / Tape-Ball / The Hundred

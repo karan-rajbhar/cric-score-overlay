@@ -1,71 +1,52 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useId, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, ChevronDown, ChevronLeft, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
-import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Badge } from "~/components/ui/badge";
-import { createMatch } from "../mutations";
-import { createTeamQuick } from "../../teams/actions";
+import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
+import { PageContainer } from "~/components/layout/page";
 import { useAuth } from "~/lib/auth";
 import {
   useMatchWizardDataQuery,
   useTournamentRegistrationsQuery,
 } from "~/lib/hooks/useMatchQueries";
-import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { deriveShortName } from "~/lib/utils";
+import { cn } from "~/lib/utils";
+import { createMatch } from "../mutations";
+import { createTeamQuick } from "../../teams/actions";
+import type { MatchFormat } from "../types";
 import {
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Check,
-  AlertCircle,
-  Plus,
-  Trophy,
-  Shield,
-  RotateCcw,
-  Users,
-} from "lucide-react";
-import { PageContainer } from "~/components/layout/page";
-
-interface Team {
-  id: string;
-  name: string;
-  short_name?: string | null;
-  club_id?: string | null;
-  created_by?: string | null;
-  captain_id?: string | null;
-  vice_captain_id?: string | null;
-}
+  defaultTitle,
+  fieldError,
+  FORMAT_PRESETS,
+  formatForOvers,
+  LIMITS,
+  loadSetup,
+  saveSetup,
+  setupBlocker,
+  teamGroups,
+  type SetupTeam,
+} from "./match-setup";
+import { TeamPicker, type CreateTeamResult } from "./team-picker";
+import { QuickPlayers } from "./quick-players";
 
 interface TournamentOption {
   id: string;
   name: string;
   match_format?: string | null;
   custom_overs?: number | null;
-  overs_per_innings?: number | null;
   created_by?: string | null;
   club_id?: string | null;
 }
@@ -73,410 +54,750 @@ interface TournamentOption {
 interface ClubOption {
   id: string;
   name: string;
-  short_name?: string | null;
   owner_id?: string | null;
 }
 
-type MatchFormat = "T20" | "ODI" | "Custom";
+/** A full side: below this the form offers to add players inline. */
+const FULL_SQUAD = 11;
 
-interface FormData {
-  title: string;
-  matchFormat: MatchFormat;
-  oversPerInnings: number;
-  team1Id: string;
-  team2Id: string;
-  venue: string;
-  scheduledAt: string;
-  umpire1Name: string;
-  umpire2Name: string;
-  tournamentId: string;
-  clubId: string;
-}
-
-function CreateMatchWizard() {
+function MatchSetupForm({ userId }: { userId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlTournamentId = searchParams.get("tournamentId") ?? "";
   const urlClubId = searchParams.get("clubId") ?? "";
-
-  const { user, loading: authLoading } = useAuth();
-  const [step, setStep] = useState(1);
-  const [createdTeams, setCreatedTeams] = useState<Team[]>([]);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const { defaultMatchFormat, defaultOvers, setDefaultFormat } =
-    usePreferencesStore();
-
-  const [formData, setFormData] = useState<FormData>({
-    title: "",
-    matchFormat: defaultMatchFormat,
-    oversPerInnings: defaultOvers,
-    team1Id: "",
-    team2Id: "",
-    venue: "",
-    scheduledAt: "",
-    umpire1Name: "",
-    umpire2Name: "",
-    tournamentId: urlTournamentId,
-    clubId: urlClubId,
-  });
-
-  // Inline "new team" creation from the team-selection step.
-  const [newTeamFor, setNewTeamFor] = useState<"team1Id" | "team2Id" | null>(
-    null,
-  );
-  const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamSaving, setNewTeamSaving] = useState(false);
-
   const queryClient = useQueryClient();
+  const ids = {
+    overs: useId(),
+    wickets: useId(),
+    balls: useId(),
+    when: useId(),
+    datetime: useId(),
+    title: useId(),
+    venue: useId(),
+    tournament: useId(),
+    club: useId(),
+    umpire1: useId(),
+    umpire2: useId(),
+    more: useId(),
+    blocker: useId(),
+  };
+
+  // Mounted only on the client (after auth resolves), so reading
+  // localStorage in the initializer cannot cause a hydration mismatch.
+  const [stored] = useState(loadSetup);
+  const [team1Id, setTeam1Id] = useState(stored.lastTeam1Id);
+  const [team2Id, setTeam2Id] = useState("");
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>(
+    stored.matchFormat,
+  );
+  const [overs, setOvers] = useState(String(stored.oversPerInnings));
+  const [wickets, setWickets] = useState(String(stored.wicketsPerInnings));
+  const [ballsPerOver, setBallsPerOver] = useState(String(stored.ballsPerOver));
+  const [wideCountsAsBallFaced, setWideCountsAsBallFaced] = useState(
+    stored.wideCountsAsBallFaced,
+  );
+  const [wideRunsToBatsman, setWideRunsToBatsman] = useState(
+    stored.wideRunsToBatsman,
+  );
+  const [noballExtrasToBatsman, setNoballExtrasToBatsman] = useState(
+    stored.noballExtrasToBatsman,
+  );
+  const [when, setWhen] = useState<"now" | "later">("now");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [title, setTitle] = useState("");
+  const [venue, setVenue] = useState("");
+  const [umpire1, setUmpire1] = useState("");
+  const [umpire2, setUmpire2] = useState("");
+  const [tournamentId, setTournamentId] = useState(urlTournamentId);
+  const [clubId, setClubId] = useState(urlClubId);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [createdTeams, setCreatedTeams] = useState<SetupTeam[]>([]);
+  const [addedPlayers, setAddedPlayers] = useState<Record<string, number>>({});
+
   const {
     data: wizardData,
     isLoading: wizardLoading,
     error: wizardQueryError,
-    refetch: refetchWizardData,
-  } = useMatchWizardDataQuery(user?.id);
-
-  const teams = useMemo(() => {
-    const remoteTeams = (wizardData?.teams ?? []) as Team[];
-    return [...createdTeams, ...remoteTeams];
-  }, [createdTeams, wizardData?.teams]);
-
-  const tournaments = useMemo(() => {
-    return (wizardData?.tournaments ?? []) as TournamentOption[];
-  }, [wizardData?.tournaments]);
-
-  const clubs = useMemo(() => {
-    return (wizardData?.clubs ?? []) as ClubOption[];
-  }, [wizardData?.clubs]);
-
-  const myClubAdminIds = useMemo(() => {
-    return new Set<string>(wizardData?.clubAdminIds ?? []);
-  }, [wizardData?.clubAdminIds]);
-
-  const myTeamIds = useMemo(() => {
-    const mine = new Set<string>();
-    if (!wizardData || !user) return mine;
-    const playerTeamIds = new Set<string>(wizardData.playerTeamIds);
-    const clubAdminIds = new Set<string>(wizardData.clubAdminIds);
-
-    for (const t of teams) {
-      if (
-        t.created_by === user.id ||
-        t.captain_id === user.id ||
-        t.vice_captain_id === user.id ||
-        playerTeamIds.has(t.id) ||
-        (t.club_id && clubAdminIds.has(t.club_id))
-      ) {
-        mine.add(t.id);
-      }
-    }
-    return mine;
-  }, [wizardData, user, teams]);
-
-  const teamsLoading = (wizardLoading || authLoading) && teams.length === 0;
-  const teamsLoadError =
-    (wizardQueryError instanceof Error ? wizardQueryError.message : null) ||
-    wizardData?.error ||
-    null;
-
-  const [appliedUrlTournId, setAppliedUrlTournId] = useState("");
-  if (
-    urlTournamentId &&
-    appliedUrlTournId !== urlTournamentId &&
-    tournaments.length > 0
-  ) {
-    setAppliedUrlTournId(urlTournamentId);
-    const matchTourn = tournaments.find((t) => t.id === urlTournamentId);
-    if (matchTourn) {
-      if (matchTourn.match_format === "ODI") {
-        setFormData((prev) => ({
-          ...prev,
-          matchFormat: "ODI",
-          oversPerInnings: 50,
-        }));
-      } else if (matchTourn.match_format === "T20") {
-        setFormData((prev) => ({
-          ...prev,
-          matchFormat: "T20",
-          oversPerInnings: 20,
-        }));
-      } else if (
-        matchTourn.match_format === "Custom" &&
-        matchTourn.custom_overs
-      ) {
-        setFormData((prev) => ({
-          ...prev,
-          matchFormat: "Custom",
-          oversPerInnings: matchTourn.custom_overs!,
-        }));
-      }
-    }
-  }
-
-  const handleRetry = () => {
-    void refetchWizardData();
-  };
-
-  // When tournamentId changes, fetch registered teams for filtering/badging via cached query
-  const { data: registeredSet } = useTournamentRegistrationsQuery(
-    formData.tournamentId,
-  );
+    refetch,
+  } = useMatchWizardDataQuery(userId);
+  const { data: registeredSet } = useTournamentRegistrationsQuery(tournamentId);
   const tournamentTeamIds = useMemo(
     () => registeredSet ?? new Set<string>(),
     [registeredSet],
   );
 
-  // Auto-set overs when format changes (derived in the change handler, not an effect)
-  const handleFormatChange = (format: MatchFormat) => {
-    updateField("matchFormat", format);
-    let overs = 20;
-    if (format === "T20") {
-      overs = 20;
-      updateField("oversPerInnings", 20);
-    } else if (format === "ODI") {
-      overs = 50;
-      updateField("oversPerInnings", 50);
-    }
-    setDefaultFormat(format, overs);
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError(null);
-
-    const result = await createMatch({
-      title: formData.title,
-      matchFormat: formData.matchFormat,
-      oversPerInnings: formData.oversPerInnings,
-      team1Id: formData.team1Id,
-      team2Id: formData.team2Id,
-      venue: formData.venue || undefined,
-      scheduledAt: formData.scheduledAt || undefined,
-      umpire1Name: formData.umpire1Name || undefined,
-      umpire2Name: formData.umpire2Name || undefined,
-      tournamentId: formData.tournamentId || undefined,
-      clubId: formData.clubId || undefined,
-    });
-
-    if (result.error) {
-      setError(result.error);
-      setLoading(false);
-    } else {
-      setSuccess(true);
-      setTimeout(() => {
-        router.push(`/matches/${result.data?.id}`);
-      }, 1200);
-    }
-  };
-
-  const updateField = <K extends keyof FormData>(
-    field: K,
-    value: FormData[K],
-  ) => {
-    setFormData((prev) => {
-      const next = { ...prev, [field]: value };
-      if (field === "team1Id" && next.team2Id === value) {
-        next.team2Id = "";
-      } else if (field === "team2Id" && next.team1Id === value) {
-        next.team1Id = "";
-      }
-      return next;
-    });
-  };
-
-  const selectedTournament = tournaments.find(
-    (t) => t.id === formData.tournamentId,
+  const teams = useMemo(() => {
+    const created = new Set(createdTeams.map((t) => t.id));
+    return [
+      ...createdTeams,
+      ...((wizardData?.teams ?? []) as SetupTeam[]).filter(
+        (t) => !created.has(t.id),
+      ),
+    ].map((t) =>
+      addedPlayers[t.id]
+        ? { ...t, player_count: (t.player_count ?? 0) + addedPlayers[t.id]! }
+        : t,
+    );
+  }, [createdTeams, wizardData?.teams, addedPlayers]);
+  const tournaments = (wizardData?.tournaments ?? []) as TournamentOption[];
+  const clubs = (wizardData?.clubs ?? []) as ClubOption[];
+  const clubAdminIds = useMemo(
+    () => new Set<string>(wizardData?.clubAdminIds ?? []),
+    [wizardData?.clubAdminIds],
   );
-  const selectedClub = clubs.find((c) => c.id === formData.clubId);
 
+  // A tournament link sets the format once its list has loaded.
+  const [appliedTournament, setAppliedTournament] = useState("");
+  if (urlTournamentId && appliedTournament !== urlTournamentId) {
+    const t = tournaments.find((x) => x.id === urlTournamentId);
+    if (t) {
+      setAppliedTournament(urlTournamentId);
+      const preset = FORMAT_PRESETS.find((p) => p.format === t.match_format);
+      const tOvers = preset?.overs ?? t.custom_overs ?? null;
+      if (tOvers) {
+        setMatchFormat(preset?.format ?? "Custom");
+        setOvers(String(tOvers));
+      }
+    }
+  }
+
+  const selectedTournament = tournaments.find((t) => t.id === tournamentId);
+  const selectedClub = clubs.find((c) => c.id === clubId);
   const isTournamentOrganizer = Boolean(
-    user &&
-      selectedTournament &&
-      (selectedTournament.created_by === user.id ||
+    selectedTournament &&
+      (selectedTournament.created_by === userId ||
         (selectedTournament.club_id &&
-          myClubAdminIds.has(selectedTournament.club_id))),
+          clubAdminIds.has(selectedTournament.club_id))),
   );
 
-  const isClubOrganizer = Boolean(
-    user && formData.clubId && myClubAdminIds.has(formData.clubId),
+  const groups = useMemo(
+    () =>
+      teamGroups({
+        teams,
+        userId,
+        playerTeamIds: wizardData?.playerTeamIds ?? [],
+        clubAdminIds,
+        tournamentId,
+        clubId,
+        tournamentTeamIds,
+        isTournamentOrganizer,
+      }),
+    [
+      teams,
+      userId,
+      wizardData?.playerTeamIds,
+      clubAdminIds,
+      tournamentId,
+      clubId,
+      tournamentTeamIds,
+      isTournamentOrganizer,
+    ],
   );
-
-  // Teams that the user is authorized to represent as Team 1 (Host)
-  const myTeams = teams.filter((t) => myTeamIds.has(t.id));
-  const organizerTournamentTeams = isTournamentOrganizer
-    ? teams.filter((t) => tournamentTeamIds.has(t.id) && !myTeamIds.has(t.id))
-    : [];
-  const organizerClubTeams = isClubOrganizer
-    ? teams.filter((t) => t.club_id === formData.clubId && !myTeamIds.has(t.id))
-    : [];
-
-  const selectableTournaments = useMemo(() => {
-    return tournaments.filter((t) => {
-      if (t.id === urlTournamentId || t.id === formData.tournamentId)
-        return true;
-      if (!user) return false;
-      if (t.created_by === user.id) return true;
-      if (t.club_id && myClubAdminIds.has(t.club_id)) return true;
-      return false;
-    });
-  }, [
-    tournaments,
-    urlTournamentId,
-    formData.tournamentId,
-    user,
-    myClubAdminIds,
-  ]);
-
-  const selectableClubs = useMemo(() => {
-    const selectedT1 = teams.find((t) => t.id === formData.team1Id);
-    const selectedT2 = teams.find((t) => t.id === formData.team2Id);
-    return clubs.filter((c) => {
-      if (c.id === urlClubId || c.id === formData.clubId) return true;
-      if (myClubAdminIds.has(c.id)) return true;
-      if (selectedT1?.club_id === c.id || selectedT2?.club_id === c.id)
-        return true;
-      return false;
-    });
-  }, [
-    clubs,
-    urlClubId,
-    formData.clubId,
-    myClubAdminIds,
-    teams,
-    formData.team1Id,
-    formData.team2Id,
-  ]);
-
-  const team1Eligible = teams.filter((t) => {
-    if (myTeamIds.has(t.id)) return true;
-    if (isTournamentOrganizer && tournamentTeamIds.has(t.id)) return true;
-    if (isClubOrganizer && t.club_id === formData.clubId) return true;
-    return false;
+  const eligible1 = new Set(groups.team1.flatMap((g) => g.teams.map((t) => t.id)));
+  const eligible2 = new Set(groups.team2.flatMap((g) => g.teams.map((t) => t.id)));
+  // A remembered team only counts while it is still eligible.
+  const effectiveTeam1 = eligible1.has(team1Id) ? team1Id : "";
+  const team1 = teams.find((t) => t.id === effectiveTeam1);
+  const team2 = teams.find((t) => t.id === team2Id);
+  const without = (exclude: string) => (g: { label: string; teams: SetupTeam[] }) => ({
+    ...g,
+    teams: g.teams.filter((t) => t.id !== exclude),
   });
+  const team1Options = groups.team1.map(without(team2Id)).filter((g) => g.teams.length);
+  const team2Options = groups.team2.map(without(effectiveTeam1)).filter((g) => g.teams.length);
 
-  // Team 1 options excluding selected Team 2
-  const team1MyTeams = myTeams.filter((t) => t.id !== formData.team2Id);
-  const team1OrgTournTeams = organizerTournamentTeams.filter(
-    (t) => t.id !== formData.team2Id,
+  const selectableTournaments = tournaments.filter(
+    (t) =>
+      t.id === urlTournamentId ||
+      t.id === tournamentId ||
+      t.created_by === userId ||
+      (t.club_id && clubAdminIds.has(t.club_id)),
   );
-  const team1OrgClubTeams = organizerClubTeams.filter(
-    (t) => t.id !== formData.team2Id,
+  const selectableClubs = clubs.filter(
+    (c) =>
+      c.id === urlClubId ||
+      c.id === clubId ||
+      clubAdminIds.has(c.id) ||
+      team1?.club_id === c.id ||
+      team2?.club_id === c.id,
   );
-  const team1AvailableCount =
-    team1MyTeams.length + team1OrgTournTeams.length + team1OrgClubTeams.length;
 
-  // Team 2 (Opponent) options excluding selected Team 1
-  const team2TournamentTeams = formData.tournamentId
-    ? teams.filter(
-        (t) => t.id !== formData.team1Id && tournamentTeamIds.has(t.id),
-      )
-    : [];
+  const oversNum = Number(overs);
+  const wicketsNum = Number(wickets);
+  const ballsNum = Number(ballsPerOver);
+  const teamsLoading = wizardLoading && teams.length === 0;
+  const loadError =
+    (wizardQueryError instanceof Error ? wizardQueryError.message : null) ||
+    wizardData?.error ||
+    null;
 
-  const team2ClubTeams =
-    formData.clubId && !formData.tournamentId
-      ? teams.filter(
-          (t) => t.id !== formData.team1Id && t.club_id === formData.clubId,
-        )
-      : [];
-
-  const team2MyTeams = formData.tournamentId
-    ? []
-    : teams.filter(
-        (t) =>
-          t.id !== formData.team1Id &&
-          myTeamIds.has(t.id) &&
-          (!formData.clubId || t.club_id !== formData.clubId),
+  let blocker = teamsLoading
+    ? "Loading teams"
+    : setupBlocker(
+        {
+          team1Id: effectiveTeam1,
+          team2Id,
+          oversPerInnings: oversNum,
+          wicketsPerInnings: wicketsNum,
+          ballsPerOver: ballsNum,
+          when,
+          scheduledAt,
+        },
+        eligible1,
+        eligible2,
       );
+  if (
+    !blocker &&
+    tournamentId &&
+    tournamentTeamIds.size > 0 &&
+    !tournamentTeamIds.has(effectiveTeam1)
+  ) {
+    blocker = `Your team is not registered in ${selectedTournament?.name ?? "this tournament"}`;
+  }
 
-  const team2Eligible = formData.tournamentId
-    ? team2TournamentTeams
-    : formData.clubId
-      ? [...team2ClubTeams, ...team2MyTeams]
-      : team2MyTeams;
-
-  const canProceedStep1 = formData.matchFormat && formData.oversPerInnings > 0;
-  const canProceedStep2 =
-    Boolean(formData.team1Id) &&
-    Boolean(formData.team2Id) &&
-    formData.team1Id !== formData.team2Id &&
-    team1Eligible.some((t) => t.id === formData.team1Id) &&
-    team2Eligible.some((t) => t.id === formData.team2Id);
-  const canProceedStep3 = formData.title.trim().length > 0;
-
-  const isMatchValidForSubmission = useMemo(() => {
-    if (!formData.team1Id || !formData.team2Id) return false;
-    if (formData.team1Id === formData.team2Id) return false;
-    if (formData.tournamentId && tournamentTeamIds.size > 0) {
-      if (
-        !tournamentTeamIds.has(formData.team1Id) ||
-        !tournamentTeamIds.has(formData.team2Id)
-      ) {
-        return false;
-      }
-    }
-    return true;
-  }, [
-    formData.team1Id,
-    formData.team2Id,
-    formData.tournamentId,
-    tournamentTeamIds,
-  ]);
-
-  const getTeamName = (id: string) => {
-    const team = teams.find((t) => t.id === id);
-    return team ? team.name : "Not selected";
+  const pickFormat = (format: MatchFormat) => {
+    setMatchFormat(format);
+    const preset = FORMAT_PRESETS.find((p) => p.format === format);
+    if (preset?.overs) setOvers(String(preset.overs));
   };
 
-  const handleCreateInlineTeam = async () => {
-    if (!newTeamFor || !newTeamName.trim()) return;
+  const changeOvers = (value: string) => {
+    setOvers(value);
+    const n = Number(value);
+    if (Number.isInteger(n) && n > 0) setMatchFormat(formatForOvers(n));
+  };
 
-    setNewTeamSaving(true);
-    const derived = deriveShortName(newTeamName);
-    const result = await createTeamQuick(newTeamName, derived);
+  const pickTeam = (side: 1 | 2, id: string) => {
+    if (side === 1) {
+      setTeam1Id(id);
+      if (id === team2Id) setTeam2Id("");
+    } else {
+      setTeam2Id(id);
+      if (id === effectiveTeam1) setTeam1Id("");
+    }
+  };
 
+  const createTeam = async (
+    name: string,
+    shortName: string,
+  ): Promise<CreateTeamResult> => {
+    const res = await createTeamQuick(name, shortName);
+    if (res.error || !res.data) {
+      return { team: null, error: res.error ?? "The team could not be created" };
+    }
+    const team: SetupTeam = {
+      id: res.data.id,
+      name: res.data.name,
+      short_name: res.data.short_name,
+      club_id: res.data.club_id,
+      created_by: userId,
+      player_count: 0,
+    };
+    setCreatedTeams((prev) => [team, ...prev]);
+    void queryClient.invalidateQueries({ queryKey: ["matchWizardData"] });
+    return { team, error: null };
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (blocker || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    const result = await createMatch({
+      title: title.trim() || defaultTitle(team1, team2),
+      matchFormat,
+      oversPerInnings: oversNum,
+      wicketsPerInnings: wicketsNum,
+      ballsPerOver: ballsNum,
+      wideCountsAsBallFaced,
+      wideRunsToBatsman,
+      noballExtrasToBatsman,
+      team1Id: effectiveTeam1,
+      team2Id,
+      venue: venue.trim() || undefined,
+      scheduledAt:
+        when === "now"
+          ? new Date().toISOString()
+          : new Date(scheduledAt).toISOString(),
+      umpire1Name: umpire1.trim() || undefined,
+      umpire2Name: umpire2.trim() || undefined,
+      tournamentId: tournamentId || undefined,
+      clubId: clubId || undefined,
+    });
     if (result.error || !result.data) {
-      toast.error(result.error || "Failed to create team");
-      setNewTeamSaving(false);
+      setSubmitError(result.error ?? "The match could not be created");
+      setSubmitting(false);
       return;
     }
-
-    const created: Team = {
-      id: result.data.id,
-      name: result.data.name,
-      short_name: result.data.short_name ?? undefined,
-      club_id: result.data.club_id ?? undefined,
-      created_by: user?.id,
-    };
-
-    setCreatedTeams((prev) => [created, ...prev]);
-    void queryClient.invalidateQueries({ queryKey: ["matchWizardData"] });
-    updateField(newTeamFor, created.id);
-    toast.success(`Team "${created.name}" created`);
-    setNewTeamSaving(false);
-    setNewTeamFor(null);
-    setNewTeamName("");
+    saveSetup(
+      {
+        matchFormat,
+        oversPerInnings: oversNum,
+        wicketsPerInnings: wicketsNum,
+        ballsPerOver: ballsNum,
+        wideCountsAsBallFaced,
+        wideRunsToBatsman,
+        noballExtrasToBatsman,
+      },
+      effectiveTeam1,
+      team2Id,
+    );
+    // Start now: straight to scoring, where the toss opens first.
+    router.push(
+      when === "now"
+        ? `/matches/${result.data.id}/score`
+        : `/matches/${result.data.id}`,
+    );
   };
 
-  if (authLoading) {
+  const backHref = selectedTournament
+    ? `/tournaments/${selectedTournament.id}?tab=fixtures`
+    : selectedClub || urlClubId
+      ? `/clubs/${selectedClub?.id || urlClubId}?tab=matches`
+      : "/matches";
+  const context = selectedTournament?.name ?? selectedClub?.name;
+  const rulesSummary = `${wicketsNum || "–"} wickets · ${ballsNum || "–"}-ball overs`;
+  const opponentEmpty = tournamentId
+    ? "No other teams are registered in this tournament."
+    : "No opponent teams yet. Create one to continue.";
+
+  return (
+    <PageContainer size="form" stack={false}>
+      <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
+        <Link href={backHref}>
+          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
+          Back
+        </Link>
+      </Button>
+      <h1 className="text-balance text-2xl font-semibold">New match</h1>
+      {context && (
+        <p className="mt-1 text-sm text-muted-foreground">For {context}</p>
+      )}
+
+      <form onSubmit={submit} className="mt-5 space-y-4" noValidate>
+        <Card>
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <h2 className="font-semibold">Teams</h2>
+            {loadError ? (
+              <div
+                role="alert"
+                className="space-y-3 rounded-lg border border-destructive/30 p-4 text-sm"
+              >
+                <p className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  Teams could not be loaded. {loadError}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void refetch()}
+                >
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  Try again
+                </Button>
+              </div>
+            ) : teamsLoading ? (
+              <p
+                role="status"
+                className="flex items-center gap-2 py-4 text-sm text-muted-foreground"
+              >
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+                Loading teams
+              </p>
+            ) : (
+              <>
+                <div>
+                  <TeamPicker
+                    label="Your team"
+                    title="Choose your team"
+                    value={effectiveTeam1}
+                    selected={team1}
+                    groups={team1Options}
+                    recentIds={stored.recentTeamIds}
+                    onChange={(id) => pickTeam(1, id)}
+                    onCreate={createTeam}
+                    emptyMessage="You can host matches for teams you created, captain, play for or manage. Create one to continue."
+                  />
+                  {team1 && (team1.player_count ?? 0) < FULL_SQUAD && (
+                    <QuickPlayers
+                      key={team1.id}
+                      teamId={team1.id}
+                      teamName={team1.name}
+                      playerCount={team1.player_count}
+                      onAdded={() =>
+                        setAddedPlayers((p) => ({ ...p, [team1.id]: (p[team1.id] ?? 0) + 1 }))
+                      }
+                    />
+                  )}
+                </div>
+                <p className="text-center text-xs text-muted-foreground" aria-hidden="true">
+                  vs
+                </p>
+                <div>
+                  <TeamPicker
+                    label="Opponent"
+                    title="Choose the opponent"
+                    value={team2Id}
+                    selected={team2}
+                    groups={team2Options}
+                    recentIds={stored.recentTeamIds}
+                    onChange={(id) => pickTeam(2, id)}
+                    onCreate={tournamentId ? undefined : createTeam}
+                    emptyMessage={opponentEmpty}
+                  />
+                  {team2 && (team2.player_count ?? 0) < FULL_SQUAD && (
+                    <QuickPlayers
+                      key={team2.id}
+                      teamId={team2.id}
+                      teamName={team2.name}
+                      playerCount={team2.player_count}
+                      onAdded={() =>
+                        setAddedPlayers((p) => ({ ...p, [team2.id]: (p[team2.id] ?? 0) + 1 }))
+                      }
+                    />
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <h2 id={`${ids.overs}-heading`} className="font-semibold">
+              Format
+            </h2>
+            <div
+              role="radiogroup"
+              aria-labelledby={`${ids.overs}-heading`}
+              className={cn(segmentedTrack, "sm:flex sm:w-full")}
+            >
+              {FORMAT_PRESETS.map((p) => (
+                <button
+                  key={p.format}
+                  type="button"
+                  role="radio"
+                  aria-checked={matchFormat === p.format}
+                  onClick={() => pickFormat(p.format)}
+                  className={segmentedItem(
+                    matchFormat === p.format,
+                    "min-h-11 sm:min-h-10 sm:flex-1",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+              <NumberField
+                id={ids.overs}
+                label="Overs per side"
+                field="overs"
+                value={overs}
+                onChange={changeOvers}
+              />
+              <p className="pb-2 text-sm text-muted-foreground">
+                {rulesSummary}
+                <span className="sr-only">. Change these under more options.</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <h2 id={ids.when} className="font-semibold">
+              When
+            </h2>
+            <div role="radiogroup" aria-labelledby={ids.when} className={cn(segmentedTrack, "sm:flex sm:w-full")}>
+              {(
+                [
+                  ["now", "Start now"],
+                  ["later", "Schedule"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={when === value}
+                  onClick={() => setWhen(value)}
+                  className={segmentedItem(when === value, "min-h-11 sm:min-h-10 sm:flex-1")}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {when === "later" ? (
+              <div>
+                <Label htmlFor={ids.datetime}>Date and time</Label>
+                <Input
+                  id={ids.datetime}
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="mt-1.5"
+                  required
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                The scoring screen opens next, starting with the toss.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-0">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((o) => !o)}
+              aria-expanded={moreOpen}
+              aria-controls={ids.more}
+              className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-6"
+            >
+              <span>
+                <span className="block font-semibold">More options</span>
+                <span className="block text-xs text-muted-foreground">
+                  Title, venue, tournament, club, wickets, extras, umpires
+                </span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  moreOpen && "rotate-180",
+                )}
+                aria-hidden="true"
+              />
+            </button>
+            <div
+              id={ids.more}
+              hidden={!moreOpen}
+              className="space-y-4 border-t px-4 pb-5 pt-4 sm:px-6"
+            >
+              <div>
+                <Label htmlFor={ids.title}>Match title</Label>
+                <Input
+                  id={ids.title}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={defaultTitle(team1, team2) || "Team A vs Team B"}
+                  className="mt-1.5"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Leave empty to use the team names.
+                </p>
+              </div>
+              <div>
+                <Label htmlFor={ids.venue}>Venue</Label>
+                <Input
+                  id={ids.venue}
+                  value={venue}
+                  onChange={(e) => setVenue(e.target.value)}
+                  placeholder="e.g. Central Park ground"
+                  className="mt-1.5"
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor={ids.tournament}>Tournament</Label>
+                  <Select
+                    value={tournamentId || "none"}
+                    onValueChange={(v) => setTournamentId(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger id={ids.tournament} className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (friendly)</SelectItem>
+                      {selectableTournaments.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor={ids.club}>Club</Label>
+                  <Select
+                    value={clubId || "none"}
+                    onValueChange={(v) => setClubId(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger id={ids.club} className="mt-1.5">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {selectableClubs.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <NumberField
+                  id={ids.wickets}
+                  label="Wickets per side"
+                  field="wickets"
+                  value={wickets}
+                  onChange={setWickets}
+                />
+                <NumberField
+                  id={ids.balls}
+                  label="Balls per over"
+                  field="ballsPerOver"
+                  value={ballsPerOver}
+                  onChange={setBallsPerOver}
+                />
+              </div>
+              <fieldset className="space-y-2">
+                <legend className="mb-1 text-sm font-medium">Extras</legend>
+                {(
+                  [
+                    [wideCountsAsBallFaced, setWideCountsAsBallFaced, "A wide counts as a ball faced"],
+                    [wideRunsToBatsman, setWideRunsToBatsman, "Runs off a wide go to the batter"],
+                    [noballExtrasToBatsman, setNoballExtrasToBatsman, "No-ball extras go to the batter"],
+                  ] as const
+                ).map(([checked, set, label]) => (
+                  <label key={label} className="flex min-h-9 items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => set(e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-primary"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor={ids.umpire1}>Umpire 1</Label>
+                  <Input
+                    id={ids.umpire1}
+                    value={umpire1}
+                    onChange={(e) => setUmpire1(e.target.value)}
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={ids.umpire2}>Umpire 2</Label>
+                  <Input
+                    id={ids.umpire2}
+                    value={umpire2}
+                    onChange={(e) => setUmpire2(e.target.value)}
+                    className="mt-1.5"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
+          {submitError && (
+            <p
+              role="alert"
+              className="mb-2 flex items-start gap-2 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {submitError}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p
+              id={ids.blocker}
+              className="text-center text-xs text-muted-foreground sm:text-left"
+              aria-live="polite"
+            >
+              {blocker ??
+                (when === "now"
+                  ? "Next: the toss, then the opening batters and bowler."
+                  : "The match will appear in the fixtures list.")}
+            </p>
+            <Button
+              type="submit"
+              disabled={Boolean(blocker) || submitting}
+              aria-describedby={ids.blocker}
+              className="h-12 w-full sm:h-11 sm:w-auto sm:px-8"
+            >
+              {submitting && (
+                <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+              )}
+              {when === "now" ? "Start match" : "Schedule match"}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </PageContainer>
+  );
+}
+
+/** Number input with its range error shown as soon as it is out of range. */
+function NumberField({
+  id,
+  label,
+  field,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  field: keyof typeof LIMITS;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const error = value === "" ? null : fieldError(field, Number(value));
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={LIMITS[field].min}
+        max={LIMITS[field].max}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        className="mt-1.5 w-24 tabular-nums"
+      />
+      {error && (
+        <p id={`${id}-error`} className="mt-1 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CreateMatchGate() {
+  const { user, loading } = useAuth();
+  if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-[50vh] items-center justify-center" role="status">
+        <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" aria-hidden="true" />
+        <span className="sr-only">Loading</span>
       </div>
     );
   }
-
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-amber-500" />
-            <h2 className="mb-2 text-xl font-semibold">Sign in required</h2>
+            <h1 className="mb-2 text-xl font-semibold">Sign in required</h1>
             <p className="mb-4 text-muted-foreground">
-              You need to be signed in to create and score a match.
+              Sign in to create and score a match.
             </p>
             <Button asChild>
               <Link href="/auth/login?redirect=/matches/create">Sign in</Link>
@@ -486,912 +807,19 @@ function CreateMatchWizard() {
       </div>
     );
   }
-
-  if (success) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Card className="mx-4 w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
-              <Check className="h-8 w-8 text-emerald-500" />
-            </div>
-            <h2 className="mb-2 text-xl font-semibold">Match created</h2>
-            <p className="text-muted-foreground">
-              Redirecting to live scorecard...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <PageContainer size="form" stack={false}>
-        {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <Button variant="ghost" asChild className="mb-4">
-            <Link
-              href={
-                selectedTournament
-                  ? `/tournaments/${selectedTournament.id}?tab=fixtures`
-                  : selectedClub || urlClubId
-                    ? `/clubs/${selectedClub?.id || urlClubId}?tab=matches`
-                    : "/matches"
-              }
-            >
-              <ChevronLeft className="mr-2 h-4 w-4 shrink-0" />
-              {selectedTournament
-                ? `Back to ${selectedTournament.name}`
-                : selectedClub
-                  ? `Back to ${selectedClub.name}`
-                  : urlClubId
-                    ? "Back to Club"
-                    : "Back to Matches"}
-            </Link>
-          </Button>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-balance text-2xl font-semibold text-foreground">
-              New match
-            </h1>
-            {selectedTournament && (
-              <Badge variant="outline" className="gap-1">
-                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" />
-                {selectedTournament.name}
-              </Badge>
-            )}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
-            Set up teams, format, overs, and tournament linkage in a few simple
-            steps.
-          </p>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="mb-4 flex items-center justify-between px-2 sm:mb-8">
-          {[1, 2, 3, 4].map((s) => (
-            <div key={s} className="flex flex-1 items-center last:flex-none">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors sm:h-10 sm:w-10 sm:text-sm ${
-                  step >= s
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {step > s ? <Check className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" /> : s}
-              </div>
-              {s < 4 && (
-                <div
-                  className={`mx-1.5 h-0.5 max-w-[80px] flex-1 sm:mx-2 sm:h-1 ${
-                    step > s ? "bg-primary" : "bg-muted"
-                  }`}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Step Labels */}
-        <div className="mb-6 flex justify-between px-2 text-xs text-muted-foreground sm:mb-8">
-          <span className={step === 1 ? "font-medium text-primary" : ""}>
-            Format
-          </span>
-          <span className={step === 2 ? "font-medium text-primary" : ""}>
-            Teams
-          </span>
-          <span className={step === 3 ? "font-medium text-primary" : ""}>
-            Details
-          </span>
-          <span className={step === 4 ? "font-medium text-primary" : ""}>
-            Review
-          </span>
-        </div>
-
-        {/* Step Content */}
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            {/* Step 1: Format */}
-            {step === 1 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">Match format</h2>
-                  <p className="mb-6 text-sm text-muted-foreground">
-                    Choose the format and number of overs for this match
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-sm font-medium">Format</Label>
-                    <div className="mt-2 grid grid-cols-3 gap-2 sm:gap-3">
-                      {(["T20", "ODI", "Custom"] as MatchFormat[]).map(
-                        (format) => (
-                          <button
-                            key={format}
-                            type="button"
-                            onClick={() => handleFormatChange(format)}
-                            className={`rounded-lg border-2 p-2.5 text-center transition-colors sm:p-4 ${
-                              formData.matchFormat === format
-                                ? "border-primary bg-primary/10"
-                                : "border-border hover:border-primary/50"
-                            }`}
-                          >
-                            <div className="text-base font-bold sm:text-lg">
-                              {format}
-                            </div>
-                            <div className="text-2xs text-muted-foreground sm:text-xs">
-                              {format === "T20" && "20 overs"}
-                              {format === "ODI" && "50 overs"}
-                              {format === "Custom" && "Custom"}
-                            </div>
-                          </button>
-                        ),
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="overs">Overs per innings</Label>
-                    <Input
-                      id="overs"
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={formData.oversPerInnings}
-                      onChange={(e) =>
-                        updateField(
-                          "oversPerInnings",
-                          parseInt(e.target.value) || 0,
-                        )
-                      }
-                      disabled={formData.matchFormat !== "Custom"}
-                      className="mt-2"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Teams */}
-            {step === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">Select teams</h2>
-                  <p className="mb-4 text-sm text-muted-foreground">
-                    Choose the two teams that will compete. Team 1 is your team
-                    or the host team.
-                  </p>
-                  {selectedTournament && (
-                    <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          Teams marked <Trophy className="inline h-3 w-3 shrink-0" aria-hidden="true" /> are registered in{" "}
-                          {selectedTournament.name}
-                        </span>
-                      </div>
-                      {isTournamentOrganizer && (
-                        <Badge
-                          variant="secondary"
-                          className="border-amber-500/20 bg-amber-500/10 text-xs text-amber-600 dark:text-amber-400"
-                        >
-                          Tournament organizer access
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                  {selectedClub && isClubOrganizer && !selectedTournament && (
-                    <div className="mb-4 flex items-center gap-1.5 text-xs font-medium text-blue-500">
-                      <Shield className="h-3.5 w-3.5 shrink-0" />
-                      <span>Club Admin Access for {selectedClub.name}</span>
-                    </div>
-                  )}
-                </div>
-
-                {teamsLoading ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-8">
-                    <Loader2 className="h-6 w-6 shrink-0 animate-spin text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      Loading teams...
-                    </span>
-                  </div>
-                ) : teamsLoadError ? (
-                  <div className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-center">
-                    <div className="flex items-center justify-center gap-2 text-sm text-red-500">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{teamsLoadError}</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleRetry}
-                      className="gap-1.5"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                      Retry
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    {/* Team 1 (Host / Your Team) */}
-                    <div>
-                      <div className="flex items-baseline justify-between">
-                        <Label>Team 1 (host / your team)</Label>
-                        <span className="text-xs text-muted-foreground">
-                          Teams you represent
-                        </span>
-                      </div>
-
-                      {team1Eligible.length === 0 ? (
-                        <div className="mt-2 rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-sm">
-                          <div className="flex items-start gap-3">
-                            <Users className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">
-                                No eligible teams found
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                You can only host matches for teams you created,
-                                captain, play for, or manage. Create a team now
-                                to proceed.
-                              </p>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="mt-2 text-xs"
-                                onClick={() => {
-                                  setNewTeamFor("team1Id");
-                                  setNewTeamName("");
-                                }}
-                              >
-                                <Plus className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                                Create your team
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <Select
-                            value={formData.team1Id || undefined}
-                            onValueChange={(value) =>
-                              updateField("team1Id", value)
-                            }
-                          >
-                            <SelectTrigger className="mt-2">
-                              <SelectValue placeholder="Select your team" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {team1AvailableCount === 0 ? (
-                                <div className="p-2 text-center text-xs text-muted-foreground">
-                                  No eligible teams available
-                                </div>
-                              ) : (
-                                <>
-                                  {team1MyTeams.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>My teams</SelectLabel>
-                                      {team1MyTeams.map((team) => {
-                                        const isReg = tournamentTeamIds.has(
-                                          team.id,
-                                        );
-                                        return (
-                                          <SelectItem
-                                            key={team.id}
-                                            value={team.id}
-                                          >
-                                            <span className="flex items-center gap-1.5">
-                                              {isReg && (
-                                                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
-                                              )}
-                                              <span>
-                                                {team.name}
-                                                {team.short_name &&
-                                                  ` (${team.short_name})`}
-                                              </span>
-                                            </span>
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectGroup>
-                                  )}
-
-                                  {team1OrgTournTeams.length > 0 && (
-                                    <>
-                                      {team1MyTeams.length > 0 && (
-                                        <SelectSeparator />
-                                      )}
-                                      <SelectGroup>
-                                        <SelectLabel>
-                                          Tournament teams (organizer access)
-                                        </SelectLabel>
-                                        {team1OrgTournTeams.map((team) => (
-                                          <SelectItem
-                                            key={team.id}
-                                            value={team.id}
-                                          >
-                                            <span className="flex items-center gap-1.5">
-                                              <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
-                                              <span>
-                                                {team.name}
-                                                {team.short_name &&
-                                                  ` (${team.short_name})`}
-                                              </span>
-                                            </span>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    </>
-                                  )}
-
-                                  {team1OrgClubTeams.length > 0 && (
-                                    <>
-                                      {(team1MyTeams.length > 0 ||
-                                        team1OrgTournTeams.length > 0) && (
-                                        <SelectSeparator />
-                                      )}
-                                      <SelectGroup>
-                                        <SelectLabel>
-                                          Club teams (admin access)
-                                        </SelectLabel>
-                                        {team1OrgClubTeams.map((team) => {
-                                          const isReg = tournamentTeamIds.has(
-                                            team.id,
-                                          );
-                                          return (
-                                            <SelectItem
-                                              key={team.id}
-                                              value={team.id}
-                                            >
-                                              <span className="flex items-center gap-1.5">
-                                                {isReg && (
-                                                  <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
-                                                )}
-                                                <span>
-                                                  {team.name}
-                                                  {team.short_name &&
-                                                    ` (${team.short_name})`}
-                                                </span>
-                                              </span>
-                                            </SelectItem>
-                                          );
-                                        })}
-                                      </SelectGroup>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="mt-1 h-7 text-xs text-muted-foreground"
-                            onClick={() => {
-                              setNewTeamFor("team1Id");
-                              setNewTeamName("");
-                            }}
-                          >
-                            <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
-                            Create new team
-                          </Button>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Team 2 (Opponent) */}
-                    <div>
-                      <div className="flex items-baseline justify-between">
-                        <Label>Team 2 (opponent)</Label>
-                        <span className="text-xs text-muted-foreground">
-                          {formData.tournamentId
-                            ? "Tournament opponents"
-                            : formData.clubId
-                              ? "Club / Managed opponents"
-                              : "Internal squad or create opponent"}
-                        </span>
-                      </div>
-                      <Select
-                        value={formData.team2Id || undefined}
-                        onValueChange={(value) => updateField("team2Id", value)}
-                      >
-                        <SelectTrigger className="mt-2">
-                          <SelectValue placeholder="Select opponent team" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {team2Eligible.length === 0 ? (
-                            <div className="p-2 text-center text-xs text-muted-foreground">
-                              {formData.tournamentId
-                                ? "No other teams registered in this tournament"
-                                : "No opponent squads available"}
-                            </div>
-                          ) : (
-                            <>
-                              {formData.tournamentId &&
-                                team2TournamentTeams.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>Tournament teams</SelectLabel>
-                                    {team2TournamentTeams.map((team) => (
-                                      <SelectItem key={team.id} value={team.id}>
-                                        <span className="flex items-center gap-1.5">
-                                          <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
-                                          <span>
-                                            {team.name}
-                                            {team.short_name &&
-                                              ` (${team.short_name})`}
-                                          </span>
-                                        </span>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-
-                              {!formData.tournamentId && formData.clubId && (
-                                <>
-                                  {team2ClubTeams.length > 0 && (
-                                    <SelectGroup>
-                                      <SelectLabel>Club squads</SelectLabel>
-                                      {team2ClubTeams.map((team) => (
-                                        <SelectItem
-                                          key={team.id}
-                                          value={team.id}
-                                        >
-                                          {team.name}
-                                          {team.short_name &&
-                                            ` (${team.short_name})`}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectGroup>
-                                  )}
-
-                                  {team2MyTeams.length > 0 && (
-                                    <>
-                                      {team2ClubTeams.length > 0 && (
-                                        <SelectSeparator />
-                                      )}
-                                      <SelectGroup>
-                                        <SelectLabel>
-                                          My other squads
-                                        </SelectLabel>
-                                        {team2MyTeams.map((team) => (
-                                          <SelectItem
-                                            key={team.id}
-                                            value={team.id}
-                                          >
-                                            {team.name}
-                                            {team.short_name &&
-                                              ` (${team.short_name})`}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectGroup>
-                                    </>
-                                  )}
-                                </>
-                              )}
-
-                              {!formData.tournamentId &&
-                                !formData.clubId &&
-                                team2MyTeams.length > 0 && (
-                                  <SelectGroup>
-                                    <SelectLabel>
-                                      My squads (internal match)
-                                    </SelectLabel>
-                                    {team2MyTeams.map((team) => (
-                                      <SelectItem key={team.id} value={team.id}>
-                                        {team.name}
-                                        {team.short_name &&
-                                          ` (${team.short_name})`}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                )}
-                            </>
-                          )}
-                        </SelectContent>
-                      </Select>
-
-                      {!formData.tournamentId ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="mt-1 h-7 text-xs text-muted-foreground"
-                            onClick={() => {
-                              setNewTeamFor("team2Id");
-                              setNewTeamName("");
-                            }}
-                          >
-                            <Plus className="mr-1 h-3.5 w-3.5 shrink-0" />
-                            Create opponent team
-                          </Button>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {formData.clubId
-                              ? "Select a club squad, one of your squads, or create a new opponent squad."
-                              : "For friendly matches, select one of your squads or create a new opponent team. Unaffiliated external teams cannot be selected directly to prevent unauthorized matches."}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="mt-1.5 text-xs text-muted-foreground">
-                          Only teams registered in this tournament can be
-                          selected as opponents.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step 3: Details */}
-            {step === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">
-                    Match details & associations
-                  </h2>
-                  <p className="mb-6 text-sm text-muted-foreground">
-                    Add venue, schedule, and tournament or club linkage
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">Match title *</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g., League Match - Round 1"
-                      value={formData.title}
-                      onChange={(e) => updateField("title", e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-
-                  {/* Tournament Selector */}
-                  <div>
-                    <Label htmlFor="tournament_select">
-                      Tournament (optional)
-                    </Label>
-                    <Select
-                      value={formData.tournamentId || "none"}
-                      onValueChange={(val) =>
-                        updateField("tournamentId", val === "none" ? "" : val)
-                      }
-                    >
-                      <SelectTrigger id="tournament_select" className="mt-2">
-                        <SelectValue placeholder="Independent match (no tournament)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          None (independent / friendly)
-                        </SelectItem>
-                        {selectableTournaments.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            <div className="flex items-center gap-2">
-                              <Trophy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                              <span>{t.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Only tournaments you organize or are pre-selected are
-                      shown.
-                    </p>
-                  </div>
-
-                  {/* Club Selector */}
-                  <div>
-                    <Label htmlFor="club_select">
-                      Club / organization (optional)
-                    </Label>
-                    <Select
-                      value={formData.clubId || "none"}
-                      onValueChange={(val) =>
-                        updateField("clubId", val === "none" ? "" : val)
-                      }
-                    >
-                      <SelectTrigger id="club_select" className="mt-2">
-                        <SelectValue placeholder="Independent match (no club)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          None (independent match)
-                        </SelectItem>
-                        {selectableClubs.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            <div className="flex items-center gap-2">
-                              <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                              <span>{c.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Only clubs you administer or that your selected teams
-                      belong to are shown.
-                    </p>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="venue">Venue</Label>
-                    <Input
-                      id="venue"
-                      placeholder="e.g., Central Park Cricket Ground"
-                      value={formData.venue}
-                      onChange={(e) => updateField("venue", e.target.value)}
-                      className="mt-2"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="datetime">Date & time</Label>
-                    <Input
-                      id="datetime"
-                      type="datetime-local"
-                      value={formData.scheduledAt}
-                      onChange={(e) =>
-                        updateField("scheduledAt", e.target.value)
-                      }
-                      className="mt-2"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                    <div>
-                      <Label htmlFor="umpire1">Umpire 1</Label>
-                      <Input
-                        id="umpire1"
-                        placeholder="Name"
-                        value={formData.umpire1Name}
-                        onChange={(e) =>
-                          updateField("umpire1Name", e.target.value)
-                        }
-                        className="mt-2"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="umpire2">Umpire 2</Label>
-                      <Input
-                        id="umpire2"
-                        placeholder="Name"
-                        value={formData.umpire2Name}
-                        onChange={(e) =>
-                          updateField("umpire2Name", e.target.value)
-                        }
-                        className="mt-2"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 4: Review */}
-            {step === 4 && (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="mb-2 text-xl font-semibold">
-                    Review match details
-                  </h2>
-                  <p className="mb-6 text-sm text-muted-foreground">
-                    Verify match parameters before opening the scorecard
-                  </p>
-                </div>
-
-                <div className="space-y-3 rounded-lg border p-4 text-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-muted-foreground">
-                      Match title
-                    </span>
-                    <span className="break-words text-right font-semibold">
-                      {formData.title}
-                    </span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-muted-foreground">
-                      Format
-                    </span>
-                    <span className="text-right font-medium">
-                      {formData.matchFormat} ({formData.oversPerInnings} overs)
-                    </span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-muted-foreground">
-                      Team 1
-                    </span>
-                    <span className="break-words text-right font-medium">
-                      {getTeamName(formData.team1Id)}
-                    </span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-muted-foreground">
-                      Team 2
-                    </span>
-                    <span className="break-words text-right font-medium">
-                      {getTeamName(formData.team2Id)}
-                    </span>
-                  </div>
-                  {selectedTournament && (
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="shrink-0 text-muted-foreground">
-                        Tournament
-                      </span>
-                      <span className="break-words text-right font-semibold text-amber-500">
-                        {selectedTournament.name}
-                      </span>
-                    </div>
-                  )}
-                  {selectedClub && (
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="shrink-0 text-muted-foreground">
-                        Club
-                      </span>
-                      <span className="break-words text-right font-semibold text-foreground">
-                        {selectedClub.name}
-                      </span>
-                    </div>
-                  )}
-                  {formData.venue && (
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="shrink-0 text-muted-foreground">
-                        Venue
-                      </span>
-                      <span className="break-words text-right font-medium">
-                        {formData.venue}
-                      </span>
-                    </div>
-                  )}
-                  {formData.scheduledAt && (
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="shrink-0 text-muted-foreground">
-                        Date/Time
-                      </span>
-                      <span className="text-right font-medium">
-                        {new Date(formData.scheduledAt).toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {!isMatchValidForSubmission && (
-                  <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400">
-                    <AlertCircle className="h-5 w-5 shrink-0" />
-                    <span className="text-xs">
-                      The selected teams are not both registered in this
-                      tournament. Please go back to Step 2 to select registered
-                      teams.
-                    </span>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-red-500">
-                    <AlertCircle className="h-5 w-5 shrink-0" />
-                    {error}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Navigation */}
-            <div className="mt-8 flex justify-between border-t border-border/70 pt-6">
-              <Button
-                variant="outline"
-                onClick={() => setStep((s) => Math.max(1, s - 1))}
-                disabled={step === 1}
-                className="h-11 min-h-[44px] px-5 text-sm font-semibold"
-              >
-                <ChevronLeft className="mr-2 h-4 w-4 shrink-0" />
-                Back
-              </Button>
-
-              {step < 4 ? (
-                <Button
-                  onClick={() => setStep((s) => s + 1)}
-                  disabled={
-                    (step === 1 && !canProceedStep1) ||
-                    (step === 2 && !canProceedStep2) ||
-                    (step === 3 && !canProceedStep3)
-                  }
-                  className="h-11 min-h-[44px] px-6 text-sm font-bold"
-                >
-                  Next
-                  <ChevronRight className="ml-2 h-4 w-4 shrink-0" />
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSubmit}
-                  disabled={loading || !isMatchValidForSubmission}
-                  className="h-11 min-h-[44px] px-6 text-sm font-bold"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="mr-2 h-4 w-4 shrink-0" />
-                      Create match
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Inline New Team Dialog */}
-        <Dialog
-          open={newTeamFor !== null}
-          onOpenChange={(open) => !open && setNewTeamFor(null)}
-        >
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {newTeamFor === "team1Id"
-                  ? "Create Your Team (Team 1)"
-                  : "Create Opponent Team (Team 2)"}
-              </DialogTitle>
-              <DialogDescription>
-                Quickly register a new team roster to use immediately for this
-                match fixture.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div>
-                <Label htmlFor="inline_team_name">Team name</Label>
-                <Input
-                  id="inline_team_name"
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="e.g., Mumbai Lions"
-                  className="mt-2"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Enter" &&
-                      newTeamName.trim() &&
-                      !newTeamSaving
-                    ) {
-                      e.preventDefault();
-                      void handleCreateInlineTeam();
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                onClick={handleCreateInlineTeam}
-                disabled={!newTeamName.trim() || newTeamSaving}
-                className="w-full"
-              >
-                {newTeamSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Save and Select Team"
-                )}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-    </PageContainer>
-  );
+  return <MatchSetupForm userId={user.id} />;
 }
 
 export default function CreateMatchPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
+        <div className="flex min-h-[50vh] items-center justify-center">
           <Loader2 className="h-8 w-8 shrink-0 animate-spin text-primary" />
         </div>
       }
     >
-      <CreateMatchWizard />
+      <CreateMatchGate />
     </Suspense>
   );
 }

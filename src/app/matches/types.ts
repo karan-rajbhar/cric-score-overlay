@@ -2,7 +2,7 @@
  * Shared form and scoring types — single source for all match actions.
  * Extracted from the 679-line God file to satisfy SRP.
  */
-export type MatchFormat = "T20" | "ODI" | "Custom";
+export type MatchFormat = "T20" | "T10" | "ODI" | "Custom";
 
 export interface MatchFormData {
   title: string;
