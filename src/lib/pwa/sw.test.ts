@@ -87,6 +87,9 @@ describe("sw.js routing", () => {
       req("/dashboard", { headers: { "Next-Router-Prefetch": "1" } }),
       req("/api/auth/session"),
       req("/api/auth/session", { mode: "navigate" }),
+      // The offline queue's replay batches.
+      req("/api/scoring/replay", { method: "POST" }),
+      req("/api/scoring/replay"),
       req("/__/auth/handler", { mode: "navigate" }),
       req("/__/auth/iframe.js"),
       req("/__/firebase/init.json"),

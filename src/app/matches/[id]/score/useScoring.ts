@@ -391,23 +391,11 @@ export function useScoring(
     setIsProcessing(true);
     toast.info("Syncing offline deliveries with server...");
 
-    // Each action carries its queue id to the server as the idempotency key,
-    // so a replay after a lost response is not applied twice.
-    const res = await flushPendingActions(matchId, {
-      recordBall: (ball, id) => recordBall({ ...ball, clientActionId: id }),
-      setBatsmen: (sId, nsId) => setCurrentBatsmen(matchId, sId, nsId),
-      setBowler: (bId) => setCurrentBowler(matchId, bId),
-      endInnings: (id) => endInnings(matchId, id),
-      undoLastBall: (id) => undoLastBall(matchId, id),
-      startSuperOver: (id) => startSuperOver(matchId, id),
-      retireBatter: (p, id) =>
-        retirePlayer(matchId, { ...p, clientActionId: id }),
-      awardPenalty: (p, id) =>
-        awardTeamPenalty(matchId, { ...p, clientActionId: id }),
-      reassignOverBowler: (bId, id) =>
-        reassignCurrentOverBowler(matchId, bId, id),
-      updateBall: (p) => updateBall({ matchId, ...p }),
-    });
+    // Replayed through /api/scoring/replay, not server actions: their ids
+    // change with each deploy, and this queue may predate the current build.
+    // Each action carries its queue id as the idempotency key, so a replay
+    // after a lost response is not applied twice.
+    const res = await flushPendingActions(matchId);
 
     setPendingCount(getPendingCount(matchId));
     setDeadLetterCount(getDeadLetterCount(matchId));
@@ -415,7 +403,15 @@ export function useScoring(
       toast.success(`Successfully synced ${res.synced} offline item(s)!`);
       await syncFromDb();
     }
-    if (res.failed > 0) {
+    if (res.errorCode) {
+      toast.error(
+        res.errorCode === "not_authenticated"
+          ? "Sign in again to sync the queued actions. They are kept on this device."
+          : res.errorCode === "unsupported_version"
+            ? "The server cannot accept this app version's queued actions yet. They are kept on this device."
+            : `Could not sync queued actions (${res.errorMessage ?? res.errorCode}). They are kept on this device.`,
+      );
+    } else if (res.failed > 0) {
       toast.error(
         `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
       );
