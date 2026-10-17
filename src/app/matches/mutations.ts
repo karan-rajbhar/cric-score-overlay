@@ -557,6 +557,7 @@ export async function setCurrentBatsmen(
   matchId: string,
   strikerId: string,
   nonStrikerId: string,
+  clientActionId?: string | null,
 ): Promise<{ error: string | null }> {
   try {
     const db = await createServerClient();
@@ -580,6 +581,7 @@ export async function setCurrentBatsmen(
       p_match_id: matchId,
       p_striker_id: strikerId,
       p_non_striker_id: nonStrikerId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("set_current_batsmen failed:", error);
@@ -601,6 +603,7 @@ export async function setCurrentBatsmen(
 export async function setCurrentBowler(
   matchId: string,
   bowlerId: string,
+  clientActionId?: string | null,
 ): Promise<{ error: string | null }> {
   try {
     const db = await createServerClient();
@@ -623,6 +626,7 @@ export async function setCurrentBowler(
     const { error } = await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: bowlerId,
+      p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("set_current_bowler failed:", error);
@@ -857,6 +861,8 @@ export async function updateBall(params: {
   dismissedPlayerId?: string | null;
   batsmanId?: string | null;
   bowlerId?: string | null;
+  /** Idempotency key (offline queue id): a replay is not applied twice. */
+  clientActionId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -893,6 +899,7 @@ export async function updateBall(params: {
       p_dismissal_type: params.dismissalType ?? null,
       p_fielder_id: params.fielderId ?? null,
       p_dismissed_player_id: params.dismissedPlayerId ?? null,
+      p_client_action_id: params.clientActionId ?? null,
     });
 
     if (error) {

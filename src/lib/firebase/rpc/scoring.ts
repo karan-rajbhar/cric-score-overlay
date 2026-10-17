@@ -177,6 +177,11 @@ async function onceOnly<R>(
   }
 }
 
+/** `.catch()` for a mutation with no result: a replayed action is a no-op. */
+function ignoreReplayed(err: unknown): void {
+  if (!(err instanceof ActionAlreadyApplied)) throw err;
+}
+
 const EXTRA_TYPES = new Set([
   "wide",
   "no_ball",
@@ -1321,7 +1326,7 @@ export async function updateBall(
   }
   const now = new Date().toISOString();
 
-  const [before, overs] = await runTracked(ctx, async (t) => {
+  const tracked = await runOnce(ctx, async (t) => {
     // New ball ids name their over document (1 read); older ones are
     // found by reading the match's ball log (one document per over).
     const hinted = overDocIdOfBall(args.p_ball_id);
@@ -1332,6 +1337,8 @@ export async function updateBall(
         : Promise.resolve(null),
     ]);
     if (!match) throw new DbQueryError("match_not_found", "22000");
+    // A replayed edit (offline queue) is not applied again over a later one.
+    guardClientAction(t, ctx, match);
     const holds = (o: OversRow | null): o is WithId<OversRow> =>
       !!o &&
       o.match_id === matchId &&
@@ -1384,6 +1391,8 @@ export async function updateBall(
     await syncIfCompleted(t, match, innings, after, now);
     return match;
   });
+  if (!tracked) return recordState(ctx.ds, matchId);
+  const [before, overs] = tracked;
 
   return finishWithState(ctx, matchId, before, overs, lastChangeBy(ctx, now));
 }
@@ -1812,6 +1821,9 @@ export async function setCurrentBatsmen(
     if (strikerId === nonStrikerId)
       throw new DbQueryError("invalid_input", "22000");
     if (!match) throw new DbQueryError("match_not_found", "22000");
+    // A replayed change (offline queue) is not applied again: later
+    // actions may have moved the crease on since.
+    guardClientAction(t, ctx, match);
     const current = (await loadCurrentInnings(
       t,
       match,
@@ -1886,7 +1898,7 @@ export async function setCurrentBatsmen(
     if (!changed) return;
     t.patch("innings", current.id, { batting: next });
     await stageCurrentLiveState(t, match, { ...current, batting: next }, now);
-  });
+  }).catch(ignoreReplayed);
 
   return { ok: true };
 }
@@ -1906,6 +1918,9 @@ export async function setCurrentBowler(
     const match = await t.doc<MatchesRow>("matches", matchId);
     await requireAdminOf(ctx, matchId, match);
     if (!match) throw new DbQueryError("match_not_found", "22000");
+    // A replayed change (offline queue) is not applied again: the next
+    // over may have started since, with another bowler.
+    guardClientAction(t, ctx, match);
     const current = (await loadCurrentInnings(
       t,
       match,
@@ -1969,7 +1984,7 @@ export async function setCurrentBowler(
     if (!changed) return;
     t.patch("innings", current.id, { bowling: next });
     await stageCurrentLiveState(t, match, { ...current, bowling: next }, now);
-  });
+  }).catch(ignoreReplayed);
 
   return { ok: true };
 }
