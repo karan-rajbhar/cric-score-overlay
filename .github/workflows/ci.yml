@@ -5,9 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# Superseded PR runs are cancelled, but runs on main never are: a merge that
+# lands mid-deploy must not cancel the previous deploy halfway through.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
