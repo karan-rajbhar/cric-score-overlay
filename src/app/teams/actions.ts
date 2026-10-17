@@ -1,7 +1,13 @@
 "use server";
 
 import type { Doc } from "~/lib/firebase/datasource";
-import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
+import {
+  INFIX_LEN,
+  isInfixQuery,
+  matchesSearch,
+  normalizeText,
+  searchKey,
+} from "~/lib/firebase/derive.mjs";
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
@@ -87,9 +93,17 @@ export async function getTeams(filters?: {
     );
   } else {
     let query = db.from("teams").select(SELECT);
-    if (searchFor) {
-      // Native word-prefix match (search_prefixes) instead of a scan.
-      query = query.contains("search_prefixes", [searchFor]);
+    // A one-word query of 4+ characters looks up its first trigram (every
+    // name containing the query, at a word start or inside a word, has it)
+    // and is confirmed in memory, as are queries longer than the stored keys.
+    const norm = filters?.search ? normalizeText(filters.search) : "";
+    const key =
+      searchFor && isInfixQuery(norm) && norm.length > INFIX_LEN
+        ? norm.slice(0, INFIX_LEN)
+        : searchFor;
+    if (key) {
+      // Native search_prefixes match instead of a scan.
+      query = query.contains("search_prefixes", [key]);
     }
     if (filters?.type) {
       query = query.eq("team_type", filters.type);
@@ -97,6 +111,11 @@ export async function getTeams(filters?: {
     const res = await query.order("created_at", { ascending: false });
     data = res.data;
     error = res.error;
+    if (data && key && key !== norm) {
+      data = data.filter((t) =>
+        matchesSearch(filters!.search, [t.name, t.short_name]),
+      );
+    }
   }
 
   if (error || !data) {
