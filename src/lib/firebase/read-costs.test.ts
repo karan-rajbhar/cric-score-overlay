@@ -134,6 +134,7 @@ describe("billed reads per page on the seed data", () => {
     signIn(admin);
     const scoring = await getScoringState(liveMatch.id);
     const data = scoring.data!;
+    let delta: unknown = null;
     results.scoringPerBall = await cost(async () => {
       const res = await recordBall({
         matchId: liveMatch.id,
@@ -143,11 +144,13 @@ describe("billed reads per page on the seed data", () => {
         event: { runsScored: 1 } as never,
       });
       expect(res.error).toBeNull();
+      delta = res.delta;
     });
-    // The scoring screen re-reads its state after every ball.
-    results.scoringScreenPerBall =
-      results.scoringPerBall +
-      (await cost(() => getScoringState(liveMatch.id)));
+    // The scoring screen updates from the documents the ball committed
+    // (`delta`, see ~/lib/scoring-delta); it re-read its state (7 reads)
+    // after every ball before.
+    expect(delta).toBeTruthy();
+    results.scoringScreenPerBall = results.scoringPerBall;
 
     // A spectator per ball, by match page tab. Listeners bill 1 read per
     // changed doc; the Balls / Stats tabs read the `overs` docs named by
@@ -244,7 +247,8 @@ describe("billed reads per page on the seed data", () => {
       dashboard: 6,
       matchPageWarm: 8,
       scoringState: 7,
-      scoringScreenPerBall: 14,
+      // 12 when the screen re-read its state after every ball.
+      scoringScreenPerBall: 5,
       viewerPerBallOverlay: 1,
       viewerPerBallSummary: 2,
       viewerPerBallBalls: 2,

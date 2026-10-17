@@ -19,6 +19,7 @@ import type {
 import { getMatch } from "./queries";
 import { calculatePlayerOfTheMatch } from "~/lib/cricket";
 import type { Match } from "~/lib/match-types";
+import type { ScoringDelta } from "~/lib/scoring-delta";
 
 export async function createMatch(formData: MatchFormData) {
   const db = await createServerClient();
@@ -464,7 +465,12 @@ export async function recordBall(params: {
   event: BallEvent;
   /** Idempotency key (offline queue id): a replay is not recorded twice. */
   clientActionId?: string | null;
-}): Promise<{ data: ScoringState | null; error: string | null }> {
+}): Promise<{
+  data: ScoringState | null;
+  error: string | null;
+  /** The committed documents, for the scoring screen (see scoring-delta). */
+  delta?: ScoringDelta | null;
+}> {
   try {
     const db = await createServerClient();
     const {
@@ -478,7 +484,11 @@ export async function recordBall(params: {
     // record_ball checks scoring rights inside its transaction (same rule as
     // checkMatchAdminAuth, from the match it already reads), so checking here
     // too would only cost an extra read per ball.
-    const { data, error } = await db.rpc("record_ball", {
+    const { data: reply, error } = await db.rpc<{
+      result: ScoringState;
+      delta: ScoringDelta | null;
+    }>("record_ball", {
+      p_with_delta: true,
       p_match_id: params.matchId,
       p_bowler_id: params.bowlerId,
       p_batsman_id: params.batsmanId,
@@ -498,6 +508,7 @@ export async function recordBall(params: {
       console.error("record_ball failed:", error);
       return { data: null, error: friendlyError(error.message) };
     }
+    const data = reply?.result ?? null;
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
 
@@ -525,7 +536,7 @@ export async function recordBall(params: {
       }
     }
 
-    return { data: data as ScoringState, error: null };
+    return { data, error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in recordBall:", err);
     return {
@@ -587,7 +598,7 @@ export async function setCurrentBatsmen(
   strikerId: string,
   nonStrikerId: string,
   clientActionId?: string | null,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; delta?: ScoringDelta | null }> {
   try {
     const db = await createServerClient();
     const {
@@ -598,15 +609,12 @@ export async function setCurrentBatsmen(
       return { error: "You must be logged in to set batsmen" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isAuthorized) {
-      return {
-        error:
-          "Only match administrators or designated scorers can set batsmen",
-      };
-    }
-
-    const { error } = await db.rpc("set_current_batsmen", {
+    // Scoring rights are checked inside the engine's transaction (same
+    // rule as checkMatchAdminAuth, from the match it reads anyway).
+    const { data: reply, error } = await db.rpc<{
+      delta: ScoringDelta | null;
+    }>("set_current_batsmen", {
+      p_with_delta: true,
       p_match_id: matchId,
       p_striker_id: strikerId,
       p_non_striker_id: nonStrikerId,
@@ -614,11 +622,17 @@ export async function setCurrentBatsmen(
     });
     if (error) {
       console.error("set_current_batsmen failed:", error);
+      if (error.message.includes("not_authorized")) {
+        return {
+          error:
+            "Only match administrators or designated scorers can set batsmen",
+        };
+      }
       return { error: friendlyError(error.message) };
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    return { error: null };
+    return { error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in setCurrentBatsmen:", err);
     return {
@@ -633,7 +647,7 @@ export async function setCurrentBowler(
   matchId: string,
   bowlerId: string,
   clientActionId?: string | null,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; delta?: ScoringDelta | null }> {
   try {
     const db = await createServerClient();
     const {
@@ -644,26 +658,29 @@ export async function setCurrentBowler(
       return { error: "You must be logged in to set bowler" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isAuthorized) {
-      return {
-        error:
-          "Only match administrators or designated scorers can set bowler",
-      };
-    }
-
-    const { error } = await db.rpc("set_current_bowler", {
+    // Scoring rights are checked inside the engine's transaction (same
+    // rule as checkMatchAdminAuth, from the match it reads anyway).
+    const { data: reply, error } = await db.rpc<{
+      delta: ScoringDelta | null;
+    }>("set_current_bowler", {
+      p_with_delta: true,
       p_match_id: matchId,
       p_bowler_id: bowlerId,
       p_client_action_id: clientActionId ?? null,
     });
     if (error) {
       console.error("set_current_bowler failed:", error);
+      if (error.message.includes("not_authorized")) {
+        return {
+          error:
+            "Only match administrators or designated scorers can set bowler",
+        };
+      }
       return { error: friendlyError(error.message) };
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    return { error: null };
+    return { error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in setCurrentBowler:", err);
     return {

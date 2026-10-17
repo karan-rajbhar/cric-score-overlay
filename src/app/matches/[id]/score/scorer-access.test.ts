@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { resolveScorerAccess } from "./scorer-access";
+import { isKnownSpectator, resolveScorerAccess } from "./scorer-access";
 import { forgetScorer, rememberScorer, wasScorer } from "~/lib/offline-match-cache";
 
 const base = {
@@ -50,5 +50,28 @@ describe("remembered scorer", () => {
     expect(wasScorer("m1", null)).toBe(false);
     forgetScorer("m1");
     expect(wasScorer("m1", "u1")).toBe(false);
+  });
+});
+
+describe("isKnownSpectator", () => {
+  const visitor = {
+    hasUser: true,
+    authLoading: false,
+    isAdmin: undefined as boolean | undefined,
+    offline: false,
+  };
+  it("is true only once the visitor is known not to score, online", () => {
+    expect(isKnownSpectator({ ...visitor, hasUser: false })).toBe(true);
+    expect(isKnownSpectator({ ...visitor, isAdmin: false })).toBe(true);
+    expect(isKnownSpectator({ ...visitor, isAdmin: true })).toBe(false);
+    // Unknown yet (loading, or the check failed): stay.
+    expect(isKnownSpectator(visitor)).toBe(false);
+    expect(
+      isKnownSpectator({ ...visitor, hasUser: false, authLoading: true }),
+    ).toBe(false);
+    // Offline the match centre cannot load: stay.
+    expect(isKnownSpectator({ ...visitor, isAdmin: false, offline: true })).toBe(
+      false,
+    );
   });
 });

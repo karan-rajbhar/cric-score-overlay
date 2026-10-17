@@ -113,6 +113,19 @@ export abstract class ScoringTx implements DocReader {
   pendingWrites(): PendingWrite[] {
     return Array.from(this.writes.values());
   }
+
+  /**
+   * A document as it will be stored once the staged writes commit: null
+   * when deleted, undefined when unknown (neither read nor fully written).
+   */
+  docAfter(table: string, id: string): Doc | null | undefined {
+    const w = this.pending(table, id);
+    const known = this.known<Doc>(table, id);
+    if (!w) return known ?? undefined;
+    if (w.kind === "delete") return null;
+    if (w.kind === "set") return { ...w.data, id };
+    return known ? { ...known, ...w.data, id } : undefined;
+  }
 }
 
 /** Reads through a Firestore Admin transaction. */
@@ -235,9 +248,15 @@ async function finalize(t: ScoringTx): Promise<void> {
   await stageLiveScorecards(t);
 }
 
+/**
+ * Runs `fn` in a transaction. `after` sees the transaction once every
+ * write is staged (derived fields included), just before it commits; with
+ * Firestore retries it runs once per attempt.
+ */
 export async function runScoringTransaction<R>(
   ctx: TxContext,
   fn: (t: ScoringTx) => Promise<R>,
+  after?: (t: ScoringTx) => void,
 ): Promise<R> {
   const db = ctx.db ?? firestoreOf(ctx.ds);
   if (db) {
@@ -245,6 +264,7 @@ export async function runScoringTransaction<R>(
       const t = new FirestoreScoringTx(db, tx);
       const result = await fn(t);
       await finalize(t);
+      after?.(t);
       t.flush();
       return result;
     });
@@ -252,6 +272,7 @@ export async function runScoringTransaction<R>(
   const t = new DataSourceScoringTx(ctx.ds);
   const result = await fn(t);
   await finalize(t);
+  after?.(t);
   await t.commit();
   return result;
 }

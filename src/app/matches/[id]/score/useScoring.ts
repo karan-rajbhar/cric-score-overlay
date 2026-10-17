@@ -40,6 +40,17 @@ import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
 import type { BallEvent, ScoringState, ExtraType } from "../../types";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
+import { applyScoringDelta, type ScoringDelta } from "~/lib/scoring-delta";
+
+/** What `getScoringState` returns. */
+type Snapshot = {
+  match: Match;
+  strikerId: string | null;
+  nonStrikerId: string | null;
+  bowlerId: string | null;
+  lastOverBowlerId: string | null;
+  thisOverDeliveries: DeliveryToEdit[];
+};
 
 type Player = TeamPlayer;
 
@@ -242,9 +253,12 @@ export function useScoring(
     }
   }, [resolveSquadTeamIds]);
 
-  const syncFromDb = useCallback(async (): Promise<boolean> => {
-    const result = await getScoringState(matchId);
-    if (result.error || !result.data) return false;
+  /** The server state last shown (`getScoringState` or built from a delta). */
+  const snapshotRef = useRef<Snapshot | null>(null);
+
+  /** Show a server snapshot: what `syncFromDb` does once it has read one. */
+  const applySnapshot = useCallback(async (data: Snapshot): Promise<void> => {
+    snapshotRef.current = data;
     const {
       match: m,
       strikerId: s,
@@ -252,14 +266,7 @@ export function useScoring(
       bowlerId: b,
       lastOverBowlerId: lob,
       thisOverDeliveries,
-    } = result.data as {
-      match: Match;
-      strikerId: string | null;
-      nonStrikerId: string | null;
-      bowlerId: string | null;
-      lastOverBowlerId?: string | null;
-      thisOverDeliveries: DeliveryToEdit[];
-    };
+    } = data;
     // Refetch squads only on first load or when the batting/bowling sides
     // change (innings swap). Squads are otherwise mutated locally via
     // handleAddPlayerInline, which explicitly reloads them.
@@ -301,8 +308,39 @@ export function useScoring(
     if (m.status === "live" && !b && s && ns) {
       optionsRef.current?.onNeedsBowler?.();
     }
-    return true;
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
+
+  const syncFromDb = useCallback(async (): Promise<boolean> => {
+    const result = await getScoringState(matchId);
+    if (result.error || !result.data) return false;
+    await applySnapshot(result.data as unknown as Snapshot);
+    return true;
+  }, [matchId, applySnapshot]);
+
+  /**
+   * After a mutation that answered with the documents it committed: the
+   * same state `syncFromDb` would read, built from them (no request);
+   * re-reads when they are not enough (see `~/lib/scoring-delta`).
+   */
+  const applyDelta = useCallback(
+    async (delta: ScoringDelta | null | undefined): Promise<boolean> => {
+      const prev = snapshotRef.current;
+      const names = new Map<string, { id: string; full_name: string | null }>();
+      for (const p of [
+        ...playersRef.current.batting,
+        ...playersRef.current.bowling,
+      ]) {
+        if (p.user_id && p.user) {
+          names.set(p.user_id, { id: p.user.id, full_name: p.user.full_name });
+        }
+      }
+      const next = prev ? applyScoringDelta(prev, delta, names) : null;
+      if (!next) return syncFromDb();
+      await applySnapshot(next);
+      return true;
+    },
+    [applySnapshot, syncFromDb],
+  );
 
   const loadMatch = useCallback(async () => {
     const result = await getMatch(matchId);
@@ -451,7 +489,21 @@ export function useScoring(
     };
   }, [flushOfflineQueue]);
 
-  const applyState = (state: ScoringState) => {
+  /**
+   * `refresh`: how to catch up with the server afterwards: the reply's
+   * committed documents (`delta`), a re-read (default), or nothing when the
+   * caller re-reads itself (`false`).
+   */
+  const applyState = (
+    state: ScoringState,
+    refresh: { delta: ScoringDelta | null | undefined } | boolean = true,
+  ) => {
+    const catchUp = () =>
+      refresh === false
+        ? Promise.resolve(true)
+        : refresh === true
+          ? syncFromDb()
+          : applyDelta(refresh.delta);
     setStrikerId(state.striker_id);
     setNonStrikerId(state.non_striker_id);
 
@@ -662,7 +714,7 @@ export function useScoring(
     }
     if (state.innings_break) {
       toast.info("Innings break — set new batsmen and bowler");
-      void syncFromDb();
+      void catchUp();
       return;
     }
 
@@ -690,7 +742,7 @@ export function useScoring(
     }
 
     if (typeof navigator === "undefined" || navigator.onLine) {
-      void syncFromDb();
+      void catchUp();
     }
   };
 
@@ -848,7 +900,7 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        applyState(result.data);
+        applyState(result.data, { delta: result.delta });
       }
       setIsProcessing(false);
       return result;
@@ -951,7 +1003,7 @@ export function useScoring(
     if (result.error) {
       toast.error(result.error);
     } else if (result.data) {
-      applyState(result.data);
+      applyState(result.data, false);
       toast.success("Last ball undone");
     }
     await syncFromDb();
@@ -1010,7 +1062,7 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        applyState(result.data);
+        applyState(result.data, false);
         toast.success("Delivery updated in place");
       }
       await syncFromDb();
@@ -1225,7 +1277,7 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        applyState(result.data);
+        applyState(result.data, false);
         toast.success("Super over started");
       }
       await syncFromDb();
@@ -1343,10 +1395,7 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else {
-        if (!currentBowlerId) {
-          // Caller will open bowler dialog
-        }
-        await syncFromDb();
+        await applyDelta(result.delta);
       }
       setIsProcessing(false);
       return result;
@@ -1485,7 +1534,7 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else {
-        await syncFromDb();
+        await applyDelta(result.delta);
       }
       setIsProcessing(false);
       return result;

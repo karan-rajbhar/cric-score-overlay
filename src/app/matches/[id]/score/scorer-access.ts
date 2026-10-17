@@ -24,3 +24,21 @@ export function resolveScorerAccess(args: {
   if (args.adminCheckLoading) return null;
   return false;
 }
+
+/**
+ * Whether a visitor of the scoring screen is known not to score this match
+ * (signed out, or the server check answered no) while online: they are
+ * sent to the match centre, which shows the same live score from the
+ * `live_state` / `live_scorecard` listeners (1-2 reads a ball) instead of
+ * re-reading the scoring state after every ball (~6 reads). Never while
+ * offline or while the answer is still unknown.
+ */
+export function isKnownSpectator(args: {
+  hasUser: boolean;
+  authLoading: boolean;
+  isAdmin: boolean | undefined;
+  offline: boolean;
+}): boolean {
+  if (args.offline || args.authLoading) return false;
+  return !args.hasUser || args.isAdmin === false;
+}
