@@ -57,6 +57,13 @@ const MatchSuperstars = dynamic(
     ),
   { ssr: false },
 );
+const MatchMoreMenu = dynamic(
+  () =>
+    import("~/components/matches/match-more-menu").then(
+      (m) => m.MatchMoreMenu,
+    ),
+  { ssr: false },
+);
 const MatchScorersDialog = dynamic(
   () =>
     import("~/components/matches/match-scorers-dialog").then(
@@ -497,6 +504,7 @@ function MatchDetailsPageContent() {
                   </span>
                 </Link>
               )}
+              {user && <MatchMoreMenu match={match} />}
             </div>
           </div>
         </div>

@@ -32,6 +32,7 @@ import { expandEmbedded, legacyRowsDataSource } from "./legacy-rows";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
 import { RealtimeChannel } from "./realtime";
 import {
+  canDeleteMatch,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
@@ -118,6 +119,15 @@ export class BrowserClient {
         case "is_match_admin":
           return {
             data: (await isMatchAdmin(
+              this.ds,
+              String(args.p_match_id ?? ""),
+              userArg,
+            )) as T,
+            error: null,
+          };
+        case "can_delete_match":
+          return {
+            data: (await canDeleteMatch(
               this.ds,
               String(args.p_match_id ?? ""),
               userArg,
