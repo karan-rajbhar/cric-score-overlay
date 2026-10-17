@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -87,7 +87,35 @@ const InviteDialog = dynamic(
   () => import("~/components/invite-dialog").then((m) => m.InviteDialog),
   { ssr: false },
 );
+
+/** Fetches the code of the dialogs above (used before going offline). */
+function preloadScoringDialogs(): Promise<unknown> {
+  return Promise.allSettled([
+    import("./components/TossDialog"),
+    import("./components/BatsmenDialog"),
+    import("./components/BowlerDialog"),
+    import("./components/WicketDialog"),
+    import("./components/EditBallDialog"),
+    import("./components/SquadManagerDialog"),
+    import("./components/PotmDialog"),
+    import("./components/MatchSettingsDialog"),
+    import("./components/PenaltyBonusDialog"),
+    import("./components/AbandonMatchDialog"),
+    import("./components/RetirePlayerDialog"),
+    import("./components/ReviseTargetDialog"),
+    import("~/components/matches/dls-calculator-modal"),
+    import("~/components/matches/match-scorers-dialog"),
+    import("~/components/invite-dialog"),
+  ]);
+}
 import { useScoring } from "./useScoring";
+import { resolveScorerAccess } from "./scorer-access";
+import {
+  forgetScorer,
+  rememberScorer,
+  wasScorer,
+} from "~/lib/offline-match-cache";
+import { cacheCurrentPage } from "~/lib/pwa/service-worker";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
@@ -146,14 +174,6 @@ export default function ScoringPage() {
     matchId,
     user?.id,
   );
-  const isAuthorized = user
-    ? authCheckLoading
-      ? null
-      : Boolean(isAdminData)
-    : authLoading
-      ? null
-      : false;
-  const isScorer = Boolean(isAuthorized);
 
   const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
   const toggleSunlightMode = usePreferencesStore((s) => s.toggleSunlightMode);
@@ -253,6 +273,38 @@ export default function ScoringPage() {
     loadPlayers,
     syncFromDb,
   } = useScoring(matchId, scoringOptions);
+
+  const rememberedScorer = useMemo(
+    () => wasScorer(matchId, user?.id),
+    [matchId, user?.id],
+  );
+  useEffect(() => {
+    if (!user?.id) return;
+    if (isAdminData === true) rememberScorer(matchId, user.id);
+    else if (isAdminData === false && !isOffline) forgetScorer(matchId);
+  }, [isAdminData, isOffline, matchId, user?.id]);
+  const isAuthorized = resolveScorerAccess({
+    hasUser: Boolean(user),
+    authLoading,
+    isAdmin: isAdminData,
+    adminCheckLoading: authCheckLoading,
+    rememberedScorer,
+    offline: isOffline,
+  });
+  const isScorer = Boolean(isAuthorized);
+
+  // Load every scoring dialog while online so none of them is missing
+  // offline, then ask the service worker to keep what the page loaded.
+  useEffect(() => {
+    if (!isScorer || isOffline) return;
+    if (typeof navigator === "undefined" || !navigator.serviceWorker?.controller) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void preloadScoringDialogs().then(() => cacheCurrentPage());
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [isScorer, isOffline]);
 
   const { isLocked: isScreenAwake } = useWakeLock(match?.status === "live");
 

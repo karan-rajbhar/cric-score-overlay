@@ -8,6 +8,8 @@ export interface CachedMatchData {
   nonStrikerId: string | null;
   bowlerId: string | null;
   lastOverBowlerId: string | null;
+  /** Labels of the current over's balls, for the "this over" strip. */
+  lastBalls?: string[];
   cachedAt: number; // Date.now()
 }
 
@@ -106,4 +108,39 @@ export function clearMatchCache(matchId: string): void {
 export function hasMatchCache(matchId: string): boolean {
   // getCachedMatchData already handles localStorage availability and expiration checks
   return getCachedMatchData(matchId) !== null;
+}
+
+const SCORER_KEY_PREFIX = 'cric_scorer_';
+
+/**
+ * Remember that this user may score this match, so the scoring screen can
+ * open offline (the permission check needs the network). The server still
+ * checks every queued action when it syncs.
+ */
+export function rememberScorer(matchId: string, userId: string): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.setItem(`${SCORER_KEY_PREFIX}${matchId}`, userId);
+  } catch {
+    // Storage full or blocked: offline access is then unavailable.
+  }
+}
+
+export function forgetScorer(matchId: string): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.removeItem(`${SCORER_KEY_PREFIX}${matchId}`);
+  } catch {
+    // Ignore.
+  }
+}
+
+/** Whether this user was confirmed as a scorer of this match on this device. */
+export function wasScorer(matchId: string, userId: string | null | undefined): boolean {
+  if (!userId || !isLocalStorageAvailable()) return false;
+  try {
+    return window.localStorage.getItem(`${SCORER_KEY_PREFIX}${matchId}`) === userId;
+  } catch {
+    return false;
+  }
 }
