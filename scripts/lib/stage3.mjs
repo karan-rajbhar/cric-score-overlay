@@ -10,7 +10,7 @@
  *    and `club_memberships.user_snapshot`.
  * 3. `matches.innings_summary`: the score line of each innings, and the
  *    match's `tournament_snapshot` / `club_snapshot`.
- * 4. `player_career_stats/{userId}` and `leaderboards/{scope}_{id}` rebuilt
+ * 4. `player_career_stats/{userId}` and `leaderboards/{scope}_{id}_{k}` rebuilt
  *    from player_matches; documents that no longer belong are deleted
  *    (including the old randomly keyed career rows).
  *

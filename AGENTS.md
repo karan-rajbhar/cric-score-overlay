@@ -5,10 +5,10 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 ## Stack
 
 - Next.js 16 (App Router, Server Actions), React 19, TypeScript
-- Firebase: Auth, Firestore, Storage. Local dev uses the Emulator Suite (`npm run emulators`, `npm run seed`)
+- Firebase: Auth (Google only), Firestore, Storage. Local dev uses the Emulator Suite or a cloud dev project, chosen in `.env.local`
 - Tailwind CSS + shadcn/ui primitives
 - Vitest + Testing Library (jsdom)
-- Dev server on port 3005 (`npm run dev`)
+- Dev server on port 3005 (`npm run dev` adds a Cloudflare tunnel; `npm run dev:no-tunnel` without)
 
 ## Data layer
 
@@ -18,16 +18,23 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 - Collection metadata (columns, defaults, unique constraints, cascades) lives in `~/lib/firebase/schema.ts`. Add a column there and in `types.ts` when the model changes.
 - Scorecards live inside `innings` docs (`batting`, `bowling`, `fall_of_wickets`, `partnerships` arrays plus `last_ball` / `last_over_bowler_id` caches); the ball log is one `overs/{inningsId}_{over}` doc per over; `player_matches/{matchId}_{userId}` holds completed-innings figures for career pages (`~/lib/firebase/scorecard.ts`). `from("batting_performances" | "bowling_performances" | "fall_of_wickets" | "partnerships" | "ball_by_ball")` still works read-only via `legacy-rows.ts` (needs an `innings_id` / `match_id` filter, or `user_id` for batting/bowling). Only the scoring engine writes these documents.
 - Writes never happen from the browser; `firestore.rules` only allows public reads.
-- Derived copies are maintained on the server, never by callers (schema stage 3, `scripts/migrate-stage3.mjs` backfills them): search keys (`name_lower`/`title_lower`, `search_prefixes`) and roster / membership name snapshots by `derived-fields.ts` on every write; `matches.innings_summary`, `player_career_stats/{userId}` and `leaderboards/{scope}_{id}` inside the scoring transactions (`innings-summary.ts`, `stats-sync.ts`); tournament / club / team snapshots on matches by the write hooks. Search with `prefixSearch` (`search.ts`), not `ilike` (which scans).
+- Derived copies are maintained on the server, never by callers (schema stage 3, `scripts/migrate-stage3.mjs` backfills them): search keys (`name_lower`/`title_lower`, `search_prefixes`) and roster / membership name snapshots by `derived-fields.ts` on every write; `matches.innings_summary`, `player_career_stats/{userId}` and the leaderboard shards `leaderboards/{scope}_{id}_{k}` (players hashed into `LEADERBOARD_SHARDS` = 8 per scope, `stats.mjs`; pages read all 8, an update touches only the changed players' shards) inside the scoring transactions (`innings-summary.ts`, `stats-sync.ts`); tournament / club / team snapshots on matches by the write hooks. Search with `prefixSearch` (`search.ts`), not `ilike` (which scans).
 - `npx vitest run src/lib/firebase/read-costs.test.ts` bounds the billed reads of each hot page on the seed; keep new queries indexed (equality + order / limit or `array-contains` + order need an entry in `firestore.indexes.json`; the emulator does not check).
 - `users` is public, so it holds no contact details. Email/phone live in server-only `users_private/{uid}` (`~/lib/firebase/user-private`); look up by exact email there, never return emails to the browser (a user's own email comes from their session).
 - Matches carry `team1_snapshot` / `team2_snapshot` ({ id, name, short_name, logo_url }). Match lists select `MATCH_TEAM_COLUMNS` and call `attachMatchTeams` instead of embedding `teams`; the server write hook keeps snapshots fresh when a team's name/short name/logo changes. Embed `teams` only when full team data (rosters) is needed.
 - Realtime: viewers listen to the single `live_state/{matchId}` doc (`useLiveState`, `watchDoc`); its `version` is the change signal. No polling and no collection listeners (their first snapshot bills every document). A server action that changes what viewers see must call `refreshLiveState` / `refreshLiveMatchesFor` from `~/lib/firebase/live-sync`.
 - Live match page, zero server requests per ball: Summary / Scorecard / Top performers / Stats follow `live_scorecard/{matchId}` (compact scorecard of every innings, `live-scorecard.ts`; written by the scoring transactions and `writeLiveState`, built on first view by `ensureLiveScorecard`); the ball log re-reads only the `overs` docs named by `live_state.overs_changed` (`useMatchBallLogQuery`); `getMatch` refetches only on status / innings / `live_state.match_rev` changes. The overlay stays on `live_state` only.
 
+## Auth and invites
+
+- Sign-in is Google only and invite-only. `/api/auth/session` (`src/app/api/auth/session/route.ts`) calls `canSignIn` in `~/lib/firebase/rpc/access.ts`: allowed when the account already has a profile, its email is in `ALLOWED_EMAILS` (bootstrap admins; env var locally, Secret Manager secret `allowed-emails` in production), a seeded/placeholder profile has that email, or a pending invite / club invite exists. Refused accounts get a 403 and their new Auth account is deleted.
+- Invites send no email: `InviteDialog` / `InviteShare` build a sign-in link message to share on WhatsApp or copy; the match scorers dialog invites new scorers the same way. There is no email/password sign-in, sign-up page or phone sign-in.
+
 ## Deploys and migrations
 
-- Production (`cricscore-prod-7411`, cricscore.altorstudio.com) deploys from CI after a merge to `main`: checks, then Firestore rules + indexes, then `node scripts/migrate.mjs`, then an App Hosting rollout of that commit. `main` only accepts PRs.
+- Production: Firebase project `cricscore-prod-7411`, App Hosting backend `cricscore` (asia-southeast1, `apphosting.yaml`), Firestore in asia-southeast1 (delete protection, PITR, daily backups kept 7 days), domain cricscore.altorstudio.com (Cloudflare DNS, records DNS-only). Never deploy, push or touch the cloud project unless asked.
+- CI (`.github/workflows/ci.yml`) runs lint, typecheck, tests and build on PRs. A merge to `main` deploys Firestore rules + indexes, runs `node scripts/migrate.mjs`, then rolls out that commit on App Hosting. `main` is protected (PR only, required check).
+- Monitoring: Cloud Monitoring uptime check on `/api/health`, alerts on downtime and logged errors; browser errors reach the server log via `/api/client-error`.
 - Data migrations are idempotent `scripts/migrate-<name>.mjs` scripts (`--project=<id>`, `--dry-run`), listed in order in `scripts/migrate.mjs`, which records applied ones in the `_migrations` collection so each runs once per project. Never auto-run destructive steps (e.g. `migrate-stage2 --delete-old`); do those by hand after verifying.
 
 ## Working guidelines
@@ -49,10 +56,11 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 
 ## Local testing
 
-- `npm run emulators` (Auth :9099, Firestore :8088, Storage :9199, UI :4000), then `npm run seed`, then `npm run dev` (port 3005). `npm run dev:local` does all three.
-- Sign in with any seeded account, e.g. `john.smith@email.com` / `password123`. Sign-up is email + password or Google; phone sign-in is planned but not built.
-- Emulator data lives in memory: re-seed after restarting the emulators.
-- See "Troubleshooting" in `README.md` for the two environment traps (leftover service worker on port 3005, stale Turbopack cache after deleting files).
+- `npm run dev:local`: emulators (Auth :9099, Firestore :8088, Storage :9199, UI :4000) + `seed --if-empty` + `dev:no-tunnel` on :3005. Emulator data persists in `firebase/emulator-data` across restarts; `npm run seed` wipes and reloads (Firestore and Auth).
+- `npm run dev`: dev server + Cloudflare tunnel (`scripts/dev-tunnel.sh`) for phones; fixed host with `DEV_TUNNEL_NAME` / `DEV_TUNNEL_HOST` in `.env.local`, else a random trycloudflare URL. It registers the host as an Auth authorized domain (`scripts/firebase-auth-domain.mjs`) and skips the tunnel when the emulators are in use.
+- Cloud dev project instead of emulators: set `NEXT_PUBLIC_FIREBASE_USE_EMULATOR=false`, the Firebase config and `FIREBASE_SERVICE_ACCOUNT_JSON` in `.env.local`. `npm run seed -- --project=<id>` refuses ids containing "prod".
+- Signing in on the emulator: "Sign in with Google" → **Add new account** in the fake picker → a seeded email such as `john.smith@email.com` (`scripts/seed-emulator.mjs`; seeded users have no passwords).
+- Environment traps (details in `README.md` → Troubleshooting): leftover service worker on port 3005; stale Turbopack cache after deleting files; `ChunkLoadError` or hangs over the tunnel. For the last two, stop the dev server, `rm -rf .next`, restart.
 
 ## Scoring screen
 

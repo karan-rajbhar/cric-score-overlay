@@ -234,7 +234,10 @@ describe("billed reads per page on the seed data", () => {
     // Upper bounds (seed: 8 matches, 30 users). Before stage 3 these were
     // home 6, /matches 20, dashboard 18, match page 67, scoring screen 29
     // per ball, search 47, typeahead 30, players search 30, player page 43
-    // (72 by @handle), club page 141, tournament page 98.
+    // (72 by @handle), club page 141, tournament page 98. The club and
+    // tournament pages read their leaderboard as LEADERBOARD_SHARDS (8)
+    // shard documents (was 1 document, which capped a scope at ~1,500
+    // players): club 42 -> 49, tournament 25 -> 32.
     const bounds: Record<string, number> = {
       home: 2,
       matches: 8,
@@ -257,8 +260,8 @@ describe("billed reads per page on the seed data", () => {
       playersSearch: 30,
       playerPage: 25,
       playerPageByHandle: 25,
-      clubPage: 42,
-      tournamentPage: 25,
+      clubPage: 49,
+      tournamentPage: 32,
     };
     for (const [page, max] of Object.entries(bounds)) {
       expect(results[page], page).toBeLessThanOrEqual(max);
