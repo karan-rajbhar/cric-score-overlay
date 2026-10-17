@@ -24,7 +24,11 @@ interface AddPlayerDialogProps {
   onSuccess?: () => void;
 }
 
-type FoundUser = { id: string; email?: string | null; full_name?: string };
+type FoundUser = {
+  id: string;
+  full_name?: string;
+  username?: string | null;
+};
 
 /**
  * Adds a player to a team: search registered players as you type, or create
@@ -101,12 +105,12 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
-          Add Player
+          Add player
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Add Player to Squad</DialogTitle>
+          <DialogTitle>Add player to squad</DialogTitle>
           <DialogDescription>
             Type a name to find a registered player, or add them as a new player
             if they are not on CricScore yet.
@@ -143,9 +147,9 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
                     <p className="truncate text-sm font-medium">
                       {user.full_name}
                     </p>
-                    {user.email && (
-                      <p className="truncate text-xs text-muted-foreground">
-                        {user.email}
+                    {user.username && (
+                      <p className="truncate font-mono text-xs text-muted-foreground">
+                        @{user.username}
                       </p>
                     )}
                   </div>

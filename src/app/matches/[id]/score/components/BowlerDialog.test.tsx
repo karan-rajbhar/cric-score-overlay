@@ -67,7 +67,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm Bowler" });
+    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
     expect(confirmBtn).toBeDisabled();
   });
 
@@ -96,7 +96,7 @@ describe("BowlerDialog", () => {
       ),
     ).toBeInTheDocument();
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm Bowler" });
+    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
     expect(confirmBtn).toBeDisabled();
   });
 
@@ -120,7 +120,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm Bowler" });
+    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
     expect(confirmBtn).toBeEnabled();
 
     fireEvent.click(confirmBtn);
@@ -202,7 +202,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    const confirmBtn = screen.getByRole("button", { name: "Confirm Bowler" });
+    const confirmBtn = screen.getByRole("button", { name: "Confirm bowler" });
     expect(confirmBtn).toBeDisabled();
     expect(
       screen.getByText(
@@ -225,7 +225,7 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Confirm Bowler" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Confirm bowler" })).toBeDisabled();
   });
 
   it("filters out batting team players from selectable bowling list when in battingTeamPlayerIds", () => {

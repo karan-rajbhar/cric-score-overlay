@@ -10,22 +10,14 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { Alert, AlertDescription } from "~/components/ui/alert";
-import { Badge } from "~/components/ui/badge";
-import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 function LoginPageInner() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signInWithGoogle, user } = useAuth();
+  const { signInWithGoogle, user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -50,53 +42,38 @@ function LoginPageInner() {
   })();
   const displayError = error ?? urlError;
 
+  // Invite links carry the invited email so Google suggests that account.
+  const inviteEmail = (() => {
+    const value = searchParams.get("invite")?.trim().toLowerCase();
+    return value?.includes("@") ? value : undefined;
+  })();
+
   // Redirect authenticated users to destination or dashboard (side effects belong in effects,
   // never in render).
   useEffect(() => {
     if (user) {
+      // Only same-site paths: invite links carry `next`, so never follow
+      // an absolute or protocol-relative URL.
+      const target =
+        searchParams.get("redirect") ?? searchParams.get("next") ?? "";
       const redirect =
-        searchParams.get("redirect") ??
-        searchParams.get("next") ??
-        "/dashboard";
+        target.startsWith("/") && !target.startsWith("//")
+          ? target
+          : "/dashboard";
       router.push(redirect);
       router.refresh();
     }
   }, [user, router, searchParams]);
 
-  // Show loading while auth is initializing
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-foreground"></div>
-      </div>
-    );
-  }
-
   if (user) {
     return null;
   }
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const { error } = await signIn(email, password);
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      // Auth context will handle redirect
-      setLoading(false);
-    }
-  };
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
 
-    const { error } = await signInWithGoogle();
+    const { error } = await signInWithGoogle(inviteEmail);
 
     if (error) {
       setError(error.message);
@@ -106,27 +83,36 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen w-full max-w-full items-center justify-center overflow-x-hidden px-3 py-8 sm:px-6 sm:py-12 lg:px-8">
-      <div className="w-full max-w-md space-y-6 sm:space-y-8">
+    <div className="flex min-h-[65vh] w-full items-center justify-center py-4 sm:py-8">
+      <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+          <h1 className="text-balance text-2xl font-semibold tracking-tight">
+            Sign in to CricScore
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to your CricScore account
+            CricScore is invite-only. Anyone can follow matches from a shared
+            link.
           </p>
         </div>
 
         {/* Login Form */}
         <Card>
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-center text-xl text-foreground sm:text-2xl">
-              Sign in
-            </CardTitle>
-            <CardDescription className="text-center text-xs text-muted-foreground sm:text-sm">
-              Use your email or Google account
+          <CardHeader className="pb-4">
+            <CardDescription className="text-center text-sm">
+              {inviteEmail ? (
+                <>
+                  Sign in with Google using{" "}
+                  <span className="font-semibold text-foreground">
+                    {inviteEmail}
+                  </span>
+                </>
+              ) : (
+                "Use the Google account your invite was sent to"
+              )}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5 p-4 sm:p-6">
+          <CardContent className="space-y-4">
             {/* Error Display */}
             {displayError && (
               <Alert variant="destructive">
@@ -145,7 +131,7 @@ function LoginPageInner() {
               {googleLoading ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Signing in with Google...
+                  Signing in with Google…
                 </>
               ) : (
                 <>
@@ -171,133 +157,6 @@ function LoginPageInner() {
                 </>
               )}
             </Button>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border"></span>
-              </div>
-              <div className="relative flex justify-center text-xs font-medium text-muted-foreground">
-                <span className="bg-card px-2.5">or</span>
-              </div>
-            </div>
-
-            {/* Email Login Form */}
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              {/* Email Field */}
-              <div className="space-y-2">
-                <Label
-                  htmlFor="email"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Email address
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    placeholder="Enter your email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="form-input pl-10"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <Label
-                  htmlFor="password"
-                  className="text-sm font-medium text-foreground"
-                >
-                  Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 transform text-muted-foreground" />
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="form-input pl-10 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 shrink-0" />
-                    ) : (
-                      <Eye className="h-4 w-4 shrink-0" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Forgot Password Link */}
-              <div className="flex justify-end">
-                <Link
-                  href="/auth/forgot-password"
-                  className="text-sm font-medium text-cricket-primary transition-colors hover:text-cricket-primary/80"
-                >
-                  Forgot your password?
-                </Link>
-              </div>
-
-              {/* Submit Button */}
-              <Button type="submit" disabled={loading} className="h-11 w-full">
-                {loading ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign in
-                    <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </Button>
-            </form>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border"></span>
-              </div>
-              <div className="relative flex justify-center text-xs font-medium text-muted-foreground">
-                <span className="bg-card px-2.5">New to CricScore?</span>
-              </div>
-            </div>
-
-            {/* Sign Up Link */}
-            <div className="space-y-3 text-center">
-              <Button
-                asChild
-                variant="outline"
-                className="btn-secondary w-full"
-              >
-                <Link
-                  href="/auth/signup"
-                  className="flex items-center justify-center gap-2"
-                >
-                  Create account
-                  <Badge className="border-cricket-secondary/20 bg-cricket-secondary/10 px-2 py-0.5 text-xs text-cricket-secondary">
-                    Free
-                  </Badge>
-                </Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
@@ -307,14 +166,14 @@ function LoginPageInner() {
             By signing in, you agree to our{" "}
             <Link
               href="#"
-              className="text-cricket-primary transition-colors hover:text-cricket-primary/80"
+              className="text-primary underline-offset-4 hover:underline"
             >
               Terms of Service
             </Link>{" "}
             and{" "}
             <Link
               href="#"
-              className="text-cricket-primary transition-colors hover:text-cricket-primary/80"
+              className="text-primary underline-offset-4 hover:underline"
             >
               Privacy Policy
             </Link>

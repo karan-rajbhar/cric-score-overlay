@@ -125,7 +125,7 @@ export function WagonWheelSelector({
         <svg
           ref={svgRef}
           viewBox="0 0 400 400"
-          className="h-full w-full cursor-pointer drop-shadow-md"
+          className="h-full w-full cursor-pointer"
           role="img"
           aria-label="Cricket ground wagon wheel shot direction map"
           onClick={handleSvgClick}
@@ -140,16 +140,6 @@ export function WagonWheelSelector({
               <stop offset="0%" stopColor="#48bb60" stopOpacity="0.25" />
               <stop offset="100%" stopColor="#246e34" stopOpacity="0.05" />
             </radialGradient>
-            <filter
-              id="glowEffectSelector"
-              x="-20%"
-              y="-20%"
-              width="140%"
-              height="140%"
-            >
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
           </defs>
 
           {/* 1. Base Green Cricket Turf Ground Circle (Inside Boundary) */}
@@ -389,7 +379,6 @@ export function WagonWheelSelector({
                       fill="#facc15"
                       stroke="#ffffff"
                       strokeWidth="1.8"
-                      filter="url(#glowEffectSelector)"
                     />
                   </>
                 );
@@ -399,7 +388,7 @@ export function WagonWheelSelector({
         </svg>
       </div>
 
-      <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">
+      <p className="mt-1.5 text-2xs font-medium text-muted-foreground">
         Tap anywhere inside the boundary or at the boundary to select shot
       </p>
     </div>

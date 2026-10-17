@@ -4,6 +4,9 @@
 #
 #   scripts/emulators.sh                 -> firebase emulators:start
 #   scripts/emulators.sh exec "<cmd>"    -> firebase emulators:exec "<cmd>"
+#
+# Data is saved to firebase/emulator-data on exit and loaded on the next start,
+# so seeding is only needed once. Delete that folder to start from scratch.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -48,8 +51,12 @@ fi
 export PATH="$(dirname "$JAVA_BIN"):$PATH"
 
 PROJECT="${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-demo-cricscore}"
+DATA_DIR="firebase/emulator-data"
+PERSIST=(--export-on-exit="$DATA_DIR")
+[ -d "$DATA_DIR" ] && PERSIST+=(--import="$DATA_DIR")
+
 if [ "${1:-}" = "exec" ]; then
   shift
-  exec npx firebase emulators:exec --project "$PROJECT" --ui "$@"
+  exec npx firebase emulators:exec --project "$PROJECT" "${PERSIST[@]}" "$@"
 fi
-exec npx firebase emulators:start --project "$PROJECT" "$@"
+exec npx firebase emulators:start --project "$PROJECT" "${PERSIST[@]}" "$@"

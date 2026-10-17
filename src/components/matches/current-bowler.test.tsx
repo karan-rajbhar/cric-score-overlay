@@ -17,7 +17,7 @@ describe("CurrentBowler component", () => {
       />,
     );
 
-    expect(screen.getByText("Current Bowler")).toBeInTheDocument();
+    expect(screen.getByText("Current bowler")).toBeInTheDocument();
     expect(screen.getByText("Jasprit Bumrah")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument(); // wickets
     expect(screen.getByText("14")).toBeInTheDocument(); // runs

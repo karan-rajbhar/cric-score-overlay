@@ -2,6 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
 import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
+import {
   Card,
   CardContent,
   CardHeader,
@@ -19,7 +23,7 @@ import {
   Trophy,
   Users,
   Plus,
-  Radio,
+  BarChart3,
   Shield,
   ExternalLink,
 } from "lucide-react";
@@ -37,7 +41,12 @@ import {
 } from "~/components/tournaments/tournament-admin-actions";
 import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
-import { buildLeaderboardData, LeaderboardData } from "~/lib/leaderboard";
+import type { LeaderboardData } from "~/lib/leaderboard";
+import {
+  loadScopeLeaderboard,
+  type ScopeMatch,
+} from "~/lib/firebase/leaderboards";
+import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
@@ -90,7 +99,6 @@ export default async function TournamentPage({
     { data: standings },
     { data: registrations },
     { data: matches },
-    { data: allTeams },
   ] = await Promise.all([
     db
       .from("tournaments")
@@ -108,7 +116,9 @@ export default async function TournamentPage({
     db
       .from("tournament_registrations")
       .select(
-        "*, team:teams(id, name, short_name, logo_url, captain:users!teams_captain_id_fkey(full_name), team_players(count))",
+        // team_players(count) first: served from the roster, whose player
+        // snapshots then answer the captain lookup (no reads).
+        "*, team:teams(id, name, short_name, logo_url, team_players(count), captain:users!teams_captain_id_fkey(full_name))",
       )
       .eq("tournament_id", id)
       .order("registered_at", { ascending: true }),
@@ -118,67 +128,25 @@ export default async function TournamentPage({
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
                 result_type, win_margin, win_margin_type, result_description, winning_team_id,
-                team1:teams!matches_team1_id_fkey(id, name, short_name),
-                team2:teams!matches_team2_id_fkey(id, name, short_name),
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs)
+                ${MATCH_TEAM_COLUMNS},
+                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
             `,
       )
       .eq("tournament_id", id)
       .order("scheduled_at", { ascending: true }),
-    db
-      .from("teams")
-      .select(
-        "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
-      )
-      .order("name"),
   ]);
 
   if (!tournament) notFound();
+  await attachMatchTeams(db, matches ?? []);
 
-  const matchIds = ((matches ?? []) as unknown as MatchRow[]).map((m) => m.id);
-
-  // Super Stars & Leaderboards computation
-  let leaderboardData: LeaderboardData = buildLeaderboardData({});
-
-  if (matchIds.length > 0) {
-    const [battingRes, bowlingRes, fowRes] =
-      await Promise.all([
-        db
-          .from("batting_performances")
-          .select(
-            "match_id, innings_id, user_id, runs_scored, balls_faced, fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, user:users!batting_performances_user_id_fkey(id, full_name, avatar_url), fielder:users!batting_performances_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("bowling_performances")
-          .select(
-            "match_id, innings_id, user_id, overs_bowled, balls_bowled, runs_conceded, wickets_taken, maidens, wides, no_balls, user:users!bowling_performances_user_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-        db
-          .from("fall_of_wickets")
-          .select(
-            "match_id, innings_id, batsman_out_id, bowler_id, fielder_id, dismissal_type, fielder:users!fall_of_wickets_fielder_id_fkey(id, full_name, avatar_url)",
-          )
-          .in("match_id", matchIds),
-      ]);
-
-    if (battingRes.error) {
-      console.error("Error fetching tournament batting performances:", battingRes.error);
-    }
-    if (bowlingRes.error) {
-      console.error("Error fetching tournament bowling performances:", bowlingRes.error);
-    }
-    if (fowRes.error) {
-      console.error("Error fetching tournament fall of wickets:", fowRes.error);
-    }
-
-    leaderboardData = buildLeaderboardData({
-      batting: battingRes.data,
-      bowling: bowlingRes.data,
-      fallOfWickets: fowRes.data,
-    });
-  }
+  // Super Stars & Leaderboards: the tournament's stored leaderboard (one
+  // read) plus any innings still in play.
+  const leaderboardData: LeaderboardData = await loadScopeLeaderboard(
+    db,
+    "tournament",
+    id,
+    (matches ?? []) as unknown as ScopeMatch[],
+  );
 
   const {
     data: { user },
@@ -211,8 +179,18 @@ export default async function TournamentPage({
   const isTournamentAdmin =
     !!user && (tournament.created_by === user.id || isClubAdmin);
 
+  // Teams the viewer may register: every team for tournament admins,
+  // otherwise only teams they have a stake in (indexed queries instead of
+  // reading every team). Anonymous viewers need none.
+  const TEAM_COLUMNS =
+    "id, name, short_name, club_id, created_by, captain_id, vice_captain_id";
+  let allTeams: Array<{ id: string; name: string; short_name: string | null }> =
+    [];
   const myTeamIds = new Set<string>();
-  if (user && !isTournamentAdmin) {
+  if (user && isTournamentAdmin) {
+    const { data } = await db.from("teams").select(TEAM_COLUMNS).order("name");
+    allTeams = data ?? [];
+  } else if (user) {
     const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
       db.from("team_players").select("team_id").eq("user_id", user.id),
       db
@@ -232,7 +210,29 @@ export default async function TournamentPage({
       (teamPlayersRes.data ?? []).map((r) => r.team_id),
     );
 
-    (allTeams ?? []).forEach(
+    const stakes = await Promise.all([
+      db.from("teams").select(TEAM_COLUMNS).eq("created_by", user.id),
+      db.from("teams").select(TEAM_COLUMNS).eq("captain_id", user.id),
+      db.from("teams").select(TEAM_COLUMNS).eq("vice_captain_id", user.id),
+      playerTeamIds.size
+        ? db.from("teams").select(TEAM_COLUMNS).in("id", [...playerTeamIds])
+        : Promise.resolve({ data: [] }),
+      adminClubIds.size
+        ? db
+            .from("teams")
+            .select(TEAM_COLUMNS)
+            .in("club_id", [...adminClubIds])
+        : Promise.resolve({ data: [] }),
+    ]);
+    const byId = new Map<string, (typeof allTeams)[number]>();
+    for (const res of stakes) {
+      for (const t of (res.data ?? []) as typeof allTeams) byId.set(t.id, t);
+    }
+    allTeams = [...byId.values()].sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+
+    allTeams.forEach(
       (t: {
         id: string;
         club_id?: string | null;
@@ -255,8 +255,8 @@ export default async function TournamentPage({
 
   const availableTeams = (
     isTournamentAdmin
-      ? (allTeams ?? [])
-      : (allTeams ?? []).filter((t: { id: string }) => myTeamIds.has(t.id))
+      ? allTeams
+      : allTeams.filter((t: { id: string }) => myTeamIds.has(t.id))
   ) as Array<{
     id: string;
     name: string;
@@ -322,14 +322,14 @@ export default async function TournamentPage({
       : "All Tournaments";
 
   return (
-    <div className="container mx-auto w-full max-w-6xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Top Back Nav & Breadcrumbs */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button
           variant="ghost"
           size="sm"
           asChild
-          className="interactive-button pl-0 text-xs sm:text-sm"
+          className="pl-0 text-xs sm:text-sm"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
@@ -361,7 +361,7 @@ export default async function TournamentPage({
       </div>
 
       {/* Tournament Hero Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card via-card/80 to-primary/5 p-4 shadow-sm sm:p-6 md:p-8">
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -374,9 +374,6 @@ export default async function TournamentPage({
                       : "outline"
                 }
               >
-                {tournament.status === "ongoing" && (
-                  <span className="mr-1.5 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-                )}
                 {formatStatus(tournament.status)}
               </Badge>
               <Badge variant="outline">
@@ -393,7 +390,7 @@ export default async function TournamentPage({
               )}
             </div>
 
-            <h1 className="mt-3 text-2xl font-extrabold tracking-tight sm:text-3xl md:text-4xl">
+            <h1 className="mt-3 text-balance text-2xl font-semibold tracking-tight">
               {tournament.name}
             </h1>
 
@@ -406,13 +403,13 @@ export default async function TournamentPage({
             <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
               {tournament.venue && (
                 <div className="flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <MapPin className="h-3.5 w-3.5 shrink-0" />
                   <span>{tournament.venue}</span>
                 </div>
               )}
               {(tournament.start_date || tournament.end_date) && (
                 <div className="flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <Calendar className="h-3.5 w-3.5 shrink-0" />
                   <span>
                     {tournament.start_date ?? "TBD"}
                     {tournament.end_date ? ` to ${tournament.end_date}` : ""}
@@ -420,7 +417,7 @@ export default async function TournamentPage({
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <Users className="h-3.5 w-3.5 shrink-0" />
                 <span>{(registrations ?? []).length} Teams registered</span>
               </div>
             </div>
@@ -449,7 +446,7 @@ export default async function TournamentPage({
               >
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
-                  Schedule Match
+                  Schedule match
                 </Link>
               </Button>
             )}
@@ -462,34 +459,30 @@ export default async function TournamentPage({
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:grid sm:grid-cols-4 sm:max-w-xl sm:justify-stretch">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:grid sm:grid-cols-4 sm:max-w-xl sm:justify-stretch">
           <TabsTrigger
             value="standings"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Points Table
+            Points table
           </TabsTrigger>
           <TabsTrigger
             value="fixtures"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Fixtures ({typedMatches.length})
           </TabsTrigger>
           <TabsTrigger
             value="teams"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
             <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Teams ({(registrations ?? []).length})
           </TabsTrigger>
           <TabsTrigger
             value="analysis"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500 sm:h-4 sm:w-4" />
-            Leaderboard & Stats
+            <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+            Leaderboard & stats
           </TabsTrigger>
         </TabsList>
 
@@ -499,7 +492,7 @@ export default async function TournamentPage({
             <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-base sm:text-lg">
-                  Tournament Standings
+                  Tournament standings
                 </CardTitle>
                 <CardDescription className="text-xs sm:text-sm">
                   Points table with automated ICC Net Run Rate (NRR)
@@ -574,15 +567,7 @@ export default async function TournamentPage({
                           >
                             <td className="px-3 py-3">
                               <span
-                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                                  isTop
-                                    ? "bg-amber-500/20 text-amber-500"
-                                    : idx === 1
-                                      ? "bg-slate-300/20 text-slate-400"
-                                      : idx === 2
-                                        ? "bg-amber-700/20 text-amber-600"
-                                        : "text-muted-foreground"
-                                }`}
+                                className="inline-flex h-6 w-6 items-center justify-center text-xs font-medium tabular-nums text-muted-foreground"
                               >
                                 {idx + 1}
                               </span>
@@ -598,7 +583,7 @@ export default async function TournamentPage({
                                 {teamObj?.short_name && (
                                   <Badge
                                     variant="secondary"
-                                    className="px-1.5 py-0 text-[10px]"
+                                    className="px-1.5 py-0 text-2xs"
                                   >
                                     {teamObj.short_name}
                                   </Badge>
@@ -607,21 +592,21 @@ export default async function TournamentPage({
                             </td>
                             <td className="px-3 py-3 text-center">
                               {s.qualification_status === "qualified" && (
-                                <Badge className="border-emerald-500/40 bg-emerald-500/20 px-1.5 py-0 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <Badge className="border-emerald-500/40 bg-emerald-500/20 px-1.5 py-0 text-2xs font-bold text-emerald-600 dark:text-emerald-400">
                                   Q
                                 </Badge>
                               )}
                               {s.qualification_status === "eliminated" && (
                                 <Badge
                                   variant="destructive"
-                                  className="px-1.5 py-0 text-[10px] font-bold"
+                                  className="px-1.5 py-0 text-2xs font-bold"
                                 >
                                   E
                                 </Badge>
                               )}
                               {(!s.qualification_status ||
                                 s.qualification_status === "in_contention") && (
-                                <span className="text-[10px] text-muted-foreground/60">
+                                <span className="text-2xs text-muted-foreground/60">
                                   —
                                 </span>
                               )}
@@ -642,7 +627,7 @@ export default async function TournamentPage({
                               <div>{s.points}</div>
                               {s.points_adjustment &&
                                 Number(s.points_adjustment) !== 0 && (
-                                  <span className="block text-[10px] font-normal text-muted-foreground">
+                                  <span className="block text-2xs font-normal text-muted-foreground">
                                     {Number(s.points_adjustment) > 0
                                       ? `+${s.points_adjustment}`
                                       : s.points_adjustment}{" "}
@@ -692,8 +677,8 @@ export default async function TournamentPage({
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold sm:text-lg">
-                Tournament Fixtures & Matches
+              <h2 className="text-lg font-semibold">
+                Tournament fixtures & matches
               </h2>
               <p className="text-xs text-muted-foreground">
                 Track live scores, upcoming matches, and completed match
@@ -707,7 +692,7 @@ export default async function TournamentPage({
               <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
-                  Schedule Match
+                  Schedule match
                 </Link>
               </Button>
             </div>
@@ -717,8 +702,11 @@ export default async function TournamentPage({
           {liveMatches.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Radio className="h-4 w-4 shrink-0 animate-pulse text-emerald-400" />
-                <h3 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <span
+                  className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+                <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
                   Live now
                 </h3>
               </div>
@@ -784,7 +772,7 @@ export default async function TournamentPage({
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold sm:text-lg">
+              <h2 className="text-lg font-semibold">
                 Registered teams
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -883,7 +871,7 @@ export default async function TournamentPage({
                         </div>
                         <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
                           <span>
-                            <span className="tabular-nums">{playerCount}</span> Players in Squad
+                            <span className="tabular-nums">{playerCount}</span> Players in squad
                           </span>
                           <span className="font-medium text-emerald-500">
                             {formatStatus(r.status)}
@@ -908,7 +896,7 @@ export default async function TournamentPage({
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -934,7 +922,7 @@ function MatchCard({
 
   return (
     <Card
-      className={`transition-colors hover:border-primary/40 ${isLive ? "border-emerald-500/50 bg-emerald-500/5" : ""}`}
+      className="transition-colors hover:border-primary/40"
     >
       <CardContent className="p-5">
         <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -942,11 +930,8 @@ function MatchCard({
             {match.venue ?? "Venue TBD"}
           </span>
           <Badge
-            variant={isLive ? "default" : isCompleted ? "secondary" : "outline"}
+            variant={isLive ? "live" : isCompleted ? "secondary" : "outline"}
           >
-            {isLive && (
-              <span className="mr-1 h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            )}
             {formatStatus(match.status)}
           </Badge>
         </div>

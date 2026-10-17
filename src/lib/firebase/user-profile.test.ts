@@ -84,6 +84,9 @@ describe("ensureUserProfile", () => {
       expect.objectContaining({ id: "auth-uuid-new" }),
     );
     expect(mockUpdateEq).toHaveBeenCalledWith("id", "old-seeded-id");
+    // The email is looked up in, and moved with, users_private.
+    expect(mockFrom).toHaveBeenCalledWith("users_private");
+    expect(mockUpdate).toHaveBeenCalledTimes(2);
   });
 
   it("inserts a new profile if neither id nor email exists", async () => {
@@ -110,11 +113,16 @@ describe("ensureUserProfile", () => {
       }),
     );
 
+    expect(mockFrom).toHaveBeenCalledWith("users");
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "new-user-id", full_name: "New Player" }),
+    );
+    expect(mockInsert.mock.calls[0]?.[0]).not.toHaveProperty("email");
+    expect(mockFrom).toHaveBeenCalledWith("users_private");
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "new-user-id",
         email: "newuser@example.com",
-        full_name: "New Player",
       }),
     );
   });

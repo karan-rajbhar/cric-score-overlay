@@ -11,7 +11,6 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { Badge } from "~/components/ui/badge";
-import { Crown } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import {
   dismissalText,
@@ -52,7 +51,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
       defaultValue={defaultTab}
       className="w-full"
     >
-      <TabsList className="mb-4 grid h-auto w-full max-w-md grid-cols-2 gap-1 p-1">
+      <TabsList className="mb-4 grid h-auto w-full max-w-md grid-cols-2">
         {sortedInnings.map((innings) => {
           const t =
             innings.team_id === match.team1_id ? match.team1 : match.team2;
@@ -61,7 +60,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="flex min-w-0 items-center justify-center px-2.5 py-2 text-xs font-semibold min-h-[40px] sm:px-3 sm:text-sm"
+              className="min-w-0"
             >
               <span className="truncate">
                 {shortName} {innings.total_runs}/{innings.total_wickets}
@@ -72,11 +71,6 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
       </TabsList>
 
       {sortedInnings.map((innings) => {
-        const topScorerId = innings.batting_performances?.reduce(
-          (maxBp, bp) => (bp.runs_scored > (maxBp?.runs_scored ?? 0) ? bp : maxBp),
-          innings.batting_performances[0] ?? null,
-        )?.id;
-
         const battedUserIds = new Set(
           innings.batting_performances?.map((bp) => bp.user_id),
         );
@@ -94,11 +88,10 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
             <div className="space-y-6">
               {/* Innings Header */}
               <Card className="overflow-hidden border-border bg-card">
-                <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
                 <CardHeader className="py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-sm font-extrabold text-primary">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-sm font-semibold text-foreground">
                         {battingTeam.short_name?.slice(0, 3) ||
                           battingTeam.name.slice(0, 3)}
                       </div>
@@ -112,7 +105,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-3xl sm:text-4xl font-extrabold tabular-nums font-score text-foreground">
+                      <div className="text-3xl sm:text-4xl font-bold tabular-nums font-score text-foreground">
                         {innings.total_runs}/{innings.total_wickets}
                       </div>
                       <div className="text-xs sm:text-sm text-muted-foreground tabular-nums font-medium">
@@ -132,22 +125,22 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                   <Table>
                     <TableHeader className="bg-muted/40">
                       <TableRow>
-                        <TableHead className="w-auto min-w-[120px] px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground sm:w-[220px] sm:px-4 sm:text-xs">
+                        <TableHead className="w-auto min-w-[120px] px-3 py-2.5 text-xs font-medium text-muted-foreground sm:w-[220px] sm:px-4 sm:text-xs">
                           Batter
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           R
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           B
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           4s
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           6s
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           SR
                         </TableHead>
                       </TableRow>
@@ -171,25 +164,17 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                   <span className="text-xs font-semibold sm:text-sm text-foreground">
                                     {bp.user?.full_name}
                                   </span>
-                                  {bp.id === topScorerId && bp.runs_scored > 0 && (
-                                    <span
-                                      title="Innings Top Scorer"
-                                      className="inline-flex items-center"
-                                    >
-                                      <Crown className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                                    </span>
-                                  )}
                                   {!bp.is_out && (
                                     <Badge
                                       variant="outline"
-                                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-[10px] sm:text-xs font-semibold"
+                                      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0 text-2xs sm:text-xs font-semibold"
                                     >
                                       not out
                                     </Badge>
                                   )}
                                 </div>
                                 {bp.is_out && (
-                                  <p className="text-[11px] text-muted-foreground sm:text-xs">
+                                  <p className="text-2xs text-muted-foreground sm:text-xs">
                                     {dismissalText(
                                       bp,
                                       innings.fall_of_wickets ?? [],
@@ -282,22 +267,22 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                   <Table>
                     <TableHeader className="bg-muted/40">
                       <TableRow>
-                        <TableHead className="w-auto min-w-[120px] px-3 py-2.5 text-xs font-bold uppercase tracking-wider text-muted-foreground sm:w-[220px] sm:px-4 sm:text-xs">
+                        <TableHead className="w-auto min-w-[120px] px-3 py-2.5 text-xs font-medium text-muted-foreground sm:w-[220px] sm:px-4 sm:text-xs">
                           Bowler
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           O
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           M
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           R
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           W
                         </TableHead>
-                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground sm:px-2 sm:text-xs">
+                        <TableHead className="px-1.5 py-2.5 text-center text-xs font-medium text-muted-foreground sm:px-2 sm:text-xs">
                           Econ
                         </TableHead>
                       </TableRow>
@@ -332,7 +317,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                             </TableCell>
                             <TableCell className="tabular-nums font-score px-1.5 py-2.5 text-center text-sm font-bold sm:px-2 sm:py-3 sm:text-base">
                               {bp.wickets_taken > 0 ? (
-                                <span className="inline-flex items-center justify-center rounded-md bg-destructive/15 text-destructive font-black px-1.5 py-0.5">
+                                <span className="inline-flex items-center justify-center rounded-md bg-destructive/15 text-destructive font-bold px-1.5 py-0.5">
                                   {bp.wickets_taken}
                                 </span>
                               ) : (

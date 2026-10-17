@@ -17,11 +17,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  if (
-    (pathname.startsWith("/auth/login") ||
-      pathname.startsWith("/auth/signup")) &&
-    hasSession
-  ) {
+  if (pathname.startsWith("/auth/login") && hasSession) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -29,5 +25,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/auth/login", "/auth/signup"],
+  matcher: ["/dashboard/:path*", "/auth/login"],
 };

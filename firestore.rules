@@ -9,7 +9,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Public directory and profile data.
+    // Invite-only: only accounts that passed the invite check have a profile.
+    function member() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Public directory and profile data. `users` holds no contact details;
+    // those live in users_private (server only, below).
     match /users/{id}                    { allow read: if true; allow write: if false; }
     match /clubs/{id}                    { allow read: if true; allow write: if false; }
     match /club_seasons/{id}             { allow read: if true; allow write: if false; }
@@ -20,16 +27,20 @@ service cloud.firestore {
     match /tournament_registrations/{id} { allow read: if true; allow write: if false; }
     match /tournament_standings/{id}     { allow read: if true; allow write: if false; }
     match /player_career_stats/{id}      { allow read: if true; allow write: if false; }
+    // Tournament / club leaderboards (per-player figures and display names).
+    match /leaderboards/{id}             { allow read: if true; allow write: if false; }
 
     // Live scoring data is public so spectators and overlays can follow.
+    // Innings carry their scorecard; the ball log is one document per over.
     match /matches/{id}                  { allow read: if true; allow write: if false; }
     match /innings/{id}                  { allow read: if true; allow write: if false; }
-    match /batting_performances/{id}     { allow read: if true; allow write: if false; }
-    match /bowling_performances/{id}     { allow read: if true; allow write: if false; }
-    match /ball_by_ball/{id}             { allow read: if true; allow write: if false; }
-    match /partnerships/{id}             { allow read: if true; allow write: if false; }
-    match /fall_of_wickets/{id}          { allow read: if true; allow write: if false; }
-    match /match_events/{id}             { allow read: if true; allow write: if false; }
+    match /overs/{id}                    { allow read: if true; allow write: if false; }
+    // Per-player record of each match (career and player pages).
+    match /player_matches/{id}           { allow read: if true; allow write: if false; }
+    // Denormalized live scoreboard (one doc per match), written by the scoring engine.
+    match /live_state/{id}               { allow read: if true; allow write: if false; }
+    // Compact scorecard of every innings (match page tabs while live).
+    match /live_scorecard/{id}           { allow read: if true; allow write: if false; }
 
     // A signed-in user may read their own memberships; everything else is
     // server-rendered.
@@ -38,11 +49,14 @@ service cloud.firestore {
       allow write: if false;
     }
     match /club_invitations/{id}         { allow read, write: if false; }
+    // Contact details (email, phone) keyed by user id: Admin SDK only.
+    match /users_private/{id}            { allow read, write: if false; }
+    match /invitations/{id}              { allow read, write: if false; }
 
     // Realtime broadcast messages (score pings, overlay producer commands).
     match /broadcasts/{topic}/messages/{id} {
       allow read: if true;
-      allow create: if signedIn()
+      allow create: if member()
         && request.resource.data.keys().hasAll(['event', 'ts'])
         && request.resource.data.event is string;
       allow update, delete: if false;

@@ -1,18 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { Initials } from "~/components/ui/initials";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
-  Flame,
-  Target,
-  Crown,
-  Shield,
   Search,
   Activity,
-  Sparkles,
   SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -468,8 +464,6 @@ const MVP_CONFIGS: Record<MvpSortOption, MetricConfig<MvpLeaderboardEntry>> = {
 // ---------------------------------------------------------------------------
 
 function LeaderSpotlightBanner({
-  icon: Icon,
-  accentColor = "amber",
   title,
   description,
   leader,
@@ -477,8 +471,6 @@ function LeaderSpotlightBanner({
   heroLabel,
   contextStats,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
-  accentColor: "amber" | "purple" | "cyan" | "emerald";
   title: string;
   description: string;
   leader?: { name: string; avatar?: string | null } | null;
@@ -486,50 +478,14 @@ function LeaderSpotlightBanner({
   heroLabel?: string;
   contextStats?: { label: string; value: string }[];
 }) {
-  const colorMap = {
-    amber: {
-      border: "border-amber-500/30",
-      bg: "from-amber-500/10 via-card to-card",
-      iconColor: "text-amber-500",
-      heroColor: "text-amber-600 dark:text-amber-400",
-      accentDot: "bg-amber-500",
-    },
-    purple: {
-      border: "border-purple-500/30",
-      bg: "from-purple-500/10 via-card to-card",
-      iconColor: "text-purple-500",
-      heroColor: "text-purple-600 dark:text-purple-400",
-      accentDot: "bg-purple-500",
-    },
-    cyan: {
-      border: "border-cyan-500/30",
-      bg: "from-cyan-500/10 via-card to-card",
-      iconColor: "text-cyan-500",
-      heroColor: "text-cyan-600 dark:text-cyan-400",
-      accentDot: "bg-cyan-500",
-    },
-    emerald: {
-      border: "border-emerald-500/30",
-      bg: "from-emerald-500/10 via-card to-card",
-      iconColor: "text-emerald-500",
-      heroColor: "text-emerald-600 dark:text-emerald-400",
-      accentDot: "bg-emerald-500",
-    },
-  }[accentColor];
-
   return (
     <div
-      className={`rounded-xl border ${colorMap.border} bg-gradient-to-br ${colorMap.bg} p-4 shadow-xs`}
+      className="rounded-xl border border-border bg-card p-4"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: Description & Category Header */}
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Icon className={`h-4 w-4 ${colorMap.iconColor}`} />
-            <span className="text-xs font-bold uppercase tracking-wider text-foreground">
-              {title}
-            </span>
-          </div>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
           <p className="text-xs text-muted-foreground max-w-xl text-balance">
             {description}
           </p>
@@ -539,32 +495,25 @@ function LeaderSpotlightBanner({
         {leader && heroValue && (
           <div className="flex items-center gap-3 self-start sm:self-auto rounded-lg border border-border/60 bg-card/90 p-2.5 sm:min-w-[290px]">
             <div className="relative shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-xs font-bold text-foreground">
-                {(leader.name ?? "P")[0]?.toUpperCase()}
-              </div>
-              <div
-                className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full ${colorMap.accentDot} text-[9px] font-black text-black`}
-              >
-                1
-              </div>
+              <Initials name={leader.name} fallback="P" className="h-10 w-10" />
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-bold text-foreground">
+                <span className="truncate text-xs font-semibold text-foreground">
                   {leader.name}
                 </span>
                 <span
-                  className={`text-sm font-black tabular-nums ${colorMap.heroColor}`}
+                  className="text-sm font-bold tabular-nums text-foreground"
                 >
                   {heroValue}
                 </span>
               </div>
-              <div className="text-[10px] text-muted-foreground truncate">
+              <div className="text-2xs text-muted-foreground truncate">
                 {heroLabel}
               </div>
               {contextStats && contextStats.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground border-t border-border/40 pt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-muted-foreground border-t border-border/40 pt-1">
                   {contextStats.slice(0, 3).map((st) => (
                     <span key={st.label} className="truncate">
                       <span className="font-semibold text-foreground tabular-nums">
@@ -667,7 +616,7 @@ export function LeaderboardView({
       {/* Header with Title and Search */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl text-balance">
+          <h2 className="text-lg font-semibold tracking-tight text-foreground text-balance">
             {title}
           </h2>
           <p className="text-xs text-muted-foreground">{subtitle}</p>
@@ -702,7 +651,6 @@ export function LeaderboardView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
               Overview
             </button>
             <button
@@ -716,9 +664,8 @@ export function LeaderboardView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Flame className="h-3.5 w-3.5 text-amber-500" />
               Batting
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.batting.length}
               </Badge>
             </button>
@@ -733,9 +680,8 @@ export function LeaderboardView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Target className="h-3.5 w-3.5 text-purple-500" />
               Bowling
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.bowling.length}
               </Badge>
             </button>
@@ -750,9 +696,8 @@ export function LeaderboardView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Shield className="h-3.5 w-3.5 text-cyan-500" />
               Fielding
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.fielding.length}
               </Badge>
             </button>
@@ -767,9 +712,8 @@ export function LeaderboardView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Crown className="h-3.5 w-3.5 text-emerald-500" />
               MVP
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
                 {data.mvp.length}
               </Badge>
             </button>
@@ -783,15 +727,14 @@ export function LeaderboardView({
             {showHighlights && (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {/* Orange Cap */}
-                <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card">
+                <Card>
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between">
-                      <Badge className="gap-1 bg-amber-500 text-black hover:bg-amber-400">
-                        <Flame className="h-3 w-3 fill-current" />
+                      <span className="text-sm font-semibold text-foreground">
                         Orange Cap
-                      </Badge>
-                      <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                        Most Runs
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Most runs
                       </span>
                     </div>
                   </CardHeader>
@@ -799,16 +742,16 @@ export function LeaderboardView({
                     {data.highlights.orangeCap ? (
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-bold text-foreground">
+                          <div className="truncate font-semibold text-foreground">
                             {data.highlights.orangeCap.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.orangeCap.innings} inn • Avg:{" "}
                             {data.highlights.orangeCap.averageDisplay} • SR:{" "}
                             {data.highlights.orangeCap.strikeRateDisplay}
                           </div>
                         </div>
-                        <div className="text-2xl font-black tabular-nums text-amber-500">
+                        <div className="text-2xl font-bold tabular-nums text-foreground">
                           {data.highlights.orangeCap.runs}
                         </div>
                       </div>
@@ -821,15 +764,14 @@ export function LeaderboardView({
                 </Card>
 
                 {/* Purple Cap */}
-                <Card className="border-purple-500/30 bg-gradient-to-br from-purple-500/10 via-card to-card">
+                <Card>
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between">
-                      <Badge className="gap-1 bg-purple-600 text-white hover:bg-purple-500">
-                        <Target className="h-3 w-3 fill-current" />
+                      <span className="text-sm font-semibold text-foreground">
                         Purple Cap
-                      </Badge>
-                      <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400">
-                        Most Wickets
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Most wickets
                       </span>
                     </div>
                   </CardHeader>
@@ -837,16 +779,16 @@ export function LeaderboardView({
                     {data.highlights.purpleCap ? (
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-bold text-foreground">
+                          <div className="truncate font-semibold text-foreground">
                             {data.highlights.purpleCap.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.purpleCap.overs} ov • Avg:{" "}
                             {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
                             {data.highlights.purpleCap.economyDisplay}
                           </div>
                         </div>
-                        <div className="text-2xl font-black tabular-nums text-purple-500">
+                        <div className="text-2xl font-bold tabular-nums text-foreground">
                           {data.highlights.purpleCap.wickets}
                         </div>
                       </div>
@@ -859,15 +801,14 @@ export function LeaderboardView({
                 </Card>
 
                 {/* MVP Leader */}
-                <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card">
+                <Card>
                   <CardHeader className="p-4 pb-2">
                     <div className="flex items-center justify-between">
-                      <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-500">
-                        <Crown className="h-3 w-3 fill-current" />
-                        MVP Leader
-                      </Badge>
-                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                        All-Round Impact
+                      <span className="text-sm font-semibold text-foreground">
+                        MVP leader
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        All-round points
                       </span>
                     </div>
                   </CardHeader>
@@ -875,14 +816,14 @@ export function LeaderboardView({
                     {data.highlights.mvpLeader ? (
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-bold text-foreground">
+                          <div className="truncate font-semibold text-foreground">
                             {data.highlights.mvpLeader.name}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {data.highlights.mvpLeader.summary}
                           </div>
                         </div>
-                        <div className="text-2xl font-black tabular-nums text-emerald-500">
+                        <div className="text-2xl font-bold tabular-nums text-foreground">
                           {data.highlights.mvpLeader.totalPoints}
                         </div>
                       </div>
@@ -895,23 +836,22 @@ export function LeaderboardView({
                 </Card>
 
                 {/* Most Sixes */}
-                <Card className="border-border/80 bg-card/60">
+                <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Most Sixes (Max)
+                        Most sixes (max)
                       </span>
-                      <Flame className="h-4 w-4 text-orange-500" />
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-bold text-foreground">
+                      <div className="truncate font-semibold text-foreground">
                         {data.highlights.mostSixes?.name ?? "—"}
                       </div>
-                      <div className="text-xl font-black tabular-nums text-orange-500">
+                      <div className="text-xl font-bold tabular-nums text-foreground">
                         {data.highlights.mostSixes?.sixes ?? 0}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.mostSixes
                         ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
                         : "No sixes recorded"}
@@ -920,23 +860,22 @@ export function LeaderboardView({
                 </Card>
 
                 {/* Highest Individual Score */}
-                <Card className="border-border/80 bg-card/60">
+                <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Highest Individual Score
+                        Highest individual score
                       </span>
-                      <Sparkles className="h-4 w-4 text-amber-500" />
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-bold text-foreground">
+                      <div className="truncate font-semibold text-foreground">
                         {data.highlights.highestScore?.name ?? "—"}
                       </div>
-                      <div className="text-xl font-black tabular-nums text-amber-500">
+                      <div className="text-xl font-bold tabular-nums text-foreground">
                         {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.highestScore
                         ? data.highlights.highestScore.highestScoreBalls
                           ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
@@ -947,23 +886,22 @@ export function LeaderboardView({
                 </Card>
 
                 {/* Best Bowling Inning */}
-                <Card className="border-border/80 bg-card/60">
+                <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Best Bowling Figures
+                        Best bowling figures
                       </span>
-                      <Target className="h-4 w-4 text-indigo-500" />
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-bold text-foreground">
+                      <div className="truncate font-semibold text-foreground">
                         {data.highlights.bestBowling?.name ?? "—"}
                       </div>
-                      <div className="text-xl font-black tabular-nums text-indigo-500">
+                      <div className="text-xl font-bold tabular-nums text-foreground">
                         {data.highlights.bestBowling?.bestBowling.display ?? "—"}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.bestBowling
                         ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
                         : "No bowling figures recorded"}
@@ -972,23 +910,22 @@ export function LeaderboardView({
                 </Card>
 
                 {/* Top Fielder */}
-                <Card className="border-border/80 bg-card/60">
+                <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-muted-foreground">
-                        Top Fielder
+                        Top fielder
                       </span>
-                      <Shield className="h-4 w-4 text-cyan-500" />
                     </div>
                     <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-bold text-foreground">
+                      <div className="truncate font-semibold text-foreground">
                         {data.highlights.topFielder?.name ?? "—"}
                       </div>
-                      <div className="text-xl font-black tabular-nums text-cyan-500">
+                      <div className="text-xl font-bold tabular-nums text-foreground">
                         {data.highlights.topFielder?.totalDismissals ?? 0}
                       </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    <div className="mt-0.5 text-2xs text-muted-foreground">
                       {data.highlights.topFielder
                         ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
                         : "No dismissals recorded"}
@@ -1003,9 +940,8 @@ export function LeaderboardView({
               {/* Top 5 Batters */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                    <Flame className="h-4 w-4 text-amber-500" />
-                    Leading Run Scorers
+                  <CardTitle className="text-base font-semibold">
+                    Leading run scorers
                   </CardTitle>
                   <Button
                     variant="ghost"
@@ -1029,17 +965,15 @@ export function LeaderboardView({
                           className="flex items-center justify-between p-3"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                               {idx + 1}
                             </span>
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                              {(b.name ?? "P")[0]?.toUpperCase()}
-                            </div>
+                            <Initials name={b.name} fallback="P" className="h-7 w-7" />
                             <div>
                               <div className="font-semibold text-foreground">
                                 {b.name}
                               </div>
-                              <div className="text-[11px] text-muted-foreground">
+                              <div className="text-2xs text-muted-foreground">
                                 {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
                                 {b.strikeRateDisplay}
                               </div>
@@ -1049,7 +983,7 @@ export function LeaderboardView({
                             <div className="text-sm font-bold tabular-nums text-foreground">
                               {b.runs}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {b.fours}×4, {b.sixes}×6
                             </div>
                           </div>
@@ -1063,9 +997,8 @@ export function LeaderboardView({
               {/* Top 5 Bowlers */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm font-bold">
-                    <Target className="h-4 w-4 text-purple-500" />
-                    Leading Wicket Takers
+                  <CardTitle className="text-base font-semibold">
+                    Leading wicket takers
                   </CardTitle>
                   <Button
                     variant="ghost"
@@ -1089,17 +1022,15 @@ export function LeaderboardView({
                           className="flex items-center justify-between p-3"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-[10px] text-muted-foreground">
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
                               {idx + 1}
                             </span>
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                              {(bw.name ?? "B")[0]?.toUpperCase()}
-                            </div>
+                            <Initials name={bw.name} fallback="B" className="h-7 w-7" />
                             <div>
                               <div className="font-semibold text-foreground">
                                 {bw.name}
                               </div>
-                              <div className="text-[11px] text-muted-foreground">
+                              <div className="text-2xs text-muted-foreground">
                                 {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
                                 {bw.bestBowling.display}
                               </div>
@@ -1109,7 +1040,7 @@ export function LeaderboardView({
                             <div className="text-sm font-bold tabular-nums text-foreground">
                               {bw.wickets}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               Avg {bw.averageDisplay}
                             </div>
                           </div>
@@ -1150,7 +1081,7 @@ export function LeaderboardView({
                     variant={battingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBattingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1164,24 +1095,24 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Focused Knock View
+                    Focused knock view
                   </button>
                   <button
                     type="button"
                     onClick={() => setBattingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       battingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    All Columns
+                    All columns
                   </button>
                 </div>
               )}
@@ -1189,8 +1120,6 @@ export function LeaderboardView({
 
             {/* Active Metric Leader Spotlight Banner */}
             <LeaderSpotlightBanner
-              icon={Flame}
-              accentColor="amber"
               title={`Batting Leaderboard • ${BATTING_CONFIGS[battingSort].label}`}
               description={BATTING_CONFIGS[battingSort].description}
               leader={filteredBatting[0]}
@@ -1225,33 +1154,31 @@ export function LeaderboardView({
                     <Card key={b.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(b.name ?? "P")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={b.name} fallback="P" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {b.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {b.matches} matches • {b.innings} innings
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-base font-black tabular-nums text-amber-600 dark:text-amber-400">
+                          <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -1273,22 +1200,22 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-3 py-2.5 text-center bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30">
-                            High Score (HS)
+                          <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
+                            High score (HS)
                           </th>
-                          <th className="px-3 py-2.5 text-center">Balls (Knock)</th>
-                          <th className="px-3 py-2.5 text-right">SR (Knock)</th>
+                          <th className="px-3 py-2.5 text-center">Balls (knock)</th>
+                          <th className="px-3 py-2.5 text-right">SR (knock)</th>
                           <th className="px-3 py-2.5 text-center">Knock 4s</th>
                           <th className="px-3 py-2.5 text-center">Knock 6s</th>
                           <th className="px-3 py-2.5 text-center">Innings</th>
                           <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total Tournament Runs
+                            Total tournament runs
                           </th>
-                          <th className="px-3 py-2.5 text-right">Overall Avg</th>
+                          <th className="px-3 py-2.5 text-right">Overall avg</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -1299,7 +1226,7 @@ export function LeaderboardView({
                           >
                             <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                               {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                                   1
                                 </span>
                               ) : (
@@ -1308,15 +1235,13 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(b.name ?? "P")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {b.name}
                                 </span>
                               </div>
                             </td>
-                            <td className="px-3 py-2 text-center tabular-nums font-black text-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20">
+                            <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
                               {b.highestScoreDisplay}
                             </td>
                             <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
@@ -1353,7 +1278,7 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1363,7 +1288,7 @@ export function LeaderboardView({
                           <th
                             className={`px-3 py-2.5 text-right transition-colors ${
                               battingSort === "runs"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : "font-bold text-foreground"
                             }`}
                           >
@@ -1372,7 +1297,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-center transition-colors ${
                               battingSort === "highestScore"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1381,7 +1306,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-right transition-colors ${
                               battingSort === "average"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1390,7 +1315,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-right transition-colors ${
                               battingSort === "balls"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1399,7 +1324,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-right transition-colors ${
                               battingSort === "strikeRate"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1408,7 +1333,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               battingSort === "centuries"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1417,7 +1342,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               battingSort === "fifties"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1426,7 +1351,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               battingSort === "fours"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1435,7 +1360,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               battingSort === "sixes"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold border-x border-amber-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1461,7 +1386,7 @@ export function LeaderboardView({
                             >
                               <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                                 {idx === 0 ? (
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                                     1
                                   </span>
                                 ) : (
@@ -1470,9 +1395,7 @@ export function LeaderboardView({
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                    {(b.name ?? "P")[0]?.toUpperCase()}
-                                  </div>
+                                  <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
                                   <span className="font-semibold text-foreground truncate max-w-[160px]">
                                     {b.name}
                                   </span>
@@ -1488,9 +1411,9 @@ export function LeaderboardView({
                                 {b.notOuts}
                               </td>
                               <td
-                                className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                                className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
                                   battingSort === "runs"
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
+                                    ? "bg-muted/60 text-foreground"
                                     : "text-foreground"
                                 }`}
                               >
@@ -1499,7 +1422,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
                                   battingSort === "highestScore"
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
+                                    ? "bg-muted/60 text-foreground"
                                     : ""
                                 }`}
                               >
@@ -1508,7 +1431,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-right tabular-nums ${
                                   battingSort === "average"
-                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : ""
                                 }`}
                               >
@@ -1517,7 +1440,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-right tabular-nums ${
                                   battingSort === "balls"
-                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
@@ -1526,7 +1449,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-right tabular-nums ${
                                   battingSort === "strikeRate"
-                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "font-medium"
                                 }`}
                               >
@@ -1535,8 +1458,8 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   battingSort === "centuries"
-                                    ? "bg-amber-500/10 font-black text-amber-600 dark:text-amber-400 border-x border-amber-500/20"
-                                    : "font-semibold text-amber-600 dark:text-amber-400"
+                                    ? "bg-muted/60 font-bold text-foreground"
+                                    : "font-semibold text-foreground"
                                 }`}
                               >
                                 {b.centuries}
@@ -1544,8 +1467,8 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   battingSort === "fifties"
-                                    ? "bg-amber-500/10 font-black text-blue-600 dark:text-blue-400 border-x border-amber-500/20"
-                                    : "font-semibold text-blue-600 dark:text-blue-400"
+                                    ? "bg-muted/60 font-bold text-foreground"
+                                    : "font-semibold text-foreground"
                                 }`}
                               >
                                 {b.fifties}
@@ -1553,7 +1476,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   battingSort === "fours"
-                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
@@ -1562,7 +1485,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   battingSort === "sixes"
-                                    ? "bg-amber-500/10 font-bold text-foreground border-x border-amber-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
@@ -1606,7 +1529,7 @@ export function LeaderboardView({
                     variant={bowlingSort === chip.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setBowlingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                   >
                     {chip.label}
                   </Button>
@@ -1620,24 +1543,24 @@ export function LeaderboardView({
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "focused"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Focused Spell View
+                    Focused spell view
                   </button>
                   <button
                     type="button"
                     onClick={() => setBowlingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
                       bowlingTableMode === "all"
                         ? "bg-card text-foreground shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    All Columns
+                    All columns
                   </button>
                 </div>
               )}
@@ -1645,8 +1568,6 @@ export function LeaderboardView({
 
             {/* Active Metric Leader Spotlight Banner */}
             <LeaderSpotlightBanner
-              icon={Target}
-              accentColor="purple"
               title={`Bowling Leaderboard • ${BOWLING_CONFIGS[bowlingSort].label}`}
               description={BOWLING_CONFIGS[bowlingSort].description}
               leader={filteredBowling[0]}
@@ -1681,33 +1602,31 @@ export function LeaderboardView({
                     <Card key={bw.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(bw.name ?? "B")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={bw.name} fallback="B" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {bw.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {bw.matches} matches • {bw.innings} innings
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-base font-black tabular-nums text-purple-600 dark:text-purple-400">
+                          <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -1729,21 +1648,21 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-3 py-2.5 text-center bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30">
-                            Best Figures (BBI)
+                          <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
+                            Best figures (BBI)
                           </th>
-                          <th className="px-3 py-2.5 text-center">Overs in Spell</th>
-                          <th className="px-3 py-2.5 text-right">Spell Economy</th>
+                          <th className="px-3 py-2.5 text-center">Overs in spell</th>
+                          <th className="px-3 py-2.5 text-right">Spell economy</th>
                           <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total Tournament Wkts
+                            Total tournament wkts
                           </th>
-                          <th className="px-3 py-2.5 text-center">Total Overs</th>
-                          <th className="px-3 py-2.5 text-right">Overall Econ</th>
-                          <th className="px-3 py-2.5 text-right">Bowling Avg</th>
+                          <th className="px-3 py-2.5 text-center">Total overs</th>
+                          <th className="px-3 py-2.5 text-right">Overall econ</th>
+                          <th className="px-3 py-2.5 text-right">Bowling avg</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -1754,7 +1673,7 @@ export function LeaderboardView({
                           >
                             <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                               {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                                   1
                                 </span>
                               ) : (
@@ -1763,15 +1682,13 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(bw.name ?? "B")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {bw.name}
                                 </span>
                               </div>
                             </td>
-                            <td className="px-3 py-2 text-center tabular-nums font-black text-sm bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20">
+                            <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
                               {bw.bestBowling.display}
                             </td>
                             <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
@@ -1805,7 +1722,7 @@ export function LeaderboardView({
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                         <tr>
                           <th className="px-3 py-2.5 w-10 text-center">#</th>
                           <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -1815,7 +1732,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-center transition-colors ${
                               bowlingSort === "balls"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1824,7 +1741,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-center transition-colors ${
                               bowlingSort === "maidens"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1834,7 +1751,7 @@ export function LeaderboardView({
                           <th
                             className={`px-3 py-2.5 text-right transition-colors ${
                               bowlingSort === "wickets"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : "font-bold text-foreground"
                             }`}
                           >
@@ -1843,7 +1760,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-center transition-colors ${
                               bowlingSort === "bestBowling"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1852,7 +1769,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-right transition-colors ${
                               bowlingSort === "average"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1861,7 +1778,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2.5 py-2.5 text-right transition-colors ${
                               bowlingSort === "economy"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1870,7 +1787,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               bowlingSort === "threeWickets"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1879,7 +1796,7 @@ export function LeaderboardView({
                           <th
                             className={`px-2 py-2.5 text-center transition-colors ${
                               bowlingSort === "fiveWickets"
-                                ? "bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold border-x border-purple-500/30"
+                                ? "bg-muted text-foreground font-semibold"
                                 : ""
                             }`}
                           >
@@ -1905,7 +1822,7 @@ export function LeaderboardView({
                             >
                               <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                                 {idx === 0 ? (
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-600 dark:text-purple-400 font-bold">
+                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                                     1
                                   </span>
                                 ) : (
@@ -1914,9 +1831,7 @@ export function LeaderboardView({
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                    {(bw.name ?? "B")[0]?.toUpperCase()}
-                                  </div>
+                                  <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
                                   <span className="font-semibold text-foreground truncate max-w-[160px]">
                                     {bw.name}
                                   </span>
@@ -1934,7 +1849,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-center tabular-nums ${
                                   bowlingSort === "balls"
-                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
@@ -1943,7 +1858,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-center tabular-nums ${
                                   bowlingSort === "maidens"
-                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
@@ -1953,9 +1868,9 @@ export function LeaderboardView({
                                 {bw.runsConceded}
                               </td>
                               <td
-                                className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                                className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
                                   bowlingSort === "wickets"
-                                    ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
+                                    ? "bg-muted/60 text-foreground"
                                     : "text-foreground"
                                 }`}
                               >
@@ -1964,8 +1879,8 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
                                   bowlingSort === "bestBowling"
-                                    ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
-                                    : "text-purple-600 dark:text-purple-400"
+                                    ? "bg-muted/60 text-foreground"
+                                    : "text-foreground"
                                 }`}
                               >
                                 {bw.bestBowling.display}
@@ -1973,7 +1888,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-right tabular-nums ${
                                   bowlingSort === "average"
-                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : ""
                                 }`}
                               >
@@ -1982,7 +1897,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2.5 py-2 text-right tabular-nums ${
                                   bowlingSort === "economy"
-                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "font-medium"
                                 }`}
                               >
@@ -1991,7 +1906,7 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   bowlingSort === "threeWickets"
-                                    ? "bg-purple-500/10 font-bold text-foreground border-x border-purple-500/20"
+                                    ? "bg-muted/60 font-bold text-foreground"
                                     : "font-semibold text-muted-foreground"
                                 }`}
                               >
@@ -2000,8 +1915,8 @@ export function LeaderboardView({
                               <td
                                 className={`px-2 py-2 text-center tabular-nums ${
                                   bowlingSort === "fiveWickets"
-                                    ? "bg-purple-500/10 font-bold text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
-                                    : "font-semibold text-purple-500"
+                                    ? "bg-muted/60 font-bold text-foreground"
+                                    : "font-semibold text-foreground"
                                 }`}
                               >
                                 {bw.fiveWickets}
@@ -2039,7 +1954,7 @@ export function LeaderboardView({
                   variant={fieldingSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setFieldingSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                 >
                   {chip.label}
                 </Button>
@@ -2048,8 +1963,6 @@ export function LeaderboardView({
 
             {/* Active Metric Leader Spotlight Banner */}
             <LeaderSpotlightBanner
-              icon={Shield}
-              accentColor="cyan"
               title={`Fielding Leaderboard • ${FIELDING_CONFIGS[fieldingSort].label}`}
               description={FIELDING_CONFIGS[fieldingSort].description}
               leader={filteredFielding[0]}
@@ -2084,33 +1997,31 @@ export function LeaderboardView({
                     <Card key={f.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold text-[10px]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
                             {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(f.name ?? "F")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={f.name} fallback="F" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {f.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               {f.matches} matches
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-base font-black tabular-nums text-cyan-600 dark:text-cyan-400">
+                          <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -2131,7 +2042,7 @@ export function LeaderboardView({
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 w-10 text-center">#</th>
                         <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2139,16 +2050,16 @@ export function LeaderboardView({
                         <th
                           className={`px-3 py-2.5 text-right transition-colors ${
                             fieldingSort === "totalDismissals"
-                              ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 font-extrabold border-x border-cyan-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : "font-bold text-foreground"
                           }`}
                         >
-                          Total Dismissals
+                          Total dismissals
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             fieldingSort === "catches"
-                              ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 font-extrabold border-x border-cyan-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
@@ -2157,7 +2068,7 @@ export function LeaderboardView({
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             fieldingSort === "stumpings"
-                              ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 font-extrabold border-x border-cyan-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
@@ -2166,11 +2077,11 @@ export function LeaderboardView({
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             fieldingSort === "runOuts"
-                              ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 font-extrabold border-x border-cyan-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
-                          Run Outs (RO)
+                          Run outs (RO)
                         </th>
                       </tr>
                     </thead>
@@ -2192,7 +2103,7 @@ export function LeaderboardView({
                           >
                             <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                               {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                                   1
                                 </span>
                               ) : (
@@ -2201,9 +2112,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(f.name ?? "F")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={f.name} fallback="F" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[180px]">
                                   {f.name}
                                 </span>
@@ -2213,10 +2122,10 @@ export function LeaderboardView({
                               {f.matches}
                             </td>
                             <td
-                              className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                              className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
                                 fieldingSort === "totalDismissals"
-                                  ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-x border-cyan-500/20"
-                                  : "text-cyan-600 dark:text-cyan-400"
+                                  ? "bg-muted/60 text-foreground"
+                                  : "text-foreground"
                               }`}
                             >
                               {f.totalDismissals}
@@ -2224,7 +2133,7 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "catches"
-                                  ? "bg-cyan-500/10 text-foreground border-x border-cyan-500/20"
+                                  ? "bg-muted/60 text-foreground"
                                   : ""
                               }`}
                             >
@@ -2233,8 +2142,8 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "stumpings"
-                                  ? "bg-cyan-500/10 text-purple-600 dark:text-purple-400 border-x border-cyan-500/20"
-                                  : "text-purple-600 dark:text-purple-400"
+                                  ? "bg-muted/60 text-foreground"
+                                  : "text-foreground"
                               }`}
                             >
                               {f.stumpings}
@@ -2242,8 +2151,8 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums font-semibold ${
                                 fieldingSort === "runOuts"
-                                  ? "bg-cyan-500/10 text-amber-600 dark:text-amber-400 border-x border-cyan-500/20"
-                                  : "text-amber-600 dark:text-amber-400"
+                                  ? "bg-muted/60 text-foreground"
+                                  : "text-foreground"
                               }`}
                             >
                               {f.runOuts}
@@ -2280,7 +2189,7 @@ export function LeaderboardView({
                   variant={mvpSort === chip.id ? "default" : "outline"}
                   size="sm"
                   onClick={() => setMvpSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-[11px] font-semibold"
+                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
                 >
                   {chip.label}
                 </Button>
@@ -2289,8 +2198,6 @@ export function LeaderboardView({
 
             {/* Active Metric Leader Spotlight Banner */}
             <LeaderSpotlightBanner
-              icon={Crown}
-              accentColor="emerald"
               title={`MVP Leaderboard • ${MVP_CONFIGS[mvpSort].label}`}
               description={MVP_CONFIGS[mvpSort].description}
               leader={filteredMvp[0]}
@@ -2325,33 +2232,31 @@ export function LeaderboardView({
                     <Card key={m.userId} className="border-border/80 p-3.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]">
-                            {idx === 0 ? "👑" : idx + 1}
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
+                            {idx + 1}
                           </span>
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                            {(m.name ?? "P")[0]?.toUpperCase()}
-                          </div>
+                          <Initials name={m.name} fallback="P" className="h-8 w-8" />
                           <div className="min-w-0">
                             <div className="font-bold text-foreground text-sm truncate">
                               {m.name}
                             </div>
-                            <div className="text-[11px] text-muted-foreground truncate">
+                            <div className="text-2xs text-muted-foreground truncate">
                               {m.summary}
                             </div>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <div className="text-base font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                          <div className="text-base font-bold tabular-nums text-foreground">
                             {hero.value}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-2xs text-muted-foreground">
                             {hero.label}
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-[11px]">
+                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
                         {stats.map((st) => (
                           <div key={st.label} className="flex justify-between">
                             <span className="text-muted-foreground">{st.label}:</span>
@@ -2372,7 +2277,7 @@ export function LeaderboardView({
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-[11px] font-semibold text-muted-foreground">
+                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2.5 w-10 text-center">#</th>
                         <th className="px-3 py-2.5 min-w-[150px]">Player</th>
@@ -2380,40 +2285,40 @@ export function LeaderboardView({
                         <th
                           className={`px-3 py-2.5 text-right transition-colors ${
                             mvpSort === "totalPoints"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold border-x border-emerald-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : "font-bold text-foreground"
                           }`}
                         >
-                          Total Points
+                          Total points
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             mvpSort === "battingPoints"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold border-x border-emerald-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
-                          Bat Pts
+                          Bat pts
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             mvpSort === "bowlingPoints"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold border-x border-emerald-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
-                          Bowl Pts
+                          Bowl pts
                         </th>
                         <th
                           className={`px-3 py-2.5 text-center transition-colors ${
                             mvpSort === "fieldingPoints"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold border-x border-emerald-500/30"
+                              ? "bg-muted text-foreground font-semibold"
                               : ""
                           }`}
                         >
-                          Field Pts
+                          Field pts
                         </th>
-                        <th className="px-3 py-2.5 min-w-[180px]">Key Stats</th>
+                        <th className="px-3 py-2.5 min-w-[180px]">Key stats</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -2434,8 +2339,8 @@ export function LeaderboardView({
                           >
                             <td className="px-3 py-2 text-center font-bold text-muted-foreground">
                               {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
-                                  👑
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                                  1
                                 </span>
                               ) : (
                                 idx + 1
@@ -2443,9 +2348,7 @@ export function LeaderboardView({
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
-                                  {(m.name ?? "P")[0]?.toUpperCase()}
-                                </div>
+                                <Initials name={m.name} fallback="P" className="h-6 w-6 text-2xs" />
                                 <span className="font-semibold text-foreground truncate max-w-[160px]">
                                   {m.name}
                                 </span>
@@ -2455,10 +2358,10 @@ export function LeaderboardView({
                               {m.matches}
                             </td>
                             <td
-                              className={`px-3 py-2 text-right tabular-nums font-black text-sm ${
+                              className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
                                 mvpSort === "totalPoints"
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-x border-emerald-500/20"
-                                  : "text-emerald-600 dark:text-emerald-400"
+                                  ? "bg-muted/60 text-foreground"
+                                  : "text-foreground"
                               }`}
                             >
                               {m.totalPoints}
@@ -2466,8 +2369,8 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums ${
                                 mvpSort === "battingPoints"
-                                  ? "bg-emerald-500/10 font-bold text-amber-600 dark:text-amber-400 border-x border-emerald-500/20"
-                                  : "font-medium text-amber-600 dark:text-amber-400"
+                                  ? "bg-muted/60 font-bold text-foreground"
+                                  : "font-medium text-foreground"
                               }`}
                             >
                               {m.battingPoints}
@@ -2475,8 +2378,8 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums ${
                                 mvpSort === "bowlingPoints"
-                                  ? "bg-emerald-500/10 font-bold text-purple-600 dark:text-purple-400 border-x border-purple-500/20"
-                                  : "font-medium text-purple-600 dark:text-purple-400"
+                                  ? "bg-muted/60 font-bold text-foreground"
+                                  : "font-medium text-foreground"
                               }`}
                             >
                               {m.bowlingPoints}
@@ -2484,8 +2387,8 @@ export function LeaderboardView({
                             <td
                               className={`px-3 py-2 text-center tabular-nums ${
                                 mvpSort === "fieldingPoints"
-                                  ? "bg-emerald-500/10 font-bold text-cyan-600 dark:text-cyan-400 border-x border-emerald-500/20"
-                                  : "font-medium text-cyan-600 dark:text-cyan-400"
+                                  ? "bg-muted/60 font-bold text-foreground"
+                                  : "font-medium text-foreground"
                               }`}
                             >
                               {m.fieldingPoints}

@@ -12,6 +12,7 @@ import {
 } from "~/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -20,7 +21,6 @@ import {
   formatHowOut,
   formatPlayerRole,
   formatTeamType,
-  formatStatus,
   strikeRate,
   economyRate,
   ballsFromOvers,
@@ -33,7 +33,6 @@ import {
   Users,
   Trophy,
   Activity,
-  Flame,
 } from "lucide-react";
 
 export interface PlayerTeamMembership {
@@ -240,12 +239,10 @@ export function PlayerActivityTabs({
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <div className="border-b border-border/70 pb-4">
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto">
+        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:inline-flex sm:w-auto">
           <TabsTrigger
             value="batting"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Flame className="h-4 w-4 shrink-0 text-orange-500" />
             <span>Batting</span>
             <Badge
               variant="secondary"
@@ -256,9 +253,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="bowling"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Activity className="h-4 w-4 shrink-0 text-blue-500" />
             <span>Bowling</span>
             <Badge
               variant="secondary"
@@ -269,9 +264,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="matches"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Swords className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>Matches</span>
             <Badge
               variant="secondary"
@@ -282,9 +275,7 @@ export function PlayerActivityTabs({
           </TabsTrigger>
           <TabsTrigger
             value="teams"
-            className="shrink-0 whitespace-nowrap gap-1.5 px-3.5 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-sm"
           >
-            <Users className="h-4 w-4 shrink-0 text-purple-500" />
             <span>Teams</span>
             <Badge
               variant="secondary"
@@ -301,7 +292,7 @@ export function PlayerActivityTabs({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">
-              Recent Batting Innings
+              Recent batting innings
             </h3>
             <p className="text-xs text-muted-foreground">
               Detailed performance history including balls faced, boundaries,
@@ -317,9 +308,9 @@ export function PlayerActivityTabs({
 
         {batting.length === 0 ? (
           <EmptyState
-            icon={Flame}
-            title="No Batting Innings Recorded"
-            description="Batting performances from completed and live scorecards will automatically appear here."
+            icon={Activity}
+            title="No batting innings yet"
+            description="Innings from scored matches will appear here."
           />
         ) : (
           <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -328,7 +319,7 @@ export function PlayerActivityTabs({
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead className="min-w-[180px]">
-                      Match / Opponent
+                      Match / opponent
                     </TableHead>
                     <TableHead className="text-center font-bold">
                       Runs
@@ -372,7 +363,7 @@ export function PlayerActivityTabs({
                                   ? opponent.name
                                   : (bp.match?.title ?? "Match")}
                               </p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                                 <span>
                                   {formatDate(bp.match?.scheduled_at)}
                                 </span>
@@ -403,7 +394,7 @@ export function PlayerActivityTabs({
                             {!bp.is_out && (
                               <Badge
                                 variant="outline"
-                                className="border-emerald-500/40 bg-emerald-500/10 px-1 py-0 text-[10px] text-emerald-600 dark:text-emerald-400"
+                                className="border-emerald-500/40 bg-emerald-500/10 px-1 py-0 text-2xs text-emerald-600 dark:text-emerald-400"
                               >
                                 not out
                               </Badge>
@@ -451,9 +442,9 @@ export function PlayerActivityTabs({
                             title={bp.match?.result_description ?? ""}
                           >
                             {bp.match?.result_description ?? (
-                              <Badge variant="outline" className="text-[10px]">
-                                {formatStatus(bp.match?.status ?? "scheduled")}
-                              </Badge>
+                              <StatusBadge
+                                status={bp.match?.status ?? "scheduled"}
+                              />
                             )}
                           </div>
                         </TableCell>
@@ -491,7 +482,7 @@ export function PlayerActivityTabs({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">
-              Recent Bowling Spells
+              Recent bowling spells
             </h3>
             <p className="text-xs text-muted-foreground">
               Overs, wickets, runs conceded, maidens, economy rates, and match
@@ -518,7 +509,7 @@ export function PlayerActivityTabs({
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead className="min-w-[180px]">
-                      Match / Opponent
+                      Match / opponent
                     </TableHead>
                     <TableHead className="text-center font-bold">
                       Figures (W/R)
@@ -559,7 +550,7 @@ export function PlayerActivityTabs({
                                   ? opponent.name
                                   : (bp.match?.title ?? "Match")}
                               </p>
-                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
                                 <span>
                                   {formatDate(bp.match?.scheduled_at)}
                                 </span>
@@ -579,7 +570,7 @@ export function PlayerActivityTabs({
                           <span
                             className={`tabular-nums text-base font-bold ${
                               bp.wickets_taken >= 3
-                                ? "font-extrabold text-primary"
+                                ? "text-primary"
                                 : "text-foreground"
                             }`}
                           >
@@ -628,9 +619,9 @@ export function PlayerActivityTabs({
                             title={bp.match?.result_description ?? ""}
                           >
                             {bp.match?.result_description ?? (
-                              <Badge variant="outline" className="text-[10px]">
-                                {formatStatus(bp.match?.status ?? "scheduled")}
-                              </Badge>
+                              <StatusBadge
+                                status={bp.match?.status ?? "scheduled"}
+                              />
                             )}
                           </div>
                         </TableCell>
@@ -668,7 +659,7 @@ export function PlayerActivityTabs({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">
-              Match Appearances
+              Match appearances
             </h3>
             <p className="text-xs text-muted-foreground">
               Matches involving the player and their teams with personal
@@ -703,29 +694,15 @@ export function PlayerActivityTabs({
                     {/* Header Strip */}
                     <div className="flex items-center justify-between border-b px-4 py-2.5 text-xs">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            m.status === "live"
-                              ? "default"
-                              : m.status === "completed"
-                                ? "secondary"
-                                : "outline"
-                          }
-                          className="text-[11px]"
-                        >
-                          {m.status === "live" && (
-                            <span className="mr-1 h-2 w-2 animate-ping rounded-full bg-red-400" />
-                          )}
-                          {formatStatus(m.status)}
-                        </Badge>
+                        <StatusBadge status={m.status} />
                         {m.tournament && (
                           <span className="flex max-w-[130px] items-center gap-1 truncate font-medium text-muted-foreground">
-                            <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                            <Trophy className="h-3 w-3 shrink-0" />
                             {m.tournament.name}
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {m.match_format} · {m.overs_per_innings} ov
                       </span>
                     </div>
@@ -748,7 +725,7 @@ export function PlayerActivityTabs({
                         {inn1 ? (
                           <div className="tabular-nums text-right text-xs font-bold">
                             {inn1.total_runs}/{inn1.total_wickets}
-                            <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                            <span className="ml-1 text-2xs font-normal text-muted-foreground">
                               ({inn1.total_overs.toFixed(1)})
                             </span>
                           </div>
@@ -775,7 +752,7 @@ export function PlayerActivityTabs({
                         {inn2 ? (
                           <div className="tabular-nums text-right text-xs font-bold">
                             {inn2.total_runs}/{inn2.total_wickets}
-                            <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                            <span className="ml-1 text-2xs font-normal text-muted-foreground">
                               ({inn2.total_overs.toFixed(1)})
                             </span>
                           </div>
@@ -796,7 +773,7 @@ export function PlayerActivityTabs({
                         {m.playerBatting && (
                           <Badge
                             variant="outline"
-                            className="border-primary/20 bg-background text-[11px] font-medium"
+                            className="border-primary/20 bg-background text-2xs font-medium"
                           >
                             Bat: {m.playerBatting.runs_scored}
                             {!m.playerBatting.is_out && "*"} (
@@ -806,7 +783,7 @@ export function PlayerActivityTabs({
                         {m.playerBowling && (
                           <Badge
                             variant="outline"
-                            className="border-primary/20 bg-background text-[11px] font-medium"
+                            className="border-primary/20 bg-background text-2xs font-medium"
                           >
                             Bowl: {m.playerBowling.wickets_taken}/
                             {m.playerBowling.runs_conceded} (
@@ -847,7 +824,7 @@ export function PlayerActivityTabs({
                         className="h-7 w-full justify-between text-xs font-medium hover:bg-primary/10 hover:text-primary"
                       >
                         <Link href={`/matches/${m.id}?playerId=${userId}`}>
-                          <span>View Scorecard</span>
+                          <span>View scorecard</span>
                           <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </Link>
                       </Button>
@@ -865,7 +842,7 @@ export function PlayerActivityTabs({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight">
-              Teams & Squads
+              Teams & squads
             </h3>
             <p className="text-xs text-muted-foreground">
               Teams and clubs this player is affiliated with, including
@@ -943,11 +920,11 @@ export function PlayerActivityTabs({
                       )}
                       {tm.role_in_team === "vice_captain" && (
                         <Badge className="border-blue-200 bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          Vice Captain
+                          Vice captain
                         </Badge>
                       )}
                       {tm.role_in_team === "wicket_keeper" && (
-                        <Badge variant="outline">Wicket Keeper</Badge>
+                        <Badge variant="outline">Wicket keeper</Badge>
                       )}
                       {(!tm.role_in_team ||
                         !["captain", "vice_captain", "wicket_keeper"].includes(
@@ -976,7 +953,7 @@ export function PlayerActivityTabs({
                         className="h-8 w-full justify-between text-xs font-medium hover:bg-primary/10 hover:text-primary"
                       >
                         <Link href={teamUrl}>
-                          <span>View Team & Squad</span>
+                          <span>View team & squad</span>
                           <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </Link>
                       </Button>

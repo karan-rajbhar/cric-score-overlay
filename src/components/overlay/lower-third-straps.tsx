@@ -7,18 +7,7 @@ import type {
   LiveMatchState,
   OverlayTheme,
 } from "./types";
-import {
-  User,
-  Activity,
-  Users,
-  Target,
-  Shield,
-  Coffee,
-  Clock,
-  CloudRain,
-  Hourglass,
-  BellRing,
-} from "lucide-react";
+import { THEME_ACCENT } from "./theme-accent";
 
 interface LowerThirdStrapsProps {
   strap: ActiveLowerThirdStrap | null;
@@ -58,22 +47,14 @@ export function LowerThirdStraps({
   if (!strap || strap.type === "none") return null;
 
   // Derive dynamic details based on strap type if not explicitly supplied
-  let icon = <BellRing className="h-5 w-5 text-amber-400" />;
-  let badge = strap.badge ?? "MATCH NOTICE";
+  let badge = strap.badge ?? "Match notice";
   let title = strap.title;
   let subtitle = strap.subtitle ?? "";
   let detail = strap.detail ?? "";
-  let badgeTheme = "bg-gradient-to-r from-amber-600 to-amber-700 text-black";
-  let borderColor = "border-amber-400/50";
-  let accentColor = "text-amber-300";
 
   switch (strap.type) {
     case "batsman": {
-      icon = <User className="h-5 w-5 text-sky-300" />;
-      badge = strap.badge ?? "BATSMAN INNINGS";
-      badgeTheme = "bg-gradient-to-r from-sky-600 to-blue-700 text-white";
-      borderColor = "border-sky-400/50";
-      accentColor = "text-sky-300";
+      badge = strap.badge ?? "Batsman innings";
       title = title || state.striker_name || "Striker";
       const sr =
         state.striker_runs && state.striker_balls && state.striker_balls > 0
@@ -84,15 +65,11 @@ export function LowerThirdStraps({
         `${state.striker_runs ?? 0} runs off ${state.striker_balls ?? 0} balls`;
       detail =
         detail ||
-        `Strike Rate: ${sr} · Batting for ${state.batting_team_short_name ?? state.batting_team_name ?? "Team"}`;
+        `Strike rate: ${sr} · Batting for ${state.batting_team_short_name ?? state.batting_team_name ?? "Team"}`;
       break;
     }
     case "bowler": {
-      icon = <Activity className="h-5 w-5 text-emerald-300" />;
-      badge = strap.badge ?? "CURRENT SPELL";
-      badgeTheme = "bg-gradient-to-r from-emerald-600 to-teal-700 text-white";
-      borderColor = "border-emerald-400/50";
-      accentColor = "text-emerald-300";
+      badge = strap.badge ?? "Current spell";
       title = title || state.current_bowler_name || "Bowler";
       const balls = state.bowler_balls ?? 0;
       const oversFormatted = `${Math.floor(balls / 6)}.${balls % 6}`;
@@ -105,31 +82,23 @@ export function LowerThirdStraps({
       subtitle =
         subtitle ||
         `${state.bowler_wickets ?? 0} wickets for ${state.bowler_runs ?? 0} runs`;
-      detail = detail || `Overs: ${oversFormatted} · Economy: ${econ} rpo`;
+      detail = detail || `Overs: ${oversFormatted} · Economy: ${econ}`;
       break;
     }
     case "partnership": {
-      icon = <Users className="h-5 w-5 text-purple-300" />;
-      badge = strap.badge ?? "PARTNERSHIP";
-      badgeTheme = "bg-gradient-to-r from-purple-600 to-indigo-700 text-white";
-      borderColor = "border-purple-400/50";
-      accentColor = "text-purple-300";
-      title = title || "CURRENT PARTNERSHIP";
+      badge = strap.badge ?? "Partnership";
+      title = title || "Current partnership";
       subtitle =
         subtitle ||
-        `${state.partnership_runs ?? 0} Runs off ${state.partnership_balls ?? 0} Balls`;
+        `${state.partnership_runs ?? 0} runs off ${state.partnership_balls ?? 0} balls`;
       detail =
         detail ||
         `${state.striker_name ?? "Batter 1"}: ${state.striker_runs ?? 0}* · ${state.non_striker_name ?? "Batter 2"}: ${state.non_striker_runs ?? 0}*`;
       break;
     }
     case "target": {
-      icon = <Target className="h-5 w-5 text-amber-300" />;
-      badge = strap.badge ?? "CHASE EQUATION";
-      badgeTheme = "bg-gradient-to-r from-amber-500 to-yellow-600 text-black";
-      borderColor = "border-amber-400/50";
-      accentColor = "text-amber-300";
-      title = title || `TARGET: ${state.target_runs ?? "—"} RUNS`;
+      badge = strap.badge ?? "Chase equation";
+      title = title || `Target: ${state.target_runs ?? "—"} runs`;
       subtitle =
         subtitle ||
         (state.runs_needed !== null
@@ -141,59 +110,38 @@ export function LowerThirdStraps({
       break;
     }
     case "powerplay": {
-      icon = <Shield className="h-5 w-5 text-yellow-300" />;
-      badge = strap.badge ?? "POWERPLAY 1";
-      badgeTheme = "bg-gradient-to-r from-yellow-500 to-amber-600 text-black";
-      borderColor = "border-yellow-400/50";
-      accentColor = "text-yellow-300";
-      title = title || "MANDATORY FIELD RESTRICTIONS";
-      subtitle = subtitle || "Overs 1 to 6 Active";
-      detail =
-        detail || "Maximum 2 fielders permitted outside the 30-yard inner ring";
+      badge = strap.badge ?? "Powerplay 1";
+      title = title || "Fielding restrictions";
+      subtitle = subtitle || "Overs 1 to 6";
+      detail = detail || "Maximum 2 fielders outside the 30-yard circle";
       break;
     }
     case "drinks": {
-      icon = <Coffee className="h-5 w-5 text-teal-300" />;
-      badge = strap.badge ?? "OFFICIAL INTERVAL";
-      badgeTheme = "bg-gradient-to-r from-teal-600 to-cyan-700 text-white";
-      borderColor = "border-teal-400/50";
-      accentColor = "text-teal-300";
-      title = title || "DRINKS BREAK";
-      subtitle = subtitle || "Players taking scheduled hydration break";
+      badge = strap.badge ?? "Interval";
+      title = title || "Drinks break";
+      subtitle = subtitle || "Scheduled drinks break";
       detail =
         detail ||
         `${state.batting_team_short_name ?? state.batting_team_name ?? "Batting"}: ${state.total_runs ?? 0}/${state.total_wickets ?? 0}`;
       break;
     }
     case "timeout": {
-      icon = <Clock className="h-5 w-5 text-indigo-300" />;
-      badge = strap.badge ?? "STRATEGIC TIMEOUT";
-      badgeTheme = "bg-gradient-to-r from-indigo-600 to-blue-800 text-white";
-      borderColor = "border-indigo-400/50";
-      accentColor = "text-indigo-300";
-      title = title || "STRATEGIC TIMEOUT (2:30)";
-      subtitle = subtitle || "Tactical team discussion in progress";
+      badge = strap.badge ?? "Strategic timeout";
+      title = title || "Strategic timeout (2:30)";
+      subtitle = subtitle || "Teams in discussion";
       detail = detail || "Play resumes shortly";
       break;
     }
     case "rain_delay": {
-      icon = <CloudRain className="h-5 w-5 text-sky-300" />;
-      badge = strap.badge ?? "WEATHER DELAY";
-      badgeTheme = "bg-gradient-to-r from-sky-700 to-blue-900 text-white";
-      borderColor = "border-sky-400/50";
-      accentColor = "text-sky-300";
-      title = title || "RAIN STOPPED PLAY";
-      subtitle = subtitle || "Pitch covers are currently on the ground";
-      detail = detail || "Waiting for weather clearance and umpire inspection";
+      badge = strap.badge ?? "Weather delay";
+      title = title || "Rain stopped play";
+      subtitle = subtitle || "Covers are on";
+      detail = detail || "Awaiting an inspection by the umpires";
       break;
     }
     case "innings_break": {
-      icon = <Hourglass className="h-5 w-5 text-orange-300" />;
-      badge = strap.badge ?? "MID-MATCH INTERVAL";
-      badgeTheme = "bg-gradient-to-r from-orange-600 to-red-700 text-white";
-      borderColor = "border-orange-400/50";
-      accentColor = "text-orange-300";
-      title = title || "INNINGS BREAK";
+      badge = strap.badge ?? "Interval";
+      title = title || "Innings break";
       subtitle =
         subtitle ||
         `${state.bowling_team_name ?? "Bowling team"} to chase next`;
@@ -203,12 +151,8 @@ export function LowerThirdStraps({
       break;
     }
     case "custom": {
-      icon = <BellRing className="h-5 w-5 text-amber-300" />;
-      badge = strap.badge || "MATCH ALERT";
-      badgeTheme = "bg-gradient-to-r from-amber-600 to-yellow-600 text-black";
-      borderColor = "border-amber-400/50";
-      accentColor = "text-amber-300";
-      title = strap.title || "BROADCAST NOTICE";
+      badge = strap.badge || "Match alert";
+      title = strap.title || "Notice";
       subtitle = strap.customText || strap.subtitle || "";
       detail = strap.detail || "";
       break;
@@ -223,111 +167,44 @@ export function LowerThirdStraps({
         ? "bottom-52 left-6"
         : "bottom-32 left-1/2 -translate-x-1/2";
 
+  const accent = THEME_ACCENT[theme] ?? THEME_ACCENT.starsports;
+  const source = state.tournament_name ?? state.title;
+
   return (
     <div
-      className={`pointer-events-none fixed z-30 w-full max-w-3xl select-none px-4 font-score ${positionClass} duration-300 animate-in fade-in slide-in-from-bottom-5`}
+      className={`pointer-events-none fixed z-30 w-full max-w-3xl select-none px-4 font-score ${positionClass} duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none`}
     >
-      {/* Authentic Broadcaster Lower-Third Strap */}
       <div
-        className={`relative flex items-stretch overflow-hidden backdrop-blur-2xl ${
-          theme === "foxcricket"
-            ? "clip-slant-right border-2 border-lime-400 bg-[#060a06]/95 font-mono shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-            : theme === "sonysports"
-              ? "rounded-2xl border-2 border-red-600/70 bg-gradient-to-r from-zinc-950 via-neutral-900 to-zinc-950 shadow-[0_12px_45px_rgba(220,38,38,0.4)]"
-              : theme === "skysports"
-                ? "border border-b-4 border-white/20 border-b-red-600 bg-[#03081a] text-white shadow-[0_12px_45px_rgba(4,10,28,0.95)]"
-                : theme === "thehundred"
-                  ? "border-2 border-pink-500 bg-[#100118] shadow-[0_10px_35px_rgba(236,72,153,0.4)]"
-                  : theme === "apex"
-                    ? "clip-chamfer-both carbon-matrix border-2 border-amber-400/90 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                    : theme === "volt"
-                      ? "clip-slant-right border-2 border-lime-400 bg-[#020904]/95 font-mono text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                      : theme === "agni"
-                        ? "clip-notch-card magma-matrix border-2 border-orange-500 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                        : theme === "thunder"
-                          ? "rounded-2xl border-2 border-blue-400 bg-[#030a24]/95 text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                          : theme === "dharma"
-                            ? "from-[#200508]/98 via-[#380911]/98 to-[#200508]/98 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-r font-serif text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                            : theme === "nakshatra"
-                              ? "from-[#07031e]/98 via-[#15073e]/98 to-[#07031e]/98 rounded-2xl border-2 border-purple-500/80 bg-gradient-to-r text-white shadow-[0_16px_45px_rgba(0,0,0,0.85)]"
-                              : `border ${borderColor} from-[#03091e]/98 via-[#061435]/98 to-[#03091e]/98 broadcast-bevel bg-gradient-to-r shadow-[0_12px_40px_rgba(0,0,0,0.9)]`
-        }`}
+        data-theme={theme}
+        className="flex items-stretch overflow-hidden rounded-md border border-white/10 bg-[#0b0f17]/95 text-white shadow-[0_8px_24px_rgba(0,0,0,0.6)]"
       >
-        {/* Left Broadcaster Badge Block */}
         <div
-          className={`flex shrink-0 items-center gap-2.5 px-5 py-3.5 font-black ${
-            theme === "foxcricket"
-              ? "clip-slant-right border-r-2 border-lime-400 bg-black text-lime-400"
-              : theme === "sonysports"
-                ? "rounded-l-xl bg-gradient-to-r from-red-600 to-rose-700 text-white"
-                : theme === "skysports"
-                  ? "border-r-2 border-red-600 bg-[#040a1c] text-red-500"
-                  : theme === "thehundred"
-                    ? "bg-pink-600 text-white"
-                    : theme === "apex"
-                      ? "clip-chamfer-both bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black"
-                      : theme === "volt"
-                        ? "clip-slant-right border-r-2 border-lime-400 bg-black text-lime-400"
-                        : theme === "agni"
-                          ? "clip-notch-card bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 text-black"
-                          : theme === "thunder"
-                            ? "rounded-l-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-yellow-300"
-                            : theme === "dharma"
-                              ? "rounded-l-xl border-r border-amber-400/50 bg-gradient-to-r from-red-800 via-rose-900 to-red-950 font-serif text-amber-300"
-                              : theme === "nakshatra"
-                                ? "rounded-l-xl bg-gradient-to-r from-purple-600 to-indigo-700 text-white"
-                                : `clip-slant-right ${badgeTheme} broadcast-gloss`
-          }`}
-        >
-          <div className="flex items-center justify-center">{icon}</div>
-          <div className="leading-none">
-            <span className="block text-sm font-black uppercase tracking-widest">
-              {badge}
+          aria-hidden="true"
+          className="w-1.5 shrink-0"
+          style={{ background: accent }}
+        />
+
+        <div className="flex shrink-0 flex-col justify-center border-r border-white/10 px-5 py-3 leading-tight">
+          <span className="text-sm font-semibold text-white">{badge}</span>
+          {source && (
+            <span className="mt-0.5 max-w-[180px] truncate text-xs text-white/60">
+              {source}
             </span>
-            <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wider opacity-80">
-              {theme === "foxcricket"
-                ? "FOX CRICKET LAB"
-                : theme === "sonysports"
-                  ? "SONY SPORTS"
-                  : theme === "skysports"
-                    ? "sky sports cricket"
-                    : theme === "thehundred"
-                      ? "THE HUNDRED"
-                      : theme === "apex"
-                        ? "APEX BROADCAST"
-                        : theme === "volt"
-                          ? "VOLT SPORTS-TECH"
-                          : theme === "agni"
-                            ? "AGNI INFERNO"
-                            : theme === "thunder"
-                              ? "THUNDER CRICKET"
-                              : theme === "dharma"
-                                ? "DHARMA HERITAGE"
-                                : theme === "nakshatra"
-                                  ? "NAKSHATRA ASTRAL"
-                                  : (state.tournament_name ??
-                                    state.title ??
-                                    "LIVE CRICKET")}
-            </span>
-          </div>
+          )}
         </div>
 
-        {/* Center Primary Information Block */}
-        <div className="flex flex-1 flex-col justify-center px-5 py-2.5">
-          <h3 className="text-xl font-black uppercase leading-tight tracking-wider text-white drop-shadow">
+        <div className="flex min-w-0 flex-1 flex-col justify-center px-5 py-2.5">
+          <h3 className="truncate text-xl font-semibold leading-tight text-white">
             {title}
           </h3>
-          <p
-            className={`text-base font-black uppercase tabular-nums leading-tight tracking-wide ${accentColor}`}
-          >
+          <p className="text-base font-medium tabular-nums leading-tight text-white/80">
             {subtitle}
           </p>
         </div>
 
-        {/* Right Secondary Statistic Block */}
         {detail && (
-          <div className="flex shrink-0 items-center border-l border-white/15 bg-black/40 px-5 py-2.5 text-right">
-            <p className="max-w-[240px] text-xs font-bold uppercase tabular-nums tracking-wider text-slate-300">
+          <div className="flex shrink-0 items-center border-l border-white/10 bg-black/30 px-5 py-2.5 text-right">
+            <p className="max-w-[240px] text-sm tabular-nums text-white/70">
               {detail}
             </p>
           </div>

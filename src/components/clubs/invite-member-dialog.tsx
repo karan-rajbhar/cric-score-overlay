@@ -13,7 +13,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { UserPlus, Loader2, Mail } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
 import { inviteClubMember } from "~/app/clubs/actions";
 import { toast } from "sonner";
 
@@ -57,18 +57,12 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
           <UserPlus className="h-3.5 w-3.5" />
-          <span>Invite Member</span>
+          <span>Invite member</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-primary">
-            <Mail className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Club Membership
-            </span>
-          </div>
-          <DialogTitle className="text-xl">Invite Player or Staff</DialogTitle>
+          <DialogTitle className="text-xl">Invite player or staff</DialogTitle>
           <DialogDescription>
             Send a club invitation to a cricketer, scorer, or coach by their
             email address.
@@ -77,7 +71,7 @@ export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
 
         <form onSubmit={handleInvite} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="invite-email">Email Address</Label>
+            <Label htmlFor="invite-email">Email address</Label>
             <Input
               id="invite-email"
               type="email"

@@ -12,8 +12,6 @@ import {
   ArrowRight,
   Trophy,
   Filter,
-  CheckCircle2,
-  XCircle,
   Clock,
   Swords,
 } from "lucide-react";
@@ -113,10 +111,7 @@ export function TeamMatchesView({
   const getTeamOutcomeBadge = (match: TeamMatchItem) => {
     if (match.status === "live") {
       return (
-        <Badge className="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400">
-          <span className="mr-1.5 h-2 w-2 animate-ping rounded-full bg-red-500" />
-          Live
-        </Badge>
+<Badge variant="live">Live</Badge>
       );
     }
     if (match.status === "scheduled") {
@@ -130,23 +125,18 @@ export function TeamMatchesView({
     if (match.status === "completed") {
       if (!match.winning_team_id) {
         return (
-          <Badge
-            variant="outline"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-          >
+          <Badge variant="warning">
             Tied / NR
           </Badge>
         );
       }
       const isWinner = match.winning_team_id === currentTeamId;
       return isWinner ? (
-        <Badge className="border-emerald-500/30 bg-emerald-500/15 font-semibold text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" />
+        <Badge variant="success">
           Won
         </Badge>
       ) : (
-        <Badge className="border-rose-500/30 bg-rose-500/15 font-semibold text-rose-600 dark:text-rose-400">
-          <XCircle className="mr-1 h-3 w-3 shrink-0" />
+        <Badge variant="loss">
           Lost
         </Badge>
       );
@@ -259,14 +249,14 @@ export function TeamMatchesView({
                           href={`/tournaments/${match.tournament.id}`}
                           className="flex items-center gap-1 font-medium text-muted-foreground transition-colors hover:text-primary"
                         >
-                          <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                          <Trophy className="h-3 w-3 shrink-0" />
                           <span className="max-w-[140px] truncate">
                             {match.tournament.name}
                           </span>
                         </Link>
                       )}
                     </div>
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {match.match_format} · {match.overs_per_innings} ov
                     </span>
                   </div>
@@ -304,7 +294,7 @@ export function TeamMatchesView({
                           <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn1.total_runs}/{inn1.total_wickets}
                           </p>
-                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-2xs text-muted-foreground">
                             {inn1.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -346,7 +336,7 @@ export function TeamMatchesView({
                           <p className="score-display tabular-nums text-base font-semibold leading-none">
                             {inn2.total_runs}/{inn2.total_wickets}
                           </p>
-                          <p className="tabular-nums mt-0.5 text-[11px] text-muted-foreground">
+                          <p className="tabular-nums mt-0.5 text-2xs text-muted-foreground">
                             {inn2.total_overs.toFixed(1)} ov
                           </p>
                         </div>
@@ -395,7 +385,7 @@ export function TeamMatchesView({
                             : ""
                         }`}
                       >
-                        <span>View Match Scorecard</span>
+                        <span>View match scorecard</span>
                         <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                       </Link>
                     </Button>

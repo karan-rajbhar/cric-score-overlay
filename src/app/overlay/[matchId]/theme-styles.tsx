@@ -6,16 +6,16 @@ export function oversText(balls: number | null): string {
 }
 
 /**
- * Standard broadcast-grade ball chip (clean, high-contrast, no neon halos).
+ * Ball chip for the current over.
  */
 export function BallChip({ label }: { label: string }) {
   let bg = "bg-slate-900 text-slate-200 border-slate-700/80";
   if (label === "W") {
-    bg = "bg-rose-700 text-white border-rose-500 font-bold";
+    bg = "bg-rose-700 text-white border-rose-500 font-semibold";
   } else if (label === "4") {
-    bg = "bg-blue-600 text-white border-blue-400 font-bold";
+    bg = "bg-blue-600 text-white border-blue-400 font-semibold";
   } else if (label === "6") {
-    bg = "bg-amber-400 text-slate-950 border-amber-300 font-black";
+    bg = "bg-amber-400 text-slate-950 border-amber-300 font-semibold";
   } else if (
     label.includes("wd") ||
     label.includes("nb") ||
@@ -48,11 +48,8 @@ export function BallChip({ label }: { label: string }) {
   );
 }
 
-
 /**
- * Broadcast-grade theme specifications.
- * Modeled after real world television networks (Sky Sports, Star Sports, Fox Cricket, The Hundred)
- * with authentic sports production palettes, clean drop shadows, and zero neon AI-slop glows.
+ * Scorebug theme palettes: flat backgrounds, one accent colour and a neutral shadow.
  */
 export const THEME_STYLES: Record<
   OverlayTheme,
@@ -67,8 +64,8 @@ export const THEME_STYLES: Record<
   }
 > = {
   starsports: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-blue-700 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-blue-700 text-white font-semibold",
     mainBarBg: "bg-[#071329] text-white",
     subBarBg: "bg-[#030917] border-t border-white/10 text-amber-300",
     accentColor: "#f59e0b",
@@ -76,8 +73,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-amber-400",
   },
   sonysports: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-rose-700 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-rose-700 text-white font-semibold",
     mainBarBg: "bg-[#111317] text-white",
     subBarBg: "bg-[#0a0c0e] border-t border-white/10 text-rose-300",
     accentColor: "#e11d48",
@@ -85,8 +82,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-rose-500",
   },
   foxcricket: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-zinc-800 text-lime-400 font-mono font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-zinc-800 text-lime-400 font-mono font-semibold",
     mainBarBg: "bg-[#0c1017] text-white",
     subBarBg: "bg-[#06080d] border-t border-white/10 text-lime-300",
     accentColor: "#a3e635",
@@ -94,8 +91,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-lime-400",
   },
   thehundred: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-pink-700 text-white font-black tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-pink-700 text-white font-semibold",
     mainBarBg: "bg-[#140822] text-white",
     subBarBg: "bg-[#0a0312] border-t border-white/10 text-cyan-300",
     accentColor: "#ec4899",
@@ -103,8 +100,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-cyan-400",
   },
   skysports: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-red-700 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-red-700 text-white font-semibold",
     mainBarBg: "bg-[#080e1c] text-white",
     subBarBg: "bg-[#040810] border-t border-white/10 text-slate-300",
     accentColor: "#ef4444",
@@ -112,8 +109,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-red-400",
   },
   apex: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-amber-600 text-black font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-amber-600 text-black font-semibold",
     mainBarBg: "bg-[#121316] text-white",
     subBarBg: "bg-[#0a0a0c] border-t border-white/10 text-amber-200",
     accentColor: "#f59e0b",
@@ -121,17 +118,18 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-amber-400",
   },
   volt: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-emerald-600 text-black font-mono font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-emerald-600 text-black font-mono font-semibold",
     mainBarBg: "bg-[#08120d] text-white",
-    subBarBg: "bg-[#040a07] border-t border-white/10 text-emerald-300 font-mono",
+    subBarBg:
+      "bg-[#040a07] border-t border-white/10 text-emerald-300 font-mono",
     accentColor: "#10b981",
     accentText: "text-emerald-400 font-bold",
     strikeChevron: "text-emerald-400",
   },
   agni: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-orange-700 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-orange-700 text-white font-semibold",
     mainBarBg: "bg-[#140b08] text-white",
     subBarBg: "bg-[#0b0503] border-t border-white/10 text-orange-200",
     accentColor: "#f97316",
@@ -139,8 +137,9 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-orange-400",
   },
   dharma: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-red-900 text-amber-200 font-bold tracking-wider border border-amber-500/30",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge:
+      "bg-red-900 text-amber-200 font-semibold border border-amber-500/30",
     mainBarBg: "bg-[#150a0e] text-white",
     subBarBg: "bg-[#0a0406] border-t border-white/10 text-amber-300",
     accentColor: "#f59e0b",
@@ -148,8 +147,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-amber-400",
   },
   thunder: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-blue-800 text-yellow-300 font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-blue-800 text-yellow-300 font-semibold",
     mainBarBg: "bg-[#081126] text-white",
     subBarBg: "bg-[#040916] border-t border-white/10 text-blue-200",
     accentColor: "#60a5fa",
@@ -157,8 +156,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-yellow-400",
   },
   nakshatra: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-purple-800 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-purple-800 text-white font-semibold",
     mainBarBg: "bg-[#0f091c] text-white",
     subBarBg: "bg-[#08040f] border-t border-white/10 text-purple-200",
     accentColor: "#c084fc",
@@ -166,8 +165,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-purple-300",
   },
   broadcast: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-amber-600 text-black font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-amber-600 text-black font-semibold",
     mainBarBg: "bg-[#0f1115] text-white",
     subBarBg: "bg-[#08090b] border-t border-white/10 text-amber-300",
     accentColor: "#eab308",
@@ -175,8 +174,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-amber-400",
   },
   emerald: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-emerald-700 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-emerald-700 text-white font-semibold",
     mainBarBg: "bg-[#061410] text-white",
     subBarBg: "bg-[#020b08] border-t border-white/10 text-emerald-300",
     accentColor: "#10b981",
@@ -184,8 +183,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-emerald-400",
   },
   dark: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-zinc-800 text-white font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-zinc-800 text-white font-semibold",
     mainBarBg: "bg-[#09090b] text-white",
     subBarBg: "bg-[#030303] border-t border-white/10 text-zinc-300",
     accentColor: "#ffffff",
@@ -193,8 +192,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-emerald-400",
   },
   minimal: {
-    outerBorder: "border-zinc-800 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-zinc-800 text-zinc-100 font-bold tracking-wider",
+    outerBorder: "border-zinc-800 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-zinc-800 text-zinc-100 font-semibold",
     mainBarBg: "bg-[#121214] text-zinc-100",
     subBarBg: "bg-[#0a0a0c] border-t border-zinc-800 text-zinc-400",
     accentColor: "#e4e4e7",
@@ -202,8 +201,8 @@ export const THEME_STYLES: Record<
     strikeChevron: "text-zinc-300",
   },
   custom: {
-    outerBorder: "border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.85)]",
-    teamBadge: "bg-amber-600 text-black font-bold tracking-wider",
+    outerBorder: "border-white/10 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
+    teamBadge: "bg-amber-600 text-black font-semibold",
     mainBarBg: "bg-[#0f1115] text-white",
     subBarBg: "bg-[#08090b] border-t border-white/10 text-amber-300",
     accentColor: "#f59e0b",

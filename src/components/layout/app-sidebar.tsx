@@ -14,7 +14,6 @@ import {
   Users,
   UserCheck,
   Tv,
-  Target,
   ChevronLeft,
   ChevronRight,
   PlusCircle,
@@ -37,7 +36,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   {
-    title: "Match Center",
+    title: "Matches",
     items: [
       {
         href: "/dashboard",
@@ -48,7 +47,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/matches", label: "Matches", icon: Radio },
       {
         href: "/matches/create",
-        label: "Score New Match",
+        label: "New match",
         icon: PlusCircle,
         authOnly: true,
       },
@@ -64,10 +63,10 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "Broadcast & Tools",
+    title: "Tools",
     items: [
-      { href: "/overlay/test", label: "OBS Overlays", icon: Tv },
-      { href: "/search", label: "Search & Database", icon: Target },
+      { href: "/overlay/test", label: "Stream overlays", icon: Tv },
+      { href: "/search", label: "Search", icon: Search },
     ],
   },
 ];
@@ -89,7 +88,7 @@ export function AppSidebar() {
         {isMobile && (
           <div className="space-y-2.5 border-b border-border/70 px-1 pb-3">
             <div className="flex items-center justify-between px-1">
-              <span className="text-sm font-bold text-foreground">
+              <span className="text-sm font-semibold text-foreground">
                 Navigation
               </span>
               <button
@@ -138,10 +137,10 @@ export function AppSidebar() {
                     onClick={() => isMobile && setMobileOpen(false)}
                     title={collapsed && !isMobile ? item.label : undefined}
                     className={cn(
-                      "interactive-button group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+                      "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
                       isMobile && "min-h-[44px]",
                       active
-                        ? "bg-primary/10 font-semibold text-primary shadow-sm ring-1 ring-inset ring-primary/20"
+                        ? "bg-muted font-semibold text-foreground"
                         : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                     )}
                   >
@@ -149,7 +148,7 @@ export function AppSidebar() {
                       className={cn(
                         "h-4 w-4 shrink-0 transition-colors",
                         active
-                          ? "text-primary"
+                          ? "text-foreground"
                           : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
@@ -157,7 +156,7 @@ export function AppSidebar() {
                       <span className="flex-1 truncate">{item.label}</span>
                     )}
                     {(!collapsed || isMobile) && item.badge && (
-                      <span className="ml-auto rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                      <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-2xs font-medium text-muted-foreground">
                         {item.badge}
                       </span>
                     )}
@@ -183,7 +182,7 @@ export function AppSidebar() {
             ) : (
               <>
                 <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span>Collapse Sidebar</span>
+                <span>Collapse sidebar</span>
               </>
             )}
           </button>
@@ -197,7 +196,7 @@ export function AppSidebar() {
       {/* Desktop Sidebar (Fixed Left) */}
       <aside
         className={cn(
-          "fixed bottom-0 left-0 top-[58px] z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/70 bg-card/60 backdrop-blur-md transition-all duration-300 ease-in-out md:block",
+          "fixed bottom-0 left-0 top-[58px] z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/70 bg-card transition-all duration-300 ease-in-out md:block",
           collapsed ? "w-[72px]" : "w-[260px]",
         )}
       >
@@ -214,7 +213,7 @@ export function AppSidebar() {
           />
 
           {/* Drawer Panel */}
-          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r border-border bg-card shadow-2xl">
+          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r border-border bg-card shadow-lg">
             {renderContent(true)}
           </div>
         </div>

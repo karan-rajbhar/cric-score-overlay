@@ -43,7 +43,7 @@ describe("PresentationCards Component", () => {
         match={DEMO_MATCH_DETAILS}
       />,
     );
-    expect(screen.getByText(/PLAYING XI TEAM LINEUPS/i)).toBeInTheDocument();
+    expect(screen.getByText("Playing XI")).toBeInTheDocument();
     expect(screen.getByText("1. Virat Kohli")).toBeInTheDocument();
     expect(screen.getByText("1. Ruturaj Gaikwad")).toBeInTheDocument();
   });
@@ -56,9 +56,9 @@ describe("PresentationCards Component", () => {
         match={DEMO_MATCH_DETAILS}
       />,
     );
-    expect(screen.getByText("Match Scorecard")).toBeInTheDocument();
-    expect(screen.getByText("Batting Card")).toBeInTheDocument();
-    expect(screen.getByText("Bowling Figures")).toBeInTheDocument();
+    expect(screen.getByText("Match scorecard")).toBeInTheDocument();
+    expect(screen.getByText("Batting")).toBeInTheDocument();
+    expect(screen.getByText("Bowling")).toBeInTheDocument();
   });
 
   it("renders Partnership card with active stand", () => {
@@ -69,7 +69,7 @@ describe("PresentationCards Component", () => {
         match={DEMO_MATCH_DETAILS}
       />,
     );
-    expect(screen.getByText(/Active Partnership/i)).toBeInTheDocument();
+    expect(screen.getByText(/Partnership/i)).toBeInTheDocument();
     expect(screen.getByText(/52 RUNS/i)).toBeInTheDocument();
     expect(screen.getByText(/Virat Kohli/i)).toBeInTheDocument();
     expect(screen.getByText(/Glenn Maxwell/i)).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("PresentationCards Component", () => {
       />,
     );
     expect(screen.getByText(/Over Summary/i)).toBeInTheDocument();
-    expect(screen.getByText(/This Over:/i)).toBeInTheDocument();
+    expect(screen.getByText("This over")).toBeInTheDocument();
     expect(screen.getByText(/Bowler: Ravindra Jadeja/i)).toBeInTheDocument();
   });
 

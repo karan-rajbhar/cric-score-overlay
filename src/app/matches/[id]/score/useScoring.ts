@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { firebase } from "~/lib/firebase/client";
 import { getMatch, getTeamPlayers, getScoringState } from "../../queries";
 import {
   startMatch,
@@ -111,50 +110,6 @@ export function useScoring(
     batting: string | null;
     bowling: string | null;
   } | null>(null);
-
-  const isRealUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      matchId,
-    );
-  const overlayBroadcastRef = useRef<ReturnType<
-    typeof firebase.channel
-  > | null>(null);
-  const detailBroadcastRef = useRef<ReturnType<typeof firebase.channel> | null>(
-    null,
-  );
-
-  useEffect(() => {
-    if (!isRealUuid) return;
-    const overlayCh = firebase.channel(`overlay_${matchId}`);
-    overlayCh.subscribe();
-    overlayBroadcastRef.current = overlayCh;
-
-    const detailCh = firebase.channel(`match_detail_${matchId}`);
-    detailCh.subscribe();
-    detailBroadcastRef.current = detailCh;
-
-    return () => {
-      void firebase.removeChannel(overlayCh);
-      void firebase.removeChannel(detailCh);
-    };
-  }, [isRealUuid, matchId]);
-
-  const broadcastScoreUpdate = useCallback(() => {
-    if (overlayBroadcastRef.current) {
-      void overlayBroadcastRef.current.send({
-        type: "broadcast",
-        event: "score_update",
-        payload: { matchId },
-      });
-    }
-    if (detailBroadcastRef.current) {
-      void detailBroadcastRef.current.send({
-        type: "broadcast",
-        event: "score_update",
-        payload: { matchId },
-      });
-    }
-  }, [matchId]);
 
   const resolveSquadTeamIds = useCallback(
     (matchData: Match): { batting: string | null; bowling: string | null } => {
@@ -636,7 +591,6 @@ export function useScoring(
     if (result.error) {
       toast.error(result.error);
     } else {
-      broadcastScoreUpdate();
       await syncFromDb();
     }
     setIsProcessing(false);
@@ -772,7 +726,6 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        broadcastScoreUpdate();
         applyState(result.data);
       }
       setIsProcessing(false);
@@ -873,7 +826,6 @@ export function useScoring(
     if (result.error) {
       toast.error(result.error);
     } else if (result.data) {
-      broadcastScoreUpdate();
       applyState(result.data);
       toast.success("Last ball undone");
     }
@@ -900,7 +852,6 @@ export function useScoring(
     if (result.error) {
       toast.error(result.error);
     } else if (result.data) {
-      broadcastScoreUpdate();
       applyState(result.data);
       toast.success("Delivery updated in place");
     }
@@ -1034,9 +985,8 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        broadcastScoreUpdate();
         applyState(result.data);
-        toast.success("Super Over initiated!");
+        toast.success("Super over started");
       }
       await syncFromDb();
       setIsProcessing(false);
@@ -1152,7 +1102,6 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else {
-        broadcastScoreUpdate();
         if (!currentBowlerId) {
           // Caller will open bowler dialog
         }
@@ -1295,7 +1244,6 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else {
-        broadcastScoreUpdate();
         await syncFromDb();
       }
       setIsProcessing(false);
@@ -1477,7 +1425,6 @@ export function useScoring(
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        broadcastScoreUpdate();
         applyState(result.data);
       }
       setIsProcessing(false);

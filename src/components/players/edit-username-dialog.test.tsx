@@ -27,7 +27,7 @@ describe("EditUsernameDialog", () => {
   it("opens dialog when trigger button is clicked", () => {
     render(<EditUsernameDialog currentUsername="karan" />);
     fireEvent.click(screen.getByRole("button", { name: /Edit Handle/i }));
-    expect(screen.getByText(/Claim Your Unique Handle/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose a username/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("karan")).toBeInTheDocument();
   });
 

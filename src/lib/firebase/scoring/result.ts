@@ -19,8 +19,6 @@ export interface AdvanceOutput {
   matchPatch: Partial<MatchesRow>;
   /** Innings to create for the next batting side, if any. */
   nextInnings: InningsRow | null;
-  /** Match event to log, if the match finished. */
-  matchEndEvent: { result: string; description: string } | null;
 }
 
 function pluralise(n: number, singular: string, plural: string): string {
@@ -86,7 +84,6 @@ export function advanceAfterInnings(
         updated_at: now,
       },
       nextInnings,
-      matchEndEvent: null,
     };
   }
 
@@ -135,7 +132,6 @@ export function advanceAfterInnings(
       updated_at: now,
     },
     nextInnings: null,
-    matchEndEvent: { result: resultType, description },
   };
 }
 

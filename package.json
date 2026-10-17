@@ -7,9 +7,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev -p 3005",
-    "dev:local": "./scripts/emulators.sh exec \"npm run seed && npm run dev\"",
-    "dev:tunnel": "./scripts/dev-tunnel.sh",
+    "dev": "./scripts/dev-tunnel.sh",
+    "dev:no-tunnel": "next dev -p 3005",
+    "dev:local": "./scripts/emulators.sh exec \"npm run seed -- --if-empty && npm run dev:no-tunnel\"",
     "tunnel": "./scripts/dev-tunnel.sh tunnel-only",
     "emulators": "./scripts/emulators.sh",
     "seed": "node scripts/seed-emulator.mjs",

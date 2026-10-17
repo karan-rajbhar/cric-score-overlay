@@ -80,8 +80,8 @@ export function AbandonMatchDialog({
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-4 w-4" />
               </span>
-              <DialogTitle className="text-lg font-bold">
-                Abandon Match
+              <DialogTitle className="text-lg font-semibold">
+                Abandon match
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -92,7 +92,7 @@ export function AbandonMatchDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label htmlFor="abandon-reason" className="text-xs font-bold">
-                Reason for Abandonment
+                Reason for abandonment
               </Label>
               <Select value={reason} onValueChange={setReason}>
                 <SelectTrigger id="abandon-reason" className="h-9 text-xs">
@@ -110,7 +110,7 @@ export function AbandonMatchDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="abandon-result" className="text-xs font-bold">
-                Official Result Type
+                Official result type
               </Label>
               <Select
                 value={resultType}
@@ -123,13 +123,13 @@ export function AbandonMatchDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abandoned">
-                    Abandoned (Points shared / split)
+                    Abandoned (points shared / split)
                   </SelectItem>
                   <SelectItem value="no_result">
-                    No Result (Incomplete match)
+                    No result (incomplete match)
                   </SelectItem>
                   <SelectItem value="win">
-                    Win by Forfeiture (Walkover awarded)
+                    Win by forfeiture (walkover awarded)
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -138,7 +138,7 @@ export function AbandonMatchDialog({
             {resultType === "win" && (
               <div className="space-y-1.5">
                 <Label htmlFor="winning-team" className="text-xs font-bold">
-                  Award Win To
+                  Award win to
                 </Label>
                 <Select
                   value={winningTeamId}
@@ -158,7 +158,7 @@ export function AbandonMatchDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="abandon-notes" className="text-xs font-bold">
-                Additional Notes / Umpire Statement (Optional)
+                Additional notes / umpire statement (optional)
               </Label>
               <Textarea
                 id="abandon-notes"

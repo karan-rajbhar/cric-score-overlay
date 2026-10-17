@@ -15,6 +15,7 @@ import {
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
+import { inviteEmail } from "./access";
 import {
   checkUsernameAvailable,
   createTeamPlayer,
@@ -22,9 +23,12 @@ import {
   updateOwnUsername,
 } from "./profiles";
 import {
+  awardPenaltyRuns,
   endInnings,
+  reassignOverBowler,
   recomputeInningsRpc,
   recordBall,
+  retireBatter,
   setCurrentBatsmen,
   setCurrentBowler,
   startSuperOver,
@@ -34,9 +38,11 @@ import {
   type UpdateBallArgs,
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
+import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
+import { ensureLiveScorecard } from "../live-scorecard-sync";
 
 export interface RpcContext {
-  db: Firestore;
+  db: Firestore | null;
   ds: DataSource;
   uid: string | null;
   user: AppUser | null;
@@ -76,6 +82,25 @@ export async function callRpc(
       return startSuperOver(scoring, str(args, "p_match_id"));
     case "recompute_innings":
       return recomputeInningsRpc(scoring, str(args, "p_innings_id"));
+    case "award_penalty_runs":
+      return awardPenaltyRuns(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_runs: Number(args.p_runs),
+        p_type: str(args, "p_type"),
+        p_reason: optStr(args, "p_reason"),
+      });
+    case "retire_batter":
+      return retireBatter(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_player_id: str(args, "p_player_id"),
+        p_type: str(args, "p_type"),
+        p_reason: optStr(args, "p_reason"),
+      });
+    case "reassign_over_bowler":
+      return reassignOverBowler(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_bowler_id: str(args, "p_bowler_id"),
+      });
     case "set_current_batsmen":
       return setCurrentBatsmen(
         scoring,
@@ -89,6 +114,20 @@ export async function callRpc(
         str(args, "p_match_id"),
         str(args, "p_bowler_id"),
       );
+    case "refresh_live_state":
+      // Server-only (the browser client rejects unknown names): server
+      // actions call this after changing anything the scoreboard shows.
+      return writeLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "get_live_state": {
+      // The scoreboard row from `live_state` (1 read), built once for
+      // matches that predate it.
+      const doc = await ensureLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
+      return doc ? liveRowOf(doc) : null;
+    }
+    case "ensure_live_scorecard":
+      // The match's `live_scorecard` doc, built once for matches that
+      // predate it (viewers then listen to it directly).
+      return ensureLiveScorecard(ctx.ds, str(args, "p_match_id"), ctx.db);
     case "recalculate_tournament_standings":
       await recalculateTournamentStandings(
         ctx.ds,
@@ -97,6 +136,13 @@ export async function callRpc(
       return null;
     case "ensure_own_profile":
       return ensureOwnProfile(ctx.ds, ctx.user);
+    case "invite_email":
+      return inviteEmail(
+        ctx.ds,
+        ctx.uid,
+        str(args, "p_email"),
+        optStr(args, "p_match_id"),
+      );
     case "update_own_username":
       return updateOwnUsername(ctx.ds, ctx.uid, str(args, "p_username"));
     case "check_username_available":

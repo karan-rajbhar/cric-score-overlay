@@ -23,7 +23,7 @@ describe("MatchSummary - Key Moments", () => {
   it("shows empty state when no match events or toss have occurred yet", () => {
     render(<MatchSummary match={baseMatch} />);
 
-    expect(screen.getByText("Key Moments")).toBeDefined();
+    expect(screen.getByText("Key moments")).toBeDefined();
     expect(
       screen.getByText(
         /No key moments recorded yet/i,

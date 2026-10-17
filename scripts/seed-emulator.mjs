@@ -1,34 +1,66 @@
 #!/usr/bin/env node
 /**
- * Loads firebase/seed/data.json into the running Firebase emulators and
- * creates a matching Auth account for every seeded user.
+ * Loads firebase/seed/data.json into the running Firebase emulators (or a
+ * real dev project). No Auth accounts are created: sign-in is Google-only,
+ * and the first Google sign-in with a seeded email takes over that profile.
  *
  *   npm run seed            # wipe emulator data, then seed
  *   npm run seed -- --keep  # seed without wiping first
+ *   npm run seed -- --if-empty  # skip when the emulator already has data
+ *   npm run seed -- --project=<id>  # seed a real project using the service
+ *                                   # account in .env.local; never wipes, and
+ *                                   # stops if it has data (unless --keep)
  *
+ * Never seed production: anyone owning a seeded email could claim its profile.
  * Every seeded account signs in with the password below.
  */
 
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { applyStage3, planStage3, planWrites } from "./lib/stage3.mjs";
 
-const SEED_PASSWORD = "password123";
+const here = dirname(fileURLToPath(import.meta.url));
+const keep = process.argv.includes("--keep");
+const ifEmpty = process.argv.includes("--if-empty");
+const remoteProject = process.argv
+  .find((arg) => arg.startsWith("--project="))
+  ?.slice("--project=".length);
+
+// Demo data must never reach production (it starts empty: only invited
+// Google accounts). Production project ids contain "prod".
+if (remoteProject && /prod/i.test(remoteProject)) {
+  console.error(
+    `Refusing to seed "${remoteProject}": demo data is for dev and emulator projects only.`,
+  );
+  process.exit(1);
+}
+
 const PROJECT_ID =
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "demo-cricscore";
+  remoteProject ||
+  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+  "demo-cricscore";
 const HOST = process.env.FIREBASE_EMULATOR_HOST_SERVER || "127.0.0.1";
 
-process.env.FIRESTORE_EMULATOR_HOST ||= `${HOST}:8088`;
-process.env.FIREBASE_AUTH_EMULATOR_HOST ||= `${HOST}:9099`;
-
-const keep = process.argv.includes("--keep");
-const here = dirname(fileURLToPath(import.meta.url));
-const data = JSON.parse(
+if (!remoteProject) {
+  process.env.FIRESTORE_EMULATOR_HOST ||= `${HOST}:8088`;
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ||= `${HOST}:9099`;
+}
+const raw = JSON.parse(
   readFileSync(resolve(here, "../firebase/seed/data.json"), "utf8"),
 );
+// data.json is stored in the stage 3 shape (search keys, rosters, innings
+// summaries, statistics). If it was edited by hand, derive those again so
+// the seeded documents agree with what the app maintains.
+const stage3 = planStage3(raw, { now: "2024-06-01T00:00:00.000Z" });
+if (planWrites(stage3) > 0) {
+  console.log(
+    `data.json is missing ${planWrites(stage3)} derived stage 3 fields; deriving them.`,
+  );
+}
+const data = applyStage3(raw, stage3);
 
 async function assertEmulator() {
   try {
@@ -54,13 +86,53 @@ async function wipe() {
   );
 }
 
-async function main() {
-  await assertEmulator();
-  initializeApp({ projectId: PROJECT_ID });
-  const db = getFirestore();
-  const auth = getAuth();
+function remoteCredential() {
+  try {
+    process.loadEnvFile(resolve(here, "../.env.local"));
+  } catch {
+    // Fall back to whatever is already in the environment.
+  }
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!raw) {
+    console.error("FIREBASE_SERVICE_ACCOUNT_JSON is not set in .env.local.");
+    process.exit(1);
+  }
+  const account = JSON.parse(
+    raw.startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8"),
+  );
+  if (account.project_id !== remoteProject) {
+    console.error(
+      `The service account in .env.local belongs to "${account.project_id}", not "${remoteProject}".`,
+    );
+    process.exit(1);
+  }
+  return cert(account);
+}
 
-  if (!keep) {
+async function main() {
+  if (remoteProject) {
+    initializeApp({ projectId: PROJECT_ID, credential: remoteCredential() });
+  } else {
+    await assertEmulator();
+    initializeApp({ projectId: PROJECT_ID });
+  }
+  const db = getFirestore();
+
+  const hasData = !(await db.collection("users").limit(1).get()).empty;
+  if (ifEmpty && hasData) {
+    console.log("Emulator already has data; skipping seed.");
+    return;
+  }
+  if (remoteProject && hasData && !keep) {
+    console.error(
+      `Project ${PROJECT_ID} already has data. Re-run with --keep to seed on top of it.`,
+    );
+    process.exit(1);
+  }
+
+  if (remoteProject) {
+    console.log(`Seeding project ${PROJECT_ID}…`);
+  } else if (!keep) {
     console.log("Clearing emulator data…");
     await wipe();
   }
@@ -79,31 +151,9 @@ async function main() {
     console.log(`  ${collection.padEnd(26)} ${docs.length}`);
   }
 
-  let accounts = 0;
-  for (const user of data.users ?? []) {
-    if (!user.email || user.email.endsWith("@players.local")) continue;
-    try {
-      await auth.createUser({
-        uid: user.id,
-        email: user.email,
-        emailVerified: true,
-        password: SEED_PASSWORD,
-        displayName: user.full_name,
-      });
-      accounts += 1;
-    } catch (err) {
-      if (
-        !/already exists|uid-already-exists|email-already-exists/i.test(
-          String(err),
-        )
-      )
-        throw err;
-    }
-  }
-
-  console.log(`\nSeeded ${total} documents and ${accounts} auth accounts.`);
+  console.log(`\nSeeded ${total} documents.`);
   console.log(
-    `Sign in with any seeded email (e.g. john.smith@email.com) and password "${SEED_PASSWORD}".`,
+    'Sign in with Google. In the emulator, choose "Add new account" and use a seeded email (e.g. john.smith@email.com) to act as that user.',
   );
 }
 

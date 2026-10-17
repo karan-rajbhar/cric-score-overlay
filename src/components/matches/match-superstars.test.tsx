@@ -167,7 +167,7 @@ describe("MatchSuperstars", () => {
 
     // Switch to List view
     fireEvent.click(listBtn);
-    expect(screen.getByText("Superstars Performance Rankings")).toBeInTheDocument();
+    expect(screen.getByText("Superstars performance rankings")).toBeInTheDocument();
     expect(screen.getAllByText(/Surya Yadav/i).length).toBeGreaterThanOrEqual(1);
 
     // Switch back to Pitch view

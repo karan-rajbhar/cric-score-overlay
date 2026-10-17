@@ -50,32 +50,23 @@ describe("Scoring Security & Authorization Gate", () => {
     expect(res.error).toBe("You must be logged in to record scores");
   });
 
-  it("blocks unauthorized users (not creator, not in match_admins) from recording balls", async () => {
+  it("passes on record_ball's refusal for users who can't score the match", async () => {
+    // Scoring rights are checked inside the record_ball transaction
+    // (see src/lib/firebase/rpc/record-ball-auth.test.ts); the action only
+    // turns the refusal into a readable message.
+    const from = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "not_authorized", code: "42501" },
+    });
     vi.mocked(createServerClient).mockResolvedValueOnce({
       auth: {
         getUser: vi.fn().mockResolvedValueOnce({
           data: { user: { id: "attacker-id" } },
         }),
       },
-      from: vi.fn().mockImplementation((table: string) => {
-        if (table === "matches") {
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({
-                  data: {
-                    created_by: "legit-creator-id",
-                    match_admins: ["scorer-1-id"],
-                    club_id: null,
-                    tournament_id: null,
-                  },
-                }),
-              }),
-            }),
-          };
-        }
-        return {};
-      }),
+      from,
+      rpc,
     } as never);
 
     const res = await recordBall({
@@ -86,6 +77,11 @@ describe("Scoring Security & Authorization Gate", () => {
       event: { runsScored: 1 },
     });
 
+    expect(rpc).toHaveBeenCalledWith(
+      "record_ball",
+      expect.objectContaining({ p_match_id: dummyMatchId }),
+    );
+    expect(from).not.toHaveBeenCalled();
     expect(res.data).toBeNull();
     expect(res.error).toContain("You do not have permission to score this match");
   });

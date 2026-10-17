@@ -1,11 +1,20 @@
 /**
  * Tournament points table, ported from `recalculate_tournament_standings`
  * (ICC net-run-rate rules, abandoned matches count as no-results).
+ *
+ * Reads the tournament's registrations, matches and standings (innings
+ * totals come from each match's `innings_summary`; only matches without one
+ * read their innings, in batches) and writes only the rows that changed.
  */
 
-import type { DataSource } from "../datasource";
+import { chunk, IN_CHUNK_SIZE, type DataSource } from "../datasource";
 import { newId } from "../query-builder";
-import type { InningsRow, MatchesRow, TournamentStandingsRow } from "../types";
+import { sameRow } from "../scoring/rows";
+import type {
+  InningsSummaryEntry,
+  MatchesRow,
+  TournamentStandingsRow,
+} from "../types";
 
 function round(n: number, digits: number): number {
   const f = 10 ** digits;
@@ -37,19 +46,21 @@ export async function recalculateTournamentStandings(
   }
   if (teamIds.size === 0) return;
 
-  const completedMatchIds = matchDocs
-    .filter((m) => m.status === "completed")
-    .map((m) => m.id);
-  const inningsByMatch = new Map<string, InningsRow[]>();
-  if (completedMatchIds.length) {
-    const inningsDocs = (
-      await Promise.all(
-        completedMatchIds.map((id) =>
-          ds.query("innings", [{ field: "match_id", op: "==", value: id }]),
-        ),
-      )
-    ).flat() as unknown as InningsRow[];
-    for (const inn of inningsDocs) {
+  const completed = matchDocs.filter((m) => m.status === "completed");
+  const inningsByMatch = new Map<string, InningsSummaryEntry[]>();
+  const unsummarized: string[] = [];
+  for (const m of completed) {
+    if (Array.isArray(m.innings_summary)) {
+      inningsByMatch.set(m.id, m.innings_summary);
+    } else {
+      unsummarized.push(m.id);
+    }
+  }
+  for (const ids of chunk(unsummarized, IN_CHUNK_SIZE)) {
+    const docs = (await ds.query("innings", [
+      { field: "match_id", op: "in", value: ids },
+    ])) as unknown as (InningsSummaryEntry & { match_id: string | null })[];
+    for (const inn of docs) {
       if (!inn.match_id) continue;
       const list = inningsByMatch.get(inn.match_id) ?? [];
       list.push(inn);
@@ -136,7 +147,10 @@ export async function recalculateTournamentStandings(
     };
 
     if (existing) {
-      await ds.update("tournament_standings", existing.id, row);
+      // Unchanged rows are not rewritten (most writes only move a few teams).
+      if (!sameRow({ ...existing, ...row }, existing)) {
+        await ds.update("tournament_standings", existing.id, row);
+      }
     } else {
       await ds.insert("tournament_standings", [{ id: newId(), ...row }]);
     }
@@ -156,7 +170,32 @@ export async function maybeRecalculateStandings(
   if (!tournamentId) return;
   const terminal = (s: string | null | undefined) =>
     s === "completed" || s === "abandoned";
-  if (terminal(after?.status) || terminal(before?.status) || !after) {
-    await recalculateTournamentStandings(ds, tournamentId);
+  if (!(terminal(after?.status) || terminal(before?.status) || !after)) return;
+  // Edits that leave every input of the table alone (player of the match,
+  // scorers, venue, ...) do not recompute it.
+  if (
+    before &&
+    after &&
+    STANDINGS_INPUTS.every(
+      (f) =>
+        JSON.stringify(before[f] ?? null) === JSON.stringify(after[f] ?? null),
+    )
+  ) {
+    return;
   }
+  await recalculateTournamentStandings(ds, tournamentId);
 }
+
+/** Match fields the points table depends on. */
+const STANDINGS_INPUTS = [
+  "status",
+  "result_type",
+  "winning_team_id",
+  "team1_id",
+  "team2_id",
+  "tournament_id",
+  "balls_per_over",
+  "wickets_per_innings",
+  "overs_per_innings",
+  "innings_summary",
+] as const;

@@ -8,6 +8,8 @@ import { TeamCard } from "~/components/teams/team-card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { createServerClient } from "~/lib/firebase/server";
+import { PageContainer, PageHeader } from "~/components/layout/page";
+import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
 
 export default async function TeamsPage({
   searchParams,
@@ -40,57 +42,50 @@ export default async function TeamsPage({
   };
 
   return (
-    <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
-      <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {view === "mine" ? "My teams" : "All teams"}
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            {view === "mine"
-              ? "Teams you created, lead, or play in"
-              : "Every team on the platform"}
-          </p>
-        </div>
-        <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
-          <Link href="/teams/create">
-            <Plus className="mr-2 h-4 w-4 shrink-0" />
-            Create team
-          </Link>
-        </Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title={view === "mine" ? "My teams" : "All teams"}
+        description={
+          view === "mine"
+            ? "Teams you created, lead, or play in"
+            : "Every team on the platform"
+        }
+        actions={
+          <Button asChild size="sm">
+            <Link href="/teams/create">
+              <Plus />
+              Create team
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="inline-flex w-full rounded-lg border border-border p-0.5 sm:w-auto">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <nav aria-label="Team list" className={segmentedTrack}>
           <Link
             href={buildHref("mine")}
-            className={`flex flex-1 items-center justify-center rounded-md px-3.5 py-2 text-center text-sm font-semibold min-h-[40px] transition-colors sm:flex-none sm:py-1.5 sm:min-h-0 ${
-              view === "mine"
-                ? "bg-secondary text-secondary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            aria-current={view === "mine" ? "page" : undefined}
+            className={segmentedItem(view === "mine")}
           >
             My teams
           </Link>
           <Link
             href={buildHref("all")}
-            className={`flex flex-1 items-center justify-center rounded-md px-3.5 py-2 text-center text-sm font-semibold min-h-[40px] transition-colors sm:flex-none sm:py-1.5 sm:min-h-0 ${
-              view === "all"
-                ? "bg-secondary text-secondary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
+            aria-current={view === "all" ? "page" : undefined}
+            className={segmentedItem(view === "all")}
           >
             All teams
           </Link>
-        </div>
+        </nav>
         <div className="relative w-full flex-1 sm:max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <form action="/teams" method="GET">
             <Input
               name="search"
               type="search"
-              placeholder="Search teams..."
-              className="w-full pl-8"
+              aria-label="Search teams"
+              placeholder="Search teams…"
+              className="h-9 w-full pl-9"
               defaultValue={resolvedParams?.search}
             />
             {view === "all" && <input type="hidden" name="view" value="all" />}
@@ -110,7 +105,7 @@ export default async function TeamsPage({
         />
       ) : (
         <Suspense fallback={<TeamsLoading />}>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {teams?.map((team) => (
               <TeamCard key={team.id} team={team} />
             ))}
@@ -148,17 +143,17 @@ export default async function TeamsPage({
           </div>
         </Suspense>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
 function TeamsLoading() {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
-          className="space-y-4 rounded-2xl border border-border bg-card p-6"
+          className="space-y-4 rounded-xl border border-border bg-card p-5"
         >
           <div className="flex items-center gap-4">
             <Skeleton className="h-12 w-12 rounded-xl" />

@@ -102,7 +102,7 @@ export function MatchManhattan({ match }: { match: Match }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-balance text-lg">
-          Manhattan · Over-by-Over Runs &amp; Wickets
+          Manhattan · over-by-over runs &amp; wickets
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -256,12 +256,12 @@ export function MatchManhattan({ match }: { match: Match }) {
                 );
               })}
             </svg>
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+            <div className="mt-1 flex justify-between text-2xs text-muted-foreground">
               <span>Over 1</span>
               <span className="tabular-nums">Over {totalOversMax}</span>
             </div>
             {isLoading && (
-              <p className="mt-1 text-center text-[11px] text-muted-foreground">
+              <p className="mt-1 text-center text-2xs text-muted-foreground">
                 Syncing latest overs…
               </p>
             )}

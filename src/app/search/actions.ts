@@ -1,5 +1,6 @@
 "use server";
 
+import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 
 export interface GlobalSearchResult {
@@ -21,9 +22,10 @@ export interface GlobalSearchResult {
 }
 
 /**
- * Global search across 5 entities — single entry point for the
- * header search and /search page. Uses ilike for case-insensitive
- * prefix matching; each query is limited to 5 to keep it fast.
+ * Global search across 5 entities, the single entry point for the header
+ * search and the /search page. Each collection is one indexed word-prefix
+ * query (`search_prefixes`, see lib/firebase/search.ts) limited to 5, so a
+ * search reads at most 25 documents instead of scanning every collection.
  */
 export async function globalSearch(
   query: string,
@@ -34,43 +36,20 @@ export async function globalSearch(
   }
 
   const db = await createServerClient();
-  const like = `%${q}%`;
-  const cleanUserQ = q.replace(/^@/, "");
-
   const [matchesRes, teamsRes, playersRes, clubsRes, tournamentsRes] =
     await Promise.all([
-      db
-        .from("matches")
-        .select("id, title, status, venue")
-        .ilike("title", like)
-        .limit(5),
-      db
-        .from("teams")
-        .select("id, name, short_name")
-        .ilike("name", like)
-        .limit(5),
-      db
-        .from("users")
-        .select("id, full_name, avatar_url, username")
-        .or(`full_name.ilike.%${cleanUserQ}%,username.ilike.%${cleanUserQ}%`)
-        .limit(5),
-      db
-        .from("clubs")
-        .select("id, name, location")
-        .ilike("name", like)
-        .limit(5),
-      db
-        .from("tournaments")
-        .select("id, name, status")
-        .ilike("name", like)
-        .limit(5),
+      prefixSearch(db, "matches", q, "id, title, status, venue", 5),
+      prefixSearch(db, "teams", q, "id, name, short_name", 5),
+      prefixSearch(db, "users", q, "id, full_name, avatar_url, username", 5),
+      prefixSearch(db, "clubs", q, "id, name, location", 5),
+      prefixSearch(db, "tournaments", q, "id, name, status", 5),
     ]);
 
   return {
-    matches: matchesRes.data ?? [],
-    teams: teamsRes.data ?? [],
-    players: playersRes.data ?? [],
-    clubs: clubsRes.data ?? [],
-    tournaments: tournamentsRes.data ?? [],
+    matches: matchesRes.data as GlobalSearchResult["matches"],
+    teams: teamsRes.data as GlobalSearchResult["teams"],
+    players: playersRes.data as GlobalSearchResult["players"],
+    clubs: clubsRes.data as GlobalSearchResult["clubs"],
+    tournaments: tournamentsRes.data as GlobalSearchResult["tournaments"],
   };
 }

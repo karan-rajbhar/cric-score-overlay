@@ -3,12 +3,18 @@
  */
 
 import "server-only";
-import type { Firestore, Query, DocumentData } from "firebase-admin/firestore";
+import {
+  FieldPath,
+  type DocumentData,
+  type Firestore,
+  type Query,
+} from "firebase-admin/firestore";
 import {
   chunk,
   type DataSource,
   type Doc,
   type NativeFilter,
+  type QueryOptions,
 } from "./datasource";
 
 const BATCH_LIMIT = 400;
@@ -21,6 +27,11 @@ export class AdminDataSource implements DataSource {
   readonly kind = "admin" as const;
 
   constructor(private readonly db: Firestore) {}
+
+  /** The Firestore behind this source (for transactions). */
+  get firestore(): Firestore {
+    return this.db;
+  }
 
   async getById(table: string, id: string): Promise<Doc | null> {
     const snap = await this.db.collection(table).doc(id).get();
@@ -41,13 +52,32 @@ export class AdminDataSource implements DataSource {
     return out;
   }
 
-  async query(table: string, filters: NativeFilter[]): Promise<Doc[]> {
+  private build(table: string, filters: NativeFilter[]): Query {
     let q: Query = this.db.collection(table);
     for (const f of filters) {
       q = q.where(f.field, f.op, f.value);
     }
+    return q;
+  }
+
+  async query(
+    table: string,
+    filters: NativeFilter[],
+    options?: QueryOptions,
+  ): Promise<Doc[]> {
+    let q = this.build(table, filters);
+    for (const o of options?.orderBy ?? []) q = q.orderBy(o.field, o.direction);
+    if (options?.startAfter && options.orderBy?.length) {
+      q = q.orderBy(FieldPath.documentId()).startAfter(...options.startAfter);
+    }
+    if (options?.limit !== undefined) q = q.limit(options.limit);
     const snap = await q.get();
     return snap.docs.map((d) => toDoc(d.id, d.data()));
+  }
+
+  async count(table: string, filters: NativeFilter[]): Promise<number> {
+    const snap = await this.build(table, filters).count().get();
+    return snap.data().count;
   }
 
   async insert(table: string, docs: Doc[]): Promise<void> {

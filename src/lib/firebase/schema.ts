@@ -7,13 +7,16 @@
  * CASCADE`, and resolve embedded relations from column names.
  */
 
+import { MATCH_PARENT_SNAPSHOTS, ROSTER_USER_FIELDS } from "./derive.mjs";
 import type { TableName, ViewName } from "./types";
 
 export const TABLE_NAMES: readonly TableName[] = [
   "users",
+  "users_private",
   "clubs",
   "club_memberships",
   "club_invitations",
+  "invitations",
   "club_seasons",
   "club_hall_of_fame",
   "teams",
@@ -28,9 +31,28 @@ export const TABLE_NAMES: readonly TableName[] = [
   "ball_by_ball",
   "partnerships",
   "fall_of_wickets",
+  "overs",
+  "player_matches",
   "player_career_stats",
-  "match_events",
+  "leaderboards",
 ] as const;
+
+/**
+ * Legacy row collections that are no longer stored (schema stage 2): reads
+ * are served from innings arrays / over documents by `legacy-rows.ts`, and
+ * writes go through the scoring engine.
+ */
+export const DERIVED_TABLES: readonly TableName[] = [
+  "batting_performances",
+  "bowling_performances",
+  "ball_by_ball",
+  "partnerships",
+  "fall_of_wickets",
+] as const;
+
+export function isDerivedTable(name: string): boolean {
+  return (DERIVED_TABLES as readonly string[]).includes(name);
+}
 
 export const VIEW_NAMES: readonly ViewName[] = [
   "live_match_state",
@@ -49,16 +71,18 @@ export function isViewName(name: string): name is ViewName {
 export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
   users: [
     "id",
-    "email",
-    "phone",
     "full_name",
     "avatar_url",
     "location",
     "username",
     "is_active",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
+  // Server-only (rules deny clients); keyed by the user's id.
+  users_private: ["id", "email", "phone", "created_at", "updated_at"],
   clubs: [
     "id",
     "name",
@@ -75,6 +99,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "founded_year",
     "owner_id",
     "social_links",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -84,7 +110,18 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "user_id",
     "role",
     "status",
+    "user_snapshot",
     "joined_at",
+    "updated_at",
+  ],
+  invitations: [
+    "id",
+    "email",
+    "invited_by",
+    "status",
+    "accepted_by",
+    "scorer_match_ids",
+    "created_at",
     "updated_at",
   ],
   club_invitations: [
@@ -133,6 +170,9 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "team_type",
     "is_template",
     "created_by",
+    "name_lower",
+    "search_prefixes",
+    "roster",
     "created_at",
     "updated_at",
   ],
@@ -171,6 +211,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "created_by",
+    "name_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -219,6 +261,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "noball_extras_to_batsman",
     "team1_id",
     "team2_id",
+    "team1_snapshot",
+    "team2_snapshot",
     "venue",
     "scheduled_at",
     "actual_start_time",
@@ -250,6 +294,11 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "last_ball_seq",
+    "innings_summary",
+    "tournament_snapshot",
+    "club_snapshot",
+    "title_lower",
+    "search_prefixes",
     "created_at",
     "updated_at",
   ],
@@ -271,6 +320,12 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "extras_bonuses",
     "is_completed",
     "target_runs",
+    "batting",
+    "bowling",
+    "fall_of_wickets",
+    "partnerships",
+    "last_ball",
+    "last_over_bowler_id",
     "created_at",
     "updated_at",
   ],
@@ -359,6 +414,20 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "fielder_id",
     "created_at",
   ],
+  overs: ["id", "match_id", "innings_id", "over_number", "balls", "updated_at"],
+  player_matches: [
+    "id",
+    "user_id",
+    "match_id",
+    "tournament_id",
+    "club_id",
+    "season_id",
+    "match_date",
+    "batting",
+    "bowling",
+    "fielding",
+    "updated_at",
+  ],
   player_career_stats: [
     "id",
     "user_id",
@@ -386,16 +455,61 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "strike_rate",
     "bowling_average",
     "economy_rate",
+    "acc",
     "last_updated",
   ],
-  match_events: [
-    "id",
-    "match_id",
-    "event_type",
-    "event_data",
-    "created_by",
-    "created_at",
+  // `leaderboards/{scope}_{scopeId}`: per-player accumulators (stats.mjs).
+  leaderboards: ["id", "scope", "scope_id", "players", "updated_at"],
+};
+
+/**
+ * Storage-only fields (search keys, denormalized copies) left out of
+ * `select("*")` results unless named explicitly.
+ */
+export const HIDDEN_COLUMNS: Partial<Record<TableName, readonly string[]>> = {
+  users: ["name_lower", "search_prefixes"],
+  clubs: ["name_lower", "search_prefixes"],
+  teams: ["name_lower", "search_prefixes", "roster"],
+  tournaments: ["name_lower", "search_prefixes"],
+  matches: [
+    "title_lower",
+    "search_prefixes",
+    "innings_summary",
+    "tournament_snapshot",
+    "club_snapshot",
   ],
+  club_memberships: ["user_snapshot"],
+};
+
+/**
+ * Many-to-one relations a row can answer from a copy it carries: for
+ * `club_memberships.user_id`, the profile snapshot in `user_snapshot`
+ * (kept in step by the derived-fields data source). A relation selecting
+ * only the copied columns then reads nothing.
+ */
+export const CARRIED_SNAPSHOTS: Partial<
+  Record<
+    TableName,
+    Record<
+      string,
+      { field: string; table: TableName; columns: readonly string[] }
+    >
+  >
+> = {
+  club_memberships: {
+    user_id: {
+      field: "user_snapshot",
+      table: "users",
+      columns: ROSTER_USER_FIELDS,
+    },
+  },
+  // `tournament_snapshot` / `club_snapshot` (see match-snapshots.ts).
+  matches: Object.fromEntries(
+    MATCH_PARENT_SNAPSHOTS.map((s) => [
+      s.local,
+      { field: s.field, table: s.table, columns: s.columns },
+    ]),
+  ),
 };
 
 /**
@@ -410,8 +524,9 @@ export const TABLE_DEFAULTS: Partial<
   clubs: { is_public: true, club_type: "community", social_links: {} },
   club_memberships: { role: "member", status: "active" },
   club_invitations: { status: "pending" },
+  invitations: { status: "pending" },
   club_seasons: { is_current: false },
-  teams: { team_type: "club", is_template: false },
+  teams: { team_type: "club", is_template: false, roster: [] },
   team_players: { is_playing_xi: false },
   tournaments: {
     tournament_format: "league",
@@ -455,6 +570,7 @@ export const TABLE_DEFAULTS: Partial<
     last_man_stands: false,
     golden_ball: false,
     last_ball_seq: 0,
+    innings_summary: [],
   },
   innings: {
     total_runs: 0,
@@ -470,6 +586,12 @@ export const TABLE_DEFAULTS: Partial<
     extras_bonuses: 0,
     is_completed: false,
     target_runs: null,
+    batting: [],
+    bowling: [],
+    fall_of_wickets: [],
+    partnerships: [],
+    last_ball: null,
+    last_over_bowler_id: null,
   },
   batting_performances: {
     runs_scored: 0,
@@ -499,9 +621,11 @@ export const TABLE_DEFAULTS: Partial<
 export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
   {
     users: ["created_at", "updated_at"],
+    users_private: ["created_at", "updated_at"],
     clubs: ["created_at", "updated_at"],
     club_memberships: ["joined_at", "updated_at"],
     club_invitations: ["created_at", "updated_at"],
+    invitations: ["created_at", "updated_at"],
     club_seasons: ["created_at", "updated_at"],
     club_hall_of_fame: ["inducted_at"],
     teams: ["created_at", "updated_at"],
@@ -516,8 +640,10 @@ export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
     ball_by_ball: ["created_at"],
     partnerships: ["created_at", "updated_at"],
     fall_of_wickets: ["created_at"],
+    overs: ["updated_at"],
+    player_matches: ["updated_at"],
     player_career_stats: ["last_updated"],
-    match_events: ["created_at"],
+    leaderboards: ["updated_at"],
   };
 
 /** Unique constraints enforced before insert (Postgres error code 23505). */
@@ -531,9 +657,15 @@ export const UNIQUE_CONSTRAINTS: Partial<
     }[]
   >
 > = {
+  users_private: [
+    {
+      name: "users_private_email_key",
+      columns: ["email"],
+      caseInsensitive: true,
+    },
+    { name: "users_private_phone_key", columns: ["phone"] },
+  ],
   users: [
-    { name: "users_email_key", columns: ["email"], caseInsensitive: true },
-    { name: "users_phone_key", columns: ["phone"] },
     {
       name: "users_username_lower_idx",
       columns: ["username"],
@@ -639,30 +771,23 @@ export const CASCADE_RULES: Partial<
     },
     { table: "matches", column: "tournament_id", action: "setNull" },
   ],
+  // player_matches (and the statistics built from them) are removed by
+  // the matches write hook, inside a transaction.
   matches: [
     { table: "innings", column: "match_id", action: "cascade" },
-    { table: "batting_performances", column: "match_id", action: "cascade" },
-    { table: "bowling_performances", column: "match_id", action: "cascade" },
-    { table: "ball_by_ball", column: "match_id", action: "cascade" },
-    { table: "partnerships", column: "match_id", action: "cascade" },
-    { table: "fall_of_wickets", column: "match_id", action: "cascade" },
-    { table: "match_events", column: "match_id", action: "cascade" },
+    { table: "overs", column: "match_id", action: "cascade" },
   ],
-  innings: [
-    { table: "batting_performances", column: "innings_id", action: "cascade" },
-    { table: "bowling_performances", column: "innings_id", action: "cascade" },
-    { table: "ball_by_ball", column: "innings_id", action: "cascade" },
-    { table: "partnerships", column: "innings_id", action: "cascade" },
-    { table: "fall_of_wickets", column: "innings_id", action: "cascade" },
-  ],
+  innings: [{ table: "overs", column: "innings_id", action: "cascade" }],
 };
 
 /** Singular noun for each collection, used to infer `<singular>_id` columns. */
 export const SINGULAR: Record<TableName, string> = {
   users: "user",
+  users_private: "user_private",
   clubs: "club",
   club_memberships: "club_membership",
   club_invitations: "club_invitation",
+  invitations: "invitation",
   club_seasons: "season",
   club_hall_of_fame: "hall_of_fame",
   teams: "team",
@@ -677,8 +802,10 @@ export const SINGULAR: Record<TableName, string> = {
   ball_by_ball: "ball",
   partnerships: "partnership",
   fall_of_wickets: "fall_of_wicket",
+  overs: "over",
+  player_matches: "player_match",
   player_career_stats: "player_career_stat",
-  match_events: "match_event",
+  leaderboards: "leaderboard",
 };
 
 /**
@@ -694,6 +821,8 @@ export const USER_REFERENCES: readonly {
   { table: "club_memberships", column: "user_id" },
   { table: "club_invitations", column: "invited_by" },
   { table: "club_invitations", column: "user_id" },
+  { table: "invitations", column: "invited_by" },
+  { table: "invitations", column: "accepted_by" },
   { table: "club_hall_of_fame", column: "player_id" },
   { table: "club_hall_of_fame", column: "created_by" },
   { table: "teams", column: "captain_id" },
@@ -707,22 +836,9 @@ export const USER_REFERENCES: readonly {
   { table: "matches", column: "created_by" },
   { table: "matches", column: "player_of_the_match_id" },
   { table: "matches", column: "match_admins", array: true },
-  { table: "batting_performances", column: "user_id" },
-  { table: "batting_performances", column: "bowler_id" },
-  { table: "batting_performances", column: "fielder_id" },
-  { table: "bowling_performances", column: "user_id" },
-  { table: "ball_by_ball", column: "bowler_id" },
-  { table: "ball_by_ball", column: "batsman_id" },
-  { table: "ball_by_ball", column: "non_striker_id" },
-  { table: "ball_by_ball", column: "fielder_id" },
-  { table: "ball_by_ball", column: "dismissed_player_id" },
-  { table: "partnerships", column: "batsman1_id" },
-  { table: "partnerships", column: "batsman2_id" },
-  { table: "fall_of_wickets", column: "batsman_out_id" },
-  { table: "fall_of_wickets", column: "bowler_id" },
-  { table: "fall_of_wickets", column: "fielder_id" },
-  { table: "player_career_stats", column: "user_id" },
-  { table: "match_events", column: "created_by" },
+  // Scorecards (innings arrays, over documents, player_matches) embed user
+  // ids inside nested values; `remapScorecardUserId` rewrites those, and
+  // the statistics (career / leaderboards) follow the player records.
 ];
 
 export function hasColumn(table: TableName, column: string): boolean {

@@ -12,11 +12,9 @@ import {
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import {
-  Calculator,
   CheckCircle2,
   XCircle,
   HelpCircle,
-  Trophy,
 } from "lucide-react";
 import { evaluateQualification } from "~/lib/tournament-standings";
 
@@ -81,7 +79,7 @@ export function QualificationCalculator({
 
       let conditionText = "";
       if (effectiveStatus === "qualified") {
-        conditionText = "Top spot mathematically secured!";
+        conditionText = "Top spot secured";
       } else if (effectiveStatus === "eliminated") {
         conditionText = "Mathematically eliminated from top spots.";
       } else {
@@ -105,26 +103,19 @@ export function QualificationCalculator({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2 text-primary">
-            <Calculator className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              Scenario Simulator
-            </span>
-          </div>
           <DialogTitle className="text-xl">
-            Qualification & Cutoff Calculator
+            Qualification & cutoff calculator
           </DialogTitle>
           <DialogDescription>
-            Mathematical qualification scenarios and playoff pathways for{" "}
+            Qualification scenarios for{" "}
             {tournamentName}.
           </DialogDescription>
         </DialogHeader>
 
         {/* Qualification Spots Selector */}
         <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3">
-          <span className="flex items-center gap-1.5 text-sm font-medium">
-            <Trophy className="h-4 w-4 text-amber-500" />
-            Playoff Qualification Spots:
+          <span className="text-sm font-medium">
+            Playoff spots
           </span>
           <div className="flex gap-2">
             {[2, 4].map((spots) => (
@@ -169,14 +160,14 @@ export function QualificationCalculator({
                   </div>
                   <div>
                     {isQ && (
-                      <Badge className="border-emerald-500/40 bg-emerald-500/20 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <Badge className="border-emerald-500/40 bg-emerald-500/20 text-2xs font-bold text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="mr-1 h-3 w-3" /> Qualified (Q)
                       </Badge>
                     )}
                     {isE && (
                       <Badge
                         variant="destructive"
-                        className="text-[11px] font-bold"
+                        className="text-2xs font-bold"
                       >
                         <XCircle className="mr-1 h-3 w-3" /> Eliminated (E)
                       </Badge>
@@ -184,9 +175,9 @@ export function QualificationCalculator({
                     {!isQ && !isE && (
                       <Badge
                         variant="secondary"
-                        className="text-[11px] font-bold"
+                        className="text-2xs font-bold"
                       >
-                        <HelpCircle className="mr-1 h-3 w-3" /> In Contention
+                        <HelpCircle className="mr-1 h-3 w-3" /> In contention
                       </Badge>
                     )}
                   </div>

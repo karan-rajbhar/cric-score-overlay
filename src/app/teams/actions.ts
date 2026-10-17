@@ -1,6 +1,11 @@
 "use server";
 
+import type { Doc } from "~/lib/firebase/datasource";
+import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
+import { sortRows } from "~/lib/firebase/filters";
+import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
+import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -21,16 +26,24 @@ export async function getTeams(filters?: {
     return { data: [], error: null };
   }
 
-  let query = db.from("teams").select(`
+  // `_count` comes first: it is served from the team's roster, whose player
+  // snapshots then answer the captain lookup without a profile read.
+  const SELECT = `
       *,
-      captain:users!teams_captain_id_fkey(full_name),
-      _count:team_players(count)
-    `);
+      _count:team_players(count),
+      captain:users!teams_captain_id_fkey(full_name)
+    `;
+  const searchFor = filters?.search ? searchKey(filters.search) : null;
+  if (filters?.search && !searchFor) return { data: [], error: null };
 
-  // "mine" shows only teams the user has a stake in (created, lead, or
-  // squad member). Without it (e.g. match-creation picker) all teams are
-  // visible so opponents can be selected.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows are loosely typed (see ResultRow)
+  let data: any[] | null = null;
+  let error: { message: string } | null = null;
   if (user && filters?.mine) {
+    // "mine" shows only teams the user has a stake in (created, lead, or
+    // squad member): one indexed query per kind of stake instead of reading
+    // every team. Without it (e.g. match-creation picker) all teams are
+    // visible so opponents can be selected.
     const { data: playerRows, error: playerErr } = await db
       .from("team_players")
       .select("team_id")
@@ -45,32 +58,50 @@ export async function getTeams(filters?: {
 
     const playerTeamIds =
       playerRows?.map((r) => r.team_id).filter(Boolean) ?? [];
-
-    const orConditions = [
-      `created_by.eq.${user.id}`,
-      `captain_id.eq.${user.id}`,
-      `vice_captain_id.eq.${user.id}`,
-    ];
-    if (playerTeamIds.length > 0) {
-      orConditions.push(`id.in.(${playerTeamIds.join(",")})`);
+    const results = await Promise.all([
+      db.from("teams").select(SELECT).eq("created_by", user.id),
+      db.from("teams").select(SELECT).eq("captain_id", user.id),
+      db.from("teams").select(SELECT).eq("vice_captain_id", user.id),
+      playerTeamIds.length
+        ? db.from("teams").select(SELECT).in("id", playerTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    error = results.find((r) => r.error)?.error ?? null;
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const r of results) {
+      for (const t of (r.data ?? []) as Record<string, unknown>[]) {
+        byId.set(String(t.id), t);
+      }
     }
-
-    query = query.or(orConditions.join(","));
+    // The user's own teams are few: search / type are checked in memory.
+    data = sortRows(
+      [...byId.values()]
+        .filter(
+          (t) =>
+            (!filters.type || t.team_type === filters.type) &&
+            (!searchFor ||
+              matchesSearch(filters.search, [t.name, t.short_name])),
+        )
+        .sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1)) as Doc[],
+      [{ field: "created_at", ascending: false, nullsFirst: true }],
+    );
+  } else {
+    let query = db.from("teams").select(SELECT);
+    if (searchFor) {
+      // Native word-prefix match (search_prefixes) instead of a scan.
+      query = query.contains("search_prefixes", [searchFor]);
+    }
+    if (filters?.type) {
+      query = query.eq("team_type", filters.type);
+    }
+    const res = await query.order("created_at", { ascending: false });
+    data = res.data;
+    error = res.error;
   }
 
-  if (filters?.search) {
-    query = query.ilike("name", `%${filters.search}%`);
-  }
-
-  if (filters?.type) {
-    query = query.eq("team_type", filters.type);
-  }
-
-  const { data, error } = await query.order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching teams:", error.message || error);
-    return { data: null, error: error.message };
+  if (error || !data) {
+    console.error("Error fetching teams:", error?.message || error);
+    return { data: null, error: error?.message ?? "Failed to load teams" };
   }
 
   // Calculate player count from the _count aggregation
@@ -95,18 +126,20 @@ export async function getTeam(id: string) {
 
   const db = await createServerClient();
 
+  // team_players first: served from the team's roster, whose player
+  // snapshots then answer the captain / vice-captain / creator lookups.
   const { data, error } = await db
     .from("teams")
     .select(
       `
       *,
-      captain:users!teams_captain_id_fkey(id, full_name, avatar_url),
-      vice_captain:users!teams_vice_captain_id_fkey(id, full_name, avatar_url),
-      created_by_user:users!teams_created_by_fkey(full_name),
       team_players(
         *,
-        user:users!team_players_user_id_fkey(id, full_name, avatar_url, phone, email)
-      )
+        user:users!team_players_user_id_fkey(id, full_name, avatar_url)
+      ),
+      captain:users!teams_captain_id_fkey(id, full_name, avatar_url),
+      vice_captain:users!teams_vice_captain_id_fkey(id, full_name, avatar_url),
+      created_by_user:users!teams_created_by_fkey(full_name)
     `,
     )
     .eq("id", id)
@@ -483,15 +516,18 @@ export async function searchUsers(query: string) {
 
   if (!query || query.length < 2) return { data: [] };
 
-  const { data, error } = await db
-    .from("users")
-    .select("id, full_name, email, avatar_url")
-    .ilike("full_name", `%${query}%`)
-    .limit(10);
+  // Word-prefix match on name / @username: reads at most 10 profiles.
+  const { data, error } = await prefixSearch(
+    db,
+    "users",
+    query,
+    "id, full_name, avatar_url, username",
+    10,
+  );
 
   if (error) {
     console.error("Error searching users:", error);
-    return { data: [], error: error.message };
+    return { data: [], error };
   }
 
   return { data, error: null };
@@ -565,6 +601,7 @@ export async function updateTeamLogo(teamId: string, file: File) {
     return { data: null, error: updateError.message };
   }
 
+  await refreshLiveMatchesFor(db, { teamId });
   revalidatePath(`/teams/${teamId}`);
   return { data: urlData.publicUrl, error: null };
 }
@@ -595,6 +632,7 @@ export async function removeTeamLogo(teamId: string) {
     return { error: error.message };
   }
 
+  await refreshLiveMatchesFor(db, { teamId });
   revalidatePath(`/teams/${teamId}`);
   return { error: null };
 }

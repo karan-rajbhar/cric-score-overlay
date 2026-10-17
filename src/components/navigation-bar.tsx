@@ -17,7 +17,9 @@ import {
   Shield,
   Menu,
   User as UserIcon,
+  UserPlus,
 } from "lucide-react";
+import { InviteDialog } from "~/components/invite-dialog";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { createClient } from "~/lib/firebase/client";
 import {
@@ -34,6 +36,7 @@ export function NavigationBar() {
   const { user, signOut, loading } = useAuth();
   const router = useRouter();
   const [signOutLoading, setSignOutLoading] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
   const username =
@@ -148,7 +151,7 @@ export function NavigationBar() {
               placeholder="Search matches, tournaments, players"
               className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-12 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted-foreground sm:inline-block">
+            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
               Ctrl K
             </kbd>
           </form>
@@ -161,7 +164,7 @@ export function NavigationBar() {
             asChild
             variant="ghost"
             size="sm"
-            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground active:scale-95 lg:hidden"
+            className="h-9 w-9 touch-manipulation p-0 text-muted-foreground hover:text-foreground lg:hidden"
             title="Search"
             aria-label="Search"
           >
@@ -176,7 +179,7 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  className="interactive-button h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
+                  className="h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
@@ -184,10 +187,10 @@ export function NavigationBar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-48 border-border bg-popover/95 backdrop-blur-md"
+                className="w-48"
               >
-                <DropdownMenuLabel className="text-xs font-bold text-muted-foreground">
-                  Quick Actions
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+                  Create
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
@@ -195,8 +198,8 @@ export function NavigationBar() {
                     href="/matches/create"
                     className="flex items-center gap-2"
                   >
-                    <Radio className="h-4 w-4 shrink-0 text-emerald-500" />
-                    <span>New Match</span>
+                    <Radio className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>New match</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
@@ -204,8 +207,8 @@ export function NavigationBar() {
                     href="/teams/create"
                     className="flex items-center gap-2"
                   >
-                    <Users className="h-4 w-4 shrink-0 text-sky-500" />
-                    <span>Create Team</span>
+                    <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>New team</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
@@ -213,8 +216,8 @@ export function NavigationBar() {
                     href="/tournaments/create"
                     className="flex items-center gap-2"
                   >
-                    <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
-                    <span>Host Tournament</span>
+                    <Trophy className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>New tournament</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
@@ -222,8 +225,8 @@ export function NavigationBar() {
                     href="/clubs/create"
                     className="flex items-center gap-2"
                   >
-                    <Shield className="h-4 w-4 shrink-0 text-purple-500" />
-                    <span>Register Club</span>
+                    <Shield className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span>New club</span>
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -237,7 +240,7 @@ export function NavigationBar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-xs font-bold text-primary transition-all hover:bg-primary/20 active:scale-95"
+                  className="flex h-9 w-9 touch-manipulation items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-foreground transition-colors hover:bg-accent"
                   aria-label="User menu"
                 >
                   {(user.user_metadata?.full_name ||
@@ -247,18 +250,18 @@ export function NavigationBar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-56 border-border bg-popover/95 backdrop-blur-md"
+                className="w-56"
               >
                 <div className="p-2">
                   <div className="truncate text-xs font-semibold text-foreground">
                     {user.user_metadata?.full_name || "CricScore User"}
                   </div>
                   {username && (
-                    <div className="font-mono text-xs font-semibold text-primary">
+                    <div className="font-mono text-xs text-muted-foreground">
                       @{username}
                     </div>
                   )}
-                  <div className="truncate text-[11px] text-muted-foreground">
+                  <div className="truncate text-2xs text-muted-foreground">
                     {user.email}
                   </div>
                 </div>
@@ -271,15 +274,22 @@ export function NavigationBar() {
                     href={`/players/${username ? `@${username}` : user.id}`}
                     className="flex items-center gap-2"
                   >
-                    <UserIcon className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    <span>My Profile</span>
+                    <UserIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span>My profile</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/teams">My Teams</Link>
+                  <Link href="/teams">My teams</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/clubs">My Clubs</Link>
+                  <Link href="/clubs">My clubs</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => setInviteOpen(true)}
+                  className="flex cursor-pointer items-center gap-2 text-xs"
+                >
+                  <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span>Invite someone</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -293,6 +303,9 @@ export function NavigationBar() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          {user && (
+            <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+          )}
 
           {!loading && !user && (
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -303,16 +316,6 @@ export function NavigationBar() {
                 className="h-8 px-2 text-xs sm:px-3"
               >
                 <Link href="/auth/login">Sign in</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="interactive-button h-8 px-2.5 text-xs font-semibold sm:px-3"
-              >
-                <Link href="/auth/signup">
-                  <span className="hidden sm:inline">Get started</span>
-                  <span className="sm:hidden">Join</span>
-                </Link>
               </Button>
             </div>
           )}

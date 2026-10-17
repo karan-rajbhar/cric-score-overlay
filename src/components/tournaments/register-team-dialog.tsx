@@ -68,12 +68,12 @@ export function RegisterTeamDialog({
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1.5">
           <Plus className="h-4 w-4" />
-          Register Team
+          Register team
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Register Team for Tournament</DialogTitle>
+          <DialogTitle>Register team for tournament</DialogTitle>
           <DialogDescription>
             Select a team to add to the tournament fixtures and points table.
           </DialogDescription>
@@ -86,7 +86,7 @@ export function RegisterTeamDialog({
             </p>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="team-select">Select Team</Label>
+              <Label htmlFor="team-select">Select team</Label>
               <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                 <SelectTrigger id="team-select">
                   <SelectValue placeholder="Choose a team..." />

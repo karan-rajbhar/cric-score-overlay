@@ -32,7 +32,7 @@ describe("HeadToHead", () => {
 
     render(<HeadToHead team1={team1} team2={team2} currentMatchId="m1" />);
 
-    expect(screen.getByText("Head-to-Head Record")).toBeInTheDocument();
+    expect(screen.getByText("Head-to-head record")).toBeInTheDocument();
     expect(
       screen.getByText(/no previous completed encounters/i),
     ).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("HeadToHead", () => {
 
     render(<HeadToHead team1={team1} team2={team2} currentMatchId="m1" />);
 
-    expect(screen.getByText("Head-to-Head Record")).toBeInTheDocument();
+    expect(screen.getByText("Head-to-head record")).toBeInTheDocument();
     expect(screen.getByText("Royal Tigers won by 15 runs")).toBeInTheDocument();
     expect(screen.getByText("National Cricket Stadium")).toBeInTheDocument();
   });

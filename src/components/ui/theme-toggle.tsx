@@ -54,14 +54,14 @@ export function ThemeToggle() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-36 border border-border bg-popover/95 shadow-lg backdrop-blur-md"
+        className="w-36"
       >
         <DropdownMenuItem
           onClick={() => setTheme("light")}
           className="flex cursor-pointer items-center justify-between text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <Sun className="h-3.5 w-3.5 text-amber-500" />
+            <Sun className="h-3.5 w-3.5 text-muted-foreground" />
             <span>Light</span>
           </div>
           {theme === "light" && <Check className="h-3.5 w-3.5 text-primary" />}
@@ -71,7 +71,7 @@ export function ThemeToggle() {
           className="flex cursor-pointer items-center justify-between text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <Moon className="h-3.5 w-3.5 text-emerald-400" />
+            <Moon className="h-3.5 w-3.5 text-muted-foreground" />
             <span>Dark</span>
           </div>
           {theme === "dark" && <Check className="h-3.5 w-3.5 text-primary" />}
@@ -81,7 +81,7 @@ export function ThemeToggle() {
           className="flex cursor-pointer items-center justify-between text-xs font-medium"
         >
           <div className="flex items-center gap-2">
-            <Laptop className="h-3.5 w-3.5 text-sky-400" />
+            <Laptop className="h-3.5 w-3.5 text-muted-foreground" />
             <span>System</span>
           </div>
           {theme === "system" && <Check className="h-3.5 w-3.5 text-primary" />}

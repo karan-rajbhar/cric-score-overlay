@@ -1,7 +1,8 @@
 import { createServerClient } from "~/lib/firebase/server";
-import { getMatch } from "~/app/matches/queries";
+import { getMatch, getLiveMatchState } from "~/app/matches/queries";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 import { ControlClient } from "./control-client";
+import type { LiveMatchState } from "~/components/overlay/types";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { ShieldAlert } from "lucide-react";
@@ -127,18 +128,14 @@ export default async function OverlayControlPage({
   }
 
   const [liveResult, matchResult] = await Promise.all([
-    db
-      .from("live_match_state")
-      .select("*")
-      .eq("match_id", matchId)
-      .single(),
+    getLiveMatchState(matchId, { skipCache: true }),
     getMatch(matchId),
   ]);
 
   return (
     <ControlClient
       matchId={matchId}
-      initialState={liveResult.data}
+      initialState={(liveResult.data as LiveMatchState | null) ?? null}
       initialMatch={matchResult.data}
     />
   );

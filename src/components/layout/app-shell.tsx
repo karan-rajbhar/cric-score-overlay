@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="sunlit-canvas flex min-h-screen flex-col bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
         <NavigationBar />
 
         <div className="flex flex-1">
@@ -44,22 +44,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1440px] overflow-x-hidden px-3.5 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-8">
+            {/* overflow-x-clip, not -hidden: "hidden" turns this into a scroll
+                container, so sticky page headers stick inside it (pushed down
+                by their top offset) instead of under the navigation bar. */}
+            <div className="w-full overflow-x-clip px-4 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8 lg:px-8">
               {children}
             </div>
           </main>
         </div>
 
         <footer
-          className={`border-t border-border/70 bg-card/40 transition-colors duration-150 ${
+          className={`border-t border-border ${
             collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
           }`}
         >
-          <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-            <div className="flex flex-col items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-row">
+          <div className="px-4 py-5 sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-xs text-muted-foreground sm:flex-row">
               <p className="text-center sm:text-left">
-                © 2026 CricScore. Live cricket scoring, tournament management
-                and broadcast engine.
+                © 2026 CricScore. Cricket scoring for clubs and leagues.
               </p>
               <nav
                 aria-label="Footer"

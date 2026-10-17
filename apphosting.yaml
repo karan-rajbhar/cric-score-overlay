@@ -1,0 +1,45 @@
+# Firebase App Hosting settings for production (project cricscore-prod-7411,
+# served at https://cricscore.altorstudio.com).
+#
+# The Firebase web config below is public by design (every browser receives
+# it). Anything private comes from Cloud Secret Manager:
+#   npx firebase apphosting:secrets:set allowed-emails --project cricscore-prod-7411
+# The server uses the backend's own service account (Application Default
+# Credentials), so no service-account key is needed here.
+
+runConfig:
+  # Scale to zero when idle (a few seconds' cold start on the next request);
+  # the cap keeps a traffic spike from running up the bill.
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_USE_EMULATOR
+    value: "false"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyC_Kzq_U8eBvqaAmgqoNxfLOQLnC2tL5DI
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: cricscore-prod-7411.firebaseapp.com
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: cricscore-prod-7411
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: cricscore-prod-7411.firebasestorage.app
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "495993231030"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:495993231030:web:5218db0a28013b1bde7817
+    availability: [BUILD, RUNTIME]
+
+  # Invite-only bootstrap: Google emails that may always sign in.
+  - variable: ALLOWED_EMAILS
+    secret: allowed-emails
+    availability: [RUNTIME]

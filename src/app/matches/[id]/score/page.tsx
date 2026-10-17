@@ -82,6 +82,10 @@ const MatchScorersDialog = dynamic(
     ),
   { ssr: false },
 );
+const InviteDialog = dynamic(
+  () => import("~/components/invite-dialog").then((m) => m.InviteDialog),
+  { ssr: false },
+);
 import { useScoring } from "./useScoring";
 import { useAuth } from "~/lib/auth";
 import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
@@ -119,7 +123,6 @@ import {
   Play,
   SlidersHorizontal,
   Sun,
-  Zap,
   MoreVertical,
   CloudRain,
   WifiOff,
@@ -135,6 +138,7 @@ import {
   Crosshair,
 } from "lucide-react";
 import { economyRate } from "~/lib/cricket";
+import { LiveIndicator } from "~/components/matches/live-indicator";
 
 export default function ScoringPage() {
   const params = useParams();
@@ -164,6 +168,7 @@ export default function ScoringPage() {
     (s) => s.toggleVoiceAnnouncements,
   );
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
 
   // UI state managed via Zustand store — granular selectors keep the page
   // from re-rendering on high-frequency form fields (player-name typing).
@@ -305,6 +310,7 @@ export default function ScoringPage() {
     showReviseTargetDialog ||
     Boolean(retireTarget) ||
     showShortcuts ||
+    showInviteDialog ||
     actionsMenuOpen;
 
   const dismissedPlayerIds = useMemo(
@@ -879,16 +885,20 @@ export default function ScoringPage() {
             </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-xs font-black sm:text-sm">
+                <h1 className="truncate text-xs font-semibold sm:text-sm">
                   {match.team1.short_name || match.team1.name} vs{" "}
                   {match.team2.short_name || match.team2.name}
                 </h1>
-                <Badge
-                  variant={match.status === "live" ? "default" : "secondary"}
-                  className="hidden h-4 px-1.5 text-[9px] font-black uppercase sm:inline-flex"
-                >
-                  {match.status}
-                </Badge>
+                {match.status === "live" ? (
+                  <LiveIndicator className="hidden sm:inline-flex" />
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className="hidden h-4 px-1.5 text-[10px] font-medium capitalize sm:inline-flex"
+                  >
+                    {match.status}
+                  </Badge>
+                )}
               </div>
               <p className="truncate text-[10px] text-muted-foreground sm:text-xs">
                 {match.title} • {match.match_format.toUpperCase()}
@@ -906,14 +916,14 @@ export default function ScoringPage() {
                 className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300"
               >
                 <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="hidden sm:inline">OFFLINE</span>
+                <span className="hidden sm:inline">Offline</span>
                 {pendingCount > 0 && <span>({pendingCount})</span>}
               </span>
             )}
             {/* Sunlight indicator */}
             {sunlightMode && (
-              <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-black text-white sm:inline-flex">
-                <Sun className="h-3 w-3" /> SUN
+              <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-semibold text-white sm:inline-flex">
+                <Sun className="h-3 w-3" aria-hidden="true" /> Sun
               </span>
             )}
 
@@ -921,10 +931,9 @@ export default function ScoringPage() {
             {isScreenAwake && (
               <span
                 title="Screen wake lock active to prevent display timeout"
-                className="hidden items-center gap-1 rounded-full border border-emerald-600 bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-950 dark:border-emerald-500/40 dark:bg-emerald-950/70 dark:text-emerald-200 sm:inline-flex"
+                className="hidden items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex"
               >
-                <Zap className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />{" "}
-                AWAKE
+                Awake
               </span>
             )}
 
@@ -977,41 +986,41 @@ export default function ScoringPage() {
                   variant="outline"
                   size="sm"
                   className={cn(
-                    "shadow-2xs h-8 gap-1.5 rounded-lg px-2 text-xs font-bold sm:px-2.5",
-                    sunlightMode && "border-2 border-black font-black",
+                    "h-8 gap-1.5 rounded-lg px-2 text-xs font-medium sm:px-2.5",
+                    sunlightMode && "border-2 border-black font-bold",
                   )}
                   aria-label="Match actions and scoring options"
                   title="Match tools & scoring options"
                 >
-                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  <span className="hidden sm:inline">Match Tools</span>
+                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Match tools</span>
                   <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
                   <MoreVertical className="h-3.5 w-3.5 sm:hidden" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="w-56 rounded-2xl p-1.5 shadow-xl"
+                className="w-56 rounded-xl p-1.5"
               >
-                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                  Scoring Controls
+                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  Scoring controls
                 </DropdownMenuLabel>
                 {isScorer && (
                   <DropdownMenuItem
                     onClick={() => setShowMatchSettingsDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                   >
-                    <SlidersHorizontal className="h-4 w-4 text-emerald-500" />
-                    <span>Match Rules & Settings</span>
+                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                    <span>Match rules & settings</span>
                   </DropdownMenuItem>
                 )}
                 {match.status === "live" && isScorer && (
                   <DropdownMenuItem
                     onClick={() => setShowReviseTargetDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                   >
-                    <Crosshair className="h-4 w-4 text-sky-500" />
-                    <span>Revise Target / Overs</span>
+                    <Crosshair className="h-4 w-4 text-muted-foreground" />
+                    <span>Revise target / overs</span>
                   </DropdownMenuItem>
                 )}
                 {match.status === "live" && isScorer && strikerDisplay && (
@@ -1022,9 +1031,9 @@ export default function ScoringPage() {
                         playerName: strikerDisplay.name,
                       })
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                   >
-                    <HeartPulse className="h-4 w-4 text-rose-500" />
+                    <HeartPulse className="h-4 w-4 text-muted-foreground" />
                     <span>Retire {strikerDisplay.name}</span>
                   </DropdownMenuItem>
                 )}
@@ -1036,19 +1045,19 @@ export default function ScoringPage() {
                         playerName: nonStrikerDisplay.name,
                       })
                     }
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                   >
-                    <HeartPulse className="h-4 w-4 text-rose-500" />
+                    <HeartPulse className="h-4 w-4 text-muted-foreground" />
                     <span>Retire {nonStrikerDisplay.name}</span>
                   </DropdownMenuItem>
                 )}
                 {match.status === "live" && isScorer && (
                   <DropdownMenuItem
                     onClick={() => setShowPenaltyBonusDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                   >
-                    <ShieldAlert className="h-4 w-4 text-rose-500" />
-                    <span>Award Penalty / Bonus Runs</span>
+                    <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+                    <span>Penalty / bonus runs</span>
                   </DropdownMenuItem>
                 )}
                 {match.status === "live" && isScorer && (
@@ -1056,9 +1065,9 @@ export default function ScoringPage() {
                     match={match}
                     canEdit={isScorer}
                     triggerButton={
-                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold hover:bg-muted">
-                        <CloudRain className="h-4 w-4 text-sky-500" />
-                        <span>DLS Rain Calculator</span>
+                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
+                        <CloudRain className="h-4 w-4 text-muted-foreground" />
+                        <span>DLS calculator</span>
                       </div>
                     }
                   />
@@ -1066,60 +1075,67 @@ export default function ScoringPage() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setShowAddPlayerDialog(true)}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                 >
-                  <UserPlus className="h-4 w-4 text-primary" />
-                  <span>Squads &amp; Players</span>
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  <span>Squads &amp; players</span>
                 </DropdownMenuItem>
                 {isScorer && (
                   <MatchScorersDialog
                     matchId={match.id}
                     isCreator={match.created_by === user?.id}
                     triggerButton={
-                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold hover:bg-muted">
-                        <Users className="h-4 w-4 text-amber-500" />
-                        <span>Manage Scorers & Delegation</span>
+                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>Add or invite scorers</span>
                       </div>
                     }
                   />
                 )}
+                <DropdownMenuItem
+                  onSelect={() => setShowInviteDialog(true)}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+                >
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  <span>Invite someone to CricScore</span>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-2 py-1 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                  Scoring Preferences
+                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  Scoring preferences
                 </DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={toggleWagonWheelPrompt}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                 >
-                  <Compass className="h-4 w-4 text-emerald-500" />
+                  <Compass className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    Wagon Wheel Prompt: {wagonWheelPrompt ? "ON" : "OFF"}
+                    Wagon wheel prompt: {wagonWheelPrompt ? "On" : "Off"}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={toggleVoiceAnnouncements}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                 >
-                  <Volume2 className="h-4 w-4 text-sky-500" />
+                  <Volume2 className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    Voice Announcements: {voiceAnnouncements ? "ON" : "OFF"}
+                    Voice announcements: {voiceAnnouncements ? "On" : "Off"}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={toggleSunlightMode}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold"
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
                 >
-                  <Sun className="h-4 w-4 text-amber-500" />
+                  <Sun className="h-4 w-4 text-muted-foreground" />
                   <span>
-                    Outdoor Sunlight Mode: {sunlightMode ? "ON" : "OFF"}
+                    Sunlight mode: {sunlightMode ? "On" : "Off"}
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setShowShortcuts(true)}
-                  className="hidden cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-bold sm:flex"
+                  className="hidden cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium sm:flex"
                 >
                   <Keyboard className="h-4 w-4 text-muted-foreground" />
-                  <span>Keyboard Shortcuts</span>
+                  <span>Keyboard shortcuts</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1143,19 +1159,19 @@ export default function ScoringPage() {
             <span
               className={cn(
                 "h-2 w-2 shrink-0 rounded-full",
-                isOffline ? "bg-amber-500" : "animate-pulse bg-sky-500",
+                isOffline ? "bg-amber-500" : "bg-sky-500",
               )}
               aria-hidden="true"
             />
             <span>
               {isOffline ? (
                 <>
-                  <strong className="font-semibold">Offline Mode:</strong>{" "}
+                  <strong className="font-semibold">Offline:</strong>{" "}
                   Scoring is active. Deliveries are saved locally.
                 </>
               ) : (
                 <>
-                  <strong className="font-semibold">Back Online:</strong>{" "}
+                  <strong className="font-semibold">Back online:</strong>{" "}
                   {pendingCount} offline update(s) ready to sync.
                 </>
               )}
@@ -1181,7 +1197,7 @@ export default function ScoringPage() {
                 variant="outline"
                 disabled={isProcessing}
                 onClick={() => flushOfflineQueue()}
-                className="h-7 gap-1 px-2 text-[11px] font-semibold"
+                className="h-7 gap-1 px-2 text-2xs font-semibold"
               >
                 <RefreshCw
                   className={cn("h-3 w-3", isProcessing && "animate-spin")}
@@ -1194,7 +1210,7 @@ export default function ScoringPage() {
                 variant="ghost"
                 disabled={isProcessing}
                 onClick={() => handleSkipHeadAction()}
-                className="h-7 px-2 text-[11px] font-semibold text-muted-foreground hover:text-destructive"
+                className="h-7 px-2 text-2xs font-semibold text-muted-foreground hover:text-destructive"
                 title="Discard the current head item from queue if it is failing validation or causing a deadlock"
               >
                 Skip stuck item
@@ -1210,11 +1226,10 @@ export default function ScoringPage() {
       >
         <div className="flex w-full min-w-0 flex-col gap-2 max-sm:min-h-[calc(100dvh-3.75rem)] sm:gap-4 lg:col-span-2">
           {match.status === "scheduled" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-emerald-950 dark:border-emerald-500/35 dark:bg-emerald-950/40 dark:text-emerald-200 dark:shadow-[inset_0_1px_0_0_rgba(52,211,153,0.2)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Play className="h-4 w-4 text-primary" />
-                  Match Scheduled — Toss Required
+                  Match scheduled: toss required
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Record the toss winner and their decision to start the match
@@ -1226,17 +1241,16 @@ export default function ScoringPage() {
                 onClick={() => setTossDialogDismissed(false)}
                 className="font-medium"
               >
-                <Play className="mr-1.5 h-4 w-4" /> Conduct Toss & Start
+                <Play className="mr-1.5 h-4 w-4" /> Record toss & start
               </Button>
             </div>
           )}
 
           {match.status === "completed" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:border-amber-500/35 dark:bg-amber-950/40 dark:text-amber-200 dark:shadow-[inset_0_1px_0_0_rgba(251,191,36,0.2)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  <Award className="h-4 w-4 text-amber-500" />
-                  Match Completed
+                  Match completed
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {match.result_description || "Results official"}
@@ -1245,33 +1259,28 @@ export default function ScoringPage() {
               <Button
                 size="sm"
                 onClick={() => setShowPotmDialog(true)}
-                className="bg-amber-600 font-medium text-white hover:bg-amber-500"
+                className="font-medium"
               >
-                <Award className="mr-1.5 h-4 w-4" />
+                <Award className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 {match.player_of_the_match_id
                   ? "Change POTM"
-                  : "Award Player of the Match"}
+                  : "Choose player of the match"}
               </Button>
             </div>
           )}
 
           {!isScorer && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-gradient-to-r from-sky-500/10 via-background to-sky-500/5 p-3.5 text-sky-950 shadow-sm dark:border-sky-500/30 dark:bg-sky-950/30 dark:text-sky-200 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 sm:p-4">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
-                  <Eye className="h-5 w-5" />
-                </div>
+                <Eye className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-black text-foreground sm:text-sm">
-                      Spectator View · Real-Time Console
+                    <p className="text-xs font-semibold text-foreground sm:text-sm">
+                      Spectator view
                     </p>
-                    <span
-                      className="flex h-2 w-2 animate-pulse rounded-full bg-emerald-500"
-                      title="Live match active"
-                    />
+                    {match.status === "live" && <LiveIndicator />}
                   </div>
-                  <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
+                  <p className="truncate text-2xs text-muted-foreground sm:text-xs">
                     {user
                       ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
                       : "Sign in with scorer credentials to record deliveries and manage match state."}
@@ -1284,7 +1293,7 @@ export default function ScoringPage() {
                     <Link
                       href={`/auth/login?redirect=/matches/${matchId}/score`}
                     >
-                      Sign In to Score
+                      Sign in to score
                     </Link>
                   </Button>
                 ) : null}
@@ -1294,7 +1303,7 @@ export default function ScoringPage() {
                   asChild
                   className="h-8 text-xs font-bold"
                 >
-                  <Link href={`/matches/${matchId}`}>Match Center</Link>
+                  <Link href={`/matches/${matchId}`}>Match centre</Link>
                 </Button>
                 <Button
                   size="sm"
@@ -1374,10 +1383,9 @@ export default function ScoringPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
               <div className="space-y-0.5">
                 <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                  <Award className="h-4 w-4 shrink-0 text-amber-500" />
-                  Innings Complete
+                  Innings complete
                 </p>
-                <p className="text-[11px] text-muted-foreground sm:text-xs">
+                <p className="text-2xs text-muted-foreground sm:text-xs">
                   {match.current_innings === 1
                     ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
                     : "Match has reached target or overs limit."}
@@ -1388,9 +1396,9 @@ export default function ScoringPage() {
                   size="sm"
                   onClick={() => void handleEndInnings()}
                   disabled={isProcessing}
-                  className="h-8 bg-amber-600 text-xs font-bold text-white hover:bg-amber-500"
+                  className="h-8 text-xs font-semibold"
                 >
-                  End Innings & Switch Sides
+                  End innings & switch sides
                 </Button>
               )}
             </div>
@@ -1401,10 +1409,9 @@ export default function ScoringPage() {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200 sm:p-4">
               <div className="space-y-0.5">
                 <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                  <Users className="h-4 w-4 shrink-0 text-sky-500" />
-                  Over {match.current_over} Complete
+                  Over {match.current_over} complete
                 </p>
-                <p className="text-[11px] text-muted-foreground sm:text-xs">
+                <p className="text-2xs text-muted-foreground sm:text-xs">
                   Select the bowler for over {match.current_over + 1} to resume
                   scoring.
                 </p>
@@ -1416,7 +1423,7 @@ export default function ScoringPage() {
                   disabled={isProcessing}
                   className="h-8 text-xs font-bold"
                 >
-                  Select Bowler
+                  Select bowler
                 </Button>
               )}
             </div>
@@ -1429,10 +1436,9 @@ export default function ScoringPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
                 <div className="space-y-0.5">
                   <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                    <Users className="h-4 w-4 shrink-0 text-amber-500" />
-                    Batsman Selection Required
+                    Select batters to continue
                   </p>
-                  <p className="text-[11px] text-muted-foreground sm:text-xs">
+                  <p className="text-2xs text-muted-foreground sm:text-xs">
                     A wicket has fallen or batsmen need to be set to resume
                     scoring.
                   </p>
@@ -1444,7 +1450,7 @@ export default function ScoringPage() {
                     disabled={isProcessing}
                     className="h-8 text-xs font-bold"
                   >
-                    Select Batsmen
+                    Select batters
                   </Button>
                 )}
               </div>
@@ -1452,13 +1458,12 @@ export default function ScoringPage() {
 
           {!isScorer ? (
             <div className="space-y-3">
-              <Card className="rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 shadow-sm backdrop-blur-md">
+              <Card className="rounded-xl border border-border bg-card shadow-sm">
                 <CardContent className="space-y-3 p-3.5 sm:p-4">
                   <div className="flex items-center justify-between border-b border-border/50 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />
-                      <h3 className="text-xs font-black uppercase tracking-tight text-foreground sm:text-sm">
-                        Live Delivery Feed · Over {match.current_over}
+                      <h3 className="text-sm font-semibold text-foreground">
+                        Over {match.current_over}
                       </h3>
                     </div>
                     <Badge
@@ -1507,7 +1512,7 @@ export default function ScoringPage() {
                               )}
                             >
                               <div className="flex min-w-0 items-center gap-2.5">
-                                <span className="tabular w-8 shrink-0 font-score text-xs font-bold text-muted-foreground">
+                                <span className="tabular-nums w-8 shrink-0 font-score text-xs font-bold text-muted-foreground">
                                   {d.over_number}.{d.ball_number}
                                 </span>
                                 <div className="min-w-0">
@@ -1517,7 +1522,7 @@ export default function ScoringPage() {
                                   </p>
                                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                                     {d.extra_type ? (
-                                      <span className="font-bold uppercase text-amber-600 dark:text-amber-400">
+                                      <span className="font-medium capitalize text-amber-700 dark:text-amber-400">
                                         {d.extra_type.replace("_", " ")} (
                                         {d.extras} extra
                                         {d.extras === 1 ? "" : "s"})
@@ -1529,8 +1534,8 @@ export default function ScoringPage() {
                                       </span>
                                     ) : null}
                                     {d.dismissal_type ? (
-                                      <span className="font-bold capitalize text-rose-600 dark:text-rose-400">
-                                        OUT:{" "}
+                                      <span className="font-medium capitalize text-rose-600 dark:text-rose-400">
+                                        Out:{" "}
                                         {d.dismissal_type.replace("_", " ")}
                                       </span>
                                     ) : null}
@@ -1541,7 +1546,7 @@ export default function ScoringPage() {
                               <div className="shrink-0 text-right">
                                 <span
                                   className={cn(
-                                    "shadow-2xs inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-black",
+                                    "inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-bold tabular-nums",
                                     isWicket
                                       ? "bg-red-600 text-white"
                                       : d.runs_scored === 6
@@ -1586,9 +1591,9 @@ export default function ScoringPage() {
                   size="sm"
                   variant="ghost"
                   asChild
-                  className="h-6 text-[11px] font-bold"
+                  className="h-6 text-2xs font-bold"
                 >
-                  <Link href={`/matches/${matchId}`}>Full Scorecard →</Link>
+                  <Link href={`/matches/${matchId}`}>Full scorecard</Link>
                 </Button>
               </div>
             </div>
@@ -1639,7 +1644,7 @@ export default function ScoringPage() {
             isScorer && (
               <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-center">
                 <h4 className="text-base font-bold text-amber-800 dark:text-amber-200">
-                  Match Tied!
+                  Match tied
                 </h4>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Scores are level. You can initiate a Super Over tiebreaker
@@ -1658,16 +1663,15 @@ export default function ScoringPage() {
 
         <div className="hidden space-y-4 lg:block">
           {/* Bench & Batting Order */}
-          <Card className="content-visibility-auto rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 shadow-sm backdrop-blur-md">
+          <Card className="content-visibility-auto rounded-xl border border-border bg-card shadow-sm">
             <CardContent className="space-y-3.5 p-4">
               <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                <h3 className="flex items-center gap-2 text-sm font-black tracking-tight">
-                  <Users className="h-4 w-4 text-emerald-500" />
-                  <span>{battingTeam?.name ?? "Batting Team"} Bench</span>
+                <h3 className="text-sm font-semibold">
+                  <span>{battingTeam?.name ?? "Batting team"} bench</span>
                 </h3>
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-bold uppercase tracking-wider"
+                  className="text-[10px] font-medium"
                 >
                   Inns {match.current_innings}
                 </Badge>
@@ -1676,15 +1680,15 @@ export default function ScoringPage() {
               {/* 2. Yet To Bat */}
               {battingBench.yetToBat.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground sm:text-[11px]">
-                    Yet to Bat ({battingBench.yetToBat.length})
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Yet to bat ({battingBench.yetToBat.length})
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {battingBench.yetToBat.map((p) => (
                       <Badge
                         key={p.playerId}
                         variant="secondary"
-                        className="text-[11px] font-semibold"
+                        className="text-2xs font-semibold"
                       >
                         {p.name}
                       </Badge>
@@ -1696,17 +1700,17 @@ export default function ScoringPage() {
               {/* 3. Dismissed Batters */}
               {battingBench.dismissed.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 sm:text-[11px]">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Dismissed ({battingBench.dismissed.length})
                   </p>
                   <div className="space-y-1">
                     {battingBench.dismissed.map((d) => (
                       <div
                         key={d.playerId}
-                        className="bg-rose-500/8 flex items-center justify-between rounded-xl border border-rose-500/25 px-2.5 py-1.5 text-xs"
+                        className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-xs"
                       >
                         <div className="min-w-0 pr-2">
-                          <p className="truncate font-bold text-foreground">
+                          <p className="truncate font-medium text-foreground">
                             {d.name}
                           </p>
                           <p className="truncate text-[10px] text-muted-foreground">
@@ -1716,7 +1720,7 @@ export default function ScoringPage() {
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <span className="font-score text-xs font-black tabular-nums">
+                          <span className="font-score text-xs font-bold tabular-nums">
                             {d.runs}
                           </span>
                           <span className="ml-1 text-[10px] text-muted-foreground">
@@ -1736,7 +1740,7 @@ export default function ScoringPage() {
                   className="mt-2 w-full text-xs font-bold"
                   onClick={() => setShowAddPlayerDialog(true)}
                 >
-                  <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage Players
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage players
                 </Button>
               )}
             </CardContent>
@@ -1744,12 +1748,11 @@ export default function ScoringPage() {
 
           {/* Bowling Attack Spell Table */}
           {bowlingSpells.length > 0 && (
-            <Card className="content-visibility-auto rounded-2xl border border-border/80 bg-gradient-to-b from-card/95 via-card/90 to-card/85 shadow-sm backdrop-blur-md">
+            <Card className="content-visibility-auto rounded-xl border border-border bg-card shadow-sm">
               <CardContent className="space-y-2.5 p-3.5 sm:p-4">
                 <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <h3 className="flex items-center gap-2 text-sm font-black tracking-tight">
-                    <Zap className="h-4 w-4 text-sky-500" />
-                    <span>{bowlingTeam?.name ?? "Bowling"} Attack</span>
+                  <h3 className="text-sm font-semibold">
+                    <span>{bowlingTeam?.name ?? "Bowling"} attack</span>
                   </h3>
                   <span className="text-[10px] font-semibold text-muted-foreground">
                     O · M · R · W · Econ
@@ -1762,25 +1765,25 @@ export default function ScoringPage() {
                       className={cn(
                         "flex items-center justify-between rounded-xl border p-2 text-xs transition-colors",
                         sp.isCurrent
-                          ? "bg-sky-500/12 shadow-2xs border-sky-500/35 font-bold"
+                          ? "border-foreground/30 bg-muted font-medium"
                           : "border-border/40 bg-muted/30",
                       )}
                     >
                       <div className="flex min-w-0 items-center gap-1.5">
-                        {sp.isCurrent && (
-                          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sky-500" />
-                        )}
-                        <span className="truncate font-black text-foreground">
+                        <span className="truncate font-medium text-foreground">
                           {sp.name}
+                          {sp.isCurrent && (
+                            <span className="ml-1 text-muted-foreground">*</span>
+                          )}
                         </span>
                       </div>
-                      <div className="shrink-0 space-x-1.5 text-right font-mono text-[11px] font-bold tabular-nums text-foreground">
+                      <div className="shrink-0 space-x-1.5 text-right font-mono text-2xs font-bold tabular-nums text-foreground">
                         <span>{sp.overs}ov</span>
                         <span className="text-muted-foreground">
                           {sp.maidens}m
                         </span>
                         <span>{sp.runs}r</span>
-                        <span className="font-black text-rose-600 dark:text-rose-400">
+                        <span className="font-bold text-rose-600 dark:text-rose-400">
                           {sp.wickets}w
                         </span>
                         <span className="text-[10px] text-muted-foreground">
@@ -2005,6 +2008,12 @@ export default function ScoringPage() {
         isProcessing={isProcessing}
       />
 
+      {showInviteDialog && (
+        <InviteDialog
+          open={showInviteDialog}
+          onOpenChange={setShowInviteDialog}
+        />
+      )}
       <AbandonMatchDialog
         open={showAbandonMatchDialog}
         onOpenChange={setShowAbandonMatchDialog}

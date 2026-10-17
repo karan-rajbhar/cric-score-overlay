@@ -27,7 +27,7 @@ describe("WicketDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Record Wicket" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Record wicket" })).toBeInTheDocument();
     expect(screen.getByText("How was the batsman out?")).toBeInTheDocument();
 
     // Check rapid chips

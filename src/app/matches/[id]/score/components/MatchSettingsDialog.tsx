@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Sliders, ShieldAlert, Sparkles } from "lucide-react";
+import { Sliders, ShieldAlert } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import type { MatchSettingsUpdate } from "~/app/matches/mutations";
 
@@ -115,8 +115,8 @@ function MatchSettingsForm({
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Sliders className="h-4 w-4" />
           </span>
-          <DialogTitle className="text-lg font-bold">
-            Match Settings & Rules
+          <DialogTitle className="text-lg font-semibold">
+            Match settings & rules
           </DialogTitle>
         </div>
         <DialogDescription className="text-xs text-muted-foreground">
@@ -129,7 +129,7 @@ function MatchSettingsForm({
         {/* Match Title */}
         <div className="space-y-1.5">
           <Label htmlFor="match-title" className="text-xs font-bold">
-            Match Title
+            Match title
           </Label>
           <Input
             id="match-title"
@@ -143,7 +143,7 @@ function MatchSettingsForm({
         {/* Match Format */}
         <div className="space-y-1.5">
           <Label htmlFor="match-format" className="text-xs font-bold">
-            Match Format
+            Match format
           </Label>
           <Select value={matchFormat} onValueChange={setMatchFormat}>
             <SelectTrigger id="match-format" className="h-9 text-xs">
@@ -151,7 +151,7 @@ function MatchSettingsForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="T20">Twenty20 (T20)</SelectItem>
-              <SelectItem value="ODI">One Day (ODI)</SelectItem>
+              <SelectItem value="ODI">One day (ODI)</SelectItem>
               <SelectItem value="Custom">
                 Custom / Tape-Ball / The Hundred
               </SelectItem>
@@ -166,9 +166,9 @@ function MatchSettingsForm({
               htmlFor="overs-per-innings"
               className="text-xs font-bold"
             >
-              Overs Per Innings
+              Overs per innings
             </Label>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               Quick Presets:
             </span>
           </div>
@@ -204,9 +204,9 @@ function MatchSettingsForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="balls-per-over" className="text-xs font-bold">
-              Balls Per Over
+              Balls per over
             </Label>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               Standard: 6 (The Hundred: 5, Box: 4/8)
             </span>
           </div>
@@ -241,7 +241,7 @@ function MatchSettingsForm({
         {/* Max Balls Per Over (with Extras) */}
         <div className="space-y-1.5">
           <Label htmlFor="max-balls-per-over" className="text-xs font-bold">
-            Max Balls Per Over (inclusive of Extras)
+            Max balls per over (inclusive of extras)
           </Label>
           <Select
             value={maxBallsPerOver}
@@ -251,14 +251,14 @@ function MatchSettingsForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="unlimited">Unlimited (Standard MCC)</SelectItem>
-              <SelectItem value="6">Max 6 Balls (Junior / Strict)</SelectItem>
-              <SelectItem value="8">Max 8 Balls (ECB Junior / Tape-Ball)</SelectItem>
-              <SelectItem value="10">Max 10 Balls (Indoor / Box)</SelectItem>
-              <SelectItem value="12">Max 12 Balls</SelectItem>
+              <SelectItem value="unlimited">Unlimited (standard MCC)</SelectItem>
+              <SelectItem value="6">Max 6 balls (junior / strict)</SelectItem>
+              <SelectItem value="8">Max 8 balls (ECB junior / tape-ball)</SelectItem>
+              <SelectItem value="10">Max 10 balls (indoor / box)</SelectItem>
+              <SelectItem value="12">Max 12 balls</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Overs conclude automatically once this delivery count is reached to prevent dragged overs.
           </p>
         </div>
@@ -267,9 +267,9 @@ function MatchSettingsForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="target-runs" className="text-xs font-bold">
-              Target Runs
+              Target runs
             </Label>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               (Rain / DLS revised target)
             </span>
           </div>
@@ -287,7 +287,7 @@ function MatchSettingsForm({
         {/* Wickets Per Innings */}
         <div className="space-y-1.5">
           <Label htmlFor="wickets-per-innings" className="text-xs font-bold">
-            Wickets Per Innings
+            Wickets per innings
           </Label>
           <Input
             id="wickets-per-innings"
@@ -298,16 +298,15 @@ function MatchSettingsForm({
             onChange={(e) => setWicketsPerInnings(Number(e.target.value))}
             className="h-9 text-xs font-bold"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Standard is 10 wickets. Set fewer for box/corporate cricket.
           </p>
         </div>
 
         {/* Custom Extras Crediting Rules */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Local / Box Cricket Extras Rules</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span>Local / box cricket extras</span>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -316,9 +315,9 @@ function MatchSettingsForm({
                 htmlFor="wide-balls-faced"
                 className="cursor-pointer text-xs font-bold"
               >
-                Add Wide Balls to Batsman
+                Add wide balls to batsman
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Count wide deliveries towards batsman&apos;s balls faced tally.
               </p>
             </div>
@@ -337,9 +336,9 @@ function MatchSettingsForm({
                 htmlFor="wide-runs-batsman"
                 className="cursor-pointer text-xs font-bold"
               >
-                Add Wide Runs to Batsman
+                Add wide runs to batsman
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Credit wide extra runs to the individual batsman&apos;s score.
               </p>
             </div>
@@ -358,9 +357,9 @@ function MatchSettingsForm({
                 htmlFor="noball-extras-batsman"
                 className="cursor-pointer text-xs font-bold"
               >
-                Add No Ball Extras to Batsman
+                Add no ball extras to batsman
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Credit the 1-run no ball penalty to the individual batsman&apos;s score.
               </p>
             </div>
@@ -376,9 +375,8 @@ function MatchSettingsForm({
 
         {/* Special Stumps Rules Options */}
         <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span>Special Rules</span>
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span>Special rules</span>
           </div>
 
           <div className="flex items-center justify-between gap-2">
@@ -387,9 +385,9 @@ function MatchSettingsForm({
                 htmlFor="last-man-stands"
                 className="cursor-pointer text-xs font-bold"
               >
-                Last Man Stands
+                Last man stands
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Allow the 11th or sole remaining batter to bat alone.
               </p>
             </div>
@@ -408,9 +406,9 @@ function MatchSettingsForm({
                 htmlFor="golden-ball"
                 className="cursor-pointer text-xs font-bold"
               >
-                Golden Ball
+                Golden ball
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Enable sudden death / golden ball rule for tied scores.
               </p>
             </div>
@@ -430,9 +428,9 @@ function MatchSettingsForm({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-destructive">
-                  Abandon Match
+                  Abandon match
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Halt and abandon fixture due to weather, light, or forfeiture.
                 </p>
               </div>

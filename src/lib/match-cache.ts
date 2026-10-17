@@ -11,6 +11,7 @@
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
+  ttlMs: number;
 }
 
 const MATCH_CACHE_TTL_MS = 2000; // 2 seconds micro-cache
@@ -23,7 +24,7 @@ class LruMicroCache {
   get<T>(key: string): T | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
-    if (Date.now() - entry.timestamp > MATCH_CACHE_TTL_MS) {
+    if (Date.now() - entry.timestamp > entry.ttlMs) {
       this.cache.delete(key);
       return null;
     }
@@ -33,7 +34,7 @@ class LruMicroCache {
     return entry.data as T;
   }
 
-  set<T>(key: string, data: T): void {
+  set<T>(key: string, data: T, ttlMs: number = MATCH_CACHE_TTL_MS): void {
     if (this.cache.has(key)) {
       this.cache.delete(key);
     } else if (this.cache.size >= MAX_ENTRIES) {
@@ -43,7 +44,7 @@ class LruMicroCache {
         this.cache.delete(oldestKey);
       }
     }
-    this.cache.set(key, { data, timestamp: Date.now() });
+    this.cache.set(key, { data, timestamp: Date.now(), ttlMs });
   }
 
   getPending<T>(key: string): Promise<T> | null {
@@ -88,8 +89,12 @@ export function getCachedMatch<T>(matchId: string): T | null {
   return matchStore.get<T>(`match:${matchId}`);
 }
 
-export function setCachedMatch<T>(matchId: string, data: T): void {
-  matchStore.set(`match:${matchId}`, data);
+export function setCachedMatch<T>(
+  matchId: string,
+  data: T,
+  ttlMs?: number,
+): void {
+  matchStore.set(`match:${matchId}`, data, ttlMs);
 }
 
 export function getPendingQuery<T>(matchId: string): Promise<T> | null {

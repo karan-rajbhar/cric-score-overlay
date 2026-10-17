@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
 import { MemoryDataSource } from "./datasource";
+import { builderContextFor } from "./server-client";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
 import { parseSelect } from "./select-parser";
 import { parseOrExpression } from "./filters";
@@ -218,27 +222,40 @@ describe("QueryBuilder", () => {
     expect(ds.all("innings")).toHaveLength(0);
   });
 
-  it("assigns a per-match sequence to ball_by_ball inserts", async () => {
-    const { from, ds } = setup();
-    await from("ball_by_ball").insert({
-      match_id: "m1",
-      innings_id: "i1",
-      over_number: 0,
-      ball_number: 1,
-      extras: 5,
-      extra_type: "penalty",
+  it("deleting a match removes its innings, over documents and player records", async () => {
+    const ds = new MemoryDataSource({
+      matches: [{ id: "m1" }, { id: "m2" }],
+      innings: [
+        { id: "i1", match_id: "m1" },
+        { id: "i2", match_id: "m2" },
+      ],
+      overs: [
+        {
+          id: "i1_0",
+          match_id: "m1",
+          innings_id: "i1",
+          over_number: 0,
+          balls: [],
+        },
+        {
+          id: "i2_0",
+          match_id: "m2",
+          innings_id: "i2",
+          over_number: 0,
+          balls: [],
+        },
+      ],
+      player_matches: [
+        { id: "m1_u1", match_id: "m1", user_id: "u1" },
+        { id: "m2_u1", match_id: "m2", user_id: "u1" },
+      ],
     });
-    await from("ball_by_ball").insert({
-      match_id: "m1",
-      innings_id: "i1",
-      over_number: 0,
-      ball_number: 2,
-    });
-    const seqs = ds
-      .all("ball_by_ball")
-      .map((b) => b.seq)
-      .sort();
-    expect(seqs).toEqual([1, 2]);
-    expect(ds.all("matches").find((m) => m.id === "m1")?.last_ball_seq).toBe(2);
+    // Player records (and the statistics built from them) go through the
+    // server write hook, in a transaction.
+    const { ctx } = builderContextFor(ds, null);
+    await new QueryBuilder(ctx, "matches").delete().eq("id", "m1");
+    expect(ds.all("innings").map((d) => d.id)).toEqual(["i2"]);
+    expect(ds.all("overs").map((d) => d.id)).toEqual(["i2_0"]);
+    expect(ds.all("player_matches").map((d) => d.id)).toEqual(["m2_u1"]);
   });
 });

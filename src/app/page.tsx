@@ -3,219 +3,127 @@
 import Link from "next/link";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
-import { Radio, Trophy, Tv, Sparkles, Zap } from "lucide-react";
+import { MatchCard } from "~/components/matches/match-card";
+import { MatchCardSkeleton } from "~/components/ui/skeleton";
+import { useMatchesQuery } from "~/lib/hooks/useMatchQueries";
+import { PageContainer, SectionHeader } from "~/components/layout/page";
 
 const FEATURES = [
   {
-    icon: Radio,
-    badge: "Live Engine",
-    title: "Real-time Ball-by-Ball",
+    title: "Ball-by-ball scoring",
     description:
-      "Precision ball-by-ball scoring that keeps every projection in sync — strike rotation, partnerships, fall of wickets, and run rates update atomically.",
+      "Score runs, extras and wickets from a phone. Strike rotation, partnerships, fall of wickets and run rates are worked out for you.",
   },
   {
-    icon: Trophy,
-    badge: "Clubs & Cups",
-    title: "Tournament Ecosystem",
+    title: "Clubs and tournaments",
     description:
-      "Manage club rosters, squads, fixtures, and standings. Full scorecards, wagon wheel telemetry, and player honours stored match by match.",
+      "Keep club squads, fixtures and points tables in one place, with full scorecards and player records for every match.",
   },
   {
-    icon: Tv,
-    badge: "OBS Ready",
-    title: "Stream Broadcast Overlays",
+    title: "Stream overlays",
     description:
-      "Glassmorphic and sunlit TV broadcast overlays for OBS Studio with instant animations, live wagon-wheels, and low-latency fallback polling.",
+      "Add a match's overlay URL to OBS as a browser source to show the live score on your stream.",
   },
 ];
 
 export default function HomePage() {
   const { user } = useAuth();
+  const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
+    status: "live",
+    limit: 6,
+  });
+  const liveMatches = liveData ?? [];
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden space-y-10 pb-16 sm:space-y-16">
-      {/* Sunlit Hero Section */}
-      <section className="card-hero relative overflow-hidden bg-gradient-to-b from-card via-card/90 to-emerald-500/5 px-4 py-10 text-center sm:px-12 sm:py-24">
-        {/* Single ambient wash — one memorable light, not two */}
-        <div
-          className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl"
-          aria-hidden="true"
-        />
-
-        <div className="relative mx-auto max-w-4xl">
-          <h1 className="text-balance text-3xl font-black tracking-tight text-foreground sm:text-5xl sm:leading-[1.15] md:text-6xl">
-            Score &amp; Stream Cricket with{" "}
-            <span className="text-primary">Broadcast Precision</span>
-          </h1>
-
-          <p className="mx-auto mt-4 max-w-2xl text-pretty text-sm text-muted-foreground sm:mt-6 sm:text-lg">
-            Real-time ball-by-ball matchday scoring, dynamic trajectory wagon
-            wheels, instant OBS broadcast overlays, and complete tournament
-            management. Built for clubs, schools, and cricket streamers.
-          </p>
-
-          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-            {user ? (
-              <>
-                <Button
-                  asChild
-                  size="lg"
-                  className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
-                >
-                  <Link href="/matches/create" className="gap-2">
-                    <Zap className="h-4 w-4 shrink-0" />
-                    <span>Score New Match</span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="interactive-button h-12 w-full rounded-xl border-border/80 px-7 text-base font-semibold sm:h-11 sm:w-auto sm:text-sm"
-                >
-                  <Link href="/dashboard">Go to Dashboard</Link>
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  asChild
-                  size="lg"
-                  className="interactive-button h-12 w-full rounded-xl bg-primary px-7 text-base font-bold shadow-md hover:bg-primary/90 sm:h-11 sm:w-auto sm:text-sm"
-                >
-                  <Link href="/auth/signup" className="gap-2">
-                    <Sparkles className="h-4 w-4 shrink-0" />
-                    <span>Start Free Account</span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="interactive-button h-12 w-full rounded-xl border-border/80 px-7 text-base font-semibold sm:h-11 sm:w-auto sm:text-sm"
-                >
-                  <Link href="/matches">Browse Live Matches</Link>
-                </Button>
-              </>
-            )}
-          </div>
+    <PageContainer className="space-y-10 pb-8 sm:space-y-12">
+      <section className="max-w-2xl pt-2 sm:pt-6">
+        <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
+          Cricket scoring for clubs and leagues
+        </h1>
+        <p className="mt-3 text-pretty text-sm text-muted-foreground sm:text-base">
+          Score matches ball by ball, follow live scorecards, and run club
+          tournaments. CricScore is invite-only: ask a club admin or match
+          scorer for an invite to start scoring.
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          {user ? (
+            <>
+              <Button asChild>
+                <Link href="/matches/create">New match</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/dashboard">Dashboard</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button asChild>
+                <Link href="/auth/login">Sign in</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/matches">Browse matches</Link>
+              </Button>
+            </>
+          )}
         </div>
       </section>
 
-      {/* Platform Capabilities */}
-      <section className="space-y-6">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-          <span className="text-xs font-semibold tracking-normal text-muted-foreground">
-            Core toolkit
-          </span>
-        </div>
-        <h2 className="score-heading text-2xl font-bold tracking-tight text-foreground">
-          Engineered for Grassroots &amp; Broadcast Leagues
-        </h2>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, badge, title, description }) => (
-            <Card
-              key={title}
-              className="card-data group transition-colors duration-150 hover:border-primary/40 hover:shadow-md"
+      <section className="space-y-4" aria-labelledby="live-matches-heading">
+        <SectionHeader
+          id="live-matches-heading"
+          title="Live now"
+          live
+          action={
+            <Link
+              href="/matches"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
             >
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border/80 bg-background text-primary shadow-sm">
-                    <Icon className="h-5 w-5 shrink-0" />
-                  </span>
-                  <Badge variant="outline" className="text-[10.5px]">
-                    {badge}
-                  </Badge>
-                </div>
-                <h3 className="mt-5 text-lg font-bold">{title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {description}
-                </p>
-              </CardContent>
-            </Card>
+              All matches
+            </Link>
+          }
+        />
+        {liveLoading ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <MatchCardSkeleton />
+            <MatchCardSkeleton />
+          </div>
+        ) : liveMatches.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {liveMatches.map((match) => (
+              <MatchCard key={match.id} match={match} showActions={false} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+            No matches are being scored right now.{" "}
+            <Link
+              href="/matches"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              See recent results
+            </Link>
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-4" aria-labelledby="features-heading">
+        <SectionHeader id="features-heading" title="What it does" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {FEATURES.map(({ title, description }) => (
+            <div
+              key={title}
+              className="rounded-xl border border-border bg-card p-5"
+            >
+              <h3 className="text-base font-semibold text-foreground">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            </div>
           ))}
         </div>
       </section>
-
-      {/* Matchday Walkthrough */}
-      <section className="card-hero p-4 sm:p-10">
-        <div className="max-w-2xl">
-          <Badge variant="success" className="mb-3">
-            Quick start guide
-          </Badge>
-          <h2 className="score-heading text-xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Live in Under 3 Minutes
-          </h2>
-          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
-            Designed to make scoring seamless on touchscreens while giving your
-            viewers a broadcast experience.
-          </p>
-        </div>
-
-        <div className="mt-6 grid gap-4 sm:mt-8 sm:gap-8 md:grid-cols-2">
-          {/* For Scorers */}
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:p-6">
-            <h3 className="flex items-center gap-2 text-sm font-bold text-emerald-950 dark:text-emerald-200 sm:text-base">
-              <Zap className="h-4 w-4 shrink-0 text-emerald-600" />
-              For Scorers &amp; Officials
-            </h3>
-            <ul className="mt-3 space-y-2.5 text-xs sm:mt-4 sm:space-y-3 sm:text-sm">
-              {[
-                "Pick match teams or create custom playing XIs",
-                "Record toss decision and select opening batters",
-                "Single-tap scoring for runs, extras, and wickets",
-                "Automatic wagon-wheel logging and wagon radar generation",
-              ].map((step, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 sm:gap-3">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                    {idx + 1}
-                  </span>
-                  <span className="text-muted-foreground">{step}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* For Streamers */}
-          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 sm:p-6">
-            <h3 className="flex items-center gap-2 text-sm font-bold text-sky-950 dark:text-sky-200 sm:text-base">
-              <Tv className="h-4 w-4 shrink-0 text-sky-600" />
-              For OBS Streamers &amp; Channels
-            </h3>
-            <ul className="mt-3 space-y-2.5 text-xs sm:mt-4 sm:space-y-3 sm:text-sm">
-              {[
-                "Copy the OBS browser source URL from the match dashboard",
-                "Paste into OBS as 1920×1080 transparent browser source",
-                "Switch between 29+ TV broadcast views with one click",
-                "Zero lag: WebSocket realtime with instant polling failover",
-              ].map((step, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 sm:gap-3">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-xs font-bold text-sky-700 dark:text-sky-300">
-                    {idx + 1}
-                  </span>
-                  <span className="text-muted-foreground">{step}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="mt-6 flex items-center justify-center sm:mt-8">
-          <Button
-            asChild
-            size="lg"
-            className="interactive-button w-full rounded-xl bg-primary px-8 font-bold sm:w-auto"
-          >
-            <Link href={user ? "/matches/create" : "/auth/signup"}>
-              {user ? "Score a Match Now" : "Get Started Free"}
-            </Link>
-          </Button>
-        </div>
-      </section>
-    </div>
+    </PageContainer>
   );
 }

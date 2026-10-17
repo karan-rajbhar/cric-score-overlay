@@ -16,7 +16,19 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 - Queries use the chainable builder in `~/lib/firebase/query-builder.ts` (`from().select().eq().order()...`). Embedded relations are resolved from `<singular>_id` columns or `table_column_fkey` hints.
 - Named procedures (`rpc("record_ball", ...)`) are TypeScript functions in `~/lib/firebase/rpc/`. The scoring engine recomputes every innings from the ball log inside a Firestore transaction.
 - Collection metadata (columns, defaults, unique constraints, cascades) lives in `~/lib/firebase/schema.ts`. Add a column there and in `types.ts` when the model changes.
+- Scorecards live inside `innings` docs (`batting`, `bowling`, `fall_of_wickets`, `partnerships` arrays plus `last_ball` / `last_over_bowler_id` caches); the ball log is one `overs/{inningsId}_{over}` doc per over; `player_matches/{matchId}_{userId}` holds completed-innings figures for career pages (`~/lib/firebase/scorecard.ts`). `from("batting_performances" | "bowling_performances" | "fall_of_wickets" | "partnerships" | "ball_by_ball")` still works read-only via `legacy-rows.ts` (needs an `innings_id` / `match_id` filter, or `user_id` for batting/bowling). Only the scoring engine writes these documents.
 - Writes never happen from the browser; `firestore.rules` only allows public reads.
+- Derived copies are maintained on the server, never by callers (schema stage 3, `scripts/migrate-stage3.mjs` backfills them): search keys (`name_lower`/`title_lower`, `search_prefixes`) and roster / membership name snapshots by `derived-fields.ts` on every write; `matches.innings_summary`, `player_career_stats/{userId}` and `leaderboards/{scope}_{id}` inside the scoring transactions (`innings-summary.ts`, `stats-sync.ts`); tournament / club / team snapshots on matches by the write hooks. Search with `prefixSearch` (`search.ts`), not `ilike` (which scans).
+- `npx vitest run src/lib/firebase/read-costs.test.ts` bounds the billed reads of each hot page on the seed; keep new queries indexed (equality + order / limit or `array-contains` + order need an entry in `firestore.indexes.json`; the emulator does not check).
+- `users` is public, so it holds no contact details. Email/phone live in server-only `users_private/{uid}` (`~/lib/firebase/user-private`); look up by exact email there, never return emails to the browser (a user's own email comes from their session).
+- Matches carry `team1_snapshot` / `team2_snapshot` ({ id, name, short_name, logo_url }). Match lists select `MATCH_TEAM_COLUMNS` and call `attachMatchTeams` instead of embedding `teams`; the server write hook keeps snapshots fresh when a team's name/short name/logo changes. Embed `teams` only when full team data (rosters) is needed.
+- Realtime: viewers listen to the single `live_state/{matchId}` doc (`useLiveState`, `watchDoc`); its `version` is the change signal. No polling and no collection listeners (their first snapshot bills every document). A server action that changes what viewers see must call `refreshLiveState` / `refreshLiveMatchesFor` from `~/lib/firebase/live-sync`.
+- Live match page, zero server requests per ball: Summary / Scorecard / Top performers / Stats follow `live_scorecard/{matchId}` (compact scorecard of every innings, `live-scorecard.ts`; written by the scoring transactions and `writeLiveState`, built on first view by `ensureLiveScorecard`); the ball log re-reads only the `overs` docs named by `live_state.overs_changed` (`useMatchBallLogQuery`); `getMatch` refetches only on status / innings / `live_state.match_rev` changes. The overlay stays on `live_state` only.
+
+## Deploys and migrations
+
+- Production (`cricscore-prod-7411`, cricscore.altorstudio.com) deploys from CI after a merge to `main`: checks, then Firestore rules + indexes, then `node scripts/migrate.mjs`, then an App Hosting rollout of that commit. `main` only accepts PRs.
+- Data migrations are idempotent `scripts/migrate-<name>.mjs` scripts (`--project=<id>`, `--dry-run`), listed in order in `scripts/migrate.mjs`, which records applied ones in the `_migrations` collection so each runs once per project. Never auto-run destructive steps (e.g. `migrate-stage2 --delete-old`); do those by hand after verifying.
 
 ## Working guidelines
 
@@ -28,6 +40,12 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
    npm run lint
    ```
 3. Frontend: responsive and accessible (ARIA, labels), `text-wrap: balance` for titles, `tabular-nums` for score figures, `content-visibility: auto` for long lists.
+4. Visual style: calm sports-data look; scores are the hero, chrome stays quiet.
+   - No decorative motion (`animate-ping`/`bounce`, glows, sparkles). The only pulse is the small red "Live" dot; skeletons and spinners keep theirs.
+   - Icons only when they carry meaning; no Sparkles/Zap/Flame/Crown ornaments or emoji. Captain/keeper are "(c)"/"(wk)".
+   - `font-semibold` headings, `font-bold` only for score figures; sentence-case labels instead of ALL-CAPS tracked micro-labels (table headers and the "LIVE" chip excepted).
+   - Flat cards (`bg-card`, border, at most `shadow-sm`); no decorative gradients, coloured shadows or blur blobs. Colour signals state (live, wicket, boundary, win/loss) and primary actions.
+   - Plain copy: no hype, no exclamation marks. The OBS overlay follows the same rules (no bold ALL-CAPS); team short codes are data and stay as-is.
 
 ## Local testing
 

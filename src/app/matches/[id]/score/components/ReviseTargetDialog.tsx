@@ -75,7 +75,7 @@ function ReviseTargetForm({
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Target className="h-4 w-4" />
           </span>
-          <DialogTitle>Revise Target / Overs</DialogTitle>
+          <DialogTitle>Revise target / overs</DialogTitle>
         </div>
         <DialogDescription>
           Adjust the 2nd innings target runs or revised overs due to rain, DLS, or custom match rules.
@@ -85,7 +85,7 @@ function ReviseTargetForm({
       <div className="space-y-4 py-4">
         <div className="space-y-2">
           <Label htmlFor="targetRuns" className="text-xs font-semibold">
-            Target Runs to Win
+            Target runs to win
           </Label>
           <Input
             id="targetRuns"
@@ -98,14 +98,14 @@ function ReviseTargetForm({
             className="font-mono text-base"
             required
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             The total number of runs required by the chasing team to win.
           </p>
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="overs" className="text-xs font-semibold">
-            Revised Overs (optional)
+            Revised overs (optional)
           </Label>
           <Input
             id="overs"
@@ -118,7 +118,7 @@ function ReviseTargetForm({
             onChange={(e) => setOvers(e.target.value)}
             className="font-mono text-base"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Leave empty to retain the current match innings length.
           </p>
         </div>

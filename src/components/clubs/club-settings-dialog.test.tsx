@@ -84,7 +84,7 @@ describe("ClubSettingsDialog Component", () => {
         })
       );
       expect(toast.success).toHaveBeenCalledWith(
-        "Club profile & settings updated!"
+        "Club settings saved"
       );
     });
   });

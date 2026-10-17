@@ -1,7 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Doc } from "~/lib/firebase/datasource";
+import { playerDirectory } from "~/lib/firebase/directory";
+import { sortRows } from "~/lib/firebase/filters";
+import {
+  battingRowsOfPlayerMatch,
+  bowlingRowsOfPlayerMatch,
+} from "~/lib/firebase/scorecard";
 import { createServerClient } from "~/lib/firebase/server";
+import type { PlayerMatchesRow } from "~/lib/firebase/types";
+import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { StatTile } from "~/components/ui/stat-tile";
+import { Initials } from "~/components/ui/initials";
 import { Button } from "~/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -14,16 +28,13 @@ import {
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
+import { InviteDialog } from "~/components/invite-dialog";
+import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
 
 function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border bg-card p-3 text-center">
-      <div className="text-xl font-bold tabular-nums sm:text-2xl">{value}</div>
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-    </div>
-  );
+  return <StatTile label={label} value={value} className="bg-muted/30" />;
 }
 
 export default async function PlayerPage({
@@ -57,17 +68,18 @@ export default async function PlayerPage({
 
   const db = await createServerClient();
 
-  // Find user by UUID or by @username handle
+  // Find user by UUID or by @username handle (usernames are stored lower
+  // case, so the handle is one equality lookup).
   const userQuery = isUuid
     ? db
         .from("users")
-        .select("id, full_name, avatar_url, email, username")
+        .select("id, full_name, avatar_url, username")
         .eq("id", cleanParam)
         .maybeSingle()
     : db
         .from("users")
-        .select("id, full_name, avatar_url, email, username")
-        .ilike("username", cleanParam)
+        .select("id, full_name, avatar_url, username")
+        .eq("username", cleanParam)
         .maybeSingle();
 
   const { data: user } = await userQuery;
@@ -77,16 +89,17 @@ export default async function PlayerPage({
 
   const id = user.id;
 
-  // Concurrently fetch current user, career stats, teams, batting performances, and bowling performances
+  // Career figures are one document (player_career_stats/{userId}); the
+  // per-match history is the player's player_matches records, read once
+  // for both the batting and the bowling list.
   const [
     { data: currentUserData },
     { data: stats },
     { data: teamPlayersData },
-    { data: battingData },
-    { data: bowlingData },
+    { data: recordsData },
   ] = await Promise.all([
     db.auth.getUser(),
-    db.from("player_career_stats").select("*").eq("user_id", id).single(),
+    db.from("player_career_stats").select("*").eq("id", id).maybeSingle(),
     db
       .from("team_players")
       .select(
@@ -97,48 +110,132 @@ export default async function PlayerPage({
       )
       .eq("user_id", id)
       .order("created_at", { ascending: false }),
-    db
-      .from("batting_performances")
-      .select(
-        `
-        id, match_id, innings_id, batting_position, runs_scored, balls_faced,
-        fours, sixes, is_out, dismissal_type, bowler_id, fielder_id, created_at,
-        bowler:users!batting_performances_bowler_id_fkey(id, full_name),
-        fielder:users!batting_performances_fielder_id_fkey(id, full_name),
-        match:matches!batting_performances_match_id_fkey(
-          id, title, match_format, scheduled_at, status, venue,
-          result_description, winning_team_id,
-          team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-          team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url)
-        )
-      `,
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    db
-      .from("bowling_performances")
-      .select(
-        `
-        id, match_id, innings_id, overs_bowled, balls_bowled, runs_conceded,
-        wickets_taken, maidens, wides, no_balls, created_at,
-        match:matches!bowling_performances_match_id_fkey(
-          id, title, match_format, scheduled_at, status, venue,
-          result_description, winning_team_id,
-          team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-          team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url)
-        )
-      `,
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
+    db.from("player_matches").select("*").eq("user_id", id),
   ]);
 
-  if (!user) notFound();
+  const records = (recordsData ?? []) as unknown as PlayerMatchesRow[];
+  const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
+
+  // Matches: the player's teams' fixtures plus any other match they have a
+  // record in (indexed queries, each match read once).
+  const teamIds = Array.from(
+    new Set(teams.map((tp) => tp.team?.id).filter(Boolean)),
+  ) as string[];
+  const matchColumns = `
+        id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+        result_type, win_margin, win_margin_type, result_description, winning_team_id,
+        tournament_id,
+        tournament:tournaments(id, name),
+        ${MATCH_TEAM_COLUMNS},
+        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+      `;
+  const byMatchId = new Map<string, Record<string, unknown>>();
+  if (teamIds.length > 0) {
+    const sides = await Promise.all(
+      (["team1_id", "team2_id"] as const).map((field) =>
+        db.from("matches").select(matchColumns).in(field, teamIds),
+      ),
+    );
+    for (const { data } of sides) {
+      for (const m of (data ?? []) as Record<string, unknown>[]) {
+        byMatchId.set(String(m.id), m);
+      }
+    }
+  }
+  const recordMatchIds = Array.from(new Set(records.map((r) => r.match_id)));
+  const otherIds = recordMatchIds.filter((mid) => !byMatchId.has(mid));
+  if (otherIds.length > 0) {
+    const { data } = await db
+      .from("matches")
+      .select(matchColumns)
+      .in("id", otherIds);
+    for (const m of (data ?? []) as Record<string, unknown>[]) {
+      byMatchId.set(String(m.id), m);
+    }
+  }
+  const matchesData = sortRows(
+    [...byMatchId.values()].sort((a, b) =>
+      String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0,
+    ) as Doc[],
+    [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
+  );
+  // Team and tournament names come from the matches' snapshots.
+  await attachMatchTeams(db, matchesData);
+
+  // Batting / bowling history from the records, newest first; dismissal
+  // names come from the rosters of the teams involved.
+  const byNewest = <T extends { id: string; created_at: string | null }>(
+    rows: T[],
+  ) =>
+    sortRows(
+      [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) as
+        unknown as Doc[],
+      [{ field: "created_at", ascending: false, nullsFirst: true }],
+    ) as unknown as T[];
+  const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
+  const bowlingRows = byNewest(records.flatMap(bowlingRowsOfPlayerMatch));
+  const names = await playerDirectory(
+    db,
+    matchesData.flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+    battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
+  );
+  const nameOf = (uid: string | null) => {
+    const u = uid ? names.get(uid) : undefined;
+    return u ? { id: u.id, full_name: u.full_name } : null;
+  };
+  const matchOf = (mid: string | null) => {
+    const m = mid ? byMatchId.get(mid) : undefined;
+    if (!m) return null;
+    return {
+      id: m.id,
+      title: m.title,
+      match_format: m.match_format,
+      scheduled_at: m.scheduled_at,
+      status: m.status,
+      venue: m.venue,
+      result_description: m.result_description,
+      winning_team_id: m.winning_team_id,
+      team1: m.team1,
+      team2: m.team2,
+    };
+  };
+  const batting = battingRows.map((b) => ({
+    id: b.id,
+    match_id: b.match_id,
+    innings_id: b.innings_id,
+    batting_position: b.batting_position,
+    runs_scored: b.runs_scored,
+    balls_faced: b.balls_faced,
+    fours: b.fours,
+    sixes: b.sixes,
+    is_out: b.is_out,
+    dismissal_type: b.dismissal_type,
+    bowler_id: b.bowler_id,
+    fielder_id: b.fielder_id,
+    created_at: b.created_at,
+    bowler: nameOf(b.bowler_id),
+    fielder: nameOf(b.fielder_id),
+    match: matchOf(b.match_id),
+  })) as unknown as PlayerBattingPerformance[];
+  const bowling = bowlingRows.map((b) => ({
+    id: b.id,
+    match_id: b.match_id,
+    innings_id: b.innings_id,
+    overs_bowled: b.overs_bowled,
+    balls_bowled: b.balls_bowled,
+    runs_conceded: b.runs_conceded,
+    wickets_taken: b.wickets_taken,
+    maidens: b.maidens,
+    wides: b.wides,
+    no_balls: b.no_balls,
+    created_at: b.created_at,
+    match: matchOf(b.match_id),
+  })) as unknown as PlayerBowlingPerformance[];
 
   const isSelf = currentUserData?.user?.id === user.id;
-  const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
-  const batting = (battingData ?? []) as unknown as PlayerBattingPerformance[];
-  const bowling = (bowlingData ?? []) as unknown as PlayerBowlingPerformance[];
+  // Contact details are not on the public profile; the signed-in user sees
+  // their own email from the session (no read).
+  const ownEmail = isSelf ? (currentUserData?.user?.email ?? null) : null;
 
   // Contextual navigation resolution
   let teamInfo: { id: string; name: string } | null = null;
@@ -188,66 +285,27 @@ export default async function PlayerPage({
     backLabel = "Back to Match";
   }
 
-  // Fetch matches for the player's teams and performances
-  const teamIds = teams.map((tp) => tp.team?.id).filter(Boolean);
-  const perfMatchIds = Array.from(
-    new Set([
-      ...batting.map((b) => b.match_id),
-      ...bowling.map((b) => b.match_id),
-    ]),
-  ).filter(Boolean);
-
-  const orConditions: string[] = [];
-  if (teamIds.length > 0) {
-    orConditions.push(`team1_id.in.(${teamIds.join(",")})`);
-    orConditions.push(`team2_id.in.(${teamIds.join(",")})`);
-  }
-  if (perfMatchIds.length > 0) {
-    orConditions.push(`id.in.(${perfMatchIds.join(",")})`);
-  }
-
-  let matchesList: PlayerMatchItem[] = [];
-  if (orConditions.length > 0) {
-    const { data: matchesData } = await db
-      .from("matches")
-      .select(
-        `
-        id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-        result_type, win_margin, win_margin_type, result_description, winning_team_id,
-        tournament_id,
-        tournament:tournaments(id, name),
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
-        innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
-      `,
-      )
-      .or(orConditions.join(","))
-      .order("scheduled_at", { ascending: false });
-
-    if (matchesData) {
-      matchesList = matchesData.map((m) => {
-        const playerBat = batting.find((b) => b.match_id === m.id);
-        const playerBowl = bowling.find((b) => b.match_id === m.id);
-        return {
-          ...m,
-          playerBatting: playerBat
-            ? {
-                runs_scored: playerBat.runs_scored,
-                balls_faced: playerBat.balls_faced,
-                is_out: playerBat.is_out,
-              }
-            : null,
-          playerBowling: playerBowl
-            ? {
-                wickets_taken: playerBowl.wickets_taken,
-                runs_conceded: playerBowl.runs_conceded,
-                overs_bowled: playerBowl.overs_bowled,
-              }
-            : null,
-        } as unknown as PlayerMatchItem;
-      });
-    }
-  }
+  const matchesList: PlayerMatchItem[] = matchesData.map((m) => {
+    const playerBat = batting.find((b) => b.match_id === m.id);
+    const playerBowl = bowling.find((b) => b.match_id === m.id);
+    return {
+      ...m,
+      playerBatting: playerBat
+        ? {
+            runs_scored: playerBat.runs_scored,
+            balls_faced: playerBat.balls_faced,
+            is_out: playerBat.is_out,
+          }
+        : null,
+      playerBowling: playerBowl
+        ? {
+            wickets_taken: playerBowl.wickets_taken,
+            runs_conceded: playerBowl.runs_conceded,
+            overs_bowled: playerBowl.overs_bowled,
+          }
+        : null,
+    } as unknown as PlayerMatchItem;
+  });
 
   // Summary figures for stats fallback if career aggregate row is absent
   const totalRuns =
@@ -260,7 +318,7 @@ export default async function PlayerPage({
     Math.max(matchesList.length, batting.length, bowling.length);
 
   return (
-    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -354,7 +412,7 @@ export default async function PlayerPage({
           variant="ghost"
           size="sm"
           asChild
-          className="interactive-button min-h-[36px] w-fit pl-0"
+          className="min-h-[36px] w-fit pl-0"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
@@ -365,18 +423,20 @@ export default async function PlayerPage({
       </div>
 
       {/* Profile Header */}
-      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-bold text-primary sm:h-16 sm:w-16 sm:text-2xl">
-            {user.full_name.slice(0, 2).toUpperCase()}
-          </div>
+          <Initials
+            name={user.full_name}
+            letters={2}
+            className="h-12 w-12 text-lg sm:h-16 sm:w-16 sm:text-xl"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
                 {user.full_name}
               </h1>
               {user.username && (
-                <span className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-primary shadow-xs">
+                <span className="font-mono text-sm text-muted-foreground">
                   @{user.username}
                 </span>
               )}
@@ -384,10 +444,15 @@ export default async function PlayerPage({
                 <EditUsernameDialog currentUsername={user.username ?? ""} />
               )}
             </div>
-            {isSelf && user.email && (
+            {ownEmail && (
               <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
-                {user.email}
+                {ownEmail}
               </p>
+            )}
+            {isSelf && (
+              <div className="mt-2.5">
+                <InviteDialog />
+              </div>
             )}
 
             {/* Quick Affiliations / Teams */}
@@ -403,7 +468,7 @@ export default async function PlayerPage({
                       name={tm.team.name}
                       shortName={tm.team.short_name}
                       logoUrl={tm.team.logo_url}
-                      className="h-4 w-4 shrink-0 text-[9px]"
+                      className="h-4 w-4 shrink-0 text-2xs"
                     />
                     <span>{tm.team.name}</span>
                     {tm.jersey_number !== undefined &&
@@ -413,7 +478,7 @@ export default async function PlayerPage({
                         </span>
                       )}
                     {tm.role_in_team && (
-                      <span className="font-semibold text-primary">
+                      <span className="text-muted-foreground">
                         ({formatPlayerRole(tm.role_in_team)})
                       </span>
                     )}
@@ -425,29 +490,10 @@ export default async function PlayerPage({
         </div>
 
         {/* Quick Highlights Pill */}
-        <div className="flex items-center justify-around gap-4 border-t pt-4 sm:justify-start sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums">{totalMatches}</div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Matches
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums text-amber-600 dark:text-amber-400">
-              {totalRuns}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Runs
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400">
-              {totalWickets}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground">
-              Wickets
-            </div>
-          </div>
+        <div className="grid grid-cols-3 gap-6 border-t pt-4 sm:flex sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+          <StatTile bordered={false} label="Matches" value={totalMatches} />
+          <StatTile bordered={false} label="Runs" value={totalRuns} />
+          <StatTile bordered={false} label="Wickets" value={totalWickets} />
         </div>
       </div>
 
@@ -455,8 +501,8 @@ export default async function PlayerPage({
       <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Batting Career
+            <CardTitle className="text-base">
+              Batting
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -471,8 +517,8 @@ export default async function PlayerPage({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Bowling Career
+            <CardTitle className="text-base">
+              Bowling
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -485,8 +531,8 @@ export default async function PlayerPage({
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              Fielding Career
+            <CardTitle className="text-base">
+              Fielding
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-3">
@@ -510,6 +556,6 @@ export default async function PlayerPage({
           initialTab={tab}
         />
       </div>
-    </div>
+    </PageContainer>
   );
 }

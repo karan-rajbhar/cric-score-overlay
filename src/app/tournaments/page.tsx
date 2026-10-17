@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { createServerClient } from "~/lib/firebase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { Card, CardContent } from "~/components/ui/card";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Button } from "~/components/ui/button";
 import { Trophy, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
+import { formatTournamentFormat } from "~/lib/cricket";
 
 export const dynamic = "force-dynamic";
 
@@ -19,24 +20,25 @@ export default async function TournamentsPage() {
     .order("start_date", { ascending: false });
 
   return (
-    <div className="container mx-auto w-full max-w-5xl overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
-          Tournaments
-        </h1>
-        <Button asChild size="sm" className="h-10 w-full text-xs font-semibold sm:h-9 sm:w-auto sm:text-sm">
-          <Link href="/tournaments/create">
-            <Plus className="mr-1.5 h-4 w-4 shrink-0" />
-            New tournament
-          </Link>
-        </Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Tournaments"
+        description="Leagues and cups with fixtures and points tables"
+        actions={
+          <Button asChild size="sm">
+            <Link href="/tournaments/create">
+              <Plus />
+              New tournament
+            </Link>
+          </Button>
+        }
+      />
 
       {(tournaments ?? []).length === 0 ? (
         <EmptyState
           icon={Trophy}
-          title="No tournaments hosted yet"
-          description="Create a tournament to schedule matches, generate automatic fixtures, and maintain live automated standings points tables."
+          title="No tournaments yet"
+          description="Create a tournament to schedule fixtures and keep a points table."
           primaryAction={{
             label: "Create tournament",
             href: "/tournaments/create",
@@ -46,26 +48,21 @@ export default async function TournamentsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {(tournaments ?? []).map((t) => (
-            <Link key={t.id} href={`/tournaments/${t.id}`}>
-              <Card className="transition-colors hover:border-primary/40">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between gap-2">
-                    <span className="truncate">{t.name}</span>
-                    <Badge variant="outline" className="shrink-0">
-                      {formatStatus(t.status)}
-                    </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
-                    <Trophy className="h-4 w-4 shrink-0 text-amber-500" />
-                    <span>
-                      {formatTournamentFormat(t.tournament_format)}
-                      {t.venue ? `, ${t.venue}` : ""}
-                    </span>
+            <Link key={t.id} href={`/tournaments/${t.id}`} className="group">
+              <Card className="h-full transition-colors group-hover:border-primary/40">
+                <CardContent className="space-y-2 p-4 sm:p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <h2 className="min-w-0 truncate text-base font-semibold text-foreground">
+                      {t.name}
+                    </h2>
+                    <StatusBadge status={t.status} className="shrink-0" />
                   </div>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {formatTournamentFormat(t.tournament_format)}
+                    {t.venue ? ` · ${t.venue}` : ""}
+                  </p>
                   {t.description && (
-                    <p className="line-clamp-2 text-foreground/80">
+                    <p className="line-clamp-2 text-sm text-foreground/80">
                       {t.description}
                     </p>
                   )}
@@ -75,6 +72,6 @@ export default async function TournamentsPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -3,12 +3,29 @@
  * `live_match_state` and `match_over_summaries`.
  *
  * They run on any DataSource so both the server (Admin SDK) and the browser
- * (web SDK, for the overlay control room) produce identical rows.
+ * (web SDK, for the overlay control room) produce identical rows. The live
+ * state reads the match, its current innings (which carries the scorecard
+ * and the last ball) and the current over document, and the scoring engine
+ * writes the same row to `live_state/{matchId}` (see `live-state.ts`) so
+ * viewers can subscribe to one document instead.
  */
 
 import type { DataSource, Doc } from "./datasource";
 import type { Filter } from "./filters";
+import {
+  ballLogOf,
+  ballRowsOf,
+  battingRowsOf,
+  bowlingRowsOf,
+  bySeq,
+  lastBallRowOf,
+  overDocId,
+  OVERS_COLLECTION,
+  partnershipRowsOf,
+  type OversRow,
+} from "./scorecard";
 import { inningsLimits } from "./scoring/result";
+import type { DocReader } from "./scoring/tx";
 import type {
   BallByBallRow,
   BattingPerformancesRow,
@@ -64,46 +81,58 @@ function ballText(b: BallByBallRow): string {
   return String(runs);
 }
 
-export async function buildLiveMatchState(
-  ds: DataSource,
-  matchId: string,
-): Promise<LiveMatchStateRow | null> {
-  const match = (await ds.getById(
-    "matches",
-    matchId,
-  )) as unknown as MatchesRow | null;
-  if (!match) return null;
+export interface LiveStateTeam {
+  name: string | null;
+  short_name: string | null;
+  logo_url: string | null;
+}
 
-  const teamIds = Array.from(
+/** Everything `live_match_state` is derived from, already loaded. */
+export interface LiveStateParts {
+  match: MatchesRow;
+  /** team1, team2 and the winner (when set), keyed by id. */
+  teams: Map<string, LiveStateTeam>;
+  tournamentName: string | null;
+  /** The match's current innings, if it exists. */
+  innings: InningsRow | null;
+  striker: BattingPerformancesRow | null;
+  nonStriker: BattingPerformancesRow | null;
+  bowler: BowlingPerformancesRow | null;
+  partnership: PartnershipsRow | null;
+  /** Balls of the current over in `seq` order. */
+  thisOver: BallByBallRow[];
+  lastBall: BallByBallRow | null;
+  nameOf: (id: string | null | undefined) => string | null;
+}
+
+/** Player ids whose names the live state shows. */
+export function liveStateUserIds(
+  parts: Pick<LiveStateParts, "striker" | "nonStriker" | "bowler" | "lastBall">,
+): string[] {
+  const { striker, nonStriker, bowler, lastBall } = parts;
+  return Array.from(
     new Set(
-      [match.team1_id, match.team2_id, match.winning_team_id].filter(
-        (x): x is string => !!x,
-      ),
+      [
+        striker?.user_id,
+        nonStriker?.user_id,
+        bowler?.user_id,
+        lastBall ? (lastBall.dismissed_player_id ?? lastBall.batsman_id) : null,
+        lastBall?.fielder_id,
+      ].filter((x): x is string => !!x),
     ),
   );
-  const [teamDocs, tournament, inningsDocs] = await Promise.all([
-    ds.getByIds("teams", teamIds) as Promise<unknown> as Promise<TeamsRow[]>,
-    match.tournament_id
-      ? (ds.getById(
-          "tournaments",
-          match.tournament_id,
-        ) as Promise<unknown> as Promise<TournamentsRow | null>)
-      : Promise.resolve(null),
-    ds.query("innings", [
-      { field: "match_id", op: "==", value: matchId },
-    ]) as Promise<unknown> as Promise<InningsRow[]>,
-  ]);
-  const teams = new Map(teamDocs.map((t) => [t.id, t]));
+}
+
+/** Pure projection of the loaded parts into a `live_match_state` row. */
+export function composeLiveMatchState(
+  parts: LiveStateParts,
+): LiveMatchStateRow {
+  const { match, teams, innings: ci, nameOf } = parts;
   const t1 = teams.get(match.team1_id);
   const t2 = teams.get(match.team2_id);
   const winner = match.winning_team_id
     ? teams.get(match.winning_team_id)
     : undefined;
-
-  const ci =
-    inningsDocs.find(
-      (i) => i.innings_number === (match.current_innings ?? 1),
-    ) ?? null;
 
   const base: LiveMatchStateRow = {
     match_id: match.id,
@@ -121,7 +150,7 @@ export async function buildLiveMatchState(
     toss_decision: match.toss_decision ?? null,
     umpire1_name: match.umpire1_name ?? null,
     umpire2_name: match.umpire2_name ?? null,
-    tournament_name: tournament?.name ?? null,
+    tournament_name: parts.tournamentName ?? null,
     team1_name: t1?.name ?? null,
     team1_short_name: t1?.short_name ?? null,
     team1_logo_url: t1?.logo_url ?? null,
@@ -171,50 +200,8 @@ export async function buildLiveMatchState(
 
   if (!ci) return base;
 
-  const [battingDocs, bowlingDocs, partnershipDocs, ballDocs] =
-    await Promise.all([
-      ds.query("batting_performances", [
-        { field: "innings_id", op: "==", value: ci.id },
-      ]) as Promise<unknown> as Promise<BattingPerformancesRow[]>,
-      ds.query("bowling_performances", [
-        { field: "innings_id", op: "==", value: ci.id },
-      ]) as Promise<unknown> as Promise<BowlingPerformancesRow[]>,
-      ds.query("partnerships", [
-        { field: "innings_id", op: "==", value: ci.id },
-      ]) as Promise<unknown> as Promise<PartnershipsRow[]>,
-      ds.query("ball_by_ball", [
-        { field: "innings_id", op: "==", value: ci.id },
-      ]) as Promise<unknown> as Promise<BallByBallRow[]>,
-    ]);
-
-  const balls = [...ballDocs].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
-  const striker =
-    battingDocs.find((b) => b.is_current_batsman && b.is_striker) ?? null;
-  const nonStriker =
-    battingDocs.find((b) => b.is_current_batsman && !b.is_striker) ?? null;
-  const bowler = bowlingDocs.find((b) => b.is_current_bowler) ?? null;
-  const partnership = partnershipDocs.find((p) => p.is_current) ?? null;
-  const lastBall = balls.length ? balls[balls.length - 1]! : null;
-
-  const userIds = Array.from(
-    new Set(
-      [
-        striker?.user_id,
-        nonStriker?.user_id,
-        bowler?.user_id,
-        lastBall ? (lastBall.dismissed_player_id ?? lastBall.batsman_id) : null,
-        lastBall?.fielder_id,
-      ].filter((x): x is string => !!x),
-    ),
-  );
-  const userDocs = (await ds.getByIds(
-    "users",
-    userIds,
-  )) as unknown as UsersRow[];
-  const users = new Map(userDocs.map((u) => [u.id, u]));
-  const nameOf = (id: string | null | undefined) =>
-    id ? (users.get(id)?.full_name ?? null) : null;
-
+  const { striker, nonStriker, bowler, partnership, lastBall, thisOver } =
+    parts;
   const limits = inningsLimits(match, ci.innings_number);
   const bpo = limits.ballsPerOver;
   const totalBalls = ci.total_balls ?? 0;
@@ -224,9 +211,6 @@ export async function buildLiveMatchState(
     ci.team_id === match.team1_id ? match.team2_id : match.team1_id;
   const bowlingTeam =
     match.status === "live" ? teams.get(bowlingTeamId) : undefined;
-
-  const thisOverNumber = Math.floor(totalBalls / bpo);
-  const thisOver = balls.filter((b) => b.over_number === thisOverNumber);
 
   const chasing =
     ci.target_runs !== null && ci.target_runs !== undefined && !ci.is_completed;
@@ -287,15 +271,246 @@ export async function buildLiveMatchState(
   };
 }
 
+/** The match's current innings via an equality query (one document). */
+export async function loadCurrentInnings(
+  reader: DocReader,
+  match: Pick<MatchesRow, "id" | "current_innings">,
+): Promise<InningsRow | null> {
+  const docs = (await reader.query("innings", [
+    { field: "match_id", op: "==", value: match.id },
+    { field: "innings_number", op: "==", value: match.current_innings ?? 1 },
+  ])) as unknown as InningsRow[];
+  return docs[0] ?? null;
+}
+
+/** The over documents of one innings (one read per over). */
+export async function loadInningsOvers(
+  reader: DocReader,
+  inningsId: string,
+): Promise<OversRow[]> {
+  return (await reader.query(OVERS_COLLECTION, [
+    { field: "innings_id", op: "==", value: inningsId },
+  ])) as unknown as OversRow[];
+}
+
+/** Balls of one over in `seq` order (one read). */
+export async function loadOverBalls(
+  reader: DocReader,
+  inningsId: string,
+  overNumber: number,
+): Promise<BallByBallRow[]> {
+  const over = (await reader.getById(
+    OVERS_COLLECTION,
+    overDocId(inningsId, overNumber),
+  )) as unknown as OversRow | null;
+  return over ? ballRowsOf(over).sort(bySeq) : [];
+}
+
+/**
+ * Last ball of the innings by `seq`: the innings' `last_ball` cache, or for
+ * documents that predate it, the whole innings log.
+ */
+export async function loadLastBall(
+  reader: DocReader,
+  innings: InningsRow,
+): Promise<BallByBallRow | null> {
+  if (innings.last_ball !== undefined) return lastBallRowOf(innings);
+  const balls = ballLogOf(await loadInningsOvers(reader, innings.id));
+  return balls.length ? balls[balls.length - 1]! : null;
+}
+
+/** Rows flagged current in the innings scorecard (as the flag queries did). */
+export function currentRowsOf(innings: InningsRow): {
+  batters: BattingPerformancesRow[];
+  bowlers: BowlingPerformancesRow[];
+  partnerships: PartnershipsRow[];
+} {
+  return {
+    batters: battingRowsOf(innings).filter(
+      (b) => b.is_current_batsman === true,
+    ),
+    bowlers: bowlingRowsOf(innings).filter((b) => b.is_current_bowler === true),
+    partnerships: partnershipRowsOf(innings).filter(
+      (p) => p.is_current === true,
+    ),
+  };
+}
+
+/** Team / tournament display fields for a match. */
+export async function loadMatchHeader(
+  reader: DocReader,
+  match: MatchesRow,
+): Promise<{
+  teams: Map<string, LiveStateTeam>;
+  tournamentName: string | null;
+}> {
+  // Team fields come from the match's snapshots when present (no reads).
+  const teams = new Map<string, LiveStateTeam>();
+  for (const snap of [match.team1_snapshot, match.team2_snapshot]) {
+    if (snap?.id) {
+      teams.set(snap.id, {
+        name: snap.name ?? null,
+        short_name: snap.short_name ?? null,
+        logo_url: snap.logo_url ?? null,
+      });
+    }
+  }
+  const teamIds = Array.from(
+    new Set(
+      [match.team1_id, match.team2_id, match.winning_team_id].filter(
+        (x): x is string => !!x && !teams.has(x),
+      ),
+    ),
+  );
+  // The tournament name too, from the match's snapshot when it has one.
+  const tournamentSnap =
+    match.tournament_snapshot?.id === match.tournament_id
+      ? match.tournament_snapshot
+      : null;
+  const [teamDocs, tournament] = await Promise.all([
+    teamIds.length
+      ? (reader.getByIds("teams", teamIds) as Promise<unknown> as Promise<
+          TeamsRow[]
+        >)
+      : Promise.resolve([] as TeamsRow[]),
+    tournamentSnap
+      ? Promise.resolve({ name: tournamentSnap.name } as TournamentsRow)
+      : match.tournament_id
+        ? (reader.getById(
+            "tournaments",
+            match.tournament_id,
+          ) as Promise<unknown> as Promise<TournamentsRow | null>)
+        : Promise.resolve(null),
+  ]);
+  for (const t of teamDocs) {
+    teams.set(t.id, {
+      name: t.name ?? null,
+      short_name: t.short_name ?? null,
+      logo_url: t.logo_url ?? null,
+    });
+  }
+  return { teams, tournamentName: tournament?.name ?? null };
+}
+
+export async function loadNames(
+  reader: DocReader,
+  ids: string[],
+  known: Record<string, string | null> = {},
+): Promise<Record<string, string | null>> {
+  const out: Record<string, string | null> = {};
+  const missing: string[] = [];
+  for (const id of ids) {
+    if (Object.prototype.hasOwnProperty.call(known, id))
+      out[id] = known[id] ?? null;
+    else missing.push(id);
+  }
+  if (missing.length) {
+    const docs = (await reader.getByIds(
+      "users",
+      missing,
+    )) as unknown as UsersRow[];
+    for (const id of missing) out[id] = null;
+    for (const u of docs) out[u.id] = u.full_name ?? null;
+  }
+  return out;
+}
+
+export function nameLookup(names: Record<string, string | null>) {
+  return (id: string | null | undefined) => (id ? (names[id] ?? null) : null);
+}
+
+/**
+ * Loads only what the live scoreboard shows: the match, the current innings
+ * (current batters / bowler / partnership and the last ball come from its
+ * scorecard) and the current over document.
+ */
+export async function loadLiveStateParts(
+  reader: DocReader,
+  matchId: string,
+): Promise<{
+  parts: LiveStateParts;
+  names: Record<string, string | null>;
+} | null> {
+  const match = (await reader.getById(
+    "matches",
+    matchId,
+  )) as unknown as MatchesRow | null;
+  if (!match) return null;
+
+  const [header, ci] = await Promise.all([
+    loadMatchHeader(reader, match),
+    loadCurrentInnings(reader, match),
+  ]);
+
+  const parts: LiveStateParts = {
+    match,
+    teams: header.teams,
+    tournamentName: header.tournamentName,
+    innings: ci,
+    striker: null,
+    nonStriker: null,
+    bowler: null,
+    partnership: null,
+    thisOver: [],
+    lastBall: null,
+    nameOf: () => null,
+  };
+  if (!ci) return { parts, names: {} };
+
+  const bpo = inningsLimits(match, ci.innings_number).ballsPerOver;
+  const thisOverNumber = Math.floor((ci.total_balls ?? 0) / bpo);
+  const [thisOver, lastBall] = await Promise.all([
+    loadOverBalls(reader, ci.id, thisOverNumber),
+    loadLastBall(reader, ci),
+  ]);
+  const current = currentRowsOf(ci);
+  parts.thisOver = thisOver;
+  parts.striker = current.batters.find((b) => b.is_striker) ?? null;
+  parts.nonStriker = current.batters.find((b) => !b.is_striker) ?? null;
+  parts.bowler = current.bowlers[0] ?? null;
+  parts.partnership = current.partnerships[0] ?? null;
+  parts.lastBall = lastBall;
+
+  const names = await loadNames(reader, liveStateUserIds(parts));
+  parts.nameOf = nameLookup(names);
+  return { parts, names };
+}
+
+export async function buildLiveMatchState(
+  ds: DocReader,
+  matchId: string,
+): Promise<LiveMatchStateRow | null> {
+  const loaded = await loadLiveStateParts(ds, matchId);
+  return loaded ? composeLiveMatchState(loaded.parts) : null;
+}
+
 export async function buildOverSummaries(
   ds: DataSource,
   matchId: string,
 ): Promise<MatchOverSummariesRow[]> {
-  const balls = (await ds.query("ball_by_ball", [
+  // One read per over document instead of one per ball.
+  const overs = (await ds.query(OVERS_COLLECTION, [
     { field: "match_id", op: "==", value: matchId },
-  ])) as unknown as BallByBallRow[];
-  balls.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+  ])) as unknown as OversRow[];
+  return overSummariesOf(matchId, ballLogOf(overs));
+}
 
+/** `match_over_summaries` rows of a ball log (one per innings and over). */
+export function overSummariesOf(
+  matchId: string,
+  balls: ReadonlyArray<
+    Pick<
+      BallByBallRow,
+      | "innings_id"
+      | "over_number"
+      | "bowler_id"
+      | "runs_scored"
+      | "extras"
+      | "extra_type"
+      | "is_wicket"
+    >
+  >,
+): MatchOverSummariesRow[] {
   const groups = new Map<string, MatchOverSummariesRow>();
   for (const b of balls) {
     const key = `${b.innings_id}:${b.over_number}`;

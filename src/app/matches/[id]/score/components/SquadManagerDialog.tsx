@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -48,16 +47,20 @@ export interface SquadManagerDialogProps {
   isProcessing: boolean;
 }
 
-type FoundUser = { id: string; full_name?: string; email?: string | null };
+type FoundUser = {
+  id: string;
+  full_name?: string;
+  username?: string | null;
+};
 
 function roleLabel(role?: string | null): string | null {
   switch (role) {
     case "captain":
-      return "C";
+      return "(c)";
     case "vice_captain":
-      return "VC";
+      return "(vc)";
     case "wicket_keeper":
-      return "WK";
+      return "(wk)";
     default:
       return null;
   }
@@ -150,11 +153,11 @@ function SquadPanel({
     <div className="space-y-4">
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             Squad ({team.players.length})
           </p>
           {team.players.length < 11 && (
-            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            <span className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
               {11 - team.players.length} short of XI
             </span>
           )}
@@ -188,20 +191,17 @@ function SquadPanel({
                     </span>
                     <span className="truncate font-semibold">{name}</span>
                     {role && (
-                      <Badge
-                        variant="outline"
-                        className="h-5 px-1.5 text-[10px] font-black"
-                      >
+                      <span className="shrink-0 text-xs text-muted-foreground">
                         {role}
-                      </Badge>
+                      </span>
                     )}
                     {active && (
-                      <span className="text-[10px] font-black uppercase text-emerald-700 dark:text-emerald-300">
+                      <span className="text-2xs font-medium text-emerald-700 dark:text-emerald-300">
                         {side === "batting" ? "Batting" : "Bowling"}
                       </span>
                     )}
                     {out && (
-                      <span className="text-[10px] font-black uppercase text-rose-600 dark:text-rose-400">
+                      <span className="text-2xs font-medium text-rose-600 dark:text-rose-400">
                         Out
                       </span>
                     )}
@@ -236,7 +236,7 @@ function SquadPanel({
       <div className="space-y-1.5">
         <label
           htmlFor={`new-player-${side}`}
-          className="text-[11px] font-black uppercase tracking-wider text-muted-foreground"
+          className="text-xs font-medium text-muted-foreground"
         >
           Add a new player
         </label>
@@ -270,7 +270,7 @@ function SquadPanel({
       <div className="space-y-1.5">
         <label
           htmlFor={`find-player-${side}`}
-          className="text-[11px] font-black uppercase tracking-wider text-muted-foreground"
+          className="text-xs font-medium text-muted-foreground"
         >
           Or add a registered player
         </label>
@@ -309,9 +309,9 @@ function SquadPanel({
                       <span className="block truncate font-semibold">
                         {u.full_name ?? "Player"}
                       </span>
-                      {u.email && (
-                        <span className="block truncate text-[11px] text-muted-foreground">
-                          {u.email}
+                      {u.username && (
+                        <span className="block truncate font-mono text-2xs text-muted-foreground">
+                          @{u.username}
                         </span>
                       )}
                     </span>

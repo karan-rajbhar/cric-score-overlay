@@ -2,13 +2,9 @@
 
 import {
   GoogleAuthProvider,
-  createUserWithEmailAndPassword,
   onIdTokenChanged,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
-  updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -32,11 +28,9 @@ type Result = Promise<{ error: AuthError | null }>;
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Result;
-  signInWithGoogle: () => Result;
-  signUp: (email: string, password: string, fullName?: string) => Result;
+  /** `loginHint` makes Google suggest that account first. */
+  signInWithGoogle: (loginHint?: string) => Result;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Result;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +48,12 @@ function hasServerSessionHint(): boolean {
     .some((c) => c.startsWith(`${SESSION_HINT_COOKIE}=`));
 }
 
-/** Sends the ID token to the server so it can issue the session cookie. */
+const INVITE_ONLY_CODE = "app/invite-only";
+
+/**
+ * Sends the ID token to the server so it can issue the session cookie. The
+ * server refuses accounts without an invite; those are signed out here too.
+ */
 async function syncServerSession(user: FirebaseUser | null): Promise<void> {
   if (!user) {
     await fetch("/api/auth/session", { method: "DELETE" }).catch(
@@ -68,6 +67,12 @@ async function syncServerSession(user: FirebaseUser | null): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
+  if (res.status === 403) {
+    await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
+    throw Object.assign(new Error("CricScore is invite-only"), {
+      code: INVITE_ONLY_CODE,
+    });
+  }
   if (!res.ok) throw new Error("Could not establish a server session");
 }
 
@@ -106,7 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         console.error("Auth session sync failed:", err);
-        setUser(firebaseUser ? toAppUser(firebaseUser) : null);
+        const invited = toAuthError(err).code !== INVITE_ONLY_CODE;
+        setUser(firebaseUser && invited ? toAppUser(firebaseUser) : null);
       } finally {
         setLoading(false);
       }
@@ -121,48 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(toAppUser(firebaseUser));
   }, []);
 
-  const signIn = useCallback(
-    async (email: string, password: string): Result => {
+  const signInWithGoogle = useCallback(
+    async (loginHint?: string): Result => {
       try {
-        const cred = await signInWithEmailAndPassword(
-          getFirebaseAuth(),
-          email.trim(),
-          password,
-        );
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+          prompt: "select_account",
+          ...(loginHint ? { login_hint: loginHint } : {}),
+        });
+        const cred = await signInWithPopup(getFirebaseAuth(), provider);
         await finishSignIn(cred.user);
-        return { error: null };
-      } catch (err) {
-        return { error: toAuthError(err) };
-      }
-    },
-    [finishSignIn],
-  );
-
-  const signInWithGoogle = useCallback(async (): Result => {
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      const cred = await signInWithPopup(getFirebaseAuth(), provider);
-      await finishSignIn(cred.user);
-      return { error: null };
-    } catch (err) {
-      return { error: toAuthError(err) };
-    }
-  }, [finishSignIn]);
-
-  const signUp = useCallback(
-    async (email: string, password: string, fullName?: string): Result => {
-      try {
-        const cred = await createUserWithEmailAndPassword(
-          getFirebaseAuth(),
-          email.trim(),
-          password,
-        );
-        if (fullName?.trim()) {
-          await updateProfile(cred.user, { displayName: fullName.trim() });
-          await cred.user.reload();
-        }
-        await finishSignIn(getFirebaseAuth().currentUser ?? cred.user);
         return { error: null };
       } catch (err) {
         return { error: toAuthError(err) };
@@ -184,27 +158,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.refresh();
   }, [router]);
 
-  const resetPassword = useCallback(async (email: string): Result => {
-    try {
-      await sendPasswordResetEmail(getFirebaseAuth(), email.trim(), {
-        url: `${window.location.origin}/auth/login`,
-      });
-      return { error: null };
-    } catch (err) {
-      return { error: toAuthError(err) };
-    }
-  }, []);
-
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
-        signIn,
         signInWithGoogle,
-        signUp,
         signOut,
-        resetPassword,
       }}
     >
       {children}

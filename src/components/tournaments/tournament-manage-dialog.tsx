@@ -203,7 +203,7 @@ export function TournamentManageDialog({
               className="gap-1.5 text-xs min-h-[36px] text-destructive data-[state=active]:text-destructive"
             >
               <AlertTriangle className="h-3.5 w-3.5" />
-              Danger Zone
+              Danger zone
             </TabsTrigger>
           </TabsList>
 
@@ -215,7 +215,7 @@ export function TournamentManageDialog({
             >
               <div className="space-y-1.5">
                 <Label htmlFor="tourn-name" className="text-xs font-semibold">
-                  Tournament Name *
+                  Tournament name *
                 </Label>
                 <Input
                   id="tourn-name"
@@ -242,7 +242,7 @@ export function TournamentManageDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-format" className="text-xs font-semibold">
-                    Tournament Format
+                    Tournament format
                   </Label>
                   <Select
                     value={tournamentFormat}
@@ -252,17 +252,17 @@ export function TournamentManageDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="league">League (Round Robin)</SelectItem>
+                      <SelectItem value="league">League (round robin)</SelectItem>
                       <SelectItem value="knockout">Knockout</SelectItem>
-                      <SelectItem value="mixed">Mixed / Groups</SelectItem>
-                      <SelectItem value="round_robin">Double Round Robin</SelectItem>
+                      <SelectItem value="mixed">Mixed / groups</SelectItem>
+                      <SelectItem value="round_robin">Double round robin</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="match-format" className="text-xs font-semibold">
-                    Match Format
+                    Match format
                   </Label>
                   <Select value={matchFormat} onValueChange={setMatchFormat}>
                     <SelectTrigger id="match-format">
@@ -280,7 +280,7 @@ export function TournamentManageDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-overs" className="text-xs font-semibold">
-                    Overs Per Innings
+                    Overs per innings
                   </Label>
                   <Input
                     id="tourn-overs"
@@ -294,7 +294,7 @@ export function TournamentManageDialog({
 
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-venue" className="text-xs font-semibold">
-                    Venue / Ground
+                    Venue / ground
                   </Label>
                   <Input
                     id="tourn-venue"
@@ -308,14 +308,14 @@ export function TournamentManageDialog({
               {seasons.length > 0 && (
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-season" className="text-xs font-semibold">
-                    Linked Season
+                    Linked season
                   </Label>
                   <Select value={seasonId} onValueChange={setSeasonId}>
                     <SelectTrigger id="tourn-season">
                       <SelectValue placeholder="Select club season" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None (All Seasons)</SelectItem>
+                      <SelectItem value="none">None (all seasons)</SelectItem>
                       {seasons.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {s.name}
@@ -329,7 +329,7 @@ export function TournamentManageDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-start" className="text-xs font-semibold">
-                    Start Date
+                    Start date
                   </Label>
                   <div className="relative">
                     <Calendar className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -345,7 +345,7 @@ export function TournamentManageDialog({
 
                 <div className="space-y-1.5">
                   <Label htmlFor="tourn-end" className="text-xs font-semibold">
-                    End Date
+                    End date
                   </Label>
                   <div className="relative">
                     <Calendar className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -394,13 +394,13 @@ export function TournamentManageDialog({
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
               <h4 className="flex items-center gap-1.5 text-xs font-semibold text-destructive">
                 <AlertTriangle className="h-4 w-4" />
-                Permanent Tournament Deletion
+                Permanent tournament deletion
               </h4>
               <p className="mt-1 text-xs text-muted-foreground">
                 Deleting this tournament will remove all fixtures, points tables, and registered team associations. This action cannot be undone.
               </p>
               <div className="mt-4 space-y-2">
-                <Label htmlFor="confirm-del" className="text-[11px] font-medium text-foreground">
+                <Label htmlFor="confirm-del" className="text-2xs font-medium text-foreground">
                   Type <span className="font-bold text-destructive">{tournament.name}</span> to confirm:
                 </Label>
                 <Input

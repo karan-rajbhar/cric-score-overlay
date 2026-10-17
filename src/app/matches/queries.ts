@@ -1,6 +1,11 @@
 "use server";
 
+import { withoutScorecardStorage } from "~/lib/firebase/scorecard";
+import { playerDirectory } from "~/lib/firebase/directory";
 import { createServerClient } from "~/lib/firebase/server";
+import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
+import { BALL_PLAYER_FIELDS } from "~/lib/ball-log";
+import { MATCH_DETAIL_SELECT, PARTNERSHIPS_SELECT } from "./match-select";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -14,8 +19,6 @@ export async function getMatches(filters?: {
       .select(
         `
         *,
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
         innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
       `,
       )
@@ -29,7 +32,8 @@ export async function getMatches(filters?: {
       console.error("Error fetching matches:", error);
       return { data: null, error: error.message };
     }
-    return { data, error: null };
+    // Team names / logos come from the match's snapshot (no team reads).
+    return { data: await attachMatchTeams(db, data ?? []), error: null };
   } catch (err) {
     console.error("Error fetching matches:", err);
     return {
@@ -41,6 +45,22 @@ export async function getMatches(filters?: {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Relations that load both teams' rosters (`teams.roster`, no extra
+ * reads) ahead of a scorecard, so its `users` lookups are answered from the
+ * roster snapshots. Removed from the result by {@link dropRosterNames}.
+ */
+const ROSTER_NAMES = `
+  _roster1:teams!matches_team1_id_fkey(team_players(user_id, user:users!team_players_user_id_fkey(id, full_name))),
+  _roster2:teams!matches_team2_id_fkey(team_players(user_id, user:users!team_players_user_id_fkey(id, full_name)))
+`;
+
+function dropRosterNames(row: Record<string, unknown>): void {
+  delete row._roster1;
+  delete row._roster2;
+}
+
 
 import {
   getCachedMatch,
@@ -55,24 +75,41 @@ import {
   clearPendingLiveQuery,
 } from "~/lib/match-cache";
 
+/**
+ * A versioned entry describes the match as of that live_state version, so it
+ * can be shared longer than the 2s micro-cache.
+ */
+const VERSIONED_MATCH_TTL_MS = 15_000;
+
 export async function getMatch(
   matchId: string,
-  options?: { skipCache?: boolean },
+  options?: {
+    skipCache?: boolean;
+    /**
+     * `live_state.version` the caller is reacting to. Cache entries are then
+     * per version, so viewers refetching after the same ball share one
+     * server read and can never get data from before that change.
+     */
+    version?: number | null;
+  },
 ) {
   if (!UUID_REGEX.test(matchId)) {
     return { data: null, error: "Invalid match ID" };
   }
+  const version = options?.version;
+  const versioned = typeof version === "number";
+  const cacheKey = versioned ? `${matchId}@v${version}` : matchId;
 
   if (!options?.skipCache) {
     const cached = getCachedMatch<{ data: unknown; error: string | null }>(
-      matchId,
+      cacheKey,
     );
     if (cached) {
       return cached;
     }
 
     const inFlight = getPendingQuery<{ data: unknown; error: string | null }>(
-      matchId,
+      cacheKey,
     );
     if (inFlight) {
       return inFlight;
@@ -84,31 +121,7 @@ export async function getMatch(
       const db = await createServerClient();
       const { data, error } = await db
         .from("matches")
-        .select(
-          `
-          *,
-          team1:teams!matches_team1_id_fkey(*,
-            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-          ),
-          team2:teams!matches_team2_id_fkey(*,
-            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-          ),
-          innings(
-            *,
-            batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
-            bowling_performances(*, user:users!bowling_performances_user_id_fkey(id, full_name)),
-            fall_of_wickets(
-              *,
-              batsman:users!fall_of_wickets_batsman_out_id_fkey(id, full_name),
-              bowler:users!fall_of_wickets_bowler_id_fkey(full_name),
-              fielder:users!fall_of_wickets_fielder_id_fkey(full_name)
-            )
-          ),
-          tournament:tournaments(id, name, tournament_format, venue),
-          club:clubs(id, name),
-          player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
-        `,
-        )
+        .select(MATCH_DETAIL_SELECT)
         .eq("id", matchId)
         .single();
 
@@ -116,16 +129,27 @@ export async function getMatch(
         console.error("Error fetching match:", error);
         return { data: null, error: error.message };
       }
+      // The scorecard rows above come from the innings documents themselves
+      // (no extra reads); drop their storage arrays from the payload.
+      if (data?.innings) {
+        data.innings = (data.innings as object[]).map((inn) =>
+          withoutScorecardStorage(inn, ["fall_of_wickets"]),
+        );
+      }
 
       const result = { data, error: null };
-      setCachedMatch(matchId, result);
+      setCachedMatch(
+        cacheKey,
+        result,
+        versioned ? VERSIONED_MATCH_TTL_MS : undefined,
+      );
       return result;
     } finally {
-      clearPendingQuery(matchId);
+      clearPendingQuery(cacheKey);
     }
   })();
 
-  setPendingQuery(matchId, queryPromise);
+  setPendingQuery(cacheKey, queryPromise);
   return queryPromise;
 }
 
@@ -156,16 +180,17 @@ export async function getLiveMatchState(
 
   const queryPromise = (async () => {
     try {
+      // One read of `live_state/{matchId}` (built once for older matches)
+      // instead of composing the `live_match_state` view (~15 reads).
       const db = await createServerClient();
-      const { data, error } = await db
-        .from("live_match_state")
-        .select("*")
-        .eq("match_id", matchId)
-        .single();
+      const { data, error } = await db.rpc("get_live_state", {
+        p_match_id: matchId,
+      });
 
       if (error) {
         return { data: null, error: error.message };
       }
+      if (!data) return { data: null, error: "Match not found" };
 
       const result = { data, error: null };
       setCachedLiveState(matchId, result);
@@ -179,6 +204,30 @@ export async function getLiveMatchState(
   return queryPromise;
 }
 
+/**
+ * The match's `live_scorecard` doc, built once when a live match predates
+ * it. Viewers call this only when their listener finds no doc.
+ */
+export async function ensureLiveScorecard(matchId: string) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc("ensure_live_scorecard", {
+      p_match_id: matchId,
+    });
+    if (error) return { data: null, error: error.message };
+    return { data: data ?? null, error: null };
+  } catch (err) {
+    console.error("Error in ensureLiveScorecard:", err);
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : "Failed to load scorecard",
+    };
+  }
+}
+
 export async function getScoringState(matchId: string) {
   if (!UUID_REGEX.test(matchId)) {
     return { data: null, error: "Invalid match ID" };
@@ -186,13 +235,14 @@ export async function getScoringState(matchId: string) {
 
   try {
     const db = await createServerClient();
+    // The two team documents come first: their rosters carry every
+    // player's name, so the scorecard's user lookups need no reads.
     const { data: match, error } = await db
       .from("matches")
       .select(
         `
         *,
-        team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-        team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
+        ${ROSTER_NAMES},
         innings(
           *,
           batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
@@ -202,10 +252,17 @@ export async function getScoringState(matchId: string) {
       )
       .eq("id", matchId)
       .single();
+    if (match) dropRosterNames(match);
     if (error) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
     }
+    if (match?.innings) {
+      match.innings = (match.innings as object[]).map((inn) =>
+        withoutScorecardStorage(inn),
+      );
+    }
+    if (match) await attachMatchTeams(db, [match]);
     type InningsWithPerformances = {
       id: string;
       innings_number: number;
@@ -315,6 +372,32 @@ export async function getScoringState(matchId: string) {
 export async function getTeamPlayers(teamId: string) {
   try {
     const db = await createServerClient();
+    // One read: the team's roster carries its players with their profiles.
+    const { data: team, error: teamError } = await db
+      .from("teams")
+      .select(
+        "id, team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))",
+      )
+      .eq("id", teamId)
+      .maybeSingle();
+    if (teamError) return { data: null, error: teamError.message };
+    if (team) {
+      const rows = (team.team_players ?? []) as Array<{
+        batting_order: number | null;
+      }>;
+      // Same order as `.order("batting_order")` (nulls last, ties by id).
+      return {
+        data: [...rows].sort((a, b) => {
+          const x = a.batting_order;
+          const y = b.batting_order;
+          if (x === y) return 0;
+          if (x === null || x === undefined) return 1;
+          if (y === null || y === undefined) return -1;
+          return x - y;
+        }),
+        error: null,
+      };
+    }
     const { data, error } = await db
       .from("team_players")
       .select(
@@ -336,27 +419,43 @@ export async function getTeamPlayers(teamId: string) {
   }
 }
 
+
 export async function getMatchBallLog(matchId: string) {
   try {
     const db = await createServerClient();
     const { data, error } = await db
       .from("ball_by_ball")
-      .select(
-        `
-          *,
-          batsman:users!ball_by_ball_batsman_id_fkey(id, full_name),
-          bowler:users!ball_by_ball_bowler_id_fkey(id, full_name),
-          non_striker:users!ball_by_ball_non_striker_id_fkey(id, full_name),
-          fielder:users!ball_by_ball_fielder_id_fkey(id, full_name),
-          dismissed_player:users!ball_by_ball_dismissed_player_id_fkey(id, full_name),
-          innings(innings_number, team_id)
-      `,
-      )
+      .select(`*, innings(innings_number, team_id)`)
       .eq("match_id", matchId)
       .order("seq");
     if (error) {
       console.error("Error fetching ball log:", error);
       return { data: null, error: error.message };
+    }
+    // Player names from the teams' rosters (2 reads) instead of a profile
+    // read per player.
+    const balls = (data ?? []) as Record<string, unknown>[];
+    const ids = new Set<string>();
+    for (const b of balls) {
+      for (const [, field] of BALL_PLAYER_FIELDS) {
+        if (typeof b[field] === "string") ids.add(b[field] as string);
+      }
+    }
+    const { data: teams } = await db
+      .from("matches")
+      .select("team1_id, team2_id")
+      .eq("id", matchId)
+      .maybeSingle();
+    const names = await playerDirectory(
+      db,
+      [teams?.team1_id, teams?.team2_id],
+      ids,
+    );
+    for (const b of balls) {
+      for (const [alias, field] of BALL_PLAYER_FIELDS) {
+        const id = b[field];
+        b[alias] = typeof id === "string" ? (names.get(id) ?? null) : null;
+      }
     }
     return { data, error: null };
   } catch (err) {
@@ -411,62 +510,12 @@ export async function getFullMatchForExport(matchId: string) {
   }
 }
 
-export async function getOverSummaries(matchId: string) {
-  try {
-    const db = await createServerClient();
-    const { data, error } = await db
-      .from("match_over_summaries")
-      .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler, extras_total")
-      .eq("match_id", matchId)
-      .order("over_number");
-    if (error) {
-      // Pre-migration DBs lack extras_total — retry without it; the chart
-      // falls back to extras_off_bat_and_bowler.
-      if (error.message.includes("extras_total")) {
-        const retry = await db
-          .from("match_over_summaries")
-          .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
-          .eq("match_id", matchId)
-          .order("over_number");
-        if (retry.error) {
-          console.error("Error fetching over summaries:", retry.error);
-          return { data: null, error: retry.error.message };
-        }
-        return { data: retry.data, error: null };
-      }
-      console.error("Error fetching over summaries:", error);
-      return { data: null, error: error.message };
-    }
-    return { data, error: null };
-  } catch (err) {
-    console.error("Error in getOverSummaries:", err);
-    return {
-      data: null,
-      error: err instanceof Error ? err.message : "Failed to fetch over summaries",
-    };
-  }
-}
-
 export async function getPartnerships(matchId: string) {
   try {
     const db = await createServerClient();
     const { data, error } = await db
       .from("partnerships")
-      .select(
-        `
-          id,
-          innings_id,
-          batsman1_id,
-          batsman2_id,
-          runs,
-          balls,
-          start_over,
-          end_over,
-          is_current,
-          batsman1:users!partnerships_batsman1_id_fkey(full_name),
-          batsman2:users!partnerships_batsman2_id_fkey(full_name)
-      `,
-      )
+      .select(PARTNERSHIPS_SELECT)
       .eq("match_id", matchId)
       .order("start_over");
     if (error) {

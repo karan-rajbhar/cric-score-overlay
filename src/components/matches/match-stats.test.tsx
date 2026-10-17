@@ -48,9 +48,9 @@ describe("MatchStats stacked layout", () => {
     // Sections follow in order: worm → manhattan → breakdown
     const text = container.textContent ?? "";
     const wagonIdx = text.indexOf("360");
-    const wormIdx = text.indexOf("Worm Chart");
+    const wormIdx = text.indexOf("Worm chart");
     const manhattanIdx = text.indexOf("Manhattan");
-    const breakdownIdx = text.indexOf("Delivery Breakdown");
+    const breakdownIdx = text.indexOf("Delivery breakdown");
     expect(wagonIdx).toBeGreaterThanOrEqual(0);
     expect(wormIdx).toBeGreaterThan(wagonIdx);
     expect(manhattanIdx).toBeGreaterThan(wormIdx);

@@ -5,7 +5,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlidersHorizontal,
   Calculator,
-  Sparkles,
   Check,
   X,
   Loader2,
@@ -74,7 +73,7 @@ export function QualificationCalculatorButton({
         onClick={() => setOpen(true)}
       >
         <Calculator className="h-3.5 w-3.5 text-primary" />
-        Qualification Calculator
+        Qualification calculator
       </Button>
       <QualificationCalculator
         open={open}
@@ -119,12 +118,8 @@ export function GenerateFixturesButton({
       disabled={loading}
       className="gap-1.5 bg-primary font-semibold text-primary-foreground"
     >
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Sparkles className="h-4 w-4" />
-      )}
-      Generate Round-Robin Schedule
+      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+      Generate round-robin fixtures
     </Button>
   );
 }
@@ -151,7 +146,7 @@ export function RegistrationApprovalActions({
       } else {
         toast.success(
           status === "confirmed"
-            ? "Team registration approved!"
+            ? "Team registration approved"
             : "Registration rejected",
         );
       }

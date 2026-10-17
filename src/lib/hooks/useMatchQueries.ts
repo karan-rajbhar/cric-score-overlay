@@ -1,16 +1,98 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { createClient } from "~/lib/firebase/client";
 import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import { createClient, getFirebaseDb } from "~/lib/firebase/client";
+import {
+  ensureLiveScorecard,
   getPartnerships,
-  getOverSummaries,
   getMatchBallLog,
   getMatches,
   getMatch,
 } from "~/app/matches/queries";
-import type { Match } from "~/lib/match-types";
+import { ballEventsOfOver, ballLogContext, mergeOvers } from "~/lib/ball-log";
+import { readDoc } from "~/lib/firebase/realtime";
+import { OVERS_COLLECTION, type OversRow } from "~/lib/firebase/scorecard";
+import { overSummariesOf } from "~/lib/firebase/views";
+import type { BallEvent, Match } from "~/lib/match-types";
+import {
+  applyLiveScorecard,
+  applyLiveState,
+  latestLiveVersion,
+  liveScorecardViewOf,
+  overChangesBetween,
+  scheduleInvalidate,
+  useLiveScorecard,
+  useLiveState,
+  useOnLiveChange,
+} from "./useLiveState";
+
+/** Poll interval used only while the live listener is in error. */
+const LIVE_FALLBACK_POLL_MS = 30_000;
+
+const MATCH_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isMatchId(id: string | null | undefined): id is string {
+  return !!id && MATCH_ID_RE.test(id);
+}
+
+/**
+ * Refetch `queryKey` once per live change (debounced, deduplicated across
+ * components). Only mounted queries refetch, so data behind a closed tab
+ * costs nothing. Falls back to a slow poll while the listener is in error.
+ */
+function useRefetchOnLiveChange(
+  matchId: string,
+  queryKey: QueryKey,
+  enabled = true,
+) {
+  const queryClient = useQueryClient();
+  const live = useLiveState(isMatchId(matchId) ? matchId : null);
+  const keyHash = JSON.stringify(queryKey);
+
+  useOnLiveChange(live, () => {
+    if (enabled) scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey);
+  });
+
+  useEffect(() => {
+    if (!enabled || live.status !== "error") return;
+    const poll = setInterval(
+      () => scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey),
+      LIVE_FALLBACK_POLL_MS,
+    );
+    return () => clearInterval(poll);
+  }, [enabled, live.status, queryClient, keyHash]);
+}
+
+/**
+ * The live scorecard of a match while it is live (shared listener), else
+ * null. Builds the doc once (server) for a live match that predates it.
+ */
+function useLiveScorecardWhileLive(
+  matchId: string | null | undefined,
+  enabled: boolean,
+  liveStatus: string | null | undefined,
+) {
+  const id = isMatchId(matchId) ? matchId : null;
+  const active = enabled && !!id && liveStatus === "live";
+  const card = useLiveScorecard(id, { enabled: active });
+  const missing = active && card.loaded && !card.doc;
+  useEffect(() => {
+    if (!missing || !id || ensured.has(id)) return;
+    ensured.add(id);
+    void ensureLiveScorecard(id);
+  }, [missing, id]);
+  return active ? card.doc : null;
+}
+
+/** Matches whose live scorecard this page has asked the server to build. */
+const ensured = new Set<string>();
 
 export interface WizardTeam {
   id: string;
@@ -123,8 +205,9 @@ export function useMatchWizardDataQuery(userId?: string | null) {
  * TanStack Query hook for Match Partnerships with Realtime Invalidation
  */
 export function usePartnershipsQuery(matchId: string) {
-  const queryClient = useQueryClient();
-
+  // While live, from the live scorecard (no server request per ball).
+  const live = useLiveState(isMatchId(matchId) ? matchId : null);
+  const card = useLiveScorecardWhileLive(matchId, true, live.state?.status);
   const query = useQuery({
     queryKey: ["matchPartnerships", matchId],
     queryFn: async () => {
@@ -132,169 +215,177 @@ export function usePartnershipsQuery(matchId: string) {
       if (res.error) throw new Error(res.error);
       return res.data ?? [];
     },
-    enabled: Boolean(matchId),
+    enabled: Boolean(matchId) && !card,
     staleTime: 15 * 1000,
   });
 
-  // Realtime subscription invalidation
-  useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
+  useRefetchOnLiveChange(matchId, ["matchPartnerships", matchId], !card);
 
-    const db = createClient();
-    const channel = db
-      // NOTE: the scorer broadcasts on `match_detail_${matchId}` (see
-      // useScoring broadcastScoreUpdate) — subscribe to that topic, not a
-      // private rt_* topic nobody sends to.
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchPartnerships", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "partnerships",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchPartnerships", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
-
-  return query;
+  const livePartnerships = useMemo(
+    () => (card ? liveScorecardViewOf(card).partnerships : null),
+    [card],
+  );
+  if (!livePartnerships) return query;
+  return {
+    ...query,
+    data: livePartnerships as unknown as typeof query.data,
+    error: null,
+    isLoading: false,
+  };
 }
 
 /**
- * TanStack Query hook for Manhattan Over Summaries
+ * Manhattan over summaries, derived from the (incrementally synced) ball
+ * log: no request of its own.
  */
 export function useOverSummariesQuery(matchId: string) {
-  const queryClient = useQueryClient();
+  const log = useMatchBallLogQuery(matchId);
+  const data = useMemo(
+    () =>
+      log.data
+        ? overSummariesOf(
+            matchId,
+            log.data as unknown as Parameters<typeof overSummariesOf>[1],
+          )
+        : undefined,
+    [log.data, matchId],
+  );
+  return { data, error: log.error, isLoading: log.isLoading };
+}
 
-  const query = useQuery({
-    queryKey: ["overSummaries", matchId],
-    queryFn: async () => {
-      const res = await getOverSummaries(matchId);
-      if (res.error) throw new Error(res.error);
-      return res.data ?? [];
-    },
-    enabled: Boolean(matchId),
-    staleTime: 15 * 1000,
-  });
+/** Over docs re-read per live change before a full refetch is cheaper. */
+const MAX_INCREMENTAL_OVERS = 4;
+/** Trailing debounce for the ball log sync (Firestore reads only). */
+const BALL_LOG_SYNC_DELAY_MS = 300;
 
-  useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
+const ballLogKey = (matchId: string) => ["matchBallLog", matchId] as const;
+/** live_state version each cached ball log is current with. */
+const ballLogVersions = new Map<string, number | null>();
+const ballLogSyncs = new Map<string, ReturnType<typeof setTimeout>>();
 
-    const db = createClient();
-    const channel = db
-      // Same shared topic the scorer broadcasts on (see useScoring).
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["overSummaries", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["overSummaries", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
-
-  return query;
+function refetchBallLog(queryClient: QueryClient, matchId: string) {
+  void queryClient.invalidateQueries(
+    { queryKey: ballLogKey(matchId) },
+    { cancelRefetch: false },
+  );
 }
 
 /**
- * TanStack Query hook for Match Ball Log
+ * Bring the cached ball log up to the latest live_state version by
+ * re-reading only the `overs` docs the versions in between changed (one doc
+ * for a delivery, undo or edit). Falls back to a full refetch when a version
+ * was missed, too many overs changed or a new player / innings appears.
  */
-export function useMatchBallLogQuery(
+export async function syncBallLog(
+  queryClient: QueryClient,
   matchId: string,
-  inningsNumber?: number,
-) {
-  const queryClient = useQueryClient();
+): Promise<"current" | "incremental" | "full"> {
+  const key = ballLogKey(matchId);
+  const cached = queryClient.getQueryData<BallEvent[]>(key);
+  const from = ballLogVersions.get(matchId) ?? null;
+  const to = latestLiveVersion(matchId);
+  if (!cached || to === null) return "current";
+  if (from === to) return "current";
+  const changed = from === null ? null : overChangesBetween(matchId, from, to);
+  if (!changed || changed.length > MAX_INCREMENTAL_OVERS) {
+    refetchBallLog(queryClient, matchId);
+    return "full";
+  }
+  if (!changed.length) {
+    ballLogVersions.set(matchId, to);
+    return "incremental";
+  }
+  const docs = await Promise.all(
+    changed.map((id) => readDoc<OversRow>(getFirebaseDb(), OVERS_COLLECTION, id)),
+  );
+  // A full refetch landed while these were in flight: start over.
+  if ((ballLogVersions.get(matchId) ?? null) !== from) {
+    scheduleBallLogSync(queryClient, matchId);
+    return "current";
+  }
+  const ctx = ballLogContext(
+    cached,
+    queryClient.getQueryData<Match | null>(["matchDetail", matchId]),
+  );
+  const fresh: BallEvent[] = [];
+  for (const over of docs) {
+    if (!over) continue;
+    const rows = ballEventsOfOver(over, ctx);
+    if (!rows) {
+      refetchBallLog(queryClient, matchId);
+      return "full";
+    }
+    fresh.push(...rows);
+  }
+  queryClient.setQueryData(key, mergeOvers(cached, changed, fresh));
+  ballLogVersions.set(matchId, to);
+  return "incremental";
+}
 
+/** Sync chain per match, so syncs never overlap. */
+const ballLogRuns = new Map<string, Promise<unknown>>();
+
+function scheduleBallLogSync(queryClient: QueryClient, matchId: string) {
+  if (ballLogSyncs.has(matchId)) return;
+  ballLogSyncs.set(
+    matchId,
+    setTimeout(() => {
+      ballLogSyncs.delete(matchId);
+      const run: Promise<unknown> = (ballLogRuns.get(matchId) ?? Promise.resolve())
+        .then(() => syncBallLog(queryClient, matchId))
+        .catch(() => refetchBallLog(queryClient, matchId))
+        .finally(() => {
+          if (ballLogRuns.get(matchId) === run) ballLogRuns.delete(matchId);
+        });
+      ballLogRuns.set(matchId, run);
+    }, BALL_LOG_SYNC_DELAY_MS),
+  );
+}
+
+/**
+ * The match's ball log (`getMatchBallLog`, fetched once), kept current from
+ * the live_state listener: each change re-reads only the `overs` docs it
+ * touched, straight from Firestore (public read), so no server request per
+ * ball. Shared by every chart on the Balls / Stats tabs.
+ */
+export function useMatchBallLogQuery(matchId: string) {
+  const queryClient = useQueryClient();
+  const id = isMatchId(matchId) ? matchId : null;
+  const live = useLiveState(id);
   const query = useQuery({
-    queryKey: ["matchBallLog", matchId, inningsNumber],
+    queryKey: ballLogKey(matchId),
     queryFn: async () => {
+      const version = latestLiveVersion(matchId);
       const res = await getMatchBallLog(matchId);
       if (res.error) throw new Error(res.error);
-      return res.data ?? [];
+      ballLogVersions.set(matchId, version);
+      return (res.data ?? []) as unknown as BallEvent[];
     },
     enabled: Boolean(matchId),
-    staleTime: 15 * 1000,
+    // Kept current by the sync below rather than by refetching.
+    staleTime: Infinity,
   });
 
+  useOnLiveChange(
+    live,
+    () => {
+      if (id) scheduleBallLogSync(queryClient, id);
+    },
+    0,
+  );
+  // Catch up when a chart mounts on a cached log (tab switch).
+  const hasData = query.data !== undefined;
   useEffect(() => {
-    if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
-
-    const db = createClient();
-    const channel = db
-      // Same shared topic the scorer broadcasts on (see useScoring).
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchBallLog", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchBallLog", matchId],
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void db.removeChannel(channel);
-    };
-  }, [matchId, queryClient]);
+    if (id && hasData) scheduleBallLogSync(queryClient, id);
+  }, [id, hasData, queryClient]);
+  useEffect(() => {
+    if (!id || live.status !== "error") return;
+    const poll = setInterval(
+      () => refetchBallLog(queryClient, id),
+      LIVE_FALLBACK_POLL_MS,
+    );
+    return () => clearInterval(poll);
+  }, [id, live.status, queryClient]);
 
   return query;
 }
@@ -315,6 +406,9 @@ export function useMatchesQuery(filters?: {
       return (res.data ?? []) as unknown as Match[];
     },
     staleTime: 30 * 1000, // 30 seconds
+    // No listeners here: a live-matches query listener would bill a read
+    // for every ball of every live match. Refetch on return instead.
+    refetchOnWindowFocus: filters?.status === "live",
   });
 }
 
@@ -523,96 +617,120 @@ export function useMatchAdminQuery(
 }
 
 /**
- * TanStack Query hook for Match Details with automatic Realtime Invalidation
+ * Match details (`getMatch`) kept current by the `live_state/{matchId}`
+ * listener instead of polling:
+ *
+ * - `data` is patched with the live totals on every change (no refetch),
+ *   so headers move with each ball.
+ * - While the match is live and `liveScorecard` is on (a tab that shows
+ *   per-player figures is open), the innings come from the
+ *   `live_scorecard/{matchId}` listener: no server request per ball.
+ * - The match is refetched when the status, the innings or the match
+ *   document itself (`live_state.match_rev`: settings, toss, result,
+ *   scorers) changes. For a match that is not live (or has no live
+ *   scorecard yet) it is also refetched once per change (debounced) while
+ *   `refetchOnChange` is true; a skipped change marks the data dirty and
+ *   the next `refetchOnChange` flip catches up once.
+ * - A 30s poll runs only while the listener is in error.
  */
-export function useMatchDetailQuery(matchId?: string | null) {
+export function useMatchDetailQuery(
+  matchId?: string | null,
+  options: { refetchOnChange?: boolean; liveScorecard?: boolean } = {},
+) {
   const queryClient = useQueryClient();
-  const [isConnected, setIsConnected] = useState(false);
+  const refetchOnChange = options.refetchOnChange ?? true;
+  const live = useLiveState(isMatchId(matchId) ? matchId : null);
+  const version = useRef(live.version);
+  const matchRev = useRef(live.matchRev);
+  useEffect(() => {
+    version.current = live.version;
+    matchRev.current = live.matchRev;
+  }, [live.version, live.matchRev]);
+  /** `match_rev` as of the last fetch. */
+  const fetchedRev = useRef<string | null>(null);
 
   const query = useQuery<Match | null>({
     queryKey: ["matchDetail", matchId ?? ""],
     queryFn: async () => {
       if (!matchId) return null;
-      const res = await getMatch(matchId, { skipCache: true });
+      fetchedRev.current = matchRev.current;
+      // Keyed by live version, so the server micro-cache can share one
+      // fetch between every viewer reacting to the same change.
+      const res = await getMatch(
+        matchId,
+        version.current === null
+          ? { skipCache: true }
+          : { version: version.current },
+      );
       if (res.error) throw new Error(res.error);
       return (res.data as Match) ?? null;
     },
     enabled: Boolean(matchId),
     staleTime: 30 * 1000,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return data?.status === "live" ? 15000 : false;
-    },
+    refetchInterval: (q) =>
+      live.status === "error" && q.state.data?.status === "live"
+        ? LIVE_FALLBACK_POLL_MS
+        : false,
   });
 
+  const status = live.state?.status ?? query.data?.status ?? null;
+  const card = useLiveScorecardWhileLive(
+    matchId,
+    options.liveScorecard ?? false,
+    status,
+  );
+  const cardRef = useRef(card);
   useEffect(() => {
+    cardRef.current = card;
+  }, [card]);
+
+  const fetched = useRef(query.data);
+  useEffect(() => {
+    fetched.current = query.data;
+  }, [query.data]);
+  const dirty = useRef(false);
+
+  useOnLiveChange(live, (state) => {
     if (!matchId) return;
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        matchId,
-      );
-    if (!isUuid) return;
+    const current = fetched.current;
+    const rev = matchRev.current;
+    if (fetchedRev.current === null) fetchedRev.current = rev;
+    const structural =
+      !current ||
+      (state?.status ?? current.status) !== current.status ||
+      (state?.innings_number != null &&
+        !current.innings?.some((i) => i.innings_number === state.innings_number)) ||
+      (rev !== null && rev !== fetchedRev.current);
+    // A live match's per-ball detail comes from the live scorecard.
+    const covered = !!cardRef.current && state?.status === "live";
+    if (structural || (refetchOnChange && !covered)) {
+      dirty.current = false;
+      scheduleInvalidate(queryClient, ["matchDetail", matchId]);
+    } else if (!covered) {
+      dirty.current = true;
+    }
+  });
 
-    const db = createClient();
-    const channel = db
-      .channel(`match_detail_${matchId}`)
-      .on("broadcast", { event: "score_update" }, () => {
-        void queryClient.invalidateQueries({
-          queryKey: ["matchDetail", matchId],
-        });
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "ball_by_ball",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "matches",
-          filter: `id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "innings",
-          filter: `match_id=eq.${matchId}`,
-        },
-        () => {
-          void queryClient.invalidateQueries({
-            queryKey: ["matchDetail", matchId],
-          });
-        },
-      )
-      .subscribe((status) => {
-        setIsConnected(status === "SUBSCRIBED");
-      });
+  // A live match catches up from its live scorecard once it is followed.
+  const followsCard = (options.liveScorecard ?? false) && status === "live";
+  useEffect(() => {
+    if (!refetchOnChange || !dirty.current || !matchId) return;
+    dirty.current = false;
+    if (!followsCard) scheduleInvalidate(queryClient, ["matchDetail", matchId]);
+  }, [refetchOnChange, matchId, queryClient, followsCard]);
 
-    return () => {
-      void db.removeChannel(channel);
-      setIsConnected(false);
-    };
-  }, [matchId, queryClient]);
+  const data = useMemo(
+    () =>
+      query.data
+        ? applyLiveScorecard(applyLiveState(query.data, live.state), card)
+        : query.data,
+    [query.data, live.state, card],
+  );
 
-  return { ...query, isConnected };
+  return {
+    ...query,
+    data,
+    isConnected: live.status === "connected",
+    live,
+  };
 }
-

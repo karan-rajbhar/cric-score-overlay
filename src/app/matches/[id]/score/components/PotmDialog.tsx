@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { Award, Check, Sparkles, User } from "lucide-react";
+import { Award, Check, User } from "lucide-react";
 import { toast } from "sonner";
 import { setPlayerOfTheMatch } from "~/app/matches/mutations";
 import { rankPlayersByImpact } from "~/lib/cricket";
@@ -99,7 +99,7 @@ export function PotmDialog({
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success("Player of the Match awarded successfully!");
+        toast.success("Player of the match saved");
         handleOpenChange(false);
         onSuccess?.(selectedPlayerId);
       }
@@ -150,7 +150,7 @@ export function PotmDialog({
             </span>
           </div>
           <DialogTitle className="text-xl">
-            Award Player of the Match
+            Award player of the match
           </DialogTitle>
           <DialogDescription>
             {topPerformer
@@ -195,9 +195,8 @@ export function PotmDialog({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="truncate text-sm font-medium">{p.name}</p>
                         {p.isTopRecommendation && (
-                          <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1 text-[10px] px-1.5 py-0">
-                            <Sparkles className="h-3 w-3 text-amber-500" />
-                            Top Recommended
+                          <Badge variant="outline" className="text-[10px] font-medium px-1.5 py-0">
+                            Suggested
                           </Badge>
                         )}
                       </div>
@@ -238,10 +237,9 @@ export function PotmDialog({
               size="sm"
               onClick={handleAutoAward}
               disabled={isSaving}
-              className="border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400 text-xs gap-1.5"
+              className="text-xs"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              Auto-Award Top Performer
+              Auto-award top performer
             </Button>
           )}
           <div className="flex gap-2 ml-auto">

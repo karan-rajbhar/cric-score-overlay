@@ -37,3 +37,70 @@ jobs:
         run: npm run build
         env:
           SKIP_ENV_VALIDATION: 1
+
+  # Merges to main deploy to production, but only after the checks above
+  # pass: Firestore rules + indexes (App Hosting doesn't deploy those),
+  # pending data migrations, then an App Hosting rollout of the exact commit
+  # that was tested. Keep App
+  # Hosting's own "automatic rollouts" off so untested code never ships.
+  deploy:
+    name: Deploy to production
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    # Never cancel a deploy halfway; queue the next one instead.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      FIREBASE_PROJECT: cricscore-prod-7411
+      APPHOSTING_BACKEND: cricscore
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        run: |
+          if [ -z "$SERVICE_ACCOUNT_JSON" ]; then
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT_PROD secret is not set; skipping the production deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/gcp-key.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/gcp-key.json" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
+
+      - name: Deploy Firestore rules and indexes
+        if: steps.auth.outputs.ready == 'true'
+        run: npx firebase deploy --only firestore --project "$FIREBASE_PROJECT" --non-interactive
+
+      # Pending data migrations (scripts/migrate.mjs keeps a ledger in
+      # Firestore, so each runs once). A failure stops the deploy before the
+      # new app version goes live.
+      - name: Run pending data migrations
+        if: steps.auth.outputs.ready == 'true'
+        run: node scripts/migrate.mjs --project="$FIREBASE_PROJECT"
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
+
+      - name: Roll out App Hosting
+        if: steps.auth.outputs.ready == 'true'
+        run: >
+          npx firebase apphosting:rollouts:create "$APPHOSTING_BACKEND"
+          --git-commit "$GITHUB_SHA" --force
+          --project "$FIREBASE_PROJECT" --non-interactive
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/gcp-key.json"

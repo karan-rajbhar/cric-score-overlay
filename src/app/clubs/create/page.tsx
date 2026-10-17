@@ -17,6 +17,7 @@ import {
 import { createClub } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { ChevronLeft, Loader2 } from "lucide-react";
+import { PageContainer } from "~/components/layout/page";
 
 export default function CreateClubPage() {
   const { user, loading: authLoading } = useAuth();
@@ -61,8 +62,7 @@ export default function CreateClubPage() {
   };
 
   return (
-    <div className="w-full max-w-full overflow-x-hidden min-h-screen bg-background py-6 sm:py-8">
-      <div className="container mx-auto max-w-2xl px-3 sm:px-4">
+    <PageContainer size="form" stack={false}>
         <Button variant="ghost" asChild className="mb-4">
           <Link href="/clubs">
             <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back to clubs
@@ -111,13 +111,13 @@ export default function CreateClubPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="community">Community Club</SelectItem>
-                    <SelectItem value="corporate">Corporate Club</SelectItem>
+                    <SelectItem value="community">Community club</SelectItem>
+                    <SelectItem value="corporate">Corporate club</SelectItem>
                     <SelectItem value="school">
-                      School / College Academy
+                      School / college academy
                     </SelectItem>
                     <SelectItem value="professional">
-                      Professional League Club
+                      Professional league club
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -152,7 +152,6 @@ export default function CreateClubPage() {
             </form>
           </CardContent>
         </Card>
-      </div>
-    </div>
+    </PageContainer>
   );
 }

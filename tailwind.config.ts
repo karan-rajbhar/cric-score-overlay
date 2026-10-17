@@ -6,6 +6,10 @@ export default {
   content: ["./src/**/*.tsx"],
   theme: {
     extend: {
+      fontSize: {
+        // The one size below text-xs: dense table cells, chips, axis labels.
+        "2xs": "0.6875rem",
+      },
       fontFamily: {
         sans: [
           "var(--font-sans)",
@@ -25,21 +29,6 @@ export default {
         ],
       },
       colors: {
-        cricket: {
-          primary: "hsl(var(--cricket-primary))",
-          secondary: "hsl(var(--cricket-secondary))",
-          accent: "hsl(var(--cricket-accent))",
-          neutral: "hsl(var(--cricket-neutral))",
-        },
-        pitch: {
-          DEFAULT: "hsl(var(--primary))",
-          50: "#ebfaf2",
-          100: "#d0f4e1",
-          500: "hsl(var(--primary))",
-          600: "#177e4c",
-          700: "#13643d",
-          900: "#0f412a",
-        },
         ruby: {
           DEFAULT: "hsl(var(--ruby))",
           foreground: "hsl(var(--ruby-foreground))",
@@ -47,31 +36,6 @@ export default {
         gold: {
           DEFAULT: "hsl(var(--gold))",
           foreground: "hsl(var(--gold-foreground))",
-        },
-        sky: {
-          DEFAULT: "hsl(var(--sky))",
-          foreground: "hsl(var(--sky-foreground))",
-        },
-        violet: {
-          DEFAULT: "hsl(var(--violet))",
-          foreground: "hsl(var(--violet-foreground))",
-        },
-        magenta: {
-          DEFAULT: "hsl(var(--magenta))",
-          foreground: "hsl(var(--magenta-foreground))",
-        },
-        surface: {
-          base: "hsl(var(--surface-base))",
-          card: "hsl(var(--surface-card))",
-          elevated: "hsl(var(--surface-elevated))",
-          hover: "hsl(var(--surface-hover))",
-        },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          active: "hsl(var(--sidebar-active))",
-          "active-foreground": "hsl(var(--sidebar-active-foreground))",
         },
         board: {
           DEFAULT: "hsl(var(--board))",
@@ -112,27 +76,12 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        chart: {
-          "1": "hsl(var(--chart-1))",
-          "2": "hsl(var(--chart-2))",
-          "3": "hsl(var(--chart-3))",
-          "4": "hsl(var(--chart-4))",
-          "5": "hsl(var(--chart-5))",
-        },
       },
       borderRadius: {
         xl: "calc(var(--radius) + 4px)",
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-      },
-      boxShadow: {
-        "glow-emerald": "0 0 20px -5px hsl(var(--primary) / 0.35)",
-        "glow-ruby": "0 0 20px -5px hsl(var(--ruby) / 0.4)",
-        "glow-gold": "0 0 20px -5px hsl(var(--gold) / 0.4)",
-      },
-      animation: {
-        "spin-slow": "spin 8s linear infinite",
       },
     },
   },

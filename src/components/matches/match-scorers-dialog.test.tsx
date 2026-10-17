@@ -16,6 +16,15 @@ vi.mock("~/app/matches/mutations", () => ({
   searchScorers: vi.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
+const inviteToApp = vi.fn();
+vi.mock("~/app/invitations/actions", () => ({
+  inviteToApp: (email: string, matchId?: string) => inviteToApp(email, matchId),
+}));
+
+vi.mock("~/lib/auth", () => ({
+  useAuth: () => ({ user: { user_metadata: { full_name: "Karan R" } } }),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
@@ -28,14 +37,12 @@ describe("MatchScorersDialog Component", () => {
     createdBy: {
       id: "u-creator",
       full_name: "Lead Scorer",
-      email: "lead@test.com",
       avatar_url: null,
     },
     matchAdmins: [
       {
         id: "u-admin-1",
         full_name: "Assistant Scorer",
-        email: "asst@test.com",
         avatar_url: null,
       },
     ],
@@ -104,16 +111,12 @@ describe("MatchScorersDialog Component", () => {
     });
   });
 
-  it("submits new scorer and updates list", async () => {
-    vi.mocked(addMatchScorer).mockResolvedValueOnce({
+  it("adds an existing user as scorer by email", async () => {
+    inviteToApp.mockResolvedValueOnce({
       success: true,
-      user: {
-        id: "u-new",
-        full_name: "New Scorer",
-        email: "new@test.com",
-        avatar_url: null,
-      },
-      error: null,
+      status: "added_scorer",
+      message: "New Scorer can now score this match.",
+      shareEmail: null,
     });
 
     render(<MatchScorersDialog matchId="match-1" />);
@@ -121,35 +124,84 @@ describe("MatchScorersDialog Component", () => {
 
     const input = screen.getByPlaceholderText(/search registered player or enter email/i);
     fireEvent.change(input, { target: { value: "new@test.com" } });
-
-    const addBtn = screen.getByRole("button", { name: /^add$/i });
-    fireEvent.click(addBtn);
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
     await waitFor(() => {
-      expect(addMatchScorer).toHaveBeenCalledWith("match-1", "new@test.com");
+      expect(inviteToApp).toHaveBeenCalledWith("new@test.com", "match-1");
       expect(toast.success).toHaveBeenCalledWith(
-        "Added New Scorer as match scorer!"
+        "New Scorer can now score this match."
       );
     });
+    expect(addMatchScorer).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/invite message/i)).not.toBeInTheDocument();
   });
 
-  it("handles error when adding scorer fails", async () => {
-    vi.mocked(addMatchScorer).mockResolvedValueOnce({
-      success: false,
-      error: "User not found with email",
+  it("invites a new email as scorer and shows the share message", async () => {
+    inviteToApp.mockResolvedValueOnce({
+      success: true,
+      status: "invited",
+      message: "Invite saved. Send them the message below.",
+      shareEmail: "friend@gmail.com",
     });
 
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
     const input = screen.getByPlaceholderText(/search registered player or enter email/i);
-    fireEvent.change(input, { target: { value: "unknown@test.com" } });
+    fireEvent.change(input, { target: { value: "friend@gmail.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
+    const message = (await screen.findByLabelText(
+      /invite message/i
+    )) as HTMLTextAreaElement;
+    expect(message.value).toContain(
+      "Karan R invited you to help score a match"
+    );
+    expect(message.value).toContain(
+      "invite=friend@gmail.com&next=%2Fmatches%2Fmatch-1%2Fscore"
+    );
+    expect(
+      screen.getByRole("link", { name: /share on whatsapp/i })
+    ).toBeInTheDocument();
+  });
+
+  it("shows the error when inviting a scorer fails", async () => {
+    inviteToApp.mockResolvedValueOnce({
+      error: "Only this match's scorers can invite scorers",
+    });
+
+    render(<MatchScorersDialog matchId="match-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
+
+    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    fireEvent.change(input, { target: { value: "x@test.com" } });
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("User not found with email");
+      expect(toast.error).toHaveBeenCalledWith(
+        "Only this match's scorers can invite scorers"
+      );
     });
+  });
+
+  it("still adds a registered player by name", async () => {
+    vi.mocked(addMatchScorer).mockResolvedValueOnce({
+      success: false,
+      error: "No registered player found",
+    });
+
+    render(<MatchScorersDialog matchId="match-1" />);
+    fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
+
+    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    fireEvent.change(input, { target: { value: "Virat" } });
+    fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
+
+    await waitFor(() => {
+      expect(addMatchScorer).toHaveBeenCalledWith("match-1", "Virat");
+      expect(toast.error).toHaveBeenCalledWith("No registered player found");
+    });
+    expect(inviteToApp).not.toHaveBeenCalled();
   });
 
   it("shows search autocomplete results and allows 1-click addition", async () => {
@@ -158,7 +210,6 @@ describe("MatchScorersDialog Component", () => {
         {
           id: "u-searched-1",
           full_name: "Virat Kohli",
-          email: "virat@cricket.com",
           avatar_url: null,
         },
       ],
@@ -169,7 +220,6 @@ describe("MatchScorersDialog Component", () => {
       user: {
         id: "u-searched-1",
         full_name: "Virat Kohli",
-        email: "virat@cricket.com",
         avatar_url: null,
       },
       error: null,

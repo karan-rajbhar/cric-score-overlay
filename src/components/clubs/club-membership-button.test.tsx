@@ -68,7 +68,7 @@ describe("ClubMembershipButton Component", () => {
 
     await waitFor(() => {
       expect(joinClub).toHaveBeenCalledWith("club-123");
-      expect(toast.success).toHaveBeenCalledWith("Welcome to the club!");
+      expect(toast.success).toHaveBeenCalledWith("You joined the club");
     });
   });
 

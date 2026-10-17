@@ -47,8 +47,8 @@ import {
   Shield,
   RotateCcw,
   Users,
-  Star,
 } from "lucide-react";
+import { PageContainer } from "~/components/layout/page";
 
 interface Team {
   id: string;
@@ -479,7 +479,7 @@ function CreateMatchWizard() {
               You need to be signed in to create and score a match.
             </p>
             <Button asChild>
-              <Link href="/auth/login?redirect=/matches/create">Sign In</Link>
+              <Link href="/auth/login?redirect=/matches/create">Sign in</Link>
             </Button>
           </CardContent>
         </Card>
@@ -495,7 +495,7 @@ function CreateMatchWizard() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
               <Check className="h-8 w-8 text-emerald-500" />
             </div>
-            <h2 className="mb-2 text-xl font-semibold">Match Created!</h2>
+            <h2 className="mb-2 text-xl font-semibold">Match created</h2>
             <p className="text-muted-foreground">
               Redirecting to live scorecard...
             </p>
@@ -506,8 +506,7 @@ function CreateMatchWizard() {
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background py-6 sm:py-8">
-      <div className="container mx-auto w-full max-w-2xl overflow-x-hidden px-3 sm:px-4">
+    <PageContainer size="form" stack={false}>
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <Button variant="ghost" asChild className="mb-4">
@@ -531,12 +530,12 @@ function CreateMatchWizard() {
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-              Create New Match
+            <h1 className="text-balance text-2xl font-semibold text-foreground">
+              New match
             </h1>
             {selectedTournament && (
               <Badge variant="outline" className="gap-1">
-                <Trophy className="h-3 w-3 shrink-0 text-amber-500" />
+                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" />
                 {selectedTournament.name}
               </Badge>
             )}
@@ -594,7 +593,7 @@ function CreateMatchWizard() {
             {step === 1 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="mb-2 text-xl font-semibold">Match Format</h2>
+                  <h2 className="mb-2 text-xl font-semibold">Match format</h2>
                   <p className="mb-6 text-sm text-muted-foreground">
                     Choose the format and number of overs for this match
                   </p>
@@ -619,7 +618,7 @@ function CreateMatchWizard() {
                             <div className="text-base font-bold sm:text-lg">
                               {format}
                             </div>
-                            <div className="text-[10px] text-muted-foreground sm:text-xs">
+                            <div className="text-2xs text-muted-foreground sm:text-xs">
                               {format === "T20" && "20 overs"}
                               {format === "ODI" && "50 overs"}
                               {format === "Custom" && "Custom"}
@@ -631,7 +630,7 @@ function CreateMatchWizard() {
                   </div>
 
                   <div>
-                    <Label htmlFor="overs">Overs per Innings</Label>
+                    <Label htmlFor="overs">Overs per innings</Label>
                     <Input
                       id="overs"
                       type="number"
@@ -656,17 +655,16 @@ function CreateMatchWizard() {
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="mb-2 text-xl font-semibold">Select Teams</h2>
+                  <h2 className="mb-2 text-xl font-semibold">Select teams</h2>
                   <p className="mb-4 text-sm text-muted-foreground">
                     Choose the two teams that will compete. Team 1 is your team
                     or the host team.
                   </p>
                   {selectedTournament && (
                     <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1.5 font-medium text-amber-500">
-                        <Trophy className="h-3.5 w-3.5 shrink-0" />
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
-                          Teams with <Star className="inline h-3 w-3 shrink-0 fill-amber-500 text-amber-500" /> are registered in{" "}
+                          Teams marked <Trophy className="inline h-3 w-3 shrink-0" aria-hidden="true" /> are registered in{" "}
                           {selectedTournament.name}
                         </span>
                       </div>
@@ -675,7 +673,7 @@ function CreateMatchWizard() {
                           variant="secondary"
                           className="border-amber-500/20 bg-amber-500/10 text-xs text-amber-600 dark:text-amber-400"
                         >
-                          Tournament Organizer Access
+                          Tournament organizer access
                         </Badge>
                       )}
                     </div>
@@ -716,7 +714,7 @@ function CreateMatchWizard() {
                     {/* Team 1 (Host / Your Team) */}
                     <div>
                       <div className="flex items-baseline justify-between">
-                        <Label>Team 1 (Host / Your Team)</Label>
+                        <Label>Team 1 (host / your team)</Label>
                         <span className="text-xs text-muted-foreground">
                           Teams you represent
                         </span>
@@ -733,7 +731,7 @@ function CreateMatchWizard() {
                               <p className="text-xs text-muted-foreground">
                                 You can only host matches for teams you created,
                                 captain, play for, or manage. Create a team now
-                                to proceed!
+                                to proceed.
                               </p>
                               <Button
                                 type="button"
@@ -771,7 +769,7 @@ function CreateMatchWizard() {
                                 <>
                                   {team1MyTeams.length > 0 && (
                                     <SelectGroup>
-                                      <SelectLabel>My Teams</SelectLabel>
+                                      <SelectLabel>My teams</SelectLabel>
                                       {team1MyTeams.map((team) => {
                                         const isReg = tournamentTeamIds.has(
                                           team.id,
@@ -783,7 +781,7 @@ function CreateMatchWizard() {
                                           >
                                             <span className="flex items-center gap-1.5">
                                               {isReg && (
-                                                <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                                <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                               )}
                                               <span>
                                                 {team.name}
@@ -804,7 +802,7 @@ function CreateMatchWizard() {
                                       )}
                                       <SelectGroup>
                                         <SelectLabel>
-                                          Tournament Teams (Organizer Access)
+                                          Tournament teams (organizer access)
                                         </SelectLabel>
                                         {team1OrgTournTeams.map((team) => (
                                           <SelectItem
@@ -812,7 +810,7 @@ function CreateMatchWizard() {
                                             value={team.id}
                                           >
                                             <span className="flex items-center gap-1.5">
-                                              <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                              <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                               <span>
                                                 {team.name}
                                                 {team.short_name &&
@@ -833,7 +831,7 @@ function CreateMatchWizard() {
                                       )}
                                       <SelectGroup>
                                         <SelectLabel>
-                                          Club Teams (Admin Access)
+                                          Club teams (admin access)
                                         </SelectLabel>
                                         {team1OrgClubTeams.map((team) => {
                                           const isReg = tournamentTeamIds.has(
@@ -846,7 +844,7 @@ function CreateMatchWizard() {
                                             >
                                               <span className="flex items-center gap-1.5">
                                                 {isReg && (
-                                                  <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                                  <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                                 )}
                                                 <span>
                                                   {team.name}
@@ -883,7 +881,7 @@ function CreateMatchWizard() {
                     {/* Team 2 (Opponent) */}
                     <div>
                       <div className="flex items-baseline justify-between">
-                        <Label>Team 2 (Opponent)</Label>
+                        <Label>Team 2 (opponent)</Label>
                         <span className="text-xs text-muted-foreground">
                           {formData.tournamentId
                             ? "Tournament opponents"
@@ -911,11 +909,11 @@ function CreateMatchWizard() {
                               {formData.tournamentId &&
                                 team2TournamentTeams.length > 0 && (
                                   <SelectGroup>
-                                    <SelectLabel>Tournament Teams</SelectLabel>
+                                    <SelectLabel>Tournament teams</SelectLabel>
                                     {team2TournamentTeams.map((team) => (
                                       <SelectItem key={team.id} value={team.id}>
                                         <span className="flex items-center gap-1.5">
-                                          <Star className="h-3 w-3 shrink-0 fill-amber-500 text-amber-500" />
+                                          <Trophy className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="Registered in tournament" />
                                           <span>
                                             {team.name}
                                             {team.short_name &&
@@ -931,7 +929,7 @@ function CreateMatchWizard() {
                                 <>
                                   {team2ClubTeams.length > 0 && (
                                     <SelectGroup>
-                                      <SelectLabel>Club Squads</SelectLabel>
+                                      <SelectLabel>Club squads</SelectLabel>
                                       {team2ClubTeams.map((team) => (
                                         <SelectItem
                                           key={team.id}
@@ -952,7 +950,7 @@ function CreateMatchWizard() {
                                       )}
                                       <SelectGroup>
                                         <SelectLabel>
-                                          My Other Squads
+                                          My other squads
                                         </SelectLabel>
                                         {team2MyTeams.map((team) => (
                                           <SelectItem
@@ -975,7 +973,7 @@ function CreateMatchWizard() {
                                 team2MyTeams.length > 0 && (
                                   <SelectGroup>
                                     <SelectLabel>
-                                      My Squads (Internal Match)
+                                      My squads (internal match)
                                     </SelectLabel>
                                     {team2MyTeams.map((team) => (
                                       <SelectItem key={team.id} value={team.id}>
@@ -1028,7 +1026,7 @@ function CreateMatchWizard() {
               <div className="space-y-6">
                 <div>
                   <h2 className="mb-2 text-xl font-semibold">
-                    Match Details & Associations
+                    Match details & associations
                   </h2>
                   <p className="mb-6 text-sm text-muted-foreground">
                     Add venue, schedule, and tournament or club linkage
@@ -1037,7 +1035,7 @@ function CreateMatchWizard() {
 
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="title">Match Title *</Label>
+                    <Label htmlFor="title">Match title *</Label>
                     <Input
                       id="title"
                       placeholder="e.g., League Match - Round 1"
@@ -1050,7 +1048,7 @@ function CreateMatchWizard() {
                   {/* Tournament Selector */}
                   <div>
                     <Label htmlFor="tournament_select">
-                      Tournament (Optional)
+                      Tournament (optional)
                     </Label>
                     <Select
                       value={formData.tournamentId || "none"}
@@ -1063,12 +1061,12 @@ function CreateMatchWizard() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">
-                          None (Independent / Friendly)
+                          None (independent / friendly)
                         </SelectItem>
                         {selectableTournaments.map((t) => (
                           <SelectItem key={t.id} value={t.id}>
                             <div className="flex items-center gap-2">
-                              <Trophy className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                              <Trophy className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               <span>{t.name}</span>
                             </div>
                           </SelectItem>
@@ -1084,7 +1082,7 @@ function CreateMatchWizard() {
                   {/* Club Selector */}
                   <div>
                     <Label htmlFor="club_select">
-                      Club / Organization (Optional)
+                      Club / organization (optional)
                     </Label>
                     <Select
                       value={formData.clubId || "none"}
@@ -1097,7 +1095,7 @@ function CreateMatchWizard() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">
-                          None (Independent match)
+                          None (independent match)
                         </SelectItem>
                         {selectableClubs.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
@@ -1127,7 +1125,7 @@ function CreateMatchWizard() {
                   </div>
 
                   <div>
-                    <Label htmlFor="datetime">Date & Time</Label>
+                    <Label htmlFor="datetime">Date & time</Label>
                     <Input
                       id="datetime"
                       type="datetime-local"
@@ -1174,7 +1172,7 @@ function CreateMatchWizard() {
               <div className="space-y-6">
                 <div>
                   <h2 className="mb-2 text-xl font-semibold">
-                    Review Match Details
+                    Review match details
                   </h2>
                   <p className="mb-6 text-sm text-muted-foreground">
                     Verify match parameters before opening the scorecard
@@ -1184,7 +1182,7 @@ function CreateMatchWizard() {
                 <div className="space-y-3 rounded-lg border p-4 text-sm">
                   <div className="flex items-start justify-between gap-3">
                     <span className="shrink-0 text-muted-foreground">
-                      Match Title
+                      Match title
                     </span>
                     <span className="break-words text-right font-semibold">
                       {formData.title}
@@ -1315,7 +1313,7 @@ function CreateMatchWizard() {
                   ) : (
                     <>
                       <Check className="mr-2 h-4 w-4 shrink-0" />
-                      Create Match
+                      Create match
                     </>
                   )}
                 </Button>
@@ -1343,7 +1341,7 @@ function CreateMatchWizard() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
-                <Label htmlFor="inline_team_name">Team Name</Label>
+                <Label htmlFor="inline_team_name">Team name</Label>
                 <Input
                   id="inline_team_name"
                   value={newTeamName}
@@ -1380,8 +1378,7 @@ function CreateMatchWizard() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 

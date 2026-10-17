@@ -56,17 +56,17 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
   return (
     <Tabs defaultValue="match-info" className="w-full">
-      <TabsList className="mb-4 grid h-auto w-full grid-cols-2 gap-1 p-1">
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-2">
         <TabsTrigger
           value="match-info"
-          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+          className="px-1.5 sm:px-3"
         >
           <Hash className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-          <span className="truncate">Match Info</span>
+          <span className="truncate">Match info</span>
         </TabsTrigger>
         <TabsTrigger
           value="squads"
-          className="flex items-center justify-center gap-1 px-1.5 py-1.5 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+          className="px-1.5 sm:px-3"
         >
           <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
           <span className="truncate">Squads</span>
@@ -78,9 +78,8 @@ export function MatchInfo({ match }: MatchInfoProps) {
         <div className="grid gap-4 md:grid-cols-2">
           {/* Basic Info */}
           <Card className="overflow-hidden border-border bg-card">
-            <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
             <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Match Details</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Match details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
@@ -88,7 +87,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   <Layers className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Format
                   </p>
                   <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -102,7 +101,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   <CircleDot className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Overs
                   </p>
                   <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -117,8 +116,8 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <CircleDot className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Ball Type
+                    <p className="text-xs text-muted-foreground">
+                      Ball type
                     </p>
                     <p className="font-semibold capitalize text-foreground text-sm sm:text-base">
                       {match.ball_type}
@@ -132,7 +131,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                   <MapPin className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Venue
                   </p>
                   <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -147,8 +146,8 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <Calendar className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Date & Time
+                    <p className="text-xs text-muted-foreground">
+                      Date & time
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatDate(match.scheduled_at)}
@@ -166,8 +165,8 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <Clock className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Actual Start
+                    <p className="text-xs text-muted-foreground">
+                      Actual start
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
                       {formatTime(match.actual_start_time)}
@@ -180,24 +179,23 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
           {/* Toss & Conditions */}
           <Card className="overflow-hidden border-border bg-card">
-            <div className="h-1 w-full bg-gradient-to-r from-amber-500 to-amber-500/40" />
             <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Toss & Conditions</CardTitle>
+              <CardTitle className="text-base sm:text-lg">Toss & conditions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-500">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                   <Trophy className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Toss
                   </p>
                   <p className="font-semibold text-foreground text-sm sm:text-base">
                     {match.toss_winner_team_id ? (
                       <>
                         {getTossWinnerName()} won the toss and elected to{" "}
-                        <span className="font-bold text-amber-500">
+                        <span className="font-semibold">
                           {match.toss_decision === "bowl" ? "bowl" : "bat"}
                         </span>
                       </>
@@ -214,7 +212,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <CloudSun className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Weather
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -230,7 +228,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <Landmark className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Pitch
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -246,7 +244,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
                     <Users className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Umpires
                     </p>
                     <p className="font-semibold text-foreground text-sm sm:text-base">
@@ -263,7 +261,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
           {/* Match ID & Meta */}
           <Card className="md:col-span-2 overflow-hidden border-border bg-card">
             <CardHeader className="border-b border-border/50 py-3">
-              <CardTitle className="text-base">Additional Info</CardTitle>
+              <CardTitle className="text-base">Additional info</CardTitle>
             </CardHeader>
             <CardContent className="pt-3">
               <div className="grid gap-4 sm:grid-cols-3">
@@ -300,11 +298,10 @@ export function MatchInfo({ match }: MatchInfoProps) {
         <div className="grid gap-4 md:grid-cols-2">
           {/* Team 1 Squad */}
           <Card className="overflow-hidden border-border bg-card">
-            <div className="h-1 w-full bg-gradient-to-r from-primary to-primary/40" />
             <CardHeader className="border-b border-border/50 py-3.5 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
                     {match.team1.short_name?.slice(0, 2) ||
                       match.team1.name.slice(0, 2)}
                   </div>
@@ -321,13 +318,13 @@ export function MatchInfo({ match }: MatchInfoProps) {
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className="w-[50px] text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="w-[50px] text-center text-xs font-medium text-muted-foreground">
                       #
                     </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="text-xs font-medium text-muted-foreground">
                       Player
                     </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground text-right pr-4">
+                    <TableHead className="text-xs font-medium text-muted-foreground text-right pr-4">
                       Role
                     </TableHead>
                   </TableRow>
@@ -366,11 +363,10 @@ export function MatchInfo({ match }: MatchInfoProps) {
 
           {/* Team 2 Squad */}
           <Card className="overflow-hidden border-border bg-card">
-            <div className="h-1 w-full bg-gradient-to-r from-sky-500 to-sky-500/40" />
             <CardHeader className="border-b border-border/50 py-3.5 px-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10 text-xs font-bold text-sky-500">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
                     {match.team2.short_name?.slice(0, 2) ||
                       match.team2.name.slice(0, 2)}
                   </div>
@@ -387,13 +383,13 @@ export function MatchInfo({ match }: MatchInfoProps) {
               <Table>
                 <TableHeader className="bg-muted/40">
                   <TableRow>
-                    <TableHead className="w-[50px] text-center font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="w-[50px] text-center text-xs font-medium text-muted-foreground">
                       #
                     </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
+                    <TableHead className="text-xs font-medium text-muted-foreground">
                       Player
                     </TableHead>
-                    <TableHead className="font-bold text-xs uppercase tracking-wider text-muted-foreground text-right pr-4">
+                    <TableHead className="text-xs font-medium text-muted-foreground text-right pr-4">
                       Role
                     </TableHead>
                   </TableRow>

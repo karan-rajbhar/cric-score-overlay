@@ -12,7 +12,7 @@ import {
 } from "~/components/ui/table";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { MoreHorizontal, Trash2, Crown, Shield, Users } from "lucide-react";
+import { MoreHorizontal, Trash2, Users } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   DropdownMenu,
@@ -35,7 +35,6 @@ interface Player {
   user?: {
     id: string;
     full_name: string;
-    email?: string;
     avatar_url?: string;
   };
 }
@@ -95,19 +94,11 @@ export function PlayerList({
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case "captain":
-        return (
-          <Badge className="border-yellow-200 bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/20">
-            Captain
-          </Badge>
-        );
+        return <Badge variant="secondary">Captain (c)</Badge>;
       case "vice_captain":
-        return (
-          <Badge className="border-blue-200 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20">
-            Vice Captain
-          </Badge>
-        );
+        return <Badge variant="outline">Vice-captain (vc)</Badge>;
       case "wicket_keeper":
-        return <Badge variant="outline">Wicket Keeper</Badge>;
+        return <Badge variant="outline">Wicket-keeper (wk)</Badge>;
       default:
         return (
           <span className="text-sm text-muted-foreground">
@@ -121,7 +112,7 @@ export function PlayerList({
     return (
       <EmptyState
         icon={Users}
-        title="No Players in Squad Yet"
+        title="No players in this squad yet"
         description={
           allowEdit
             ? "Build your team line-up by adding registered players, wicket-keepers, and appointing leadership roles."
@@ -161,11 +152,6 @@ export function PlayerList({
                     >
                       {player.user?.full_name}
                     </Link>
-                    {allowEdit && player.user?.email && (
-                      <p className="truncate text-[11px] text-muted-foreground sm:text-xs">
-                        {player.user.email}
-                      </p>
-                    )}
                   </div>
                 </div>
               </TableCell>
@@ -197,35 +183,35 @@ export function PlayerList({
                           handleRoleChange(player.user_id, "captain")
                         }
                       >
-                        <Crown className="mr-2 h-4 w-4" /> Make Captain
+                        Make captain
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() =>
                           handleRoleChange(player.user_id, "vice_captain")
                         }
                       >
-                        <Shield className="mr-2 h-4 w-4" /> Make Vice Captain
+                        Make vice-captain
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() =>
                           handleRoleChange(player.user_id, "wicket_keeper")
                         }
                       >
-                        Make Wicket Keeper
+                        Make wicket-keeper
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() =>
                           handleRoleChange(player.user_id, "player")
                         }
                       >
-                        Set as Regular Player
+                        Set as regular player
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-red-600 focus:text-red-600"
                         onClick={() => handleRemove(player.user_id)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" /> Remove from Team
+                        <Trash2 className="mr-2 h-4 w-4" /> Remove from team
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

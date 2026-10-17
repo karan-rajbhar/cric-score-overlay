@@ -105,7 +105,7 @@ describe("PotmDialog", () => {
     );
 
     // Verify dialog shows automated recommendation
-    expect(screen.getByText(/Top Recommended/i)).toBeDefined();
+    expect(screen.getByText(/Suggested/i)).toBeDefined();
     expect(screen.getByText(/Virat Kohli/i)).toBeDefined();
   });
 

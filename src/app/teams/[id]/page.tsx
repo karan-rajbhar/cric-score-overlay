@@ -9,6 +9,7 @@ import {
   CardTitle,
   CardDescription,
 } from "~/components/ui/card";
+import { StatTile } from "~/components/ui/stat-tile";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +22,13 @@ import {
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { getTeam } from "../actions";
+import type { Doc } from "~/lib/firebase/datasource";
+import { sortRows } from "~/lib/firebase/filters";
 import { createServerClient } from "~/lib/firebase/server";
+import {
+  attachMatchTeams,
+  MATCH_TEAM_COLUMNS,
+} from "~/lib/firebase/team-snapshot";
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
@@ -33,6 +40,7 @@ import {
   TeamMatchesView,
   type TeamMatchItem,
 } from "~/components/teams/team-matches-view";
+import { PageContainer } from "~/components/layout/page";
 
 function TeamLogoStatic({
   name,
@@ -172,29 +180,38 @@ export default async function TeamDetailsPage({
       user?: {
         id: string;
         full_name: string;
-        email?: string;
         avatar_url?: string;
       };
     }> | null) || [];
 
-  // Fetch all matches for this team
-  const { data: matchesData } = await db
-    .from("matches")
-    .select(
-      `
+  // Fetch all matches for this team: one indexed query per side (an `or`
+  // would read every match), merged in the order the `or` query returned.
+  const columns = `
       id, title, match_format, overs_per_innings, status, venue, scheduled_at,
       result_type, win_margin, win_margin_type, result_description, winning_team_id,
       tournament_id,
       tournament:tournaments(id, name),
-      team1:teams!matches_team1_id_fkey(id, name, short_name, logo_url),
-      team2:teams!matches_team2_id_fkey(id, name, short_name, logo_url),
+      ${MATCH_TEAM_COLUMNS},
       innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
-    `,
-    )
-    .or(`team1_id.eq.${id},team2_id.eq.${id}`)
-    .order("scheduled_at", { ascending: false });
+    `;
+  const sides = await Promise.all(
+    (["team1_id", "team2_id"] as const).map((side) =>
+      db.from("matches").select(columns).eq(side, id),
+    ),
+  );
+  const byId = new Map<string, Doc>();
+  for (const { data } of sides) {
+    for (const m of (data ?? []) as Doc[]) byId.set(m.id, m);
+  }
+  const matchesData = sortRows(
+    [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
+  );
 
-  const teamMatches = (matchesData ?? []) as unknown as TeamMatchItem[];
+  const teamMatches = (await attachMatchTeams(
+    db,
+    matchesData ?? [],
+  )) as unknown as TeamMatchItem[];
 
   // Match statistics for this team
   const totalMatches = teamMatches.length;
@@ -211,7 +228,7 @@ export default async function TeamDetailsPage({
     completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
 
   return (
-    <div className="container mx-auto w-full max-w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-8">
+    <PageContainer stack={false}>
       {/* Contextual Breadcrumbs and Back Navigation */}
       <div className="mb-6 flex flex-col gap-2.5">
         <nav
@@ -290,7 +307,7 @@ export default async function TeamDetailsPage({
 
         <Button
           variant="ghost"
-          className="interactive-button w-fit pl-0 text-sm font-medium"
+          className="w-fit pl-0 text-sm font-medium"
           asChild
         >
           <Link href={backHref}>
@@ -348,7 +365,7 @@ export default async function TeamDetailsPage({
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center text-muted-foreground">
                     <Users className="mr-2 h-4 w-4 shrink-0" />
-                    Squad Size
+                    Squad size
                   </div>
                   <span className="font-medium tabular-nums">{players.length}</span>
                 </div>
@@ -406,29 +423,11 @@ export default async function TeamDetailsPage({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular-nums text-xl font-bold">
-                    {totalMatches}
-                  </div>
-                  <div className="text-[11px] font-medium text-muted-foreground">
-                    Played
-                  </div>
-                </div>
-                <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-                  <div className="tabular-nums text-xl font-bold">{wonMatches}</div>
-                  <div className="text-[11px] font-medium">Won</div>
-                </div>
-                <div className="rounded-md border border-rose-500/30 bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
-                  <div className="tabular-nums text-xl font-bold">{lostMatches}</div>
-                  <div className="text-[11px] font-medium">Lost</div>
-                </div>
-                <div className="rounded-md border bg-muted/30 p-2">
-                  <div className="tabular-nums text-xl font-bold">{tiedMatches}</div>
-                  <div className="text-[11px] font-medium text-muted-foreground">
-                    Tied/NR
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StatTile label="Played" value={totalMatches} />
+                <StatTile label="Won" value={wonMatches} tone="positive" />
+                <StatTile label="Lost" value={lostMatches} tone="negative" />
+                <StatTile label="Tied/NR" value={tiedMatches} />
               </div>
               {winRate !== null && (
                 <div className="flex items-center justify-between border-t pt-2 text-xs">
@@ -449,10 +448,9 @@ export default async function TeamDetailsPage({
             className="w-full"
           >
             <div className="flex items-center justify-between border-b pb-4">
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:w-auto">
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
                 <TabsTrigger
                   value="matches"
-                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Swords className="h-4 w-4 shrink-0" />
                   Matches
@@ -465,7 +463,6 @@ export default async function TeamDetailsPage({
                 </TabsTrigger>
                 <TabsTrigger
                   value="squad"
-                  className="gap-1.5 px-3 py-2 text-xs font-semibold min-h-[40px] sm:min-h-0 sm:py-1.5 sm:text-sm"
                 >
                   <Users className="h-4 w-4 shrink-0" />
                   Squad
@@ -518,6 +515,6 @@ export default async function TeamDetailsPage({
           </Tabs>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -174,7 +174,7 @@ export async function getPlayerByIdOrHandle(idOrHandle: string) {
   if (isUuid) {
     const { data } = await db
       .from("users")
-      .select("id, full_name, avatar_url, email, username, location")
+      .select("id, full_name, avatar_url, username, location")
       .eq("id", clean)
       .maybeSingle();
     return data;
@@ -182,7 +182,7 @@ export async function getPlayerByIdOrHandle(idOrHandle: string) {
 
   const { data } = await db
     .from("users")
-    .select("id, full_name, avatar_url, email, username, location")
+    .select("id, full_name, avatar_url, username, location")
     .eq("username", clean)
     .maybeSingle();
 

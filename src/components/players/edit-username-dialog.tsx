@@ -14,7 +14,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { AtSign, Check, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { AtSign, Check, AlertCircle, Loader2 } from "lucide-react";
 import {
   checkUsernameAvailability,
   updateUsername,
@@ -130,27 +130,23 @@ export function EditUsernameDialog({
             className="gap-1.5 font-mono text-xs"
           >
             <AtSign className="h-3.5 w-3.5 text-primary" />
-            <span>Edit Handle</span>
+            <span>Edit handle</span>
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Claim Your Unique Handle
-            </DialogTitle>
+            <DialogTitle className="text-lg">Choose a username</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Your unique @handle is how other cricketers find, mention, and
-              tag you across teams, scorecards, and tournaments.
+              Your @username appears on your profile, teams and scorecards.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="username-input" className="text-xs font-semibold">
-                Username Handle
+                Username handle
               </Label>
               <div className="relative flex items-center">
                 <span className="absolute left-3 font-mono text-sm font-bold text-muted-foreground select-none">
@@ -208,7 +204,7 @@ export function EditUsernameDialog({
             </div>
 
             {/* Platform Rules Hint */}
-            <div className="rounded-lg bg-muted/40 p-3 text-[11px] text-muted-foreground space-y-1">
+            <div className="rounded-lg bg-muted/40 p-3 text-2xs text-muted-foreground space-y-1">
               <p className="font-semibold text-foreground">Handle Rules:</p>
               <ul className="list-disc pl-4 space-y-0.5">
                 <li>3 to 30 characters long</li>

@@ -9,6 +9,14 @@ import type { DataSource, Doc } from "../datasource";
 import { DbQueryError, newId } from "../query-builder";
 import { USER_REFERENCES, TABLE_DEFAULTS, TABLE_COLUMNS } from "../schema";
 import type { TeamsRow, UsersRow } from "../types";
+import {
+  getUserPrivate,
+  moveUserPrivate,
+  upsertUserPrivate,
+  userIdsByEmail,
+  userIdsByPhone,
+} from "../user-private";
+import { remapScorecardUserId } from "../scorecard-sync";
 import { isClubAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
@@ -202,9 +210,13 @@ export async function remapUserId(
   newId: string,
 ): Promise<void> {
   if (oldId === newId) return;
+  // Nested ids first: it finds the matches through the old team_players.
+  await remapScorecardUserId(ds, oldId, newId);
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
-      const rows = await ds.query(ref.table, []);
+      const rows = await ds.query(ref.table, [
+        { field: ref.column, op: "array-contains", value: oldId },
+      ]);
       for (const row of rows) {
         const arr = row[ref.column];
         if (Array.isArray(arr) && arr.includes(oldId)) {
@@ -229,6 +241,7 @@ export async function remapUserId(
     await ds.insert("users", [{ ...copy, id: newId }]);
     await ds.delete("users", oldId);
   }
+  await moveUserPrivate(ds, oldId, newId);
 }
 
 function buildUserDoc(values: Partial<UsersRow> & { id: string }): Doc {
@@ -253,9 +266,30 @@ function buildUserDoc(values: Partial<UsersRow> & { id: string }): Doc {
   return doc;
 }
 
+/** Profile fields to patch, or null when nothing changed (saves a write). */
+function profilePatch(
+  row: UsersRow,
+  values: { fullName: string; avatarUrl: string | null; username: string },
+): Record<string, unknown> | null {
+  const patch: Record<string, unknown> = {};
+  if (
+    (!row.full_name || row.full_name === "Player") &&
+    values.fullName !== row.full_name
+  ) {
+    patch.full_name = values.fullName;
+  }
+  if (values.avatarUrl && values.avatarUrl !== row.avatar_url) {
+    patch.avatar_url = values.avatarUrl;
+  }
+  if (values.username !== row.username) patch.username = values.username;
+  return Object.keys(patch).length ? patch : null;
+}
+
 /**
- * Guarantees a `users` profile exists for the signed-in account, re-mapping
- * a pre-existing profile with the same email/phone onto the auth uid.
+ * Guarantees a `users` profile (and its `users_private` contact details)
+ * exists for the signed-in account, re-mapping a pre-existing profile with
+ * the same email/phone onto the auth uid. Runs before most mutations, so
+ * it only writes when something actually changed.
  */
 export async function ensureOwnProfile(
   ds: DataSource,
@@ -282,59 +316,44 @@ export async function ensureOwnProfile(
       ? meta.avatar_url
       : null;
   const now = new Date().toISOString();
+  // `undefined` keeps the stored value when the token has none.
+  const contact = { email: email ?? undefined, phone: phone ?? undefined };
 
   // A: profile already keyed by the auth uid.
-  const existing = (await ds.getById(
-    "users",
-    uid,
-  )) as unknown as UsersRow | null;
+  const [existing, existingPrivate] = (await Promise.all([
+    ds.getById("users", uid),
+    getUserPrivate(ds, uid),
+  ])) as [UsersRow | null, Awaited<ReturnType<typeof getUserPrivate>>];
   if (existing) {
     const username =
       existing.username ??
       (await generateUniqueUsername(ds, fullName, email, uid));
-    await ds.update("users", uid, {
-      email: email ?? existing.email,
-      phone: phone ?? existing.phone,
-      full_name:
-        !existing.full_name || existing.full_name === "Player"
-          ? fullName
-          : existing.full_name,
-      avatar_url: avatarUrl ?? existing.avatar_url,
-      username,
-      updated_at: now,
-    });
+    const patch = profilePatch(existing, { fullName, avatarUrl, username });
+    if (patch) await ds.update("users", uid, { ...patch, updated_at: now });
+    await upsertUserPrivate(ds, uid, contact, existingPrivate);
     return { ok: true, user_id: uid, username, action: "updated" };
   }
 
   // B: profile exists under a different id with the same email / phone.
-  let match: UsersRow | null = null;
-  if (email) {
-    const rows = (await ds.query("users", [
-      { field: "email", op: "==", value: email },
-    ])) as unknown as UsersRow[];
-    match = rows[0] ?? null;
-  }
-  if (!match && phone) {
-    const rows = (await ds.query("users", [
-      { field: "phone", op: "==", value: phone },
-    ])) as unknown as UsersRow[];
-    match = rows[0] ?? null;
-  }
+  const firstProfile = async (ids: string[]) => {
+    for (const id of ids) {
+      if (id === uid) continue;
+      const row = (await ds.getById("users", id)) as unknown as UsersRow | null;
+      if (row) return row;
+    }
+    return null;
+  };
+  let match = await firstProfile(await userIdsByEmail(ds, email));
+  if (!match && phone)
+    match = await firstProfile(await userIdsByPhone(ds, phone));
   if (match) {
     const username =
       match.username ??
       (await generateUniqueUsername(ds, fullName, email, uid));
-    await ds.update("users", match.id, {
-      email: email ?? match.email,
-      phone: phone ?? match.phone,
-      full_name:
-        !match.full_name || match.full_name === "Player"
-          ? fullName
-          : match.full_name,
-      avatar_url: avatarUrl ?? match.avatar_url,
-      username,
-      updated_at: now,
-    });
+    const patch = profilePatch(match, { fullName, avatarUrl, username });
+    if (patch)
+      await ds.update("users", match.id, { ...patch, updated_at: now });
+    await upsertUserPrivate(ds, match.id, contact);
     await remapUserId(ds, match.id, uid);
     return { ok: true, user_id: uid, username, action: "remapped" };
   }
@@ -347,13 +366,12 @@ export async function ensureOwnProfile(
   await ds.insert("users", [
     buildUserDoc({
       id: uid,
-      email,
-      phone,
       full_name: fullName,
       avatar_url: avatarUrl,
       username,
     }),
   ]);
+  await upsertUserPrivate(ds, uid, { email, phone }, existingPrivate);
   return { ok: true, user_id: uid, username, action: "created" };
 }
 
@@ -395,13 +413,14 @@ export async function createTeamPlayer(
   const userId = newId();
   const now = new Date().toISOString();
   await ds.insert("users", [
-    buildUserDoc({
-      id: userId,
-      email: `player.${slug}.${userId.slice(0, 8)}@players.local`,
-      full_name: name,
-      username,
-    }),
+    buildUserDoc({ id: userId, full_name: name, username }),
   ]);
+  await upsertUserPrivate(
+    ds,
+    userId,
+    { email: `player.${slug}.${userId.slice(0, 8)}@players.local` },
+    null,
+  );
   await ds.insert("team_players", [
     {
       id: newId(),

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Input } from "~/components/ui/input";
 import {
   Select,
@@ -61,14 +62,6 @@ interface ClubTournamentsTabProps {
   isAdmin: boolean;
 }
 
-function formatStatus(status?: string | null) {
-  if (!status) return "Upcoming";
-  return status
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 function formatTournamentFormat(fmt?: string | null) {
   if (!fmt) return "League";
   return fmt
@@ -121,7 +114,7 @@ export function ClubTournamentsTab({
       {/* Header with action */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-bold sm:text-lg">Hosted Tournaments</h2>
+          <h2 className="text-base font-bold sm:text-lg">Hosted tournaments</h2>
           <p className="text-xs text-muted-foreground">
             Cricket leagues, knockout tournaments, and events organized by {clubName}.
           </p>
@@ -130,7 +123,7 @@ export function ClubTournamentsTab({
           <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
             <Link href={`/tournaments/create?clubId=${clubId}`}>
               <Plus className="h-4 w-4 shrink-0" />
-              Host Tournament
+              Host tournament
             </Link>
           </Button>
         )}
@@ -161,7 +154,7 @@ export function ClubTournamentsTab({
                   <SelectValue placeholder="Season" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Seasons</SelectItem>
+                  <SelectItem value="all">All seasons</SelectItem>
                   {seasons.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} {s.is_current ? "(Active)" : ""}
@@ -179,7 +172,7 @@ export function ClubTournamentsTab({
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
                 <SelectItem value="upcoming">Upcoming</SelectItem>
                 <SelectItem value="ongoing">Ongoing</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
@@ -235,13 +228,14 @@ export function ClubTournamentsTab({
                       </div>
 
                       <div className="flex flex-col items-end gap-1">
-                        <Badge variant="outline" className="text-[11px]">
-                          {formatStatus(t.status)}
-                        </Badge>
+                        <StatusBadge
+                          status={t.status ?? "upcoming"}
+                          label={t.status ? undefined : "Upcoming"}
+                        />
                         {seasonName && (
                           <Badge
                             variant="secondary"
-                            className="gap-1 text-[10px]"
+                            className="gap-1 text-2xs"
                           >
                             <Calendar className="h-2.5 w-2.5 shrink-0" />
                             {seasonName}
@@ -279,7 +273,7 @@ export function ClubTournamentsTab({
                 <div className="flex items-center justify-between border-t border-border/50 p-3">
                   <Button variant="secondary" size="sm" asChild className="h-7 text-xs">
                     <Link href={`/tournaments/${t.id}?clubId=${clubId}`}>
-                      View Tournament
+                      View tournament
                     </Link>
                   </Button>
 

@@ -27,7 +27,7 @@ export function ClubMembershipButton({
       <Button variant="outline" size="sm" asChild className="gap-1.5">
         <Link href={`/auth/login?redirect=/clubs/${clubId}`}>
           <UserPlus className="h-4 w-4" />
-          Join Club
+          Join club
         </Link>
       </Button>
     );
@@ -42,7 +42,7 @@ export function ClubMembershipButton({
         className="cursor-default gap-1.5"
       >
         <UserCheck className="h-4 w-4 text-primary" />
-        Club Owner
+        Club owner
       </Button>
     );
   }
@@ -61,7 +61,7 @@ export function ClubMembershipButton({
         if (res?.error) {
           toast.error(res.error);
         } else {
-          toast.success("Welcome to the club!");
+          toast.success("You joined the club");
         }
       }
     });
@@ -80,12 +80,12 @@ export function ClubMembershipButton({
       ) : isMember ? (
         <>
           <UserCheck className="h-4 w-4 text-emerald-500" />
-          Member (Leave)
+          Member (leave)
         </>
       ) : (
         <>
           <UserPlus className="h-4 w-4" />
-          Join Club
+          Join club
         </>
       )}
     </Button>
