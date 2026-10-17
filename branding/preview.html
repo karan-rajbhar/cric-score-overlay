@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CricScore logo concepts</title>
+<style>
+  :root { --bg: #e9ecea; --ink: #12211c; --muted: #5b6b65; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 15px/1.5 Barlow, system-ui, sans-serif; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; text-wrap: balance; }
+  p { margin: 0 0 20px; color: var(--muted); max-width: 68ch; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  section { display: grid; gap: 0; }
+  h2 { font-size: 17px; font-weight: 600; margin: 0 0 2px; }
+  h2 small { font-weight: 500; color: #1c6949; margin-left: 6px; }
+  .note { font-size: 14px; margin: 0 0 10px; }
+  .panel { padding: 16px; display: grid; gap: 14px; }
+  .light { background: #f5f7f6; }
+  .dark { background: #0c1310; }
+  .row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .dark .mono { filter: invert(1); }
+  img { display: block; max-width: 100%; height: auto; }
+  .files { font-size: 13px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>CricScore logo concepts</h1>
+<p>Each mark is drawn on a 32-unit grid on the scoreboard-green tile, so at 16 px every edge lands on a pixel. Rows show 16, 24, 32, 48 and 96 px, then the one-colour version, then the lockup at 24, 32 and 56 px. Files live in <code>branding/&lt;concept&gt;/</code>.</p>
+<div class="grid">
+  <section>
+    <h2>A. Stumps <small>shipped</small></h2>
+    <p class="note">Three stumps and a split bail. The most cricket-specific shape, and the crispest at favicon size.</p>
+    <div class="panel light" data-k="stumps"></div>
+    <div class="panel dark" data-k="stumps"></div>
+  </section>
+  <section>
+    <h2>B. Seam</h2>
+    <p class="note">A red ball side-on with its seam in chalk. Familiar, but the seam softens at 16 px.</p>
+    <div class="panel light" data-k="seam"></div>
+    <div class="panel dark" data-k="seam"></div>
+  </section>
+  <section>
+    <h2>C. C-ball</h2>
+    <p class="note">A chalk C holding the red ball, echoing the wordmark's dot. Clean, but less obviously cricket.</p>
+    <div class="panel light" data-k="cball"></div>
+    <div class="panel dark" data-k="cball"></div>
+  </section>
+</div>
+<p class="files">Contact sheet with true-size rasters: preview.png.</p>
+<script>
+  for (const panel of document.querySelectorAll(".panel")) {
+    const k = panel.dataset.k, dark = panel.classList.contains("dark");
+    const mark = `${k}/${dark ? "mark-dark" : "mark"}.svg`;
+    const lock = `${k}/${dark ? "lockup-dark" : "lockup-light"}.svg`;
+    const img = (src, h, cls = "") => `<img src="${src}" height="${h}" style="height:${h}px;width:auto" class="${cls}" alt="">`;
+    panel.innerHTML =
+      `<div class="row">${[16, 24, 32, 48, 96].map((s) => img(mark, s)).join("")}${[16, 32, 64].map((s) => img(`${k}/mark-mono.svg`, s, "mono")).join("")}</div>` +
+      [24, 32, 56].map((h) => `<div class="row">${img(lock, h)}</div>`).join("") +
+      `<div class="row">${img(`${k}/lockup-mono.svg`, 32, "mono")}</div>`;
+  }
+</script>
+</body>
+</html>

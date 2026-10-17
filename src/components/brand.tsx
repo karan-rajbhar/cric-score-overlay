@@ -1,8 +1,9 @@
 import { cn } from "~/lib/utils";
 
 /**
- * Platform brand: cricket-ball mark (circle with seam) chalked onto a
- * scoreboard-green tile.
+ * Platform brand: three stumps and a split bail chalked onto a
+ * scoreboard-green tile. Same 32-unit grid as src/app/icon.svg
+ * (source and alternatives in branding/).
  */
 export function BrandMark({ className }: { className?: string }) {
   return (
@@ -13,18 +14,16 @@ export function BrandMark({ className }: { className?: string }) {
       )}
     >
       <svg
-        viewBox="0 0 24 24"
-        className="h-[18px] w-[18px]"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
+        viewBox="0 0 32 32"
+        className="h-full w-full"
+        fill="currentColor"
         aria-hidden="true"
       >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M7.5 4.2c-2.2 4.8-2.2 10.8 0 15.6" />
-        <path d="M16.5 4.2c2.2 4.8 2.2 10.8 0 15.6" />
-        <path d="M12 3.2v1.6M12 19.2v1.6" strokeWidth="1.6" />
+        <rect x="8" y="10" width="4" height="16" rx="0.5" />
+        <rect x="14" y="10" width="4" height="16" rx="0.5" />
+        <rect x="20" y="10" width="4" height="16" rx="0.5" />
+        <rect x="8" y="6" width="7" height="2" rx="0.5" />
+        <rect x="17" y="6" width="7" height="2" rx="0.5" />
       </svg>
     </span>
   );
