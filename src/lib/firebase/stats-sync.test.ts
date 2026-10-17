@@ -44,8 +44,11 @@ import {
   accOf,
   applyPlayerMatch,
   emptyAcc,
+  leaderboardId,
   rebuildStats,
   replacePlayerMatch,
+  shardId,
+  shardOf,
   type StatsAcc,
 } from "./stats.mjs";
 import type { PlayerMatchesRow } from "./types";
@@ -447,9 +450,17 @@ describe("profile changes", () => {
       false,
     );
     expectMatchesRebuild(memory);
-    const after = (await memory.getById("leaderboards", board.id))!;
+    // The new id hashes to its own shard of the same scope.
+    const scope = memory
+      .all("leaderboards")
+      .filter((d) => d.scope === board.scope && d.scope_id === board.scope_id);
+    expect(scope.some((d) => oldId in (d.players as object))).toBe(false);
+    const target = shardId(
+      leaderboardId(String(board.scope), String(board.scope_id)),
+      shardOf("new-auth-uid"),
+    );
+    const after = (await memory.getById("leaderboards", target))!;
     const players = after.players as Record<string, Doc>;
-    expect(players[oldId]).toBeUndefined();
     expect(players["new-auth-uid"]!.name).toBe(name);
     expect(await memory.getById("player_career_stats", oldId)).toBeNull();
     for (const team of memory.all("teams")) {

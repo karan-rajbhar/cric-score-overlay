@@ -27,7 +27,8 @@ service cloud.firestore {
     match /tournament_registrations/{id} { allow read: if true; allow write: if false; }
     match /tournament_standings/{id}     { allow read: if true; allow write: if false; }
     match /player_career_stats/{id}      { allow read: if true; allow write: if false; }
-    // Tournament / club leaderboards (per-player figures and display names).
+    // Tournament / club leaderboard shards `{scope}_{id}_{k}` (per-player
+    // figures and display names).
     match /leaderboards/{id}             { allow read: if true; allow write: if false; }
 
     // Live scoring data is public so spectators and overlays can follow.

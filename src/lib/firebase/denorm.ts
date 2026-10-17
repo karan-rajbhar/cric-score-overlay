@@ -5,7 +5,8 @@
  *   team_players change, and the player's entry refreshed when a profile's
  *   name / avatar / username changes;
  * - `club_memberships.user_snapshot`;
- * - the `name` / `avatar_url` of each player in `leaderboards/*`.
+ * - the `name` / `avatar_url` of each player in the leaderboard shards
+ *   (`leaderboards/*`; only the player's own shard of each scope).
  *
  * Each refresh runs in a transaction (so it cannot interleave with the
  * scoring engine's leaderboard updates) and writes only what changed.
@@ -16,8 +17,8 @@ import { canonicalJson, rosterOf, userSnapshot } from "./derive.mjs";
 import { runScoringTransaction } from "./scoring/tx";
 import {
   boardIdentity,
+  boardKeysOf,
   LEADERBOARDS_COLLECTION,
-  scopeKeysOf,
 } from "./stats.mjs";
 import type { RosterEntry } from "./types";
 
@@ -96,7 +97,7 @@ export async function refreshPlayerIdentity(
   for (const teamId of teamIds) await refreshRoster(ds, teamId, [userId]);
 
   const keys = Array.from(
-    new Set(records.flatMap((r) => scopeKeysOf(r as never))),
+    new Set(records.flatMap((r) => boardKeysOf(r as never))),
   );
   if (!keys.length) return;
   await runScoringTransaction({ ds }, async (t) => {

@@ -1,6 +1,8 @@
 /**
- * Tournament / club leaderboards from the stored accumulators
- * (`leaderboards/{scope}_{id}`, one read) plus the innings still in play.
+ * Tournament / club leaderboards from the stored accumulators (the
+ * scope's LEADERBOARD_SHARDS shard documents `leaderboards/{scope}_{id}_{k}`,
+ * a fixed number of reads however many players) plus the innings still
+ * in play.
  *
  * The stored document counts completed innings (it follows
  * player_matches). Innings not yet completed (live matches) are folded in
@@ -16,7 +18,7 @@ import {
 import { playerDirectory } from "./directory";
 import type { QueryBuilder } from "./query-builder";
 import { playerMatchDocs } from "./scorecard";
-import { applyPlayerMatch, emptyAcc, leaderboardId } from "./stats.mjs";
+import { applyPlayerMatch, emptyAcc, leaderboardShardIds } from "./stats.mjs";
 import type { InningsRow, MatchesRow, TableName } from "./types";
 
 interface LeaderboardClient {
@@ -38,12 +40,11 @@ export async function loadScopeLeaderboard(
   const open = matches.filter((m) =>
     (m.innings ?? []).some((i) => i.is_completed === false),
   );
-  const [{ data: board }, { data: openInnings }] = await Promise.all([
+  const [{ data: shards }, { data: openInnings }] = await Promise.all([
     db
       .from("leaderboards")
       .select("players")
-      .eq("id", leaderboardId(scope, scopeId))
-      .maybeSingle(),
+      .in("id", leaderboardShardIds(scope, scopeId)),
     open.length
       ? db
           .from("innings")
@@ -55,9 +56,15 @@ export async function loadScopeLeaderboard(
       : Promise.resolve({ data: [] as InningsRow[] }),
   ]);
 
-  const players = structuredClone(
-    (board?.players ?? {}) as Record<string, LeaderboardPlayer>,
-  );
+  const players: Record<string, LeaderboardPlayer> = {};
+  for (const shard of shards ?? []) {
+    Object.assign(
+      players,
+      structuredClone(
+        (shard.players ?? {}) as Record<string, LeaderboardPlayer>,
+      ),
+    );
+  }
   const added = new Set<string>();
   for (const match of open) {
     const innings = ((openInnings ?? []) as InningsRow[]).filter(
