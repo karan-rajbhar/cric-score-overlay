@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Opens the dev app on your phone through a Cloudflare quick tunnel.
+# `npm run dev`: the Next.js dev server plus a Cloudflare quick tunnel, so the
+# app can be opened on a phone.
 #
 #   scripts/dev-tunnel.sh              -> dev server + tunnel (reuses a dev
 #                                         server already running on PORT)
 #   scripts/dev-tunnel.sh tunnel-only  -> tunnel to an already running server
+#   npm run dev:no-tunnel              -> dev server only
+#
+# Without cloudflared, or when the app uses the local emulators (a phone can't
+# reach them), it just starts the dev server.
 #
 # While the tunnel is up, its domain is added to the Firebase project's Auth
 # authorized domains so Google sign-in works on the phone; it is removed again
@@ -15,14 +20,29 @@ cd "$(dirname "$0")/.."
 PORT="${PORT:-3005}"
 MODE="${1:-all}"
 
+dev_only() {
+  echo "$1"
+  if [ "$MODE" = "tunnel-only" ]; then exit 1; fi
+  exec ./node_modules/.bin/next dev -p "$PORT"
+}
+
+# Which env wins: .env.local overrides .env (same as Next.js).
+uses_emulators() {
+  local line
+  line="$(grep -h "^NEXT_PUBLIC_FIREBASE_USE_EMULATOR=" .env.local .env 2>/dev/null | head -n 1 || true)"
+  [ "${line#*=}" = "true" ]
+}
+if uses_emulators; then
+  dev_only "The app uses the local emulators, which a phone can't reach through a tunnel; starting without one."
+fi
+
 CLOUDFLARED_BIN="$(command -v cloudflared || true)"
 if [ -z "$CLOUDFLARED_BIN" ] && [ -x "$HOME/.local/bin/cloudflared" ]; then
   CLOUDFLARED_BIN="$HOME/.local/bin/cloudflared"
 fi
 if [ -z "$CLOUDFLARED_BIN" ]; then
   if [ "$(uname -s)" = "Darwin" ]; then
-    echo "cloudflared is not installed. Install it with: brew install cloudflared" >&2
-    exit 1
+    dev_only "cloudflared is not installed (brew install cloudflared); starting without a tunnel."
   fi
   echo "Downloading cloudflared to ~/.local/bin/cloudflared..."
   mkdir -p "$HOME/.local/bin"
@@ -62,13 +82,6 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-if grep -q "^NEXT_PUBLIC_FIREBASE_USE_EMULATOR=true" .env.local 2>/dev/null ||
-  { ! grep -q "^NEXT_PUBLIC_FIREBASE_USE_EMULATOR=" .env.local 2>/dev/null &&
-    grep -q "^NEXT_PUBLIC_FIREBASE_USE_EMULATOR=true" .env 2>/dev/null; }; then
-  echo "Note: the app is set to use the local emulators, which a phone can't reach"
-  echo "through the tunnel. Use the cloud dev project (.env.local) for phone testing."
-fi
-
 echo "Starting Cloudflare tunnel to http://localhost:${PORT}..."
 "$CLOUDFLARED_BIN" tunnel --url "http://localhost:${PORT}" >"$TUNNEL_LOG" 2>&1 &
 TUNNEL_PID=$!
@@ -96,7 +109,7 @@ if [ "$MODE" = "tunnel-only" ]; then
   echo "Tunnel only. Press Ctrl+C to stop."
   wait "$TUNNEL_PID"
 else
-  npm run dev &
+  ./node_modules/.bin/next dev -p "$PORT" &
   DEV_PID=$!
   wait "$DEV_PID"
 fi

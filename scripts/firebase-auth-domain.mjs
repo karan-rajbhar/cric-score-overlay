@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { cert } from "firebase-admin/app";
 
 const [action, host] = process.argv.slice(2);
-if (!["add", "remove"].includes(action) || !host) {
+if (!action || !["add", "remove"].includes(action) || !host) {
   console.error("Usage: firebase-auth-domain.mjs add|remove <host>");
   process.exit(1);
 }
@@ -57,6 +57,7 @@ if (config.error) {
   console.error(`Could not read Auth config: ${config.error.message}`);
   process.exit(1);
 }
+/** @type {string[]} */
 const current = config.authorizedDomains ?? [];
 const next =
   action === "add"
