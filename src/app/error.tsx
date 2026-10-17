@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { AlertCircle } from "lucide-react";
+import { reportClientError } from "~/lib/report-error";
 
 export default function GlobalError({
   error,
@@ -14,6 +15,12 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("Application runtime error:", error);
+    reportClientError({
+      kind: "boundary",
+      message: error.message || "Unknown render error",
+      stack: error.stack,
+      digest: error.digest,
+    });
   }, [error]);
 
   return (
