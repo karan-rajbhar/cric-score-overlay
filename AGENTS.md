@@ -28,6 +28,7 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 ## Deploys and migrations
 
 - Production (`cricscore-prod-7411`, cricscore.altorstudio.com) deploys from CI after a merge to `main`: checks, then Firestore rules + indexes, then `node scripts/migrate.mjs`, then an App Hosting rollout of that commit. `main` only accepts PRs.
+- Offline / PWA: `public/sw.js` (hand-written) is registered by `ServiceWorkerRegistrar` only in production on https (never dev or localhost; there it unregisters any worker). Each build installs a new worker (`/sw.js?v=<NEXT_PUBLIC_BUILD_ID>`) with fresh caches; updates wait for the "New version available" toast, which is held back while scoring actions are queued. It caches `/_next/static`, icons and manifest, and `/matches/:id/score` HTML (network-first); it never touches POST / server actions, RSC fetches, `/api`, `/__/*` or other origins. Kill switch: set `"disabled": true` in `public/sw-config.json` and deploy (workers unregister and drop their caches on the next navigation or activation); `NEXT_PUBLIC_SW_DISABLED=true` at build also unregisters from the page.
 - Data migrations are idempotent `scripts/migrate-<name>.mjs` scripts (`--project=<id>`, `--dry-run`), listed in order in `scripts/migrate.mjs`, which records applied ones in the `_migrations` collection so each runs once per project. Never auto-run destructive steps (e.g. `migrate-stage2 --delete-old`); do those by hand after verifying.
 
 ## Working guidelines

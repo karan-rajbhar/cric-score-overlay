@@ -278,6 +278,30 @@ export function getPendingCount(matchId: string): number {
 }
 
 /**
+ * Pending actions across every match on this device (used to hold back an
+ * app update while anything is still waiting to sync).
+ */
+export function getTotalPendingCount(): number {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const ids = new Set<string>();
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(ACTIONS_KEY_PREFIX)) {
+        ids.add(key.slice(ACTIONS_KEY_PREFIX.length));
+      } else if (key?.startsWith(STORAGE_KEY_PREFIX)) {
+        ids.add(key.slice(STORAGE_KEY_PREFIX.length));
+      }
+    }
+    let total = 0;
+    for (const id of ids) total += getPendingCount(id);
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Enqueue any scoring action for offline replay.
  */
 export function enqueueAction(

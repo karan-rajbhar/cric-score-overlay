@@ -7,7 +7,10 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "CricScore",
     description:
       "Ball-by-ball cricket scoring, live scorecards and club tournaments.",
-    start_url: "/",
+    // `id` keeps the identity of apps installed when start_url was "/".
+    id: "/",
+    start_url: "/dashboard",
+    scope: "/",
     display: "standalone",
     background_color: "#f5f7f6",
     theme_color: "#113227",
