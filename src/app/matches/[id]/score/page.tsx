@@ -686,26 +686,6 @@ export default function ScoringPage() {
     }
   };
 
-  const onAddPlayer = async () => {
-    const {
-      addPlayerTarget,
-      newPlayerName,
-      setNewPlayerName,
-      setAddPlayerTarget,
-    } = useScoringUIStore.getState();
-    if (!newPlayerName.trim() || !addPlayerTarget) return;
-    await handleAddPlayerInline(
-      addPlayerTarget,
-      newPlayerName,
-      match,
-      strikerId,
-      nonStrikerId,
-      currentBowlerId,
-    );
-    setNewPlayerName("");
-    setAddPlayerTarget(null);
-  };
-
   const createSquadPlayer = async (side: "batting" | "bowling", name: string) =>
     handleAddPlayerInline(
       side,
@@ -715,6 +695,25 @@ export default function ScoringPage() {
       nonStrikerId,
       currentBowlerId,
     );
+
+  // Pickers add a player and select them in the slot being filled, so the
+  // hook must not also auto-assign them.
+  const createPickedPlayer =
+    (side: "batting" | "bowling") => async (name: string) => {
+      const res = await handleAddPlayerInline(
+        side,
+        name,
+        match,
+        strikerId,
+        nonStrikerId,
+        currentBowlerId,
+        { autoAssign: false },
+      );
+      return res?.data?.user_id ?? null;
+    };
+  const addPlayerDisabledReason = isOffline
+    ? "Adding players needs a connection. Use the squad you have or reconnect."
+    : null;
 
   const refreshSquads = async () => {
     if (match) await loadPlayers(match);
@@ -1823,6 +1822,8 @@ export default function ScoringPage() {
         open={showSelectBatsmen}
         onOpenChange={setShowSelectBatsmen}
         battingTeamPlayers={battingTeamPlayers}
+        battingTeamName={battingTeam?.name}
+        battingPerformances={currentInnings?.batting_performances}
         bowlingTeamPlayerIds={bowlingTeamPlayerIds}
         currentBowlerId={currentBowlerId}
         strikerId={strikerId}
@@ -1830,15 +1831,19 @@ export default function ScoringPage() {
         dismissedPlayerIds={dismissedPlayerIds}
         onStrikerChange={setStrikerId}
         onNonStrikerChange={setNonStrikerId}
-        onConfirm={async () => {
-          const res = await handleConfirmBatsmen(strikerId, nonStrikerId);
+        onConfirm={async (pair) => {
+          const res = await handleConfirmBatsmen(
+            pair.strikerId,
+            pair.nonStrikerId,
+          );
           if (!res.error) {
             setShowSelectBatsmen(false);
             if (!currentBowlerId) setShowSelectBowler(true);
           }
         }}
         isProcessing={isProcessing}
-        onAddPlayer={onAddPlayer}
+        onCreatePlayer={createPickedPlayer("batting")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
       />
 
       <BowlerDialog
@@ -1848,6 +1853,9 @@ export default function ScoringPage() {
           if (!open) setReassignOverDeliveries(false);
         }}
         bowlingTeamPlayers={bowlingTeamPlayers}
+        bowlingTeamName={bowlingTeam?.name}
+        bowlingPerformances={currentInnings?.bowling_performances}
+        oversPerInnings={match.overs_per_innings}
         currentBowlerId={currentBowlerId}
         lastOverBowlerId={lastOverBowlerId}
         strikerId={strikerId}
@@ -1857,13 +1865,9 @@ export default function ScoringPage() {
         reassignOverDeliveries={reassignOverDeliveries}
         onReassignOverDeliveriesChange={setReassignOverDeliveries}
         onBowlerChange={setCurrentBowlerId}
-        onConfirm={async () => {
-          if (
-            reassignOverDeliveries &&
-            currentBowlerId &&
-            (match.current_ball ?? 0) > 0
-          ) {
-            const res = await handleReassignOverBowler(currentBowlerId);
+        onConfirm={async (bowlerId) => {
+          if (reassignOverDeliveries && (match.current_ball ?? 0) > 0) {
+            const res = await handleReassignOverBowler(bowlerId);
             if (res.error) {
               toast.error(res.error);
             } else {
@@ -1877,7 +1881,7 @@ export default function ScoringPage() {
               if (!res.queued) await syncFromDb();
             }
           } else {
-            const res = await handleConfirmBowler(currentBowlerId);
+            const res = await handleConfirmBowler(bowlerId);
             if (!res.error) {
               setShowSelectBowler(false);
               setReassignOverDeliveries(false);
@@ -1885,7 +1889,8 @@ export default function ScoringPage() {
           }
         }}
         isProcessing={isProcessing}
-        onAddPlayer={onAddPlayer}
+        onCreatePlayer={createPickedPlayer("bowling")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
       />
 
       <SquadManagerDialog
@@ -1925,6 +1930,10 @@ export default function ScoringPage() {
         fielderId={fielderId}
         onFielderChange={setFielderId}
         bowlingTeamPlayers={bowlingTeamPlayers}
+        bowlingTeamName={bowlingTeam?.name}
+        bowlerId={currentBowlerId}
+        onCreateFielder={createPickedPlayer("bowling")}
+        addPlayerDisabledReason={addPlayerDisabledReason}
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         strikerName={
