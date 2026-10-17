@@ -10,9 +10,12 @@
 # Without cloudflared, or when the app uses the local emulators (a phone can't
 # reach them), it just starts the dev server.
 #
-# While the tunnel is up, its domain is added to the Firebase project's Auth
-# authorized domains so Google sign-in works on the phone; it is removed again
-# on exit. Quick tunnels get a new random URL every run.
+# With DEV_TUNNEL_NAME and DEV_TUNNEL_HOST set (.env.local or the
+# environment) it runs that named Cloudflare Tunnel, so the address is fixed;
+# otherwise a quick tunnel with a new random *.trycloudflare.com URL each run.
+# The tunnel's domain is added to the Firebase project's Auth authorized
+# domains so Google sign-in works on the phone (quick-tunnel domains are
+# removed again on exit; the fixed one stays).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -62,6 +65,12 @@ if [ "$MODE" = "all" ] && lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; t
   MODE="tunnel-only"
 fi
 
+env_value() {
+  grep -h "^$1=" .env.local .env 2>/dev/null | head -n 1 | cut -d= -f2- || true
+}
+TUNNEL_NAME="${DEV_TUNNEL_NAME:-$(env_value DEV_TUNNEL_NAME)}"
+TUNNEL_HOST="${DEV_TUNNEL_HOST:-$(env_value DEV_TUNNEL_HOST)}"
+
 TUNNEL_LOG="$(mktemp -t cloudflared)"
 URL_FILE="$(mktemp -t cloudflared-url)"
 TUNNEL_PID=""
@@ -82,28 +91,51 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-echo "Starting Cloudflare tunnel to http://localhost:${PORT}..."
-"$CLOUDFLARED_BIN" tunnel --url "http://localhost:${PORT}" >"$TUNNEL_LOG" 2>&1 &
-TUNNEL_PID=$!
+announce() {
+  echo ""
+  echo "=========================================================================="
+  echo "  Open on your phone: $1"
+  echo "  $2"
+  echo "=========================================================================="
+  echo ""
+}
 
-(
-  for _ in $(seq 1 60); do
-    url="$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -n 1 || true)"
-    if [ -n "$url" ]; then
-      echo "${url#https://}" >"$URL_FILE"
-      node scripts/firebase-auth-domain.mjs add "${url#https://}" || true
-      echo ""
-      echo "=========================================================================="
-      echo "  Open on your phone: $url"
-      echo "  (the address can take ~30s to start resolving; new URL on every run)"
-      echo "=========================================================================="
-      echo ""
-      exit 0
-    fi
-    sleep 1
-  done
-  echo "Tunnel did not report a URL within 60s; see cloudflared output above." >&2
-) &
+if [ -n "$TUNNEL_NAME" ] && [ -n "$TUNNEL_HOST" ]; then
+  echo "Starting Cloudflare tunnel ${TUNNEL_NAME} (${TUNNEL_HOST}) to http://localhost:${PORT}..."
+  "$CLOUDFLARED_BIN" tunnel --no-autoupdate run --url "http://localhost:${PORT}" "$TUNNEL_NAME" \
+    >"$TUNNEL_LOG" 2>&1 &
+  TUNNEL_PID=$!
+  (
+    for _ in $(seq 1 60); do
+      if grep -q "Registered tunnel connection" "$TUNNEL_LOG" 2>/dev/null; then
+        node scripts/firebase-auth-domain.mjs add "$TUNNEL_HOST" || true
+        announce "https://${TUNNEL_HOST}" "(fixed address; it stays the same every run)"
+        exit 0
+      fi
+      if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then break; fi
+      sleep 1
+    done
+    echo "Tunnel ${TUNNEL_NAME} did not connect within 60s:" >&2
+    tail -n 5 "$TUNNEL_LOG" >&2
+  ) &
+else
+  echo "Starting Cloudflare quick tunnel to http://localhost:${PORT}..."
+  "$CLOUDFLARED_BIN" tunnel --url "http://localhost:${PORT}" >"$TUNNEL_LOG" 2>&1 &
+  TUNNEL_PID=$!
+  (
+    for _ in $(seq 1 60); do
+      url="$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' "$TUNNEL_LOG" 2>/dev/null | head -n 1 || true)"
+      if [ -n "$url" ]; then
+        echo "${url#https://}" >"$URL_FILE"
+        node scripts/firebase-auth-domain.mjs add "${url#https://}" || true
+        announce "$url" "(can take ~30s to start resolving; new URL on every run)"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "Tunnel did not report a URL within 60s; see cloudflared output above." >&2
+  ) &
+fi
 
 if [ "$MODE" = "tunnel-only" ]; then
   echo "Tunnel only. Press Ctrl+C to stop."
