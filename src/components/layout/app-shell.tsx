@@ -44,7 +44,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               collapsed ? "md:pl-[72px]" : "md:pl-[260px]"
             }`}
           >
-            <div className="w-full overflow-x-hidden px-4 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8 lg:px-8">
+            {/* overflow-x-clip, not -hidden: "hidden" turns this into a scroll
+                container, so sticky page headers stick inside it (pushed down
+                by their top offset) instead of under the navigation bar. */}
+            <div className="w-full overflow-x-clip px-4 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-8 lg:px-8">
               {children}
             </div>
           </main>

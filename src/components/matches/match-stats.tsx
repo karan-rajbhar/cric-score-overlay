@@ -50,7 +50,7 @@ export function MatchStats({ match }: MatchStatsProps) {
   return (
     <div className="w-full space-y-6">
       {/* Broadcast Quick Jump Bar */}
-      <div className="sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm">
+      <div className="sticky top-[7.25rem] z-10 flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm">
         <span className="hidden px-2 text-xs font-medium text-muted-foreground sm:inline-block">
           Jump:
         </span>

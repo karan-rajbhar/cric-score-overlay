@@ -390,7 +390,9 @@ function MatchDetailsPageContent() {
   };
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-background">
+    // Full-bleed page: cancel the app shell's padding so the sticky header
+    // and scoreboard bands sit flush under the navigation bar.
+    <div className="-mx-4 -mt-5 min-h-screen overflow-x-clip bg-background sm:-mx-6 sm:-mt-8 lg:-mx-8">
       {/* Header */}
       <div className="sticky top-14 z-20 border-b border-border bg-card">
         <div className="container mx-auto px-3 py-2.5 sm:px-4">
