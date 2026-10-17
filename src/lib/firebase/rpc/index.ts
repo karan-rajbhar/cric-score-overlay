@@ -37,6 +37,7 @@ import {
   undoLastBall,
   updateBall,
   type RecordBallArgs,
+  type ScoringContext,
   type UpdateBallArgs,
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
@@ -65,12 +66,20 @@ function optStr(args: Args, key: string): string | null {
   return typeof value === "string" && value ? value : null;
 }
 
+/** Procedures that can answer with a {@link ScoringDelta}. */
+const WITH_DELTA = new Set([
+  "record_ball",
+  "set_current_batsmen",
+  "set_current_bowler",
+]);
+
 export async function callRpc(
   name: string,
   args: Args,
   ctx: RpcContext,
+  scoringContext?: ScoringContext,
 ): Promise<unknown> {
-  const scoring = {
+  const scoring: ScoringContext = scoringContext ?? {
     db: ctx.db,
     ds: ctx.ds,
     uid: ctx.uid,
@@ -80,6 +89,19 @@ export async function callRpc(
     scorerName:
       ctx.user?.user_metadata?.full_name ?? ctx.user?.user_metadata?.name ?? null,
   };
+  // `p_with_delta`: answer `{ result, delta }`, the delta being the match's
+  // documents as committed (the scoring screen updates from it instead of
+  // re-reading its state).
+  if (args.p_with_delta === true && WITH_DELTA.has(name)) {
+    const sink = { matchId: str(args, "p_match_id"), value: null };
+    const result = await callRpc(
+      name,
+      { ...args, p_with_delta: false },
+      ctx,
+      { ...scoring, delta: sink },
+    );
+    return { result, delta: sink.value };
+  }
   switch (name) {
     case "record_ball":
       return recordBall(scoring, args as unknown as RecordBallArgs);

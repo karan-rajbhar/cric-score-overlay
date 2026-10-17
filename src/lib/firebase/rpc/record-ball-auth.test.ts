@@ -76,6 +76,20 @@ describe("record_ball authorization", () => {
     expect(await seq()).toBe((before ?? 0) + 1);
   });
 
+  it("refuses crease / bowler changes too (their actions rely on it)", async () => {
+    const { setCurrentBatsmen, setCurrentBowler } = await import("./scoring");
+    const { side } = await setup();
+    const before = side.ds.writes;
+    const ctx = { ...side.ctx, uid: "attacker" };
+    await expect(setCurrentBatsmen(ctx, "M", "a", "b")).rejects.toThrow(
+      "not_authorized",
+    );
+    await expect(setCurrentBowler(ctx, "M", "c")).rejects.toThrow(
+      "not_authorized",
+    );
+    expect(side.ds.writes).toBe(before);
+  });
+
   it("lets a club admin of the match's club record a ball", async () => {
     const { side, seq, as, allowed } = await setup();
     await side.ds.insert("clubs", [

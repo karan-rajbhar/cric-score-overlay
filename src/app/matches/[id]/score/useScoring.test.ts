@@ -426,6 +426,115 @@ describe("useScoring", () => {
     });
   });
 
+  it("updates from the documents a ball committed instead of re-reading", async () => {
+    const row = (user_id: string, extra: object) => ({
+      user_id,
+      user: { id: user_id, full_name: user_id.toUpperCase() },
+      ...extra,
+    });
+    vi.mocked(getScoringState).mockResolvedValue({
+      data: {
+        ...mockScoringState,
+        match: {
+          ...mockScoringState.match,
+          current_over: 0,
+          current_ball: 0,
+          innings: [
+            {
+              id: "i1",
+              innings_number: 1,
+              team_id: "team-1",
+              total_balls: 0,
+              batting_performances: [
+                row("p1", { is_current_batsman: true, is_striker: true }),
+                row("p2", { is_current_batsman: true, is_striker: false }),
+              ],
+              bowling_performances: [row("b1", { is_current_bowler: true })],
+            },
+          ],
+        },
+        bowlerId: "b1",
+      },
+      error: null,
+    });
+    const { result } = renderHook(() => useScoring(matchId, {}));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getScoringState).toHaveBeenCalledTimes(1);
+
+    const ball = {
+      id: "i1_0~x",
+      seq: 1,
+      ball_number: 1,
+      runs_scored: 1,
+      extras: 0,
+      extra_type: null,
+      is_wicket: false,
+      bowler_id: "b1",
+      batsman_id: "p1",
+    };
+    vi.mocked(recordBall).mockResolvedValueOnce({
+      data: {
+        ...mockScoringState,
+        striker_id: "p2",
+        non_striker_id: "p1",
+        bowler_id: "b1",
+        status: "live",
+        current_innings: 1,
+        current_over: 0,
+        current_ball: 1,
+      } as never,
+      error: null,
+      delta: {
+        match: {
+          id: matchId,
+          status: "live",
+          current_innings: 1,
+          current_over: 0,
+          current_ball: 1,
+          team1_id: "team-1",
+          team2_id: "team-2",
+        } as never,
+        innings: [
+          {
+            id: "i1",
+            match_id: matchId,
+            innings_number: 1,
+            team_id: "team-1",
+            total_balls: 1,
+            batting: [
+              { user_id: "p1", is_current_batsman: true, is_striker: false },
+              { user_id: "p2", is_current_batsman: true, is_striker: true },
+            ],
+            bowling: [{ user_id: "b1", is_current_bowler: true }],
+            last_ball: { ...ball, over_number: 0 },
+          } as never,
+        ],
+        overs: [
+          {
+            id: "i1_0",
+            match_id: matchId,
+            innings_id: "i1",
+            over_number: 0,
+            balls: [ball],
+          } as never,
+        ],
+      },
+    });
+    await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+    await waitFor(() => expect(result.current.strikerId).toBe("p2"));
+    expect(getScoringState).toHaveBeenCalledTimes(1);
+    expect(result.current.rawDeliveries.map((d) => d.id)).toEqual(["i1_0~x"]);
+
+    // Without the documents (or when they are not enough): one re-read.
+    vi.mocked(recordBall).mockResolvedValueOnce({
+      data: { ...mockScoringState, status: "live" } as never,
+      error: null,
+      delta: null,
+    });
+    await result.current.handleScore("b1", "p2", "p1", { runsScored: 0 });
+    await waitFor(() => expect(getScoringState).toHaveBeenCalledTimes(2));
+  });
+
   it("skips squad refetch on resync while teams are unchanged", async () => {
     const team1Players = [
       { id: "tp1", team_id: "team-1", user_id: "u1", user: { id: "u1", full_name: "P1" } },

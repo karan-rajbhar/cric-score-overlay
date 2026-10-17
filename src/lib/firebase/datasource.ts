@@ -196,6 +196,19 @@ export class MemoryDataSource implements DataSource {
   billedReads = 0;
   /** Documents written or deleted. */
   writes = 0;
+  /** {@link billedReads} / {@link writes} per collection. */
+  readsByTable: Record<string, number> = {};
+  writesByTable: Record<string, number> = {};
+
+  private billRead(table: string, n: number): void {
+    this.billedReads += n;
+    this.readsByTable[table] = (this.readsByTable[table] ?? 0) + n;
+  }
+
+  private billWrite(table: string, n: number): void {
+    this.writes += n;
+    this.writesByTable[table] = (this.writesByTable[table] ?? 0) + n;
+  }
 
   constructor(seed?: Record<string, Doc[]>) {
     if (seed) {
@@ -220,14 +233,14 @@ export class MemoryDataSource implements DataSource {
     this.queryCount++;
     const doc = this.table(table).get(id);
     this.docsRead++;
-    this.billedReads++;
+    this.billRead(table, 1);
     return doc ? structuredClone(doc) : null;
   }
 
   async getByIds(table: string, ids: string[]): Promise<Doc[]> {
     this.queryCount++;
     this.docsRead += new Set(ids).size;
-    this.billedReads += new Set(ids).size;
+    this.billRead(table, new Set(ids).size);
     const map = this.table(table);
     const out: Doc[] = [];
     for (const id of ids) {
@@ -245,14 +258,14 @@ export class MemoryDataSource implements DataSource {
     this.queryCount++;
     const out = applyQueryOptions(this.match(table, filters), filters, options);
     this.docsRead += out.length;
-    this.billedReads += Math.max(1, out.length);
+    this.billRead(table, Math.max(1, out.length));
     return out.map((doc) => structuredClone(doc));
   }
 
   async count(table: string, filters: NativeFilter[]): Promise<number> {
     this.queryCount++;
     this.countQueries++;
-    this.billedReads++;
+    this.billRead(table, 1);
     return this.match(table, filters).length;
   }
 
@@ -266,7 +279,7 @@ export class MemoryDataSource implements DataSource {
 
   async insert(table: string, docs: Doc[]): Promise<void> {
     const map = this.table(table);
-    this.writes += docs.length;
+    this.billWrite(table, docs.length);
     for (const doc of docs) map.set(doc.id, structuredClone(doc));
   }
 
@@ -277,13 +290,13 @@ export class MemoryDataSource implements DataSource {
   ): Promise<void> {
     const map = this.table(table);
     const existing = map.get(id);
-    this.writes++;
+    this.billWrite(table, 1);
     if (!existing) return;
     map.set(id, { ...existing, ...structuredClone(patch), id });
   }
 
   async delete(table: string, id: string): Promise<void> {
-    this.writes++;
+    this.billWrite(table, 1);
     this.table(table).delete(id);
   }
 

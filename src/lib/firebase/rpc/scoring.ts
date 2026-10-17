@@ -33,6 +33,7 @@
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { ScoringState } from "~/app/matches/types";
+import type { ScoringDelta } from "~/lib/scoring-delta";
 import type { DataSource } from "../datasource";
 import {
   headerFromCache,
@@ -107,6 +108,7 @@ import {
   loadNames,
   loadOverBalls,
 } from "../views";
+import { HIDDEN_COLUMNS } from "../schema";
 import { isMatchAdmin } from "./auth-helpers";
 import { maybeRecalculateStandings } from "./standings";
 import {
@@ -131,6 +133,49 @@ export interface ScoringContext {
   clientActionId?: string | null;
   /** The caller's display name, for `live_state.last_change`. */
   scorerName?: string | null;
+  /**
+   * When set, receives the match's documents as committed (see
+   * {@link scoringDeltaOf}), so the scoring screen can update itself from
+   * the reply instead of re-reading its state.
+   */
+  delta?: { matchId: string; value: ScoringDelta | null };
+}
+
+/**
+ * The scoring documents a transaction leaves behind for `matchId`: the
+ * match, and every innings / over document it writes, as stored after the
+ * commit. Null when one of them cannot be known without a read (deleted,
+ * or merged into a document the transaction never read).
+ */
+export function scoringDeltaOf(
+  t: ScoringTx,
+  matchId: string,
+): ScoringDelta | null {
+  const stored = t.docAfter("matches", matchId);
+  if (!stored) return null;
+  // As `select("*")` returns it: no storage-only fields.
+  const match: Record<string, unknown> = { ...stored };
+  for (const c of HIDDEN_COLUMNS.matches ?? []) delete match[c];
+  const innings: ScoringDelta["innings"] = [];
+  const overs: ScoringDelta["overs"] = [];
+  for (const w of t.pendingWrites()) {
+    if (w.table !== "innings" && w.table !== OVERS_COLLECTION) continue;
+    const doc = t.docAfter(w.table, w.id);
+    if (!doc) return null;
+    if (w.table === "innings") innings.push(doc as unknown as WithId<InningsRow>);
+    else overs.push(doc as unknown as OversRow);
+  }
+  return { match: match as unknown as WithId<MatchesRow>, innings, overs };
+}
+
+/** The `after` hook of a transaction that fills `ctx.delta`. */
+function captureDelta(ctx: ScoringContext) {
+  const sink = ctx.delta;
+  if (!sink) return undefined;
+  sink.value = null;
+  return (t: ScoringTx) => {
+    sink.value = scoringDeltaOf(t, sink.matchId);
+  };
 }
 
 /** How many recent client action ids a match remembers. */
@@ -578,11 +623,15 @@ async function runTracked<R>(
   fn: (t: ScoringTx) => Promise<R>,
 ): Promise<[R, string[]]> {
   let overs: string[] = [];
-  const result = await runScoringTransaction(ctx, async (t) => {
-    const out = await fn(t);
-    overs = stagedOverIds(t);
-    return out;
-  });
+  const result = await runScoringTransaction(
+    ctx,
+    async (t) => {
+      const out = await fn(t);
+      overs = stagedOverIds(t);
+      return out;
+    },
+    captureDelta(ctx),
+  );
   return [result, overs];
 }
 
@@ -1898,7 +1947,7 @@ export async function setCurrentBatsmen(
     if (!changed) return;
     t.patch("innings", current.id, { batting: next });
     await stageCurrentLiveState(t, match, { ...current, batting: next }, now);
-  }).catch(ignoreReplayed);
+  }, captureDelta(ctx)).catch(ignoreReplayed);
 
   return { ok: true };
 }
@@ -1984,7 +2033,7 @@ export async function setCurrentBowler(
     if (!changed) return;
     t.patch("innings", current.id, { bowling: next });
     await stageCurrentLiveState(t, match, { ...current, bowling: next }, now);
-  }).catch(ignoreReplayed);
+  }, captureDelta(ctx)).catch(ignoreReplayed);
 
   return { ok: true };
 }

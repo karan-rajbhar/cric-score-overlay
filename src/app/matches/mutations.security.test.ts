@@ -163,24 +163,28 @@ describe("Scoring Security & Authorization Gate", () => {
   });
 
   it("blocks unauthorized users from setting current batsmen or bowler", async () => {
+    const from = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "not_authorized", code: "42501" },
+    });
     vi.mocked(createServerClient).mockResolvedValueOnce({
       auth: {
         getUser: vi.fn().mockResolvedValueOnce({
           data: { user: { id: "attacker-id" } },
         }),
       },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { created_by: "creator-id", match_admins: [] },
-            }),
-          }),
-        }),
-      }),
+      from,
+      rpc,
     } as never);
 
     const res = await setCurrentBatsmen(dummyMatchId, "p1", "p2");
+    // Checked inside the engine's transaction (record-ball-auth.test.ts).
+    expect(rpc).toHaveBeenCalledWith(
+      "set_current_batsmen",
+      expect.objectContaining({ p_match_id: dummyMatchId }),
+    );
+    expect(from).not.toHaveBeenCalled();
     expect(res.error).toContain("Only match administrators or designated scorers");
   });
 
@@ -231,24 +235,28 @@ describe("Scoring Security & Authorization Gate", () => {
   });
 
   it("blocks unauthorized users from setting current bowler", async () => {
+    const from = vi.fn();
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "not_authorized", code: "42501" },
+    });
     vi.mocked(createServerClient).mockResolvedValueOnce({
       auth: {
         getUser: vi.fn().mockResolvedValueOnce({
           data: { user: { id: "attacker-id" } },
         }),
       },
-      from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { created_by: "creator-id", match_admins: [] },
-            }),
-          }),
-        }),
-      }),
+      from,
+      rpc,
     } as never);
 
     const res = await setCurrentBowler(dummyMatchId, "bowler-1");
+    // Checked inside the engine's transaction (record-ball-auth.test.ts).
+    expect(rpc).toHaveBeenCalledWith(
+      "set_current_bowler",
+      expect.objectContaining({ p_match_id: dummyMatchId }),
+    );
+    expect(from).not.toHaveBeenCalled();
     expect(res.error).toContain("Only match administrators or designated scorers");
   });
 
