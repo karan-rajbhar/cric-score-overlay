@@ -328,9 +328,9 @@ describe("revokeInvitation", () => {
     expect(await revokeInvitation(ds, "scorer-1", "i2")).toEqual({
       status: "revoked",
     });
-    expect(
-      await canSignIn(ds, googleUser("s", "scorer@gmail.com"), true),
-    ).toBe(false);
+    expect(await canSignIn(ds, googleUser("s", "scorer@gmail.com"), true)).toBe(
+      false,
+    );
   });
 
   it("refuses accepted and unknown invites", async () => {
@@ -349,8 +349,8 @@ describe("revokeInvitation", () => {
     expect(await inviteEmail(ds, "member-1", "new@gmail.com")).toEqual({
       status: "invited",
     });
-    expect(
-      await canSignIn(ds, googleUser("n", "new@gmail.com"), true),
-    ).toBe(true);
+    expect(await canSignIn(ds, googleUser("n", "new@gmail.com"), true)).toBe(
+      true,
+    );
   });
 });

@@ -22,7 +22,10 @@ function invite(i: number, extra: Record<string, unknown> = {}) {
 
 function setup() {
   const ds = new MemoryDataSource({
-    users: [{ id: "me" }, { id: "joined", full_name: "Joined Player", username: "joined" }],
+    users: [
+      { id: "me" },
+      { id: "joined", full_name: "Joined Player", username: "joined" },
+    ],
     matches: [{ id: "m1", title: "Lions vs Tigers" }],
     invitations: [
       invite(1, { status: "accepted", accepted_by: "joined" }),
@@ -53,7 +56,11 @@ describe("listSentInvitations", () => {
     ]);
     expect(rows.find((r) => r.id === "i1")).toMatchObject({
       status: "accepted",
-      accepted_by: { id: "joined", full_name: "Joined Player", username: "joined" },
+      accepted_by: {
+        id: "joined",
+        full_name: "Joined Player",
+        username: "joined",
+      },
     });
     expect(rows.find((r) => r.id === "i2")?.scorer_matches).toEqual([
       { id: "m1", title: "Lions vs Tigers" },

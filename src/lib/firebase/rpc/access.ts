@@ -225,7 +225,10 @@ export async function revokeInvitation(
     }
   }
   if (!allowed) {
-    throw new DbQueryError("Only the person who sent this invite can revoke it", "42501");
+    throw new DbQueryError(
+      "Only the person who sent this invite can revoke it",
+      "42501",
+    );
   }
   if (invite.status === "revoked") return { status: "already_revoked" };
   if (invite.status !== "pending") {

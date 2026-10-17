@@ -57,7 +57,7 @@ function InviteRow({
   };
 
   return (
-    <li className="space-y-3 p-4 [content-visibility:auto] [contain-intrinsic-size:auto_96px]">
+    <li className="space-y-3 p-4 [contain-intrinsic-size:auto_96px] [content-visibility:auto]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="truncate text-sm font-semibold text-foreground">
