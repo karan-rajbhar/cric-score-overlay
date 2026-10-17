@@ -38,6 +38,7 @@ import {
   headerFromCache,
   LIVE_STATE_COLLECTION,
   stageLiveState,
+  stagedOverIds,
   writeLiveState,
   type LiveStateDoc,
 } from "../live-state";
@@ -418,17 +419,35 @@ async function currentInningsOf(
   return { all, current };
 }
 
+/**
+ * {@link runScoringTransaction}, also returning the ids of the `overs`
+ * documents the committed attempt wrote (for `live_state.overs_changed`).
+ */
+async function runTracked<R>(
+  ctx: ScoringContext,
+  fn: (t: ScoringTx) => Promise<R>,
+): Promise<[R, string[]]> {
+  let overs: string[] = [];
+  const result = await runScoringTransaction(ctx, async (t) => {
+    const out = await fn(t);
+    overs = stagedOverIds(t);
+    return out;
+  });
+  return [result, overs];
+}
+
 async function finishWithState(
   ctx: ScoringContext,
   matchId: string,
   before: MatchesRow | null,
+  overs: string[],
 ): Promise<ScoringState> {
   const after = (await ctx.ds.getById(
     "matches",
     matchId,
   )) as unknown as MatchesRow | null;
   await maybeRecalculateStandings(ctx.ds, before, after);
-  await writeLiveState(ctx.ds, matchId, ctx.db);
+  await writeLiveState(ctx.ds, matchId, ctx.db, overs);
   return recordState(ctx.ds, matchId, after);
 }
 
@@ -437,13 +456,14 @@ async function finishQuietly(
   ctx: ScoringContext,
   matchId: string,
   before: MatchesRow | null,
+  overs: string[],
 ): Promise<void> {
   const after = (await ctx.ds.getById(
     "matches",
     matchId,
   )) as unknown as MatchesRow | null;
   await maybeRecalculateStandings(ctx.ds, before, after);
-  await writeLiveState(ctx.ds, matchId, ctx.db);
+  await writeLiveState(ctx.ds, matchId, ctx.db, overs);
 }
 
 /**
@@ -896,7 +916,7 @@ export async function recordBall(
 ): Promise<ScoringState> {
   const matchId = args.p_match_id;
   const now = new Date().toISOString();
-  const outcome = await runScoringTransaction(ctx, async (t) => {
+  const [outcome, overs] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     await requireAdminOf(ctx, matchId, match);
     const checked = checkBallArgs(args);
@@ -917,7 +937,7 @@ export async function recordBall(
     await maybeRecalculateStandings(ctx.ds, before, outcome.after);
     state = outcome.state;
   } else {
-    state = await finishWithState(ctx, matchId, before);
+    state = await finishWithState(ctx, matchId, before, overs);
   }
   if (state.current_innings !== (before.current_innings ?? 1)) {
     state.innings_break = true;
@@ -944,7 +964,7 @@ export async function undoLastBall(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
 
@@ -1017,7 +1037,7 @@ export async function undoLastBall(
     return match;
   });
 
-  return finishWithState(ctx, matchId, before);
+  return finishWithState(ctx, matchId, before, overs);
 }
 
 // ---------------------------------------------------------------------------
@@ -1059,7 +1079,7 @@ export async function updateBall(
   }
   const now = new Date().toISOString();
 
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     // New ball ids name their over document (1 read); older ones are
     // found by reading the match's ball log (one document per over).
     const hinted = overDocIdOfBall(args.p_ball_id);
@@ -1123,7 +1143,7 @@ export async function updateBall(
     return match;
   });
 
-  return finishWithState(ctx, matchId, before);
+  return finishWithState(ctx, matchId, before, overs);
 }
 
 // ---------------------------------------------------------------------------
@@ -1137,7 +1157,7 @@ export async function endInnings(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all, current } = await currentInningsOf(t, match);
@@ -1154,7 +1174,7 @@ export async function endInnings(
     return match;
   });
 
-  return finishWithState(ctx, matchId, before);
+  return finishWithState(ctx, matchId, before, overs);
 }
 
 // ---------------------------------------------------------------------------
@@ -1168,7 +1188,7 @@ export async function startSuperOver(
   await requireAdmin(ctx, matchId);
   const now = new Date().toISOString();
 
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const { all } = await currentInningsOf(t, match);
@@ -1219,7 +1239,7 @@ export async function startSuperOver(
     return match;
   });
 
-  return finishWithState(ctx, matchId, before);
+  return finishWithState(ctx, matchId, before, overs);
 }
 
 // ---------------------------------------------------------------------------
@@ -1231,7 +1251,7 @@ export async function recomputeInningsRpc(
   inningsId: string,
 ): Promise<null> {
   const now = new Date().toISOString();
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     const innings = await t.doc<InningsRow>("innings", inningsId);
     if (!innings?.match_id) return null;
     const match = await t.doc<MatchesRow>("matches", innings.match_id);
@@ -1242,7 +1262,7 @@ export async function recomputeInningsRpc(
     await syncIfCompleted(t, match, innings, after, now);
     return match;
   });
-  if (before) await finishQuietly(ctx, before.id, before);
+  if (before) await finishQuietly(ctx, before.id, before, overs);
   return null;
 }
 
@@ -1263,7 +1283,7 @@ async function editCurrentInnings(
   }) => { balls: BallByBallRow[]; matchPatch?: Partial<MatchesRow> },
 ): Promise<null> {
   const now = new Date().toISOString();
-  const before = await runScoringTransaction(ctx, async (t) => {
+  const [before, overs] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
     await requireAdminOf(ctx, matchId, match);
     if (!match) throw new DbQueryError("match_not_found", "22000");
@@ -1280,7 +1300,7 @@ async function editCurrentInnings(
     await syncIfCompleted(t, match, innings, after, now);
     return match;
   });
-  await finishQuietly(ctx, matchId, before);
+  await finishQuietly(ctx, matchId, before, overs);
   return null;
 }
 

@@ -83,8 +83,18 @@ import {
 } from "lucide-react";
 import { LiveIndicator } from "~/components/matches/live-indicator";
 
-/** Tabs that need the full match (performances) refetched on each ball. */
+/** Tabs that show per-player figures (refetched per change unless live). */
 const FULL_MATCH_TABS = new Set(["summary", "scorecard", "superstars"]);
+/**
+ * Tabs that follow `live_scorecard` while the match is live (Stats for its
+ * partnerships and batter list); the others need only `live_state`.
+ */
+const LIVE_SCORECARD_TABS = new Set([
+  "summary",
+  "scorecard",
+  "superstars",
+  "stats",
+]);
 
 function MatchDetailsPageContent() {
   const params = useParams();
@@ -103,6 +113,7 @@ function MatchDetailsPageContent() {
     // Only these tabs show per-player figures; the header and the other
     // tabs run off the live totals or their own (ball log) queries.
     refetchOnChange: FULL_MATCH_TABS.has(activeTab),
+    liveScorecard: LIVE_SCORECARD_TABS.has(activeTab),
   });
   const match = matchData ?? null;
   const error = matchQueryError ? matchQueryError.message : null;

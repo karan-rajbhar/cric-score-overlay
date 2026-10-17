@@ -79,6 +79,8 @@ async function cost(run: () => Promise<unknown>): Promise<number> {
 }
 
 const results: Record<string, number> = {};
+/** JSON bytes of the docs a spectator downloads per ball. */
+const egress: Record<string, number> = {};
 
 beforeEach(() => {
   ds = new MemoryDataSource(seed);
@@ -146,6 +148,40 @@ describe("billed reads per page on the seed data", () => {
     results.scoringScreenPerBall =
       results.scoringPerBall +
       (await cost(() => getScoringState(liveMatch.id)));
+
+    // A spectator per ball, by match page tab. Listeners bill 1 read per
+    // changed doc; the Balls / Stats tabs read the `overs` docs named by
+    // live_state.overs_changed. No server request on any tab.
+    const live = (await ds.getById("live_state", liveMatch.id))!;
+    const card = (await ds.getById("live_scorecard", liveMatch.id))!;
+    expect(card).toBeTruthy();
+    const overs = live.overs_changed as string[];
+    expect(overs).toHaveLength(1);
+    const readOvers = () =>
+      Promise.all(overs.map((id) => ds.getById("overs", id)));
+    const listen = (...tables: string[]) =>
+      cost(() => Promise.all(tables.map((t) => ds.getById(t, liveMatch.id))));
+    results.viewerPerBallOverlay = await listen("live_state");
+    results.viewerPerBallSummary = await listen("live_state", "live_scorecard");
+    results.viewerPerBallBalls =
+      (await listen("live_state")) + (await cost(readOvers));
+    results.viewerPerBallStats =
+      (await listen("live_state", "live_scorecard")) + (await cost(readOvers));
+    const bytes = (doc: unknown) => Buffer.byteLength(JSON.stringify(doc));
+    const overDoc = await ds.getById("overs", overs[0]!);
+    egress.liveState = bytes(live);
+    egress.liveScorecard = bytes(card);
+    egress.over = bytes(overDoc);
+    // What the same viewer cost before: a server request per ball.
+    let response: unknown = null;
+    results.beforeSummaryRefetch = await cost(async () => {
+      response = (await getMatch(liveMatch.id, { skipCache: true })).data;
+    });
+    egress.beforeSummaryResponse = bytes(response);
+    results.beforeBallsRefetch = await cost(async () => {
+      response = (await getMatchBallLog(liveMatch.id)).data;
+    });
+    egress.beforeBallsResponse = bytes(response);
     results.teamsMine = await cost(() => getTeams({ mine: true }));
     results.typeahead = await cost(() => searchUsers("jo"));
     results.scorerTypeahead = await cost(() => searchScorers("jo"));
@@ -190,6 +226,7 @@ describe("billed reads per page on the seed data", () => {
     );
 
     console.info("billed reads per page (seed data)", results);
+    console.info("spectator doc sizes (JSON bytes)", egress);
     // Upper bounds (seed: 8 matches, 30 users). Before stage 3 these were
     // home 6, /matches 20, dashboard 18, match page 67, scoring screen 29
     // per ball, search 47, typeahead 30, players search 30, player page 43
@@ -200,7 +237,11 @@ describe("billed reads per page on the seed data", () => {
       dashboard: 6,
       matchPageWarm: 8,
       scoringState: 7,
-      scoringScreenPerBall: 12,
+      scoringScreenPerBall: 14,
+      viewerPerBallOverlay: 1,
+      viewerPerBallSummary: 2,
+      viewerPerBallBalls: 2,
+      viewerPerBallStats: 3,
       ballLog: 45,
       typeahead: 10,
       scorerTypeahead: 6,
@@ -215,6 +256,8 @@ describe("billed reads per page on the seed data", () => {
     for (const [page, max] of Object.entries(bounds)) {
       expect(results[page], page).toBeLessThanOrEqual(max);
     }
+    expect(egress.liveState).toBeLessThan(3000);
+    expect(egress.liveScorecard).toBeLessThan(15_000);
     if (process.env.READ_COSTS_OUT) {
       const { writeFileSync } = await import("node:fs");
       writeFileSync(

@@ -4,6 +4,8 @@
  * - {@link watchDoc}: listen to one document (1 read for the first snapshot,
  *   1 per change). Live scores use `live_state/{matchId}` this way; see
  *   `~/lib/hooks/useLiveState`.
+ * - {@link readDoc}: one read of one document (the ball log re-reads the
+ *   `overs` docs a live change touched).
  * - {@link RealtimeChannel} `broadcast`: fire-and-forget messages between
  *   clients that are not stored anywhere else (overlay producer commands).
  *   Messages are appended to `broadcasts/{topic}/messages` and expire via
@@ -18,6 +20,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   query,
   serverTimestamp,
@@ -143,6 +146,16 @@ export class RealtimeChannel {
     this.subscribed = false;
     return "ok";
   }
+}
+
+/** One read of a document; `null` when it does not exist. */
+export async function readDoc<T = DocumentData>(
+  db: Firestore,
+  table: string,
+  id: string,
+): Promise<T | null> {
+  const snap = await getDoc(doc(db, table, id));
+  return snap.exists() ? ({ ...snap.data() } as T) : null;
 }
 
 /** Reference to a single document for ad-hoc listeners. */

@@ -17,6 +17,7 @@ import type {
 } from "firebase-admin/firestore";
 import type { DataSource, Doc, NativeFilter } from "../datasource";
 import { stageInningsSummaries } from "../innings-summary";
+import { stageLiveScorecards } from "../live-scorecard-sync";
 
 export type WithId<T> = T & { id: string };
 
@@ -231,6 +232,7 @@ export function firestoreOf(ds: DataSource): Firestore | null {
 /** Derived fields staged just before a transaction commits. */
 async function finalize(t: ScoringTx): Promise<void> {
   await stageInningsSummaries(t);
+  await stageLiveScorecards(t);
 }
 
 export async function runScoringTransaction<R>(

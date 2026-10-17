@@ -42,7 +42,8 @@ function sortEntries(entries: Entry[]): Entry[] {
   );
 }
 
-async function matchIdOf(
+/** The match an innings write belongs to (from the write or the stored doc). */
+export async function matchIdOf(
   t: ScoringTx,
   w: PendingWrite,
 ): Promise<string | null> {

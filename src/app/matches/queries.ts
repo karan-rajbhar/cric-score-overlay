@@ -4,6 +4,8 @@ import { withoutScorecardStorage } from "~/lib/firebase/scorecard";
 import { playerDirectory } from "~/lib/firebase/directory";
 import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
+import { BALL_PLAYER_FIELDS } from "~/lib/ball-log";
+import { MATCH_DETAIL_SELECT, PARTNERSHIPS_SELECT } from "./match-select";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -119,31 +121,7 @@ export async function getMatch(
       const db = await createServerClient();
       const { data, error } = await db
         .from("matches")
-        .select(
-          `
-          *,
-          team1:teams!matches_team1_id_fkey(*,
-            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-          ),
-          team2:teams!matches_team2_id_fkey(*,
-            team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
-          ),
-          innings(
-            *,
-            batting_performances(*, user:users!batting_performances_user_id_fkey(id, full_name)),
-            bowling_performances(*, user:users!bowling_performances_user_id_fkey(id, full_name)),
-            fall_of_wickets(
-              *,
-              batsman:users!fall_of_wickets_batsman_out_id_fkey(id, full_name),
-              bowler:users!fall_of_wickets_bowler_id_fkey(full_name),
-              fielder:users!fall_of_wickets_fielder_id_fkey(full_name)
-            )
-          ),
-          tournament:tournaments(id, name, tournament_format, venue),
-          club:clubs(id, name),
-          player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
-        `,
-        )
+        .select(MATCH_DETAIL_SELECT)
         .eq("id", matchId)
         .single();
 
@@ -224,6 +202,30 @@ export async function getLiveMatchState(
 
   setPendingLiveQuery(matchId, queryPromise);
   return queryPromise;
+}
+
+/**
+ * The match's `live_scorecard` doc, built once when a live match predates
+ * it. Viewers call this only when their listener finds no doc.
+ */
+export async function ensureLiveScorecard(matchId: string) {
+  if (!UUID_REGEX.test(matchId)) {
+    return { data: null, error: "Invalid match ID" };
+  }
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc("ensure_live_scorecard", {
+      p_match_id: matchId,
+    });
+    if (error) return { data: null, error: error.message };
+    return { data: data ?? null, error: null };
+  } catch (err) {
+    console.error("Error in ensureLiveScorecard:", err);
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : "Failed to load scorecard",
+    };
+  }
 }
 
 export async function getScoringState(matchId: string) {
@@ -417,13 +419,6 @@ export async function getTeamPlayers(teamId: string) {
   }
 }
 
-const BALL_PLAYER_FIELDS = [
-  ["batsman", "batsman_id"],
-  ["bowler", "bowler_id"],
-  ["non_striker", "non_striker_id"],
-  ["fielder", "fielder_id"],
-  ["dismissed_player", "dismissed_player_id"],
-] as const;
 
 export async function getMatchBallLog(matchId: string) {
   try {
@@ -515,62 +510,12 @@ export async function getFullMatchForExport(matchId: string) {
   }
 }
 
-export async function getOverSummaries(matchId: string) {
-  try {
-    const db = await createServerClient();
-    const { data, error } = await db
-      .from("match_over_summaries")
-      .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler, extras_total")
-      .eq("match_id", matchId)
-      .order("over_number");
-    if (error) {
-      // Pre-migration DBs lack extras_total — retry without it; the chart
-      // falls back to extras_off_bat_and_bowler.
-      if (error.message.includes("extras_total")) {
-        const retry = await db
-          .from("match_over_summaries")
-          .select("innings_id, over_number, runs, wickets, extras_off_bat_and_bowler")
-          .eq("match_id", matchId)
-          .order("over_number");
-        if (retry.error) {
-          console.error("Error fetching over summaries:", retry.error);
-          return { data: null, error: retry.error.message };
-        }
-        return { data: retry.data, error: null };
-      }
-      console.error("Error fetching over summaries:", error);
-      return { data: null, error: error.message };
-    }
-    return { data, error: null };
-  } catch (err) {
-    console.error("Error in getOverSummaries:", err);
-    return {
-      data: null,
-      error: err instanceof Error ? err.message : "Failed to fetch over summaries",
-    };
-  }
-}
-
 export async function getPartnerships(matchId: string) {
   try {
     const db = await createServerClient();
     const { data, error } = await db
       .from("partnerships")
-      .select(
-        `
-          id,
-          innings_id,
-          batsman1_id,
-          batsman2_id,
-          runs,
-          balls,
-          start_over,
-          end_over,
-          is_current,
-          batsman1:users!partnerships_batsman1_id_fkey(full_name),
-          batsman2:users!partnerships_batsman2_id_fkey(full_name)
-      `,
-      )
+      .select(PARTNERSHIPS_SELECT)
       .eq("match_id", matchId)
       .order("start_over");
     if (error) {

@@ -39,6 +39,8 @@ service cloud.firestore {
     match /player_matches/{id}           { allow read: if true; allow write: if false; }
     // Denormalized live scoreboard (one doc per match), written by the scoring engine.
     match /live_state/{id}               { allow read: if true; allow write: if false; }
+    // Compact scorecard of every innings (match page tabs while live).
+    match /live_scorecard/{id}           { allow read: if true; allow write: if false; }
 
     // A signed-in user may read their own memberships; everything else is
     // server-rendered.

@@ -14,14 +14,25 @@
  *   moves, which pages use to refetch heavier data at most once per change.
  * - {@link applyLiveState} patches a fetched match with the live totals so
  *   headers stay current without refetching the scorecard.
+ * - {@link useLiveScorecard} follows `live_scorecard/{matchId}` (every
+ *   innings' scorecard, ~4 KB) on the tabs that render it.
+ * - {@link overChangesBetween} lists the `overs` docs changed between two
+ *   versions (from each snapshot's `overs_changed`), so the ball log can
+ *   re-read just those.
  */
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { getFirebaseDb } from "~/lib/firebase/client";
 import { watchDoc, type DocWatchStatus } from "~/lib/firebase/realtime";
+import {
+  LIVE_SCORECARD_COLLECTION,
+  liveScorecardView,
+  type LiveScorecardDoc,
+  type LiveScorecardView,
+} from "~/lib/firebase/live-scorecard";
 import type { LiveMatchState } from "~/components/overlay/types";
-import type { Match } from "~/lib/match-types";
+import type { Innings, Match } from "~/lib/match-types";
 
 /** Mirrors `LIVE_STATE_COLLECTION` in `~/lib/firebase/live-state` (server). */
 const LIVE_STATE_COLLECTION = "live_state";
@@ -42,6 +53,8 @@ export interface LiveSnapshot {
   /** Whether the first snapshot has arrived. */
   loaded: boolean;
   status: LiveStatus;
+  /** `live_state.match_rev`: changes with settings / toss / result, not balls. */
+  matchRev: string | null;
 }
 
 const IDLE: LiveSnapshot = {
@@ -49,6 +62,7 @@ const IDLE: LiveSnapshot = {
   version: null,
   loaded: false,
   status: "idle",
+  matchRev: null,
 };
 
 const CONNECTING: LiveSnapshot = { ...IDLE, status: "connecting" };
@@ -56,20 +70,27 @@ const CONNECTING: LiveSnapshot = { ...IDLE, status: "connecting" };
 /** Let a StrictMode remount or quick re-render reuse the listener. */
 const RELEASE_DELAY_MS = 2000;
 
-interface Entry {
-  snap: LiveSnapshot;
+interface Entry<S> {
+  snap: S;
   listeners: Set<() => void>;
   stop: (() => void) | null;
   releaseTimer: ReturnType<typeof setTimeout> | null;
 }
 
-const entries = new Map<string, Entry>();
+const entries = new Map<string, Entry<LiveSnapshot>>();
+
+/** live_state's doc-only fields (not part of the scoreboard row). */
+const DOC_ONLY_FIELDS = [
+  "updated_at",
+  "version",
+  "refs",
+  "overs_changed",
+  "match_rev",
+] as const;
 
 function rowOf(doc: Record<string, unknown>): LiveMatchState {
   const row = { ...doc };
-  delete row.updated_at;
-  delete row.version;
-  delete row.refs;
+  for (const k of DOC_ONLY_FIELDS) delete row[k];
   return row as unknown as LiveMatchState;
 }
 
@@ -77,47 +98,130 @@ function keyOf(matchId: string, pause: boolean): string {
   return `${matchId}|${pause ? "pause" : "keep"}`;
 }
 
-/** Get or start the shared listener for a match. Called from subscribe only. */
-function entryFor(matchId: string, pause: boolean): Entry {
-  const key = keyOf(matchId, pause);
-  const existing = entries.get(key);
+// ---- over changes per live_state version (for the ball log) ----
+
+const JOURNAL_SIZE = 64;
+/** matchId -> version -> `overs_changed` of that version (null: unknown). */
+const journals = new Map<string, Map<number, string[] | null>>();
+
+function record(matchId: string, data: Record<string, unknown> | null): void {
+  const version = data?.version;
+  if (typeof version !== "number") return;
+  let journal = journals.get(matchId);
+  if (!journal) {
+    journal = new Map();
+    journals.set(matchId, journal);
+  }
+  const changed = data?.overs_changed;
+  journal.set(
+    version,
+    Array.isArray(changed) && changed.every((x) => typeof x === "string")
+      ? (changed as string[])
+      : null,
+  );
+  while (journal.size > JOURNAL_SIZE) {
+    journal.delete(journal.keys().next().value!);
+  }
+}
+
+/**
+ * The `overs` doc ids changed by versions `from + 1 .. to` of a match's
+ * live_state, or null when any of those versions was not observed (paused
+ * listener, coalesced snapshots) or did not say.
+ */
+export function overChangesBetween(
+  matchId: string,
+  from: number,
+  to: number,
+): string[] | null {
+  if (to < from) return null;
+  const journal = journals.get(matchId);
+  const out = new Set<string>();
+  for (let v = from + 1; v <= to; v += 1) {
+    const changed = journal?.get(v);
+    if (!changed) return null;
+    for (const id of changed) out.add(id);
+  }
+  return [...out];
+}
+
+/** The latest live_state version any listener on this page has seen. */
+export function latestLiveVersion(matchId: string): number | null {
+  let best: number | null = null;
+  for (const pause of [true, false]) {
+    const v = entries.get(keyOf(matchId, pause))?.snap.version ?? null;
+    if (v !== null && (best === null || v > best)) best = v;
+  }
+  return best;
+}
+
+/** A shared listener on `collection/{id}`, started on first subscribe. */
+function startEntry<S>(
+  map: Map<string, Entry<S>>,
+  key: string,
+  initial: S,
+  collection: string,
+  id: string,
+  pause: boolean,
+  onData: (data: Record<string, unknown> | null) => Partial<S>,
+  statusOf: (snap: S) => LiveStatus,
+): Entry<S> {
+  const existing = map.get(key);
   if (existing) return existing;
-  const entry: Entry = {
-    snap: CONNECTING,
+  const entry: Entry<S> = {
+    snap: initial,
     listeners: new Set(),
     stop: null,
     releaseTimer: null,
   };
-  entries.set(key, entry);
-  const emit = (patch: Partial<LiveSnapshot>) => {
+  map.set(key, entry);
+  const emit = (patch: Partial<S>) => {
     entry.snap = { ...entry.snap, ...patch };
     for (const listener of entry.listeners) listener();
   };
   const stop = watchDoc<Record<string, unknown>>(
     getFirebaseDb(),
-    LIVE_STATE_COLLECTION,
-    matchId,
+    collection,
+    id,
     {
-      next: (data) =>
-        emit({
-          state: data ? rowOf(data) : null,
-          version: typeof data?.version === "number" ? data.version : null,
-          loaded: true,
-        }),
+      next: (data) => emit(onData(data)),
       status: (status) => {
-        if (status !== entry.snap.status) emit({ status });
+        if (status !== statusOf(entry.snap))
+          emit({ status } as unknown as Partial<S>);
       },
     },
     { pauseWhenHiddenMs: pause ? SPECTATOR_PAUSE_MS : null },
   );
   entry.stop = () => {
     stop();
-    entries.delete(key);
+    map.delete(key);
   };
   return entry;
 }
 
-function subscribe(entry: Entry, listener: () => void): () => void {
+/** Get or start the shared listener for a match. Called from subscribe only. */
+function entryFor(matchId: string, pause: boolean): Entry<LiveSnapshot> {
+  return startEntry(
+    entries,
+    keyOf(matchId, pause),
+    CONNECTING,
+    LIVE_STATE_COLLECTION,
+    matchId,
+    pause,
+    (data) => {
+      record(matchId, data);
+      return {
+        state: data ? rowOf(data) : null,
+        version: typeof data?.version === "number" ? data.version : null,
+        matchRev: typeof data?.match_rev === "string" ? data.match_rev : null,
+        loaded: true,
+      };
+    },
+    (snap) => snap.status,
+  );
+}
+
+function subscribe<S>(entry: Entry<S>, listener: () => void): () => void {
   if (entry.releaseTimer) {
     clearTimeout(entry.releaseTimer);
     entry.releaseTimer = null;
@@ -161,6 +265,62 @@ export function useLiveState(
     ),
     () => (id ? (entries.get(keyOf(id, pause))?.snap ?? CONNECTING) : IDLE),
     () => IDLE,
+  );
+}
+
+export interface LiveScorecardSnapshot {
+  /** Latest doc; `null` until loaded or when no doc exists. */
+  doc: LiveScorecardDoc | null;
+  loaded: boolean;
+  status: LiveStatus;
+}
+
+const SCORECARD_IDLE: LiveScorecardSnapshot = {
+  doc: null,
+  loaded: false,
+  status: "idle",
+};
+const SCORECARD_CONNECTING: LiveScorecardSnapshot = {
+  ...SCORECARD_IDLE,
+  status: "connecting",
+};
+
+const scorecards = new Map<string, Entry<LiveScorecardSnapshot>>();
+
+/**
+ * Subscribe to `live_scorecard/{matchId}` (1 read + 1 per change, ~4 KB).
+ * Shared between components; paused in hidden tabs like spectator pages.
+ */
+export function useLiveScorecard(
+  matchId: string | null | undefined,
+  options: { enabled?: boolean } = {},
+): LiveScorecardSnapshot {
+  const id = (options.enabled ?? true) && matchId ? matchId : null;
+  return useSyncExternalStore(
+    useCallback(
+      (listener: () => void) =>
+        id
+          ? subscribe(
+              startEntry(
+                scorecards,
+                id,
+                SCORECARD_CONNECTING,
+                LIVE_SCORECARD_COLLECTION,
+                id,
+                true,
+                (data) => ({
+                  doc: data as unknown as LiveScorecardDoc | null,
+                  loaded: true,
+                }),
+                (snap) => snap.status,
+              ),
+              listener,
+            )
+          : () => {},
+      [id],
+    ),
+    () => (id ? (scorecards.get(id)?.snap ?? SCORECARD_CONNECTING) : SCORECARD_IDLE),
+    () => SCORECARD_IDLE,
   );
 }
 
@@ -263,4 +423,36 @@ export function applyLiveState(
     };
   });
   return changed ? { ...patched, innings } : patched;
+}
+
+const views = new WeakMap<LiveScorecardDoc, LiveScorecardView>();
+
+/** {@link liveScorecardView}, computed once per snapshot. */
+export function liveScorecardViewOf(doc: LiveScorecardDoc): LiveScorecardView {
+  let view = views.get(doc);
+  if (!view) {
+    view = liveScorecardView(doc);
+    views.set(doc, view);
+  }
+  return view;
+}
+
+/**
+ * Replace a fetched match's innings with the live scorecard's (same rows
+ * `getMatch` returns), keeping any other fields of the fetched innings.
+ */
+export function applyLiveScorecard(
+  match: Match,
+  doc: LiveScorecardDoc | null,
+): Match {
+  if (!doc || doc.match_id !== match.id) return match;
+  const fetched = new Map((match.innings ?? []).map((i) => [i.id, i]));
+  const innings = liveScorecardViewOf(doc).innings.map(
+    (inn) =>
+      ({
+        ...(fetched.get(inn.id as string) ?? {}),
+        ...inn,
+      }) as unknown as Innings,
+  );
+  return { ...match, innings };
 }

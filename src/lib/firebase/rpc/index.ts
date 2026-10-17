@@ -39,6 +39,7 @@ import {
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
+import { ensureLiveScorecard } from "../live-scorecard-sync";
 
 export interface RpcContext {
   db: Firestore | null;
@@ -123,6 +124,10 @@ export async function callRpc(
       const doc = await ensureLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
       return doc ? liveRowOf(doc) : null;
     }
+    case "ensure_live_scorecard":
+      // The match's `live_scorecard` doc, built once for matches that
+      // predate it (viewers then listen to it directly).
+      return ensureLiveScorecard(ctx.ds, str(args, "p_match_id"), ctx.db);
     case "recalculate_tournament_standings":
       await recalculateTournamentStandings(
         ctx.ds,

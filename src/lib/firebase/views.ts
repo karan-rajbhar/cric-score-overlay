@@ -492,8 +492,25 @@ export async function buildOverSummaries(
   const overs = (await ds.query(OVERS_COLLECTION, [
     { field: "match_id", op: "==", value: matchId },
   ])) as unknown as OversRow[];
-  const balls = ballLogOf(overs);
+  return overSummariesOf(matchId, ballLogOf(overs));
+}
 
+/** `match_over_summaries` rows of a ball log (one per innings and over). */
+export function overSummariesOf(
+  matchId: string,
+  balls: ReadonlyArray<
+    Pick<
+      BallByBallRow,
+      | "innings_id"
+      | "over_number"
+      | "bowler_id"
+      | "runs_scored"
+      | "extras"
+      | "extra_type"
+      | "is_wicket"
+    >
+  >,
+): MatchOverSummariesRow[] {
   const groups = new Map<string, MatchOverSummariesRow>();
   for (const b of balls) {
     const key = `${b.innings_id}:${b.over_number}`;

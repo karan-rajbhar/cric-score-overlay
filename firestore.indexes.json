@@ -111,6 +111,26 @@
       "indexes": []
     },
     { "collectionGroup": "live_state", "fieldPath": "refs", "indexes": [] },
+    {
+      "collectionGroup": "live_state",
+      "fieldPath": "overs_changed",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "live_scorecard",
+      "fieldPath": "innings",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "live_scorecard",
+      "fieldPath": "players",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "live_scorecard",
+      "fieldPath": "names",
+      "indexes": []
+    },
     { "collectionGroup": "teams", "fieldPath": "roster", "indexes": [] },
     {
       "collectionGroup": "matches",

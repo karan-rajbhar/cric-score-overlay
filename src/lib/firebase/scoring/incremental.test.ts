@@ -26,8 +26,20 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+import {
+  MATCH_DETAIL_SELECT,
+  PARTNERSHIPS_SELECT,
+} from "~/app/matches/match-select";
 import { canonicalJson, inningsSummaryOf } from "../derive.mjs";
+import {
+  buildLiveScorecard,
+  LIVE_SCORECARD_COLLECTION,
+  liveScorecardView,
+  type LiveScorecardDoc,
+  type ScorecardSource,
+} from "../live-scorecard";
 import { liveRowOf, type LiveStateDoc } from "../live-state";
+import { serverClientFor } from "../server-client";
 import { rebuildStats } from "../stats.mjs";
 import { recordState } from "../rpc/state";
 import {
@@ -36,6 +48,7 @@ import {
   lastOverBowlerOf,
   overDocId,
   playerMatchDocs,
+  withoutScorecardStorage,
   type OversRow,
   type PlayerMatchesRow,
 } from "../scorecard";
@@ -103,6 +116,108 @@ function strip(rows: object[]): string[] {
       return JSON.stringify(c, Object.keys(c).sort());
     })
     .sort();
+}
+
+const INNINGS_FIELDS = [
+  "id",
+  "match_id",
+  "team_id",
+  "innings_number",
+  "total_runs",
+  "total_wickets",
+  "total_balls",
+  "total_overs",
+  "extras_total",
+  "extras_byes",
+  "extras_leg_byes",
+  "extras_wides",
+  "extras_no_balls",
+  "extras_penalties",
+  "extras_bonuses",
+  "target_runs",
+  "is_completed",
+] as const;
+
+/** What the match page renders from `match.innings` (no timestamps). */
+function rendered(innings: Array<Record<string, unknown>>): unknown[] {
+  const rows = (list: unknown) =>
+    ((list ?? []) as Array<Record<string, unknown>>).map((r) => {
+      const c = { ...r };
+      for (const k of VOLATILE) delete c[k];
+      return c;
+    });
+  return [...innings]
+    .sort((a, b) => Number(a.innings_number) - Number(b.innings_number))
+    .map((inn) => {
+      const out: Record<string, unknown> = {};
+      for (const k of INNINGS_FIELDS) out[k] = inn[k] ?? null;
+      out.batting_performances = rows(inn.batting_performances);
+      out.bowling_performances = rows(inn.bowling_performances);
+      out.fall_of_wickets = rows(inn.fall_of_wickets);
+      return out;
+    });
+}
+
+const PARTNERSHIP_FIELDS = PARTNERSHIPS_SELECT.split(",")
+  .map((f) => f.trim().split(":")[0]!)
+  .filter(Boolean);
+
+function partnershipRows(rows: Array<Record<string, unknown>>): unknown[] {
+  return rows
+    .map((r) => Object.fromEntries(PARTNERSHIP_FIELDS.map((k) => [k, r[k]])))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
+/**
+ * `live_scorecard/{matchId}` equals a fresh build from the stored innings,
+ * and renders exactly what `getMatch` / `getPartnerships` return.
+ */
+async function checkLiveScorecard(
+  ds: Stage2Side["ds"],
+  matchId: string,
+  innings: InningsRow[],
+) {
+  const card = (await ds.getById(
+    LIVE_SCORECARD_COLLECTION,
+    matchId,
+  )) as unknown as LiveScorecardDoc | null;
+  if (!card) {
+    expect(innings).toHaveLength(0);
+    return;
+  }
+  const users = new Map(ds.all("users").map((u) => [u.id, u]));
+  const fresh = buildLiveScorecard({
+    matchId,
+    innings: innings as unknown as ScorecardSource[],
+    nameOf: (id) => (users.get(id)?.full_name as string | undefined) ?? null,
+    version: card.version,
+    now: card.updated_at,
+  });
+  const stored: Record<string, unknown> = { ...card };
+  delete stored.id;
+  expect(stored).toEqual(fresh);
+
+  const client = serverClientFor({ ds, db: null, getUser: async () => null });
+  const { data: match } = await client
+    .from("matches")
+    .select(MATCH_DETAIL_SELECT)
+    .eq("id", matchId)
+    .single();
+  const expected = (
+    (match as { innings?: object[] } | null)?.innings ?? []
+  ).map((i) => withoutScorecardStorage(i, ["fall_of_wickets"]));
+  const view = liveScorecardView(card);
+  expect(rendered(view.innings)).toEqual(
+    rendered(expected as Array<Record<string, unknown>>),
+  );
+  const { data: stands } = await client
+    .from("partnerships")
+    .select(PARTNERSHIPS_SELECT)
+    .eq("match_id", matchId)
+    .order("start_over");
+  expect(partnershipRows(view.partnerships)).toEqual(
+    partnershipRows((stands ?? []) as Array<Record<string, unknown>>),
+  );
 }
 
 /** Every derived document of the match agrees with what it derives from. */
@@ -178,6 +293,8 @@ async function checkInvariants(side: Stage2Side, matchId: string) {
   expect(statsDump(ds.all("leaderboards"))).toEqual(
     statsDump(rebuilt.leaderboards),
   );
+
+  await checkLiveScorecard(ds, matchId, innings);
 
   const live = (await ds.getById(
     "live_state",
@@ -285,18 +402,19 @@ describe("record_ball document cost", () => {
     console.info("record_ball cost per ball", summary);
   });
 
-  it("reads match + innings + over + live_state and writes the same four per normal delivery", () => {
+  it("reads match + innings + over + live_state + live_scorecard and writes the same five per normal delivery", () => {
     expect(summary.normalBalls).toBeGreaterThan(500);
-    // Before stage 2: ~10.6 reads / ~7.3 writes per normal delivery.
-    expect(summary.normalAvgReads).toBeLessThanOrEqual(4.1);
-    expect(summary.normalAvgWrites).toBeLessThanOrEqual(4);
-    expect(summary.normalMaxWrites).toBeLessThanOrEqual(4);
+    // Before stage 2: ~10.6 reads / ~7.3 writes per normal delivery; 4 / 4
+    // before the live scorecard (+1 read, +1 write: live_scorecard).
+    expect(summary.normalAvgReads).toBeLessThanOrEqual(5.1);
+    expect(summary.normalAvgWrites).toBeLessThanOrEqual(5);
+    expect(summary.normalMaxWrites).toBeLessThanOrEqual(5);
     // A new player's name is read once.
-    expect(summary.normalMaxReads).toBeLessThanOrEqual(7);
+    expect(summary.normalMaxReads).toBeLessThanOrEqual(8);
     // Including wickets, boundaries and innings changes (player records
     // are written when an innings completes).
-    expect(summary.avgReads).toBeLessThanOrEqual(5);
-    expect(summary.avgWrites).toBeLessThanOrEqual(5);
+    expect(summary.avgReads).toBeLessThanOrEqual(6);
+    expect(summary.avgWrites).toBeLessThanOrEqual(6);
     // The full recompute path, for comparison (one read per over).
     expect(summary.fullAvgReads).toBeGreaterThan(summary.avgReads * 2);
   });

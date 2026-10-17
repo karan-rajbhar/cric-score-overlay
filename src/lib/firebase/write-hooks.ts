@@ -6,6 +6,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { DataSource } from "./datasource";
 import { refreshInningsSummary } from "./innings-summary";
+import { refreshLiveScorecard } from "./live-scorecard-sync";
 import { syncMatchParentSnapshots } from "./match-snapshots";
 import type { WriteEvent } from "./query-builder";
 import { maybeRecalculateStandings } from "./rpc/standings";
@@ -45,6 +46,9 @@ export async function runWriteHooks(
   }
   if (event.table === "innings") {
     const matchId = event.after?.match_id ?? event.before?.match_id;
-    if (typeof matchId === "string") await refreshInningsSummary(ds, matchId);
+    if (typeof matchId === "string") {
+      await refreshInningsSummary(ds, matchId);
+      await refreshLiveScorecard(ds, matchId, hc.db);
+    }
   }
 }

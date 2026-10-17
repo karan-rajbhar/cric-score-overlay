@@ -149,7 +149,14 @@ export async function legacySnapshot(
     for (const [k, v] of Object.entries(doc)) {
       if (VOLATILE.has(k)) continue;
       if (table === "ball_by_ball" && k === "id") continue;
-      if (k === "version" || k === "refs") continue;
+      // live_state's doc-only fields (change signals, name cache).
+      if (
+        k === "version" ||
+        k === "refs" ||
+        k === "overs_changed" ||
+        k === "match_rev"
+      )
+        continue;
       // Stage 3 derived match fields (search keys, the innings summary,
       // which incremental.test.ts checks against the innings instead).
       if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;
