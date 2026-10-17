@@ -23,6 +23,7 @@ import type { BallEvent, Match } from "~/lib/match-types";
 import {
   applyLiveScorecard,
   applyLiveState,
+  LIVE_REFETCH_DELAY_MS,
   latestLiveVersion,
   liveScorecardViewOf,
   overChangesBetween,
@@ -419,6 +420,33 @@ export function useMatchesQuery(filters?: {
     // for every ball of every live match. Refetch on return instead.
     refetchOnWindowFocus: filters?.status === "live",
   });
+}
+
+/**
+ * A live match in a list (match cards), kept current from its
+ * `live_state` doc: 1 read per change per live card, no list listener. The
+ * totals are patched in place; a new innings or a finished match refetches
+ * the match lists once (debounced, shared by every card).
+ */
+export function useLiveListMatch(match: Match): Match {
+  const queryClient = useQueryClient();
+  const live = useLiveState(
+    match.status === "live" && isMatchId(match.id) ? match.id : null,
+  );
+  /** live_state version the lists were last refetched for. */
+  const refetchedFor = useRef<number | null>(null);
+  const { state, version } = live;
+  useEffect(() => {
+    if (!state || version === null || refetchedFor.current === version) return;
+    const structural =
+      (state.status != null && state.status !== match.status) ||
+      (state.innings_number != null &&
+        !match.innings?.some((i) => i.innings_number === state.innings_number));
+    if (!structural) return;
+    refetchedFor.current = version;
+    scheduleInvalidate(queryClient, ["matches"], LIVE_REFETCH_DELAY_MS);
+  }, [state, version, match, queryClient]);
+  return useMemo(() => applyLiveState(match, state), [match, state]);
 }
 
 export interface ManagedClub {

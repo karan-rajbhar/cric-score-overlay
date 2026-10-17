@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
+import { useLiveResync } from "./useLiveResync";
 
 const TossDialog = dynamic(
   () => import("./components/TossDialog").then((m) => m.TossDialog),
@@ -236,12 +237,17 @@ export default function ScoringPage() {
     (s) => s.setRunsCompletedBeforeRunOut,
   );
 
+  // A resync after a change made elsewhere prompts scorers only.
+  const isScorerRef = useRef(false);
+  const remoteSyncRef = useRef(false);
   const handleNeedsBowler = useCallback(() => {
-    setShowSelectBowler(true);
+    if (!remoteSyncRef.current || isScorerRef.current) setShowSelectBowler(true);
   }, [setShowSelectBowler]);
 
   const handleNeedsBatsman = useCallback(() => {
-    setShowSelectBatsmen(true);
+    if (!remoteSyncRef.current || isScorerRef.current) {
+      setShowSelectBatsmen(true);
+    }
   }, [setShowSelectBatsmen]);
 
   const scoringOptions = useMemo(
@@ -289,6 +295,22 @@ export default function ScoringPage() {
     syncFromDb,
   } = useScoring(matchId, scoringOptions);
 
+  // Spectators who opened this link and co-scorers follow live changes.
+  const remoteSync = useCallback(async () => {
+    remoteSyncRef.current = true;
+    try {
+      await syncFromDb();
+    } finally {
+      remoteSyncRef.current = false;
+    }
+  }, [syncFromDb]);
+  useLiveResync({
+    matchId,
+    userId: user?.id,
+    busy: isProcessing || pendingCount > 0,
+    sync: remoteSync,
+  });
+
   const rememberedScorer = useMemo(
     () => wasScorer(matchId, user?.id),
     [matchId, user?.id],
@@ -307,6 +329,9 @@ export default function ScoringPage() {
     offline: isOffline,
   });
   const isScorer = Boolean(isAuthorized);
+  useEffect(() => {
+    isScorerRef.current = isScorer;
+  }, [isScorer]);
 
   // Load every scoring dialog while online so none of them is missing
   // offline, then ask the service worker to keep what the page loaded.
