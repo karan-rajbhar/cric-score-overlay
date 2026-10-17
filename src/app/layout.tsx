@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 import { Barlow, Barlow_Condensed } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
+import { ErrorReporter } from "~/components/error-reporter";
 import { QueryProvider } from "~/providers/query-provider";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { AppShell } from "~/components/layout/app-shell";
@@ -70,6 +71,7 @@ export default async function RootLayout({
       <body
         className={`font-sans ${barlow.variable} ${barlowCondensed.variable} overflow-x-hidden antialiased`}
       >
+        <ErrorReporter />
         <ThemeProvider defaultTheme="light">
           <AuthProvider>
             <QueryProvider>
