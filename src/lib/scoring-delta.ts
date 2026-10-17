@@ -11,6 +11,12 @@
  * whole match). When it cannot (a new innings, a player whose name is not
  * known yet, an over it did not see), {@link applyScoringDelta} returns
  * null and the screen re-reads as before.
+ *
+ * A second scorer on the same match (`useLiveResync`) follows the other
+ * scorer's actions the same way: `live_state` names the `innings` / `overs`
+ * documents each change wrote ({@link liveResyncReads}); it reads just
+ * those and applies them to its snapshot ({@link applyLiveResync}), the
+ * match document being unchanged unless the change was structural.
  */
 
 import {
@@ -22,6 +28,7 @@ import {
   type OversRow,
 } from "./firebase/scorecard";
 import type { InningsRow, MatchesRow } from "./firebase/types";
+import { withMatchPosition } from "./match-position";
 
 export interface ScoringDelta {
   match: MatchesRow & { id: string };
@@ -194,12 +201,13 @@ export function applyScoringDelta<M extends SnapshotMatch, D>(
   }
 
   const m = delta.match as unknown as SnapshotMatch;
-  const match = {
+  // The over / ball position comes from the current innings.
+  const match = withMatchPosition({
     ...delta.match,
     innings,
     team1: m.team1_snapshot ?? prev.match.team1 ?? null,
     team2: m.team2_snapshot ?? prev.match.team2 ?? null,
-  } as unknown as M;
+  }) as unknown as M;
 
   const pos = scoringPosition(match);
   const before = scoringPosition(prev.match);
@@ -254,4 +262,140 @@ export function applyScoringDelta<M extends SnapshotMatch, D>(
     lastOverBowlerId,
     thisOverDeliveries,
   };
+}
+
+/** What one `live_state` version says about its change (journalled). */
+export interface LiveJournalEntry {
+  /** `overs_changed` (null: not said). */
+  overs: readonly string[] | null;
+  /** `innings_changed` (null: not known, e.g. a builder write). */
+  innings: readonly string[] | null;
+  status: string | null;
+  inningsNumber: number | null;
+  matchRev: string | null;
+}
+
+/** The journal entry of a `live_state` document. */
+export function liveJournalEntry(
+  doc: Record<string, unknown> | null,
+): LiveJournalEntry {
+  const ids = (v: unknown) =>
+    Array.isArray(v) && v.every((x) => typeof x === "string")
+      ? (v as string[])
+      : null;
+  return {
+    overs: ids(doc?.overs_changed),
+    innings: ids(doc?.innings_changed),
+    status: typeof doc?.status === "string" ? doc.status : null,
+    inningsNumber:
+      typeof doc?.innings_number === "number" ? doc.innings_number : null,
+    matchRev: typeof doc?.match_rev === "string" ? doc.match_rev : null,
+  };
+}
+
+/** What changed in `live_state` between two versions. */
+export interface LiveChanges {
+  /** `overs` doc ids written by the changes. */
+  overs: readonly string[];
+  /** `innings` doc ids written by the changes. */
+  innings: readonly string[];
+  /** Status, current innings or `match_rev` moved: the match changed. */
+  structural: boolean;
+}
+
+/**
+ * The changes of versions `from + 1 .. to`, from the entries a listener
+ * journalled; null when one of those versions (or `from` itself) was not
+ * observed, or did not say what it wrote.
+ */
+export function liveChangesOf(
+  journal: ReadonlyMap<number, LiveJournalEntry>,
+  from: number,
+  to: number,
+): LiveChanges | null {
+  const base = journal.get(from);
+  if (!base || to < from) return null;
+  const overs = new Set<string>();
+  const innings = new Set<string>();
+  let structural = false;
+  for (let v = from + 1; v <= to; v += 1) {
+    const e = journal.get(v);
+    if (!e?.overs || !e.innings) return null;
+    for (const id of e.overs) overs.add(id);
+    for (const id of e.innings) innings.add(id);
+    if (
+      e.status !== base.status ||
+      e.inningsNumber !== base.inningsNumber ||
+      e.matchRev !== base.matchRev
+    ) {
+      structural = true;
+    }
+  }
+  return { overs: [...overs], innings: [...innings], structural };
+}
+
+/** The innings id and over number of an `overs` doc id (`{inningsId}_{n}`). */
+function overIdParts(overId: string): { inningsId: string; over: number } {
+  const cut = overId.lastIndexOf("_");
+  return cut > 0
+    ? { inningsId: overId.slice(0, cut), over: Number(overId.slice(cut + 1)) }
+    : { inningsId: "", over: NaN };
+}
+
+/**
+ * The documents a scorer reads to follow `changes` made by someone else:
+ * the innings they wrote and, of the overs they wrote, those of the current
+ * innings (the only ones the scoring state shows). Null when the snapshot
+ * must be re-read instead (a structural change, an innings it does not
+ * hold).
+ */
+export function liveResyncReads(
+  prev: ScoringSnapshot<SnapshotMatch, unknown>,
+  changes: LiveChanges,
+): { innings: string[]; overs: string[] } | null {
+  if (changes.structural) return null;
+  const current = scoringPosition(prev.match).current;
+  if (!current) return null;
+  const held = new Set((prev.match.innings ?? []).map((i) => i.id));
+  if (changes.innings.some((id) => !held.has(id))) return null;
+  return {
+    innings: [...new Set(changes.innings)],
+    overs: [...new Set(changes.overs)].filter(
+      (id) => overIdParts(id).inningsId === current.id,
+    ),
+  };
+}
+
+/**
+ * `prev` updated with the documents {@link liveResyncReads} named, as read
+ * (`overs` by id, null for one that no longer exists: an undo emptied it).
+ * The match document is the one `prev` holds: only a structural change,
+ * which re-reads, writes it. Null when the documents are not enough.
+ */
+export function applyLiveResync<M extends SnapshotMatch, D>(
+  prev: ScoringSnapshot<M, D>,
+  innings: Array<InningsRow & { id: string }>,
+  overs: ReadonlyArray<readonly [string, OversRow | null]>,
+  names?: ReadonlyMap<string, UserRef>,
+): ScoringSnapshot<M, D> | null {
+  return applyScoringDelta(
+    prev,
+    {
+      match: prev.match as unknown as MatchesRow & { id: string },
+      innings,
+      overs: overs.map(([id, doc]) => {
+        if (doc) return { ...doc, id };
+        const { inningsId, over } = overIdParts(id);
+        return {
+          id,
+          match_id: prev.match.id,
+          innings_id: inningsId,
+          over_number: over,
+          balls: [],
+          updated_at: null,
+        };
+      }),
+    },
+    names,
+  );
 }

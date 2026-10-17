@@ -327,6 +327,9 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "partnerships",
     "last_ball",
     "last_over_bowler_id",
+    "last_ball_seq",
+    "carried_penalties",
+    "recent_client_actions",
     "created_at",
     "updated_at",
   ],
@@ -480,7 +483,10 @@ export const HIDDEN_COLUMNS: Partial<Record<TableName, readonly string[]>> = {
     "innings_summary",
     "tournament_snapshot",
     "club_snapshot",
+    "recent_client_actions",
   ],
+  // Engine-internal (`INNINGS_INTERNAL_FIELDS` in scorecard.ts).
+  innings: ["recent_client_actions", "carried_penalties"],
   club_memberships: ["user_snapshot"],
 };
 
@@ -595,6 +601,8 @@ export const TABLE_DEFAULTS: Partial<
     partnerships: [],
     last_ball: null,
     last_over_bowler_id: null,
+    last_ball_seq: 0,
+    carried_penalties: [],
   },
   batting_performances: {
     runs_scored: 0,

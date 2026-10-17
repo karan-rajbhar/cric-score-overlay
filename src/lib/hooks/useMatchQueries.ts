@@ -430,9 +430,8 @@ export function useMatchesQuery(filters?: {
  */
 export function useLiveListMatch(match: Match): Match {
   const queryClient = useQueryClient();
-  const live = useLiveState(
-    match.status === "live" && isMatchId(match.id) ? match.id : null,
-  );
+  const listening = match.status === "live" && isMatchId(match.id);
+  const live = useLiveState(listening ? match.id : null);
   /** live_state version the lists were last refetched for. */
   const refetchedFor = useRef<number | null>(null);
   const { state, version } = live;
@@ -446,7 +445,20 @@ export function useLiveListMatch(match: Match): Match {
     refetchedFor.current = version;
     scheduleInvalidate(queryClient, ["matches"], LIVE_REFETCH_DELAY_MS);
   }, [state, version, match, queryClient]);
-  return useMemo(() => applyLiveState(match, state), [match, state]);
+  const waiting = listening && !live.loaded && live.status !== "error";
+  return useMemo(
+    () =>
+      // The list's score of an innings in progress comes from the match
+      // summary, which does not follow every ball: show it only once the
+      // live doc has arrived to correct it.
+      waiting
+        ? {
+            ...match,
+            innings: match.innings?.filter((i) => i.is_completed !== false),
+          }
+        : applyLiveState(match, state),
+    [match, state, waiting],
+  );
 }
 
 export interface ManagedClub {

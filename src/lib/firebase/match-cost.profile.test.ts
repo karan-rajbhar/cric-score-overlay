@@ -18,7 +18,12 @@
  *   `live_state` / `live_scorecard` change, the `overs` docs named by
  *   `live_state.overs_changed` (Balls / Stats tabs) and a `getMatch`
  *   refetch on structural changes (status, innings, `match_rev`);
- * - OBS overlay: `live_state` only.
+ * - OBS overlay: `live_state` only;
+ * - a second scorer on the scoring screen (`useLiveResync`): its
+ *   `live_state` listener, and per change by the other scorer the
+ *   `innings` / `overs` docs that change wrote (`live_state.innings_changed`
+ *   / `overs_changed`, applied with `applyLiveResync`), re-reading the whole
+ *   state only after a structural change or a missed version.
  *
  * The table is printed (console.info) and the totals are bounded below, so
  * a change that adds reads or writes to the scoring loop fails here.
@@ -58,10 +63,17 @@ vi.mock("~/lib/firebase/server", () => ({
 
 import type { ScoringState } from "~/app/matches/types";
 import {
+  applyLiveResync,
   applyScoringDelta,
+  liveChangesOf,
+  liveJournalEntry,
+  liveResyncReads,
+  type LiveJournalEntry,
   type ScoringDelta,
   type ScoringSnapshot,
 } from "~/lib/scoring-delta";
+import type { OversRow } from "./scorecard";
+import type { InningsRow } from "./types";
 import type { AppUser } from "./auth-types";
 import { MemoryDataSource, type Doc } from "./datasource";
 import type { LiveStateDoc } from "./live-state";
@@ -132,9 +144,9 @@ interface Row {
   overlayReads: number;
   /**
    * A second scorer on the scoring screen (`useLiveResync`): its live_state
-   * listener and a full re-read of the scoring state per change made by
-   * someone else. Signed-out / non-scorer visitors paid the same before
-   * they were sent to the match centre.
+   * listener and the documents the change wrote (or a full re-read of the
+   * scoring state when that is not enough), per change made by someone
+   * else.
    */
   coScorerReads: number;
 }
@@ -222,6 +234,11 @@ class ScorerModel {
     this.squads = key;
   }
 
+  /** Player names known from the squads (for `applyScoringDelta`). */
+  get squadNames() {
+    return this.names;
+  }
+
   /** `syncFromDb`: getScoringState, plus the squads when the sides change. */
   async sync(): Promise<void> {
     const res = await this.q.getScoringState(this.matchId);
@@ -295,6 +312,85 @@ class ScorerModel {
   async afterStructural(): Promise<void> {
     await this.sync();
   }
+
+  /** Adopt a snapshot built elsewhere (the co-scorer's live resync). */
+  async adopt(snap: Snapshot): Promise<void> {
+    this.deltasApplied += 1;
+    await this.verify?.(snap);
+    await this.loadSquads(snap);
+    this.snap = snap;
+  }
+}
+
+/**
+ * The second scorer (`useLiveResync` + `syncFromLive` in useScoring): on
+ * each live_state change by the other scorer it reads the documents the
+ * change wrote and applies them, or re-reads its whole state when they are
+ * not enough. `journal` is what its listener has seen.
+ */
+class CoScorerModel {
+  readonly screen: ScorerModel;
+  private readonly journal = new Map<number, LiveJournalEntry>();
+  private synced: number | null = null;
+  fullSyncs = 0;
+
+  constructor(
+    matchId: string,
+    q: Queries,
+    private readonly ds: MemoryDataSource,
+  ) {
+    this.screen = new ScorerModel(matchId, q);
+  }
+
+  /** The listener delivered `doc` (version `doc.version`). */
+  observe(doc: LiveStateDoc): void {
+    this.journal.set(
+      doc.version,
+      liveJournalEntry(doc as unknown as Record<string, unknown>),
+    );
+  }
+
+  async open(version: number | null): Promise<void> {
+    await this.screen.sync();
+    this.synced = version;
+  }
+
+  /** A change by the other scorer, up to live_state `version`. */
+  async follow(version: number): Promise<void> {
+    const prev = this.screen.snap;
+    const changes =
+      prev && this.synced !== null
+        ? liveChangesOf(this.journal, this.synced, version)
+        : null;
+    const reads = changes && prev ? liveResyncReads(prev, changes) : null;
+    let next: Snapshot | null = null;
+    if (reads && prev) {
+      const innings = (await this.ds.getByIds(
+        "innings",
+        reads.innings,
+      )) as unknown as Array<InningsRow & { id: string }>;
+      const overs = await this.ds.getByIds("overs", reads.overs);
+      const byId = new Map(overs.map((o) => [o.id, o]));
+      next =
+        innings.length === reads.innings.length
+          ? applyLiveResync(
+              prev,
+              innings,
+              reads.overs.map(
+                (id) =>
+                  [id, (byId.get(id) as unknown as OversRow) ?? null] as const,
+              ),
+              this.screen.squadNames,
+            )
+          : null;
+    }
+    if (next) await this.screen.adopt(next);
+    else {
+      this.fullSyncs += 1;
+      await this.screen.sync();
+    }
+    this.synced = version;
+  }
 }
 
 describe("Firestore cost of a whole match", () => {
@@ -351,10 +447,14 @@ describe("Firestore cost of a whole match", () => {
     let lastLive: LiveStateDoc | null = null;
     /** The scoring screen (`useScoring`): what it holds and refetches. */
     const scorer = new ScorerModel(matchId, queries);
-    scorer.verify = async (snap) => {
+    const verify = async (snap: Snapshot) => {
       const fresh = await peek(() => queries.getScoringState(matchId));
       expect(snap).toEqual(fresh.data);
     };
+    scorer.verify = verify;
+    /** A second scorer following the first one's actions. */
+    const coScorer = new CoScorerModel(matchId, queries, ds);
+    coScorer.screen.verify = verify;
 
     /**
      * Runs a scorer action: the server action, then what the scoring screen
@@ -379,13 +479,12 @@ describe("Firestore cost of a whole match", () => {
       const cardWrites = server.writes.live_scorecard ?? 0;
       r.scorerListenReads += liveWrites;
       r.overlayReads += liveWrites;
-      if (liveWrites) {
-        const [, resync] = await meter.run(() =>
-          queries.getScoringState(matchId),
-        );
+      const live = await peek(liveDoc);
+      if (liveWrites && live) {
+        coScorer.observe(live);
+        const [, resync] = await meter.run(() => coScorer.follow(live.version));
         r.coScorerReads += liveWrites + sum(resync.reads);
       }
-      const live = await peek(liveDoc);
       let viewer = liveWrites + cardWrites;
       let balls = liveWrites;
       if (liveWrites && live) {
@@ -414,6 +513,11 @@ describe("Firestore cost of a whole match", () => {
       scorer.open(() => isMatchAdmin(ds, matchId, ADMIN)),
     );
     loads.scoringScreenOpen = sum(scoringOpen.reads) + 1; // + live_state listener
+    await peek(async () => {
+      const live = await liveDoc();
+      if (live) coScorer.observe(live);
+      await coScorer.open(live?.version ?? null);
+    });
 
     // ---- toss ----------------------------------------------------------
     await act(
@@ -676,6 +780,14 @@ describe("Firestore cost of a whole match", () => {
     expect(totals.overlayReads).toBeLessThanOrEqual(BOUNDS.matchOverlayReads);
     // Every delta-built state was checked, and most actions used one.
     expect(scorer.deltasApplied).toBeGreaterThan(290);
+    // The co-scorer too: every remote change it applied from the documents
+    // that change wrote was checked against a fresh getScoringState.
+    console.info("co-scorer", {
+      deltas: coScorer.screen.deltasApplied,
+      fullSyncs: coScorer.fullSyncs,
+    });
+    expect(coScorer.screen.deltasApplied).toBeGreaterThan(290);
+    expect(totals.coScorerReads).toBeLessThanOrEqual(BOUNDS.matchCoScorerReads);
   }, 120_000);
 });
 
@@ -683,17 +795,23 @@ describe("Firestore cost of a whole match", () => {
  * Upper bounds for the scripted match (254 deliveries; see the printed
  * table). Before the scoring screen updated from the committed documents
  * it read 12.4 a ball and 4,241 a match (getScoringState after every ball
- * and crease / bowler change, twice after an undo or edit).
+ * and crease / bowler change, twice after an undo or edit). Before the
+ * match document stopped following every ball: 5 writes a delivery, 1,538
+ * a match, the scorer 2,225 reads, a co-scorer 2,305 (a full re-read of
+ * its state per change, 7.4 reads) and the first innings' end 58 reads
+ * (its whole ball log, to carry penalty runs).
  */
 const BOUNDS = {
-  /** match, innings, over, live_state, live_scorecard. */
-  perBallWrites: 5,
+  /** innings, over, live_state, live_scorecard (the match is not written). */
+  perBallWrites: 4,
   /** The 5 the ball reads + the screen's live_state listener. */
   perBallScorerReads: 6,
   /** live_state + live_scorecard listeners (Summary tab). */
   perBallViewerReads: 2,
-  matchWrites: 1_540,
-  matchScorerReads: 2_230,
+  matchWrites: 1_290,
+  matchScorerReads: 2_170,
   matchViewerReads: 640,
   matchOverlayReads: 315,
+  /** live_state listener + the innings and over a remote ball wrote. */
+  matchCoScorerReads: 910,
 };

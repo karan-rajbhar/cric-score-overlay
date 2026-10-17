@@ -40,7 +40,17 @@ import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
 import type { BallEvent, ScoringState, ExtraType } from "../../types";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
-import { applyScoringDelta, type ScoringDelta } from "~/lib/scoring-delta";
+import {
+  applyLiveResync,
+  applyScoringDelta,
+  liveResyncReads,
+  type LiveChanges,
+  type ScoringDelta,
+} from "~/lib/scoring-delta";
+import { getFirebaseDb } from "~/lib/firebase/client";
+import { readDoc } from "~/lib/firebase/realtime";
+import type { OversRow } from "~/lib/firebase/scorecard";
+import type { InningsRow } from "~/lib/firebase/types";
 
 /** What `getScoringState` returns. */
 type Snapshot = {
@@ -322,24 +332,64 @@ export function useScoring(
    * same state `syncFromDb` would read, built from them (no request);
    * re-reads when they are not enough (see `~/lib/scoring-delta`).
    */
+  /** Names of the squads' players, for building snapshots from documents. */
+  const squadNames = useCallback(() => {
+    const names = new Map<string, { id: string; full_name: string | null }>();
+    for (const p of [
+      ...playersRef.current.batting,
+      ...playersRef.current.bowling,
+    ]) {
+      if (p.user_id && p.user) {
+        names.set(p.user_id, { id: p.user.id, full_name: p.user.full_name });
+      }
+    }
+    return names;
+  }, []);
+
   const applyDelta = useCallback(
     async (delta: ScoringDelta | null | undefined): Promise<boolean> => {
       const prev = snapshotRef.current;
-      const names = new Map<string, { id: string; full_name: string | null }>();
-      for (const p of [
-        ...playersRef.current.batting,
-        ...playersRef.current.bowling,
-      ]) {
-        if (p.user_id && p.user) {
-          names.set(p.user_id, { id: p.user.id, full_name: p.user.full_name });
-        }
-      }
-      const next = prev ? applyScoringDelta(prev, delta, names) : null;
+      const next = prev ? applyScoringDelta(prev, delta, squadNames()) : null;
       if (!next) return syncFromDb();
       await applySnapshot(next);
       return true;
     },
-    [applySnapshot, syncFromDb],
+    [applySnapshot, syncFromDb, squadNames],
+  );
+
+  /**
+   * Follow a change made elsewhere (a co-scorer) from the documents it
+   * wrote, named by `live_state` (`useLiveResync`): reads those `innings`
+   * and current-innings `overs` docs (public reads) instead of the whole
+   * state. False when they are not enough; the caller then re-reads.
+   */
+  const syncFromLive = useCallback(
+    async (changes: LiveChanges): Promise<boolean> => {
+      const prev = snapshotRef.current;
+      const reads = prev ? liveResyncReads(prev, changes) : null;
+      if (!prev || !reads) return false;
+      const db = getFirebaseDb();
+      const [innings, overs] = await Promise.all([
+        Promise.all(
+          reads.innings.map((id) => readDoc<InningsRow>(db, "innings", id)),
+        ),
+        Promise.all(
+          reads.overs.map((id) => readDoc<OversRow>(db, "overs", id)),
+        ),
+      ]);
+      if (innings.some((d) => !d)) return false;
+      const next = applyLiveResync(
+        prev,
+        innings.map((d, i) => ({ ...d!, id: reads.innings[i]! })),
+        reads.overs.map((id, i) => [id, overs[i] ?? null] as const),
+        squadNames(),
+      );
+      // The screen moved on (an own action) while these were read.
+      if (!next || snapshotRef.current !== prev) return false;
+      await applySnapshot(next);
+      return true;
+    },
+    [applySnapshot, squadNames],
   );
 
   const loadMatch = useCallback(async () => {
@@ -1762,6 +1812,7 @@ export function useScoring(
     setMatch,
     loadPlayers,
     syncFromDb,
+    syncFromLive,
     handleStartMatch,
     handleScore,
     handleUndo,

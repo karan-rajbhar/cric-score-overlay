@@ -8,6 +8,8 @@
  * player_matches). Innings not yet completed (live matches) are folded in
  * from their innings documents, so the page shows the same figures as when
  * it read every scorecard row, at the cost of the live matches' innings.
+ * The same documents bring the listed matches' innings in progress up to
+ * date (their summary entries do not follow every ball, `live-innings.ts`).
  */
 
 import {
@@ -16,6 +18,7 @@ import {
   type LeaderboardPlayer,
 } from "~/lib/leaderboard";
 import { playerDirectory } from "./directory";
+import { applyFreshInnings } from "./live-innings";
 import type { QueryBuilder } from "./query-builder";
 import { playerMatchDocs } from "./scorecard";
 import { applyPlayerMatch, emptyAcc, leaderboardShardIds } from "./stats.mjs";
@@ -27,9 +30,19 @@ interface LeaderboardClient {
 
 /** The match fields this needs (match lists already select them). */
 export type ScopeMatch = Pick<MatchesRow, "id"> &
-  Partial<Pick<MatchesRow, "team1_id" | "team2_id">> & {
-    innings?: { is_completed?: boolean | null }[] | null;
+  Partial<Pick<MatchesRow, "team1_id" | "team2_id" | "status">> & {
+    innings?:
+      | ({ id?: string | null; is_completed?: boolean | null } & Record<
+          string,
+          unknown
+        >)[]
+      | null;
   };
+
+/**
+ * The scope's leaderboard. Also updates, in place, the listed live matches'
+ * innings in progress from the innings it reads (see the module comment).
+ */
 
 export async function loadScopeLeaderboard(
   db: LeaderboardClient,
@@ -55,6 +68,7 @@ export async function loadScopeLeaderboard(
           )
       : Promise.resolve({ data: [] as InningsRow[] }),
   ]);
+  applyFreshInnings(matches, (openInnings ?? []) as InningsRow[]);
 
   const players: Record<string, LeaderboardPlayer> = {};
   for (const shard of shards ?? []) {

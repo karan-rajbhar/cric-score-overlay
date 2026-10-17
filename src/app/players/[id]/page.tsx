@@ -31,6 +31,7 @@ import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
+import { liveScorecardInnings } from "~/lib/firebase/live-innings";
 import { livePerformanceOf } from "~/lib/firebase/live-player";
 import type { LiveScorecardDoc } from "~/lib/firebase/live-scorecard";
 
@@ -207,7 +208,8 @@ export default async function PlayerPage({
   };
   // Innings in progress are not in player_matches yet: for the player's
   // live matches (already loaded above) read each one's live_scorecard
-  // doc, 1 read per live match (capped).
+  // doc, 1 read per live match (capped). It also carries the score of the
+  // innings in progress, which the match summary does not follow per ball.
   const livePerformances = (
     await Promise.all(
       matchesData
@@ -218,6 +220,12 @@ export default async function PlayerPage({
             "ensure_live_scorecard",
             { p_match_id: m.id },
           );
+          if (data) {
+            m.innings = liveScorecardInnings(
+              m as { status?: unknown; innings?: Record<string, unknown>[] },
+              data,
+            ).innings;
+          }
           const perf = data
             ? livePerformanceOf(data, id, Number(m.balls_per_over) || 6)
             : null;

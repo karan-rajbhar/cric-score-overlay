@@ -266,6 +266,10 @@ describe("billed reads per page on the seed data", () => {
       playerPageByHandle: 25,
       clubPage: 49,
       tournamentPage: 32,
+      // +1 per live match listed: its innings in progress, which the match
+      // summary no longer follows ball by ball (it cost a match write per
+      // ball before).
+      teamPage: 8,
     };
     for (const [page, max] of Object.entries(bounds)) {
       expect(results[page], page).toBeLessThanOrEqual(max);

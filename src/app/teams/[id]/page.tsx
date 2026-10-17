@@ -24,6 +24,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { getTeam } from "../actions";
 import type { Doc } from "~/lib/firebase/datasource";
 import { sortRows } from "~/lib/firebase/filters";
+import { withLiveInnings } from "~/lib/firebase/live-innings";
 import { createServerClient } from "~/lib/firebase/server";
 import {
   attachMatchTeams,
@@ -208,9 +209,11 @@ export default async function TeamDetailsPage({
     [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
   );
 
-  const teamMatches = (await attachMatchTeams(
+  // Live matches: their innings in progress, which the match summaries do
+  // not follow ball by ball (1 read per live match).
+  const teamMatches = (await withLiveInnings(
     db,
-    matchesData ?? [],
+    await attachMatchTeams(db, matchesData ?? []),
   )) as unknown as TeamMatchItem[];
 
   // Match statistics for this team

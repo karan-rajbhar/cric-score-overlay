@@ -10,6 +10,7 @@
  * viewers can subscribe to one document instead.
  */
 
+import { matchPositionOf } from "~/lib/match-position";
 import type { DataSource, Doc } from "./datasource";
 import type { Filter } from "./filters";
 import {
@@ -134,6 +135,7 @@ export function composeLiveMatchState(
   parts: LiveStateParts,
 ): LiveMatchStateRow {
   const { match, teams, innings: ci, nameOf } = parts;
+  const position = matchPositionOf(match, ci);
   const t1 = teams.get(match.team1_id);
   const t2 = teams.get(match.team2_id);
   const winner = match.winning_team_id
@@ -148,8 +150,8 @@ export function composeLiveMatchState(
     overs_per_innings: match.overs_per_innings ?? null,
     venue: match.venue ?? null,
     current_innings: match.current_innings ?? null,
-    current_over: match.current_over ?? null,
-    current_ball: match.current_ball ?? null,
+    current_over: ci ? position.current_over : (match.current_over ?? null),
+    current_ball: ci ? position.current_ball : (match.current_ball ?? null),
     result_type: match.result_type ?? null,
     result_description: match.result_description ?? null,
     toss_winner_team_id: match.toss_winner_team_id ?? null,

@@ -90,4 +90,57 @@ describe("useLiveResync", () => {
     });
     expect(sync).toHaveBeenCalledTimes(1);
   });
+
+  it("follows a co-scorer's balls from the documents they wrote, re-reading only when it cannot", async () => {
+    const matchId = newMatchId();
+    const sync = vi.fn(async () => {});
+    const syncLive = vi.fn(async () => true);
+    renderHook(() =>
+      useLiveResync({ matchId, userId: "me", busy: false, sync, syncLive }),
+    );
+    const watch = watches.find(
+      (w) => w.id === matchId && w.table === "live_state",
+    )!;
+    const emit = async (version: number, extra: Record<string, unknown>) => {
+      act(() =>
+        watch.next({
+          ...liveDoc(matchId, version, "other"),
+          innings_number: 1,
+          match_rev: "r1",
+          overs_changed: [],
+          innings_changed: [],
+          ...extra,
+        }),
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LIVE_REFETCH_DELAY_MS + 10);
+      });
+    };
+    await emit(1, {});
+    // The version this screen holds is not known yet: one full read.
+    await emit(2, { overs_changed: ["I1_0"], innings_changed: ["I1"] });
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(syncLive).not.toHaveBeenCalled();
+    // From then on, the change's documents.
+    await emit(3, { overs_changed: ["I1_0"], innings_changed: ["I1"] });
+    expect(syncLive).toHaveBeenLastCalledWith({
+      overs: ["I1_0"],
+      innings: ["I1"],
+      structural: false,
+    });
+    expect(sync).toHaveBeenCalledTimes(1);
+    // A version missed in between: a full read.
+    await emit(5, { overs_changed: ["I1_1"], innings_changed: ["I1"] });
+    expect(sync).toHaveBeenCalledTimes(2);
+    // A structural change is handed over as such; when the documents are
+    // not enough the screen re-reads.
+    syncLive.mockResolvedValueOnce(false);
+    await emit(6, { status: "completed", innings_changed: ["I1"] });
+    expect(syncLive).toHaveBeenLastCalledWith({
+      overs: [],
+      innings: ["I1"],
+      structural: true,
+    });
+    expect(sync).toHaveBeenCalledTimes(3);
+  });
 });

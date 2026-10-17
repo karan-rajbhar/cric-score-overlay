@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import { inningsSummaryEntry, inningsSummaryOf } from "../../derive.mjs";
 import type { ScoringState } from "~/app/matches/types";
 import type { DataSource, Doc } from "../../datasource";
+import { logicalMatch } from "./legacy";
 import {
   recomputeInningsRpc,
   recordBall,
@@ -115,6 +116,17 @@ export const STAGE2_INNINGS_FIELDS = new Set([
   "last_over_bowler_id",
 ]);
 
+/**
+ * Innings fields that took over per-ball match fields (the seq counter,
+ * client action ids) or cache a ball-log query (`carried_penalties`); see
+ * {@link logicalMatch} for how the match row is compared.
+ */
+export const PER_BALL_INNINGS_FIELDS = new Set([
+  "last_ball_seq",
+  "carried_penalties",
+  "recent_client_actions",
+]);
+
 /** Fields stage 3 added to match documents (not part of the legacy row). */
 export const STAGE3_MATCH_FIELDS = new Set([
   "innings_summary",
@@ -155,6 +167,7 @@ export async function legacySnapshot(
         k === "version" ||
         k === "refs" ||
         k === "overs_changed" ||
+        k === "innings_changed" ||
         k === "match_rev" ||
         (table === "live_state" && k === "last_change")
       )
@@ -163,6 +176,8 @@ export async function legacySnapshot(
       // which incremental.test.ts checks against the innings instead).
       if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;
       if (table === "innings" && STAGE2_INNINGS_FIELDS.has(k)) continue;
+      if (table === "innings" && PER_BALL_INNINGS_FIELDS.has(k)) continue;
+      if (table === "matches" && k === "recent_client_actions") continue;
       out[k] = v === undefined ? null : v;
     }
     let text = JSON.stringify(out, Object.keys(out).sort());
@@ -177,6 +192,13 @@ export async function legacySnapshot(
         : await view.query(table, [
             { field: "match_id", op: "==", value: matchId },
           ]);
+    if (table === "matches") {
+      docs.splice(
+        0,
+        docs.length,
+        ...docs.map((d) => logicalMatch(d, innings as unknown as Doc[])),
+      );
+    }
     dump[table] = docs.map((d) => norm(table, d)).sort();
   }
   return dump;

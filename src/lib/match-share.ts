@@ -1,7 +1,8 @@
 /**
  * What a shared match link shows (page title, Open Graph / Twitter text
  * and the generated preview image), from the match document alone: its
- * team snapshots and `innings_summary` (one read, no innings reads).
+ * team snapshots and `innings_summary` (one read; a live match's innings in
+ * progress is re-read, see `loadShareMatch`).
  */
 
 import { oversFromBalls } from "./cricket";

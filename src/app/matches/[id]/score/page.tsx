@@ -13,6 +13,7 @@ import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
 import { useLiveResync } from "./useLiveResync";
+import type { LiveChanges } from "~/lib/scoring-delta";
 
 const TossDialog = dynamic(
   () => import("./components/TossDialog").then((m) => m.TossDialog),
@@ -310,6 +311,7 @@ export default function ScoringPage() {
     handleEndInnings,
     loadPlayers,
     syncFromDb,
+    syncFromLive,
   } = useScoring(matchId, scoringOptions);
 
   // Spectators who opened this link and co-scorers follow live changes.
@@ -321,11 +323,23 @@ export default function ScoringPage() {
       remoteSyncRef.current = false;
     }
   }, [syncFromDb]);
+  const remoteSyncLive = useCallback(
+    async (changes: LiveChanges) => {
+      remoteSyncRef.current = true;
+      try {
+        return await syncFromLive(changes);
+      } finally {
+        remoteSyncRef.current = false;
+      }
+    },
+    [syncFromLive],
+  );
   useLiveResync({
     matchId,
     userId: user?.id,
     busy: isProcessing || pendingCount > 0,
     sync: remoteSync,
+    syncLive: remoteSyncLive,
   });
 
   const rememberedScorer = useMemo(
