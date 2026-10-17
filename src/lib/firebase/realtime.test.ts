@@ -7,6 +7,8 @@ const listeners: Array<{
   unsubscribe: ReturnType<typeof vi.fn>;
 }> = [];
 
+const getDocFromServer = vi.fn();
+
 vi.mock("firebase/firestore", () => ({
   doc: (_db: unknown, table: string, id: string) => ({ path: `${table}/${id}` }),
   onSnapshot: (
@@ -18,6 +20,7 @@ vi.mock("firebase/firestore", () => ({
     listeners.push({ path: ref.path, next, error, unsubscribe });
     return unsubscribe;
   },
+  getDocFromServer: (ref: { path: string }) => getDocFromServer(ref),
   addDoc: vi.fn(),
   collection: vi.fn(),
   query: vi.fn(),
@@ -43,6 +46,7 @@ function setHidden(hidden: boolean) {
 describe("watchDoc", () => {
   beforeEach(() => {
     listeners.length = 0;
+    getDocFromServer.mockReset();
     vi.useFakeTimers();
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -112,6 +116,75 @@ describe("watchDoc", () => {
     expect(status).toHaveBeenLastCalledWith("error", expect.any(Error));
     vi.advanceTimersByTime(30_000);
     expect(listeners).toHaveLength(2);
+    stop();
+  });
+
+  it("starts over when shown after a long absence whose pause never ran", () => {
+    const stop = watchDoc(
+      {} as never,
+      "live_state",
+      "m1",
+      { next: vi.fn() },
+      { pauseWhenHiddenMs: 60_000 },
+    );
+    setHidden(true);
+    // A frozen background tab: the clock moves on, the pause timer does not.
+    vi.setSystemTime(Date.now() + 5 * 60_000);
+    setHidden(false);
+    expect(listeners[0]!.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(listeners).toHaveLength(2);
+    stop();
+  });
+
+  it("re-attaches a live listener that went silent while the doc moved on", async () => {
+    const next = vi.fn();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stop = watchDoc(
+      {} as never,
+      "live_state",
+      "m1",
+      { next },
+      {
+        staleCheck: {
+          afterMs: 180_000,
+          when: (d) => (d as { status?: string } | null)?.status === "live",
+        },
+      },
+    );
+    listeners[0]!.next(snap({ status: "live", version: 1 }));
+
+    // Nothing changed on the server: one read, listener kept.
+    getDocFromServer.mockResolvedValueOnce(snap({ status: "live", version: 1 }));
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(getDocFromServer).toHaveBeenCalledTimes(1);
+    expect(listeners).toHaveLength(1);
+
+    // The server is ahead of the listener: deliver and re-attach.
+    getDocFromServer.mockResolvedValueOnce(snap({ status: "live", version: 4 }));
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(next).toHaveBeenLastCalledWith({ status: "live", version: 4 });
+    expect(listeners[0]!.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(listeners).toHaveLength(2);
+    expect(warn).toHaveBeenCalled();
+    stop();
+  });
+
+  it("does not check a finished match", async () => {
+    const stop = watchDoc(
+      {} as never,
+      "live_state",
+      "m1",
+      { next: vi.fn() },
+      {
+        staleCheck: {
+          afterMs: 180_000,
+          when: (d) => (d as { status?: string } | null)?.status === "live",
+        },
+      },
+    );
+    listeners[0]!.next(snap({ status: "completed", version: 9 }));
+    await vi.advanceTimersByTimeAsync(10 * 180_000);
+    expect(getDocFromServer).not.toHaveBeenCalled();
     stop();
   });
 });

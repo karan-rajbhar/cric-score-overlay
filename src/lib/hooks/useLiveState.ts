@@ -24,7 +24,11 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { getFirebaseDb } from "~/lib/firebase/client";
-import { watchDoc, type DocWatchStatus } from "~/lib/firebase/realtime";
+import {
+  watchDoc,
+  type DocWatchOptions,
+  type DocWatchStatus,
+} from "~/lib/firebase/realtime";
 import {
   LIVE_SCORECARD_COLLECTION,
   liveScorecardView,
@@ -39,6 +43,12 @@ const LIVE_STATE_COLLECTION = "live_state";
 
 /** Spectator pages drop the listener after this long in a hidden tab. */
 export const SPECTATOR_PAUSE_MS = 60_000;
+
+/**
+ * A live match's listener that has delivered nothing for this long (tab
+ * visible) is checked against one server read and re-attached if stale.
+ */
+export const LIVE_STALE_CHECK_MS = 3 * 60_000;
 
 /** Trailing debounce for refetching heavier data after a live change. */
 export const LIVE_REFETCH_DELAY_MS = 1500;
@@ -188,6 +198,7 @@ function startEntry<S>(
   pause: boolean,
   onData: (data: Record<string, unknown> | null) => Partial<S>,
   statusOf: (snap: S) => LiveStatus,
+  staleCheck?: DocWatchOptions<Record<string, unknown>>["staleCheck"],
 ): Entry<S> {
   const existing = map.get(key);
   if (existing) return existing;
@@ -213,7 +224,7 @@ function startEntry<S>(
           emit({ status } as unknown as Partial<S>);
       },
     },
-    { pauseWhenHiddenMs: pause ? SPECTATOR_PAUSE_MS : null },
+    { pauseWhenHiddenMs: pause ? SPECTATOR_PAUSE_MS : null, staleCheck },
   );
   entry.stop = () => {
     stop();
@@ -242,6 +253,10 @@ function entryFor(matchId: string, pause: boolean): Entry<LiveSnapshot> {
       };
     },
     (snap) => snap.status,
+    {
+      afterMs: LIVE_STALE_CHECK_MS,
+      when: (data) => data?.status === "live",
+    },
   );
 }
 

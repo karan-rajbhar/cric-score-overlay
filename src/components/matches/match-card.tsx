@@ -8,6 +8,7 @@ import { TeamLogo } from "~/components/teams/team-logo";
 import { MapPin, CalendarDays, PlayCircle } from "lucide-react";
 import type { Team, Innings, Match } from "~/lib/match-types";
 import { formatMatchResult, formatStatus } from "~/lib/cricket";
+import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
 
 interface MatchCardProps {
   match: Match;
@@ -62,11 +63,13 @@ function TeamRow({
 }
 
 export function MatchCard({
-  match,
+  match: fetched,
   showActions = true,
   canScore = false,
   contextQuery,
 }: MatchCardProps) {
+  // A live match follows its live_state doc (no refresh needed).
+  const match = useLiveListMatch(fetched);
   const inningsFor = (teamId: string) =>
     match.innings?.find((i) => i.team_id === teamId);
 
