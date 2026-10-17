@@ -130,6 +130,13 @@ interface Row {
   /** One viewer on the Balls tab (live_state + changed overs). */
   viewerBallsReads: number;
   overlayReads: number;
+  /**
+   * A second scorer on the scoring screen (`useLiveResync`): its live_state
+   * listener and a full re-read of the scoring state per change made by
+   * someone else. Signed-out / non-scorer visitors paid the same before
+   * they were sent to the match centre.
+   */
+  coScorerReads: number;
 }
 
 const rows = new Map<string, Row>();
@@ -145,6 +152,7 @@ function row(kind: string): Row {
       viewerReads: 0,
       viewerBallsReads: 0,
       overlayReads: 0,
+      coScorerReads: 0,
     };
     rows.set(kind, r);
   }
@@ -371,6 +379,12 @@ describe("Firestore cost of a whole match", () => {
       const cardWrites = server.writes.live_scorecard ?? 0;
       r.scorerListenReads += liveWrites;
       r.overlayReads += liveWrites;
+      if (liveWrites) {
+        const [, resync] = await meter.run(() =>
+          queries.getScoringState(matchId),
+        );
+        r.coScorerReads += liveWrites + sum(resync.reads);
+      }
       const live = await peek(liveDoc);
       let viewer = liveWrites + cardWrites;
       let balls = liveWrites;
@@ -484,7 +498,7 @@ describe("Firestore cost of a whole match", () => {
           await act(
             "undo",
             () => m.undoLastBall(matchId),
-            (r) => scorer.afterUndo(r),
+            () => scorer.afterUndo(),
           );
           await ball({ runsScored: 1 });
         }
@@ -502,7 +516,7 @@ describe("Firestore cost of a whole match", () => {
                 isWicket: false,
                 dismissalType: null,
               }),
-            (r) => scorer.afterUpdateBall(r),
+            () => scorer.afterUpdateBall(),
           );
         }
         let cur = scorer.current();
@@ -594,6 +608,7 @@ describe("Firestore cost of a whole match", () => {
       viewerReads: 0,
       viewerBallsReads: 0,
       overlayReads: 0,
+      coScorerReads: 0,
     };
     const fmt = (c: Counts) =>
       Object.entries(c)
@@ -610,6 +625,7 @@ describe("Firestore cost of a whole match", () => {
       totals.viewerReads += r.viewerReads;
       totals.viewerBallsReads += r.viewerBallsReads;
       totals.overlayReads += r.overlayReads;
+      totals.coScorerReads += r.coScorerReads;
       const per = (x: number) => +(x / r.n).toFixed(2);
       table[kind] = {
         n: r.n,
@@ -619,6 +635,7 @@ describe("Firestore cost of a whole match", () => {
         "scorer listen R/act": per(r.scorerListenReads),
         "viewer R/act": per(r.viewerReads),
         "overlay R/act": per(r.overlayReads),
+        "co-scorer R/act": per(r.coScorerReads),
         "server reads": fmt(r.serverReads),
         "server writes": fmt(r.serverWrites),
         "refetch reads": fmt(r.scorerRefetchReads),
@@ -657,16 +674,26 @@ describe("Firestore cost of a whole match", () => {
     expect(totals.scorerReads).toBeLessThanOrEqual(BOUNDS.matchScorerReads);
     expect(totals.viewerReads).toBeLessThanOrEqual(BOUNDS.matchViewerReads);
     expect(totals.overlayReads).toBeLessThanOrEqual(BOUNDS.matchOverlayReads);
+    // Every delta-built state was checked, and most actions used one.
+    expect(scorer.deltasApplied).toBeGreaterThan(290);
   }, 120_000);
 });
 
-/** Upper bounds for the scripted match (see the printed table). */
+/**
+ * Upper bounds for the scripted match (254 deliveries; see the printed
+ * table). Before the scoring screen updated from the committed documents
+ * it read 12.4 a ball and 4,241 a match (getScoringState after every ball
+ * and crease / bowler change, twice after an undo or edit).
+ */
 const BOUNDS = {
-  perBallWrites: 99,
-  perBallScorerReads: 99,
-  perBallViewerReads: 99,
-  matchWrites: 99_999,
-  matchScorerReads: 99_999,
-  matchViewerReads: 99_999,
-  matchOverlayReads: 99_999,
+  /** match, innings, over, live_state, live_scorecard. */
+  perBallWrites: 5,
+  /** The 5 the ball reads + the screen's live_state listener. */
+  perBallScorerReads: 6,
+  /** live_state + live_scorecard listeners (Summary tab). */
+  perBallViewerReads: 2,
+  matchWrites: 1_540,
+  matchScorerReads: 2_230,
+  matchViewerReads: 640,
+  matchOverlayReads: 315,
 };
