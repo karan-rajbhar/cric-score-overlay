@@ -188,6 +188,10 @@ describe("billed reads per page on the seed data", () => {
     signIn(null);
 
     results.search = await cost(() => globalSearch("jo"));
+    // Mid-word: 3 letters are one trigram query per collection; longer
+    // queries add a trigram query only where no word starts with them.
+    results.searchMidWord = await cost(() => globalSearch("ohn"));
+    results.searchMidWordLong = await cost(() => globalSearch("mith"));
     results.playersList = await cost(() =>
       PlayersPage({ searchParams: Promise.resolve({}) }),
     );
@@ -246,6 +250,9 @@ describe("billed reads per page on the seed data", () => {
       typeahead: 10,
       scorerTypeahead: 6,
       search: 25,
+      // At most limit (5) per collection, and for the long query 1 + 3 x 5.
+      searchMidWord: 25,
+      searchMidWordLong: 80,
       playersList: 31,
       playersSearch: 30,
       playerPage: 25,

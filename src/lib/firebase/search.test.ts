@@ -10,7 +10,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { MemoryDataSource, type Doc } from "./datasource";
-import { matchesSearch, normalizeText, searchKey } from "./derive.mjs";
+import {
+  matchesSearch,
+  normalizeText,
+  searchKey,
+  searchPrefixes,
+} from "./derive.mjs";
 import { QueryBuilder } from "./query-builder";
 import { prefixSearch } from "./search";
 import { builderContextFor } from "./server-client";
@@ -67,7 +72,11 @@ describe("search keys", () => {
     expect(searchKey("x".repeat(40))).toHaveLength(24);
     expect(matchesSearch("smi", ["John Smith"])).toBe(true);
     expect(matchesSearch("john sm", ["John Smith"])).toBe(true);
-    expect(matchesSearch("ohn", ["John Smith"])).toBe(false);
+    // Mid-word: one word of 3+ characters.
+    expect(matchesSearch("ohn", ["John Smith"])).toBe(true);
+    expect(matchesSearch("mith", ["John Smith"])).toBe(true);
+    expect(matchesSearch("oh", ["John Smith"])).toBe(false);
+    expect(matchesSearch("n sm", ["John Smith"])).toBe(false);
     expect(matchesSearch("smith jo", ["John Smith"])).toBe(false);
   });
 });
@@ -124,6 +133,59 @@ describe("prefixSearch", () => {
       expect(rows.length).toBeGreaterThan(0);
       expect(n).toBe(rows.length);
     }
+  });
+});
+
+describe("mid-word search (trigrams)", () => {
+  it("stores each word's trigrams next to its prefixes", () => {
+    expect(searchPrefixes(["John Smith"])).toEqual(
+      expect.arrayContaining(["ohn", "mit", "ith", "smi", "john sm"]),
+    );
+    // Words shorter than 3 letters add none; long words stop at 24 letters.
+    expect(searchPrefixes(["Al"])).toEqual(["al"]);
+    const long = "a".repeat(23) + "xyz";
+    expect(searchPrefixes([long])).not.toContain("xyz");
+  });
+
+  it('3 letters: "ohn" finds every name containing it in one query', async () => {
+    const { ds, db } = setup();
+    let rows: Record<string, unknown>[] = [];
+    const n = await reads(ds, async () => {
+      rows = (await prefixSearch(db, "users", "ohn", "id, full_name", 5)).data;
+    });
+    expect(rows.map((r) => r.full_name)).toEqual(
+      expected("users", ["full_name", "username"], "ohn", 5).map(
+        (id) => seed.users!.find((u) => u.id === id)!.full_name,
+      ),
+    );
+    expect(rows.map((r) => r.full_name)).toEqual(
+      expect.arrayContaining(["John Smith", "Sarah Johnson"]),
+    );
+    expect(n).toBe(rows.length);
+  });
+
+  it('longer: "mith" falls back to its first trigram, confirmed in memory', async () => {
+    const { ds, db } = setup();
+    let rows: Record<string, unknown>[] = [];
+    const n = await reads(ds, async () => {
+      rows = (await prefixSearch(db, "users", "mith", "id, full_name", 5)).data;
+    });
+    expect(rows.map((r) => r.full_name)).toEqual(["John Smith"]);
+    // The empty prefix query (1) plus the trigram query (<= 3 x limit).
+    expect(n).toBeLessThanOrEqual(1 + 15);
+
+    const teams = await prefixSearch(db, "teams", "rike", "id, name", 5);
+    expect(teams.data.map((r) => r.name)).toEqual(["Metropolitan Strikers"]);
+  });
+
+  it("word-start matches skip the fallback", async () => {
+    const { ds, db } = setup();
+    let rows: Record<string, unknown>[] = [];
+    const n = await reads(ds, async () => {
+      rows = (await prefixSearch(db, "users", "wils", "id, full_name", 5)).data;
+    });
+    expect(rows.map((r) => r.full_name)).toEqual(["Mike Wilson"]);
+    expect(n).toBe(1);
   });
 });
 

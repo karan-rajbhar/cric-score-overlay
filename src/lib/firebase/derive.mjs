@@ -4,8 +4,9 @@
  * seed transform, so all three write identical documents.
  *
  * - Search keys: `name_lower` (or `title_lower`) for ordering and
- *   `search_prefixes`, an array of lower-cased word prefixes plus prefixes
- *   of the whole text, queried with one `array-contains`.
+ *   `search_prefixes`, an array of lower-cased word prefixes, prefixes of
+ *   the whole text and 3-letter pieces (trigrams) of each word, queried
+ *   with one `array-contains`.
  * - Team rosters: `teams.roster`, the team's `team_players` documents with
  *   a display snapshot of each player (`user`).
  * - Innings summaries: `matches.innings_summary`, the score line of each
@@ -20,6 +21,14 @@ export const MIN_PREFIX = 2;
 export const MAX_WORD_PREFIX = 24;
 /** Longest whole-text prefix stored. */
 export const MAX_PHRASE_PREFIX = 48;
+/**
+ * Length of the in-word pieces stored for mid-word search ("ohn" finds
+ * "John"). Every 3-letter window of each word (its first 24 characters) is
+ * stored, so a word of n letters adds at most n - 3 tokens beyond its
+ * prefixes. Longer mid-word queries look up their first trigram and are
+ * confirmed in memory ({@link matchesSearch}).
+ */
+export const INFIX_LEN = 3;
 
 /**
  * Lower case, accents removed, anything but letters / digits / `_`
@@ -38,8 +47,9 @@ export function normalizeText(text) {
 }
 
 /**
- * Word prefixes (2..24 chars) of `text`, plus prefixes of the whole text
- * longer than its first word (so "john sm" finds "John Smith").
+ * Word prefixes (2..24 chars) of `text`, the trigrams inside each word (so
+ * "ohn" finds "John"), plus prefixes of the whole text longer than its
+ * first word (so "john sm" finds "John Smith").
  * @param {unknown} text
  * @param {Set<string>} out
  */
@@ -50,6 +60,10 @@ function addPrefixes(text, out) {
   for (const word of words) {
     const max = Math.min(word.length, MAX_WORD_PREFIX);
     for (let n = MIN_PREFIX; n <= max; n += 1) out.add(word.slice(0, n));
+    // Trigrams after the first (which is already the 3-letter prefix).
+    for (let i = 1; i + INFIX_LEN <= max; i += 1) {
+      out.add(word.slice(i, i + INFIX_LEN));
+    }
   }
   if (words.length > 1) {
     const max = Math.min(norm.length, MAX_PHRASE_PREFIX);
@@ -87,19 +101,34 @@ export function searchKey(query) {
 }
 
 /**
- * Whether `texts` match `query` the way the stored prefixes do (a word or
- * the whole text starts with it), without the length caps.
+ * Whether a query is matched inside words too (one word of at least
+ * {@link INFIX_LEN} characters), not only at word starts.
+ * @param {unknown} query
+ */
+export function isInfixQuery(query) {
+  const q = normalizeText(query);
+  return q.length >= INFIX_LEN && !q.includes(" ");
+}
+
+/**
+ * Whether `texts` match `query` the way the stored keys do (the whole text
+ * or a word starts with it, or, for a one-word query of 3+ characters, a
+ * word contains it), without the length caps.
  * @param {unknown} query
  * @param {unknown[]} texts
  */
 export function matchesSearch(query, texts) {
   const q = normalizeText(query);
   if (!q) return false;
+  const infix = isInfixQuery(q);
   return texts.some((t) => {
     const norm = normalizeText(t);
     if (!norm) return false;
     if (norm.startsWith(q)) return true;
-    return !q.includes(" ") && norm.split(" ").some((w) => w.startsWith(q));
+    if (q.includes(" ")) return false;
+    return norm
+      .split(" ")
+      .some((w) => w.startsWith(q) || (infix && w.includes(q)));
   });
 }
 
