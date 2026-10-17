@@ -252,9 +252,19 @@ function writeOvers(
   for (const id of stored.keys()) t.delete(OVERS_COLLECTION, id);
 }
 
+/** Whether `innings` is the match's current innings. */
+function isCurrentInnings(match: MatchesRow, innings: InningsRow): boolean {
+  return innings.innings_number === (match.current_innings ?? 1);
+}
+
 /**
  * Stage the recompute result (innings scorecard, ball log, match position),
  * writing only documents that changed. Returns the innings as stored after.
+ *
+ * The match's over / ball position belongs to the current innings: editing
+ * an earlier (completed) innings must leave it alone. `current` overrides
+ * the check for callers that make this innings the current one in the same
+ * transaction (undo across an innings boundary).
  */
 function writeRecompute(
   t: ScoringTx,
@@ -262,6 +272,7 @@ function writeRecompute(
   out: RecomputeOutput,
   balls: BallByBallRow[],
   now: string,
+  current: boolean = isCurrentInnings(bundle.match, bundle.innings),
 ): WithId<InningsRow> {
   const sorted = sortBySeq(balls);
   const patch: Partial<InningsRow> = {
@@ -277,7 +288,11 @@ function writeRecompute(
     }),
   };
   patchInningsIfChanged(t, bundle.innings, patch);
-  t.patch("matches", bundle.match.id, { ...out.matchPatch, updated_at: now });
+  t.patch(
+    "matches",
+    bundle.match.id,
+    current ? { ...out.matchPatch, updated_at: now } : { updated_at: now },
+  );
   writeOvers(
     t,
     bundle.innings.match_id ?? bundle.match.id,
@@ -1025,7 +1040,8 @@ export async function undoLastBall(
     if (crossingBoundary || target.is_completed) {
       out.inningsPatch.is_completed = false;
     }
-    const targetAfter = writeRecompute(t, bundle, out, remaining, now);
+    // The innings holding the match's last ball is (or becomes) current.
+    const targetAfter = writeRecompute(t, bundle, out, remaining, now, true);
 
     if (target.is_completed || (crossingBoundary && current?.is_completed)) {
       const after = replaceInnings(
