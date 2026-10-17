@@ -444,19 +444,9 @@ export async function recordBall(params: {
       return { data: null, error: "You must be logged in to record scores" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(
-      db,
-      params.matchId,
-      user.id,
-    );
-    if (!isAuthorized) {
-      return {
-        data: null,
-        error:
-          "You do not have permission to score this match. Only the match creator, designated scorers, or club administrators can record scores.",
-      };
-    }
-
+    // record_ball checks scoring rights inside its transaction (same rule as
+    // checkMatchAdminAuth, from the match it already reads), so checking here
+    // too would only cost an extra read per ball.
     const { data, error } = await db.rpc("record_ball", {
       p_match_id: params.matchId,
       p_bowler_id: params.bowlerId,
