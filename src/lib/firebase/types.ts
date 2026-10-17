@@ -122,7 +122,8 @@ export interface InvitationsRow {
   id: string;
   email: string;
   invited_by: string | null;
-  status: "pending" | "accepted";
+  /** `revoked` invites no longer let the email sign in. */
+  status: "pending" | "accepted" | "revoked";
   accepted_by: string | null;
   /** Matches the invitee becomes a scorer for when they first sign in. */
   scorer_match_ids?: string[] | null;

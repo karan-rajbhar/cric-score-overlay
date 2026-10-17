@@ -72,6 +72,14 @@
         { "fieldPath": "team_type", "order": "ASCENDING" },
         { "fieldPath": "search_prefixes", "arrayConfig": "CONTAINS" }
       ]
+    },
+    {
+      "collectionGroup": "invitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "invited_by", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

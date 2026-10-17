@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AppUser } from "../auth-types";
 import { MemoryDataSource } from "../datasource";
-import { acceptInvitations, canSignIn, inviteEmail } from "./access";
+import {
+  acceptInvitations,
+  canSignIn,
+  inviteEmail,
+  revokeInvitation,
+} from "./access";
 
 function googleUser(id: string, email: string): AppUser {
   return { id, email, phone: null, user_metadata: {}, provider: "google.com" };
@@ -239,5 +244,113 @@ describe("acceptInvitations", () => {
       status: "accepted",
       accepted_by: "uid-9",
     });
+  });
+});
+
+describe("revokeInvitation", () => {
+  const match = {
+    id: "m1",
+    created_by: "scorer-1",
+    match_admins: [],
+    club_id: null,
+    tournament_id: null,
+  };
+  const setup = () =>
+    new MemoryDataSource({
+      users: [member, { id: "scorer-1" }, { id: "other" }],
+      users_private: [memberPrivate],
+      matches: [match],
+      invitations: [
+        {
+          id: "i1",
+          email: "new@gmail.com",
+          invited_by: "member-1",
+          status: "pending",
+          scorer_match_ids: [],
+        },
+        {
+          id: "i2",
+          email: "scorer@gmail.com",
+          invited_by: "member-1",
+          status: "pending",
+          scorer_match_ids: ["m1"],
+        },
+        {
+          id: "i3",
+          email: "used@gmail.com",
+          invited_by: "member-1",
+          status: "accepted",
+          accepted_by: "u3",
+        },
+      ],
+    });
+
+  it("lets the inviter revoke, and the email can no longer sign in", async () => {
+    const ds = setup();
+    const user = googleUser("new-uid", "new@gmail.com");
+    expect(await canSignIn(ds, user, true)).toBe(true);
+    expect(await revokeInvitation(ds, "member-1", "i1")).toEqual({
+      status: "revoked",
+    });
+    expect(await ds.getById("invitations", "i1")).toMatchObject({
+      status: "revoked",
+    });
+    expect(await canSignIn(ds, user, true)).toBe(false);
+    // A revoked invite is not accepted later either.
+    await acceptInvitations(ds, "new@gmail.com", "new-uid");
+    const after = await ds.getById("invitations", "i1");
+    expect(after?.status).toBe("revoked");
+    expect(after?.accepted_by ?? null).toBeNull();
+    // Revoking twice is harmless.
+    expect(await revokeInvitation(ds, "member-1", "i1")).toEqual({
+      status: "already_revoked",
+    });
+  });
+
+  it("rejects anyone but the inviter for a plain invite", async () => {
+    const ds = setup();
+    await expect(revokeInvitation(ds, "other", "i1")).rejects.toThrow(
+      "Only the person who sent this invite",
+    );
+    await expect(revokeInvitation(ds, null, "i1")).rejects.toThrow(
+      "Authentication required",
+    );
+    expect(await ds.getById("invitations", "i1")).toMatchObject({
+      status: "pending",
+    });
+  });
+
+  it("lets a scorer of the invite's matches revoke a scorer invite", async () => {
+    const ds = setup();
+    await expect(revokeInvitation(ds, "other", "i2")).rejects.toThrow(
+      "Only the person who sent this invite",
+    );
+    expect(await revokeInvitation(ds, "scorer-1", "i2")).toEqual({
+      status: "revoked",
+    });
+    expect(
+      await canSignIn(ds, googleUser("s", "scorer@gmail.com"), true),
+    ).toBe(false);
+  });
+
+  it("refuses accepted and unknown invites", async () => {
+    const ds = setup();
+    await expect(revokeInvitation(ds, "member-1", "i3")).rejects.toThrow(
+      "already accepted",
+    );
+    await expect(revokeInvitation(ds, "member-1", "nope")).rejects.toThrow(
+      "not found",
+    );
+  });
+
+  it("re-inviting a revoked email creates a fresh pending invite", async () => {
+    const ds = setup();
+    await revokeInvitation(ds, "member-1", "i1");
+    expect(await inviteEmail(ds, "member-1", "new@gmail.com")).toEqual({
+      status: "invited",
+    });
+    expect(
+      await canSignIn(ds, googleUser("n", "new@gmail.com"), true),
+    ).toBe(true);
   });
 });

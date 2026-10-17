@@ -291,6 +291,9 @@ export function NavigationBar() {
                   <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span>Invite someone</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer text-xs">
+                  <Link href="/invitations">Manage invites</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleSignOut}

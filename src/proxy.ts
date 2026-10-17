@@ -11,7 +11,9 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
 
-  if (pathname.startsWith("/dashboard") && !hasSession) {
+  const guarded =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/invitations");
+  if (guarded && !hasSession) {
     const login = new URL("/auth/login", request.url);
     login.searchParams.set("redirect", pathname);
     return NextResponse.redirect(login);
@@ -25,5 +27,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/auth/login"],
+  matcher: ["/dashboard/:path*", "/invitations/:path*", "/auth/login"],
 };
