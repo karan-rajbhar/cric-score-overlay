@@ -68,7 +68,16 @@ export async function callRpc(
   args: Args,
   ctx: RpcContext,
 ): Promise<unknown> {
-  const scoring = { db: ctx.db, ds: ctx.ds, uid: ctx.uid };
+  const scoring = {
+    db: ctx.db,
+    ds: ctx.ds,
+    uid: ctx.uid,
+    // Offline-queue replays: an action already applied is not applied again.
+    clientActionId: optStr(args, "p_client_action_id"),
+    // For live_state.last_change (who scored last), from the session.
+    scorerName:
+      ctx.user?.user_metadata?.full_name ?? ctx.user?.user_metadata?.name ?? null,
+  };
   switch (name) {
     case "record_ball":
       return recordBall(scoring, args as unknown as RecordBallArgs);
@@ -88,6 +97,7 @@ export async function callRpc(
         p_runs: Number(args.p_runs),
         p_type: str(args, "p_type"),
         p_reason: optStr(args, "p_reason"),
+        p_team_id: optStr(args, "p_team_id"),
       });
     case "retire_batter":
       return retireBatter(scoring, {

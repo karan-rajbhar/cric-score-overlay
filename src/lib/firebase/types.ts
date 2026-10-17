@@ -324,6 +324,12 @@ export interface MatchesRow {
   golden_ball: boolean | null;
   /** Monotonic counter used to order ball_by_ball documents. */
   last_ball_seq: number | null;
+  /**
+   * Ids of the last scoring actions sent with a client action id (offline
+   * queue replays), oldest first: a replay of one of them is not applied
+   * again (`rpc/scoring.ts`).
+   */
+  recent_client_actions?: string[] | null;
   /** Score line of each innings (stage 3, see `innings-summary.ts`). */
   innings_summary?: InningsSummaryEntry[] | null;
   /** Display copies of the tournament / club (`match-snapshots.ts`). */
@@ -449,6 +455,12 @@ export interface BallByBallRow {
   dismissed_player_id: string | null;
   commentary: string | null;
   shot_zone: string | null;
+  /**
+   * Penalty runs awarded to the fielding side (Law 41.17): the team they
+   * belong to. Such an event counts only towards the innings that team
+   * bats; absent on every other ball.
+   */
+  penalty_team_id?: string | null;
   seq: number;
   created_at: string | null;
 }

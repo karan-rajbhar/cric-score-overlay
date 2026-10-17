@@ -10,7 +10,7 @@ import {
 } from "../scoring/__fixtures__/golden";
 import { stage2Driver } from "../scoring/__fixtures__/stage2";
 import { overDocIdOfBall, type OversRow } from "../scorecard";
-import { updateBall } from "./scoring";
+import { recomputeInningsRpc, updateBall } from "./scoring";
 
 /** Counts documents read from `overs` through a data source. */
 function countOvers(ds: DataSource) {
@@ -87,5 +87,68 @@ describe("update_ball", () => {
     expect(runsOf("INN1_1", target.id)).toBe(4);
     expect(runsOf("INN1_2", legacyId)).toBe(6);
     await expect(edit("INN1_9~missing", 1)).rejects.toThrow("ball_not_found");
+  });
+
+  it("editing a completed innings leaves the current innings' position and live state alone", async () => {
+    const side = stage2Driver(syntheticTables({ overs_per_innings: 2 }), true);
+    const replay = new GoldenReplay(side, "M", SYNTHETIC_ROSTERS);
+    // Innings 1 (2 overs), then 0.2 of innings 2.
+    for (let i = 0; i < 14; i += 1) {
+      await replay.step({ kind: "ball", ball: { runs: i % 2 } });
+    }
+    const current = () => side.ds.getById("matches", "M");
+    const live = async () => {
+      const doc = { ...(await side.ds.getById("live_state", "M"))! };
+      // Change signals and who made the change (the edit itself).
+      for (const k of ["version", "updated_at", "overs_changed", "last_change"])
+        delete doc[k];
+      return doc;
+    };
+    const inn2 = async () => {
+      const all = side.ds.all("innings");
+      const doc = { ...all.find((i) => i.innings_number === 2)! };
+      delete doc.updated_at;
+      return doc;
+    };
+    const before = await current();
+    expect(before).toMatchObject({
+      current_innings: 2,
+      current_over: 0,
+      current_ball: 2,
+    });
+    const liveBefore = await live();
+    const inn2Before = await inn2();
+
+    const inn1Ball = (side.ds.all("overs") as unknown as OversRow[]).find(
+      (o) => o.id === "INN1_1",
+    )!.balls[5]!;
+    const totalBefore = side.ds.all("innings").find((i) => i.id === "INN1")!
+      .total_runs as number;
+    const state = await updateBall(side.ctx, {
+      p_match_id: "M",
+      p_ball_id: inn1Ball.id,
+      p_runs_scored: 6,
+      p_extras: 0,
+      p_extra_type: null,
+      p_is_wicket: false,
+    });
+    expect(state).toMatchObject({
+      current_innings: 2,
+      current_over: 0,
+      current_ball: 2,
+    });
+    await recomputeInningsRpc(side.ctx, "INN1");
+
+    expect(await current()).toMatchObject({ current_over: 0, current_ball: 2 });
+    expect(await live()).toEqual(liveBefore);
+    expect(await inn2()).toEqual(inn2Before);
+    // The edit itself landed in innings 1.
+    const inn1 = side.ds.all("innings").find((i) => i.id === "INN1")!;
+    expect(inn1.total_runs).toBe(totalBefore - (inn1Ball.runs_scored ?? 0) + 6);
+    expect(inn1.is_completed).toBe(true);
+
+    // Scoring carries on from 0.2 of innings 2.
+    await replay.step({ kind: "ball", ball: { runs: 1 } });
+    expect(await current()).toMatchObject({ current_over: 0, current_ball: 3 });
   });
 });

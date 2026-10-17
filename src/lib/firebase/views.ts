@@ -81,6 +81,12 @@ function ballText(b: BallByBallRow): string {
   return String(runs);
 }
 
+/** The over's deliveries; fielding-side penalty events are not shown. */
+function overText(balls: BallByBallRow[]): string | null {
+  const shown = balls.filter((b) => !b.penalty_team_id);
+  return shown.length ? shown.map(ballText).join(" ") : null;
+}
+
 export interface LiveStateTeam {
   name: string | null;
   short_name: string | null;
@@ -245,7 +251,7 @@ export function composeLiveMatchState(
     bowler_wickets: bowler?.wickets_taken ?? null,
     partnership_runs: partnership?.runs ?? null,
     partnership_balls: partnership?.balls ?? null,
-    this_over_balls: thisOver.length ? thisOver.map(ballText).join(" ") : null,
+    this_over_balls: overText(thisOver),
     current_run_rate:
       totalBalls > 0 ? round2((totalRuns * bpo) / totalBalls) : null,
     runs_needed: runsNeeded,

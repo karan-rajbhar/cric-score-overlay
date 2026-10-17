@@ -11,7 +11,8 @@
  * only that: `overs_changed` (ids of the `overs` documents the mutation
  * behind this version wrote or deleted) and `match_rev` (a hash of the
  * match document without its per-ball fields: settings, toss, result,
- * scorers...).
+ * scorers...). `last_change` names the scorer behind the latest ball-log
+ * change (record / undo / edit) so concurrent scorers can see each other.
  *
  * Writers:
  * - `record_ball` writes it inside its transaction (fast path).
@@ -52,6 +53,15 @@ export interface LiveStateRefs {
   names: Record<string, string | null>;
 }
 
+/** Who made the latest ball-log change (record / undo / edit), and when. */
+export interface LiveStateLastChange {
+  uid: string;
+  /** Display name at the time (no extra read: from the caller's session). */
+  name: string | null;
+  /** ISO timestamp. */
+  at: string;
+}
+
 export type LiveStateDoc = LiveMatchStateRow & {
   /** ISO timestamp of the write. */
   updated_at: string;
@@ -62,6 +72,12 @@ export type LiveStateDoc = LiveMatchStateRow & {
   overs_changed: string[];
   /** {@link matchRevOf} the match as of this version. */
   match_rev: string;
+  /**
+   * The scorer behind the latest `record_ball` / `undo_last_ball` /
+   * `update_ball` (kept by other writes), so a scoring screen can tell when
+   * someone else is scoring the same match.
+   */
+  last_change?: LiveStateLastChange | null;
 };
 
 /** Match fields that change with every ball (not part of `match_rev`). */
@@ -71,6 +87,7 @@ const PER_BALL_MATCH_FIELDS = new Set([
   "current_over",
   "current_ball",
   "last_ball_seq",
+  "recent_client_actions",
   "innings_summary",
 ]);
 
@@ -165,6 +182,7 @@ export async function stageLiveState(
   now: string,
   header?: { teams: Map<string, LiveStateTeam>; tournamentName: string | null },
   preloadedNames?: Record<string, string | null>,
+  lastChange?: LiveStateLastChange | null,
 ): Promise<LiveStateDoc> {
   const head = header ?? (await headerFromCache(t, parts.match, prev));
   const known = prev?.refs?.names ?? {};
@@ -183,6 +201,7 @@ export async function stageLiveState(
     refs: refsFor(parts.match, { ...known, ...names }),
     overs_changed: stagedOverIds(t),
     match_rev: matchRevOf(parts.match),
+    last_change: lastChange ?? prev?.last_change ?? null,
   };
   t.put(LIVE_STATE_COLLECTION, parts.match.id, doc);
   return doc;
@@ -203,6 +222,7 @@ export async function writeLiveState(
   matchId: string,
   db?: Firestore | null,
   oversChanged: string[] = [],
+  lastChange?: LiveStateLastChange | null,
 ): Promise<LiveStateDoc | null> {
   const loaded = await loadLiveStateParts(ds, matchId);
   if (!loaded) return null;
@@ -220,6 +240,7 @@ export async function writeLiveState(
       }),
       overs_changed: [...oversChanged].sort(),
       match_rev: matchRevOf(loaded.parts.match),
+      last_change: lastChange ?? prev?.last_change ?? null,
     };
     t.put(LIVE_STATE_COLLECTION, matchId, doc);
     await stageFullLiveScorecard(t, matchId);
@@ -252,6 +273,7 @@ export function liveRowOf(doc: LiveStateDoc): LiveMatchStateRow {
   delete row.refs;
   delete row.overs_changed;
   delete row.match_rev;
+  delete row.last_change;
   delete row.id;
   return row as unknown as LiveMatchStateRow;
 }

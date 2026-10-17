@@ -55,6 +55,27 @@ export interface LiveSnapshot {
   status: LiveStatus;
   /** `live_state.match_rev`: changes with settings / toss / result, not balls. */
   matchRev: string | null;
+  /** `live_state.last_change`: who made the latest ball-log change, when. */
+  lastChange: LiveLastChange | null;
+}
+
+/** Mirrors `LiveStateLastChange` in `~/lib/firebase/live-state` (server). */
+export interface LiveLastChange {
+  uid: string;
+  name: string | null;
+  /** ISO timestamp. */
+  at: string;
+}
+
+function lastChangeOf(value: unknown): LiveLastChange | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.uid !== "string" || typeof v.at !== "string") return null;
+  return {
+    uid: v.uid,
+    name: typeof v.name === "string" ? v.name : null,
+    at: v.at,
+  };
 }
 
 const IDLE: LiveSnapshot = {
@@ -63,6 +84,7 @@ const IDLE: LiveSnapshot = {
   loaded: false,
   status: "idle",
   matchRev: null,
+  lastChange: null,
 };
 
 const CONNECTING: LiveSnapshot = { ...IDLE, status: "connecting" };
@@ -86,6 +108,7 @@ const DOC_ONLY_FIELDS = [
   "refs",
   "overs_changed",
   "match_rev",
+  "last_change",
 ] as const;
 
 function rowOf(doc: Record<string, unknown>): LiveMatchState {
@@ -214,6 +237,7 @@ function entryFor(matchId: string, pause: boolean): Entry<LiveSnapshot> {
         state: data ? rowOf(data) : null,
         version: typeof data?.version === "number" ? data.version : null,
         matchRev: typeof data?.match_rev === "string" ? data.match_rev : null,
+        lastChange: lastChangeOf(data?.last_change),
         loaded: true,
       };
     },
