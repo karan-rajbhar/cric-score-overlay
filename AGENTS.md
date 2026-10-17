@@ -25,6 +25,11 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 - Realtime: viewers listen to the single `live_state/{matchId}` doc (`useLiveState`, `watchDoc`); its `version` is the change signal. No polling and no collection listeners (their first snapshot bills every document). A server action that changes what viewers see must call `refreshLiveState` / `refreshLiveMatchesFor` from `~/lib/firebase/live-sync`.
 - Live match page, zero server requests per ball: Summary / Scorecard / Top performers / Stats follow `live_scorecard/{matchId}` (compact scorecard of every innings, `live-scorecard.ts`; written by the scoring transactions and `writeLiveState`, built on first view by `ensureLiveScorecard`); the ball log re-reads only the `overs` docs named by `live_state.overs_changed` (`useMatchBallLogQuery`); `getMatch` refetches only on status / innings / `live_state.match_rev` changes. The overlay stays on `live_state` only.
 
+## Deploys and migrations
+
+- Production (`cricscore-prod-7411`, cricscore.altorstudio.com) deploys from CI after a merge to `main`: checks, then Firestore rules + indexes, then `node scripts/migrate.mjs`, then an App Hosting rollout of that commit. `main` only accepts PRs.
+- Data migrations are idempotent `scripts/migrate-<name>.mjs` scripts (`--project=<id>`, `--dry-run`), listed in order in `scripts/migrate.mjs`, which records applied ones in the `_migrations` collection so each runs once per project. Never auto-run destructive steps (e.g. `migrate-stage2 --delete-old`); do those by hand after verifying.
+
 ## Working guidelines
 
 1. Keep changes focused and minimal. Preserve existing behaviour and APIs.

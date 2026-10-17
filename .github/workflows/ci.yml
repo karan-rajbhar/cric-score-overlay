@@ -39,8 +39,9 @@ jobs:
           SKIP_ENV_VALIDATION: 1
 
   # Merges to main deploy to production, but only after the checks above
-  # pass: Firestore rules + indexes (App Hosting doesn't deploy those), then
-  # an App Hosting rollout of the exact commit that was tested. Keep App
+  # pass: Firestore rules + indexes (App Hosting doesn't deploy those),
+  # pending data migrations, then an App Hosting rollout of the exact commit
+  # that was tested. Keep App
   # Hosting's own "automatic rollouts" off so untested code never ships.
   deploy:
     name: Deploy to production
@@ -83,6 +84,15 @@ jobs:
       - name: Deploy Firestore rules and indexes
         if: steps.auth.outputs.ready == 'true'
         run: npx firebase deploy --only firestore --project "$FIREBASE_PROJECT" --non-interactive
+
+      # Pending data migrations (scripts/migrate.mjs keeps a ledger in
+      # Firestore, so each runs once). A failure stops the deploy before the
+      # new app version goes live.
+      - name: Run pending data migrations
+        if: steps.auth.outputs.ready == 'true'
+        run: node scripts/migrate.mjs --project="$FIREBASE_PROJECT"
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
 
       - name: Roll out App Hosting
         if: steps.auth.outputs.ready == 'true'
