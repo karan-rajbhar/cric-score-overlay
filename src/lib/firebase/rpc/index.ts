@@ -10,12 +10,14 @@ import type { AppUser } from "../auth-types";
 import type { DataSource } from "../datasource";
 import { DbQueryError } from "../query-builder";
 import {
+  canDeleteMatch,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
 import { inviteEmail, revokeInvitation } from "./access";
+import { deleteMatch } from "./delete-match";
 import {
   checkUsernameAvailable,
   createTeamPlayer,
@@ -170,6 +172,18 @@ export async function callRpc(
         str(args, "p_team_id"),
         str(args, "p_full_name"),
         typeof args.p_jersey_number === "number" ? args.p_jersey_number : null,
+      );
+    case "delete_match":
+      return deleteMatch(
+        { ds: ctx.ds, db: ctx.db, uid: ctx.uid },
+        str(args, "p_match_id"),
+        typeof args.p_confirm_title === "string" ? args.p_confirm_title : "",
+      );
+    case "can_delete_match":
+      return canDeleteMatch(
+        ctx.ds,
+        optStr(args, "p_match_id"),
+        optStr(args, "p_user_id") ?? ctx.uid,
       );
     case "is_match_admin":
       return isMatchAdmin(

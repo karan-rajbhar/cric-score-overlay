@@ -57,6 +57,42 @@ export async function isTeamMember(
   return rows.length > 0;
 }
 
+/**
+ * Who may delete a match: stricter than scoring. The match creator, admins
+ * of the match's club, and for tournament matches the tournament creator
+ * and admins of the tournament's club. Co-scorers listed in `match_admins`
+ * may score but not delete.
+ */
+export async function canDeleteMatch(
+  ds: DataSource,
+  matchId: string | null | undefined,
+  userId: string | null | undefined,
+  loaded?: Pick<MatchesRow, "created_by" | "club_id" | "tournament_id"> | null,
+): Promise<boolean> {
+  if (!matchId || !userId) return false;
+  const match =
+    loaded ??
+    ((await ds.getById("matches", matchId)) as unknown as MatchesRow | null);
+  if (!match) return false;
+  if (match.created_by === userId) return true;
+  if (match.club_id && (await isClubAdmin(ds, match.club_id, userId)))
+    return true;
+  if (match.tournament_id) {
+    const tournament = (await ds.getById(
+      "tournaments",
+      match.tournament_id,
+    )) as unknown as TournamentsRow | null;
+    if (tournament?.created_by === userId) return true;
+    if (
+      tournament?.club_id &&
+      tournament.club_id !== match.club_id &&
+      (await isClubAdmin(ds, tournament.club_id, userId))
+    )
+      return true;
+  }
+  return false;
+}
+
 export async function isMatchAdmin(
   ds: DataSource,
   matchId: string | null | undefined,

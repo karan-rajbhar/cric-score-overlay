@@ -24,8 +24,15 @@ function round(n: number, digits: number): number {
 export async function recalculateTournamentStandings(
   ds: DataSource,
   tournamentId: string,
+  options: {
+    /**
+     * Compute the table as if this match were gone (a match being deleted:
+     * the table is fixed before its document goes, so a retry redoes it).
+     */
+    excludeMatchId?: string;
+  } = {},
 ): Promise<void> {
-  const [registrations, matchDocs, standingsDocs] = await Promise.all([
+  const [registrations, allMatchDocs, standingsDocs] = await Promise.all([
     ds.query("tournament_registrations", [
       { field: "tournament_id", op: "==", value: tournamentId },
     ]),
@@ -37,12 +44,31 @@ export async function recalculateTournamentStandings(
     ]) as Promise<unknown> as Promise<TournamentStandingsRow[]>,
   ]);
 
+  const excluded = options.excludeMatchId
+    ? (allMatchDocs.find((m) => m.id === options.excludeMatchId) ?? null)
+    : null;
+  const matchDocs = excluded
+    ? allMatchDocs.filter((m) => m.id !== excluded.id)
+    : allMatchDocs;
+
   const teamIds = new Set<string>();
   for (const r of registrations)
     if (typeof r.team_id === "string") teamIds.add(r.team_id);
   for (const m of matchDocs) {
     if (m.team1_id) teamIds.add(m.team1_id);
     if (m.team2_id) teamIds.add(m.team2_id);
+  }
+  // A team that was in the table only through the excluded match (not
+  // registered, no other match) leaves it, unless it carries a manual
+  // adjustment, so the table equals one built without that match.
+  if (excluded) {
+    for (const teamId of [excluded.team1_id, excluded.team2_id]) {
+      if (!teamId || teamIds.has(teamId)) continue;
+      const row = standingsDocs.find((s) => s.team_id === teamId);
+      if (!row) continue;
+      if (row.points_adjustment || row.adjustment_reason) teamIds.add(teamId);
+      else await ds.delete("tournament_standings", row.id);
+    }
   }
   if (teamIds.size === 0) return;
 

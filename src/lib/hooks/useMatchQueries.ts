@@ -657,6 +657,31 @@ export function useMatchAdminQuery(
 }
 
 /**
+ * Whether the user may delete the match (creator, club admin, tournament
+ * creator; not co-scorers). Only asked once `enabled` (e.g. the user is a
+ * match admin), so viewers pay no reads. The server re-checks on delete.
+ */
+export function useCanDeleteMatchQuery(
+  matchId?: string | null,
+  userId?: string | null,
+  enabled = true,
+) {
+  return useQuery<boolean>({
+    queryKey: ["canDeleteMatch", matchId ?? "", userId ?? "anon"],
+    queryFn: async () => {
+      if (!matchId || !userId) return false;
+      const { data, error } = await createClient().rpc("can_delete_match", {
+        p_match_id: matchId,
+      });
+      if (error) return false;
+      return Boolean(data);
+    },
+    enabled: Boolean(matchId && userId && enabled),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Match details (`getMatch`) kept current by the `live_state/{matchId}`
  * listener instead of polling:
  *

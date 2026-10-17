@@ -60,6 +60,13 @@ const AbandonMatchDialog = dynamic(
     import("./components/AbandonMatchDialog").then((m) => m.AbandonMatchDialog),
   { ssr: false },
 );
+const DeleteMatchDialog = dynamic(
+  () =>
+    import("~/components/matches/delete-match-dialog").then(
+      (m) => m.DeleteMatchDialog,
+    ),
+  { ssr: false },
+);
 const RetirePlayerDialog = dynamic(
   () =>
     import("./components/RetirePlayerDialog").then((m) => m.RetirePlayerDialog),
@@ -118,7 +125,10 @@ import {
 } from "~/lib/offline-match-cache";
 import { cacheCurrentPage } from "~/lib/pwa/service-worker";
 import { useAuth } from "~/lib/auth";
-import { useMatchAdminQuery } from "~/lib/hooks/useMatchQueries";
+import {
+  useCanDeleteMatchQuery,
+  useMatchAdminQuery,
+} from "~/lib/hooks/useMatchQueries";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
 import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 import { useWakeLock } from "~/lib/hooks/useWakeLock";
@@ -165,6 +175,7 @@ import {
   Crosshair,
   Share2,
   MessageCircle,
+  Trash2,
 } from "lucide-react";
 import { economyRate, inningsBalls, oversFromBalls } from "~/lib/cricket";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
@@ -184,6 +195,12 @@ export default function ScoringPage() {
   const { data: isAdminData, isLoading: authCheckLoading } = useMatchAdminQuery(
     matchId,
     user?.id,
+  );
+  // Deleting is stricter than scoring (no co-scorers); asked only of admins.
+  const { data: canDeleteMatch } = useCanDeleteMatchQuery(
+    matchId,
+    user?.id,
+    isAdminData === true,
   );
 
   const sunlightMode = usePreferencesStore((s) => s.sunlightMode);
@@ -354,6 +371,7 @@ export default function ScoringPage() {
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
   const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
   const [showAbandonMatchDialog, setShowAbandonMatchDialog] = useState(false);
+  const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
   const [showReviseTargetDialog, setShowReviseTargetDialog] = useState(false);
   const [retireTarget, setRetireTarget] = useState<{
     playerId: string;
@@ -419,6 +437,7 @@ export default function ScoringPage() {
     showMatchSettingsDialog ||
     showPenaltyBonusDialog ||
     showAbandonMatchDialog ||
+    showDeleteMatchDialog ||
     showReviseTargetDialog ||
     Boolean(retireTarget) ||
     showShortcuts ||
@@ -1291,6 +1310,18 @@ export default function ScoringPage() {
                   <Keyboard className="h-4 w-4 text-muted-foreground" />
                   <span>Keyboard shortcuts</span>
                 </DropdownMenuItem>
+                {canDeleteMatch && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => setShowDeleteMatchDialog(true)}
+                      className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Delete match</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -2176,6 +2207,13 @@ export default function ScoringPage() {
         <InviteDialog
           open={showInviteDialog}
           onOpenChange={setShowInviteDialog}
+        />
+      )}
+      {canDeleteMatch && (
+        <DeleteMatchDialog
+          open={showDeleteMatchDialog}
+          onOpenChange={setShowDeleteMatchDialog}
+          match={match}
         />
       )}
       <AbandonMatchDialog

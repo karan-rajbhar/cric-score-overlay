@@ -7,6 +7,8 @@ import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { invalidateMatchCache } from "~/lib/match-cache";
+import { afterDeleteHref } from "~/lib/match-delete";
+import type { DeleteMatchResult } from "~/lib/firebase/rpc/delete-match";
 import { friendlyError } from "./errors";
 import type {
   BallEvent,
@@ -1199,6 +1201,95 @@ export async function abandonMatch(
       success: false,
       error: friendlyError(
         err instanceof Error ? err.message : "Failed to abandon match",
+      ),
+    };
+  }
+}
+
+/**
+ * Delete a match, its scorecard and ball log, and take it out of players'
+ * statistics, leaderboards and the points table (`delete_match` rpc, which
+ * re-checks who may delete: the match creator, club admins, or the
+ * tournament creator; not co-scorers). `confirmTitle` must equal the match
+ * title (case-insensitive). Safe to retry.
+ */
+export async function deleteMatch(
+  matchId: string,
+  confirmTitle: string,
+): Promise<{
+  success: boolean;
+  error: string | null;
+  redirectTo?: string;
+}> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await db.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be signed in to delete a match" };
+    }
+
+    const { data, error } = await db.rpc<DeleteMatchResult>("delete_match", {
+      p_match_id: matchId,
+      p_confirm_title: confirmTitle,
+    });
+    if (error || !data) {
+      const message = error?.message ?? "";
+      if (message.includes("not_authorized")) {
+        return {
+          success: false,
+          error:
+            "Only the match creator, a club admin or the tournament organiser can delete this match",
+        };
+      }
+      if (message.includes("confirm_title_mismatch")) {
+        return {
+          success: false,
+          error: "The name you typed does not match this match",
+        };
+      }
+      console.error("deleteMatch failed:", error);
+      return {
+        success: false,
+        error: friendlyError(message || "Failed to delete match"),
+      };
+    }
+
+    // Structured, so the deletion is traceable in Cloud Logging.
+    console.info(
+      JSON.stringify({
+        event: "match_deleted",
+        matchId,
+        uid: user.id,
+        alreadyDeleted: data.already_deleted,
+        tournamentId: data.tournament_id,
+        clubId: data.club_id,
+        removed: data.removed,
+      }),
+    );
+
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath("/matches");
+    revalidatePath("/players", "layout");
+    if (data.tournament_id) {
+      revalidatePath(`/tournaments/${data.tournament_id}`);
+      revalidatePath("/tournaments");
+    }
+    if (data.club_id) {
+      revalidatePath(`/clubs/${data.club_id}`);
+      revalidatePath("/clubs");
+    }
+    return { success: true, error: null, redirectTo: afterDeleteHref(data) };
+  } catch (err) {
+    console.error("Unexpected error in deleteMatch:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to delete match",
       ),
     };
   }
