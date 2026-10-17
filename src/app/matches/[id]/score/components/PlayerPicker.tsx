@@ -31,6 +31,19 @@ interface PlayerPickerProps {
   className?: string;
 }
 
+/**
+ * Dialog `onOpenAutoFocus` handler: focus the picker's current row instead
+ * of the search box, so phones do not open the keyboard over the list.
+ */
+export function focusPickerRow(e: Event, container: HTMLElement | null) {
+  const row = container?.querySelector<HTMLElement>(
+    '[role="radio"][tabindex="0"]',
+  );
+  if (!row) return;
+  e.preventDefault();
+  row.focus();
+}
+
 const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 /**

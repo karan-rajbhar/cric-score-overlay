@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import type { BowlingPerformance, TeamPlayer } from "~/lib/match-types";
-import { PlayerPicker } from "./PlayerPicker";
+import { focusPickerRow, PlayerPicker } from "./PlayerPicker";
 import { buildBowlerRows } from "./player-rows";
 
 interface BowlerDialogProps {
@@ -83,6 +83,8 @@ export function BowlerDialog({
     ],
   );
 
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // With a single eligible bowler, preselect them; confirming applies it.
   const draftBowlerId = currentBowlerId ?? onlyEligibleId;
 
@@ -110,7 +112,11 @@ export function BowlerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        ref={contentRef}
+        className="sm:max-w-md"
+        onOpenAutoFocus={(e) => focusPickerRow(e, contentRef.current)}
+      >
         <DialogHeader>
           <DialogTitle>Select bowler</DialogTitle>
           <DialogDescription>

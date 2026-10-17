@@ -164,6 +164,28 @@ describe("BowlerDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("user-rahul");
   });
 
+  it("focuses the preselected row on open (no phone keyboard) and confirms with Enter", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        bowlingTeamName="Chennai"
+        currentBowlerId={null}
+        lastOverBowlerId="user-kishor"
+        onBowlerChange={vi.fn()}
+        onConfirm={onConfirm}
+        isProcessing={false}
+        onCreatePlayer={vi.fn()}
+      />,
+    );
+    const rahul = screen.getByRole("radio", { name: /Rahul/ });
+    await waitFor(() => expect(rahul).toHaveFocus());
+    fireEvent.keyDown(rahul, { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledWith("user-rahul");
+  });
+
   it("disables adding players with a reason while offline", () => {
     render(
       <BowlerDialog

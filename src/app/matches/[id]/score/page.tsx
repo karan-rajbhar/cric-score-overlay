@@ -1920,6 +1920,7 @@ export default function ScoringPage() {
         onCreatePlayer={createSquadPlayer}
         onChanged={refreshSquads}
         isProcessing={isProcessing}
+        isOffline={isOffline}
       />
 
       <WicketDialog
