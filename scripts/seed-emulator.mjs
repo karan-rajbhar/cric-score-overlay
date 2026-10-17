@@ -29,6 +29,15 @@ const remoteProject = process.argv
   .find((arg) => arg.startsWith("--project="))
   ?.slice("--project=".length);
 
+// Demo data must never reach production (it starts empty: only invited
+// Google accounts). Production project ids contain "prod".
+if (remoteProject && /prod/i.test(remoteProject)) {
+  console.error(
+    `Refusing to seed "${remoteProject}": demo data is for dev and emulator projects only.`,
+  );
+  process.exit(1);
+}
+
 const PROJECT_ID =
   remoteProject ||
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
