@@ -18,7 +18,8 @@
  *   innings' scorecard, ~4 KB) on the tabs that render it.
  * - {@link overChangesBetween} lists the `overs` docs changed between two
  *   versions (from each snapshot's `overs_changed`), so the ball log can
- *   re-read just those.
+ *   re-read just those; {@link liveChangesBetween} adds the `innings` docs
+ *   and whether the change was structural, for a co-scorer's resync.
  */
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
@@ -37,6 +38,12 @@ import {
 } from "~/lib/firebase/live-scorecard";
 import type { LiveMatchState } from "~/components/overlay/types";
 import type { Innings, Match } from "~/lib/match-types";
+import {
+  liveChangesOf,
+  liveJournalEntry,
+  type LiveChanges,
+  type LiveJournalEntry,
+} from "~/lib/scoring-delta";
 
 /** Mirrors `LIVE_STATE_COLLECTION` in `~/lib/firebase/live-state` (server). */
 const LIVE_STATE_COLLECTION = "live_state";
@@ -117,6 +124,7 @@ const DOC_ONLY_FIELDS = [
   "version",
   "refs",
   "overs_changed",
+  "innings_changed",
   "match_rev",
   "last_change",
 ] as const;
@@ -134,8 +142,8 @@ function keyOf(matchId: string, pause: boolean): string {
 // ---- over changes per live_state version (for the ball log) ----
 
 const JOURNAL_SIZE = 64;
-/** matchId -> version -> `overs_changed` of that version (null: unknown). */
-const journals = new Map<string, Map<number, string[] | null>>();
+/** matchId -> version -> what that version says it changed. */
+const journals = new Map<string, Map<number, LiveJournalEntry>>();
 
 function record(matchId: string, data: Record<string, unknown> | null): void {
   const version = data?.version;
@@ -145,16 +153,25 @@ function record(matchId: string, data: Record<string, unknown> | null): void {
     journal = new Map();
     journals.set(matchId, journal);
   }
-  const changed = data?.overs_changed;
-  journal.set(
-    version,
-    Array.isArray(changed) && changed.every((x) => typeof x === "string")
-      ? (changed as string[])
-      : null,
-  );
+  journal.set(version, liveJournalEntry(data));
   while (journal.size > JOURNAL_SIZE) {
     journal.delete(journal.keys().next().value!);
   }
+}
+
+/**
+ * The `overs` / `innings` docs changed by versions `from + 1 .. to` of a
+ * match's live_state and whether the match itself changed (status, current
+ * innings, `match_rev`), or null when any of those versions (or `from`)
+ * was not observed or did not say.
+ */
+export function liveChangesBetween(
+  matchId: string,
+  from: number,
+  to: number,
+): LiveChanges | null {
+  const journal = journals.get(matchId);
+  return journal ? liveChangesOf(journal, from, to) : null;
 }
 
 /**
@@ -171,7 +188,7 @@ export function overChangesBetween(
   const journal = journals.get(matchId);
   const out = new Set<string>();
   for (let v = from + 1; v <= to; v += 1) {
-    const changed = journal?.get(v);
+    const changed = journal?.get(v)?.overs;
     if (!changed) return null;
     for (const id of changed) out.add(id);
   }
