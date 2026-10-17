@@ -188,6 +188,10 @@ describe("billed reads per page on the seed data", () => {
     signIn(null);
 
     results.search = await cost(() => globalSearch("jo"));
+    // Mid-word: 3 letters are one trigram query per collection; longer
+    // queries add a trigram query only where no word starts with them.
+    results.searchMidWord = await cost(() => globalSearch("ohn"));
+    results.searchMidWordLong = await cost(() => globalSearch("mith"));
     results.playersList = await cost(() =>
       PlayersPage({ searchParams: Promise.resolve({}) }),
     );
@@ -230,7 +234,10 @@ describe("billed reads per page on the seed data", () => {
     // Upper bounds (seed: 8 matches, 30 users). Before stage 3 these were
     // home 6, /matches 20, dashboard 18, match page 67, scoring screen 29
     // per ball, search 47, typeahead 30, players search 30, player page 43
-    // (72 by @handle), club page 141, tournament page 98.
+    // (72 by @handle), club page 141, tournament page 98. The club and
+    // tournament pages read their leaderboard as LEADERBOARD_SHARDS (8)
+    // shard documents (was 1 document, which capped a scope at ~1,500
+    // players): club 42 -> 49, tournament 25 -> 32.
     const bounds: Record<string, number> = {
       home: 2,
       matches: 8,
@@ -246,12 +253,15 @@ describe("billed reads per page on the seed data", () => {
       typeahead: 10,
       scorerTypeahead: 6,
       search: 25,
+      // At most limit (5) per collection, and for the long query 1 + 3 x 5.
+      searchMidWord: 25,
+      searchMidWordLong: 80,
       playersList: 31,
       playersSearch: 30,
       playerPage: 25,
       playerPageByHandle: 25,
-      clubPage: 42,
-      tournamentPage: 25,
+      clubPage: 49,
+      tournamentPage: 32,
     };
     for (const [page, max] of Object.entries(bounds)) {
       expect(results[page], page).toBeLessThanOrEqual(max);

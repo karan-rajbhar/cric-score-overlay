@@ -1,6 +1,7 @@
 /**
  * Keeps `player_matches` and the statistics built from them
- * (`player_career_stats/{userId}`, `leaderboards/{scope}_{id}`) in step,
+ * (`player_career_stats/{userId}`, the leaderboard shards
+ * `leaderboards/{scope}_{id}_{k}`) in step,
  * inside the caller's transaction, so a crash or a concurrent scorer can
  * never leave them disagreeing.
  *
@@ -13,8 +14,12 @@
  * - removing a player's only best innings / spell (undo across an innings
  *   end, an edit to a completed innings) rebuilds that player's figures
  *   from their records (one query);
- * - a missing career / leaderboard document (new player, new tournament,
- *   or data that predates it) is built from its records the same way.
+ * - a missing career document or leaderboard shard (new player, new
+ *   tournament, or data that predates it) is built from its records the
+ *   same way (for a shard: the scope's records, keeping that shard's
+ *   players).
+ *
+ * Only the shards of the changed players are read and written.
  *
  * The result always equals `rebuildStats` over the stored records (see
  * stats-sync.test.ts and the golden replays in scoring/incremental.test.ts).
@@ -27,13 +32,14 @@ import type { ScoringTx } from "./scoring/tx";
 import {
   accOf,
   boardIdentity,
+  boardKeysOf,
   CAREER_COLLECTION,
   careerDocOf,
   emptyAcc,
   LEADERBOARDS_COLLECTION,
   leaderboardDocOf,
+  parseBoardId,
   replacePlayerMatch,
-  scopeKeysOf,
   SCOPES,
   type BoardPlayer,
   type StatsAcc,
@@ -100,8 +106,8 @@ export async function applyStatsChanges(
   const boardIds = Array.from(
     new Set(
       changes.flatMap((c) => [
-        ...scopeKeysOf(c.before),
-        ...scopeKeysOf(c.after),
+        ...boardKeysOf(c.before),
+        ...boardKeysOf(c.after),
       ]),
     ),
   );
@@ -147,8 +153,8 @@ export async function applyStatsChanges(
     if (acc && !replacePlayerMatch(acc, c.before, c.after)) {
       rebuildUsers.add(userId);
     }
-    const inBefore = new Set(scopeKeysOf(c.before));
-    const inAfter = new Set(scopeKeysOf(c.after));
+    const inBefore = new Set(boardKeysOf(c.before));
+    const inAfter = new Set(boardKeysOf(c.after));
     for (const id of new Set([...inBefore, ...inAfter])) {
       const players = boards.get(id);
       if (!players) continue; // rebuilt from the scope's records below
@@ -187,9 +193,11 @@ export async function applyStatsChanges(
     ),
     Promise.all(
       missingBoards.map((id) => {
-        const [scope, field] = SCOPES.find(([s]) => id.startsWith(`${s}_`))!;
+        // The scope's records; the overlay below keeps this shard's players.
+        const { scope, scope_id } = parseBoardId(id);
+        const [, field] = SCOPES.find(([s]) => s === scope)!;
         return t.query(PLAYER_MATCHES_COLLECTION, [
-          { field, op: "==", value: id.slice(scope.length + 1) },
+          { field, op: "==", value: scope_id },
         ]);
       }),
     ),
@@ -208,7 +216,7 @@ export async function applyStatsChanges(
     if (!players) continue;
     for (const userId of users) {
       const records = (recordsOf.get(userId) ?? []).filter((pm) =>
-        scopeKeysOf(pm).includes(id),
+        boardKeysOf(pm).includes(id),
       );
       const prev = players[userId];
       players[userId] = {
@@ -225,7 +233,7 @@ export async function applyStatsChanges(
   }
   missingBoards.forEach((id, i) => {
     const records = overlay(scopeRecords[i]!, changes, (pm) =>
-      scopeKeysOf(pm).includes(id),
+      boardKeysOf(pm).includes(id),
     );
     const byUser = new Map<string, PlayerMatchesRow[]>();
     for (const pm of records) {

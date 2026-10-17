@@ -460,8 +460,9 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "acc",
     "last_updated",
   ],
-  // `leaderboards/{scope}_{scopeId}`: per-player accumulators (stats.mjs).
-  leaderboards: ["id", "scope", "scope_id", "players", "updated_at"],
+  // `leaderboards/{scope}_{scopeId}_{shard}`: per-player accumulators,
+  // sharded by player (stats.mjs).
+  leaderboards: ["id", "scope", "scope_id", "shard", "players", "updated_at"],
 };
 
 /**

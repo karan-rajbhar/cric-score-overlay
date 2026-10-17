@@ -53,3 +53,22 @@ export async function inviteToApp(email: string, matchId?: string) {
     shareEmail: needsMessage ? email.trim().toLowerCase() : null,
   };
 }
+
+/**
+ * Revokes a pending invite the caller sent (or, for a scorer invite, one
+ * for matches the caller scores). The email can no longer sign in with it.
+ */
+export async function revokeInvite(invitationId: string) {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+
+  const { error } = await db.rpc("revoke_invitation", {
+    p_invitation_id: invitationId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/invitations");
+  return { success: true };
+}

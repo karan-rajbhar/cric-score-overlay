@@ -122,7 +122,8 @@ export interface InvitationsRow {
   id: string;
   email: string;
   invited_by: string | null;
-  status: "pending" | "accepted";
+  /** `revoked` invites no longer let the email sign in. */
+  status: "pending" | "accepted" | "revoked";
   accepted_by: string | null;
   /** Matches the invitee becomes a scorer for when they first sign in. */
   scorer_match_ids?: string[] | null;
@@ -526,11 +527,13 @@ export interface PlayerCareerStatsRow {
   last_updated: string | null;
 }
 
-/** `leaderboards/{scope}_{scopeId}` (stage 3, see `stats.mjs`). */
+/** `leaderboards/{scope}_{scopeId}_{shard}`: one shard of a scope (see `stats.mjs`). */
 export interface LeaderboardsRow {
   id: string;
   scope: "tournament" | "club";
   scope_id: string;
+  /** 0 .. LEADERBOARD_SHARDS - 1; the players whose id hashes to it. */
+  shard: number;
   players: Record<string, BoardPlayer>;
   updated_at: string | null;
 }

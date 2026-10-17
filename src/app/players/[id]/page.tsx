@@ -30,8 +30,14 @@ import {
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
 import { PageContainer } from "~/components/layout/page";
+import { LivePerformanceCard } from "~/components/players/live-performance-card";
+import { livePerformanceOf } from "~/lib/firebase/live-player";
+import type { LiveScorecardDoc } from "~/lib/firebase/live-scorecard";
 
 export const dynamic = "force-dynamic";
+
+/** Live matches checked for in-progress figures (1 read each). */
+const MAX_LIVE_MATCHES = 3;
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return <StatTile label={label} value={value} className="bg-muted/30" />;
@@ -122,7 +128,7 @@ export default async function PlayerPage({
     new Set(teams.map((tp) => tp.team?.id).filter(Boolean)),
   ) as string[];
   const matchColumns = `
-        id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+        id, title, match_format, overs_per_innings, balls_per_over, status, venue, scheduled_at,
         result_type, win_margin, win_margin_type, result_description, winning_team_id,
         tournament_id,
         tournament:tournaments(id, name),
@@ -199,6 +205,28 @@ export default async function PlayerPage({
       team2: m.team2,
     };
   };
+  // Innings in progress are not in player_matches yet: for the player's
+  // live matches (already loaded above) read each one's live_scorecard
+  // doc, 1 read per live match (capped).
+  const livePerformances = (
+    await Promise.all(
+      matchesData
+        .filter((m) => m.status === "live")
+        .slice(0, MAX_LIVE_MATCHES)
+        .map(async (m) => {
+          const { data } = await db.rpc<LiveScorecardDoc | null>(
+            "ensure_live_scorecard",
+            { p_match_id: m.id },
+          );
+          const perf = data
+            ? livePerformanceOf(data, id, Number(m.balls_per_over) || 6)
+            : null;
+          const match = matchOf(String(m.id));
+          return perf && match ? { ...perf, match } : null;
+        }),
+    )
+  ).filter((p) => p !== null);
+
   const batting = battingRows.map((b) => ({
     id: b.id,
     match_id: b.match_id,
@@ -496,6 +524,12 @@ export default async function PlayerPage({
           <StatTile bordered={false} label="Wickets" value={totalWickets} />
         </div>
       </div>
+
+      {livePerformances.length > 0 && (
+        <div className="mt-6 sm:mt-8">
+          <LivePerformanceCard performances={livePerformances} />
+        </div>
+      )}
 
       {/* Career Overview Stats Cards */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6 md:grid-cols-3">

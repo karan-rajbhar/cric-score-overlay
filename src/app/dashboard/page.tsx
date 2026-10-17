@@ -15,6 +15,7 @@ import {
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { InviteDialog } from "~/components/invite-dialog";
+import { GetStarted } from "~/components/dashboard/get-started";
 import {
   PageContainer,
   PageHeader,
@@ -26,8 +27,9 @@ import type { Match } from "~/lib/match-types";
 export default function Dashboard() {
   const { user } = useAuth();
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const username =
-    !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
+  const username = !user
+    ? null
+    : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -92,6 +94,9 @@ export default function Dashboard() {
         actions={
           <>
             <InviteDialog />
+            <Button asChild size="sm" variant="ghost">
+              <Link href="/invitations">Invites</Link>
+            </Button>
             <Button asChild size="sm" variant="outline">
               <Link href="/teams">
                 <Users />
@@ -113,6 +118,8 @@ export default function Dashboard() {
           </p>
         )}
       </PageHeader>
+
+      {user && <GetStarted userId={user.id} />}
 
       {/* Featured Match Hero or Matchday Launchpad */}
       {loading ? (
@@ -168,13 +175,13 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="score-display tabular-nums text-2xl font-bold leading-none sm:text-4xl">
+                <p className="score-display text-2xl font-bold tabular-nums leading-none sm:text-4xl">
                   {featuredInn1
                     ? `${featuredInn1.total_runs}/${featuredInn1.total_wickets}`
                     : "-"}
                 </p>
                 {featuredInn1 && (
-                  <p className="tabular-nums mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs tabular-nums text-muted-foreground">
                     {featuredInn1.total_overs.toFixed(1)} ov
                   </p>
                 )}
@@ -204,13 +211,13 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="score-display tabular-nums text-2xl font-bold leading-none sm:text-4xl">
+                <p className="score-display text-2xl font-bold tabular-nums leading-none sm:text-4xl">
                   {featuredInn2
                     ? `${featuredInn2.total_runs}/${featuredInn2.total_wickets}`
                     : "-"}
                 </p>
                 {featuredInn2 && (
-                  <p className="tabular-nums mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs tabular-nums text-muted-foreground">
                     {featuredInn2.total_overs.toFixed(1)} ov
                   </p>
                 )}
@@ -227,11 +234,7 @@ export default function Dashboard() {
           {/* Action Bar */}
           <div className="flex flex-col gap-2 border-t border-border/70 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
             {canScoreMatch(featuredLive) && (
-              <Button
-                asChild
-                size="sm"
-                className="w-full sm:w-auto"
-              >
+              <Button asChild size="sm" className="w-full sm:w-auto">
                 <Link href={`/matches/${featuredLive.id}/score`}>
                   <Radio className="h-4 w-4 shrink-0" />
                   Score live match
@@ -270,20 +273,13 @@ export default function Dashboard() {
               standings.
             </p>
             <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-              <Button
-                asChild
-                className="w-full sm:w-auto"
-              >
+              <Button asChild className="w-full sm:w-auto">
                 <Link href="/matches/create">
                   <Plus className="h-4 w-4 shrink-0" />
                   New match
                 </Link>
               </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="w-full sm:w-auto"
-              >
+              <Button asChild variant="outline" className="w-full sm:w-auto">
                 <Link href="/tournaments">Tournaments</Link>
               </Button>
               <Button

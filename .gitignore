@@ -40,6 +40,9 @@ next-env.d.ts
 firebase/emulator-data/
 *-debug.log
 
+# Local agent state (Claude Code worktrees, settings)
+.claude/
+
 # IDEs and editors
 .vscode/
 .idea/

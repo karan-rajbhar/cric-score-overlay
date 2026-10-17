@@ -12,7 +12,6 @@
  *                                   # stops if it has data (unless --keep)
  *
  * Never seed production: anyone owning a seeded email could claim its profile.
- * Every seeded account signs in with the password below.
  */
 
 import { readFileSync } from "node:fs";

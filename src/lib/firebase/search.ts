@@ -9,14 +9,21 @@
  *
  * - "jo", "john", "smi" and "john sm" all find "John Smith";
  * - "@john_s" finds the user `john_smith`;
- * - substrings inside a word ("ohn") do not match (they did with the old
- *   in-memory `ilike '%q%'` scan, which read the whole collection).
+ * - one-word queries of 3+ characters also match inside words ("ohn" and
+ *   "mith" find "John Smith"): each word's trigrams are stored too. A
+ *   3-character query is itself a stored token (one query). A longer one
+ *   runs its prefix query first and, only if that finds nothing, a second
+ *   query on its first trigram (at most 3 x limit reads), confirmed in
+ *   memory. So "smit" lists word starts only; "mith" falls through to
+ *   mid-word matches.
  *
  * Indexes: `search_prefixes` (array-contains) + the sort field, one per
  * collection (firestore.indexes.json).
  */
 
 import {
+  INFIX_LEN,
+  isInfixQuery,
   MAX_PHRASE_PREFIX,
   MAX_WORD_PREFIX,
   matchesSearch,
@@ -66,14 +73,26 @@ export async function prefixSearch<T extends SearchTable>(
     .limit(exact ? limit : limit * 3);
   if (error) return { data: [], error: error.message };
   let rows = (data ?? []) as Record<string, unknown>[];
-  if (!exact) {
-    rows = rows
-      .filter((r) =>
-        matchesSearch(
-          query,
-          spec.sources.map((f) => r[f]),
-        ),
-      )
+  const matches = (r: Record<string, unknown>) =>
+    matchesSearch(
+      query,
+      spec.sources.map((f) => r[f]),
+    );
+  if (!exact) rows = rows.filter(matches).slice(0, limit);
+
+  // Mid-word matches for longer one-word queries with no word-start
+  // match: every word containing the query contains its first trigram.
+  const norm = normalizeText(query);
+  if (rows.length === 0 && isInfixQuery(norm) && norm.length > INFIX_LEN) {
+    const infix = await db
+      .from(table)
+      .select(`${columns}, ${spec.sources.join(", ")}`)
+      .contains("search_prefixes", [norm.slice(0, INFIX_LEN)])
+      .order(spec.sort)
+      .limit(limit * 3);
+    if (infix.error) return { data: [], error: infix.error.message };
+    rows = ((infix.data ?? []) as Record<string, unknown>[])
+      .filter(matches)
       .slice(0, limit);
   }
   return { data: rows, error: null };

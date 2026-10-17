@@ -33,7 +33,14 @@ export function inviteMessage(
 }
 
 /** Read-only invite message with Share on WhatsApp and Copy actions. */
-export function InviteShare({ text }: { text: string }) {
+export function InviteShare({
+  text,
+  id = "invite-message",
+}: {
+  text: string;
+  /** Textarea id; pass a unique one when several are on the page. */
+  id?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
 
@@ -49,9 +56,9 @@ export function InviteShare({ text }: { text: string }) {
 
   return (
     <div className="space-y-3 border-t border-border pt-4">
-      <Label htmlFor="invite-message">Invite message</Label>
+      <Label htmlFor={id}>Invite message</Label>
       <Textarea
-        id="invite-message"
+        id={id}
         readOnly
         rows={4}
         value={text}

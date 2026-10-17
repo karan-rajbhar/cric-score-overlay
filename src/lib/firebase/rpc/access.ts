@@ -1,7 +1,8 @@
 /**
  * Invite-only access. A Google account may get a session when it already has
  * a profile, its email is on the ALLOWED_EMAILS bootstrap list, or someone
- * invited that email (app invite or a pending club invite).
+ * invited that email (app invite or a pending club invite). Only pending
+ * invites count: accepted ones are used up and revoked ones are withdrawn.
  */
 
 import type { AppUser } from "../auth-types";
@@ -191,4 +192,51 @@ export async function inviteEmail(
     },
   ]);
   return { status: "invited" };
+}
+
+/**
+ * Withdraws a pending app invite so its email can no longer sign in with it
+ * (`canSignIn` and `acceptInvitations` only honour pending invites). The
+ * inviter may revoke it; so may a scorer of every match the invite would
+ * make the invitee a scorer of. Accepted invites cannot be revoked: the
+ * person already has a profile.
+ */
+export async function revokeInvitation(
+  ds: DataSource,
+  callerId: string | null,
+  inviteId: string,
+): Promise<{ status: "revoked" | "already_revoked" }> {
+  if (!callerId) throw new DbQueryError("Authentication required", "42501");
+  const invite = (await ds.getById(
+    "invitations",
+    inviteId,
+  )) as unknown as InvitationsRow | null;
+  if (!invite) throw new DbQueryError("Invite not found", "P0002");
+
+  let allowed = invite.invited_by === callerId;
+  const matchIds = invite.scorer_match_ids ?? [];
+  if (!allowed && matchIds.length > 0) {
+    allowed = true;
+    for (const matchId of matchIds) {
+      if (!(await isMatchAdmin(ds, matchId, callerId))) {
+        allowed = false;
+        break;
+      }
+    }
+  }
+  if (!allowed) {
+    throw new DbQueryError(
+      "Only the person who sent this invite can revoke it",
+      "42501",
+    );
+  }
+  if (invite.status === "revoked") return { status: "already_revoked" };
+  if (invite.status !== "pending") {
+    throw new DbQueryError("This invite was already accepted", "22023");
+  }
+  await ds.update("invitations", invite.id, {
+    status: "revoked",
+    updated_at: new Date().toISOString(),
+  });
+  return { status: "revoked" };
 }

@@ -12,9 +12,13 @@
  * Stored in:
  * - `player_career_stats/{userId}`: `acc` (all of the player's records)
  *   plus the legacy summary columns derived from it;
- * - `leaderboards/{scope}_{scopeId}` (`tournament_<id>`, `club_<id>`):
- *   `players: { [userId]: acc + name + avatar_url }` for every player with
- *   a record in that tournament / club.
+ * - `leaderboards/{scope}_{scopeId}_{k}` (`tournament_<id>_3`, ...): the
+ *   scope's players split into LEADERBOARD_SHARDS fixed shards by a hash
+ *   of the user id, each holding `players: { [userId]: acc + name +
+ *   avatar_url }`. One document per scope would hit Firestore's 1 MiB limit
+ *   at ~1,500 players (~0.6 KB each); shards raise that ~8x while a page
+ *   still reads a fixed LEADERBOARD_SHARDS documents, and a player's update
+ *   touches only their own shard.
  *
  * `leaderboard.ts` turns accumulators into the leaderboard rows, so pages
  * and these documents share one definition of every figure.
@@ -349,13 +353,61 @@ export const SCOPES = /** @type {const} */ ([
   ["club", "club_id"],
 ]);
 
+/**
+ * Shards per scope. Changing it re-keys every player: add a migration that
+ * rebuilds the leaderboards (scripts/migrate-leaderboard-shards.mjs).
+ */
+export const LEADERBOARD_SHARDS = 8;
+
 /** @param {string} scope @param {string} scopeId */
 export function leaderboardId(scope, scopeId) {
   return `${scope}_${scopeId}`;
 }
 
 /**
- * Leaderboard ids a document counts towards.
+ * The shard of a player (FNV-1a over the id's UTF-16 code units).
+ * @param {string} userId
+ */
+export function shardOf(userId) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < userId.length; i++) {
+    h ^= userId.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0) % LEADERBOARD_SHARDS;
+}
+
+/** @param {string} key a scope key (`leaderboardId`) @param {number} shard */
+export function shardId(key, shard) {
+  return `${key}_${shard}`;
+}
+
+/**
+ * Every shard document id of a scope (what a page reads).
+ * @param {string} scope
+ * @param {string} scopeId
+ */
+export function leaderboardShardIds(scope, scopeId) {
+  const key = leaderboardId(scope, scopeId);
+  return Array.from({ length: LEADERBOARD_SHARDS }, (_, k) => shardId(key, k));
+}
+
+/**
+ * Splits a shard document id into its scope, scope id and shard.
+ * @param {string} id
+ */
+export function parseBoardId(id) {
+  const first = id.indexOf("_");
+  const last = id.lastIndexOf("_");
+  return {
+    scope: id.slice(0, first),
+    scope_id: id.slice(first + 1, last),
+    shard: Number(id.slice(last + 1)),
+  };
+}
+
+/**
+ * Scope keys (`tournament_<id>`, `club_<id>`) a document counts towards.
  * @param {PlayerMatchLike | null | undefined} pm
  * @returns {string[]}
  */
@@ -368,6 +420,18 @@ export function scopeKeysOf(pm) {
     if (typeof id === "string" && id) out.push(leaderboardId(scope, id));
   }
   return out;
+}
+
+/**
+ * Leaderboard shard documents a record counts towards (its player's shard
+ * of each of its scopes).
+ * @param {PlayerMatchLike | null | undefined} pm
+ * @returns {string[]}
+ */
+export function boardKeysOf(pm) {
+  if (!pm) return [];
+  const k = shardOf(pm.user_id);
+  return scopeKeysOf(pm).map((key) => shardId(key, k));
 }
 
 /** @param {number} n */
@@ -419,20 +483,13 @@ export function careerDocOf(userId, acc, now) {
  */
 
 /**
- * `leaderboards/{id}` for a scope.
+ * `leaderboards/{id}`: one shard of a scope (`id` from `boardKeysOf`).
  * @param {string} id
  * @param {Record<string, BoardPlayer>} players
  * @param {string} now
  */
 export function leaderboardDocOf(id, players, now) {
-  const cut = id.indexOf("_");
-  return {
-    id,
-    scope: id.slice(0, cut),
-    scope_id: id.slice(cut + 1),
-    players,
-    updated_at: now,
-  };
+  return { id, ...parseBoardId(id), players, updated_at: now };
 }
 
 /**
@@ -447,7 +504,7 @@ export function boardIdentity(user) {
 }
 
 /**
- * Every career and leaderboard document, built from scratch.
+ * Every career and leaderboard shard document, built from scratch.
  * @param {PlayerMatchLike[]} playerMatches
  * @param {Map<string, Record<string, any>>} usersById
  * @param {string} now
@@ -461,7 +518,7 @@ export function rebuildStats(playerMatches, usersById, now) {
     const list = byUser.get(pm.user_id) ?? [];
     list.push(pm);
     byUser.set(pm.user_id, list);
-    for (const key of scopeKeysOf(pm)) {
+    for (const key of boardKeysOf(pm)) {
       const players = byScope.get(key) ?? new Map();
       const own = players.get(pm.user_id) ?? [];
       own.push(pm);

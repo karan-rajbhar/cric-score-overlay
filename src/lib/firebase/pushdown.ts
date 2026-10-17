@@ -20,6 +20,8 @@ const ORDERABLE: Record<string, readonly string[]> = {
   teams: ["name_lower"],
   clubs: ["name_lower"],
   tournaments: ["name_lower"],
+  // Only `inviteEmail` creates invites, always with created_at.
+  invitations: ["created_at"],
 };
 
 /**
@@ -32,6 +34,7 @@ const NON_NULL: Record<string, readonly string[]> = {
   teams: ["name_lower"],
   clubs: ["name_lower"],
   tournaments: ["name_lower"],
+  invitations: ["created_at"],
 };
 
 export function isOrderable(table: string, field: string): boolean {

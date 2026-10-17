@@ -24,7 +24,13 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 /** Run order matters; never reorder or remove applied entries. */
-const MIGRATIONS = ["stage1", "stage2", "stage3"];
+const MIGRATIONS = [
+  "stage1",
+  "stage2",
+  "stage3",
+  "search-trigrams",
+  "leaderboard-shards",
+];
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dryRun = process.argv.includes("--dry-run");

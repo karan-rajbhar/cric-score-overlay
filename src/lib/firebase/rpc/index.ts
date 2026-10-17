@@ -15,7 +15,7 @@ import {
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
-import { inviteEmail } from "./access";
+import { inviteEmail, revokeInvitation } from "./access";
 import {
   checkUsernameAvailable,
   createTeamPlayer,
@@ -153,6 +153,8 @@ export async function callRpc(
         str(args, "p_email"),
         optStr(args, "p_match_id"),
       );
+    case "revoke_invitation":
+      return revokeInvitation(ctx.ds, ctx.uid, str(args, "p_invitation_id"));
     case "update_own_username":
       return updateOwnUsername(ctx.ds, ctx.uid, str(args, "p_username"));
     case "check_username_available":
