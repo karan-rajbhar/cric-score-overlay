@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "demo-cricscore"
+    "default": "demo-cricscore",
+    "dev": "cricscore-dev-7411",
+    "prod": "cricscore-prod-7411"
   }
 }
