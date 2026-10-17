@@ -324,6 +324,8 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
     }
 
     revalidatePath(`/teams/${teamId}`);
+    // A live match of this team shows its squad: tell its viewers now.
+    await refreshLiveMatchesFor(db, { teamId });
     return { data: data as { user_id: string; full_name: string }, error: null };
   } catch (err) {
     console.error("Unexpected error in createPlayerQuick:", err);
@@ -419,6 +421,7 @@ export async function addPlayerToTeam(
   }
 
   revalidatePath(`/teams/${teamId}`);
+  await refreshLiveMatchesFor(db, { teamId });
   return { success: true };
 }
 
@@ -457,6 +460,7 @@ export async function removePlayerFromTeam(
   }
 
   revalidatePath(`/teams/${teamId}`);
+  await refreshLiveMatchesFor(db, { teamId });
   return { success: true };
 }
 
@@ -508,6 +512,8 @@ export async function updatePlayerRole(
   }
 
   revalidatePath(`/teams/${teamId}`);
+  // Captain / vice-captain markers show on a live match's squads.
+  await refreshLiveMatchesFor(db, { teamId });
   return { success: true };
 }
 

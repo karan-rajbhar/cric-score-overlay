@@ -23,6 +23,10 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+vi.mock("~/lib/firebase/live-sync", () => ({
+  refreshLiveMatchesFor: vi.fn(),
+}));
+
 describe("createTeamQuick", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -133,6 +137,79 @@ describe("createPlayerQuick", () => {
       p_team_id: "team-1",
       p_full_name: "Virat Kohli",
     });
+  });
+});
+
+describe("squad changes refresh live matches of the team", () => {
+  /** A query builder whose every call chains; reads resolve `row`. */
+  function chain(row: unknown, error: unknown = null) {
+    const builder: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "in", "insert", "update", "delete"]) {
+      builder[m] = () => builder;
+    }
+    builder.single = async () => ({ data: row, error: null });
+    builder.maybeSingle = async () => ({ data: row, error: null });
+    builder.then = (resolve: (r: unknown) => void) =>
+      resolve({ data: null, error });
+    return builder;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: "captain", email: "c@test.com" } },
+      error: null,
+    });
+    mockRpc.mockResolvedValue({ data: null, error: null });
+    // The caller created the team (may manage it); writes succeed.
+    mockFrom.mockImplementation(() => chain({ created_by: "captain" }));
+  });
+
+  it("after adding, removing or re-roling a player and quick-adding one", async () => {
+    const { refreshLiveMatchesFor } = await import("~/lib/firebase/live-sync");
+    const actions = await import("./actions");
+
+    expect(await actions.addPlayerToTeam("t1", "p1")).toEqual({
+      success: true,
+    });
+    expect(await actions.updatePlayerRole("t1", "p1", "captain")).toEqual({
+      success: true,
+    });
+    expect(await actions.removePlayerFromTeam("t1", "p1")).toEqual({
+      success: true,
+    });
+    mockRpc.mockImplementation(async (name: string) =>
+      name === "create_team_player"
+        ? { data: { user_id: "p2", full_name: "New" }, error: null }
+        : { data: null, error: null },
+    );
+    expect((await actions.createPlayerQuick("t1", "New")).error).toBeNull();
+
+    const calls = vi.mocked(refreshLiveMatchesFor).mock.calls;
+    expect(calls.map((c) => c[1])).toEqual([
+      { teamId: "t1" },
+      { teamId: "t1" },
+      { teamId: "t1" },
+      { teamId: "t1" },
+    ]);
+  });
+
+  it("not when the change fails", async () => {
+    const { refreshLiveMatchesFor } = await import("~/lib/firebase/live-sync");
+    const actions = await import("./actions");
+    mockFrom.mockImplementation(() =>
+      chain({ created_by: "captain" }, { message: "boom" }),
+    );
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await actions.addPlayerToTeam("t1", "p1")).toEqual({
+      error: "boom",
+    });
+    expect(await actions.removePlayerFromTeam("t1", "p1")).toEqual({
+      error: "boom",
+    });
+    expect(refreshLiveMatchesFor).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 
