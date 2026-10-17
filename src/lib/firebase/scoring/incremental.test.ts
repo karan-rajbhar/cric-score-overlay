@@ -30,7 +30,12 @@ import {
   MATCH_DETAIL_SELECT,
   PARTNERSHIPS_SELECT,
 } from "~/app/matches/match-select";
-import { canonicalJson, inningsSummaryOf } from "../derive.mjs";
+import {
+  canonicalJson,
+  inningsSummaryEntry,
+  inningsSummaryOf,
+} from "../derive.mjs";
+import { staleSummaryInnings } from "../innings-summary";
 import {
   buildLiveScorecard,
   LIVE_SCORECARD_COLLECTION,
@@ -81,6 +86,7 @@ import {
   type Stage2Side,
 } from "./__fixtures__/stage2";
 import { recomputeInnings } from "./recompute";
+import { carriedPenaltiesOf, seqCounterOf } from "../scorecard";
 
 const seed = legacySeedOf(
   JSON.parse(
@@ -244,6 +250,15 @@ async function checkInvariants(side: Stage2Side, matchId: string) {
     const balls = ballLogOf(overs);
     // Caches the fast paths rely on.
     expect(inn.last_ball ?? null).toEqual(lastBallOf(balls));
+    if (inn.carried_penalties !== undefined) {
+      expect(inn.carried_penalties).toEqual(
+        carriedPenaltiesOf(inn, balls as BallByBallRow[]),
+      );
+    }
+    // The match's seq counter covers every ball it logged.
+    for (const b of balls) {
+      expect(seqCounterOf(match, ...innings)).toBeGreaterThanOrEqual(b.seq);
+    }
     expect(inn.last_over_bowler_id ?? null).toBe(
       lastOverBowlerOf(balls, inn.total_balls ?? 0, bpo),
     );
@@ -280,8 +295,18 @@ async function checkInvariants(side: Stage2Side, matchId: string) {
   expect(strip(stored)).toEqual(strip(playerMatchDocs(match, innings, "x")));
 
   // Stage 3: the match's innings summary, and the career / leaderboard
-  // statistics equal a rebuild from the stored player records.
-  expect(match.innings_summary).toEqual(inningsSummaryOf(innings));
+  // statistics equal a rebuild from the stored player records. A live
+  // match's innings in progress is not followed ball by ball: readers
+  // re-read that innings (`staleSummaryInnings`), and with it the summary
+  // is exact.
+  const stale = new Set(staleSummaryInnings(match));
+  const byId = new Map(innings.map((i) => [i.id, i]));
+  const asRead = (match.innings_summary ?? []).map((e) =>
+    stale.has(e.id) && byId.has(e.id)
+      ? inningsSummaryEntry(byId.get(e.id)!)
+      : e,
+  );
+  expect(asRead).toEqual(inningsSummaryOf(innings));
   const rebuilt = rebuildStats(
     ds.all("player_matches") as unknown as PlayerMatchesRow[],
     new Map(ds.all("users").map((u) => [u.id, u])),
@@ -402,19 +427,20 @@ describe("record_ball document cost", () => {
     console.info("record_ball cost per ball", summary);
   });
 
-  it("reads match + innings + over + live_state + live_scorecard and writes the same five per normal delivery", () => {
+  it("reads match + innings + over + live_state + live_scorecard and writes all but the match per normal delivery", () => {
     expect(summary.normalBalls).toBeGreaterThan(500);
     // Before stage 2: ~10.6 reads / ~7.3 writes per normal delivery; 4 / 4
-    // before the live scorecard (+1 read, +1 write: live_scorecard).
+    // before the live scorecard (+1 read, +1 write: live_scorecard); 5
+    // writes while the match document followed every ball.
     expect(summary.normalAvgReads).toBeLessThanOrEqual(5.1);
-    expect(summary.normalAvgWrites).toBeLessThanOrEqual(5);
-    expect(summary.normalMaxWrites).toBeLessThanOrEqual(5);
+    expect(summary.normalAvgWrites).toBeLessThanOrEqual(4);
+    expect(summary.normalMaxWrites).toBeLessThanOrEqual(4);
     // A new player's name is read once.
     expect(summary.normalMaxReads).toBeLessThanOrEqual(8);
     // Including wickets, boundaries and innings changes (player records
     // are written when an innings completes).
     expect(summary.avgReads).toBeLessThanOrEqual(6);
-    expect(summary.avgWrites).toBeLessThanOrEqual(6);
+    expect(summary.avgWrites).toBeLessThanOrEqual(4.6);
     // The full recompute path, for comparison (one read per over).
     expect(summary.fullAvgReads).toBeGreaterThan(summary.avgReads * 2);
   });

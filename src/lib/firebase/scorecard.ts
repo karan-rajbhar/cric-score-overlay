@@ -63,6 +63,15 @@ export interface InningsScorecard {
   last_over_bowler_id: string | null;
 }
 
+/**
+ * Innings fields only the scoring engine uses (hidden from `select("*")`,
+ * see `HIDDEN_COLUMNS`, and dropped by {@link withoutScorecardStorage}).
+ */
+export const INNINGS_INTERNAL_FIELDS = [
+  "recent_client_actions",
+  "carried_penalties",
+] as const;
+
 export const SCORECARD_FIELDS = [
   "batting",
   "bowling",
@@ -314,6 +323,42 @@ export function scorecardFields(input: {
   };
 }
 
+/**
+ * The match's ball `seq` counter (the highest seq assigned so far): the
+ * larger of the legacy `matches.last_ball_seq` and the innings' counters
+ * (the current innings holds it; see `InningsRow.last_ball_seq`). Null when
+ * none of them has one (data that predates the counter).
+ */
+export function seqCounterOf(
+  match: Pick<MatchesRow, "last_ball_seq">,
+  ...innings: ReadonlyArray<
+    Pick<InningsRow, "last_ball_seq"> | null | undefined
+  >
+): number | null {
+  let best: number | null =
+    typeof match.last_ball_seq === "number" ? match.last_ball_seq : null;
+  for (const inn of innings) {
+    const v = inn?.last_ball_seq;
+    if (typeof v === "number" && (best === null || v > best)) best = v;
+  }
+  return best;
+}
+
+/**
+ * `InningsRow.carried_penalties` for an innings with this ball log: the
+ * fielding-side penalty events logged in it for the other side, in `seq`
+ * order (what `openNextInnings` carries into that side's next innings).
+ */
+export function carriedPenaltiesOf(
+  innings: Pick<InningsRow, "team_id">,
+  balls: readonly BallByBallRow[],
+): LastBall[] {
+  return [...balls]
+    .sort(bySeq)
+    .filter((b) => !!b.penalty_team_id && b.penalty_team_id !== innings.team_id)
+    .map((b) => ({ ...toBallEntry(b), over_number: b.over_number }));
+}
+
 export function ballsPerOverOf(
   match: Pick<MatchesRow, "balls_per_over">,
 ): number {
@@ -437,5 +482,6 @@ export function withoutScorecardStorage<T extends object>(
     ...(innings as Record<string, unknown>),
   };
   for (const k of SCORECARD_FIELDS) if (!keep.includes(k)) delete copy[k];
+  for (const k of INNINGS_INTERNAL_FIELDS) delete copy[k];
   return copy as T;
 }

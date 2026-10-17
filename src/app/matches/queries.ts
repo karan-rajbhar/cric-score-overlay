@@ -5,6 +5,7 @@ import { playerDirectory } from "~/lib/firebase/directory";
 import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 import { BALL_PLAYER_FIELDS } from "~/lib/ball-log";
+import { withMatchPosition } from "~/lib/match-position";
 import { MATCH_DETAIL_SELECT, PARTNERSHIPS_SELECT } from "./match-select";
 
 export async function getMatches(filters?: {
@@ -137,7 +138,11 @@ export async function getMatch(
         );
       }
 
-      const result = { data, error: null };
+      // The over / ball position comes from the current innings.
+      const result = {
+        data: data ? withMatchPosition(data) : data,
+        error: null,
+      };
       setCachedMatch(
         cacheKey,
         result,
@@ -237,7 +242,7 @@ export async function getScoringState(matchId: string) {
     const db = await createServerClient();
     // The two team documents come first: their rosters carry every
     // player's name, so the scorecard's user lookups need no reads.
-    const { data: match, error } = await db
+    const { data: stored, error } = await db
       .from("matches")
       .select(
         `
@@ -252,17 +257,19 @@ export async function getScoringState(matchId: string) {
       )
       .eq("id", matchId)
       .single();
-    if (match) dropRosterNames(match);
+    if (stored) dropRosterNames(stored);
     if (error) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
     }
-    if (match?.innings) {
-      match.innings = (match.innings as object[]).map((inn) =>
+    if (stored?.innings) {
+      stored.innings = (stored.innings as object[]).map((inn) =>
         withoutScorecardStorage(inn),
       );
     }
-    if (match) await attachMatchTeams(db, [match]);
+    if (stored) await attachMatchTeams(db, [stored]);
+    // The over / ball position comes from the current innings.
+    const match = stored ? withMatchPosition(stored) : stored;
     type InningsWithPerformances = {
       id: string;
       innings_number: number;

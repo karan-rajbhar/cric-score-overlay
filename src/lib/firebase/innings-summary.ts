@@ -6,19 +6,24 @@
  * Kept in step by:
  * - every scoring transaction: {@link stageInningsSummaries} runs just
  *   before commit and folds the transaction's innings writes into the
- *   match's summary (the match is patched in the same commit, usually
- *   alongside the patch the engine already makes, so no extra write);
+ *   match's summary (the match is patched in the same commit). A live
+ *   match's innings in progress is the exception: its running totals change
+ *   with every ball, and writing the match for them would cost a write per
+ *   ball, so its entry is refreshed only with the next structural change
+ *   (innings or match end, undo across innings, any other match write);
  * - builder writes to innings (match start, abandon, target edits): the
  *   write hook calls {@link refreshInningsSummary}.
  *
- * Readers use the summary only when every match in the result has one
- * (`expandEmbedded`), so matches that predate it still work.
+ * So in a live match the entry of an innings that is not completed may be
+ * behind: readers that show it re-read that innings
+ * ({@link staleSummaryInnings}). Readers use the summary only when every
+ * match in the result has one (`expandEmbedded`), so matches that predate
+ * it still work.
  */
 
 import type { DataSource } from "./datasource";
 import {
   canonicalJson,
-  INNINGS_SUMMARY_FIELDS,
   inningsSummaryEntry,
   inningsSummaryOf,
 } from "./derive.mjs";
@@ -26,12 +31,20 @@ import type { PendingWrite, ScoringTx } from "./scoring/tx";
 
 type Entry = Record<string, unknown>;
 
-function picked(data: Record<string, unknown>): Entry {
-  const out: Entry = {};
-  for (const f of INNINGS_SUMMARY_FIELDS) {
-    if (f in data && f !== "id") out[f] = data[f] ?? null;
+/**
+ * Ids of the summary entries of `match` that may be behind their innings:
+ * while the match is live, the innings not completed yet (see above).
+ */
+export function staleSummaryInnings(match: {
+  status?: unknown;
+  innings_summary?: unknown;
+}): string[] {
+  if (match.status !== "live" || !Array.isArray(match.innings_summary)) {
+    return [];
   }
-  return out;
+  return (match.innings_summary as Entry[])
+    .filter((e) => e.is_completed !== true && typeof e.id === "string")
+    .map((e) => e.id as string);
 }
 
 function sortEntries(entries: Entry[]): Entry[] {
@@ -57,9 +70,38 @@ export async function matchIdOf(
 }
 
 /**
+ * Whether this transaction only moves the running totals of the live
+ * match's innings in progress (a delivery, an undo or edit in it, a crease
+ * change): then the summary is left as it is (see the module comment).
+ */
+function onlyRunningTotals(
+  t: ScoringTx,
+  match: Entry & { id: string },
+  writes: readonly PendingWrite[],
+  current: readonly Entry[],
+): boolean {
+  if (match.status !== "live" || t.pending("matches", match.id)) return false;
+  return writes.every((w) => {
+    if (w.kind !== "merge") return false;
+    const entry = current.find((e) => e.id === w.id);
+    const after = t.docAfter("innings", w.id);
+    return (
+      !!entry &&
+      entry.is_completed !== true &&
+      !!after &&
+      after.is_completed !== true &&
+      after.innings_number === (match.current_innings ?? 1)
+    );
+  });
+}
+
+/**
  * Stage the summary of every match whose innings this transaction writes.
  * Reads nothing when the match was already read (the scoring engine always
- * reads it) and its summary exists.
+ * reads it) and its summary exists. Entries are built from the innings as
+ * stored after the commit; entries of innings the transaction read but did
+ * not write are refreshed too (no read), so a summary left behind by the
+ * running-totals exception catches up with any structural change.
  */
 export async function stageInningsSummaries(t: ScoringTx): Promise<void> {
   const writes = t.pendingWrites().filter((w) => w.table === "innings");
@@ -76,14 +118,15 @@ export async function stageInningsSummaries(t: ScoringTx): Promise<void> {
   for (const [matchId, list] of byMatch) {
     if (t.pending("matches", matchId)?.kind === "delete") continue;
     const match =
-      t.known<{ innings_summary?: unknown }>("matches", matchId) ??
-      ((await t.getById("matches", matchId)) as {
-        innings_summary?: unknown;
-      } | null);
+      t.known<Entry>("matches", matchId) ??
+      ((await t.getById("matches", matchId)) as
+        | (Entry & { id: string })
+        | null);
     if (!match) continue;
     const current = Array.isArray(match.innings_summary)
       ? (match.innings_summary as Entry[])
       : null;
+    if (current && onlyRunningTotals(t, match, list, current)) continue;
 
     let next: Entry[] | null = current ? current.map((e) => ({ ...e })) : null;
     if (next) {
@@ -91,21 +134,28 @@ export async function stageInningsSummaries(t: ScoringTx): Promise<void> {
         const i = next.findIndex((e) => e.id === w.id);
         if (w.kind === "delete") {
           if (i >= 0) next.splice(i, 1);
-        } else if (w.kind === "set") {
-          const entry = inningsSummaryEntry({ ...w.data, id: w.id });
-          if (i >= 0) next[i] = entry;
-          else next.push(entry);
-        } else if (i >= 0) {
-          next[i] = { ...next[i], ...picked(w.data) };
-        } else {
-          const stored = t.known<Entry>("innings", w.id);
-          if (!stored) {
-            next = null;
-            break;
-          }
-          next.push(inningsSummaryEntry({ ...stored, ...w.data, id: w.id }));
+          continue;
         }
+        const after = t.docAfter("innings", w.id);
+        if (!after) {
+          // Merged into a document this transaction never read.
+          next = null;
+          break;
+        }
+        const entry = inningsSummaryEntry(after);
+        if (i >= 0) next[i] = entry;
+        else next.push(entry);
       }
+    }
+    if (next) {
+      const written = new Set(list.map((w) => w.id));
+      next = next.map((e) => {
+        const known =
+          typeof e.id === "string" && !written.has(e.id)
+            ? t.known<Entry>("innings", e.id)
+            : null;
+        return known ? inningsSummaryEntry(known) : e;
+      });
     }
     if (!next) {
       // No summary yet (or an entry is missing): build it from the innings.

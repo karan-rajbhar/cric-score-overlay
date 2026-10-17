@@ -44,6 +44,7 @@ import {
   undoLastBall,
   updateBall,
   type ScoringContext,
+  appliedActionIdsOf,
 } from "./firebase/rpc/scoring";
 import { ballLogOf, type OversRow } from "./firebase/scorecard";
 import { serverClientFor } from "./firebase/server-client";
@@ -115,6 +116,14 @@ const ballLog = (s: Stage2Side) =>
   ballLogOf(s.ds.all("overs") as unknown as OversRow[]);
 const matchOf = (s: Stage2Side) =>
   s.ds.all("matches").find((m) => m.id === M) as unknown as MatchesRow;
+/** Client action ids the match remembers (its own and its current innings'). */
+const memoryOf = (s: Stage2Side) => {
+  const match = matchOf(s);
+  const current = (s.ds.all("innings") as unknown as InningsRow[]).find(
+    (i) => i.innings_number === (match.current_innings ?? 1),
+  );
+  return appliedActionIdsOf(match, current ?? null);
+};
 
 /** A started match: 3 balls in, a1 on strike with a2, b1 bowling. */
 async function startedMatch() {
@@ -322,7 +331,7 @@ describe("offline queue replay through /api/scoring/replay", () => {
     expect(getPendingActions(M)).toHaveLength(0);
     // 3 synced balls, then 2 (the 4 was undone).
     expect(ballLog(side).map((d) => d.runs_scored)).toEqual([1, 1, 0, 2]);
-    expect(matchOf(side).recent_client_actions).toEqual([
+    expect(memoryOf(side)).toEqual([
       "1700000000000_old0001",
       "1700000000001_old0002",
       "1700000000002_old0003",
@@ -418,7 +427,7 @@ describe("the scoring engine recognises replayed client actions", () => {
     await updateBall(ctx("e1"), edit(2));
     expect(ballLog(s)[0]!.runs_scored).toBe(6);
 
-    expect(matchOf(s).recent_client_actions).toEqual([
+    expect(memoryOf(s)).toEqual([
       "x1",
       "x2",
       "u1",

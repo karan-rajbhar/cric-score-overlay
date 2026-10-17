@@ -274,33 +274,9 @@ export default async function ClubPage({
     teamName?: string;
   } | null = null;
 
-  typedMatches.forEach((m) => {
-    m.innings?.forEach((inn) => {
-      const runs = inn.total_runs ?? 0;
-      const wickets = inn.total_wickets ?? 0;
-      const overs = inn.total_overs ?? 0;
-      totalRuns += runs;
-      totalWickets += wickets;
-
-      if (!highestTeamScore || runs > highestTeamScore.runs) {
-        const team =
-          inn.team_id === m.team1?.id
-            ? m.team1
-            : inn.team_id === m.team2?.id
-              ? m.team2
-              : null;
-        highestTeamScore = {
-          runs,
-          wickets,
-          overs,
-          teamName: team?.name ?? undefined,
-        };
-      }
-    });
-  });
-
   if (matchIds.length > 0) {
-    // The club's stored leaderboard (one read) plus innings still in play.
+    // The club's stored leaderboard (one read) plus innings still in play
+    // (which also brings the live matches' scores below up to date).
     leaderboardData = await loadScopeLeaderboard(
       db,
       "club",
@@ -331,6 +307,31 @@ export default async function ClubPage({
       economy: bw.economyDisplay,
     }));
   }
+
+  typedMatches.forEach((m) => {
+    m.innings?.forEach((inn) => {
+      const runs = inn.total_runs ?? 0;
+      const wickets = inn.total_wickets ?? 0;
+      const overs = inn.total_overs ?? 0;
+      totalRuns += runs;
+      totalWickets += wickets;
+
+      if (!highestTeamScore || runs > highestTeamScore.runs) {
+        const team =
+          inn.team_id === m.team1?.id
+            ? m.team1
+            : inn.team_id === m.team2?.id
+              ? m.team2
+              : null;
+        highestTeamScore = {
+          runs,
+          wickets,
+          overs,
+          teamName: team?.name ?? undefined,
+        };
+      }
+    });
+  });
 
   const milestones: ClubMilestones = {
     totalMatches: typedMatches.length,

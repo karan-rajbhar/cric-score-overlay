@@ -19,6 +19,7 @@ import {
   SYNTHETIC_ROSTERS,
   syntheticTables,
 } from "../scoring/__fixtures__/golden";
+import { logicalMatch } from "../scoring/__fixtures__/legacy";
 import { stage2Driver, type Stage2Side } from "../scoring/__fixtures__/stage2";
 import { recomputeInnings } from "../scoring/recompute";
 import type { InningsRow, MatchesRow } from "../types";
@@ -37,8 +38,12 @@ const innings = (side: Stage2Side, n: number) =>
   side.ds.all("innings").find((i) => i.innings_number === n) as unknown as
     | InningsRow
     | undefined;
+/** The match with its position (derived from the current innings). */
 const match = (side: Stage2Side) =>
-  side.ds.all("matches").find((m) => m.id === "M") as unknown as MatchesRow;
+  logicalMatch(
+    side.ds.all("matches").find((m) => m.id === "M")!,
+    side.ds.all("innings"),
+  ) as unknown as MatchesRow;
 const live = (side: Stage2Side) =>
   side.ds
     .all("live_state")

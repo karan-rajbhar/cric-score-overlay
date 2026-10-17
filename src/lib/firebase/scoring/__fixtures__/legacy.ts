@@ -2,10 +2,15 @@
  * Test fixtures: the previous (full-read) implementations of the live
  * scoreboard view and `record_state`, kept verbatim as the reference the
  * cheaper versions are compared against, plus a read/write counter.
+ *
+ * One change: they read the match through {@link readLogicalMatch}, i.e.
+ * with `current_over` / `current_ball` / `last_ball_seq` as the engine kept
+ * them on the match before those moved to the current innings (see
+ * `logicalMatch` in golden.ts).
  */
 
 import type { ScoringState } from "~/app/matches/types";
-import type { DataSource } from "../../datasource";
+import type { DataSource, Doc } from "../../datasource";
 import { DbQueryError } from "../../query-builder";
 import type {
   BallByBallRow,
@@ -20,6 +25,43 @@ import type {
   UsersRow,
 } from "../../types";
 import { inningsLimits } from "../result";
+import { matchPositionOf } from "~/lib/match-position";
+import { seqCounterOf } from "../../scorecard";
+
+/**
+ * The match row as the engine before the per-ball fields moved stored it:
+ * `current_over` / `current_ball` are the current innings' position, and
+ * `last_ball_seq` the match's seq counter, now held by the current innings
+ * (the larger of the legacy field and the innings' counters, which is
+ * exactly the last seq the match assigned: the counter never goes back).
+ * The match is no longer written per ball, so its stored copies may be
+ * behind; every other field is compared as stored.
+ */
+export function logicalMatch(match: Doc, innings: readonly Doc[]): Doc {
+  const m = match as unknown as MatchesRow;
+  const list = innings as unknown as InningsRow[];
+  const current =
+    list.find((i) => i.innings_number === (m.current_innings ?? 1)) ?? null;
+  const counter = seqCounterOf(m, ...list);
+  return {
+    ...match,
+    ...(current ? matchPositionOf(m, current) : {}),
+    last_ball_seq: counter === null ? (m.last_ball_seq ?? null) : counter,
+  };
+}
+
+/** The match as the engine stored it before the per-ball fields moved. */
+async function readLogicalMatch(
+  ds: DataSource,
+  matchId: string,
+): Promise<MatchesRow | null> {
+  const match = await ds.getById("matches", matchId);
+  if (!match) return null;
+  const innings = await ds.query("innings", [
+    { field: "match_id", op: "==", value: matchId },
+  ]);
+  return logicalMatch(match, innings) as unknown as MatchesRow;
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -37,10 +79,7 @@ export async function legacyBuildLiveMatchState(
   ds: DataSource,
   matchId: string,
 ): Promise<LiveMatchStateRow | null> {
-  const match = (await ds.getById(
-    "matches",
-    matchId,
-  )) as unknown as MatchesRow | null;
+  const match = await readLogicalMatch(ds, matchId);
   if (!match) return null;
 
   const teamIds = Array.from(
@@ -260,10 +299,7 @@ export async function legacyRecordState(
   ds: DataSource,
   matchId: string,
 ): Promise<ScoringState> {
-  const match = (await ds.getById(
-    "matches",
-    matchId,
-  )) as unknown as MatchesRow | null;
+  const match = await readLogicalMatch(ds, matchId);
   if (!match) throw new DbQueryError("match_not_found", "22000");
 
   const inningsDocs = (await ds.query("innings", [

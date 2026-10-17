@@ -93,11 +93,16 @@ async function run(
   }
 }
 
+type ActionMemory = {
+  recent_client_actions?: string[] | null;
+  current_innings?: number | null;
+};
+
 /**
  * Client action ids the match has already applied (the engine's own
- * memory, `matches.recent_client_actions`), to report a replay as
- * "duplicate". The engine still refuses a duplicate on its own; this read
- * only labels it.
+ * memory: `recent_client_actions` on the match and on its current innings),
+ * to report a replay as "duplicate". The engine still refuses a duplicate
+ * on its own; these reads only label it.
  */
 async function appliedActionIds(
   db: ServerClient,
@@ -105,12 +110,21 @@ async function appliedActionIds(
 ): Promise<Set<string>> {
   const { data } = await db
     .from("matches")
-    .select("recent_client_actions")
+    .select("recent_client_actions, current_innings")
     .eq("id", matchId)
     .maybeSingle();
-  const ids = (data as { recent_client_actions?: string[] | null } | null)
-    ?.recent_client_actions;
-  return new Set(Array.isArray(ids) ? ids : []);
+  const match = data as ActionMemory | null;
+  const { data: innings } = await db
+    .from("innings")
+    .select("recent_client_actions")
+    .eq("match_id", matchId)
+    .eq("innings_number", match?.current_innings ?? 1)
+    .maybeSingle();
+  const ids = [
+    ...(match?.recent_client_actions ?? []),
+    ...((innings as ActionMemory | null)?.recent_client_actions ?? []),
+  ];
+  return new Set(ids);
 }
 
 /**

@@ -8,6 +8,7 @@
  */
 
 import type { ScoringState } from "~/app/matches/types";
+import { positionOf } from "~/lib/match-position";
 import { DbQueryError } from "../query-builder";
 import type { DocReader } from "../scoring/tx";
 import type {
@@ -65,13 +66,14 @@ export function composeScoringState(p: ScoringStateParts): ScoringState {
   const live = match.status === "live";
   const completed = innings.is_completed ?? false;
   const atOverBoundary = totalBalls > 0 && totalBalls % bpo === 0;
+  const position = positionOf(totalBalls, bpo);
 
   return {
     ok: true,
     status: match.status ?? "scheduled",
     current_innings: match.current_innings ?? 1,
-    current_over: match.current_over ?? 0,
-    current_ball: match.current_ball ?? 0,
+    current_over: position.current_over,
+    current_ball: position.current_ball,
     total_runs: innings.total_runs ?? 0,
     total_wickets: innings.total_wickets ?? 0,
     total_balls: totalBalls,

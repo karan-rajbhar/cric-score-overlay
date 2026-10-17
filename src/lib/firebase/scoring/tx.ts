@@ -45,6 +45,21 @@ export abstract class ScoringTx implements DocReader {
   private readonly writes = new Map<string, PendingWrite>();
   /** Documents read in this transaction, as stored (before its writes). */
   private readonly seen = new Map<string, Doc>();
+  private readonly commitHooks: Array<() => void | Promise<void>> = [];
+
+  /**
+   * Run `fn` once every other write is staged (derived fields included),
+   * just before the transaction commits; it may stage more writes.
+   */
+  beforeCommit(fn: () => void | Promise<void>): void {
+    this.commitHooks.push(fn);
+  }
+
+  /** Runs the {@link beforeCommit} hooks (once). */
+  async runCommitHooks(): Promise<void> {
+    const hooks = this.commitHooks.splice(0);
+    for (const fn of hooks) await fn();
+  }
 
   protected remember(table: string, docs: Doc[]): Doc[] {
     for (const d of docs) this.seen.set(`${table}/${d.id}`, d);
@@ -54,6 +69,16 @@ export abstract class ScoringTx implements DocReader {
   /** A document already read in this transaction (as stored), if any. */
   known<T = Doc>(table: string, id: string): WithId<T> | null {
     return (this.seen.get(`${table}/${id}`) as unknown as WithId<T>) ?? null;
+  }
+
+  /** Every document of `table` read in this transaction (as stored). */
+  knownIn<T = Doc>(table: string): WithId<T>[] {
+    const prefix = `${table}/`;
+    const out: WithId<T>[] = [];
+    for (const [key, doc] of this.seen) {
+      if (key.startsWith(prefix)) out.push(doc as unknown as WithId<T>);
+    }
+    return out;
   }
 
   /** The staged write for a document, if any. */
@@ -246,6 +271,7 @@ export function firestoreOf(ds: DataSource): Firestore | null {
 async function finalize(t: ScoringTx): Promise<void> {
   await stageInningsSummaries(t);
   await stageLiveScorecards(t);
+  await t.runCommitHooks();
 }
 
 /**

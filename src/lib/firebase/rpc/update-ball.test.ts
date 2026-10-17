@@ -8,6 +8,7 @@ import {
   SYNTHETIC_ROSTERS,
   syntheticTables,
 } from "../scoring/__fixtures__/golden";
+import { logicalMatch } from "../scoring/__fixtures__/legacy";
 import { stage2Driver } from "../scoring/__fixtures__/stage2";
 import { overDocIdOfBall, type OversRow } from "../scorecard";
 import { recomputeInningsRpc, updateBall } from "./scoring";
@@ -96,11 +97,22 @@ describe("update_ball", () => {
     for (let i = 0; i < 14; i += 1) {
       await replay.step({ kind: "ball", ball: { runs: i % 2 } });
     }
-    const current = () => side.ds.getById("matches", "M");
+    // The match with its position (derived from the current innings).
+    const current = async () =>
+      logicalMatch(
+        (await side.ds.getById("matches", "M"))!,
+        side.ds.all("innings"),
+      );
     const live = async () => {
       const doc = { ...(await side.ds.getById("live_state", "M"))! };
       // Change signals and who made the change (the edit itself).
-      for (const k of ["version", "updated_at", "overs_changed", "last_change"])
+      for (const k of [
+        "version",
+        "updated_at",
+        "overs_changed",
+        "innings_changed",
+        "last_change",
+      ])
         delete doc[k];
       return doc;
     };

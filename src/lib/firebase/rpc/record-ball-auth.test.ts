@@ -8,7 +8,8 @@ import {
   syntheticTables,
 } from "../scoring/__fixtures__/golden";
 import { stage2Driver } from "../scoring/__fixtures__/stage2";
-import type { MatchesRow } from "../types";
+import { seqCounterOf } from "../scorecard";
+import type { InningsRow, MatchesRow } from "../types";
 
 /**
  * The record_ball server action no longer checks scoring rights itself; the
@@ -22,9 +23,12 @@ async function setup() {
   );
   const replay = new GoldenReplay(side, "M", SYNTHETIC_ROSTERS);
   await replay.step({ kind: "ball", ball: { runs: 1 } });
+  // The match's seq counter (held by its current innings).
   const seq = async () =>
-    ((await side.ds.getById("matches", "M")) as unknown as MatchesRow)
-      .last_ball_seq;
+    seqCounterOf(
+      (await side.ds.getById("matches", "M")) as unknown as MatchesRow,
+      ...(side.ds.all("innings") as unknown as InningsRow[]),
+    );
   const as = (uid: string | null) => {
     side.ctx = { ...side.ctx, uid };
   };

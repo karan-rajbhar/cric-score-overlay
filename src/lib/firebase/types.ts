@@ -300,6 +300,11 @@ export interface MatchesRow {
   toss_winner_team_id: string | null;
   toss_decision: string | null;
   current_innings: number | null;
+  /**
+   * Legacy copies of the current innings' position (no longer written per
+   * ball): read {@link matchPositionOf} (`~/lib/match-position`), which
+   * derives them from the current innings' `total_balls`.
+   */
   current_over: number | null;
   current_ball: number | null;
   weather_conditions: string | null;
@@ -322,12 +327,17 @@ export interface MatchesRow {
   wickets_per_innings: number | null;
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
-  /** Monotonic counter used to order ball_by_ball documents. */
+  /**
+   * Legacy home of the ball `seq` counter, no longer written: the counter
+   * lives on the current innings (`InningsRow.last_ball_seq`); readers take
+   * the larger of the two (`seqCounterOf` in `rpc/scoring.ts`).
+   */
   last_ball_seq: number | null;
   /**
-   * Ids of the last scoring actions sent with a client action id (offline
-   * queue replays), oldest first: a replay of one of them is not applied
-   * again (`rpc/scoring.ts`).
+   * Ids of the last scoring actions sent with a client action id, oldest
+   * first: a replay of one of them is not applied again (`rpc/scoring.ts`).
+   * Written here only by structural changes; per-ball actions record theirs
+   * on the current innings (`InningsRow.recent_client_actions`).
    */
   recent_client_actions?: string[] | null;
   /** Score line of each innings (stage 3, see `innings-summary.ts`). */
@@ -391,6 +401,22 @@ export interface InningsRow {
   partnerships?: PartnershipEntry[];
   last_ball?: LastBall | null;
   last_over_bowler_id?: string | null;
+  // Per-ball match fields moved here (see `scripts/migrate-per-ball-fields.mjs`).
+  /**
+   * The match's ball `seq` counter while this is the current innings (the
+   * highest seq assigned in the match so far); carried to the next innings
+   * when it opens. Older matches keep it in `matches.last_ball_seq`.
+   */
+  last_ball_seq?: number | null;
+  /**
+   * Fielding-side penalty events logged in this innings for the other side
+   * (`penalty_team_id` set and not this innings' team), which that side's
+   * next innings starts with (Law 41.17). Kept by every ball-log rewrite so
+   * closing the innings needs no ball-log read; absent on older innings.
+   */
+  carried_penalties?: LastBall[] | null;
+  /** Client action ids applied while this is the current innings. */
+  recent_client_actions?: string[] | null;
 }
 
 /**

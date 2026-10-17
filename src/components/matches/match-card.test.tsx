@@ -122,6 +122,32 @@ describe("MatchCard live updates", () => {
     expect(getMatches).not.toHaveBeenCalled();
   });
 
+  it("shows the innings in progress once the live doc has corrected it", () => {
+    // The match summary does not follow every ball: its score of the
+    // innings in progress may be behind until live_state arrives.
+    const other = "11111111-2222-4333-8444-000000000002";
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          ...match,
+          id: other,
+          innings: liveMatch.innings!.map((i) => ({
+            ...i,
+            match_id: other,
+            total_runs: 40,
+            total_wickets: 1,
+          })),
+        })}
+      />,
+    );
+    expect(screen.queryByText("40/1")).not.toBeInTheDocument();
+    const watch = watches.find(
+      (w) => w.table === "live_state" && w.id === other,
+    );
+    act(() => watch!.next({ ...liveDoc(9, 98), match_id: other }));
+    expect(screen.getByText("98/3")).toBeInTheDocument();
+  });
+
   it("does not listen for matches that are not live", () => {
     const before = watches.length;
     renderCard(
