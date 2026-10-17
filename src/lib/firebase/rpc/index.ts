@@ -88,6 +88,7 @@ export async function callRpc(
         p_runs: Number(args.p_runs),
         p_type: str(args, "p_type"),
         p_reason: optStr(args, "p_reason"),
+        p_team_id: optStr(args, "p_team_id"),
       });
     case "retire_batter":
       return retireBatter(scoring, {

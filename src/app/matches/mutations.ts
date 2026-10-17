@@ -1205,30 +1205,19 @@ export async function awardTeamPenalty(
       return { success: false, error: "No active innings found to award penalty" };
     }
 
-    const isBattingTeam = currentInnings.team_id === params.teamId;
-
-    if (isBattingTeam) {
-      // Logged in the ball log at the current crease, then the innings is
-      // recomputed (one transaction).
-      const { error: awardErr } = await db.rpc("award_penalty_runs", {
-        p_match_id: matchId,
-        p_runs: params.runs,
-        p_type: awardType,
-        p_reason: params.reason,
-      });
-      if (awardErr) {
-        return { success: false, error: friendlyError(awardErr.message) };
-      }
-    } else {
-      // First-innings awards to the fielding side have nothing to adjust
-      // yet (there is no target); they were only ever logged before.
-      if (match.current_innings !== 1) {
-        const newTarget = Math.max(1, (currentInnings.target_runs ?? 0) - params.runs);
-        await db
-          .from("innings")
-          .update({ target_runs: newTarget })
-          .eq("id", currentInnings.id);
-      }
+    // Logged in the ball log and recomputed in one transaction. To the
+    // batting side: at the current crease. To the fielding side (Law
+    // 41.17): added to their latest innings (raising the target), or
+    // credited to their upcoming innings when they have not batted yet.
+    const { error: awardErr } = await db.rpc("award_penalty_runs", {
+      p_match_id: matchId,
+      p_runs: params.runs,
+      p_type: awardType,
+      p_reason: params.reason,
+      p_team_id: params.teamId,
+    });
+    if (awardErr) {
+      return { success: false, error: friendlyError(awardErr.message) };
     }
 
     await refreshLiveState(db, matchId);

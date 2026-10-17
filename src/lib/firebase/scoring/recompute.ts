@@ -33,7 +33,8 @@ export interface RecomputeInput {
     | "noball_extras_to_batsman"
     | "wide_counts_as_ball_faced"
   >;
-  innings: Pick<InningsRow, "id" | "match_id">;
+  innings: Pick<InningsRow, "id" | "match_id"> &
+    Partial<Pick<InningsRow, "team_id">>;
   /** Ball log for this innings in `seq` order. */
   balls: BallInput[];
   existingBatting: BattingPerformancesRow[];
@@ -71,6 +72,19 @@ export function isLegalDelivery(
   if (!ball.bowler_id) return false;
   const t = ball.extra_type;
   return !(t === "wide" || t === "no_ball" || t === "penalty" || t === "bonus");
+}
+
+/**
+ * Whether a fielding-side penalty event (`penalty_team_id` set) adds runs to
+ * this innings: only when that team bats it. The event is logged in that
+ * team's latest innings when they have batted; otherwise in the innings in
+ * progress, and starting their innings carries a copy into its ball log.
+ */
+export function penaltyCountsFor(
+  ball: Pick<BallInput, "penalty_team_id">,
+  innings: Partial<Pick<InningsRow, "team_id">>,
+): boolean {
+  return !!ball.penalty_team_id && ball.penalty_team_id === innings.team_id;
 }
 
 function bowlerConcedes(ball: BallInput): number {
@@ -203,6 +217,17 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
   }
 
   for (const ball of balls) {
+    // Penalty runs awarded to a fielding side (see `penaltyCountsFor`): only
+    // runs for the team that bats this innings; no effect on the crease,
+    // the over or the bowler.
+    if (ball.penalty_team_id) {
+      if (penaltyCountsFor(ball, innings)) {
+        totalRuns += (ball.runs_scored ?? 0) + (ball.extras ?? 0);
+        if (ball.extra_type === "bonus") extrasBonuses += ball.extras ?? 0;
+        else extrasPenalties += ball.extras ?? 0;
+      }
+      continue;
+    }
     const legalBall = isLegalDelivery(ball);
     const runs = ball.runs_scored ?? 0;
     const extras = ball.extras ?? 0;

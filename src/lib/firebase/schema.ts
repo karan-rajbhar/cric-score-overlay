@@ -383,6 +383,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "dismissed_player_id",
     "commentary",
     "shot_zone",
+    "penalty_team_id",
     "seq",
     "created_at",
   ],

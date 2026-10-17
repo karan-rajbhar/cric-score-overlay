@@ -448,6 +448,12 @@ export interface BallByBallRow {
   dismissed_player_id: string | null;
   commentary: string | null;
   shot_zone: string | null;
+  /**
+   * Penalty runs awarded to the fielding side (Law 41.17): the team they
+   * belong to. Such an event counts only towards the innings that team
+   * bats; absent on every other ball.
+   */
+  penalty_team_id?: string | null;
   seq: number;
   created_at: string | null;
 }
