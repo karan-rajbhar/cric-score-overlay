@@ -74,6 +74,9 @@ export async function callRpc(
     uid: ctx.uid,
     // Offline-queue replays: an action already applied is not applied again.
     clientActionId: optStr(args, "p_client_action_id"),
+    // For live_state.last_change (who scored last), from the session.
+    scorerName:
+      ctx.user?.user_metadata?.full_name ?? ctx.user?.user_metadata?.name ?? null,
   };
   switch (name) {
     case "record_ball":

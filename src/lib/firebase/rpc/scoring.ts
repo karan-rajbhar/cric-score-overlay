@@ -41,6 +41,7 @@ import {
   stagedOverIds,
   writeLiveState,
   type LiveStateDoc,
+  type LiveStateLastChange,
 } from "../live-state";
 import { DbQueryError, newId } from "../query-builder";
 import {
@@ -128,6 +129,8 @@ export interface ScoringContext {
    * again; see {@link guardClientAction}.
    */
   clientActionId?: string | null;
+  /** The caller's display name, for `live_state.last_change`. */
+  scorerName?: string | null;
 }
 
 /** How many recent client action ids a match remembers. */
@@ -592,18 +595,33 @@ async function runOnce<R>(
   );
 }
 
+/**
+ * `live_state.last_change` for a ball-log change made by this caller (no
+ * read: the name comes from the session), or undefined to keep the
+ * previous one.
+ */
+function lastChangeBy(
+  ctx: ScoringContext,
+  now: string,
+): LiveStateLastChange | undefined {
+  return ctx.uid
+    ? { uid: ctx.uid, name: ctx.scorerName ?? null, at: now }
+    : undefined;
+}
+
 async function finishWithState(
   ctx: ScoringContext,
   matchId: string,
   before: MatchesRow | null,
   overs: string[],
+  lastChange?: LiveStateLastChange,
 ): Promise<ScoringState> {
   const after = (await ctx.ds.getById(
     "matches",
     matchId,
   )) as unknown as MatchesRow | null;
   await maybeRecalculateStandings(ctx.ds, before, after);
-  await writeLiveState(ctx.ds, matchId, ctx.db, overs);
+  await writeLiveState(ctx.ds, matchId, ctx.db, overs, lastChange);
   return recordState(ctx.ds, matchId, after);
 }
 
@@ -805,6 +823,7 @@ async function recordBallIncremental(
   args: RecordBallArgs,
   checked: CheckedBall,
   now: string,
+  lastChange?: LiveStateLastChange,
 ): Promise<RecordOutcome | null> {
   if (
     match.max_balls_per_over !== null &&
@@ -985,7 +1004,7 @@ async function recordBallIncremental(
     loadNames(t, ids, prevLive?.refs?.names ?? {}),
     findLastOverBowler(t, currentInnings, bpo, lastBall),
   ]);
-  await stageLiveState(t, liveParts, prevLive, now, header, names);
+  await stageLiveState(t, liveParts, prevLive, now, header, names, lastChange);
 
   const state = composeScoringState({
     match: matchAfter,
@@ -1076,6 +1095,7 @@ export async function recordBall(
 ): Promise<ScoringState> {
   const matchId = args.p_match_id;
   const now = new Date().toISOString();
+  const lastChange = lastChangeBy(ctx, now);
   const tracked = await onceOnly(
     () =>
       runTracked(ctx, async (t) => {
@@ -1096,6 +1116,7 @@ export async function recordBall(
             args,
             checked,
             now,
+            lastChange,
           );
           if (fast) return fast;
         }
@@ -1113,7 +1134,7 @@ export async function recordBall(
     await maybeRecalculateStandings(ctx.ds, before, outcome.after);
     state = outcome.state;
   } else {
-    state = await finishWithState(ctx, matchId, before, overs);
+    state = await finishWithState(ctx, matchId, before, overs, lastChange);
   }
   if (state.current_innings !== (before.current_innings ?? 1)) {
     state.innings_break = true;
@@ -1146,7 +1167,7 @@ export async function undoLastBall(
   );
   if (!tracked) return recordState(ctx.ds, matchId);
   const [before, overs] = tracked;
-  return finishWithState(ctx, matchId, before, overs);
+  return finishWithState(ctx, matchId, before, overs, lastChangeBy(ctx, now));
 }
 
 async function undoInTransaction(
@@ -1364,7 +1385,7 @@ export async function updateBall(
     return match;
   });
 
-  return finishWithState(ctx, matchId, before, overs);
+  return finishWithState(ctx, matchId, before, overs, lastChangeBy(ctx, now));
 }
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import { LiveMatchHUD } from "~/components/matches/live-match-hud";
 import dynamic from "next/dynamic";
 import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
+import { OtherScorerNotice } from "./components/OtherScorerNotice";
 
 const TossDialog = dynamic(
   () => import("./components/TossDialog").then((m) => m.TossDialog),
@@ -907,6 +908,8 @@ export default function ScoringPage() {
 
           {/* Right: Quick Tools & Consolidated Actions Menu */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {/* Someone else scored this match in the last ~2 minutes */}
+            <OtherScorerNotice matchId={matchId} userId={user?.id} />
             {/* Offline indicator */}
             {isOffline && (
               <span

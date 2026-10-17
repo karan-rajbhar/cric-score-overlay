@@ -99,7 +99,9 @@ describe("update_ball", () => {
     const current = () => side.ds.getById("matches", "M");
     const live = async () => {
       const doc = { ...(await side.ds.getById("live_state", "M"))! };
-      for (const k of ["version", "updated_at", "overs_changed"]) delete doc[k];
+      // Change signals and who made the change (the edit itself).
+      for (const k of ["version", "updated_at", "overs_changed", "last_change"])
+        delete doc[k];
       return doc;
     };
     const inn2 = async () => {
