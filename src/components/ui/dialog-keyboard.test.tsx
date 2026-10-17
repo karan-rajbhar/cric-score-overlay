@@ -24,12 +24,29 @@ function renderDialog() {
   );
 }
 
+const realMatchMedia = window.matchMedia;
+const realScrollIntoView = Element.prototype.scrollIntoView;
+
 describe("dialogs and the on-screen keyboard", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     Element.prototype.scrollIntoView = vi.fn();
   });
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    window.matchMedia = realMatchMedia;
+    Element.prototype.scrollIntoView = realScrollIntoView;
+  });
+
+  it("works where matchMedia is unavailable (no phone detection)", () => {
+    // jsdom and some embedded browsers have no matchMedia.
+    window.matchMedia = undefined as unknown as typeof window.matchMedia;
+    renderDialog();
+    const email = screen.getByLabelText("Email");
+    expect(() => act(() => email.focus())).not.toThrow();
+    act(() => vi.advanceTimersByTime(300));
+    expect(email.scrollIntoView).not.toHaveBeenCalled();
+  });
 
   it("anchors to the visible viewport on phones instead of the screen centre", () => {
     mockPhone(true);

@@ -39,6 +39,7 @@ function revealFocusedField(target: EventTarget) {
     !target.matches(
       "input:not([type=checkbox]):not([type=radio]), textarea, [contenteditable=true]",
     ) ||
+    typeof window.matchMedia !== "function" ||
     !window.matchMedia("(max-width: 639px)").matches
   ) {
     return;
