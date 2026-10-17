@@ -162,8 +162,18 @@ import {
   Compass,
   HeartPulse,
   Crosshair,
+  Share2,
+  MessageCircle,
 } from "lucide-react";
-import { economyRate } from "~/lib/cricket";
+import { economyRate, inningsBalls, oversFromBalls } from "~/lib/cricket";
+import { ShareMatchButton } from "~/components/matches/share-match-button";
+import {
+  liveShareText,
+  matchShareUrl,
+  matchTitle,
+  shareMatch,
+  whatsappShareUrl,
+} from "~/lib/share-match";
 import { LiveIndicator } from "~/components/matches/live-indicator";
 
 export default function ScoringPage() {
@@ -341,6 +351,24 @@ export default function ScoringPage() {
       ? match?.team1
       : match?.team2
     : match?.team1;
+  // Message for sharing the live score (header icon and Match Tools).
+  const shareScore = {
+    team1: match?.team1?.name,
+    team2: match?.team2?.name,
+    battingTeam: battingTeam?.name,
+    runs: currentInnings?.total_runs,
+    wickets: currentInnings?.total_wickets,
+    overs: currentInnings
+      ? oversFromBalls(
+          inningsBalls(currentInnings, match?.balls_per_over ?? 6),
+          match?.balls_per_over ?? 6,
+        )
+      : null,
+    status: match?.status,
+  };
+  const shareTitle = matchTitle(shareScore);
+  const shareText = liveShareText(shareScore);
+
   const bowlingTeam = currentInnings
     ? currentInnings.team_id === match?.team1_id
       ? match?.team2
@@ -1020,6 +1048,15 @@ export default function ScoringPage() {
               <Users className="h-4 w-4" />
             </Button>
 
+            {/* Share the live score (WhatsApp etc.) */}
+            <ShareMatchButton
+              matchId={match.id}
+              title={shareTitle}
+              text={shareText}
+              label="Share live score"
+              className="h-8 w-8 rounded-lg p-0 sm:w-auto sm:px-2.5"
+            />
+
             {/* OBS Broadcast Overlay Shortcut */}
             <Button
               variant="outline"
@@ -1151,6 +1188,39 @@ export default function ScoringPage() {
                     }
                   />
                 )}
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                  Share
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void shareMatch(
+                      matchShareUrl(match.id),
+                      shareTitle,
+                      shareText,
+                    ).then((outcome) => {
+                      if (outcome === "copied") toast.success("Link copied");
+                    });
+                  }}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+                >
+                  <Share2 className="h-4 w-4 text-muted-foreground" />
+                  <span>Share live score</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href={whatsappShareUrl(
+                      `${shareText}\n${matchShareUrl(match.id)}`,
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+                  >
+                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                    <span>Share on WhatsApp</span>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => setShowInviteDialog(true)}
                   className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
