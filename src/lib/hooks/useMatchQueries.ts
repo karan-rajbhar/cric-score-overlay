@@ -102,6 +102,8 @@ export interface WizardTeam {
   created_by?: string | null;
   captain_id?: string | null;
   vice_captain_id?: string | null;
+  /** Squad size from the team's roster copy; null when it has none. */
+  player_count?: number | null;
 }
 
 export interface WizardTournament {
@@ -144,7 +146,7 @@ export function useMatchWizardDataQuery(userId?: string | null) {
           db
             .from("teams")
             .select(
-              "id, name, short_name, club_id, created_by, captain_id, vice_captain_id",
+              "id, name, short_name, club_id, created_by, captain_id, vice_captain_id, roster",
             )
             .order("name"),
           db
@@ -188,7 +190,14 @@ export function useMatchWizardDataQuery(userId?: string | null) {
       }
 
       return {
-        teams: (teamRes.data ?? []) as WizardTeam[],
+        // Squad size from `roster`, on the team doc already read.
+        teams: (teamRes.data ?? []).map((row) => {
+          const { roster, ...team } = row as WizardTeam & { roster?: unknown };
+          return {
+            ...team,
+            player_count: Array.isArray(roster) ? roster.length : null,
+          };
+        }),
         tournaments: (tournRes.data ?? []) as WizardTournament[],
         clubs: (clubRes.data ?? []) as WizardClub[],
         playerTeamIds,

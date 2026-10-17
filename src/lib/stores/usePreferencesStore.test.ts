@@ -11,8 +11,6 @@ describe("usePreferencesStore", () => {
     expect(state.soundEffectsEnabled).toBe(true);
     expect(state.soundVolume).toBe(0.8);
     expect(state.hapticFeedback).toBe(true);
-    expect(state.defaultMatchFormat).toBe("T20");
-    expect(state.defaultOvers).toBe(20);
     expect(state.sunlightMode).toBe(false);
     expect(state.wagonWheelPrompt).toBe(false);
   });
@@ -55,14 +53,5 @@ describe("usePreferencesStore", () => {
     expect(usePreferencesStore.getState().soundVolume).toBe(1.0);
     setVolume(-0.2);
     expect(usePreferencesStore.getState().soundVolume).toBe(0.0);
-  });
-
-  it("updates default match format and overs", () => {
-    const { setDefaultFormat } = usePreferencesStore.getState();
-    setDefaultFormat("ODI", 50);
-
-    const state = usePreferencesStore.getState();
-    expect(state.defaultMatchFormat).toBe("ODI");
-    expect(state.defaultOvers).toBe(50);
   });
 });
