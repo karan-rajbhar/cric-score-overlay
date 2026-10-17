@@ -1510,6 +1510,7 @@ export function useScoring(
     currentStriker: string | null,
     currentNonStriker: string | null,
     currentBowler: string | null,
+    { autoAssign = true }: { autoAssign?: boolean } = {},
   ) => {
     if (!target || !name.trim() || !currentMatch) return null;
     const currentInnings = currentMatch.innings?.find(
@@ -1547,7 +1548,9 @@ export function useScoring(
         setBowlingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (!currentStriker) {
+        if (!autoAssign) {
+          // The caller (a player picker) selects the new player itself.
+        } else if (!currentStriker) {
           setStrikerId(newPlayer.user_id);
         } else if (!currentNonStriker && currentStriker !== newPlayer.user_id) {
           setNonStrikerId(newPlayer.user_id);
@@ -1560,7 +1563,7 @@ export function useScoring(
         setBattingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (!currentBowler) setCurrentBowlerId(newPlayer.user_id);
+        if (autoAssign && !currentBowler) setCurrentBowlerId(newPlayer.user_id);
       }
       toast.success(`${result.data.full_name} added to squad`);
       await loadPlayers(currentMatch);

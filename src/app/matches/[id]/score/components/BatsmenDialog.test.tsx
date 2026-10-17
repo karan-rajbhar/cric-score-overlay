@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BatsmenDialog } from "./BatsmenDialog";
 import type { TeamPlayer } from "~/lib/match-types";
@@ -31,71 +31,164 @@ describe("BatsmenDialog", () => {
         onNonStrikerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
     expect(screen.getByText(/Select.*Batsmen/i)).toBeInTheDocument();
     expect(screen.getByText("Striker")).toBeInTheDocument();
-    expect(screen.getByText("Non-Striker")).toBeInTheDocument();
-    expect(screen.getByText("New player? Add to squad")).toBeInTheDocument();
+    expect(screen.getByText("Non-striker")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /Virat Kohli/ }),
+    ).toBeInTheDocument();
   });
 
-  it("shows input and Add button when addPlayerTarget is 'batting'", () => {
-    const handleAddPlayer = vi.fn();
-    const handleNameChange = vi.fn();
+  it("adds a new player inline and puts them in the open slot", async () => {
+    const onCreatePlayer = vi.fn().mockResolvedValue("user-new");
+    const onStrikerChange = vi.fn();
 
     render(
       <BatsmenDialog
         open={true}
         onOpenChange={vi.fn()}
         battingTeamPlayers={mockPlayers}
+        battingTeamName="Mumbai"
         strikerId={null}
         nonStrikerId={null}
-        onStrikerChange={vi.fn()}
+        onStrikerChange={onStrikerChange}
         onNonStrikerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget="batting"
-        newPlayerName="KL Rahul"
-        onNewPlayerNameChange={handleNameChange}
-        onAddPlayer={handleAddPlayer}
-        onAddPlayerTargetChange={vi.fn()}
+        onCreatePlayer={onCreatePlayer}
       />,
     );
 
-    const input = screen.getByPlaceholderText("Player name");
-    expect(input).toBeInTheDocument();
-    expect(input).toHaveValue("KL Rahul");
-
-    const addButton = screen.getByRole("button", { name: "Add" });
-    expect(addButton).toBeEnabled();
-
-    fireEvent.click(addButton);
-    expect(handleAddPlayer).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "KL Rahul" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Add .KL Rahul. to Mumbai/ }),
+    );
+    await waitFor(() =>
+      expect(onCreatePlayer).toHaveBeenCalledWith("KL Rahul"),
+    );
+    await waitFor(() =>
+      expect(onStrikerChange).toHaveBeenCalledWith("user-new"),
+    );
   });
 
-  it("disables Confirm button when striker or non-striker is missing", () => {
+  it("fills the striker then the non-striker with two taps", () => {
+    const onStrikerChange = vi.fn();
+    const onNonStrikerChange = vi.fn();
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      battingTeamPlayers: mockPlayers,
+      onStrikerChange,
+      onNonStrikerChange,
+      onConfirm: vi.fn(),
+      isProcessing: false,
+    };
+    const { rerender } = render(
+      <BatsmenDialog {...props} strikerId={null} nonStrikerId={null} />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: /Virat Kohli/ }));
+    expect(onStrikerChange).toHaveBeenCalledWith("user-1");
+
+    rerender(
+      <BatsmenDialog {...props} strikerId="user-1" nonStrikerId={null} />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
+    expect(onNonStrikerChange).toHaveBeenCalledWith("user-2");
+  });
+
+  it("preselects the next batter after a wicket and confirms in one tap", () => {
+    const onConfirm = vi.fn();
+    const onNonStrikerChange = vi.fn();
+    const players: TeamPlayer[] = [
+      ...mockPlayers,
+      {
+        id: "tp-3",
+        team_id: "team-1",
+        user_id: "user-3",
+        user: { id: "user-3", full_name: "Shubman Gill" },
+      },
+    ];
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        battingPerformances={[
+          {
+            id: "bp-2",
+            match_id: "m",
+            innings_id: "i",
+            user_id: "user-2",
+            runs_scored: 12,
+            balls_faced: 9,
+            fours: 2,
+            sixes: 0,
+            is_out: true,
+            dismissal_type: "bowled",
+          },
+        ]}
+        dismissedPlayerIds={new Set(["user-2"])}
+        strikerId="user-1"
+        nonStrikerId={null}
+        onStrikerChange={vi.fn()}
+        onNonStrikerChange={onNonStrikerChange}
+        onConfirm={onConfirm}
+        isProcessing={false}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: /Rohit Sharma/ }),
+    ).toHaveTextContent("Out");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onNonStrikerChange).toHaveBeenCalledWith("user-3");
+    expect(onConfirm).toHaveBeenCalledWith({
+      strikerId: "user-1",
+      nonStrikerId: "user-3",
+    });
+  });
+
+  it("swaps ends when the batter at the other end is picked", () => {
+    const onStrikerChange = vi.fn();
+    const onNonStrikerChange = vi.fn();
     render(
       <BatsmenDialog
         open={true}
         onOpenChange={vi.fn()}
         battingTeamPlayers={mockPlayers}
         strikerId="user-1"
+        nonStrikerId="user-2"
+        onStrikerChange={onStrikerChange}
+        onNonStrikerChange={onNonStrikerChange}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
+    expect(onStrikerChange).toHaveBeenCalledWith("user-2");
+    expect(onNonStrikerChange).toHaveBeenCalledWith("user-1");
+  });
+
+  it("disables Confirm button when striker or non-striker is missing", () => {
+    // Nobody is left to suggest, so the empty end stays empty.
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={mockPlayers}
+        dismissedPlayerIds={new Set(["user-2"])}
+        strikerId="user-1"
         nonStrikerId={null}
         onStrikerChange={vi.fn()}
         onNonStrikerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -117,11 +210,6 @@ describe("BatsmenDialog", () => {
         onNonStrikerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -149,11 +237,6 @@ describe("BatsmenDialog", () => {
         onNonStrikerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -174,11 +257,6 @@ describe("BatsmenDialog", () => {
         onNonStrikerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -209,11 +287,6 @@ describe("BatsmenDialog", () => {
         onNonStrikerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 

@@ -1,9 +1,7 @@
 "use client";
 
-import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
-
+import { useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -11,20 +9,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { UserPlus, X } from "lucide-react";
-import type { TeamPlayer } from "~/lib/match-types";
+import { cn } from "~/lib/utils";
+import type { BattingPerformance, TeamPlayer } from "~/lib/match-types";
+import { PlayerPicker } from "./PlayerPicker";
+import { buildBatterRows } from "./player-rows";
+
+type Slot = "striker" | "nonStriker";
 
 interface BatsmenDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   battingTeamPlayers: TeamPlayer[];
+  battingTeamName?: string;
+  /** This innings' batting figures (runs/balls, out, retired). */
+  battingPerformances?: BattingPerformance[];
   bowlingTeamPlayerIds?: Set<string>;
   currentBowlerId?: string | null;
   strikerId: string | null;
@@ -32,19 +30,21 @@ interface BatsmenDialogProps {
   dismissedPlayerIds?: Set<string>;
   onStrikerChange: (v: string) => void;
   onNonStrikerChange: (v: string) => void;
-  onConfirm: () => void;
+  /** Receives the pair to confirm, including a preselected next batter. */
+  onConfirm: (pair: { strikerId: string; nonStrikerId: string }) => void;
   isProcessing: boolean;
-  addPlayerTarget?: string | null;
-  newPlayerName?: string;
-  onNewPlayerNameChange?: (v: string) => void;
-  onAddPlayer: () => void;
-  onAddPlayerTargetChange?: (v: "batting" | "bowling" | null) => void;
+  /** Creates a player in the batting side; resolves to the new id. */
+  onCreatePlayer?: (name: string) => Promise<string | null>;
+  /** Set while adding is impossible (e.g. offline). */
+  addPlayerDisabledReason?: string | null;
 }
 
 export function BatsmenDialog({
   open,
   onOpenChange,
   battingTeamPlayers,
+  battingTeamName,
+  battingPerformances,
   bowlingTeamPlayerIds,
   currentBowlerId,
   strikerId,
@@ -54,183 +54,171 @@ export function BatsmenDialog({
   onNonStrikerChange,
   onConfirm,
   isProcessing,
-  addPlayerTarget: addPlayerTargetProp,
-  newPlayerName: newPlayerNameProp,
-  onNewPlayerNameChange,
-  onAddPlayer,
-  onAddPlayerTargetChange,
+  onCreatePlayer,
+  addPlayerDisabledReason,
 }: BatsmenDialogProps) {
-  // When uncontrolled, subscribe straight to the store so typing only
-  // re-renders this dialog instead of the whole scoring page.
-  const storeAddPlayerTarget = useScoringUIStore((s) => s.addPlayerTarget);
-  const storeSetAddPlayerTarget = useScoringUIStore(
-    (s) => s.setAddPlayerTarget,
-  );
-  const storeNewPlayerName = useScoringUIStore((s) => s.newPlayerName);
-  const storeSetNewPlayerName = useScoringUIStore((s) => s.setNewPlayerName);
+  const firstEmpty: Slot =
+    !strikerId && nonStrikerId
+      ? "striker"
+      : !nonStrikerId && strikerId
+        ? "nonStriker"
+        : "striker";
+  const [activeSlot, setActiveSlot] = useState<Slot>(firstEmpty);
+  // Point at the empty slot each time the dialog opens.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setActiveSlot(firstEmpty);
+  }
 
-  const addPlayerTarget = addPlayerTargetProp ?? storeAddPlayerTarget;
-  const newPlayerName = newPlayerNameProp ?? storeNewPlayerName;
-  const handleNameChange = onNewPlayerNameChange ?? storeSetNewPlayerName;
-  const handleTargetChange =
-    onAddPlayerTargetChange ?? storeSetAddPlayerTarget;
-  const uniquePlayers = Array.from(
-    new Map(
-      battingTeamPlayers
-        .filter(
-          (p) =>
-            p &&
-            p.user_id &&
-            (!bowlingTeamPlayerIds || !bowlingTeamPlayerIds.has(p.user_id)),
-        )
-        .map((p) => [p.user_id, p]),
-    ).values(),
+  const { rows, nextInId } = useMemo(
+    () =>
+      buildBatterRows({
+        players: battingTeamPlayers,
+        performances: battingPerformances,
+        dismissedIds: dismissedPlayerIds,
+        excludeIds: bowlingTeamPlayerIds,
+        bowlerId: currentBowlerId,
+        strikerId,
+        nonStrikerId,
+      }),
+    [
+      battingTeamPlayers,
+      battingPerformances,
+      dismissedPlayerIds,
+      bowlingTeamPlayerIds,
+      currentBowlerId,
+      strikerId,
+      nonStrikerId,
+    ],
   );
 
-  const isStrikerOpponent = Boolean(
-    (currentBowlerId && strikerId === currentBowlerId) ||
-      (strikerId && bowlingTeamPlayerIds?.has(strikerId)),
-  );
-  const isNonStrikerOpponent = Boolean(
-    (currentBowlerId && nonStrikerId === currentBowlerId) ||
-      (nonStrikerId && bowlingTeamPlayerIds?.has(nonStrikerId)),
-  );
+  // After a wicket one end is empty: suggest the next batter in, but only
+  // apply it when the scorer confirms.
+  const suggestion =
+    nextInId && Boolean(strikerId) !== Boolean(nonStrikerId) ? nextInId : null;
+  const draftStriker = strikerId ?? suggestion;
+  const draftNonStriker = nonStrikerId ?? (strikerId ? suggestion : null);
+
+  const nameOf = (id: string | null) =>
+    id ? (rows.find((r) => r.id === id)?.name ?? "Unknown") : null;
+
+  const isOpponent = (id: string | null) =>
+    Boolean(
+      id &&
+        ((currentBowlerId && id === currentBowlerId) ||
+          bowlingTeamPlayerIds?.has(id)),
+    );
+
+  const select = (id: string) => {
+    const current = activeSlot === "striker" ? strikerId : nonStrikerId;
+    const other = activeSlot === "striker" ? nonStrikerId : strikerId;
+    const setThis =
+      activeSlot === "striker" ? onStrikerChange : onNonStrikerChange;
+    const setOther =
+      activeSlot === "striker" ? onNonStrikerChange : onStrikerChange;
+    if (id === current) return;
+    setThis(id);
+    if (id === other) {
+      // Picking the batter at the other end swaps the two.
+      if (current) setOther(current);
+    } else if (!other) {
+      setActiveSlot(activeSlot === "striker" ? "nonStriker" : "striker");
+    }
+  };
+
+  const createPlayer = onCreatePlayer
+    ? async (name: string) => onCreatePlayer(name)
+    : undefined;
+
+  const canConfirm =
+    Boolean(draftStriker && draftNonStriker) &&
+    draftStriker !== draftNonStriker &&
+    !isOpponent(draftStriker) &&
+    !isOpponent(draftNonStriker) &&
+    !isProcessing;
+
+  const confirm = () => {
+    if (!canConfirm || !draftStriker || !draftNonStriker) return;
+    if (draftStriker !== strikerId) onStrikerChange(draftStriker);
+    if (draftNonStriker !== nonStrikerId) onNonStrikerChange(draftNonStriker);
+    onConfirm({ strikerId: draftStriker, nonStrikerId: draftNonStriker });
+  };
+
+  const slotButton = (slot: Slot, label: string, id: string | null) => {
+    const active = activeSlot === slot;
+    const suggested =
+      id !== null &&
+      id === suggestion &&
+      id !== (slot === "striker" ? strikerId : nonStrikerId);
+    return (
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={() => setActiveSlot(slot)}
+        className={cn(
+          "flex min-h-14 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors",
+          active
+            ? "border-primary bg-primary/10"
+            : "border-border/70 bg-background hover:bg-muted",
+        )}
+      >
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span
+          className={cn(
+            "w-full truncate text-sm font-medium",
+            !id && "text-muted-foreground",
+          )}
+        >
+          {nameOf(id) ?? "Choose"}
+        </span>
+        {suggested && (
+          <span className="text-xs text-muted-foreground">Next in</span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Select / change batsmen</DialogTitle>
+          <DialogTitle>Select batsmen</DialogTitle>
           <DialogDescription>
-            Assign or replace the striker and non-striker at the crease. You
-            can correct wrong player selections at any point mid-game.
+            Tap a player to fill the highlighted end.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 pt-4">
-          <div>
-            <label className="text-sm font-medium">Striker</label>
-            <Select value={strikerId || ""} onValueChange={onStrikerChange}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Select striker" />
-              </SelectTrigger>
-              <SelectContent>
-                {uniquePlayers.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-muted-foreground">
-                    No players in squad yet. Add one below.
-                  </div>
-                ) : (
-                  uniquePlayers.map((player) => {
-                    const isNonStriker = player.user_id === nonStrikerId;
-                    const isOut = dismissedPlayerIds?.has(player.user_id);
-                    const isOpponent = Boolean(
-                      (currentBowlerId && player.user_id === currentBowlerId) ||
-                        bowlingTeamPlayerIds?.has(player.user_id),
-                    );
-                    return (
-                      <SelectItem
-                        key={player.user_id}
-                        value={player.user_id}
-                        disabled={isNonStriker || isOut || isOpponent}
-                      >
-                        {player.user?.full_name ?? "Unknown"}
-                        {isNonStriker ? " (Non-Striker)" : ""}
-                        {isOut ? " (Out)" : ""}
-                        {isOpponent ? " (Opposing Team / Bowling)" : ""}
-                      </SelectItem>
-                    );
-                  })
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm font-medium">Non-Striker</label>
-            <Select
-              value={nonStrikerId || ""}
-              onValueChange={onNonStrikerChange}
-            >
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder="Select non-striker" />
-              </SelectTrigger>
-              <SelectContent>
-                {uniquePlayers.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-muted-foreground">
-                    No players in squad yet. Add one below.
-                  </div>
-                ) : (
-                  uniquePlayers.map((player) => {
-                    const isStriker = player.user_id === strikerId;
-                    const isOut = dismissedPlayerIds?.has(player.user_id);
-                    const isOpponent = Boolean(
-                      (currentBowlerId && player.user_id === currentBowlerId) ||
-                        bowlingTeamPlayerIds?.has(player.user_id),
-                    );
-                    return (
-                      <SelectItem
-                        key={player.user_id}
-                        value={player.user_id}
-                        disabled={isStriker || isOut || isOpponent}
-                      >
-                        {player.user?.full_name ?? "Unknown"}
-                        {isStriker ? " (Striker)" : ""}
-                        {isOut ? " (Out)" : ""}
-                        {isOpponent ? " (Opposing Team / Bowling)" : ""}
-                      </SelectItem>
-                    );
-                  })
-                )}
-              </SelectContent>
-            </Select>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {slotButton("striker", "Striker", draftStriker)}
+            {slotButton("nonStriker", "Non-striker", draftNonStriker)}
           </div>
 
-          {addPlayerTarget === "batting" ? (
-            <div className="flex gap-2">
-              <Input
-                placeholder="Player name"
-                value={newPlayerName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && void onAddPlayer()}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void onAddPlayer()}
-                disabled={!newPlayerName.trim() || isProcessing}
-              >
-                Add
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Cancel adding player"
-                onClick={() => handleTargetChange(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => handleTargetChange("batting")}
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              <UserPlus className="h-3.5 w-3.5" /> New player? Add to squad
-            </button>
-          )}
+          <PlayerPicker
+            label={
+              activeSlot === "striker" ? "Choose striker" : "Choose non-striker"
+            }
+            rows={rows}
+            selectedId={
+              activeSlot === "striker" ? draftStriker : draftNonStriker
+            }
+            onSelect={select}
+            addPlayer={
+              createPlayer
+                ? {
+                    teamName: battingTeamName ?? "the batting side",
+                    onAdd: createPlayer,
+                    disabledReason: addPlayerDisabledReason,
+                  }
+                : undefined
+            }
+            emptyMessage="No players in the batting squad yet."
+          />
 
           <Button
-            className="w-full h-11 min-h-[44px] text-sm font-semibold"
-            onClick={onConfirm}
-            disabled={
-              !strikerId ||
-              !nonStrikerId ||
-              strikerId === nonStrikerId ||
-              isStrikerOpponent ||
-              isNonStrikerOpponent ||
-              isProcessing
-            }
+            className="h-11 w-full text-sm font-semibold"
+            onClick={confirm}
+            disabled={!canConfirm}
           >
             Confirm
           </Button>

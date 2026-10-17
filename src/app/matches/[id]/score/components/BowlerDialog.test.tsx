@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BowlerDialog } from "./BowlerDialog";
 import type { TeamPlayer } from "~/lib/match-types";
@@ -30,40 +30,28 @@ describe("BowlerDialog", () => {
         onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
     expect(
       screen.getByRole("heading", { name: /Bowler/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Choose the bowler/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("New player? Add to squad")).toBeInTheDocument();
+    expect(screen.getByText(/Choose the bowler/i)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Kishor/ })).toBeInTheDocument();
   });
 
-
   it("disables Confirm Bowler when currentBowlerId is null", () => {
+    // Two eligible bowlers: nothing is preselected.
     render(
       <BowlerDialog
         open={true}
         onOpenChange={vi.fn()}
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId={null}
-        lastOverBowlerId="user-kishor"
+        lastOverBowlerId={null}
         onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -82,11 +70,6 @@ describe("BowlerDialog", () => {
         onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -112,11 +95,6 @@ describe("BowlerDialog", () => {
         onBowlerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
-        addPlayerTarget={null}
-        newPlayerName=""
-        onNewPlayerNameChange={vi.fn()}
-        onAddPlayer={vi.fn()}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
@@ -127,10 +105,41 @@ describe("BowlerDialog", () => {
     expect(handleConfirm).toHaveBeenCalledTimes(1);
   });
 
-  it("allows inline addition of a new bowler to squad", () => {
-    const handleAddPlayer = vi.fn();
-    const handleNameChange = vi.fn();
+  it("allows inline addition of a new bowler to squad", async () => {
+    const onCreatePlayer = vi.fn().mockResolvedValue("user-new");
+    const onBowlerChange = vi.fn();
 
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        bowlingTeamName="Chennai"
+        currentBowlerId={null}
+        lastOverBowlerId="user-kishor"
+        onBowlerChange={onBowlerChange}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+        onCreatePlayer={onCreatePlayer}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Jasprit Bumrah" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /Add .Jasprit Bumrah. to Chennai/ }),
+    );
+    await waitFor(() =>
+      expect(onCreatePlayer).toHaveBeenCalledWith("Jasprit Bumrah"),
+    );
+    await waitFor(() =>
+      expect(onBowlerChange).toHaveBeenCalledWith("user-new"),
+    );
+  });
+
+  it("shows why the previous over's bowler is unavailable and preselects the only eligible one", () => {
+    const onConfirm = vi.fn();
     render(
       <BowlerDialog
         open={true}
@@ -139,22 +148,68 @@ describe("BowlerDialog", () => {
         currentBowlerId={null}
         lastOverBowlerId="user-kishor"
         onBowlerChange={vi.fn()}
-        onConfirm={vi.fn()}
+        onConfirm={onConfirm}
         isProcessing={false}
-        addPlayerTarget="bowling"
-        newPlayerName="Jasprit Bumrah"
-        onNewPlayerNameChange={handleNameChange}
-        onAddPlayer={handleAddPlayer}
-        onAddPlayerTargetChange={vi.fn()}
       />,
     );
 
-    const input = screen.getByPlaceholderText("Player name");
-    expect(input).toHaveValue("Jasprit Bumrah");
+    const kishor = screen.getByRole("radio", { name: /Kishor/ });
+    expect(kishor).toBeDisabled();
+    expect(kishor).toHaveTextContent("Bowled last over");
+    expect(screen.getByRole("radio", { name: /Rahul/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirm bowler" }));
+    expect(onConfirm).toHaveBeenCalledWith("user-rahul");
+  });
 
-    const addBtn = screen.getByRole("button", { name: "Add" });
-    fireEvent.click(addBtn);
-    expect(handleAddPlayer).toHaveBeenCalledTimes(1);
+  it("focuses the preselected row on open (no phone keyboard) and confirms with Enter", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        bowlingTeamName="Chennai"
+        currentBowlerId={null}
+        lastOverBowlerId="user-kishor"
+        onBowlerChange={vi.fn()}
+        onConfirm={onConfirm}
+        isProcessing={false}
+        onCreatePlayer={vi.fn()}
+      />,
+    );
+    const rahul = screen.getByRole("radio", { name: /Rahul/ });
+    await waitFor(() => expect(rahul).toHaveFocus());
+    fireEvent.keyDown(rahul, { key: "Enter" });
+    expect(onConfirm).toHaveBeenCalledWith("user-rahul");
+  });
+
+  it("disables adding players with a reason while offline", () => {
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        bowlingTeamName="Chennai"
+        currentBowlerId={null}
+        onBowlerChange={vi.fn()}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+        onCreatePlayer={vi.fn()}
+        addPlayerDisabledReason="Adding players needs a connection."
+      />,
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Ashwin" },
+    });
+    expect(
+      screen.getByRole("button", { name: /Add .Ashwin. to Chennai/ }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Adding players needs a connection."),
+    ).toBeInTheDocument();
   });
 
   it("renders reassign deliveries checkbox when currentBall > 0", () => {
@@ -225,7 +280,9 @@ describe("BowlerDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Confirm bowler" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Confirm bowler" }),
+    ).toBeDisabled();
   });
 
   it("filters out batting team players from selectable bowling list when in battingTeamPlayerIds", () => {
@@ -255,4 +312,3 @@ describe("BowlerDialog", () => {
     expect(screen.queryByText("Opposing Batsman")).not.toBeInTheDocument();
   });
 });
-
