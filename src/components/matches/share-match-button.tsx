@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Share2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { matchShareUrl, shareMatch } from "~/lib/share-match";
 
 /**
  * Shares the match page link: the system share sheet where available
@@ -12,35 +13,24 @@ import { Button } from "~/components/ui/button";
 export function ShareMatchButton({
   matchId,
   title,
+  text,
   className,
+  label = "Share match",
 }: {
   matchId: string;
   title: string;
+  /** Message sent with the link; defaults to the title. */
+  text?: string;
   className?: string;
+  label?: string;
 }) {
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/matches/${matchId}`;
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title, url });
-        return;
-      } catch (err) {
-        // The user closed the sheet: nothing else to do.
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
+    const outcome = await shareMatch(matchShareUrl(matchId), title, text);
+    if (outcome === "copied") {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      window.open(
-        `https://wa.me/?text=${encodeURIComponent(`${title}\n${url}`)}`,
-        "_blank",
-        "noopener,noreferrer",
-      );
     }
   };
 
@@ -50,7 +40,7 @@ export function ShareMatchButton({
       variant="outline"
       size="sm"
       onClick={handleShare}
-      aria-label={copied ? "Link copied" : "Share match"}
+      aria-label={copied ? "Link copied" : label}
       className={className}
     >
       {copied ? <Check /> : <Share2 />}
