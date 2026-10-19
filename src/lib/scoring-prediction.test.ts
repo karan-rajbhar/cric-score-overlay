@@ -4,6 +4,13 @@ import type { OversRow } from "./firebase/scorecard";
 import type { QueuedAction } from "./offline-queue";
 import { applyLiveResync, mergeScoringDeltas } from "./scoring-delta";
 import {
+  entryForChange,
+  pushEntry,
+  takeUndo,
+  undoableSeq,
+  UNDO_HISTORY_LIMIT,
+} from "./scoring-undo";
+import {
   baseWithDocs,
   foldPending,
   isPendingBallId,
@@ -288,5 +295,160 @@ describe("mergeScoringDeltas", () => {
   it("is unknown when one of them is", () => {
     expect(mergeScoringDeltas([null])).toBeNull();
     expect(mergeScoringDeltas([])).toBeNull();
+  });
+});
+
+describe("instant undo history", () => {
+  const long = { ...MATCH, overs_per_innings: 20 };
+  const fold = (state: ReturnType<typeof stateOf>, actions: QueuedAction[]) =>
+    foldPending(state, actions, NAMES).state;
+
+  it("makes an entry for one new ball, and undoes it to the state before", () => {
+    const start = stateOf(innings(), [], long);
+    const first = fold(start, over([1]));
+    const second = fold(first, over([0]).map((a) => ({
+      ...a,
+      payload: { ...(a.payload as object), batsmanId: "p2", nonStrikerId: "p1" },
+    })) as QueuedAction[]);
+    const entry = entryForChange(first, second)!;
+    expect(entry).toMatchObject({ inningsId: INN, ball: { over: 0, ball: 2 } });
+    const { entry: taken, stack } = takeUndo([entry], second);
+    expect(taken?.before).toBe(first);
+    expect(stack).toEqual([]);
+    // Two balls at once: no entry (the state between them is not known).
+    expect(entryForChange(start, second)).toBeNull();
+  });
+
+  it("is used only while the ball is still the last and the scorecard unchanged", () => {
+    const start = stateOf(innings(), [], long);
+    const after = fold(start, over([4]));
+    const entry = entryForChange(start, after)!;
+    // A crease change since keeps it (the figures did not change).
+    const swapped = foldPending(
+      after,
+      [
+        {
+          queueId: "c",
+          matchId: M,
+          type: "setBatsmen",
+          enqueuedAt: 0,
+          payload: { strikerId: "p2", nonStrikerId: "p1" },
+        },
+      ],
+      NAMES,
+    ).state;
+    expect(takeUndo([entry], swapped).entry).toBe(entry);
+    // An edit since (different figures): not used, and the stack is dropped.
+    const edited = {
+      ...after,
+      snapshot: {
+        ...after.snapshot,
+        match: {
+          ...after.snapshot.match,
+          innings: after.snapshot.match.innings!.map((i) => ({
+            ...i,
+            total_runs: 99,
+          })),
+        },
+      },
+    };
+    expect(takeUndo([entry], edited)).toEqual({ entry: null, stack: [] });
+    // Another ball since: this entry is not the last ball's.
+    const later = fold(after, over([0]));
+    expect(takeUndo([entry], later).entry).toBeNull();
+  });
+
+  it("goes back into the previous innings from the start of the next", () => {
+    const start = stateOf(innings(), [], MATCH);
+    const five = fold(start, over([0, 0, 0, 0, 0]));
+    const ended = fold(five, over([0, 0, 0, 0, 0, 1]).slice(5));
+    const entry = entryForChange(five, ended)!;
+    expect(entry.inningsId).toBe(INN);
+    // The server opened the next innings: nothing logged in it yet, the
+    // counter carried over.
+    const nextInnings = {
+      ...ended,
+      snapshot: {
+        ...ended.snapshot,
+        match: {
+          ...ended.snapshot.match,
+          current_innings: 2,
+          innings: [
+            ...ended.snapshot.match.innings!,
+            { id: "inn2", innings_number: 2, team_id: "t2", total_balls: 0 },
+          ],
+        },
+      },
+      base: {
+        innings: {
+          ...innings({ id: "inn2", innings_number: 2, team_id: "t2" }),
+          last_ball: null,
+          last_ball_seq: ended.base!.innings.last_ball_seq,
+        },
+        overs: [],
+      },
+    };
+    expect(undoableSeq(nextInnings)).toEqual({
+      seq: entry.ballSeq,
+      sameInnings: false,
+    });
+    expect(takeUndo([entry], nextInnings).entry).toBe(entry);
+  });
+
+  it("keeps the newest entries, one per ball", () => {
+    const start = stateOf(innings(), [], long);
+    let state = start;
+    let stack: ReturnType<typeof pushEntry> = [];
+    for (let i = 0; i < 20; i++) {
+      const next = fold(state, over([0]).map((a) => ({
+        ...a,
+        payload: {
+          ...(a.payload as object),
+          batsmanId: state.snapshot.strikerId,
+          nonStrikerId: state.snapshot.nonStrikerId,
+        },
+      })) as QueuedAction[]);
+      const entry = entryForChange(state, next);
+      if (entry) stack = pushEntry(stack, entry);
+      state = next;
+      if (!state.snapshot.bowlerId) break;
+    }
+    expect(stack.length).toBeGreaterThan(0);
+    expect(new Set(stack.map((e) => e.ballSeq)).size).toBe(stack.length);
+    expect(stack.length).toBeLessThanOrEqual(UNDO_HISTORY_LIMIT);
+  });
+});
+
+describe("an undo right after a delivery that ends the innings", () => {
+  it("is shown (the screen does not wait for the server there)", () => {
+    const start = stateOf();
+    const five = foldPending(start, over([0, 0, 0, 0, 0]), NAMES).state;
+    const last = over([0, 0, 0, 0, 0, 1])[5]!;
+    const undo: QueuedAction = {
+      queueId: "undo-1",
+      matchId: M,
+      type: "undoLastBall",
+      enqueuedAt: 0,
+      payload: {},
+    };
+    const folded = foldPending(
+      five,
+      [last, undo],
+      NAMES,
+      undefined,
+      new Map([["undo-1", five]]),
+    );
+    expect(folded).toMatchObject({ applied: 2, waiting: false, endsInnings: false });
+    // The state before that ball, but for the seq counter, which never
+    // goes back.
+    const withoutSeq = (snap: typeof five.snapshot) =>
+      JSON.parse(JSON.stringify(snap, (k, v) => (k === "last_ball_seq" ? undefined : v)));
+    expect(withoutSeq(folded.state.snapshot)).toEqual(withoutSeq(five.snapshot));
+    expect(folded.state.base!.innings.last_ball_seq).toBe(6);
+    // Without the state before it, the undo waits like any other.
+    expect(foldPending(five, [last, undo], NAMES)).toMatchObject({
+      applied: 1,
+      waiting: true,
+    });
   });
 });

@@ -69,6 +69,7 @@ function optStr(args: Args, key: string): string | null {
 /** Procedures that can answer with a {@link ScoringDelta}. */
 const WITH_DELTA = new Set([
   "record_ball",
+  "undo_last_ball",
   "set_current_batsmen",
   "set_current_bowler",
 ]);

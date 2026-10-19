@@ -41,6 +41,15 @@ import {
 } from "~/lib/scoring-prediction";
 import { reportClientError } from "~/lib/report-error";
 import {
+  entryForChange,
+  pushEntry,
+  takeUndo,
+  undoableSeq,
+  undoneBallOf,
+  type UndoEntry,
+  type UndoneBall,
+} from "~/lib/scoring-undo";
+import {
   processDeliveryLocally,
   buildContextFromMatch,
   deliveryResultToScoringState,
@@ -187,6 +196,19 @@ function deliveryLabel(d: {
   return String(runs);
 }
 
+/** What the over strip shows after an undo (see `scoring-undo`). */
+export interface UndoNotice {
+  /** The undone ball as the over strip labels it ("4", "W", "Wd"...). */
+  label: string;
+  /** "3.6 · Starc to Kohli" (empty when not known). */
+  detail: string;
+  /** Still waiting for the server's undo (it could not be shown at once). */
+  pending: boolean;
+  canRedo: boolean;
+}
+
+const UNDO_STORAGE_PREFIX = "cric_undo_history_";
+
 /**
  * Single-responsibility hook: all scoring state + data fetching.
  * Page component now only handles rendering.
@@ -324,15 +346,71 @@ export function useScoring(
   /** The queued actions cannot be shown yet: the screen waits for the server. */
   const [awaitingServer, setAwaitingServer] = useState(false);
   /**
-   * Instant undo: for each delivery the screen predicted, the state it
-   * showed just before it (the state the server's undo restores), tagged
-   * with that ball's innings and seq; and for each queued undo, the state
-   * it shows (`UndoTargets` in `~/lib/scoring-prediction`).
+   * Instant undo (`~/lib/scoring-undo`): for the recent balls the screen
+   * saw happen, the state just before each (what the server's undo
+   * restores); and for each queued undo, the state it shows
+   * (`UndoTargets` in `~/lib/scoring-prediction`). Kept on the device so a
+   * reload does not lose them.
    */
-  const undoStackRef = useRef<
-    Array<{ before: ShownState; inningsId: string; ballSeq: number }>
-  >([]);
+  const undoStackRef = useRef<UndoEntry<ShownState>[]>([]);
   const undoTargetsRef = useRef(new Map<string, ShownState>());
+  /** Balls undone since the last scoring action, most recent last (redo). */
+  const redoRef = useRef<UndoneBall[]>([]);
+  const [undoNotice, setUndoNotice] = useState<UndoNotice | null>(null);
+  /** A server undo is in progress (one the screen could not show at once). */
+  const [undoing, setUndoing] = useState(false);
+  const saveUndoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Save the undo history on the device (debounced; on page hide too). */
+  const saveUndoHistory = useCallback(() => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(
+        `${UNDO_STORAGE_PREFIX}${matchId}`,
+        JSON.stringify({
+          v: 1,
+          stack: undoStackRef.current.slice(-6),
+          targets: [...undoTargetsRef.current.entries()],
+        }),
+      );
+    } catch {
+      // Storage full or blocked: undo then waits for the server after a reload.
+    }
+  }, [matchId]);
+  const scheduleUndoSave = useCallback(() => {
+    if (saveUndoTimer.current) clearTimeout(saveUndoTimer.current);
+    saveUndoTimer.current = setTimeout(saveUndoHistory, 400);
+  }, [saveUndoHistory]);
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === "hidden") saveUndoHistory();
+    };
+    window.addEventListener("pagehide", saveUndoHistory);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", saveUndoHistory);
+      document.removeEventListener("visibilitychange", flush);
+      if (saveUndoTimer.current) clearTimeout(saveUndoTimer.current);
+    };
+  }, [saveUndoHistory]);
+  /** The saved history, once, when the screen first has a state. */
+  const restoreUndoHistory = useCallback(() => {
+    try {
+      const raw = window.localStorage.getItem(`${UNDO_STORAGE_PREFIX}${matchId}`);
+      const saved = raw ? JSON.parse(raw) : null;
+      if (saved?.v !== 1) return;
+      if (!undoStackRef.current.length && Array.isArray(saved.stack)) {
+        undoStackRef.current = saved.stack as UndoEntry<ShownState>[];
+      }
+      if (Array.isArray(saved.targets)) {
+        for (const [id, state] of saved.targets as Array<[string, ShownState]>) {
+          if (!undoTargetsRef.current.has(id)) undoTargetsRef.current.set(id, state);
+        }
+      }
+    } catch {
+      // Unreadable: start without it.
+    }
+  }, [matchId]);
 
   /** Put a snapshot (confirmed or predicted) on screen. */
   const renderSnapshot = useCallback(async (data: Snapshot): Promise<void> => {
@@ -353,7 +431,26 @@ export function useScoring(
       playersRef.current.bowling.length > 0 &&
       loadedSquadTeamsRef.current?.batting === teams.batting &&
       loadedSquadTeamsRef.current?.bowling === teams.bowling;
-    if (!squadsFresh) {
+    // The two sides swapping (an innings change, or undoing back into the
+    // previous innings): the squads at hand, swapped, shown at once; then
+    // refreshed in the background (a player added since, one in both).
+    const swapped =
+      !squadsFresh &&
+      playersRef.current.batting.length > 0 &&
+      playersRef.current.bowling.length > 0 &&
+      loadedSquadTeamsRef.current?.batting === teams.bowling &&
+      loadedSquadTeamsRef.current?.bowling === teams.batting;
+    if (swapped) {
+      const { batting, bowling } = playersRef.current;
+      playersRef.current = { batting: bowling, bowling: batting };
+      loadedSquadTeamsRef.current = {
+        batting: teams.batting,
+        bowling: teams.bowling,
+      };
+      setBattingTeamPlayers(bowling);
+      setBowlingTeamPlayers(batting);
+      void loadPlayers(m);
+    } else if (!squadsFresh) {
       await loadPlayers(m);
     }
     setMatch(m);
@@ -398,6 +495,55 @@ export function useScoring(
   }, []);
 
   /**
+   * The last situation the scorer was asked to pick a batter / bowler for.
+   * Asked once per situation: a confirmation or re-read of the same one
+   * does not reopen a dialog the scorer closed.
+   */
+  const promptKeyRef = useRef<string | null>(null);
+  const promptForNeeds = useCallback(
+    (
+      at: {
+        status?: string | null;
+        innings: number | null | undefined;
+        balls: number | null | undefined;
+        wickets: number | null | undefined;
+        striker: string | null;
+        nonStriker: string | null;
+        bowler: string | null;
+      },
+      fromAction: boolean,
+    ) => {
+      if (at.status !== "live") return;
+      const need =
+        !at.striker || !at.nonStriker ? "batsman" : !at.bowler ? "bowler" : null;
+      if (!need) {
+        promptKeyRef.current = null;
+        return;
+      }
+      const key = `${at.innings}:${at.balls}:${at.wickets}:${need}`;
+      if (!fromAction && key === promptKeyRef.current) return;
+      promptKeyRef.current = key;
+      if (need === "batsman") optionsRef.current?.onNeedsBatsman?.();
+      else optionsRef.current?.onNeedsBowler?.();
+    },
+    [],
+  );
+  const needsOf = (snap: Snapshot) => {
+    const inn = snap.match.innings?.find(
+      (i) => i.innings_number === snap.match.current_innings,
+    );
+    return {
+      status: snap.match.status,
+      innings: snap.match.current_innings,
+      balls: inn?.total_balls,
+      wickets: inn?.total_wickets,
+      striker: snap.strikerId,
+      nonStriker: snap.nonStrikerId,
+      bowler: snap.bowlerId,
+    };
+  };
+
+  /**
    * Show the confirmed state with the instant actions still queued applied
    * on top (`foldPending`). Queued offline-mode actions are not predicted:
    * the confirmed state shows, as before.
@@ -430,15 +576,32 @@ export function useScoring(
   /** A new confirmed state from the server, shown with what is still queued. */
   const applySnapshot = useCallback(
     async (data: Snapshot, base: PredictionBase | null): Promise<void> => {
+      const prev = snapshotRef.current
+        ? { snapshot: snapshotRef.current, base: baseRef.current }
+        : null;
       snapshotRef.current = data;
       baseRef.current = base;
-      const shown = await renderShown();
-      const m = shown?.match;
-      if (m?.status === "live" && shown && !shown.bowlerId && shown.strikerId && shown.nonStrikerId) {
-        optionsRef.current?.onNeedsBowler?.();
+      // One ball-log entry since the last confirmed state (a ball on the
+      // waiting path, a co-scorer's, a retirement): the state before it is
+      // that last state, when it holds the crease the ball was bowled with.
+      // A ball this screen predicted already has its entry.
+      const entry = prev ? entryForChange(prev, { snapshot: data, base }) : null;
+      if (
+        entry &&
+        !undoStackRef.current.some((e) => e.ballSeq === entry.ballSeq) &&
+        (!entry.ball ||
+          entry.ball.isEvent ||
+          (entry.ball.batsmanId === prev!.snapshot.strikerId &&
+            entry.ball.nonStrikerId === prev!.snapshot.nonStrikerId &&
+            entry.ball.bowlerId === prev!.snapshot.bowlerId))
+      ) {
+        undoStackRef.current = pushEntry(undoStackRef.current, entry);
+        scheduleUndoSave();
       }
+      const shown = await renderShown();
+      if (shown) promptForNeeds(needsOf(shown), false);
     },
-    [renderShown],
+    [renderShown, scheduleUndoSave, promptForNeeds],
   );
 
   const syncFromDb = useCallback(async (): Promise<boolean> => {
@@ -565,6 +728,7 @@ export function useScoring(
       return true;
     };
     const init = async () => {
+      restoreUndoHistory();
       // Offline: don't wait for a server call that cannot succeed.
       if (!(isOfflineNow() && restoreFromCache())) {
         try {
@@ -580,7 +744,7 @@ export function useScoring(
     return () => {
       cancelled = true;
     };
-  }, [syncFromDb, matchId]);
+  }, [syncFromDb, matchId, restoreUndoHistory]);
 
   useEffect(() => {
     if (!match) return;
@@ -1133,11 +1297,22 @@ export function useScoring(
       );
     }
 
-    if (state.needs_batsman) {
-      optionsRef.current?.onNeedsBatsman?.();
-    } else if (state.over_completed || state.needs_bowler) {
-      toast.info("Over complete! Please select the bowler for the next over.");
-      optionsRef.current?.onNeedsBowler?.();
+    if (!state.innings_completed && !state.match_completed) {
+      promptForNeeds(
+        {
+          status: state.status,
+          innings: state.current_innings,
+          balls: state.total_balls,
+          wickets: state.total_wickets,
+          striker: state.needs_batsman ? null : state.striker_id,
+          nonStriker: state.needs_batsman ? null : state.non_striker_id,
+          bowler:
+            state.needs_bowler || state.over_completed
+              ? null
+              : (state.bowler_id ?? null),
+        },
+        true,
+      );
     }
 
     if (typeof navigator === "undefined" || navigator.onLine) {
@@ -1188,15 +1363,12 @@ export function useScoring(
     );
     if (folded.applied !== pending.length + 1) return null;
     // For an instant undo of this ball: the state just before it.
-    const ballSeq = folded.state.base?.innings.last_ball?.seq;
-    if (type === "recordBall" && folded.state.base && typeof ballSeq === "number") {
-      const stack = undoStackRef.current;
-      stack.push({
-        before: before.state,
-        inningsId: folded.state.base.innings.id,
-        ballSeq,
-      });
-      if (stack.length > 60) stack.shift();
+    if (type === "recordBall") {
+      const entry = entryForChange(before.state, folded.state);
+      if (entry) {
+        undoStackRef.current = pushEntry(undoStackRef.current, entry);
+        scheduleUndoSave();
+      }
     }
 
     enqueueAction(matchId, type, payload, queueId, { instant: true });
@@ -1207,12 +1379,7 @@ export function useScoring(
     const shown = folded.state.snapshot;
     void renderSnapshot(shown);
     if (type === "recordBall" && !folded.endsInnings) {
-      if (!shown.strikerId || !shown.nonStrikerId) {
-        optionsRef.current?.onNeedsBatsman?.();
-      } else if (!shown.bowlerId) {
-        toast.info("Over complete. Select the bowler for the next over.");
-        optionsRef.current?.onNeedsBowler?.();
-      }
+      promptForNeeds(needsOf(shown), true);
     }
     if (!isOfflineNow()) void flushQueue();
     return { error: null };
@@ -1222,6 +1389,7 @@ export function useScoring(
     tossWinner: string,
     tossDecision: "bat" | "bowl",
   ) => {
+    clearUndone();
     setIsProcessing(true);
     const result = await startMatch(matchId, tossWinner, tossDecision);
     if (result.error) {
@@ -1344,7 +1512,9 @@ export function useScoring(
     batsmanId: string,
     nonStriker: string,
     event: BallEvent,
+    { fromRedo = false }: { fromRedo?: boolean } = {},
   ) => {
+    if (!fromRedo) clearUndone();
     const instant = scoreInstantly("recordBall", {
       matchId,
       bowlerId,
@@ -1397,15 +1567,45 @@ export function useScoring(
     }
   };
 
-  /**
-   * Undo the last ball at once: show the state the screen had just before
-   * it and queue the undo (the server's undo restores that same state).
-   * False when the screen cannot vouch for that state (another scorer's
-   * change, a full re-read, a new innings, actions it does not predict).
-   */
-  const undoInstantly = async (pending: QueuedAction[]): Promise<boolean> => {
+  /** Clear the undo note and the redo list (a new scoring action). */
+  const clearUndone = () => {
+    redoRef.current = [];
+    setUndoNotice(null);
+  };
+
+  /** The over strip's note for an undone ball (and redo, when possible). */
+  const noticeFor = (ball: UndoneBall | null, pending = false): UndoNotice => {
+    const names = squadNames();
+    const name = (id: string | null) =>
+      (id ? names.get(id)?.full_name : null) ?? null;
+    const bowler = name(ball?.bowlerId ?? null);
+    const batter = name(ball?.batsmanId ?? null);
+    return {
+      label: ball
+        ? deliveryLabel({
+            runs_scored: ball.event.runsScored ?? 0,
+            extras: ball.event.extras ?? 0,
+            extra_type: ball.event.extraType ?? null,
+            is_wicket: ball.event.isWicket ?? false,
+          })
+        : "",
+      detail: ball
+        ? [
+            `${ball.over}.${ball.ball}`,
+            bowler && batter ? `${bowler} to ${batter}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "",
+      pending,
+      canRedo: redoRef.current.length > 0,
+    };
+  };
+
+  /** The screen state with everything queued applied, when all of it is shown. */
+  const shownNow = (pending: QueuedAction[]): ShownState | null => {
     const confirmed = snapshotRef.current;
-    if (!INSTANT_SCORING || awaitingServer || !confirmed) return false;
+    if (!confirmed) return null;
     const folded = foldPending(
       { snapshot: confirmed, base: baseRef.current },
       pending,
@@ -1413,25 +1613,29 @@ export function useScoring(
       undefined,
       undoTargetsRef.current,
     );
-    const base = folded.state.base;
-    if (folded.waiting || folded.applied !== pending.length || !base) {
-      return false;
-    }
-    const stack = undoStackRef.current;
-    const lastSeq = base.innings.last_ball?.seq ?? -1;
-    // Entries of another innings, or of balls since undone, are stale.
-    while (
-      stack.length &&
-      (stack.at(-1)!.inningsId !== base.innings.id ||
-        stack.at(-1)!.ballSeq > lastSeq)
-    ) {
-      stack.pop();
-    }
-    const top = stack.at(-1);
-    if (!top || top.ballSeq !== lastSeq) return false;
-    stack.pop();
+    return folded.applied === pending.length ? folded.state : null;
+  };
+
+  /** Note the undo of `ball` in the over strip, with redo when it is a delivery. */
+  const noteUndone = (ball: UndoneBall | null, pending = false) => {
+    if (ball && !ball.isEvent && !pending) redoRef.current.push(ball);
+    setUndoNotice(noticeFor(ball, pending));
+  };
+
+  /**
+   * Undo the last ball at once: show the state the screen had just before
+   * it and queue the undo (the server's undo restores that same state).
+   * False when the screen cannot vouch for that state (see `takeUndo`).
+   */
+  const undoInstantly = async (pending: QueuedAction[]): Promise<boolean> => {
+    if (!INSTANT_SCORING) return false;
+    const shown = shownNow(pending);
+    if (!shown) return false;
+    const { entry, stack } = takeUndo(undoStackRef.current, shown);
+    undoStackRef.current = stack;
+    if (!entry) return false;
     const queueId = newActionId();
-    undoTargetsRef.current.set(queueId, top.before);
+    undoTargetsRef.current.set(queueId, entry.before);
     enqueueAction(
       matchId,
       "undoLastBall",
@@ -1440,6 +1644,8 @@ export function useScoring(
       { instant: true },
     );
     setPendingCount(getPendingCount(matchId));
+    noteUndone(entry.ball);
+    scheduleUndoSave();
     await renderShown();
     if (!isOfflineNow()) void flushQueue();
     return true;
@@ -1454,10 +1660,20 @@ export function useScoring(
         last?.type === "recordBall" &&
         !inFlightRef.current.has(last.queueId)
       ) {
+        const shown = shownNow(pending);
+        const { entry, stack } = shown
+          ? takeUndo(undoStackRef.current, shown)
+          : { entry: null, stack: undoStackRef.current };
+        undoStackRef.current = stack;
         popLastAction(matchId);
-        // Its undo entry (the state before it) is not needed any more.
-        undoStackRef.current.pop();
         setPendingCount(getPendingCount(matchId));
+        noteUndone(
+          entry?.ball ??
+            (shown?.base?.innings.last_ball
+              ? undoneBallOf(shown.base.innings.last_ball)
+              : null),
+        );
+        scheduleUndoSave();
         await renderShown();
         return { data: null, error: null };
       }
@@ -1466,6 +1682,15 @@ export function useScoring(
       // ball as usual.
     }
 
+    // Say at once what is being undone, while the server does it.
+    const shownBefore = shownNow(pending);
+    const lastBall =
+      shownBefore && undoableSeq(shownBefore)?.sameInnings
+        ? (shownBefore.base?.innings.last_ball ?? null)
+        : null;
+    const undoneBall = lastBall ? undoneBallOf(lastBall) : null;
+    setUndoNotice(noticeFor(undoneBall, true));
+    setUndoing(true);
     setIsProcessing(true);
 
     // While actions are still queued, the last action is a queued one: undo
@@ -1548,14 +1773,36 @@ export function useScoring(
     }
 
     const result = await undoLastBall(matchId);
-    if (result.error) toast.error(result.error);
     // The state after an undo is the server's to say (the crease and bowler
-    // the undone ball was bowled with): shown from a fresh read, not run
-    // through the after-a-ball handling (which would add a ball to the
-    // over strip and prompt for a bowler or batter).
-    await syncFromDb();
+    // the undone ball was bowled with): from the documents it committed, or
+    // a fresh read; not run through the after-a-ball handling (which would
+    // add a ball to the over strip and prompt for a bowler or batter).
+    if (result.error) {
+      toast.error(result.error);
+      setUndoNotice(null);
+      await syncFromDb();
+    } else {
+      await applyDelta(result.delta);
+      noteUndone(undoneBall);
+    }
+    setUndoing(false);
     setIsProcessing(false);
     return result;
+  };
+
+  /** Record again the ball undone last (offered until the next action). */
+  const handleRedo = async () => {
+    const ball = redoRef.current.at(-1);
+    if (!ball?.bowlerId || !ball.batsmanId || !ball.nonStrikerId) {
+      clearUndone();
+      return { data: null, error: null };
+    }
+    redoRef.current.pop();
+    const next = redoRef.current.at(-1);
+    setUndoNotice(next ? noticeFor(next) : null);
+    return handleScore(ball.bowlerId, ball.batsmanId, ball.nonStrikerId, ball.event, {
+      fromRedo: true,
+    });
   };
 
   const handleUpdateBall = async (params: {
@@ -1568,6 +1815,7 @@ export function useScoring(
     batsmanId?: string | null;
     bowlerId?: string | null;
   }) => {
+    clearUndone();
     // Still being saved (instant scoring): its server id is not known yet.
     if (isPendingBallId(params.ballId) && !isOfflineNow()) {
       const err = "This delivery is still being saved. Try again in a moment.";
@@ -1644,6 +1892,7 @@ export function useScoring(
     send: (actionId: string) => Promise<{ error: string | null }>,
     queue: (actionId: string) => void,
   ): Promise<{ error: string | null; queued: boolean }> => {
+    clearUndone();
     setIsProcessing(true);
     const actionId = newActionId();
     const queueIt = () => {
@@ -1709,6 +1958,7 @@ export function useScoring(
     );
 
   const handleStartSuperOver = async () => {
+    clearUndone();
     setIsProcessing(true);
 
     if (isOfflineNow() || !(await drainQueue())) {
@@ -1872,6 +2122,7 @@ export function useScoring(
       return { error: err };
     }
 
+    clearUndone();
     const instant = scoreInstantly("setBatsmen", {
       strikerId: sId,
       nonStrikerId: nsId,
@@ -1992,6 +2243,7 @@ export function useScoring(
       return { error: err };
     }
 
+    clearUndone();
     const instant = scoreInstantly("setBowler", { bowlerId });
     if (instant) return instant;
 
@@ -2174,6 +2426,7 @@ export function useScoring(
   };
 
   const handleEndInnings = async () => {
+    clearUndone();
     setIsProcessing(true);
 
     if (isOfflineNow() || !(await drainQueue())) {
@@ -2308,6 +2561,11 @@ export function useScoring(
     rawDeliveries,
     // Waiting for the server (an action it must decide) blocks scoring too.
     isProcessing: isProcessing || awaitingServer,
+    /** Undo is unavailable (a blocking action or a server undo runs). */
+    undoBusy: isProcessing || undoing,
+    /** What the last undo took back, for the over strip (null: nothing). */
+    undoNotice,
+    handleRedo,
     /** Queued actions are being saved in the background. */
     isSaving,
     /** Queued actions could not be saved on the last attempt. */

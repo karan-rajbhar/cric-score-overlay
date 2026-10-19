@@ -290,6 +290,9 @@ export default function ScoringPage() {
     lastBalls,
     rawDeliveries,
     isProcessing,
+    undoBusy,
+    undoNotice,
+    handleRedo,
     isSaving,
     syncStuck,
     isOffline,
@@ -1860,9 +1863,11 @@ export default function ScoringPage() {
               disabled={isScoringDisabled}
               undoDisabled={
                 !isScorer ||
-                isProcessing ||
+                undoBusy ||
                 (match?.status !== "live" && match?.status !== "completed")
               }
+              undoNotice={undoNotice}
+              onRedo={() => void handleRedo()}
               keyboardSuppressed={scoringKeyboardSuppressed}
               sunlightMode={sunlightMode}
               wagonWheelPrompt={wagonWheelPrompt}

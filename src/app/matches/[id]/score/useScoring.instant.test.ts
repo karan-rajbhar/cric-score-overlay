@@ -190,6 +190,11 @@ class FakeServer {
   /** Server states before each ball, for its undo. */
   private history: Array<{ innings: InningsRow & { id: string }; overs: OversRow[] }> = [];
 
+  /** A ball recorded by someone else (a co-scorer), not through this screen. */
+  recordElsewhere(payload: Record<string, unknown>) {
+    this.apply({ id: `other-${Math.random()}`, type: "recordBall", payload });
+  }
+
   private apply(a: ReplayBatchAction): ScoringDelta | null {
     if (a.type === "undoLastBall") {
       const prev = this.history.pop()!;
@@ -527,18 +532,114 @@ describe("useScoring: instant scoring", () => {
     expect(undoLastBall).not.toHaveBeenCalled();
   });
 
-  it("waits for the server's undo when the screen did not see the ball happen", async () => {
+  it("shows what an undo took back, and redoes it", async () => {
     const { result } = await open();
-    // Another scorer's ball: the screen only re-read the state after it.
-    server.innings = { ...server.innings, total_runs: 6 };
-    vi.mocked(undoLastBall).mockResolvedValueOnce({ data: null, error: null });
     await act(async () => {
-      await result.current.syncFromDb();
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
     });
     await act(async () => {
       await result.current.handleUndo();
     });
-    expect(undoLastBall).toHaveBeenCalledTimes(1);
+    expect(result.current.undoNotice).toEqual({
+      label: "4",
+      detail: "0.1 · Player b1 to Player p1",
+      pending: false,
+      canRedo: true,
+    });
+    await act(async () => {
+      await result.current.handleRedo();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(4);
+    expect(result.current.undoNotice).toBeNull();
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.innings.total_runs).toBe(4);
+    // A new scoring action ends the offer.
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(result.current.undoNotice?.canRedo).toBe(true);
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+    });
+    expect(result.current.undoNotice).toBeNull();
+  });
+
+  it("undoes at once after a reload, from the history kept on the device", async () => {
+    const first = await open();
+    await act(async () => {
+      await first.result.current.handleScore("b1", "p1", "p2", { runsScored: 6 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    // The page goes away (reload): the history is saved on page hide.
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    first.unmount();
+
+    const { result } = await open();
+    expect(currentInnings(result.current.match)?.total_runs).toBe(6);
+    server.hold = true;
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+    expect(undoLastBall).not.toHaveBeenCalled();
+    await act(async () => server.release());
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.innings.total_runs).toBe(0);
+  });
+
+  it("undoes a co-scorer's ball at once when it saw it arrive", async () => {
+    const { result } = await open();
+    server.recordElsewhere({
+      matchId: M,
+      bowlerId: "b1",
+      batsmanId: "p1",
+      nonStrikerId: "p2",
+      event: { runsScored: 2 },
+    });
+    await act(async () => {
+      await result.current.syncFromDb();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(2);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+    expect(undoLastBall).not.toHaveBeenCalled();
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.innings.total_runs).toBe(0);
+  });
+
+  it("says at once what it is undoing when it must wait for the server", async () => {
+    const { result } = await open();
+    // An edit elsewhere changed the scorecard: the kept state is stale.
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    server.innings = { ...server.innings, total_runs: 5, extras_total: 1 };
+    await act(async () => {
+      await result.current.syncFromDb();
+    });
+    let release: (v: { data: null; error: null }) => void = () => {};
+    vi.mocked(undoLastBall).mockImplementationOnce(
+      () => new Promise((r) => (release = r)),
+    );
+    let undone: Promise<unknown>;
+    act(() => {
+      undone = result.current.handleUndo();
+    });
+    await waitFor(() =>
+      expect(result.current.undoNotice).toMatchObject({ label: "4", pending: true }),
+    );
+    expect(result.current.undoBusy).toBe(true);
+    await act(async () => {
+      release({ data: null, error: null });
+      await undone;
+    });
+    expect(result.current.undoNotice).toMatchObject({ pending: false });
+    expect(result.current.undoBusy).toBe(false);
     expect(toast.success).not.toHaveBeenCalled();
   });
 

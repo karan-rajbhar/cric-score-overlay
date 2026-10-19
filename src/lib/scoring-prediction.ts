@@ -370,11 +370,11 @@ function undoneTo<M extends SnapshotMatch, D>(
   target: ScreenState<M, D>,
 ): ScreenState<M, D> & { base: PredictionBase } {
   const base = target.base!;
+  // The counter is carried from innings to innings, so it is the current
+  // state's even when the undo goes back into the previous innings.
   const counter = Math.max(
     base.innings.last_ball_seq ?? 0,
-    state.base?.innings.id === base.innings.id
-      ? (state.base.innings.last_ball_seq ?? 0)
-      : 0,
+    state.base?.innings.last_ball_seq ?? 0,
   );
   if (counter === (base.innings.last_ball_seq ?? 0)) return { ...target, base };
   const innings = { ...base.innings, last_ball_seq: counter };
@@ -457,6 +457,15 @@ export function foldPending<M extends SnapshotMatch, D>(
       };
     }
     state = p.state;
+    // An undo of that delivery (with the state before it) is still shown.
+    const next = actions[i + 1];
+    if (
+      p.endsInnings &&
+      next?.type === "undoLastBall" &&
+      undoTargets?.has(next.queueId)
+    ) {
+      continue;
+    }
     if (p.endsInnings) {
       return {
         state,

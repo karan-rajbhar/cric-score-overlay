@@ -319,9 +319,9 @@ class ScorerModel {
     await this.applyOrSync(res.delta);
   }
 
-  /** handleUndo / handleUpdateBall: one re-read. */
-  async afterUndo(): Promise<void> {
-    await this.sync();
+  /** handleUndo: the reply's documents (a re-read when they are not enough). */
+  async afterUndo(res: { delta?: ScoringDelta | null }): Promise<void> {
+    await this.applyOrSync(res.delta);
   }
 
   async afterUpdateBall(): Promise<void> {
@@ -700,7 +700,7 @@ describe("Firestore cost of a whole match", () => {
           await act(
             "undo",
             () => m.undoLastBall(matchId),
-            () => scorer.afterUndo(),
+            (res) => scorer.afterUndo(res),
           );
           expect(comparable(scorer.snap!)).toEqual(
             comparable(predicted.state.snapshot),

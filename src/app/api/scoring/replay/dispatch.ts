@@ -72,7 +72,7 @@ async function run(
       );
     }
     case "undoLastBall":
-      return withoutDelta(await undoLastBall(matchId, id));
+      return withDelta(await undoLastBall(matchId, id));
     case "endInnings":
       return withoutDelta(await endInnings(matchId, id));
     case "startSuperOver":

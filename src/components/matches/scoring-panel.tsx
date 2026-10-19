@@ -48,6 +48,17 @@ interface ScoringPanelProps {
   disabled?: boolean;
   /** Overrides `disabled` for the Undo action only (undo stays useful while a bowler is pending). */
   undoDisabled?: boolean;
+  /**
+   * What the last undo took back: shown struck through at the end of the
+   * over strip, with Redo, until the next scoring action.
+   */
+  undoNotice?: {
+    label: string;
+    detail: string;
+    pending: boolean;
+    canRedo: boolean;
+  } | null;
+  onRedo?: () => void;
   /** Ignore scoring hotkeys while a dialog/menu owns the keyboard. */
   keyboardSuppressed?: boolean;
   isFreeHit?: boolean;
@@ -111,6 +122,8 @@ export function ScoringPanel({
   lastBalls,
   disabled = false,
   undoDisabled,
+  undoNotice = null,
+  onRedo,
   keyboardSuppressed = false,
   isFreeHit = false,
   sunlightMode: propSunlightMode,
@@ -443,6 +456,13 @@ export function ScoringPanel({
       <CardContent className="space-y-2 p-2.5 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
         {/* Screen-reader live summary of over state */}
         <p aria-live="polite" className="sr-only">
+          {undoNotice
+            ? `${undoNotice.pending ? "Undoing" : "Undone"} ${
+                undoNotice.detail ? `ball ${undoNotice.detail}` : "the last ball"
+              }${undoNotice.label ? `, ${getBallLabel(undoNotice.label)}` : ""}${
+                undoNotice.canRedo && !undoNotice.pending ? ", redo available" : ""
+              }. `
+            : ""}
           Over {currentOver}.{currentBall}
           {lastBalls.length > 0
             ? `, this over: ${lastBalls.map(getBallLabel).join(", ")}`
@@ -455,7 +475,7 @@ export function ScoringPanel({
           <span className="tabular-nums shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-bold leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
             Over {currentOver}.{currentBall}
           </span>
-          {lastBalls.length > 0 ? (
+          {lastBalls.length > 0 || undoNotice ? (
             <>
               <div
                 className="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto py-0.5"
@@ -477,11 +497,51 @@ export function ScoringPanel({
                     {ball}
                   </button>
                 ))}
+                {undoNotice && (
+                  <span
+                    data-testid="undone-ball"
+                    title={`${undoNotice.pending ? "Undoing" : "Undone"}${
+                      undoNotice.detail ? ` ${undoNotice.detail}` : ""
+                    }`}
+                    aria-hidden="true"
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed text-2xs text-muted-foreground line-through sm:h-9 sm:w-9 sm:text-xs",
+                      sunlightMode ? "border-black text-black" : "border-muted-foreground/60",
+                    )}
+                  >
+                    {undoNotice.label || "–"}
+                  </span>
+                )}
               </div>
-              <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
-                {overSummary.runs}r
-                {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
-              </span>
+              {undoNotice ? (
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="hidden max-w-[16rem] truncate text-2xs text-muted-foreground sm:inline">
+                    {undoNotice.pending ? "Undoing" : "Undone"}
+                    {undoNotice.detail ? ` ${undoNotice.detail}` : ""}
+                  </span>
+                  <span className="text-2xs text-muted-foreground sm:hidden">
+                    {undoNotice.pending ? "Undoing" : "Undone"}
+                  </span>
+                  {undoNotice.canRedo && !undoNotice.pending && onRedo && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onRedo}
+                      disabled={disabled}
+                      className="h-7 px-2 text-2xs font-semibold"
+                      aria-label={`Redo ${undoNotice.detail ? `ball ${undoNotice.detail}` : "the undone ball"}`}
+                    >
+                      Redo
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
+                  {overSummary.runs}r
+                  {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
+                </span>
+              )}
             </>
           ) : (
             <span className="truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
