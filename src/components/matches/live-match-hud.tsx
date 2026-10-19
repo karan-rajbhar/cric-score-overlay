@@ -211,6 +211,9 @@ export function LiveMatchHUD({
     return pa - pb;
   });
 
+  // Strike can be picked when both batters are in (and this screen scores).
+  const canPickStrike = Boolean(onSwapStriker && striker && nonStriker);
+
   const bowlerAction = (
     <>
       {onChangeBowler && (
@@ -636,70 +639,111 @@ export function LiveMatchHUD({
               </div>
             </div>
 
-            {/* The two batters, in the order they came in: a change of
-                strike moves the highlight, not the rows. Each row has its
-                own Change; the batter off strike can be put on strike. */}
-            {batterRows.map(({ end, batter, onStrike }) => {
-              const change = end === "striker" ? onChangeStriker : onChangeNonStriker;
-              return (
-                <div
-                  key={end === "striker" ? "striker-end" : "non-striker-end"}
-                  data-testid={onStrike ? "hud-batter-on-strike" : "hud-batter-off-strike"}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
-                    onStrike
-                      ? sunlightMode
-                        ? "border-2 border-black bg-neutral-100 font-bold"
-                        : "border-emerald-600/40 bg-emerald-500/10"
-                      : sunlightMode
-                        ? "border-black/40 bg-white"
-                        : "border-border/60 bg-muted/25",
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className={cn(
-                          "flex h-2 w-2 shrink-0 rounded-full",
-                          onStrike ? "bg-emerald-600" : "bg-muted-foreground/40",
-                        )}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className={cn(
-                          "truncate text-xs sm:text-sm",
-                          onStrike
-                            ? "font-semibold text-foreground"
-                            : "font-medium text-muted-foreground",
-                        )}
-                      >
-                        {batter
-                          ? batter.name
-                          : end === "striker"
-                            ? "Select striker"
-                            : "Select non-striker"}
+            {/* Who is on strike: one choice of two (a radio group). Tap a
+                batter to put them on strike; the striker alone is marked
+                (highlight, "*", "On strike"). The rows keep the order the
+                two came in, so only the highlight moves. Change replaces
+                that batter. */}
+            <div
+              role="radiogroup"
+              aria-label="Batter on strike"
+              className="space-y-1.5 sm:space-y-2"
+              onKeyDown={(e) => {
+                if (
+                  canPickStrike &&
+                  ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
+                ) {
+                  e.preventDefault();
+                  onSwapStriker?.();
+                }
+              }}
+            >
+              {batterRows.map(({ end, batter, onStrike }) => {
+                const change = end === "striker" ? onChangeStriker : onChangeNonStriker;
+                if (!batter) {
+                  return (
+                    <div
+                      key={end}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border px-2.5 py-1.5 sm:px-3 sm:py-2"
+                    >
+                      <span className="text-xs text-muted-foreground sm:text-sm">
+                        {end === "striker" ? "Select striker" : "Select non-striker"}
                       </span>
-                      {onStrike && batter && (
-                        <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
-                          On strike
-                        </span>
+                      {change && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={change}
+                        >
+                          Assign
+                        </Button>
                       )}
                     </div>
-                    {batter && (
-                      <p className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
-                        SR:{" "}
-                        <strong className="font-semibold tabular-nums text-foreground">
-                          {strikeRate(batter.runs, batter.balls)}
-                        </strong>{" "}
-                        · {batter.fours}x4, {batter.sixes}x6
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    {batter ? (
-                      <p
+                  );
+                }
+                return (
+                  <div key={end} className="flex items-stretch gap-1.5">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={onStrike}
+                      aria-label={`${batter.name}, ${batter.runs} off ${batter.balls}${onStrike ? ", on strike" : ""}`}
+                      tabIndex={onStrike ? 0 : -1}
+                      disabled={!canPickStrike && !onStrike}
+                      onClick={() => {
+                        if (!onStrike && canPickStrike) onSwapStriker?.();
+                      }}
+                      title={onStrike ? `${batter.name} is on strike` : `Tap to put ${batter.name} on strike`}
+                      data-testid={onStrike ? "hud-batter-on-strike" : "hud-batter-off-strike"}
+                      className={cn(
+                        "flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default sm:px-3 sm:py-2",
+                        onStrike
+                          ? sunlightMode
+                            ? "border-2 border-black bg-neutral-100 font-bold"
+                            : "border-emerald-600/50 bg-emerald-500/10"
+                          : sunlightMode
+                            ? "border-black/40 bg-white"
+                            : "border-border/60 bg-muted/25 enabled:hover:bg-muted/50",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "flex h-2 w-2 shrink-0 rounded-full",
+                              onStrike ? "bg-emerald-600" : "bg-muted-foreground/30",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <span
+                            className={cn(
+                              "truncate text-xs sm:text-sm",
+                              onStrike
+                                ? "font-semibold text-foreground"
+                                : "font-medium text-muted-foreground",
+                            )}
+                          >
+                            {batter.name}
+                            {onStrike ? " *" : ""}
+                          </span>
+                          {onStrike && (
+                            <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
+                              On strike
+                            </span>
+                          )}
+                        </span>
+                        <span className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
+                          SR:{" "}
+                          <strong className="font-semibold tabular-nums text-foreground">
+                            {strikeRate(batter.runs, batter.balls)}
+                          </strong>{" "}
+                          · {batter.fours}x4, {batter.sixes}x6
+                        </span>
+                      </span>
+                      <span
                         className={cn(
-                          "whitespace-nowrap font-score text-sm font-bold tabular-nums sm:text-base",
+                          "shrink-0 whitespace-nowrap font-score text-sm font-bold tabular-nums sm:text-base",
                           onStrike ? "text-foreground" : "text-muted-foreground",
                         )}
                       >
@@ -707,44 +751,24 @@ export function LiveMatchHUD({
                         <span className="text-2xs font-semibold text-muted-foreground sm:text-xs">
                           ({batter.balls})
                         </span>
-                      </p>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-2xs"
-                        onClick={change}
-                      >
-                        Assign
-                      </Button>
-                    )}
-                    {batter && !onStrike && onSwapStriker && batterRows.every((r) => r.batter) && (
-                      <button
-                        type="button"
-                        onClick={onSwapStriker}
-                        title={`Put ${batter.name} on strike [S]`}
-                        aria-label={`Put ${batter.name} on strike`}
-                        className="shadow-2xs inline-flex h-7 items-center rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-semibold text-foreground hover:bg-muted sm:px-2"
-                      >
-                        On strike
-                      </button>
-                    )}
-                    {batter && change && (
+                      </span>
+                    </button>
+                    {change && (
                       <button
                         type="button"
                         onClick={change}
                         title={`Change ${batter.name}`}
                         aria-label={`Change ${batter.name}`}
-                        className="shadow-2xs inline-flex h-7 items-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:px-2"
+                        className="shadow-2xs inline-flex min-w-11 shrink-0 items-center justify-center gap-1 rounded-xl border border-border/80 bg-background/80 px-2 text-2xs font-bold text-foreground hover:bg-muted"
                       >
-                        <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                         <span className="hidden sm:inline">Change</span>
                       </button>
                     )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 

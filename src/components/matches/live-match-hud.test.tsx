@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { LiveMatchHUD } from "./live-match-hud";
@@ -110,7 +110,7 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByText(/wickets in hand/i)).toBeInTheDocument();
   });
 
-  it("keeps the batters in batting order and marks who is on strike", () => {
+  it("marks only the striker, and puts the other batter on strike when tapped", () => {
     const onSwapStriker = vi.fn();
     const onChangeStriker = vi.fn();
     const onChangeNonStriker = vi.fn();
@@ -128,23 +128,21 @@ describe("LiveMatchHUD Component", () => {
     const { rerender } = render(
       <LiveMatchHUD {...props} striker={first} nonStriker={second} />,
     );
-    const names = () =>
-      screen
-        .getAllByTestId(/hud-batter-/)
-        .map((row) => row.textContent ?? "");
-    expect(screen.getByTestId("hud-batter-on-strike")).toHaveTextContent(
-      /Virat Kohli.*On strike/,
-    );
-    expect(names()[0]).toMatch(/Virat Kohli/);
+    const group = screen.getByRole("radiogroup", { name: "Batter on strike" });
+    const radios = within(group).getAllByRole("radio");
+    // One on strike, marked once.
+    expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+    expect(within(group).getAllByText("On strike")).toHaveLength(1);
+    expect(radios[0]).toHaveTextContent("Virat Kohli *");
+    expect(radios[1]).not.toHaveTextContent("*");
 
-    // Put the other batter on strike, from his own row.
-    fireEvent.click(
-      screen.getByRole("button", { name: /put hardik pandya on strike/i }),
-    );
+    // Tapping the other batter puts him on strike; tapping the striker does nothing.
+    fireEvent.click(radios[0]!);
+    expect(onSwapStriker).not.toHaveBeenCalled();
+    fireEvent.click(radios[1]!);
     expect(onSwapStriker).toHaveBeenCalledTimes(1);
 
-    // After the strike changes the rows stay where they were; only the
-    // highlight moves.
+    // After the change of strike the rows stay put; only the mark moves.
     rerender(
       <LiveMatchHUD
         {...props}
@@ -152,10 +150,9 @@ describe("LiveMatchHUD Component", () => {
         nonStriker={{ ...first, isStriker: false }}
       />,
     );
-    expect(names()[0]).toMatch(/Virat Kohli/);
-    expect(screen.getByTestId("hud-batter-on-strike")).toHaveTextContent(
-      /Hardik Pandya/,
-    );
+    const after = within(screen.getByRole("radiogroup")).getAllByRole("radio");
+    expect(after[0]).toHaveTextContent(/Virat Kohli/);
+    expect(after.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "true"]);
 
     // Each batter can be changed on his own.
     fireEvent.click(screen.getByRole("button", { name: /change virat kohli/i }));
