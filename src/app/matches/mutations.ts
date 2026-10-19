@@ -551,7 +551,12 @@ export async function recordBall(params: {
 export async function undoLastBall(
   matchId: string,
   clientActionId?: string | null,
-): Promise<{ data: ScoringState | null; error: string | null }> {
+): Promise<{
+  data: ScoringState | null;
+  error: string | null;
+  /** The committed documents (null when one was deleted: re-read). */
+  delta?: ScoringDelta | null;
+}> {
   try {
     const db = await createServerClient();
     const {
@@ -571,7 +576,11 @@ export async function undoLastBall(
       };
     }
 
-    const { data, error } = await db.rpc("undo_last_ball", {
+    const { data: reply, error } = await db.rpc<{
+      result: ScoringState;
+      delta: ScoringDelta | null;
+    }>("undo_last_ball", {
+      p_with_delta: true,
       p_match_id: matchId,
       p_client_action_id: clientActionId ?? null,
     });
@@ -581,7 +590,7 @@ export async function undoLastBall(
     }
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
-    return { data: data as ScoringState, error: null };
+    return { data: reply?.result ?? null, error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in undoLastBall:", err);
     return {

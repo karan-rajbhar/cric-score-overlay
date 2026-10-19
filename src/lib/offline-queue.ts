@@ -17,6 +17,7 @@
  */
 
 import type { BallEvent } from "~/app/matches/types";
+import type { ScoringDelta } from "~/lib/scoring-delta";
 import {
   MAX_REPLAY_ACTIONS,
   REPLAY_BATCH_SIZE,
@@ -67,6 +68,13 @@ export interface QueuedActionBase {
   enqueuedAt: number;
   retryCount?: number;
   lastError?: string | null;
+  /**
+   * Queued by instant scoring while online (the screen already shows it,
+   * see `~/lib/scoring-prediction`), not by offline mode.
+   */
+  instant?: boolean;
+  /** When it was last sent (ms since epoch); set before each attempt. */
+  sentAt?: number;
 }
 
 export interface QueuedRecordBall extends QueuedActionBase {
@@ -322,6 +330,7 @@ export function enqueueAction(
   type: QueuedActionType,
   payload: QueuedAction["payload"],
   queueId: string = generateQueueId(),
+  options?: { instant?: boolean },
 ): QueuedAction {
   const current = getPendingActions(matchId);
   const action = {
@@ -330,6 +339,7 @@ export function enqueueAction(
     type,
     payload,
     enqueuedAt: Date.now(),
+    ...(options?.instant ? { instant: true } : {}),
   } as QueuedAction;
 
   current.push(action);
@@ -558,6 +568,19 @@ export interface FlushOptions {
 export interface FlushResult {
   synced: number;
   failed: number;
+  /** Ids of the actions the server applied (or had applied), in order. */
+  applied?: string[];
+  /**
+   * The documents the last batch's applied actions committed
+   * (`ReplayResponse.delta`); null or absent when not known. Only set
+   * when every applied action was in that last batch.
+   */
+  delta?: ScoringDelta | null;
+  /**
+   * An instant action the server refused: it and every action queued
+   * after it (predicted on top of it) moved to the Dead Letter Queue.
+   */
+  rejected?: { action: QueuedAction; error: string; dependents: number };
   /**
    * Set when the server refused the whole batch (`unsupported_version`,
    * `not_authenticated`, ...): nothing was applied and the queue is kept
@@ -625,6 +648,7 @@ export function toReplayBatch(
       type: a.type,
       payload: a.payload,
       queuedAt: a.enqueuedAt,
+      ...(a.sentAt ? { resent: true } : {}),
     })),
   };
 }
@@ -669,6 +693,7 @@ function recordFailure(
   action: QueuedAction,
   error: string,
   maxRetries: number,
+  { noReply = false }: { noReply?: boolean } = {},
 ): boolean {
   const retries = (action.retryCount ?? 0) + 1;
   const updated: QueuedAction = {
@@ -676,6 +701,12 @@ function recordFailure(
     retryCount: retries,
     lastError: error,
   };
+  // No reply (offline, a dropped connection): the server may not even have
+  // seen it, so it is never given up on; it waits at the head, in order.
+  if (noReply) {
+    updateAction(matchId, updated);
+    return false;
+  }
   if (isFatalSyncError(error) || retries >= maxRetries) {
     console.warn(
       `OfflineQueue: Moving action ${action.type} (id: ${action.queueId}) to Dead Letter Queue:`,
@@ -687,6 +718,61 @@ function recordFailure(
   }
   updateAction(matchId, updated);
   return false;
+}
+
+/**
+ * Records that `batch` is being sent (a later send of it is a resend);
+ * returns the batch as now stored.
+ */
+function markSent(matchId: string, batch: QueuedAction[]): QueuedAction[] {
+  const ids = new Set(batch.map((a) => a.queueId));
+  const now = Date.now();
+  const current = getPendingActions(matchId).map((a) =>
+    ids.has(a.queueId) ? { ...a, sentAt: now } : a,
+  );
+  safeSetItem(getActionsKey(matchId), JSON.stringify(current));
+  return batch.map((a) => ({ ...a, sentAt: now }));
+}
+
+/** Undoes {@link markSent} for a batch the server refused unread. */
+function restoreSent(matchId: string, batch: QueuedAction[]): void {
+  const before = new Map(batch.map((a) => [a.queueId, a.sentAt]));
+  const current = getPendingActions(matchId).map((a) => {
+    if (!before.has(a.queueId)) return a;
+    const { sentAt: _sent, ...rest } = a;
+    void _sent;
+    const prev = before.get(a.queueId);
+    return (prev ? { ...rest, sentAt: prev } : rest) as QueuedAction;
+  });
+  safeSetItem(getActionsKey(matchId), JSON.stringify(current));
+}
+
+/**
+ * Moves `action` and every action queued after it to the Dead Letter
+ * Queue (instant actions were predicted on top of the ones before them).
+ * Returns how many came after it.
+ */
+function rejectWithDependents(
+  matchId: string,
+  action: QueuedAction,
+  error: string,
+): number {
+  const pending = getPendingActions(matchId);
+  const at = pending.findIndex((a) => a.queueId === action.queueId);
+  const dropped = at >= 0 ? pending.slice(at) : [action];
+  for (const a of dropped) {
+    moveToDeadLetter(
+      matchId,
+      a.queueId === action.queueId ? { ...a, lastError: error } : a,
+      a.queueId === action.queueId
+        ? error
+        : `Not sent: an earlier action was refused (${error})`,
+    );
+  }
+  const kept = at >= 0 ? pending.slice(0, at) : pending;
+  if (kept.length) safeSetItem(getActionsKey(matchId), JSON.stringify(kept));
+  else clearPendingActions(matchId);
+  return dropped.length - 1;
 }
 
 async function flushSequentially(
@@ -701,22 +787,34 @@ async function flushSequentially(
   );
   let synced = 0;
   let failed = 0;
+  const applied: string[] = [];
+  let delta: ScoringDelta | null | undefined;
+  let rejected: FlushResult["rejected"];
+  const result = (): FlushResult => ({
+    synced,
+    failed,
+    applied,
+    delta: synced > 0 ? delta : undefined,
+    rejected,
+  });
 
   for (;;) {
-    const batch = getPendingActions(matchId).slice(0, batchSize);
-    const head = batch[0];
-    if (!head) break;
+    const unsent = getPendingActions(matchId).slice(0, batchSize);
+    if (!unsent[0]) break;
+    const request = toReplayBatch(matchId, unsent);
+    const batch = markSent(matchId, unsent);
+    const head = batch[0]!;
 
     let out: ReplayTransportResult;
     try {
-      out = await send(toReplayBatch(matchId, batch));
+      out = await send(request);
     } catch (err) {
       // No reply (offline, or the reply was lost): the server may have
       // applied some of the batch; the retry is recognised by id.
       const message = err instanceof Error ? err.message : String(err);
       console.error("OfflineQueue: Network error during replay:", err);
       failed++;
-      if (recordFailure(matchId, head, message, maxRetries)) continue;
+      recordFailure(matchId, head, message, maxRetries, { noReply: true });
       break;
     }
 
@@ -726,14 +824,15 @@ async function flushSequentially(
         if (recordFailure(matchId, head, out.message, maxRetries)) continue;
         break;
       }
-      // The batch itself was refused: keep the queue untouched.
+      // The batch itself was refused (nothing applied): keep the queue
+      // untouched, as it was before this attempt.
+      restoreSent(matchId, unsent);
       console.error(
         `OfflineQueue: Replay refused (${out.status} ${out.code}):`,
         out.message,
       );
       return {
-        synced,
-        failed,
+        ...result(),
         errorCode: out.code,
         errorMessage: out.message,
       };
@@ -742,19 +841,40 @@ async function flushSequentially(
     const byId = new Map(out.response.results.map((r) => [r.id, r]));
     let progressed = false;
     let blocked = false;
+    // The response's documents follow every action applied before them
+    // only when this batch holds all of them.
+    delta = applied.length === 0 ? (out.response.delta ?? null) : null;
     for (const action of batch) {
-      const result = byId.get(action.queueId);
+      const res = byId.get(action.queueId);
       // No result: not attempted (an earlier action failed).
-      if (!result) break;
-      if (result.status === "applied" || result.status === "duplicate") {
+      if (!res) break;
+      if (res.status === "applied" || res.status === "duplicate") {
         removeAction(matchId, action.queueId);
         synced++;
+        applied.push(action.queueId);
         progressed = true;
         continue;
       }
-      const error = result.error ?? "Replay failed";
+      const error = res.error ?? "Replay failed";
       console.error(`OfflineQueue: Failed to sync ${action.type}:`, error);
       failed++;
+      if (action.instant) {
+        // One more try for a transient failure, then give up on it and on
+        // what was predicted on top of it: the screen re-reads.
+        if (!isFatalSyncError(error) && (action.retryCount ?? 0) < 1) {
+          updateAction(matchId, {
+            ...action,
+            retryCount: (action.retryCount ?? 0) + 1,
+            lastError: error,
+          });
+          progressed = true;
+          break;
+        }
+        const dependents = rejectWithDependents(matchId, action, error);
+        rejected = { action, error, dependents };
+        blocked = true;
+        break;
+      }
       // A dead-lettered action unblocks the ones behind it.
       if (recordFailure(matchId, action, error, maxRetries)) progressed = true;
       else blocked = true;
@@ -763,5 +883,5 @@ async function flushSequentially(
     if (blocked || !progressed) break;
   }
 
-  return { synced, failed };
+  return result();
 }

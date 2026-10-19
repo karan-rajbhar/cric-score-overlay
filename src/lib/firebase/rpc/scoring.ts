@@ -65,7 +65,6 @@ import {
   carriedPenaltiesOf,
   fallOfWicketRowsOf,
   lastBallRowOf,
-  lastOverBowlerOf,
   newBallId,
   overDocId,
   overDocIdOfBall,
@@ -74,18 +73,22 @@ import {
   partnershipRowsOf,
   scorecardFields,
   seqCounterOf,
-  toBallEntry,
-  toBattingEntry,
-  toBowlingEntry,
-  toFallOfWicketEntry,
-  toPartnershipEntry,
   type InningsScorecard,
   type OversRow,
 } from "../scorecard";
 import {
-  applyBallIncrementally,
-  startsNewPartnership,
-} from "../scoring/incremental";
+  ballDocsAfter,
+  battingWithCrease,
+  bowlingWithBowler,
+  canApplyIncrementally,
+  checkBallArgs as checkBall,
+  DISMISSAL_TYPES,
+  EXTRA_TYPES,
+  inningsComplete,
+  newBall,
+  type CheckedBall,
+  type RecordBallArgs,
+} from "../scoring/ball-docs";
 import {
   penaltyCountsFor,
   recomputeInnings,
@@ -130,6 +133,8 @@ import {
   recordState,
   scoringStateUserIds,
 } from "./state";
+
+export type { RecordBallArgs };
 
 export interface ScoringContext {
   /** Admin Firestore. Without it mutations run on `ds` (tests only). */
@@ -316,28 +321,6 @@ function ignoreReplayed(err: unknown): void {
   if (!(err instanceof ActionAlreadyApplied)) throw err;
 }
 
-const EXTRA_TYPES = new Set([
-  "wide",
-  "no_ball",
-  "bye",
-  "leg_bye",
-  "penalty",
-  "bonus",
-]);
-const DISMISSAL_TYPES = new Set([
-  "bowled",
-  "caught",
-  "lbw",
-  "stumped",
-  "run_out",
-  "hit_wicket",
-  "obstructing",
-  "timed_out",
-  "handled_ball",
-  "retired_hurt",
-  "retired_out",
-]);
-
 const EMPTY_SCORECARD: InningsScorecard = {
   batting: [],
   bowling: [],
@@ -402,6 +385,39 @@ async function loadInningsBundle(
     ["innings_id", "==", innings.id],
   ]);
   return bundleOf(match, innings, overs);
+}
+
+/**
+ * `bundle` with its batters' / bowlers' current flags set to the crease and
+ * bowler `ball` was recorded with (unchanged when one of them has no row).
+ */
+function withCreaseOf(
+  bundle: InningsBundle,
+  ball: BallByBallRow,
+): InningsBundle {
+  const { batsman_id: s, non_striker_id: ns, bowler_id: bw } = ball;
+  if (
+    !s ||
+    !ns ||
+    !bw ||
+    !bundle.batting.some((b) => b.user_id === s) ||
+    !bundle.batting.some((b) => b.user_id === ns) ||
+    !bundle.bowling.some((b) => b.user_id === bw)
+  ) {
+    return bundle;
+  }
+  return {
+    ...bundle,
+    batting: bundle.batting.map((b) => ({
+      ...b,
+      is_current_batsman: b.user_id === s || b.user_id === ns,
+      is_striker: b.user_id === s,
+    })),
+    bowling: bundle.bowling.map((b) => ({
+      ...b,
+      is_current_bowler: b.user_id === bw,
+    })),
+  };
 }
 
 function runRecompute(
@@ -628,8 +644,15 @@ async function applyAdvance(
   now: string,
   completedBalls?: readonly BallByBallRow[],
 ): Promise<AppliedAdvance> {
+  // The chasing side's squad, for the wickets in hand (one read, when a
+  // chase ends; the team document holds the roster).
+  const chaseSquadSize =
+    completed.innings_number % 2 === 0
+      ? ((await t.doc<TeamsRow>("teams", completed.team_id))?.roster?.length ??
+        null)
+      : null;
   const out = advanceAfterInnings(
-    { match, completed, allInnings, teamNames, now },
+    { match, completed, allInnings, teamNames, now, chaseSquadSize },
     newId(),
   );
   t.patch("innings", completed.id, out.completedInningsPatch);
@@ -882,121 +905,11 @@ async function stageCurrentLiveState(
 // record_ball
 // ---------------------------------------------------------------------------
 
-export interface RecordBallArgs {
-  p_match_id: string;
-  p_bowler_id: string;
-  p_batsman_id: string;
-  p_non_striker_id: string;
-  p_runs_scored?: number | null;
-  p_extras?: number | null;
-  p_extra_type?: string | null;
-  p_is_wicket?: boolean | null;
-  p_dismissal_type?: string | null;
-  p_fielder_id?: string | null;
-  p_commentary?: string | null;
-  p_dismissed_player_id?: string | null;
-  p_shot_zone?: string | null;
-}
-
-interface CheckedBall {
-  extraType: string | null;
-  isWicket: boolean;
-  dismissalType: string | null;
-  dismissedId: string | null;
-}
-
+/** {@link checkBall}, raising the engine's error. */
 function checkBallArgs(args: RecordBallArgs): CheckedBall {
-  const extraType = args.p_extra_type ?? null;
-  if (extraType && !EXTRA_TYPES.has(extraType))
-    throw new DbQueryError("invalid_input", "22000");
-  const isWicket = Boolean(args.p_is_wicket);
-  const dismissalType = args.p_dismissal_type ?? null;
-  if (isWicket && dismissalType && !DISMISSAL_TYPES.has(dismissalType)) {
-    throw new DbQueryError("invalid_input", "22000");
-  }
-  let dismissedId: string | null = null;
-  if (isWicket) {
-    dismissedId = args.p_dismissed_player_id ?? args.p_batsman_id;
-    if (
-      dismissedId !== args.p_batsman_id &&
-      dismissedId !== args.p_non_striker_id
-    ) {
-      throw new DbQueryError("dismissed_player_not_at_crease", "22000");
-    }
-  }
-  return { extraType, isWicket, dismissalType, dismissedId };
-}
-
-function newBall(
-  args: RecordBallArgs,
-  checked: CheckedBall,
-  innings: WithId<InningsRow>,
-  bpo: number,
-  seq: number,
-  now: string,
-): WithId<BallByBallRow> {
-  const totalBalls = innings.total_balls ?? 0;
-  const overNumber = Math.floor(totalBalls / bpo);
-  return {
-    id: newBallId(innings.id, overNumber, newId()),
-    match_id: args.p_match_id,
-    innings_id: innings.id,
-    over_number: overNumber,
-    ball_number: (totalBalls % bpo) + 1,
-    bowler_id: args.p_bowler_id,
-    batsman_id: args.p_batsman_id,
-    non_striker_id: args.p_non_striker_id,
-    runs_scored: args.p_runs_scored ?? 0,
-    extras: args.p_extras ?? 0,
-    extra_type: checked.extraType,
-    is_wicket: checked.isWicket,
-    dismissal_type: checked.isWicket ? checked.dismissalType : null,
-    fielder_id: args.p_fielder_id ?? null,
-    dismissed_player_id: checked.dismissedId,
-    commentary: args.p_commentary ?? null,
-    shot_zone: args.p_shot_zone ?? null,
-    seq,
-    created_at: now,
-  };
-}
-
-function inningsComplete(match: MatchesRow, innings: InningsRow): boolean {
-  const limits = inningsLimits(match, innings.innings_number);
-  const targetReached =
-    innings.target_runs !== null &&
-    innings.target_runs !== undefined &&
-    (innings.total_runs ?? 0) >= innings.target_runs;
-  return (
-    targetReached ||
-    (innings.total_wickets ?? 0) >= limits.wicketsCap ||
-    (innings.total_balls ?? 0) >= limits.maxBalls
-  );
-}
-
-/** Whether the innings document carries the stage 2 scorecard fields. */
-function hasScorecard(innings: InningsRow): boolean {
-  return (
-    Array.isArray(innings.batting) &&
-    Array.isArray(innings.bowling) &&
-    Array.isArray(innings.fall_of_wickets) &&
-    Array.isArray(innings.partnerships) &&
-    innings.last_ball !== undefined &&
-    innings.last_over_bowler_id !== undefined
-  );
-}
-
-/** Replace entries by user id (or append) without reordering the array. */
-function upsertByUser<E extends { user_id: string }>(
-  entries: readonly E[],
-  updated: readonly E[],
-): E[] {
-  const out = [...entries];
-  for (const e of updated) {
-    const i = out.findIndex((x) => x.user_id === e.user_id);
-    if (i >= 0) out[i] = e;
-    else out.push(e);
-  }
-  return out;
+  const res = checkBall(args);
+  if (!res.ok) throw new DbQueryError(res.code, "22000");
+  return res.checked;
 }
 
 interface RecordOutcome {
@@ -1024,14 +937,7 @@ async function recordBallIncremental(
   now: string,
   lastChange?: LiveStateLastChange,
 ): Promise<RecordOutcome | null> {
-  if (
-    match.max_balls_per_over !== null &&
-    match.max_balls_per_over !== undefined
-  )
-    return null;
-  if (!innings || innings.is_completed || !hasScorecard(innings)) return null;
-  const counter = seqCounterOf(match, innings);
-  if (counter === null) return null;
+  if (!canApplyIncrementally(match, innings)) return null;
 
   const bpo = ballsPerOverOf(match);
   const overNumber = Math.floor((innings.total_balls ?? 0) / bpo);
@@ -1040,84 +946,21 @@ async function recordBallIncremental(
     t.doc<LiveStateDoc>(LIVE_STATE_COLLECTION, match.id),
   ]);
 
-  const battingRows = battingRowsOf(innings);
-  const bowlingRows = bowlingRowsOf(innings);
-  const partnershipRows = partnershipRowsOf(innings);
-  const striker = battingRows.find((b) => b.user_id === args.p_batsman_id);
-  const nonStriker = battingRows.find(
-    (b) => b.user_id === args.p_non_striker_id,
-  );
-  const bowler = bowlingRows.find((b) => b.user_id === args.p_bowler_id);
-  if (!striker || !striker.is_current_batsman || !striker.is_striker)
-    return null;
-  if (!nonStriker || !nonStriker.is_current_batsman || nonStriker.is_striker)
-    return null;
-  if (!bowler || !bowler.is_current_bowler) return null;
-  const currentPartnerships = partnershipRows.filter(
-    (p) => p.is_current === true,
-  );
-  if (currentPartnerships.length > 1) return null;
-  const partnership = currentPartnerships[0] ?? null;
-
-  const sortedOver = overDoc ? sortBySeq(ballRowsOf(overDoc)) : [];
-  const maxOverSeq = sortedOver.length
-    ? (sortedOver[sortedOver.length - 1]!.seq ?? 0)
-    : 0;
-  const seq = Math.max(counter, maxOverSeq) + 1;
-  const ball = newBall(args, checked, innings, bpo, seq, now);
-
-  const out = applyBallIncrementally({
+  const docs = ballDocsAfter({
     match,
     innings,
-    ball,
-    striker,
-    nonStriker,
-    bowler,
-    partnership,
-    partnershipCount: startsNewPartnership(ball, partnership)
-      ? partnershipRows.length
-      : null,
-    overBalls: sortedOver,
+    overDoc,
+    args,
+    checked,
+    ballRandom: newId(),
     now,
   });
-  if (!out) return null;
+  if (!docs) return null;
+  const { ball, out, inningsPatch } = docs;
 
   // ---- writes (buffered until the callback returns) ----
-  const overBalls = [...sortedOver, ball];
-  t.put(OVERS_COLLECTION, overDocId(innings.id, overNumber), {
-    match_id: innings.match_id ?? match.id,
-    innings_id: innings.id,
-    over_number: overNumber,
-    balls: overBalls.map(toBallEntry),
-    updated_at: now,
-  } satisfies Omit<OversRow, "id">);
-
-  const partnerships = (innings.partnerships ?? []).slice();
-  for (const p of out.partnerships) {
-    const index = Number(p.id.slice(p.id.lastIndexOf("_p") + 2)) - 1;
-    partnerships[index] = toPartnershipEntry(p);
-  }
-  const inningsPatch: Partial<InningsRow> = {
-    ...out.inningsPatch,
-    batting: upsertByUser(
-      innings.batting ?? [],
-      out.batting.map(toBattingEntry),
-    ),
-    bowling: upsertByUser(
-      innings.bowling ?? [],
-      out.bowling.map(toBowlingEntry),
-    ),
-    fall_of_wickets: [
-      ...(innings.fall_of_wickets ?? []),
-      ...out.fallOfWickets.map(toFallOfWicketEntry),
-    ],
-    partnerships,
-    last_ball: { ...toBallEntry(ball), over_number: ball.over_number },
-    last_over_bowler_id: out.overJustEnded
-      ? lastOverBowlerOf(overBalls, out.inningsPatch.total_balls ?? 0, bpo)
-      : (innings.last_over_bowler_id ?? null),
-    last_ball_seq: seq,
-  };
+  const overBalls = ballRowsOf(docs.overDoc);
+  t.put(OVERS_COLLECTION, overDocId(innings.id, overNumber), docs.overDoc);
   patchInningsIfChanged(t, innings, inningsPatch);
   const batting = out.batting;
   const partnershipsAfter = out.partnerships;
@@ -1256,7 +1099,7 @@ async function recordBallFull(
   const bpo = ballsPerOverOf(match);
   const maxSeq = bundle.balls.reduce((m, b) => Math.max(m, b.seq ?? 0), 0);
   const seq = Math.max(seqCounterOf(match, innings) ?? 0, maxSeq) + 1;
-  const ball = newBall(args, checked, innings, bpo, seq, now);
+  const ball = newBall(args, checked, innings, bpo, seq, now, newId());
   const balls = [...bundle.balls, ball];
 
   const out = runRecompute(bundle, balls, now);
@@ -1457,7 +1300,10 @@ async function undoInTransaction(
   }
 
   const remaining = bundle.balls.filter((b) => b.id !== last.id);
-  const out = runRecompute(bundle, remaining, now);
+  // The crease and bowler the undone ball was bowled with are the ones
+  // chosen since the ball before it: where the remaining log leaves an end
+  // empty (a wicket, an over's end, no ball left), the recompute keeps them.
+  const out = runRecompute(withCreaseOf(bundle, last), remaining, now);
   // Removing the ball that closed an innings (or finished the match) reopens
   // that innings so scoring can resume from it.
   if (crossingBoundary || target.is_completed) {
@@ -2051,6 +1897,11 @@ export async function setCurrentBatsmen(
     // actions may have moved the crease on since.
     await guardClientAction(t, ctx, match, current);
     if (!current) throw new DbQueryError("no_open_innings", "22000");
+    // A finished match or innings has no crease to change.
+    if (match.status === "completed" || match.status === "abandoned")
+      throw new DbQueryError("match_not_live", "22000");
+    if (current.is_completed)
+      throw new DbQueryError("innings_already_completed", "22000");
     requireScorecard(current);
 
     const roster = await t.where<TeamPlayersRow>("team_players", [
@@ -2078,46 +1929,8 @@ export async function setCurrentBatsmen(
       throw new DbQueryError("too_many_batsmen", "22000");
     }
 
-    let nextPos = batting.reduce(
-      (m, b) => Math.max(m, b.batting_position ?? 0),
-      0,
-    );
-    const newcomers = [strikerId, nonStrikerId]
-      .filter((id) => !batting.some((b) => b.user_id === id))
-      .sort();
-
-    let changed = false;
-    const next = batting.map((b) => {
-      const isCurrent = b.user_id === strikerId || b.user_id === nonStrikerId;
-      const isStriker = b.user_id === strikerId;
-      if (
-        Boolean(b.is_current_batsman) === isCurrent &&
-        Boolean(b.is_striker) === isStriker
-      )
-        return b;
-      changed = true;
-      return { ...b, is_current_batsman: isCurrent, is_striker: isStriker };
-    });
-    for (const userId of newcomers) {
-      nextPos += 1;
-      changed = true;
-      next.push({
-        user_id: userId,
-        batting_position: nextPos,
-        runs_scored: 0,
-        balls_faced: 0,
-        minutes_batted: 0,
-        fours: 0,
-        sixes: 0,
-        is_out: false,
-        dismissal_type: null,
-        bowler_id: null,
-        fielder_id: null,
-        is_current_batsman: true,
-        is_striker: userId === strikerId,
-      });
-    }
-    if (!changed) return;
+    const next = battingWithCrease(batting, strikerId, nonStrikerId);
+    if (!next) return;
     t.patch("innings", current.id, { batting: next });
     await stageCurrentLiveState(t, match, { ...current, batting: next }, now);
   }, captureDelta(ctx)).catch(ignoreReplayed);
@@ -2148,6 +1961,11 @@ export async function setCurrentBowler(
     // over may have started since, with another bowler.
     await guardClientAction(t, ctx, match, current);
     if (!current) throw new DbQueryError("no_open_innings", "22000");
+    // A finished match or innings has no crease to change.
+    if (match.status === "completed" || match.status === "abandoned")
+      throw new DbQueryError("match_not_live", "22000");
+    if (current.is_completed)
+      throw new DbQueryError("innings_already_completed", "22000");
     requireScorecard(current);
 
     const currentOver = matchPositionOf(match, current).current_over;
@@ -2178,32 +1996,8 @@ export async function setCurrentBowler(
       throw new DbQueryError("same_bowler_next_over", "22000");
     }
 
-    // Only entries whose flag flips change: the bowlers currently flagged
-    // and the chosen bowler's own entry.
-    const bowling = current.bowling ?? [];
-    let changed = false;
-    const next = bowling.map((b) => {
-      const isCurrent = b.user_id === bowlerId;
-      const touched = b.is_current_bowler === true || isCurrent;
-      if (!touched || Boolean(b.is_current_bowler) === isCurrent) return b;
-      changed = true;
-      return { ...b, is_current_bowler: isCurrent };
-    });
-    if (!bowling.some((b) => b.user_id === bowlerId)) {
-      changed = true;
-      next.push({
-        user_id: bowlerId,
-        overs_bowled: 0,
-        balls_bowled: 0,
-        runs_conceded: 0,
-        wickets_taken: 0,
-        maidens: 0,
-        wides: 0,
-        no_balls: 0,
-        is_current_bowler: true,
-      });
-    }
-    if (!changed) return;
+    const next = bowlingWithBowler(current.bowling ?? [], bowlerId);
+    if (!next) return;
     t.patch("innings", current.id, { bowling: next });
     await stageCurrentLiveState(t, match, { ...current, bowling: next }, now);
   }, captureDelta(ctx)).catch(ignoreReplayed);

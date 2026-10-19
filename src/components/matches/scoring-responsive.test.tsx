@@ -121,8 +121,10 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
         /Need 25 runs from 26 balls/i,
       );
 
-      // Striker is highlighted with asterisk and stats
-      expect(screen.getByText(/Rohit Sharma \*/i)).toBeInTheDocument();
+      // The striker's row is highlighted and says so
+      expect(screen.getByTestId("hud-batter-on-strike")).toHaveTextContent(
+        /Rohit Sharma.*On strike/,
+      );
       expect(screen.getByText("76")).toBeInTheDocument();
       expect(screen.getByText(/\(44\)/i)).toBeInTheDocument();
 
@@ -232,7 +234,7 @@ describe("Scoring Page UI & Responsive Inspection (Mobile & Desktop)", () => {
       expect(wideBtn).toHaveAttribute("aria-pressed", "true");
 
       // Verify staged delivery alert banner is visible
-      expect(screen.getByText(/wide ball/i)).toBeInTheDocument();
+      expect(screen.getByText(/wide selected/i)).toBeInTheDocument();
 
       // Tap 0 (1 Wide recorded)
       const dotBtn = screen.getByRole("button", { name: /0 runs/i });

@@ -127,6 +127,14 @@ export const PER_BALL_INNINGS_FIELDS = new Set([
   "recent_client_actions",
 ]);
 
+/** Each batter's share of a stand, kept since (not part of the legacy row). */
+export const PARTNERSHIP_SPLIT_FIELDS = new Set([
+  "batsman1_runs",
+  "batsman1_balls",
+  "batsman2_runs",
+  "batsman2_balls",
+]);
+
 /** Fields stage 3 added to match documents (not part of the legacy row). */
 export const STAGE3_MATCH_FIELDS = new Set([
   "innings_summary",
@@ -177,6 +185,7 @@ export async function legacySnapshot(
       if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;
       if (table === "innings" && STAGE2_INNINGS_FIELDS.has(k)) continue;
       if (table === "innings" && PER_BALL_INNINGS_FIELDS.has(k)) continue;
+      if (table === "partnerships" && PARTNERSHIP_SPLIT_FIELDS.has(k)) continue;
       if (table === "matches" && k === "recent_client_actions") continue;
       out[k] = v === undefined ? null : v;
     }

@@ -500,6 +500,15 @@ export interface PartnershipsRow {
   wicket_number: number | null;
   runs: number | null;
   balls: number | null;
+  /**
+   * Each batter's share: runs credited to them and balls they faced in the
+   * stand (as on the batting card); the rest of `runs` is extras. Absent on
+   * stands recorded before they were kept (until the next recompute).
+   */
+  batsman1_runs?: number | null;
+  batsman1_balls?: number | null;
+  batsman2_runs?: number | null;
+  batsman2_balls?: number | null;
   start_over: number | null;
   end_over: number | null;
   is_current: boolean | null;

@@ -133,7 +133,7 @@ export function QualificationCalculator({
         </div>
 
         {/* Team Scenarios Table */}
-        <div className="max-h-[380px] space-y-2.5 overflow-y-auto py-1 pr-1">
+        <div className="space-y-2.5 py-1 sm:max-h-[380px] sm:overflow-y-auto sm:pr-1">
           {teamScenarios.map((team, idx) => {
             const isQ = team.status === "qualified";
             const isE = team.status === "eliminated";

@@ -152,6 +152,11 @@ const PARTNERSHIP_COLUMNS = [
   ["start_over", "n"],
   ["end_over", "n"],
   ["is_current", "b"],
+  // Appended (older docs decode them as null).
+  ["batsman1_runs", "n"],
+  ["batsman1_balls", "n"],
+  ["batsman2_runs", "n"],
+  ["batsman2_balls", "n"],
 ] as const satisfies Columns;
 
 type Players = { index: (id: string) => number };
@@ -371,6 +376,9 @@ export function liveScorecardView(doc: LiveScorecardDoc): LiveScorecardView {
     return {
       ...totals,
       match_id: matchId,
+      // The stands as stored (the scorecard names them from the batting
+      // rows), so a live innings never shows the fetched, older ones.
+      partnerships: inn.partnerships ?? [],
       batting_performances: (inn.batting ?? []).map((b) => ({
         ...b,
         id: `${inn.id}_${b.user_id}`,

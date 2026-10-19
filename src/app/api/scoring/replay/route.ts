@@ -148,8 +148,12 @@ export async function POST(request: NextRequest) {
       );
     }
     const batch = parsed.data;
-    const results = await replayActions(db, batch.matchId, batch.actions);
-    const response: ReplayResponse = { v: batch.v, results };
+    const { results, delta } = await replayActions(
+      db,
+      batch.matchId,
+      batch.actions,
+    );
+    const response: ReplayResponse = { v: batch.v, results, delta };
     return NextResponse.json(response, { headers: NO_STORE });
   } catch (err) {
     console.error("replay: unexpected error:", err);

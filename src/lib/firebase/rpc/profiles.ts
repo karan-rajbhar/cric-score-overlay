@@ -8,7 +8,7 @@ import type { AppUser } from "../auth-types";
 import type { DataSource, Doc } from "../datasource";
 import { DbQueryError, newId } from "../query-builder";
 import { USER_REFERENCES, TABLE_DEFAULTS, TABLE_COLUMNS } from "../schema";
-import type { TeamsRow, UsersRow } from "../types";
+import type { MatchesRow, TeamsRow, UsersRow } from "../types";
 import {
   getUserPrivate,
   moveUserPrivate,
@@ -17,7 +17,7 @@ import {
   userIdsByPhone,
 } from "../user-private";
 import { remapScorecardUserId } from "../scorecard-sync";
-import { isClubAdmin } from "./auth-helpers";
+import { isClubAdmin, isMatchAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
   "about",
@@ -375,12 +375,36 @@ export async function ensureOwnProfile(
   return { ok: true, user_id: uid, username, action: "created" };
 }
 
+/** Whether `userId` scores `matchId`, an unfinished match `teamId` plays in. */
+async function scoresMatchOf(
+  ds: DataSource,
+  matchId: string | null | undefined,
+  teamId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!matchId) return false;
+  const match = (await ds.getById(
+    "matches",
+    matchId,
+  )) as unknown as MatchesRow | null;
+  if (!match) return false;
+  if (match.team1_id !== teamId && match.team2_id !== teamId) return false;
+  if (match.status === "completed" || match.status === "abandoned") return false;
+  return isMatchAdmin(ds, matchId, userId);
+}
+
 export async function createTeamPlayer(
   ds: DataSource,
   callerId: string | null,
   teamId: string,
   fullName: string,
   jerseyNumber?: number | null,
+  /**
+   * The match the player is added for: its scorers (including invited
+   * co-scorers, `match_admins`) may add players to either of its teams
+   * until it is over.
+   */
+  matchId?: string | null,
 ): Promise<{
   user_id: string;
   full_name: string;
@@ -400,7 +424,8 @@ export async function createTeamPlayer(
     team.created_by === callerId ||
     team.captain_id === callerId ||
     team.vice_captain_id === callerId ||
-    (await isClubAdmin(ds, team.club_id, callerId));
+    (await isClubAdmin(ds, team.club_id, callerId)) ||
+    (await scoresMatchOf(ds, matchId, teamId, callerId));
   if (!authorised) {
     throw new DbQueryError(
       "not_authorized: Not authorized to add players to this team",

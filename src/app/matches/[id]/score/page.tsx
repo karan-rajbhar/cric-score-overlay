@@ -152,6 +152,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft,
   Tv,
+  Check,
   Loader2,
   AlertCircle,
   UserPlus,
@@ -289,14 +290,16 @@ export default function ScoringPage() {
     lastBalls,
     rawDeliveries,
     isProcessing,
+    undoBusy,
+    undoNotice,
+    handleRedo,
+    isSaving,
+    syncStuck,
     isOffline,
     pendingCount,
     deadLetterCount,
     flushOfflineQueue,
     handleSkipHeadAction,
-    setStrikerId,
-    setNonStrikerId,
-    setCurrentBowlerId,
     handleStartMatch,
     handleScore,
     handleUndo,
@@ -396,6 +399,10 @@ export default function ScoringPage() {
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
   const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
+  /** The end the batsmen dialog changes (null: the first empty one). */
+  const [batsmenFocus, setBatsmenFocus] = useState<
+    "striker" | "nonStriker" | null
+  >(null);
   const [showAbandonMatchDialog, setShowAbandonMatchDialog] = useState(false);
   const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
   const [showReviseTargetDialog, setShowReviseTargetDialog] = useState(false);
@@ -504,6 +511,7 @@ export default function ScoringPage() {
       fours: perf?.fours ?? 0,
       sixes: perf?.sixes ?? 0,
       isStriker: true,
+      position: perf?.batting_position ?? null,
     };
   }, [strikerId, battingTeamPlayers, currentInnings]);
 
@@ -521,6 +529,7 @@ export default function ScoringPage() {
       fours: perf?.fours ?? 0,
       sixes: perf?.sixes ?? 0,
       isStriker: false,
+      position: perf?.batting_position ?? null,
     };
   }, [nonStrikerId, battingTeamPlayers, currentInnings]);
 
@@ -843,28 +852,12 @@ export default function ScoringPage() {
   };
 
   const createSquadPlayer = async (side: "batting" | "bowling", name: string) =>
-    handleAddPlayerInline(
-      side,
-      name,
-      match,
-      strikerId,
-      nonStrikerId,
-      currentBowlerId,
-    );
+    handleAddPlayerInline(side, name, match);
 
-  // Pickers add a player and select them in the slot being filled, so the
-  // hook must not also auto-assign them.
+  // Pickers add a player and select them in the slot being filled.
   const createPickedPlayer =
     (side: "batting" | "bowling") => async (name: string) => {
-      const res = await handleAddPlayerInline(
-        side,
-        name,
-        match,
-        strikerId,
-        nonStrikerId,
-        currentBowlerId,
-        { autoAssign: false },
-      );
+      const res = await handleAddPlayerInline(side, name, match);
       return res?.data?.user_id ?? null;
     };
   const addPlayerDisabledReason = isOffline
@@ -909,18 +902,11 @@ export default function ScoringPage() {
     if (res.error) {
       toast.error(res.error);
     } else {
+      // The hook shows the crease the server now has (or, queued, without
+      // the retired batter).
       if (!res.queued) {
-        toast.success(
-          `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
-        );
+        toast.success(type === "retired_hurt" ? "Retired hurt" : "Retired out");
       }
-      if (strikerId === playerId) {
-        setStrikerId(null);
-      }
-      if (nonStrikerId === playerId) {
-        setNonStrikerId(null);
-      }
-      if (!res.queued) await syncFromDb();
       setShowSelectBatsmen(true);
     }
   };
@@ -939,7 +925,6 @@ export default function ScoringPage() {
       toast.success(
         `${params.type === "penalty" ? "Penalty" : "Bonus"} of ${params.runs} runs recorded`,
       );
-      await syncFromDb();
     }
   };
 
@@ -1065,6 +1050,39 @@ export default function ScoringPage() {
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {/* Someone else scored this match in the last ~2 minutes */}
             <OtherScorerNotice matchId={matchId} userId={user?.id} />
+            {/* Save status (instant scoring saves in the background) */}
+            {!isOffline && match.status === "live" && isScorer && (
+              syncStuck && pendingCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void flushOfflineQueue()}
+                  title="Some changes have not reached the server yet. Tap to retry."
+                  className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300"
+                >
+                  <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span>Not saved</span>
+                  <span className="tabular-nums">({pendingCount})</span>
+                </button>
+              ) : (
+                <span
+                  className="flex items-center gap-1 px-1 text-[10px] font-medium text-muted-foreground"
+                  title={
+                    pendingCount > 0 || isSaving || isProcessing
+                      ? "Saving to the server"
+                      : "All changes saved"
+                  }
+                >
+                  {pendingCount > 0 || isSaving || isProcessing ? (
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="max-sm:sr-only">
+                    {pendingCount > 0 || isSaving || isProcessing ? "Saving…" : "Saved"}
+                  </span>
+                </span>
+              )
+            )}
             {/* Offline indicator */}
             {isOffline && (
               <span
@@ -1354,8 +1372,8 @@ export default function ScoringPage() {
         </div>
       </header>
 
-      {/* Offline Alert & Sync Banner */}
-      {(isOffline || pendingCount > 0) && (
+      {/* Offline Alert & Sync Banner (not for instant saves in progress) */}
+      {(isOffline || (pendingCount > 0 && syncStuck)) && (
         <div
           role="status"
           aria-live="polite"
@@ -1382,8 +1400,9 @@ export default function ScoringPage() {
                 </>
               ) : (
                 <>
-                  <strong className="font-semibold">Back online:</strong>{" "}
-                  {pendingCount} offline update(s) ready to sync.
+                  <strong className="font-semibold">Not saved yet:</strong>{" "}
+                  {pendingCount} update(s) are kept on this device and will
+                  sync when the server can be reached.
                 </>
               )}
             </span>
@@ -1558,6 +1577,7 @@ export default function ScoringPage() {
                       toast.info("Please record the toss to start the match");
                       return;
                     }
+                    setBatsmenFocus("striker");
                     setShowSelectBatsmen(true);
                   }
                 : undefined
@@ -1570,6 +1590,7 @@ export default function ScoringPage() {
                       toast.info("Please record the toss to start the match");
                       return;
                     }
+                    setBatsmenFocus("nonStriker");
                     setShowSelectBatsmen(true);
                   }
                 : undefined
@@ -1839,9 +1860,11 @@ export default function ScoringPage() {
               disabled={isScoringDisabled}
               undoDisabled={
                 !isScorer ||
-                isProcessing ||
+                undoBusy ||
                 (match?.status !== "live" && match?.status !== "completed")
               }
+              undoNotice={undoNotice}
+              onRedo={() => void handleRedo()}
               keyboardSuppressed={scoringKeyboardSuppressed}
               sunlightMode={sunlightMode}
               wagonWheelPrompt={wagonWheelPrompt}
@@ -2030,7 +2053,11 @@ export default function ScoringPage() {
 
       <BatsmenDialog
         open={showSelectBatsmen}
-        onOpenChange={setShowSelectBatsmen}
+        onOpenChange={(open) => {
+          setShowSelectBatsmen(open);
+          if (!open) setBatsmenFocus(null);
+        }}
+        focusEnd={batsmenFocus}
         battingTeamPlayers={battingTeamPlayers}
         battingTeamName={battingTeam?.name}
         battingPerformances={currentInnings?.batting_performances}
@@ -2039,8 +2066,6 @@ export default function ScoringPage() {
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         dismissedPlayerIds={dismissedPlayerIds}
-        onStrikerChange={setStrikerId}
-        onNonStrikerChange={setNonStrikerId}
         onConfirm={async (pair) => {
           const res = await handleConfirmBatsmen(
             pair.strikerId,
@@ -2054,6 +2079,14 @@ export default function ScoringPage() {
         isProcessing={isProcessing}
         onCreatePlayer={createPickedPlayer("batting")}
         addPlayerDisabledReason={addPlayerDisabledReason}
+        onEndInnings={
+          isScorer
+            ? () => {
+                setShowSelectBatsmen(false);
+                void handleEndInnings();
+              }
+            : undefined
+        }
       />
 
       <BowlerDialog
@@ -2074,7 +2107,7 @@ export default function ScoringPage() {
         currentBall={match.current_ball}
         reassignOverDeliveries={reassignOverDeliveries}
         onReassignOverDeliveriesChange={setReassignOverDeliveries}
-        onBowlerChange={setCurrentBowlerId}
+        overNumber={(match.current_over ?? 0) + 1}
         onConfirm={async (bowlerId) => {
           if (reassignOverDeliveries && (match.current_ball ?? 0) > 0) {
             const res = await handleReassignOverBowler(bowlerId);
@@ -2082,13 +2115,10 @@ export default function ScoringPage() {
               toast.error(res.error);
             } else {
               if (!res.queued) {
-                toast.success(
-                  "Bowler updated and current over deliveries reassigned",
-                );
+                toast.success("Bowler changed for this over's deliveries");
               }
               setShowSelectBowler(false);
               setReassignOverDeliveries(false);
-              if (!res.queued) await syncFromDb();
             }
           } else {
             const res = await handleConfirmBowler(bowlerId);
