@@ -107,6 +107,200 @@ export function buildExportSummary(
   };
 }
 
+/**
+ * "Share PDF" on the report page: the report is turned into a PDF file in
+ * the browser (html2canvas renders each page in its desktop A4 layout,
+ * jsPDF assembles them; both pinned on jsDelivr with integrity hashes) as
+ * soon as the page has loaded, so a tap opens the phone's share sheet
+ * (WhatsApp, Gmail, ...) at once: browsers allow sharing only right after
+ * a tap. Where files cannot be shared (Firefox, Linux) it downloads. If
+ * anything fails the button goes away; "Save as PDF / Print" remains.
+ */
+const SHARE_PDF_SCRIPT = `<script>
+(function () {
+  var btn = document.getElementById("btn-share-pdf");
+  if (!btn) return;
+  var LIBS = [
+    ["https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+     "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"],
+    ["https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+     "sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/"]
+  ];
+  var A4_W = 210, A4_H = 297;
+  var fileName = btn.getAttribute("data-file-name") || "match-report.pdf";
+  var canShareFiles = (function () {
+    try {
+      return !!(navigator.canShare && navigator.canShare({
+        files: [new File(["x"], "x.pdf", { type: "application/pdf" })]
+      }));
+    } catch (e) { return false; }
+  })();
+  var file = null;
+
+  function load(src, integrity) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src; s.integrity = integrity; s.crossOrigin = "anonymous";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function each(list, fn) { return Array.prototype.map.call(list, fn); }
+
+  // Team logos live on another site, which a canvas may not read: they go
+  // in through this site's image optimizer, or show initials (as when a
+  // team has no logo) if that fails.
+  var logoVia = {};
+  function proxyLogos() {
+    return Promise.all(each(document.querySelectorAll("img[data-initials]"), function (img) {
+      var src = img.getAttribute("src") || "";
+      var url;
+      try { url = new URL(src, location.href); } catch (e) { return null; }
+      if (url.origin === location.origin || url.protocol === "data:") return null;
+      var via = location.origin + "/_next/image?url=" + encodeURIComponent(url.href) + "&w=256&q=75";
+      return new Promise(function (resolve) {
+        var probe = new Image();
+        probe.onload = function () { logoVia[src] = via; resolve(); };
+        probe.onerror = function () { resolve(); };
+        probe.src = via;
+      });
+    }));
+  }
+
+  // The copy html2canvas renders (desktop A4 layout): no toolbar, logos as
+  // cover backgrounds (it ignores object-fit), and where a sheet may end:
+  // not through a small block (a row, a card, a line of text), nor right
+  // after a heading.
+  var KEEP_WHOLE = 400, KEEP_WITH_NEXT = 60;
+  var cuts = [], blocks = [], box = null;
+  function prepare(doc, el) {
+    var bar = doc.getElementById("screen-toolbar");
+    if (bar) bar.remove();
+    each(doc.querySelectorAll("img[data-initials]"), function (img) {
+      var span = doc.createElement("span");
+      var via = logoVia[img.getAttribute("src") || ""];
+      if (via) {
+        span.style.cssText = "display:block;width:100%;height:100%;background:url(" +
+          JSON.stringify(via) + ") center / cover no-repeat";
+      } else {
+        span.textContent = img.getAttribute("data-initials");
+      }
+      img.replaceWith(span);
+    });
+    box = el.getBoundingClientRect();
+    cuts = []; blocks = [];
+    each(el.querySelectorAll("*"), function (n) {
+      var rect = n.getBoundingClientRect();
+      var t = rect.top - box.top, b = rect.bottom - box.top;
+      if (b - t <= 0) return;
+      cuts.push(t, b);
+      if (n.matches("h1, h2, h3, h4, [class*='title'], [class*='header']")) b += KEEP_WITH_NEXT;
+      if (b - t <= KEEP_WHOLE) blocks.push([t, b]);
+    });
+  }
+  function clean(y) {
+    return !blocks.some(function (k) { return k[0] < y - 0.5 && k[1] > y + 0.5; });
+  }
+
+  // Sheets of one page: [top, bottom] in CSS px, each at most an A4 high,
+  // ending at the lowest clean cut in its lower half (else a sheet high).
+  function sheets(pageWidth, height) {
+    var sheetH = pageWidth * A4_H / A4_W, out = [], y = 0;
+    while (height - y > 1) {
+      var end = Math.min(height, y + sheetH);
+      if (end < height) {
+        var from = y + sheetH / 2, limit = end;
+        var fit = cuts.filter(function (c) { return c > from && c <= limit && clean(c); });
+        if (fit.length) end = Math.max.apply(null, fit);
+      }
+      out.push([y, end]);
+      y = end;
+    }
+    return out;
+  }
+
+  function build() {
+    return Promise.all(LIBS.map(function (l) { return load(l[0], l[1]); }))
+      .then(function () { return document.fonts ? document.fonts.ready : null; })
+      .then(proxyLogos)
+      .then(function () {
+        var pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
+        var first = true;
+        var pages = document.querySelectorAll(".report-page");
+        return Array.prototype.reduce.call(pages, function (chain, el) {
+          return chain.then(function () {
+            return window.html2canvas(el, {
+              scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false,
+              windowWidth: 1024, windowHeight: 1400, scrollX: 0, scrollY: 0,
+              onclone: prepare
+            });
+          }).then(function (canvas) {
+            var k = canvas.width / box.width, px = canvas.width / A4_W;
+            sheets(box.width, canvas.height / k).forEach(function (sheet) {
+              var y = Math.round(sheet[0] * k);
+              var h = Math.min(canvas.height, Math.round(sheet[1] * k)) - y;
+              if (h <= 0) return;
+              var part = document.createElement("canvas");
+              part.width = canvas.width; part.height = h;
+              var ctx = part.getContext("2d");
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(0, 0, part.width, h);
+              ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+              if (!first) pdf.addPage();
+              first = false;
+              pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_W, h / px);
+            });
+          });
+        }, Promise.resolve()).then(function () {
+          return new File([pdf.output("blob")], fileName, { type: "application/pdf" });
+        });
+      });
+  }
+
+  function download(f) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+
+  // Built ahead, once the page has loaded: the share sheet only opens
+  // straight from a tap, with no wait in between.
+  function start() {
+    var idle = window.requestIdleCallback || function (f) { setTimeout(f, 200); };
+    idle(function () {
+      build().then(function (f) {
+        file = f;
+        btn.disabled = false;
+        btn.textContent = canShareFiles ? "Share PDF" : "Download PDF";
+        btn.setAttribute("data-ready", "true");
+      }, function (err) {
+        console.error("Share PDF: could not build the file", err);
+        btn.hidden = true;
+      });
+    });
+  }
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start);
+
+  btn.addEventListener("click", function () {
+    if (!file) return;
+    if (!canShareFiles) return download(file);
+    // The file alone: with text as well, some share targets (WhatsApp on
+    // iOS) drop the file. The link and QR code are in the PDF.
+    navigator.share({ files: [file] }).catch(function (e) {
+      // Cancelled: nothing to do. Refused (the tap expired): download.
+      if (e && e.name !== "AbortError") download(file);
+    });
+  });
+})();
+</script>`;
+
+/** What a team's crest shows without a logo. */
+function crestText(team: { name: string; short_name?: string | null }) {
+  return team.short_name?.slice(0, 3) || team.name.slice(0, 2).toUpperCase();
+}
+
 function inningsFor(match: Match, teamId: string) {
   return match.innings?.find((i) => i.team_id === teamId);
 }
@@ -1539,6 +1733,10 @@ export async function buildMatchReportHtml(
     { team: firstTeam, innings: inn1 },
     { team: secondTeam, innings: inn2 },
   ] = sidesInBattingOrder(match);
+  const pdfFileName = `${firstTeam.name} vs ${secondTeam.name} – match report.pdf`
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const formatTeamHeadlineScore = (inn: InningsRow | undefined) => {
     if (!inn) return `<span class="headline-score-empty">Yet to bat</span>`;
@@ -1836,6 +2034,12 @@ export async function buildMatchReportHtml(
         color: #f1f5f9;
         border: 1px solid #334155;
     }
+    #screen-toolbar button:disabled {
+        opacity: 0.6;
+        cursor: progress;
+        transform: none;
+    }
+    #screen-toolbar button[hidden] { display: none; }
     #screen-toolbar button:hover {
         opacity: 0.92;
         transform: translateY(-1px);
@@ -3000,7 +3204,15 @@ export async function buildMatchReportHtml(
             gap: 10px;
         }
         #screen-toolbar .toolbar-info {
-            font-size: 11.5px;
+            display: none;
+        }
+        #screen-toolbar .toolbar-actions {
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        #screen-toolbar .toolbar-actions button {
+            flex: 1 1 40%;
         }
         #screen-toolbar button {
             padding: 6px 14px;
@@ -3173,10 +3385,14 @@ export async function buildMatchReportHtml(
             <span><svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore Match Report &bull; Print Preview</span>
         </div>
         <div class="toolbar-actions">
+            <button id="btn-share-pdf" class="btn-print" type="button" disabled
+                data-file-name="${esc(pdfFileName)}">
+                Preparing PDF…
+            </button>
             <button class="btn-share" type="button" data-url="${esc(matchUrl)}" onclick="(function(b){var u=b.getAttribute('data-url');if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){b.textContent='Link copied';});}})(this)">
                 Share link
             </button>
-            <button class="btn-print" onclick="(document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){window.print();})">
+            <button class="btn-close" onclick="(document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){window.print();})">
                 Save as PDF / Print
             </button>
             <button class="btn-close" onclick="window.close()">
@@ -3207,7 +3423,7 @@ export async function buildMatchReportHtml(
                 <div class="duel-teams-col">
                     <div class="duel-team-item">
                         <div class="team-avatar-crest">
-                            ${firstTeam.logo_url ? `<img src="${esc(firstTeam.logo_url)}" alt="${esc(firstTeam.name)}" />` : esc(firstTeam.short_name?.slice(0, 3) || firstTeam.name.slice(0, 2).toUpperCase())}
+                            ${firstTeam.logo_url ? `<img src="${esc(firstTeam.logo_url)}" alt="${esc(firstTeam.name)}" data-initials="${esc(crestText(firstTeam))}" />` : esc(crestText(firstTeam))}
                         </div>
                         <div class="duel-team-info">
                             <span class="duel-team-name">${esc(firstTeam.name)}</span>
@@ -3216,7 +3432,7 @@ export async function buildMatchReportHtml(
                     </div>
                     <div class="duel-team-item">
                         <div class="team-avatar-crest">
-                            ${secondTeam.logo_url ? `<img src="${esc(secondTeam.logo_url)}" alt="${esc(secondTeam.name)}" />` : esc(secondTeam.short_name?.slice(0, 3) || secondTeam.name.slice(0, 2).toUpperCase())}
+                            ${secondTeam.logo_url ? `<img src="${esc(secondTeam.logo_url)}" alt="${esc(secondTeam.name)}" data-initials="${esc(crestText(secondTeam))}" />` : esc(crestText(secondTeam))}
                         </div>
                         <div class="duel-team-info">
                             <span class="duel-team-name">${esc(secondTeam.name)}</span>
@@ -3308,6 +3524,7 @@ export async function buildMatchReportHtml(
         </footer>
     </div>
     ` : ""}
+${SHARE_PDF_SCRIPT}
 </body>
 </html>`;
 }

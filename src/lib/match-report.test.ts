@@ -628,6 +628,28 @@ describe("match-report export helpers", () => {
     });
   });
 
+  it("offers the report as a PDF file to share, built ahead of the tap", async () => {
+    const html = await buildMatchReportHtml(
+      {
+        ...sampleMatch,
+        team1: { ...sampleMatch.team1!, logo_url: "https://cdn.test/a.png" },
+      },
+      "https://x.test/m",
+    );
+    // Disabled until the file is ready; named after the sides in batting order.
+    expect(html).toMatch(/<button id="btn-share-pdf"[^>]*disabled/);
+    expect(html).toMatch(/data-file-name="[^"]+ vs [^"]+ – match report\.pdf"/);
+    // Pinned libraries, checked by the browser.
+    expect(html).toContain("html2canvas@1.4.1");
+    expect(html).toContain("jspdf@2.5.2");
+    expect(html.match(/"sha384-[A-Za-z0-9+/=]{64}"/g)).toHaveLength(2);
+    // The file alone goes to the share sheet (WhatsApp on iOS drops it
+    // when text comes with it).
+    expect(html).toContain("navigator.share({ files: [file] })");
+    // Logos carry what the crest shows without them.
+    expect(html).toContain('data-initials="');
+  });
+
   it("shares the link and waits for fonts before printing", async () => {
     const html = await buildMatchReportHtml(sampleMatch, "https://x.test/m");
     expect(html).toContain('data-url="https://x.test/m"');
