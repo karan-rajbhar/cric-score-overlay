@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowLeftRight } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -25,12 +26,14 @@ interface BatsmenDialogProps {
   battingPerformances?: BattingPerformance[];
   bowlingTeamPlayerIds?: Set<string>;
   currentBowlerId?: string | null;
+  /** The batters at the crease now (null: that end is empty). */
   strikerId: string | null;
   nonStrikerId: string | null;
   dismissedPlayerIds?: Set<string>;
-  onStrikerChange: (v: string) => void;
-  onNonStrikerChange: (v: string) => void;
-  /** Receives the pair to confirm, including a preselected next batter. */
+  /**
+   * Receives the pair to confirm. Nothing on the screen changes before:
+   * picks stay in the dialog until Confirm.
+   */
   onConfirm: (pair: { strikerId: string; nonStrikerId: string }) => void;
   isProcessing: boolean;
   /** Creates a player in the batting side; resolves to the new id. */
@@ -39,6 +42,14 @@ interface BatsmenDialogProps {
   addPlayerDisabledReason?: string | null;
 }
 
+/**
+ * Who bats. Three cases:
+ * - start of an innings (both ends empty): striker, then non-striker;
+ * - after a wicket (one end empty): only the new batter is chosen (the
+ *   next in is suggested); the not-out batter stays, and "Swap ends" sets
+ *   who faces the next ball;
+ * - both at the crease (opened from the menu): either end can be changed.
+ */
 export function BatsmenDialog({
   open,
   onOpenChange,
@@ -50,26 +61,26 @@ export function BatsmenDialog({
   strikerId,
   nonStrikerId,
   dismissedPlayerIds,
-  onStrikerChange,
-  onNonStrikerChange,
   onConfirm,
   isProcessing,
   onCreatePlayer,
   addPlayerDisabledReason,
 }: BatsmenDialogProps) {
-  const firstEmpty: Slot =
-    !strikerId && nonStrikerId
-      ? "striker"
-      : !nonStrikerId && strikerId
-        ? "nonStriker"
-        : "striker";
-  const [activeSlot, setActiveSlot] = useState<Slot>(firstEmpty);
-  // Point at the empty slot each time the dialog opens.
-  const [wasOpen, setWasOpen] = useState(open);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open) setActiveSlot(firstEmpty);
-  }
+  /** The not-out batter after a wicket (their end is not to be replaced). */
+  const survivor =
+    Boolean(strikerId) !== Boolean(nonStrikerId)
+      ? (strikerId ?? nonStrikerId)
+      : null;
+
+  const [draft, setDraft] = useState<{
+    striker: string | null;
+    nonStriker: string | null;
+  }>({ striker: strikerId, nonStriker: nonStrikerId });
+  const firstEmpty = (d: typeof draft): Slot =>
+    !d.striker ? "striker" : !d.nonStriker ? "nonStriker" : "striker";
+  const [activeSlot, setActiveSlot] = useState<Slot>(firstEmpty(draft));
+  /** Whether the next in has been applied to the empty end. */
+  const [suggested, setSuggested] = useState(false);
 
   const { rows, nextInId } = useMemo(
     () =>
@@ -93,12 +104,27 @@ export function BatsmenDialog({
     ],
   );
 
-  // After a wicket one end is empty: suggest the next batter in, but only
-  // apply it when the scorer confirms.
-  const suggestion =
-    nextInId && Boolean(strikerId) !== Boolean(nonStrikerId) ? nextInId : null;
-  const draftStriker = strikerId ?? suggestion;
-  const draftNonStriker = nonStrikerId ?? (strikerId ? suggestion : null);
+  // Start from the crease each time the dialog opens (or the crease
+  // changes meanwhile, e.g. a co-scorer's change); after a wicket, the
+  // next batter in fills the empty end until the scorer picks another.
+  const crease = `${open}:${strikerId}:${nonStrikerId}`;
+  const [seen, setSeen] = useState("");
+  if (crease !== seen) {
+    setSeen(crease);
+    if (open) {
+      const fresh = { striker: strikerId, nonStriker: nonStrikerId };
+      const empty = firstEmpty(fresh);
+      if (survivor && nextInId && nextInId !== survivor) {
+        if (empty === "striker") fresh.striker = nextInId;
+        else fresh.nonStriker = nextInId;
+        setSuggested(true);
+      } else {
+        setSuggested(false);
+      }
+      setDraft(fresh);
+      setActiveSlot(empty);
+    }
+  }
 
   const nameOf = (id: string | null) =>
     id ? (rows.find((r) => r.id === id)?.name ?? "Unknown") : null;
@@ -110,57 +136,78 @@ export function BatsmenDialog({
           bowlingTeamPlayerIds?.has(id)),
     );
 
+  const slotOf = (id: string | null): Slot | null =>
+    id === null
+      ? null
+      : draft.striker === id
+        ? "striker"
+        : draft.nonStriker === id
+          ? "nonStriker"
+          : null;
+
+  /** The end being filled after a wicket: the one without the survivor. */
+  const newBatterSlot: Slot | null = survivor
+    ? slotOf(survivor) === "striker"
+      ? "nonStriker"
+      : "striker"
+    : null;
+
   const select = (id: string) => {
-    const current = activeSlot === "striker" ? strikerId : nonStrikerId;
-    const other = activeSlot === "striker" ? nonStrikerId : strikerId;
-    const setThis =
-      activeSlot === "striker" ? onStrikerChange : onNonStrikerChange;
-    const setOther =
-      activeSlot === "striker" ? onNonStrikerChange : onStrikerChange;
+    const slot = newBatterSlot ?? activeSlot;
+    const key = slot === "striker" ? "striker" : "nonStriker";
+    const otherKey = key === "striker" ? "nonStriker" : "striker";
+    const current = draft[key];
     if (id === current) return;
-    setThis(id);
-    if (id === other) {
-      // Picking the batter at the other end swaps the two.
-      if (current) setOther(current);
-    } else if (!other) {
-      setActiveSlot(activeSlot === "striker" ? "nonStriker" : "striker");
+    setSuggested(false);
+    if (id === draft[otherKey]) {
+      // Picking the batter at the other end swaps the two (not after a
+      // wicket: the not-out batter is not the one being chosen).
+      if (newBatterSlot) return;
+      setDraft({ ...draft, [key]: id, [otherKey]: current });
+      return;
     }
+    const next = { ...draft, [key]: id };
+    setDraft(next);
+    if (!newBatterSlot && !next[otherKey]) setActiveSlot(otherKey);
   };
 
-  const createPlayer = onCreatePlayer
-    ? async (name: string) => onCreatePlayer(name)
-    : undefined;
+  const swapEnds = () => {
+    setDraft({ striker: draft.nonStriker, nonStriker: draft.striker });
+  };
 
   const canConfirm =
-    Boolean(draftStriker && draftNonStriker) &&
-    draftStriker !== draftNonStriker &&
-    !isOpponent(draftStriker) &&
-    !isOpponent(draftNonStriker) &&
+    Boolean(draft.striker && draft.nonStriker) &&
+    draft.striker !== draft.nonStriker &&
+    !isOpponent(draft.striker) &&
+    !isOpponent(draft.nonStriker) &&
     !isProcessing;
 
   const confirm = () => {
-    if (!canConfirm || !draftStriker || !draftNonStriker) return;
-    if (draftStriker !== strikerId) onStrikerChange(draftStriker);
-    if (draftNonStriker !== nonStrikerId) onNonStrikerChange(draftNonStriker);
-    onConfirm({ strikerId: draftStriker, nonStrikerId: draftNonStriker });
+    if (!canConfirm || !draft.striker || !draft.nonStriker) return;
+    onConfirm({ strikerId: draft.striker, nonStrikerId: draft.nonStriker });
   };
 
   const slotButton = (slot: Slot, label: string, id: string | null) => {
-    const active = activeSlot === slot;
-    const suggested =
-      id !== null &&
-      id === suggestion &&
-      id !== (slot === "striker" ? strikerId : nonStrikerId);
+    const locked = Boolean(newBatterSlot) && slot !== newBatterSlot;
+    const active = newBatterSlot ? slot === newBatterSlot : activeSlot === slot;
+    const note = locked
+      ? "Not out"
+      : suggested && newBatterSlot === slot && id === nextInId
+        ? "Next in"
+        : null;
     return (
       <button
         type="button"
         aria-pressed={active}
+        disabled={locked}
         onClick={() => setActiveSlot(slot)}
         className={cn(
-          "flex min-h-14 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors",
+          "flex min-h-14 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-default",
           active
             ? "border-primary bg-primary/10"
-            : "border-border/70 bg-background hover:bg-muted",
+            : locked
+              ? "border-border/70 bg-muted/40"
+              : "border-border/70 bg-background hover:bg-muted",
         )}
       >
         <span className="text-xs text-muted-foreground">{label}</span>
@@ -172,42 +219,62 @@ export function BatsmenDialog({
         >
           {nameOf(id) ?? "Choose"}
         </span>
-        {suggested && (
-          <span className="text-xs text-muted-foreground">Next in</span>
-        )}
+        {note && <span className="text-xs text-muted-foreground">{note}</span>}
       </button>
     );
   };
+
+  const pickingFor = newBatterSlot ?? activeSlot;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Select batsmen</DialogTitle>
+          <DialogTitle className="text-balance">
+            {survivor ? "New batter" : "Select batsmen"}
+          </DialogTitle>
           <DialogDescription>
-            Tap a player to fill the highlighted end.
+            {survivor
+              ? `Who comes in with ${nameOf(survivor) ?? "the not-out batter"}? Use Swap ends if the new batter faces the next ball.`
+              : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            {slotButton("striker", "Striker", draftStriker)}
-            {slotButton("nonStriker", "Non-striker", draftNonStriker)}
+          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+            {slotButton("striker", "Striker", draft.striker)}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-auto w-9 self-stretch"
+              onClick={swapEnds}
+              disabled={!draft.striker && !draft.nonStriker}
+              aria-label="Swap ends"
+              title="Swap ends"
+            >
+              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            {slotButton("nonStriker", "Non-striker", draft.nonStriker)}
           </div>
 
           <PlayerPicker
             label={
-              activeSlot === "striker" ? "Choose striker" : "Choose non-striker"
+              survivor
+                ? "Choose the new batter"
+                : pickingFor === "striker"
+                  ? "Choose striker"
+                  : "Choose non-striker"
             }
             rows={rows}
             selectedId={
-              activeSlot === "striker" ? draftStriker : draftNonStriker
+              pickingFor === "striker" ? draft.striker : draft.nonStriker
             }
             onSelect={select}
             addPlayer={
-              createPlayer
+              onCreatePlayer
                 ? {
                     teamName: battingTeamName ?? "the batting side",
-                    onAdd: createPlayer,
+                    onAdd: onCreatePlayer,
                     disabledReason: addPlayerDisabledReason,
                   }
                 : undefined

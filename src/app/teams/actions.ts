@@ -308,7 +308,15 @@ export async function createTeamQuick(name: string, shortName?: string) {
  * when the squad doesn't have enough names. Creates the player's identity
  * and squad entry in one step via create_team_player().
  */
-export async function createPlayerQuick(teamId: string, fullName: string) {
+/**
+ * Adds a new player to a team. `matchId`: added from that match's scoring
+ * screen, so its scorers (invited co-scorers too) may add one.
+ */
+export async function createPlayerQuick(
+  teamId: string,
+  fullName: string,
+  matchId?: string | null,
+) {
   try {
     const db = await createServerClient();
 
@@ -325,6 +333,7 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
     const { data, error } = await db.rpc("create_team_player", {
       p_team_id: teamId,
       p_full_name: fullName,
+      ...(matchId ? { p_match_id: matchId } : {}),
     });
 
     if (error) {
@@ -333,7 +342,7 @@ export async function createPlayerQuick(teamId: string, fullName: string) {
         return {
           data: null,
           error:
-            "Only team captains, club admins, or match admins can add players",
+            "Only team captains, club admins or this match's scorers can add players",
         };
       }
       if (error.message.includes("team_not_found")) {

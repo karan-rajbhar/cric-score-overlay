@@ -846,28 +846,12 @@ export default function ScoringPage() {
   };
 
   const createSquadPlayer = async (side: "batting" | "bowling", name: string) =>
-    handleAddPlayerInline(
-      side,
-      name,
-      match,
-      strikerId,
-      nonStrikerId,
-      currentBowlerId,
-    );
+    handleAddPlayerInline(side, name, match);
 
-  // Pickers add a player and select them in the slot being filled, so the
-  // hook must not also auto-assign them.
+  // Pickers add a player and select them in the slot being filled.
   const createPickedPlayer =
     (side: "batting" | "bowling") => async (name: string) => {
-      const res = await handleAddPlayerInline(
-        side,
-        name,
-        match,
-        strikerId,
-        nonStrikerId,
-        currentBowlerId,
-        { autoAssign: false },
-      );
+      const res = await handleAddPlayerInline(side, name, match);
       return res?.data?.user_id ?? null;
     };
   const addPlayerDisabledReason = isOffline
@@ -2076,8 +2060,6 @@ export default function ScoringPage() {
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         dismissedPlayerIds={dismissedPlayerIds}
-        onStrikerChange={setStrikerId}
-        onNonStrikerChange={setNonStrikerId}
         onConfirm={async (pair) => {
           const res = await handleConfirmBatsmen(
             pair.strikerId,

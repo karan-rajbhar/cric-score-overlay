@@ -1437,10 +1437,13 @@ export function useScoring(
     const result = await undoLastBall(matchId);
     if (result.error) {
       toast.error(result.error);
-    } else if (result.data) {
-      applyState(result.data, false);
+    } else {
       toast.success("Last ball undone");
     }
+    // The state after an undo is the server's to say (the crease and bowler
+    // the undone ball was bowled with): shown from a fresh read, not run
+    // through the after-a-ball handling (which would add a ball to the
+    // over strip and prompt for a bowler or batter).
     await syncFromDb();
     setIsProcessing(false);
     return result;
@@ -2006,10 +2009,6 @@ export function useScoring(
     target: "batting" | "bowling" | null,
     name: string,
     currentMatch: Match | null,
-    currentStriker: string | null,
-    currentNonStriker: string | null,
-    currentBowler: string | null,
-    { autoAssign = true }: { autoAssign?: boolean } = {},
   ) => {
     if (!target || !name.trim() || !currentMatch) return null;
     const currentInnings = currentMatch.innings?.find(
@@ -2029,7 +2028,7 @@ export function useScoring(
       return null;
     }
     setIsProcessing(true);
-    const result = await createPlayerQuick(targetTeamId, name.trim());
+    const result = await createPlayerQuick(targetTeamId, name.trim(), matchId);
     if (result.error || !result.data) {
       toast.error(result.error ?? "Could not add player");
     } else {
@@ -2047,13 +2046,8 @@ export function useScoring(
         setBowlingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (!autoAssign) {
-          // The caller (a player picker) selects the new player itself.
-        } else if (!currentStriker) {
-          setStrikerId(newPlayer.user_id);
-        } else if (!currentNonStriker && currentStriker !== newPlayer.user_id) {
-          setNonStrikerId(newPlayer.user_id);
-        }
+        // Not put at the crease here: that is the batsmen dialog's to
+        // confirm (a crease the server does not have breaks the next ball).
       } else {
         setBowlingTeamPlayers((prev) => {
           if (prev.some((p) => p.user_id === newPlayer.user_id)) return prev;
@@ -2062,7 +2056,6 @@ export function useScoring(
         setBattingTeamPlayers((prev) =>
           prev.filter((p) => p.user_id !== newPlayer.user_id),
         );
-        if (autoAssign && !currentBowler) setCurrentBowlerId(newPlayer.user_id);
       }
       toast.success(`${result.data.full_name} added to squad`);
       await loadPlayers(currentMatch);

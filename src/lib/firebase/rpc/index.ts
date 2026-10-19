@@ -194,6 +194,7 @@ export async function callRpc(
         str(args, "p_team_id"),
         str(args, "p_full_name"),
         typeof args.p_jersey_number === "number" ? args.p_jersey_number : null,
+        optStr(args, "p_match_id"),
       );
     case "delete_match":
       return deleteMatch(
