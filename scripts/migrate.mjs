@@ -31,6 +31,7 @@ const MIGRATIONS = [
   "search-trigrams",
   "leaderboard-shards",
   "per-ball-fields",
+  "partnership-splits",
 ];
 
 const here = dirname(fileURLToPath(import.meta.url));

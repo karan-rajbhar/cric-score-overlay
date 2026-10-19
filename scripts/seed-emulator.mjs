@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { applyStage3, planStage3, planWrites } from "./lib/stage3.mjs";
+import { planPartnershipSplits } from "./lib/partnership-splits.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const keep = process.argv.includes("--keep");
@@ -60,6 +61,19 @@ if (planWrites(stage3) > 0) {
   );
 }
 const data = applyStage3(raw, stage3);
+// data.json's stands predate each batter's share; give them the shares the
+// engine keeps now (scripts/migrate-partnership-splits.mjs does the same).
+{
+  const splits = planPartnershipSplits({
+    matches: data.matches ?? [],
+    innings: data.innings ?? [],
+    overs: data.overs ?? [],
+  });
+  const byId = new Map(splits.updates.map((u) => [u.id, u.partnerships]));
+  data.innings = (data.innings ?? []).map((inn) =>
+    byId.has(inn.id) ? { ...inn, partnerships: byId.get(inn.id) } : inn,
+  );
+}
 
 async function assertEmulator() {
   try {
