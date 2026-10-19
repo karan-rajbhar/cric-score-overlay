@@ -54,6 +54,8 @@ interface ScoringPanelProps {
    * the next scoring action.
    */
   undoNotice?: {
+    /** An undone event: "Retirement", "Penalty" or "Bonus". */
+    heading?: string | null;
     label: string;
     /** "3.6" (over.ball). */
     position: string | null;
@@ -515,8 +517,9 @@ export function ScoringPanel({
                   .join(" · ")}
               >
                 <span className="font-semibold">
-                  {undoNotice.pending ? "Removing ball" : "Ball removed"}
-                  {undoNotice.label ? `: ${getBallLabel(undoNotice.label)}` : ""}
+                  {undoNotice.heading
+                    ? `${undoNotice.heading} ${undoNotice.pending ? "being removed" : "removed"}: ${undoNotice.label}`
+                    : `${undoNotice.pending ? "Removing ball" : "Ball removed"}${undoNotice.label ? `: ${getBallLabel(undoNotice.label)}` : ""}`}
                 </span>
                 {(undoNotice.position || undoNotice.players) && (
                   <span className="text-muted-foreground">

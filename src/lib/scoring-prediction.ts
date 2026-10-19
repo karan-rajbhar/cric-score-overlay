@@ -14,14 +14,18 @@
  * committed), the confirmed state moves on and the remaining queue is
  * folded again; the server always wins.
  *
+ * Retirements and penalty / bonus runs to the batting side are logged as
+ * events in the over (`newEventBall`, the same entry the server builds)
+ * and predicted the same way (`eventDocsAfter`).
+ *
  * An action the engine would not apply incrementally (an innings without
  * a scorecard, `max_balls_per_over` rules, a crease the documents do not
  * agree with, an over document the screen has not seen) is not predicted:
  * {@link foldPending} stops there and the screen waits for the server, as
  * it did before. So does every other action type (edits, end of innings,
- * retirements, penalties), and so does a delivery that ends the innings:
- * what follows it (the next innings, the result) is the server's to
- * decide. An undo is predicted as the state the screen showed just before
+ * penalty runs to the fielding side), and so does a delivery or event
+ * that ends the innings: what follows it (the next innings, the result) is
+ * the server's to decide. An undo is predicted as the state the screen showed just before
  * the ball it undoes ({@link UndoTargets}): the server's undo restores the
  * crease and bowler that ball was bowled with, i.e. that same state.
  */
@@ -31,7 +35,12 @@ import {
   battingWithCrease,
   bowlingWithBowler,
   checkBallArgs,
+  eventDocsAfter,
   inningsComplete,
+  newEventBall,
+  penaltyFields,
+  retirementFields,
+  type BallDocs,
   type RecordBallArgs,
 } from "./firebase/scoring/ball-docs";
 import {
@@ -42,8 +51,10 @@ import {
 } from "./firebase/scorecard";
 import type { InningsRow, MatchesRow } from "./firebase/types";
 import type {
+  AwardPenaltyPayload,
   PendingBallParams,
   QueuedAction,
+  RetireBatterPayload,
 } from "./offline-queue";
 import {
   applyLiveResync,
@@ -245,10 +256,22 @@ export function predictBall<M extends SnapshotMatch, D>(
     now,
   });
   if (!docs) return fail("not_incremental");
+  return stateAfterDocs(state, base, match, docs, names);
+}
+
+/** `state` with the documents a delivery or an event leaves behind. */
+function stateAfterDocs<M extends SnapshotMatch, D>(
+  state: ScreenState<M, D>,
+  base: PredictionBase,
+  match: MatchesRow,
+  docs: BallDocs,
+  names: Names,
+): Prediction<M, D> {
+  const innings = base.innings;
   const inningsAfter = { ...innings, ...docs.inningsPatch };
   const overAfter: OversRow = {
     ...docs.overDoc,
-    id: overDocId(innings.id, overNumber),
+    id: overDocId(innings.id, docs.overNumber),
   };
   try {
     return {
@@ -260,6 +283,59 @@ export function predictBall<M extends SnapshotMatch, D>(
     if (err instanceof Unpredictable) return fail(err.message);
     throw err;
   }
+}
+
+/**
+ * A retirement or penalty / bonus runs to the batting side, logged as the
+ * server logs them (`newEventBall` with `retirementFields` /
+ * `penaltyFields`) and applied to `state`.
+ */
+export function predictEvent<M extends SnapshotMatch, D>(
+  state: ScreenState<M, D>,
+  action:
+    | { queueId: string; type: "retireBatter"; payload: RetireBatterPayload }
+    | { queueId: string; type: "awardPenalty"; payload: AwardPenaltyPayload },
+  names: Names,
+  now: string,
+): Prediction<M, D> {
+  const match = state.snapshot.match as unknown as MatchesRow & {
+    id: string;
+    status?: string | null;
+  };
+  if (match.status !== "live") return fail("match_not_live");
+  const base = currentBase(state);
+  if (!base) return fail("no_base");
+  const innings = base.innings;
+  let fields;
+  if (action.type === "retireBatter") {
+    const { playerId, type, reason } = action.payload;
+    if (type !== "retired_hurt" && type !== "retired_out")
+      return fail("invalid_input");
+    fields = retirementFields(innings, playerId, type, reason);
+  } else {
+    const { teamId, runs, type, reason } = action.payload;
+    if (!Number.isFinite(runs) || runs <= 0) return fail("invalid_input");
+    // To the fielding side it changes their innings and the target.
+    if (teamId && teamId !== innings.team_id) return fail("fielding_side");
+    fields = penaltyFields(
+      innings,
+      runs,
+      type === "bonus" ? "bonus" : "penalty",
+      reason,
+    );
+  }
+  const event = newEventBall(
+    match,
+    innings,
+    fields,
+    now,
+    `pending-${action.queueId}`,
+  );
+  const overDoc = overDocOf(base, event.over_number);
+  if (overDoc === undefined) return fail("over_unknown");
+  const docs = eventDocsAfter({ match, innings, overDoc, event, now });
+  if (!docs) return fail("not_incremental");
+  return stateAfterDocs(state, base, match, docs, names);
 }
 
 /** A crease change (`set_current_batsmen`) applied to `state`. */
@@ -412,6 +488,9 @@ export function predictAction<M extends SnapshotMatch, D>(
       return predictBatsmen(state, action.payload, names);
     case "setBowler":
       return predictBowler(state, action.payload, names);
+    case "retireBatter":
+    case "awardPenalty":
+      return predictEvent(state, action, names, now);
     default:
       return fail(`unpredicted_${action.type}`);
   }

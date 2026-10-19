@@ -91,11 +91,11 @@ async function run(
         await setCurrentBowler(matchId, action.payload.bowlerId, id),
       );
     case "retireBatter":
-      return withoutDelta(
+      return withDelta(
         await retirePlayer(matchId, { ...action.payload, clientActionId: id }),
       );
     case "awardPenalty":
-      return withoutDelta(
+      return withDelta(
         await awardTeamPenalty(matchId, {
           ...action.payload,
           clientActionId: id,

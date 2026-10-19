@@ -3,12 +3,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useScoring } from "./useScoring";
 import { getScoringState, getTeamPlayers } from "../../queries";
 import { recordBall, undoLastBall } from "../../mutations";
-import { getDeadLetterCount, getPendingActions } from "~/lib/offline-queue";
+import {
+  getDeadLetterCount,
+  getPendingActions,
+  type AwardPenaltyPayload,
+  type RetireBatterPayload,
+} from "~/lib/offline-queue";
 import { reportClientError } from "~/lib/report-error";
 import {
   ballDocsAfter,
   bowlingWithBowler,
   checkBallArgs,
+  eventDocsAfter,
+  newEventBall,
+  penaltyFields,
+  retirementFields,
 } from "~/lib/firebase/scoring/ball-docs";
 import { overDocId, type OversRow } from "~/lib/firebase/scorecard";
 import type { InningsRow, MatchesRow } from "~/lib/firebase/types";
@@ -159,6 +168,11 @@ function scoringStateOf(innings: InningsRow & { id: string }, overs: OversRow[])
   return { data: snapshot, base: { innings, overs }, error: null };
 }
 
+const retire = (inn: InningsRow, p: RetireBatterPayload) =>
+  retirementFields(inn, p.playerId, p.type, p.reason);
+const penalty = (inn: InningsRow, p: AwardPenaltyPayload) =>
+  penaltyFields(inn, p.runs, p.type, p.reason);
+
 /**
  * A stand-in for the server: its own copy of the documents, changed by the
  * engine's functions (with its own ids and clock), answering the replay
@@ -232,6 +246,28 @@ class FakeServer {
         innings: [this.innings],
         overs: [overDoc],
       };
+    }
+    if (a.type === "retireBatter" || a.type === "awardPenalty") {
+      // As the server logs them; applied by the functions the event tests
+      // check against its recompute (scoring/event-docs.test.ts).
+      this.history.push({ innings: this.innings, overs: this.overs });
+      const fields =
+        a.type === "retireBatter"
+          ? retire(this.innings, a.payload as RetireBatterPayload)
+          : penalty(this.innings, a.payload as AwardPenaltyPayload);
+      const event = newEventBall(MATCH as never, this.innings, fields, now, `srv${this.n}`);
+      const id = overDocId(INN, event.over_number);
+      const docs = eventDocsAfter({
+        match: MATCH as unknown as MatchesRow,
+        innings: this.innings,
+        overDoc: this.overs.find((o) => o.id === id) ?? null,
+        event,
+        now,
+      })!;
+      this.innings = { ...this.innings, ...docs.inningsPatch };
+      const overDoc = { ...docs.overDoc, id };
+      this.overs = [...this.overs.filter((o) => o.id !== id), overDoc];
+      return { match: MATCH as never, innings: [this.innings], overs: [overDoc] };
     }
     if (a.type === "setBowler") {
       const next = bowlingWithBowler(
@@ -335,6 +371,99 @@ describe("useScoring: instant scoring", () => {
     expect(reportClientError).not.toHaveBeenCalled();
     // The reply's documents were enough: no re-read.
     expect(getScoringState).toHaveBeenCalledTimes(1);
+  });
+
+  it("retires a batter at once, keeping the partner at their end", async () => {
+    const { result } = await open();
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    server.hold = true;
+
+    await act(async () => {
+      const res = await result.current.handleRetireBatter({
+        playerId: "p1",
+        type: "retired_hurt",
+      });
+      expect(res).toEqual({ error: null, queued: false });
+    });
+    // Before the server answers: p1 has left, p2 stays at the other end.
+    expect(result.current.strikerId).toBeNull();
+    expect(result.current.nonStrikerId).toBe("p2");
+    expect(server.batches.at(-1)!.actions[0]).toMatchObject({ type: "retireBatter" });
+
+    await act(async () => server.release());
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(result.current.strikerId).toBeNull();
+    expect(result.current.nonStrikerId).toBe("p2");
+    expect(reportClientError).not.toHaveBeenCalled();
+    // The reply's documents were enough: no re-read.
+    expect(getScoringState).toHaveBeenCalledTimes(1);
+  });
+
+  it("undoes a retirement at once and says so in words", async () => {
+    const { result } = await open();
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+    });
+    await act(async () => {
+      await result.current.handleRetireBatter({ playerId: "p2", type: "retired_out" });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(currentInnings(result.current.match)?.total_wickets).toBe(1);
+
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    // Back at once: p2 at the crease again, the wicket gone.
+    expect(currentInnings(result.current.match)?.total_wickets).toBe(0);
+    expect([result.current.strikerId, result.current.nonStrikerId].sort()).toEqual(["p1", "p2"]);
+    expect(result.current.undoNotice).toMatchObject({
+      heading: "Retirement",
+      label: "Player p2, retired out",
+      players: null,
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+  });
+
+  it("adds penalty runs to the batting side at once", async () => {
+    const { result } = await open();
+    server.hold = true;
+    await act(async () => {
+      await result.current.handleAwardPenalty({
+        teamId: T1,
+        runs: 5,
+        reason: "Ball hit the helmet",
+        type: "penalty",
+      });
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(5);
+    // Not a ball: the over and the crease are as they were.
+    expect(currentInnings(result.current.match)?.total_balls).toBe(0);
+    expect(result.current.strikerId).toBe("p1");
+
+    await act(async () => server.release());
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(currentInnings(result.current.match)?.total_runs).toBe(5);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it("waits for the server for penalty runs to the fielding side", async () => {
+    const { result } = await open();
+    server.fail = (a) => (a.type === "awardPenalty" ? "not now" : undefined);
+    await act(async () => {
+      await result.current.handleAwardPenalty({
+        teamId: T2,
+        runs: 5,
+        reason: "Time wasting",
+        type: "penalty",
+      });
+    });
+    // Sent straight away (not shown first): the server refused it.
+    expect(server.batches.at(-1)!.actions[0]).toMatchObject({ type: "awardPenalty" });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+    expect(getPendingActions(M)).toHaveLength(0);
   });
 
   it("keeps scoring while earlier balls are still being saved, in order", async () => {

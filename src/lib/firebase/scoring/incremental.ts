@@ -52,7 +52,8 @@ export interface IncrementalInput {
   ball: BallInput;
   striker: BattingPerformancesRow;
   nonStriker: BattingPerformancesRow;
-  bowler: BowlingPerformancesRow;
+  /** Null for a retirement, which is logged without a bowler. */
+  bowler: BowlingPerformancesRow | null;
   /** The partnership with `is_current = true`, if any. */
   partnership: PartnershipsRow | null;
   /** Number of partnership rows in the innings; needed to start a new one. */
@@ -82,6 +83,31 @@ function ballsPerOver(match: IncrementalInput["match"]): number {
     : 6;
 }
 
+/** Retirements: logged as wickets without a bowler (not deliveries). */
+export const RETIREMENT_TYPES = new Set(["retired_hurt", "retired_out"]);
+
+/**
+ * Whether `ball` is a retirement as logged at a full crease: who retired
+ * (`dismissed_player_id`) and both batters, no bowler.
+ */
+export function isRetirementAtCrease(
+  ball: Pick<
+    BallInput,
+    | "bowler_id"
+    | "batsman_id"
+    | "non_striker_id"
+    | "is_wicket"
+    | "dismissal_type"
+  >,
+): boolean {
+  return (
+    !ball.bowler_id &&
+    Boolean(ball.batsman_id && ball.non_striker_id) &&
+    Boolean(ball.is_wicket) &&
+    RETIREMENT_TYPES.has(ball.dismissal_type ?? "")
+  );
+}
+
 /** Whether recording `ball` starts a new partnership row. */
 export function startsNewPartnership(
   ball: Pick<BallInput, "batsman_id" | "non_striker_id">,
@@ -106,10 +132,16 @@ export function applyBallIncrementally(
     match.max_balls_per_over !== undefined
   )
     return null;
-  if (!ball.batsman_id || !ball.non_striker_id || !ball.bowler_id) return null;
+  if (!ball.batsman_id || !ball.non_striker_id) return null;
+  // A retirement has no bowler (the recompute leaves every bowler as it
+  // is); anything else needs the bowler it was recorded with.
+  if (isRetirementAtCrease(ball)) {
+    if (input.bowler) return null;
+  } else if (!ball.bowler_id || input.bowler?.user_id !== ball.bowler_id) {
+    return null;
+  }
   if (input.striker.user_id !== ball.batsman_id) return null;
   if (input.nonStriker.user_id !== ball.non_striker_id) return null;
-  if (input.bowler.user_id !== ball.bowler_id) return null;
 
   const legalBefore = innings.total_balls ?? 0;
   const overNumber = Math.floor(legalBefore / bpo);
@@ -134,7 +166,9 @@ export function applyBallIncrementally(
     ...input.nonStriker,
     updated_at: now,
   };
-  const bowler: BowlingPerformancesRow = { ...input.bowler, updated_at: now };
+  const bowler: BowlingPerformancesRow | null = input.bowler
+    ? { ...input.bowler, updated_at: now }
+    : null;
   const rowOf = (id: string | null) =>
     id === striker.user_id
       ? striker
@@ -157,13 +191,18 @@ export function applyBallIncrementally(
   if (runs === 6) striker.sixes = (striker.sixes ?? 0) + 1;
 
   // ---- bowling stats ----
-  bowler.balls_bowled = (bowler.balls_bowled ?? 0) + (legalBall ? 1 : 0);
-  bowler.runs_conceded = (bowler.runs_conceded ?? 0) + concedes;
-  if (ball.extra_type === "wide") bowler.wides = (bowler.wides ?? 0) + 1;
-  if (ball.extra_type === "no_ball")
-    bowler.no_balls = (bowler.no_balls ?? 0) + 1;
-  if (ball.is_wicket && !NON_BOWLER_DISMISSALS.has(ball.dismissal_type ?? "")) {
-    bowler.wickets_taken = (bowler.wickets_taken ?? 0) + 1;
+  if (bowler) {
+    bowler.balls_bowled = (bowler.balls_bowled ?? 0) + (legalBall ? 1 : 0);
+    bowler.runs_conceded = (bowler.runs_conceded ?? 0) + concedes;
+    if (ball.extra_type === "wide") bowler.wides = (bowler.wides ?? 0) + 1;
+    if (ball.extra_type === "no_ball")
+      bowler.no_balls = (bowler.no_balls ?? 0) + 1;
+    if (
+      ball.is_wicket &&
+      !NON_BOWLER_DISMISSALS.has(ball.dismissal_type ?? "")
+    ) {
+      bowler.wickets_taken = (bowler.wickets_taken ?? 0) + 1;
+    }
   }
 
   // ---- innings totals ----
@@ -309,7 +348,7 @@ export function applyBallIncrementally(
     finalNonStriker = tmp;
     const overTotal =
       input.overBalls.reduce((sum, b) => sum + bowlerConcedes(b), 0) + concedes;
-    if (overTotal === 0) bowler.maidens = (bowler.maidens ?? 0) + 1;
+    if (bowler && overTotal === 0) bowler.maidens = (bowler.maidens ?? 0) + 1;
   }
 
   for (const bp of [striker, nonStriker]) {
@@ -327,8 +366,10 @@ export function applyBallIncrementally(
     ns.is_striker = false;
   }
 
-  bowler.overs_bowled = oversFromBalls(bowler.balls_bowled ?? 0, bpo);
-  bowler.is_current_bowler = !overJustEnded;
+  if (bowler) {
+    bowler.overs_bowled = oversFromBalls(bowler.balls_bowled ?? 0, bpo);
+    bowler.is_current_bowler = !overJustEnded;
+  }
 
   return {
     inningsPatch: {
@@ -356,7 +397,7 @@ export function applyBallIncrementally(
       current_ball: legal % bpo,
     },
     batting: [striker, nonStriker],
-    bowling: [bowler],
+    bowling: bowler ? [bowler] : [],
     fallOfWickets,
     partnerships,
     overJustEnded,
