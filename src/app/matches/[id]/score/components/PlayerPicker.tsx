@@ -137,7 +137,9 @@ export function PlayerPicker({
   return (
     <div className={cn("space-y-2", className)}>
       {showSearch && (
-        <div className="relative">
+        // On phones the list does not scroll on its own (the dialog does:
+        // one scroll), so the search stays pinned at the top while it moves.
+        <div className="relative max-sm:sticky max-sm:top-0 max-sm:z-10 max-sm:-mx-1 max-sm:bg-card max-sm:px-1 max-sm:py-1">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -164,7 +166,7 @@ export function PlayerPicker({
         ref={listRef}
         role="radiogroup"
         aria-label={label}
-        className="max-h-[min(42dvh,22rem)] space-y-1 overflow-y-auto overscroll-contain"
+        className="space-y-1 sm:max-h-[min(42dvh,22rem)] sm:overflow-y-auto sm:overscroll-contain"
       >
         {visible.map((row) => {
           const selected = row.id === selectedId;

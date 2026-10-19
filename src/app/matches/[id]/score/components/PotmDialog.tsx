@@ -159,7 +159,7 @@ export function PotmDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[320px] space-y-2 overflow-y-auto py-2 pr-1">
+        <div className="space-y-2 py-2 sm:max-h-[320px] sm:overflow-y-auto sm:pr-1">
           {enrichedPlayers.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               No players available to award.

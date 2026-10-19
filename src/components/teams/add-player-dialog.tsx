@@ -130,7 +130,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
             />
           </div>
 
-          <div className="max-h-[300px] space-y-2 overflow-y-auto">
+          <div className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto">
             {results.map((user) => (
               <button
                 key={user.id}

@@ -336,13 +336,16 @@ export function WicketDialog({
             </div>
           )}
 
-          <Button
-            className="mt-2 h-11 min-h-[44px] w-full text-sm font-semibold"
-            onClick={onConfirm}
-            disabled={isProcessing}
-          >
-            Confirm wicket
-          </Button>
+          {/* Pinned on phones: reachable however long the fielder list is */}
+          <div className="max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:border-t max-sm:border-border/70 max-sm:bg-card max-sm:px-4 max-sm:pb-4 max-sm:pt-3">
+            <Button
+              className="h-11 min-h-[44px] w-full text-sm font-semibold"
+              onClick={onConfirm}
+              disabled={isProcessing}
+            >
+              Confirm wicket
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
