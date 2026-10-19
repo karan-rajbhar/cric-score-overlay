@@ -60,6 +60,37 @@ export const NON_BOWLER_DISMISSALS = new Set([
   "obstructing",
 ]);
 
+/** Each batter's share of a stand that starts now. */
+export const NEW_STAND_SPLIT = {
+  batsman1_runs: 0,
+  batsman1_balls: 0,
+  batsman2_runs: 0,
+  batsman2_balls: 0,
+} as const;
+
+/**
+ * Adds a delivery to the striker's share of `stand`: the runs credited to
+ * them and the ball if they faced it (the batting card's rules). A stand
+ * recorded before shares were kept has none and gets none (a share of only
+ * its later balls would be wrong); the next recompute fills them.
+ */
+export function creditStand(
+  stand: PartnershipsRow,
+  strikerId: string | null,
+  runs: number,
+  faced: boolean,
+): void {
+  if (stand.batsman1_runs == null || stand.batsman2_runs == null) return;
+  const ball = faced ? 1 : 0;
+  if (strikerId === stand.batsman1_id) {
+    stand.batsman1_runs += runs;
+    stand.batsman1_balls = (stand.batsman1_balls ?? 0) + ball;
+  } else if (strikerId === stand.batsman2_id) {
+    stand.batsman2_runs += runs;
+    stand.batsman2_balls = (stand.batsman2_balls ?? 0) + ball;
+  }
+}
+
 /** Postgres `ROUND(FLOOR(balls / bpo) + (balls % bpo) / 10, 1)`. */
 export function oversFromBalls(balls: number, ballsPerOver: number): number {
   const bpo = ballsPerOver > 0 ? ballsPerOver : 6;
@@ -262,15 +293,17 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
     ensureBowler(ball.bowler_id);
 
     // ---- batting stats ----
+    let creditedRuns = 0;
+    let faced = false;
     if (ball.batsman_id) {
       const bp = batting.get(ball.batsman_id)!;
-      let creditedRuns = runs;
+      creditedRuns = runs;
       if (ball.extra_type === "wide" && match.wide_runs_to_batsman)
         creditedRuns += extras;
       if (ball.extra_type === "no_ball" && match.noball_extras_to_batsman)
         creditedRuns += extras;
       bp.runs_scored = (bp.runs_scored ?? 0) + creditedRuns;
-      const faced =
+      faced =
         legalBall ||
         (ball.extra_type === "wide" &&
           Boolean(match.wide_counts_as_ball_faced));
@@ -339,6 +372,7 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
           wicket_number: null,
           runs: 0,
           balls: 0,
+          ...NEW_STAND_SPLIT,
           start_over: oversFromBalls(legalBefore, bpo),
           end_over: null,
           is_current: true,
@@ -352,6 +386,7 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
       currentPartnership!.runs = (currentPartnership!.runs ?? 0) + teamRuns;
       currentPartnership!.balls =
         (currentPartnership!.balls ?? 0) + (legalBall ? 1 : 0);
+      creditStand(currentPartnership!, ball.batsman_id, creditedRuns, faced);
     }
 
     // ---- wickets (retired hurt is not out and not a wicket) ----

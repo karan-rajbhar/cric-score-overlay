@@ -112,6 +112,75 @@ describe("recomputeInnings", () => {
     });
   });
 
+  it("splits each stand between its batters as the batting card credits them", () => {
+    const balls = [
+      ball({ runs_scored: 1 }),
+      ball({ batsman_id: "n", non_striker_id: "s", runs_scored: 4 }),
+      // Extras: in the stand, not in either batter's share; a wide is not
+      // a ball faced, a bye is.
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        extras: 1,
+        extra_type: "wide",
+      }),
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        extras: 2,
+        extra_type: "bye",
+      }),
+      // A no-ball's bat runs are the batter's (not a legal ball).
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        runs_scored: 2,
+        extras: 1,
+        extra_type: "no_ball",
+      }),
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        is_wicket: true,
+        dismissal_type: "bowled",
+        dismissed_player_id: "n",
+      }),
+      ball({ batsman_id: "c", non_striker_id: "s", runs_scored: 6 }),
+    ];
+    const out = recomputeInnings({
+      match,
+      innings,
+      balls,
+      existingBatting: [],
+      existingBowling: [],
+      now: NOW,
+    });
+    const [first, second] = out.partnerships;
+    expect(first).toMatchObject({
+      batsman1_id: "s",
+      batsman2_id: "n",
+      runs: 11,
+      balls: 4,
+      batsman1_runs: 1,
+      batsman1_balls: 1,
+      batsman2_runs: 6,
+      batsman2_balls: 3,
+      wicket_number: 1,
+    });
+    // The shares and the extras make up the stand, and agree with the card.
+    const n = out.batting.find((b) => b.user_id === "n")!;
+    expect(n).toMatchObject({ runs_scored: 6, balls_faced: 3 });
+    expect(second).toMatchObject({
+      batsman1_id: "c",
+      batsman2_id: "s",
+      batsman1_runs: 6,
+      batsman1_balls: 1,
+      batsman2_runs: 0,
+      batsman2_balls: 0,
+      is_current: true,
+    });
+  });
+
   it("records wickets, fall of wickets and closes partnerships; retired hurt is not out", () => {
     const balls = [
       ball({ runs_scored: 2 }),
@@ -180,7 +249,12 @@ describe("recomputeInnings", () => {
 });
 
 describe("recomputeInnings keeps the scorer's choices since the last ball", () => {
-  const batter = (id: string, pos: number, current = false, striker = false) => ({
+  const batter = (
+    id: string,
+    pos: number,
+    current = false,
+    striker = false,
+  ) => ({
     id: `i1_${id}`,
     match_id: "m1",
     innings_id: "i1",
@@ -221,16 +295,35 @@ describe("recomputeInnings keeps the scorer's choices since the last ball", () =
     existingBatting: ReturnType<typeof batter>[],
     existingBowling: ReturnType<typeof bowlerRow>[],
   ) =>
-    recomputeInnings({ match, innings, balls, existingBatting, existingBowling, now: NOW });
+    recomputeInnings({
+      match,
+      innings,
+      balls,
+      existingBatting,
+      existingBowling,
+      now: NOW,
+    });
   const current = (out: ReturnType<typeof run>) => ({
-    striker: out.batting.find((b) => b.is_current_batsman && b.is_striker)?.user_id ?? null,
-    nonStriker: out.batting.find((b) => b.is_current_batsman && !b.is_striker)?.user_id ?? null,
+    striker:
+      out.batting.find((b) => b.is_current_batsman && b.is_striker)?.user_id ??
+      null,
+    nonStriker:
+      out.batting.find((b) => b.is_current_batsman && !b.is_striker)?.user_id ??
+      null,
     bowler: out.bowling.find((b) => b.is_current_bowler)?.user_id ?? null,
   });
 
   it("keeps the openers and the bowler when no ball is left (an innings' first ball undone)", () => {
-    const out = run([], [batter("s", 1, true, true), batter("n", 2, true)], [bowlerRow("bw1", true)]);
-    expect(current(out)).toEqual({ striker: "s", nonStriker: "n", bowler: "bw1" });
+    const out = run(
+      [],
+      [batter("s", 1, true, true), batter("n", 2, true)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(out)).toEqual({
+      striker: "s",
+      nonStriker: "n",
+      bowler: "bw1",
+    });
   });
 
   it("keeps the next over's bowler when that over's first ball is undone", () => {
@@ -244,12 +337,20 @@ describe("recomputeInnings keeps the scorer's choices since the last ball", () =
     );
     expect(current(out).bowler).toBe("bw2");
     // Not the bowler of the over that just ended.
-    const same = run(over, [batter("s", 1), batter("n", 2, true, true)], [bowlerRow("bw1", true)]);
+    const same = run(
+      over,
+      [batter("s", 1), batter("n", 2, true, true)],
+      [bowlerRow("bw1", true)],
+    );
     expect(current(same).bowler).toBeNull();
   });
 
   it("keeps the new batter after a wicket, but not someone the log sent off", () => {
-    const wicket = ball({ is_wicket: true, dismissal_type: "bowled", dismissed_player_id: "s" });
+    const wicket = ball({
+      is_wicket: true,
+      dismissal_type: "bowled",
+      dismissed_player_id: "s",
+    });
     const out = run(
       [wicket],
       [batter("s", 1), batter("n", 2, true), batter("c", 3, true, true)],
@@ -264,7 +365,11 @@ describe("recomputeInnings keeps the scorer's choices since the last ball", () =
       dismissal_type: "retired_hurt",
       dismissed_player_id: "s",
     });
-    const off = run([retired], [batter("s", 1, true, true), batter("n", 2, true)], [bowlerRow("bw1", true)]);
+    const off = run(
+      [retired],
+      [batter("s", 1, true, true), batter("n", 2, true)],
+      [bowlerRow("bw1", true)],
+    );
     expect(current(off).striker).toBeNull();
   });
 

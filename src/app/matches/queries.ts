@@ -140,10 +140,11 @@ export async function getMatch(
         return { data: null, error: error.message };
       }
       // The scorecard rows above come from the innings documents themselves
-      // (no extra reads); drop their storage arrays from the payload.
+      // (no extra reads); drop their storage arrays from the payload, except
+      // the stands the scorecard lists (batters by id).
       if (data?.innings) {
         data.innings = (data.innings as object[]).map((inn) =>
-          withoutScorecardStorage(inn, ["fall_of_wickets"]),
+          withoutScorecardStorage(inn, ["fall_of_wickets", "partnerships"]),
         );
       }
 

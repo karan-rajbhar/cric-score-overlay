@@ -27,6 +27,8 @@ import {
   type BallInput,
   type RecomputeInput,
   type RecomputeOutput,
+  creditStand,
+  NEW_STAND_SPLIT,
 } from "./recompute";
 
 export interface IncrementalInput {
@@ -218,6 +220,7 @@ export function applyBallIncrementally(
       wicket_number: null,
       runs: 0,
       balls: 0,
+      ...NEW_STAND_SPLIT,
       start_over: oversFromBalls(legalBefore, bpo),
       end_over: null,
       is_current: true,
@@ -229,6 +232,7 @@ export function applyBallIncrementally(
   }
   current.runs = (current.runs ?? 0) + teamRuns;
   current.balls = (current.balls ?? 0) + (legalBall ? 1 : 0);
+  creditStand(current, ball.batsman_id, creditedRuns, faced);
   partnerships.push(current);
 
   // ---- wickets (retired hurt is not out and not a wicket) ----
