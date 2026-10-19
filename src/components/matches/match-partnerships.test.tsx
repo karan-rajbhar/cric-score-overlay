@@ -6,7 +6,6 @@ import * as matchQueries from "~/lib/hooks/useMatchQueries";
 
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   usePartnershipsQuery: vi.fn(),
-  useMatchBallLogQuery: vi.fn(),
 }));
 
 describe("MatchPartnerships", () => {
@@ -16,14 +15,13 @@ describe("MatchPartnerships", () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(matchQueries.useMatchBallLogQuery).mockReturnValue({
-      data: [],
-    } as never);
 
     const match = makeMatch();
     render(<MatchPartnerships match={match} />);
 
-    expect(screen.getByText(/no partnerships recorded yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/no partnerships recorded yet/i),
+    ).toBeInTheDocument();
   });
 
   it("renders partnership stands with batter names and runs", () => {
@@ -48,9 +46,6 @@ describe("MatchPartnerships", () => {
       error: null,
       isLoading: false,
     } as never);
-    vi.mocked(matchQueries.useMatchBallLogQuery).mockReturnValue({
-      data: [],
-    } as never);
 
     const match = makeMatch({
       innings: [
@@ -74,5 +69,49 @@ describe("MatchPartnerships", () => {
     expect(screen.getByText("Faf du Plessis")).toBeInTheDocument();
     expect(screen.getByText("75")).toBeInTheDocument();
     expect(screen.getByText(/45b/)).toBeInTheDocument();
+    // No share stored for this stand: the total only, said plainly.
+    expect(
+      screen.getByText("Each batter's share is not recorded for this stand."),
+    ).toBeInTheDocument();
+  });
+
+  it("splits a stand between its batters from the shares the engine stored", () => {
+    vi.mocked(matchQueries.usePartnershipsQuery).mockReturnValue({
+      data: [
+        {
+          id: "part-1",
+          innings_id: "inn-1",
+          runs: 75,
+          balls: 45,
+          batsman1_runs: 48,
+          batsman1_balls: 27,
+          batsman2_runs: 22,
+          batsman2_balls: 18,
+          start_over: 0,
+          end_over: 7,
+          is_current: false,
+          batsman1_id: "bat-1",
+          batsman2_id: "bat-2",
+          batsman1: { full_name: "Virat Kohli" },
+          batsman2: { full_name: "Faf du Plessis" },
+        },
+      ],
+      error: null,
+      isLoading: false,
+    } as never);
+    const match = makeMatch({
+      innings: [
+        makeInnings({
+          id: "inn-1",
+          match_id: "m1",
+          team_id: "t1",
+          total_runs: 180,
+        }),
+      ],
+    });
+    render(<MatchPartnerships match={match} />);
+    expect(screen.getByText(/48 \(\d+%\) · 27b/)).toBeInTheDocument();
+    expect(screen.getByText(/22 \(\d+%\) · 18b/)).toBeInTheDocument();
+    expect(screen.getByText("+ 5 extras")).toBeInTheDocument();
   });
 });
