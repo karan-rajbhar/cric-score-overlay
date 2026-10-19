@@ -362,3 +362,31 @@ describe("BatsmenDialog with nobody left to bat", () => {
     expect(onEndInnings).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("BatsmenDialog changing one batter", () => {
+  it("replaces only the batter whose Change was tapped", () => {
+    const players: TeamPlayer[] = ["a", "b", "c"].map((id) => ({
+      id: `t-${id}`,
+      team_id: "team-1",
+      user_id: id,
+      user: { id, full_name: id.toUpperCase() },
+    }));
+    const onConfirm = vi.fn();
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        strikerId="a"
+        nonStrikerId="b"
+        focusEnd="nonStriker"
+        onConfirm={onConfirm}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.getByText("Change B")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /^C/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
+  });
+});

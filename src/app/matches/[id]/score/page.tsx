@@ -400,6 +400,10 @@ export default function ScoringPage() {
   const [showEditBallDialog, setShowEditBallDialog] = useState(false);
   const [showMatchSettingsDialog, setShowMatchSettingsDialog] = useState(false);
   const [showPenaltyBonusDialog, setShowPenaltyBonusDialog] = useState(false);
+  /** The end the batsmen dialog changes (null: the first empty one). */
+  const [batsmenFocus, setBatsmenFocus] = useState<
+    "striker" | "nonStriker" | null
+  >(null);
   const [showAbandonMatchDialog, setShowAbandonMatchDialog] = useState(false);
   const [showDeleteMatchDialog, setShowDeleteMatchDialog] = useState(false);
   const [showReviseTargetDialog, setShowReviseTargetDialog] = useState(false);
@@ -508,6 +512,7 @@ export default function ScoringPage() {
       fours: perf?.fours ?? 0,
       sixes: perf?.sixes ?? 0,
       isStriker: true,
+      position: perf?.batting_position ?? null,
     };
   }, [strikerId, battingTeamPlayers, currentInnings]);
 
@@ -525,6 +530,7 @@ export default function ScoringPage() {
       fours: perf?.fours ?? 0,
       sixes: perf?.sixes ?? 0,
       isStriker: false,
+      position: perf?.batting_position ?? null,
     };
   }, [nonStrikerId, battingTeamPlayers, currentInnings]);
 
@@ -1572,6 +1578,7 @@ export default function ScoringPage() {
                       toast.info("Please record the toss to start the match");
                       return;
                     }
+                    setBatsmenFocus("striker");
                     setShowSelectBatsmen(true);
                   }
                 : undefined
@@ -1584,6 +1591,7 @@ export default function ScoringPage() {
                       toast.info("Please record the toss to start the match");
                       return;
                     }
+                    setBatsmenFocus("nonStriker");
                     setShowSelectBatsmen(true);
                   }
                 : undefined
@@ -2046,7 +2054,11 @@ export default function ScoringPage() {
 
       <BatsmenDialog
         open={showSelectBatsmen}
-        onOpenChange={setShowSelectBatsmen}
+        onOpenChange={(open) => {
+          setShowSelectBatsmen(open);
+          if (!open) setBatsmenFocus(null);
+        }}
+        focusEnd={batsmenFocus}
         battingTeamPlayers={battingTeamPlayers}
         battingTeamName={battingTeam?.name}
         battingPerformances={currentInnings?.batting_performances}

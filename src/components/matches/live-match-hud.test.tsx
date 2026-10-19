@@ -110,29 +110,58 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByText(/wickets in hand/i)).toBeInTheDocument();
   });
 
-  it("renders active striker and non-striker with swap button", () => {
+  it("keeps the batters in batting order and marks who is on strike", () => {
     const onSwapStriker = vi.fn();
+    const onChangeStriker = vi.fn();
+    const onChangeNonStriker = vi.fn();
+    const props = {
+      match: mockMatchChasing,
+      currentInnings: mockCurrentInningsChasing,
+      bowler: mockBowler,
+      lastBalls: ["1", "4"],
+      onSwapStriker,
+      onChangeStriker,
+      onChangeNonStriker,
+    };
+    const first = { ...mockStriker, position: 1 };
+    const second = { ...mockNonStriker, position: 2 };
+    const { rerender } = render(
+      <LiveMatchHUD {...props} striker={first} nonStriker={second} />,
+    );
+    const names = () =>
+      screen
+        .getAllByTestId(/hud-batter-/)
+        .map((row) => row.textContent ?? "");
+    expect(screen.getByTestId("hud-batter-on-strike")).toHaveTextContent(
+      /Virat Kohli.*On strike/,
+    );
+    expect(names()[0]).toMatch(/Virat Kohli/);
 
-    render(
+    // Put the other batter on strike, from his own row.
+    fireEvent.click(
+      screen.getByRole("button", { name: /put hardik pandya on strike/i }),
+    );
+    expect(onSwapStriker).toHaveBeenCalledTimes(1);
+
+    // After the strike changes the rows stay where they were; only the
+    // highlight moves.
+    rerender(
       <LiveMatchHUD
-        match={mockMatchChasing}
-        currentInnings={mockCurrentInningsChasing}
-        striker={mockStriker}
-        nonStriker={mockNonStriker}
-        bowler={mockBowler}
-        lastBalls={["1", "4"]}
-        onSwapStriker={onSwapStriker}
+        {...props}
+        striker={{ ...second, isStriker: true }}
+        nonStriker={{ ...first, isStriker: false }}
       />,
     );
+    expect(names()[0]).toMatch(/Virat Kohli/);
+    expect(screen.getByTestId("hud-batter-on-strike")).toHaveTextContent(
+      /Hardik Pandya/,
+    );
 
-    expect(screen.getByText(/Virat Kohli \*/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hardik Pandya/i)).toBeInTheDocument();
-
-    const swapBtn = screen.getByRole("button", {
-      name: /swap active striker/i,
-    });
-    fireEvent.click(swapBtn);
-    expect(onSwapStriker).toHaveBeenCalledTimes(1);
+    // Each batter can be changed on his own.
+    fireEvent.click(screen.getByRole("button", { name: /change virat kohli/i }));
+    expect(onChangeNonStriker).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /change hardik pandya/i }));
+    expect(onChangeStriker).toHaveBeenCalledTimes(1);
   });
 
   it("renders bowler figures and max overs quota", () => {

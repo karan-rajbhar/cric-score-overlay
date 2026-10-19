@@ -26,6 +26,11 @@ interface BatsmenDialogProps {
   battingPerformances?: BattingPerformance[];
   bowlingTeamPlayerIds?: Set<string>;
   currentBowlerId?: string | null;
+  /**
+   * The end to change when both are filled (the scoreboard's Change on one
+   * batter); the other batter stays.
+   */
+  focusEnd?: Slot | null;
   /** The batters at the crease now (null: that end is empty). */
   strikerId: string | null;
   nonStrikerId: string | null;
@@ -65,6 +70,7 @@ export function BatsmenDialog({
   currentBowlerId,
   strikerId,
   nonStrikerId,
+  focusEnd = null,
   dismissedPlayerIds,
   onConfirm,
   isProcessing,
@@ -113,7 +119,7 @@ export function BatsmenDialog({
   // Start from the crease each time the dialog opens (or the crease
   // changes meanwhile, e.g. a co-scorer's change); after a wicket, the
   // next batter in fills the empty end until the scorer picks another.
-  const crease = `${open}:${strikerId}:${nonStrikerId}`;
+  const crease = `${open}:${strikerId}:${nonStrikerId}:${focusEnd}`;
   const [seen, setSeen] = useState("");
   if (crease !== seen) {
     setSeen(crease);
@@ -128,7 +134,7 @@ export function BatsmenDialog({
         setSuggested(false);
       }
       setDraft(fresh);
-      setActiveSlot(empty);
+      setActiveSlot(strikerId && nonStrikerId && focusEnd ? focusEnd : empty);
     }
   }
 
@@ -242,12 +248,18 @@ export function BatsmenDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-balance">
-            {survivor ? "New batter" : "Select batsmen"}
+            {survivor
+              ? "New batter"
+              : strikerId && nonStrikerId && focusEnd
+                ? `Change ${nameOf(focusEnd === "striker" ? strikerId : nonStrikerId) ?? "batter"}`
+                : "Select batsmen"}
           </DialogTitle>
           <DialogDescription>
             {survivor
               ? `Who comes in with ${nameOf(survivor) ?? "the not-out batter"}? Use Swap ends if the new batter faces the next ball.`
-              : "Tap a player to fill the highlighted end."}
+              : strikerId && nonStrikerId && focusEnd
+                ? "Tap the player who replaces them. The other batter stays."
+                : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

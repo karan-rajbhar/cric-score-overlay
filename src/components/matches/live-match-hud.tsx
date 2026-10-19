@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
-import { ArrowLeftRight, TrendingUp, TrendingDown, Pencil } from "lucide-react";
+import { TrendingUp, TrendingDown, Pencil } from "lucide-react";
 import {
   oversFromBalls,
   ballsFromOvers,
@@ -35,6 +35,8 @@ export interface BatsmanDisplay {
   fours: number;
   sixes: number;
   isStriker: boolean;
+  /** Order they came in: the rows stay in it, whoever is on strike. */
+  position?: number | null;
 }
 
 export interface BowlerDisplay {
@@ -195,39 +197,20 @@ export function LiveMatchHUD({
     onEndInnings?.();
   };
 
-  const onChangeBatters = onChangeStriker ?? onChangeNonStriker;
-
-  // Phones drop the card headers to save height and show these controls
-  // inline next to the striker and bowler instead.
+  // Phones drop the card headers to save height and show the bowler's
+  // control inline instead.
   const isPhone = useMediaQuery("(max-width: 639px)");
-  const batterActions = (
-    <div className="flex shrink-0 items-center gap-1">
-      {onSwapStriker && striker && nonStriker && (
-        <button
-          type="button"
-          onClick={onSwapStriker}
-          title="Swap striker (change who is on strike) [S]"
-          aria-label="Swap active striker"
-          className="shadow-2xs inline-flex h-7 items-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:px-2"
-        >
-          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="hidden sm:inline">Swap</span>
-        </button>
-      )}
-      {onChangeBatters && (
-        <button
-          type="button"
-          onClick={onChangeBatters}
-          aria-label="Change batters"
-          title="Change striker or non-striker"
-          className="shadow-2xs inline-flex h-7 items-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:px-2"
-        >
-          <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-          <span className="hidden sm:inline">Change</span>
-        </button>
-      )}
-    </div>
-  );
+  // Rows in the order the two came in (batting position); the striker's
+  // end is whichever row holds the striker.
+  const batterRows = [
+    { end: "striker" as const, batter: striker, onStrike: true },
+    { end: "nonStriker" as const, batter: nonStriker, onStrike: false },
+  ].sort((a, b) => {
+    const pa = a.batter?.position ?? Number.MAX_SAFE_INTEGER;
+    const pb = b.batter?.position ?? Number.MAX_SAFE_INTEGER;
+    return pa - pb;
+  });
+
   const bowlerAction = (
     <>
       {onChangeBowler && (
@@ -651,109 +634,117 @@ export function LiveMatchHUD({
                   (Stand: {partnership.runs} off {partnership.balls}b)
                 </span>
               </div>
-              {!isPhone && batterActions}
             </div>
 
-            {/* Striker */}
-            <div
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2",
-                sunlightMode
-                  ? "border-2 border-black bg-neutral-100 font-bold"
-                  : "border border-emerald-600/30 bg-emerald-500/10",
-              )}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="flex h-2 w-2 shrink-0 rounded-full bg-emerald-600"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
-                    {striker ? striker.name : "Select striker"} *
-                  </span>
-                  <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
-                    Strike
-                  </span>
+            {/* The two batters, in the order they came in: a change of
+                strike moves the highlight, not the rows. Each row has its
+                own Change; the batter off strike can be put on strike. */}
+            {batterRows.map(({ end, batter, onStrike }) => {
+              const change = end === "striker" ? onChangeStriker : onChangeNonStriker;
+              return (
+                <div
+                  key={end === "striker" ? "striker-end" : "non-striker-end"}
+                  data-testid={onStrike ? "hud-batter-on-strike" : "hud-batter-off-strike"}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
+                    onStrike
+                      ? sunlightMode
+                        ? "border-2 border-black bg-neutral-100 font-bold"
+                        : "border-emerald-600/40 bg-emerald-500/10"
+                      : sunlightMode
+                        ? "border-black/40 bg-white"
+                        : "border-border/60 bg-muted/25",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "flex h-2 w-2 shrink-0 rounded-full",
+                          onStrike ? "bg-emerald-600" : "bg-muted-foreground/40",
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={cn(
+                          "truncate text-xs sm:text-sm",
+                          onStrike
+                            ? "font-semibold text-foreground"
+                            : "font-medium text-muted-foreground",
+                        )}
+                      >
+                        {batter
+                          ? batter.name
+                          : end === "striker"
+                            ? "Select striker"
+                            : "Select non-striker"}
+                      </span>
+                      {onStrike && batter && (
+                        <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
+                          On strike
+                        </span>
+                      )}
+                    </div>
+                    {batter && (
+                      <p className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
+                        SR:{" "}
+                        <strong className="font-semibold tabular-nums text-foreground">
+                          {strikeRate(batter.runs, batter.balls)}
+                        </strong>{" "}
+                        · {batter.fours}x4, {batter.sixes}x6
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {batter ? (
+                      <p
+                        className={cn(
+                          "whitespace-nowrap font-score text-sm font-bold tabular-nums sm:text-base",
+                          onStrike ? "text-foreground" : "text-muted-foreground",
+                        )}
+                      >
+                        {batter.runs}{" "}
+                        <span className="text-2xs font-semibold text-muted-foreground sm:text-xs">
+                          ({batter.balls})
+                        </span>
+                      </p>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-2xs"
+                        onClick={change}
+                      >
+                        Assign
+                      </Button>
+                    )}
+                    {batter && !onStrike && onSwapStriker && batterRows.every((r) => r.batter) && (
+                      <button
+                        type="button"
+                        onClick={onSwapStriker}
+                        title={`Put ${batter.name} on strike [S]`}
+                        aria-label={`Put ${batter.name} on strike`}
+                        className="shadow-2xs inline-flex h-7 items-center rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-semibold text-foreground hover:bg-muted sm:px-2"
+                      >
+                        On strike
+                      </button>
+                    )}
+                    {batter && change && (
+                      <button
+                        type="button"
+                        onClick={change}
+                        title={`Change ${batter.name}`}
+                        aria-label={`Change ${batter.name}`}
+                        className="shadow-2xs inline-flex h-7 items-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:px-2"
+                      >
+                        <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="hidden sm:inline">Change</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {striker && (
-                  <p className="hidden pl-4 text-2xs font-medium text-muted-foreground sm:block">
-                    SR:{" "}
-                    <strong className="font-semibold tabular-nums text-foreground">
-                      {strikeRate(striker.runs, striker.balls)}
-                    </strong>{" "}
-                    · {striker.fours}x4, {striker.sixes}x6
-                  </p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {striker ? (
-                  <p className="whitespace-nowrap font-score text-sm font-bold tabular-nums sm:text-base">
-                    <span className="text-foreground">{striker.runs}</span>{" "}
-                    <span className="text-2xs font-semibold text-muted-foreground sm:text-xs">
-                      ({striker.balls})
-                    </span>
-                  </p>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-2xs"
-                    onClick={onChangeStriker}
-                  >
-                    Assign
-                  </Button>
-                )}
-                {isPhone && batterActions}
-              </div>
-            </div>
-
-            {/* Non-striker */}
-            <div
-              className={cn(
-                "flex items-center justify-between gap-2 rounded-xl border px-2.5 py-1.5 sm:px-3 sm:py-2",
-                sunlightMode
-                  ? "border border-black/40 bg-white"
-                  : "border-border/60 bg-muted/25 hover:bg-muted/40",
-              )}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="flex h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
-                    {nonStriker ? nonStriker.name : "Select non-striker"}
-                  </span>
-                </div>
-                {nonStriker && (
-                  <p className="hidden pl-3.5 text-2xs text-muted-foreground sm:block">
-                    SR: {strikeRate(nonStriker.runs, nonStriker.balls)} ·{" "}
-                    {nonStriker.fours}x4, {nonStriker.sixes}x6
-                  </p>
-                )}
-              </div>
-              <div className="shrink-0 text-right">
-                {nonStriker ? (
-                  <p className="whitespace-nowrap font-score text-sm font-bold tabular-nums text-muted-foreground sm:text-base">
-                    {nonStriker.runs}{" "}
-                    <span className="text-2xs font-medium text-muted-foreground/70 sm:text-xs">
-                      ({nonStriker.balls})
-                    </span>
-                  </p>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-2xs"
-                    onClick={onChangeNonStriker}
-                  >
-                    Assign
-                  </Button>
-                )}
-              </div>
-            </div>
+              );
+            })}
           </CardContent>
         </Card>
 
