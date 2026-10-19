@@ -296,6 +296,9 @@ const SHARE_PDF_SCRIPT = `<script>
 })();
 </script>`;
 
+/** The brand mark: src/app/icon.svg (stumps and bails on board green). */
+const BRAND_MARK = `<svg class="brand-tile" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#113227"/><g fill="#f3f5f0"><rect x="8" y="10" width="4" height="16" rx="0.5"/><rect x="14" y="10" width="4" height="16" rx="0.5"/><rect x="20" y="10" width="4" height="16" rx="0.5"/><rect x="8" y="6" width="7" height="2" rx="0.5"/><rect x="17" y="6" width="7" height="2" rx="0.5"/></g></svg>`;
+
 /** What a team's crest shows without a logo. */
 function crestText(team: { name: string; short_name?: string | null }) {
   return team.short_name?.slice(0, 3) || team.name.slice(0, 2).toUpperCase();
@@ -1342,7 +1345,7 @@ function generateWormChartSvg(match: Match): string {
     const gy = getY(val);
     gridLines.push(`
       <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">${val}</text>
+      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
     `);
   }
 
@@ -1352,7 +1355,7 @@ function generateWormChartSvg(match: Match): string {
   for (let ov = tickStep; ov <= totalOversMax; ov += tickStep) {
     const gx = getX(ov);
     xTicks.push(`
-      <text x="${gx}" y="${mt + ph + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">Ov ${ov}</text>
+      <text x="${gx}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">Ov ${ov}</text>
     `);
   }
 
@@ -1377,7 +1380,7 @@ function generateWormChartSvg(match: Match): string {
     .filter((p) => p.wickets > 0)
     .map(
       (p) =>
-        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#0f766e" stroke="#ffffff" stroke-width="1.5" />`,
+        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#1c6949" stroke="#ffffff" stroke-width="1.5" />`,
     )
     .join("");
 
@@ -1415,25 +1418,25 @@ function generateWormChartSvg(match: Match): string {
 
   return `
     <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#0f766e" />
-        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team1Name)}: ${inn1ScoreStr}</text>
+        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
+        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team1Name)}: ${inn1ScoreStr}</text>
 
         ${
           inn2Overs.length > 0
             ? `
         <rect x="${ml + 180}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 195}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team2Name)}: ${inn2ScoreStr}</text>
+        <text x="${ml + 195}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team2Name)}: ${inn2ScoreStr}</text>
         `
             : ""
         }
 
         <circle cx="${ml + 350}" cy="15" r="3.5" fill="#64748b" />
-        <text x="${ml + 360}" y="19" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" fill="#64748b">Wicket</text>
+        <text x="${ml + 360}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
 
         ${gridLines.join("")}
         ${xTicks.join("")}
 
-        <path d="${d1}" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${d1}" fill="none" stroke="#1c6949" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
         ${d2 ? `<path d="${d2}" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ""}
 
         ${w1Circles}
@@ -1478,7 +1481,7 @@ function generateManhattanChartSvg(match: Match): string {
     const gy = getY(val);
     gridLines.push(`
       <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">${val}</text>
+      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
     `);
   }
 
@@ -1501,7 +1504,7 @@ function generateManhattanChartSvg(match: Match): string {
       const by = mt + ph - bh;
       if (o1.runs > 0) {
         bars.push(
-          `<rect x="${(slotLeft + 1).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#0f766e" />`,
+          `<rect x="${(slotLeft + 1).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#1c6949" />`,
         );
       }
       if (o1.wickets > 0) {
@@ -1528,21 +1531,21 @@ function generateManhattanChartSvg(match: Match): string {
 
     if (ovNum % tickStep === 0 || ovNum === 1) {
       xLabels.push(
-        `<text x="${(slotLeft + slotW / 2).toFixed(1)}" y="${mt + ph + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="8" fill="#94a3b8">${ovNum}</text>`,
+        `<text x="${(slotLeft + slotW / 2).toFixed(1)}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8" fill="#94a3b8">${ovNum}</text>`,
       );
     }
   }
 
   return `
     <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#0f766e" />
-        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(firstSide.short_name ?? firstSide.name)}</text>
+        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
+        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(firstSide.short_name ?? firstSide.name)}</text>
 
         <rect x="${ml + 150}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 165}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(secondSide.short_name ?? secondSide.name)}</text>
+        <text x="${ml + 165}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(secondSide.short_name ?? secondSide.name)}</text>
 
         <circle cx="${ml + 300}" cy="15" r="3" fill="#e11d48" />
-        <text x="${ml + 308}" y="19" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" fill="#64748b">Wicket</text>
+        <text x="${ml + 308}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
 
         ${gridLines.join("")}
         ${xLabels.join("")}
@@ -1714,7 +1717,7 @@ export async function buildMatchReportHtml(
     margin: 4,
     width: 260,
     errorCorrectionLevel: "M",
-    color: { dark: "#065f46", light: "#ffffff" },
+    color: { dark: "#113227", light: "#ffffff" },
   });
 
   const toss = match.toss_winner_team_id
@@ -1933,7 +1936,7 @@ export async function buildMatchReportHtml(
 <title>${esc(match.title)} — Official Match Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
     @page {
         size: A4 portrait;
@@ -1947,9 +1950,10 @@ export async function buildMatchReportHtml(
     }
 
     :root {
-        --brand-teal: #0f766e;
-        --brand-dark: #042f2e;
-        --brand-light: #f0fdfa;
+        --brand-teal: #1c6949; /* pitch green, the app's primary */
+        --brand-dark: #113227; /* scoreboard green, the brand mark's tile */
+        --brand-light: #f4fbf8;
+        --brand-ruby: #ba2626;
         --slate-900: #090d16;
         --slate-800: #1e293b;
         --slate-700: #334155;
@@ -1961,7 +1965,7 @@ export async function buildMatchReportHtml(
     }
 
     body {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: 'Barlow', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: var(--slate-900);
         background: #f1f5f9;
         margin: 0;
@@ -1975,7 +1979,7 @@ export async function buildMatchReportHtml(
     .text-left { text-align: left !important; }
     .text-center { text-align: center !important; }
     .text-right { text-align: right !important; }
-    .font-mono { font-family: 'JetBrains Mono', monospace !important; font-variant-numeric: tabular-nums; }
+    .font-mono { font-family: 'Barlow Condensed', sans-serif !important; font-variant-numeric: tabular-nums; }
     .font-medium { font-weight: 500 !important; }
     .font-semibold { font-weight: 600 !important; }
     .font-bold { font-weight: 700 !important; }
@@ -2000,7 +2004,7 @@ export async function buildMatchReportHtml(
         box-sizing: border-box;
     }
     #screen-toolbar .toolbar-info {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 13px;
         font-weight: 600;
         color: #e2e8f0;
@@ -2018,15 +2022,15 @@ export async function buildMatchReportHtml(
         padding: 8px 18px;
         font-size: 12px;
         font-weight: 700;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Barlow', sans-serif;
         border-radius: 8px;
         border: none;
         transition: transform 0.15s, opacity 0.15s;
     }
     #screen-toolbar .btn-print {
-        background: #0d9488;
+        background: #1c6949;
         color: #ffffff;
-        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+        box-shadow: 0 2px 8px rgba(28, 105, 73, 0.3);
     }
     #screen-toolbar .btn-close,
     #screen-toolbar .btn-share {
@@ -2125,15 +2129,46 @@ export async function buildMatchReportHtml(
         margin-bottom: 16px;
     }
     .brand-mark {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
-        letter-spacing: 0.08em;
-        color: var(--brand-teal);
-        text-transform: uppercase;
+        color: var(--brand-dark);
         display: flex;
         align-items: center;
         gap: 8px;
+    }
+    .brand-tile {
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: block;
+    }
+    /* The app's wordmark: condensed, bold; its full stop is the red ball. */
+    .brand-wordmark {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--brand-dark);
+        display: inline-flex;
+        align-items: baseline;
+        gap: 3px;
+    }
+    .brand-ball {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--brand-ruby);
+        display: inline-block;
+    }
+    .toolbar-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .toolbar-brand .brand-tile {
+        width: 20px;
+        height: 20px;
     }
     .brand-mark span.badge-sub {
         font-size: 10.5px;
@@ -2166,7 +2201,7 @@ export async function buildMatchReportHtml(
     }
 
     h1.report-main-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 26px;
         font-weight: 800;
         letter-spacing: -0.02em;
@@ -2200,9 +2235,9 @@ export async function buildMatchReportHtml(
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #0d9488, #0f766e);
+        background: var(--brand-dark);
         color: #ffffff;
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         display: flex;
@@ -2223,7 +2258,7 @@ export async function buildMatchReportHtml(
         flex-direction: column;
     }
     .duel-team-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 15px;
         font-weight: 800;
         color: var(--slate-900);
@@ -2231,7 +2266,7 @@ export async function buildMatchReportHtml(
         text-transform: uppercase;
     }
     .headline-score {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 15px;
         font-weight: 700;
         color: var(--slate-800);
@@ -2262,7 +2297,7 @@ export async function buildMatchReportHtml(
         color: var(--brand-teal);
     }
     .result-pill-desc {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         color: var(--slate-900);
@@ -2284,20 +2319,20 @@ export async function buildMatchReportHtml(
         color: #d97706;
     }
     .potm-hero-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12.5px;
         font-weight: 700;
         color: var(--slate-900);
     }
     .potm-hero-stats {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 10px;
         color: var(--slate-600);
     }
 
     /* Section Headers */
     .section-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         letter-spacing: -0.01em;
@@ -2368,7 +2403,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 6px;
     }
     .summary-team-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 13px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2419,7 +2454,7 @@ export async function buildMatchReportHtml(
         gap: 10px;
     }
     .section-page-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 18px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2441,7 +2476,7 @@ export async function buildMatchReportHtml(
         gap: 6px;
     }
     .score-main {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 17px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2460,7 +2495,7 @@ export async function buildMatchReportHtml(
     }
 
     .table-subheading {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2502,7 +2537,7 @@ export async function buildMatchReportHtml(
     }
 
     .player-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-weight: 600;
         color: var(--slate-900);
         font-size: 11.5px;
@@ -2519,7 +2554,7 @@ export async function buildMatchReportHtml(
         font-size: 10.5px;
         padding: 1px 5px;
         border-radius: 4px;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .milestone-badge.fifty {
         background: #dcfce7;
@@ -2570,7 +2605,7 @@ export async function buildMatchReportHtml(
         align-items: baseline;
     }
     .fow-label {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-weight: 700;
         color: var(--slate-700);
     }
@@ -2601,7 +2636,7 @@ export async function buildMatchReportHtml(
         text-align: center;
     }
     .comp-team-label {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2655,7 +2690,7 @@ export async function buildMatchReportHtml(
         border-radius: 4px;
         font-size: 10px;
         font-weight: 700;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .ball-dot { background: #f1f5f9; color: var(--slate-600); border: 1px solid #e2e8f0; }
     .ball-single { background: #ffffff; color: var(--slate-900); border: 1px solid #cbd5e1; }
@@ -2716,7 +2751,7 @@ export async function buildMatchReportHtml(
         gap: 3px;
     }
     .footer-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 11px;
         font-weight: 700;
         color: var(--brand-teal);
@@ -2724,7 +2759,7 @@ export async function buildMatchReportHtml(
     .footer-url {
         font-size: 10.5px;
         color: var(--slate-600);
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .footer-stamp {
         font-size: 9px;
@@ -2792,7 +2827,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 4px;
     }
     .part-wkt-badge {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 700;
         color: var(--brand-teal);
@@ -2813,7 +2848,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 5px;
     }
     .part-bar-seg.seg-1 {
-        background: #0f766e;
+        background: #1c6949;
     }
     .part-bar-seg.seg-2 {
         background: #d97706;
@@ -2878,7 +2913,7 @@ export async function buildMatchReportHtml(
         font-size: 11px;
     }
     .phase-table th {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9.5px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2920,7 +2955,7 @@ export async function buildMatchReportHtml(
         margin-top: 1px;
     }
     .adv-pill {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9.5px;
         font-weight: 800;
         padding: 3px 8px;
@@ -2930,8 +2965,8 @@ export async function buildMatchReportHtml(
         letter-spacing: 0.03em;
     }
     .adv-team1 {
-        background: #ccfbf1;
-        color: #0f766e;
+        background: #e2f3ec;
+        color: #1c6949;
     }
     .adv-team2 {
         background: #fef3c7;
@@ -2964,7 +2999,7 @@ export async function buildMatchReportHtml(
         display: flex;
         align-items: center;
         justify-content: center;
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 800;
         flex-shrink: 0;
@@ -3060,7 +3095,7 @@ export async function buildMatchReportHtml(
         overflow: hidden;
     }
     .chart-panel-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
@@ -3099,7 +3134,7 @@ export async function buildMatchReportHtml(
     .seal-icon {
         width: 18px;
         height: 18px;
-        background: #0f766e;
+        background: #1c6949;
         color: #ffffff;
         border-radius: 50%;
         display: flex;
@@ -3109,7 +3144,7 @@ export async function buildMatchReportHtml(
         font-weight: 800;
     }
     .seal-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12px;
         font-weight: 800;
         color: var(--slate-900);
@@ -3140,7 +3175,7 @@ export async function buildMatchReportHtml(
         min-height: 82px;
     }
     .signoff-role {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9px;
         font-weight: 700;
         text-transform: uppercase;
@@ -3382,7 +3417,7 @@ export async function buildMatchReportHtml(
 <body>
     <div id="screen-toolbar">
         <div class="toolbar-info">
-            <span><svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore Match Report &bull; Print Preview</span>
+            <span class="toolbar-brand">${BRAND_MARK}CricScore match report</span>
         </div>
         <div class="toolbar-actions">
             <button id="btn-share-pdf" class="btn-print" type="button" disabled
@@ -3406,7 +3441,7 @@ export async function buildMatchReportHtml(
         <div class="page-inner">
             <header class="report-top-header">
                 <div class="brand-mark">
-                    <span><svg style="width:16px;height:16px;display:inline-block;vertical-align:-3px;margin-right:5px;color:#10b981;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore</span>
+                    ${BRAND_MARK}<span class="brand-wordmark">CricScore<span class="brand-ball" aria-hidden="true"></span></span>
                     <span style="font-weight: normal; color: #cbd5e1;">|</span>
                     <span class="badge-sub">Official Match Record</span>
                 </div>

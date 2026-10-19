@@ -243,10 +243,13 @@ describe("match-report export helpers", () => {
         '6-141</strong> <span class="fow-sub">(Alex Davis, 17.1 ov)',
       );
 
-      // Typography & Modern styles
-      expect(html).toContain("Outfit");
-      expect(html).toContain("Plus Jakarta Sans");
-      expect(html).toContain("JetBrains Mono");
+      // The app's brand: its fonts, the stumps mark and the wordmark.
+      expect(html).toContain("family=Barlow:");
+      expect(html).toContain("Barlow+Condensed");
+      expect(html).not.toMatch(/Outfit|Plus Jakarta Sans|JetBrains Mono/);
+      expect(html).toContain('class="brand-tile"');
+      expect(html).toContain('<span class="brand-wordmark">CricScore');
+      expect(html).not.toContain("13 2 3 14 12 14 11 22 21 10 12 10 13 2");
       expect(html).toContain("match-duel-hero");
     });
 
