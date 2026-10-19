@@ -33,8 +33,10 @@ import {
   type OversRow,
 } from "../scorecard";
 import type { BallByBallRow, InningsRow, MatchesRow } from "../types";
+import { matchPositionOf } from "../../match-position";
 import {
   applyBallIncrementally,
+  isRetirementAtCrease,
   startsNewPartnership,
   type IncrementalOutput,
 } from "./incremental";
@@ -257,34 +259,8 @@ export function ballDocsAfter(input: BallDocsInput): BallDocs | null {
   if (!canApplyIncrementally(match, innings)) return null;
   const counter = seqCounterOf(match, innings)!;
   const bpo = ballsPerOverOf(match);
-  const overNumber = Math.floor((innings.total_balls ?? 0) / bpo);
-
-  const battingRows = battingRowsOf(innings);
-  const bowlingRows = bowlingRowsOf(innings);
-  const partnershipRows = partnershipRowsOf(innings);
-  const striker = battingRows.find((b) => b.user_id === args.p_batsman_id);
-  const nonStriker = battingRows.find(
-    (b) => b.user_id === args.p_non_striker_id,
-  );
-  const bowler = bowlingRows.find((b) => b.user_id === args.p_bowler_id);
-  if (!striker || !striker.is_current_batsman || !striker.is_striker)
-    return null;
-  if (!nonStriker || !nonStriker.is_current_batsman || nonStriker.is_striker)
-    return null;
-  if (!bowler || !bowler.is_current_bowler) return null;
-  const currentPartnerships = partnershipRows.filter(
-    (p) => p.is_current === true,
-  );
-  if (currentPartnerships.length > 1) return null;
-  const partnership = currentPartnerships[0] ?? null;
-
-  const sortedOver = input.overDoc
-    ? ballRowsOf(input.overDoc).sort(bySeq)
-    : [];
-  const maxOverSeq = sortedOver.length
-    ? (sortedOver[sortedOver.length - 1]!.seq ?? 0)
-    : 0;
-  const seq = Math.max(counter, maxOverSeq) + 1;
+  const sortedOver = sortedOverOf(input.overDoc);
+  const seq = Math.max(counter, lastSeqOf(sortedOver)) + 1;
   const ball = newBall(
     args,
     checked,
@@ -294,6 +270,54 @@ export function ballDocsAfter(input: BallDocsInput): BallDocs | null {
     now,
     input.ballRandom,
   );
+  return docsAfterEntry(match, innings, sortedOver, ball, now);
+}
+
+function sortedOverOf(overDoc: BallDocsInput["overDoc"]): BallByBallRow[] {
+  return overDoc ? ballRowsOf(overDoc).sort(bySeq) : [];
+}
+
+function lastSeqOf(sortedOver: BallByBallRow[]): number {
+  return sortedOver.length ? (sortedOver[sortedOver.length - 1]!.seq ?? 0) : 0;
+}
+
+/**
+ * The documents after `ball`, a new ball-log entry of the current over, is
+ * applied to the running totals of `innings` (at the crease and with the
+ * bowler it names, as stored). Null when that would not be exact.
+ */
+function docsAfterEntry(
+  match: BallMatch,
+  innings: WithId<InningsRow>,
+  sortedOver: BallByBallRow[],
+  ball: WithId<BallByBallRow>,
+  now: string,
+): BallDocs | null {
+  const bpo = ballsPerOverOf(match);
+  const overNumber = Math.floor((innings.total_balls ?? 0) / bpo);
+  if (ball.over_number !== overNumber) return null;
+
+  const battingRows = battingRowsOf(innings);
+  const bowlingRows = bowlingRowsOf(innings);
+  const partnershipRows = partnershipRowsOf(innings);
+  const striker = battingRows.find((b) => b.user_id === ball.batsman_id);
+  const nonStriker = battingRows.find(
+    (b) => b.user_id === ball.non_striker_id,
+  );
+  if (!striker || !striker.is_current_batsman || !striker.is_striker)
+    return null;
+  if (!nonStriker || !nonStriker.is_current_batsman || nonStriker.is_striker)
+    return null;
+  // A retirement is logged without a bowler.
+  const bowler = ball.bowler_id
+    ? bowlingRows.find((b) => b.user_id === ball.bowler_id)
+    : null;
+  if (ball.bowler_id && (!bowler || !bowler.is_current_bowler)) return null;
+  const currentPartnerships = partnershipRows.filter(
+    (p) => p.is_current === true,
+  );
+  if (currentPartnerships.length > 1) return null;
+  const partnership = currentPartnerships[0] ?? null;
 
   const out = applyBallIncrementally({
     match,
@@ -301,7 +325,7 @@ export function ballDocsAfter(input: BallDocsInput): BallDocs | null {
     ball,
     striker,
     nonStriker,
-    bowler,
+    bowler: bowler ?? null,
     partnership,
     partnershipCount: startsNewPartnership(ball, partnership)
       ? partnershipRows.length
@@ -344,9 +368,148 @@ export function ballDocsAfter(input: BallDocsInput): BallDocs | null {
     last_over_bowler_id: out.overJustEnded
       ? lastOverBowlerOf(overBalls, out.inningsPatch.total_balls ?? 0, bpo)
       : (innings.last_over_bowler_id ?? null),
-    last_ball_seq: seq,
+    last_ball_seq: ball.seq,
   };
   return { ball, overNumber, overDoc, inningsPatch, out };
+}
+
+// ---------------------------------------------------------------------------
+// Events: retirements and penalty / bonus runs (logged, not deliveries)
+// ---------------------------------------------------------------------------
+
+/**
+ * A logged event in the current over of `innings` (the current innings):
+ * not a delivery, numbered after the match's seq counter. `random` is the
+ * last part of its id (`newBallId`).
+ */
+export function newEventBall(
+  match: Pick<
+    MatchesRow,
+    | "balls_per_over"
+    | "current_innings"
+    | "current_over"
+    | "current_ball"
+    | "last_ball_seq"
+  > & { id: string },
+  innings: WithId<InningsRow>,
+  fields: Partial<BallByBallRow>,
+  now: string,
+  random: string,
+): WithId<BallByBallRow> {
+  const pos = matchPositionOf(match, innings);
+  const overNumber = pos.current_over;
+  return {
+    id: newBallId(innings.id, overNumber, random),
+    match_id: match.id,
+    innings_id: innings.id,
+    over_number: overNumber,
+    ball_number: Math.min(20, Math.max(1, pos.current_ball + 1)),
+    bowler_id: null,
+    batsman_id: null,
+    non_striker_id: null,
+    runs_scored: 0,
+    extras: 0,
+    extra_type: null,
+    is_wicket: false,
+    dismissal_type: null,
+    fielder_id: null,
+    dismissed_player_id: null,
+    commentary: null,
+    shot_zone: null,
+    seq: (seqCounterOf(match, innings) ?? 0) + 1,
+    created_at: now,
+    ...fields,
+  };
+}
+
+/** The crease and bowler as the innings document holds them. */
+function creaseOf(innings: InningsRow) {
+  const batting = battingRowsOf(innings);
+  return {
+    striker: batting.find((b) => b.is_striker === true) ?? null,
+    nonStriker:
+      batting.find(
+        (b) => b.is_current_batsman === true && b.is_striker === false,
+      ) ?? null,
+    bowler:
+      bowlingRowsOf(innings).find((b) => b.is_current_bowler === true) ?? null,
+  };
+}
+
+/**
+ * The log entry of a retirement. At a full crease it names both batters
+ * (who retired is `dismissed_player_id`), so the partner stays at their
+ * end and the new batter comes in at the retired one's; otherwise (an end
+ * already empty, or someone not at the crease) the batter alone.
+ */
+export function retirementFields(
+  innings: InningsRow,
+  playerId: string,
+  type: "retired_hurt" | "retired_out",
+  reason: string | null | undefined,
+): Partial<BallByBallRow> {
+  const { striker, nonStriker } = creaseOf(innings);
+  const atCrease =
+    striker?.is_current_batsman === true &&
+    nonStriker !== null &&
+    (playerId === striker.user_id || playerId === nonStriker.user_id);
+  return {
+    ...(atCrease
+      ? { batsman_id: striker.user_id, non_striker_id: nonStriker.user_id }
+      : { batsman_id: playerId }),
+    is_wicket: true,
+    dismissal_type: type,
+    dismissed_player_id: playerId,
+    commentary: `Player ${type === "retired_hurt" ? "retired hurt" : "retired out"}${reason ? `: ${reason}` : ""}`,
+  };
+}
+
+/** The log entry of penalty / bonus runs to the batting side: at the crease. */
+export function penaltyFields(
+  innings: InningsRow,
+  runs: number,
+  type: "penalty" | "bonus",
+  reason: string | null | undefined,
+): Partial<BallByBallRow> {
+  const { striker, nonStriker, bowler } = creaseOf(innings);
+  return {
+    bowler_id: bowler?.user_id ?? null,
+    batsman_id: striker?.user_id ?? null,
+    non_striker_id: nonStriker?.user_id ?? null,
+    extras: runs,
+    extra_type: type,
+    commentary: `${type === "bonus" ? "Bonus" : "Penalty"}: +${runs} runs awarded to batting team (${reason ?? ""})`,
+  };
+}
+
+/**
+ * The documents after `event` (from {@link newEventBall}: a retirement at a
+ * full crease, or penalty / bonus runs to the batting side at a full crease
+ * with a bowler) applied to the running totals, as `ballDocsAfter` does for
+ * a delivery. Null for any other event or when that would not be exact:
+ * the engine then recomputes the innings, and the screen waits for it.
+ */
+export function eventDocsAfter(input: {
+  match: BallMatch;
+  innings: WithId<InningsRow>;
+  overDoc: BallDocsInput["overDoc"];
+  event: WithId<BallByBallRow>;
+  now: string;
+}): BallDocs | null {
+  const { match, innings, event, now } = input;
+  if (!canApplyIncrementally(match, innings)) return null;
+  const counter = seqCounterOf(match, innings)!;
+  const sortedOver = sortedOverOf(input.overDoc);
+  // An event is numbered after the counter alone.
+  if (lastSeqOf(sortedOver) > counter || event.seq !== counter + 1) return null;
+  const penalty =
+    !event.penalty_team_id &&
+    (event.extra_type === "penalty" || event.extra_type === "bonus") &&
+    Boolean(event.bowler_id) &&
+    (event.runs_scored ?? 0) === 0 &&
+    !event.is_wicket;
+  if (!penalty && !isRetirementAtCrease(event)) return null;
+  return docsAfterEntry(match, innings, sortedOver, event, now);
 }
 
 /**

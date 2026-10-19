@@ -1330,7 +1330,12 @@ export async function awardTeamPenalty(
     type?: "penalty" | "bonus";
     clientActionId?: string | null;
   },
-): Promise<{ success: boolean; error: string | null }> {
+): Promise<{
+  success: boolean;
+  error: string | null;
+  /** The committed documents (null when they are not enough: re-read). */
+  delta?: ScoringDelta | null;
+}> {
   try {
     const awardType = params.type ?? "penalty";
     const db = await createServerClient();
@@ -1350,27 +1355,15 @@ export async function awardTeamPenalty(
       };
     }
 
-    const { data: match } = await db
-      .from("matches")
-      .select("*, innings(*)")
-      .eq("id", matchId)
-      .single();
-
-    if (!match) return { success: false, error: "Match not found" };
-
-    const currentInnings = match.innings?.find(
-      (i: { innings_number: number }) => i.innings_number === match.current_innings,
-    );
-
-    if (!currentInnings) {
-      return { success: false, error: "No active innings found to award penalty" };
-    }
-
-    // Logged in the ball log and recomputed in one transaction. To the
-    // batting side: at the current crease. To the fielding side (Law
-    // 41.17): added to their latest innings (raising the target), or
-    // credited to their upcoming innings when they have not batted yet.
-    const { error: awardErr } = await db.rpc("award_penalty_runs", {
+    // Logged in the ball log and recomputed in one transaction, which also
+    // refreshes live_state. To the batting side: at the current crease. To
+    // the fielding side (Law 41.17): added to their latest innings (raising
+    // the target), or credited to their upcoming innings when they have not
+    // batted yet.
+    const { data: reply, error: awardErr } = await db.rpc<{
+      delta: ScoringDelta | null;
+    }>("award_penalty_runs", {
+      p_with_delta: true,
       p_match_id: matchId,
       p_runs: params.runs,
       p_type: awardType,
@@ -1379,14 +1372,19 @@ export async function awardTeamPenalty(
       p_client_action_id: params.clientActionId ?? null,
     });
     if (awardErr) {
+      if (awardErr.message === "match_not_found") {
+        return { success: false, error: "Match not found" };
+      }
+      if (awardErr.message === "no_open_innings") {
+        return { success: false, error: "No active innings found to award penalty" };
+      }
       return { success: false, error: friendlyError(awardErr.message) };
     }
 
-    await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    return { success: true, error: null };
+    return { success: true, error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in awardTeamPenalty:", err);
     return {
@@ -1404,7 +1402,12 @@ export async function retirePlayer(
     reason?: string | null;
     clientActionId?: string | null;
   },
-): Promise<{ success: boolean; error: string | null }> {
+): Promise<{
+  success: boolean;
+  error: string | null;
+  /** The committed documents (null when they are not enough: re-read). */
+  delta?: ScoringDelta | null;
+}> {
   try {
     const db = await createServerClient();
     const {
@@ -1423,7 +1426,10 @@ export async function retirePlayer(
       };
     }
 
-    const { error: retireErr } = await db.rpc("retire_batter", {
+    const { data: reply, error: retireErr } = await db.rpc<{
+      delta: ScoringDelta | null;
+    }>("retire_batter", {
+      p_with_delta: true,
       p_match_id: matchId,
       p_player_id: params.playerId,
       p_type: params.type,
@@ -1445,7 +1451,7 @@ export async function retirePlayer(
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
-    return { success: true, error: null };
+    return { success: true, error: null, delta: reply?.delta ?? null };
   } catch (err) {
     console.error("Unexpected error in retirePlayer:", err);
     return {

@@ -72,6 +72,8 @@ const WITH_DELTA = new Set([
   "undo_last_ball",
   "set_current_batsmen",
   "set_current_bowler",
+  "retire_batter",
+  "award_penalty_runs",
 ]);
 
 export async function callRpc(

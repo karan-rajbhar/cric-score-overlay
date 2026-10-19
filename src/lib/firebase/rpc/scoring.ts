@@ -86,6 +86,9 @@ import {
   EXTRA_TYPES,
   inningsComplete,
   newBall,
+  newEventBall,
+  penaltyFields,
+  retirementFields,
   type CheckedBall,
   type RecordBallArgs,
 } from "../scoring/ball-docs";
@@ -1623,35 +1626,12 @@ async function editCurrentInnings(
  * current innings, numbered after the match's seq counter.
  */
 function eventBall(
-  match: MatchesRow,
-  innings: InningsRow,
+  match: WithId<MatchesRow>,
+  innings: WithId<InningsRow>,
   fields: Partial<BallByBallRow>,
   now: string,
 ): BallByBallRow {
-  const pos = matchPositionOf(match, innings);
-  const overNumber = pos.current_over;
-  return {
-    id: newBallId(innings.id, overNumber, newId()),
-    match_id: match.id,
-    innings_id: innings.id,
-    over_number: overNumber,
-    ball_number: Math.min(20, Math.max(1, pos.current_ball + 1)),
-    bowler_id: null,
-    batsman_id: null,
-    non_striker_id: null,
-    runs_scored: 0,
-    extras: 0,
-    extra_type: null,
-    is_wicket: false,
-    dismissal_type: null,
-    fielder_id: null,
-    dismissed_player_id: null,
-    commentary: null,
-    shot_zone: null,
-    seq: (seqCounterOf(match, innings) ?? 0) + 1,
-    created_at: now,
-    ...fields,
-  };
+  return newEventBall(match, innings, fields, now, newId());
 }
 
 /**
@@ -1792,22 +1772,12 @@ export async function awardPenaltyRuns(
     ctx,
     args.p_match_id,
     ({ match, innings, bundle, now }) => {
-      const striker = bundle.batting.find((b) => b.is_striker === true);
-      const nonStriker = bundle.batting.find(
-        (b) => b.is_current_batsman === true && b.is_striker === false,
-      );
-      const bowler = bundle.bowling.find((b) => b.is_current_bowler === true);
+      // At the current crease (the entry `ball-docs` builds, which the
+      // scoring screen predicts).
       const ball = eventBall(
         match,
         innings,
-        {
-          bowler_id: bowler?.user_id ?? null,
-          batsman_id: striker?.user_id ?? null,
-          non_striker_id: nonStriker?.user_id ?? null,
-          extras: args.p_runs,
-          extra_type: type,
-          commentary: `${type === "bonus" ? "Bonus" : "Penalty"}: +${args.p_runs} runs awarded to batting team (${args.p_reason ?? ""})`,
-        },
+        penaltyFields(innings, args.p_runs, type, args.p_reason),
         now,
       );
       return { balls: [...bundle.balls, ball], seq: ball.seq ?? undefined };
@@ -1815,7 +1785,10 @@ export async function awardPenaltyRuns(
   );
 }
 
-/** Retire a batter (hurt: not out; out: a wicket), logged in the ball log. */
+/**
+ * Retire a batter (hurt: not out; out: a wicket), logged in the ball log
+ * with both batters (`retirementFields`): the partner stays at their end.
+ */
 export async function retireBatter(
   ctx: ScoringContext,
   args: {
@@ -1835,13 +1808,7 @@ export async function retireBatter(
       const ball = eventBall(
         match,
         innings,
-        {
-          batsman_id: args.p_player_id,
-          is_wicket: true,
-          dismissal_type: type,
-          dismissed_player_id: args.p_player_id,
-          commentary: `Player ${type === "retired_hurt" ? "retired hurt" : "retired out"}${args.p_reason ? `: ${args.p_reason}` : ""}`,
-        },
+        retirementFields(innings, args.p_player_id, type, args.p_reason),
         now,
       );
       return { balls: [...bundle.balls, ball], seq: ball.seq ?? undefined };

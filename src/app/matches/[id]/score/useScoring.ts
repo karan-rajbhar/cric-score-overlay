@@ -123,6 +123,27 @@ function isOfflineNow(): boolean {
   return typeof navigator !== "undefined" && !navigator.onLine;
 }
 
+/** An undone event (a retirement, penalty or bonus runs) in words. */
+function eventNotice(
+  ball: UndoneBall,
+  name: (id: string | null) => string | null,
+): { heading: string; label: string } | null {
+  const e = ball.event;
+  if (e.isWicket && e.dismissalType?.startsWith("retired")) {
+    const who = name(e.dismissedPlayerId ?? ball.batsmanId) ?? "Batter";
+    const how = e.dismissalType === "retired_out" ? "retired out" : "retired hurt";
+    return { heading: "Retirement", label: `${who}, ${how}` };
+  }
+  if (e.extraType === "penalty" || e.extraType === "bonus") {
+    const runs = e.extras ?? 0;
+    return {
+      heading: e.extraType === "bonus" ? "Bonus" : "Penalty",
+      label: `${runs} ${runs === 1 ? "run" : "runs"}`,
+    };
+  }
+  return null;
+}
+
 /** A retirement on the local context (offline): the batter leaves the crease. */
 function retireLocally(
   ctx: LocalScoringContext,
@@ -180,7 +201,15 @@ function deliveryLabel(d: {
 
 /** What the over strip shows after an undo (see `scoring-undo`). */
 export interface UndoNotice {
-  /** The undone ball as the over strip labels it ("4", "W", "Wd"...). */
+  /**
+   * For an undone event (not a delivery): what it was, "Retirement" or
+   * "Penalty" (the notice then reads "Retirement removed: <label>").
+   */
+  heading?: string | null;
+  /**
+   * The undone ball as the over strip labels it ("4", "W", "Wd"...), or an
+   * event in words ("Kohli, retired hurt", "5 runs").
+   */
   label: string;
   /** Where it was, "3.6" (over.ball), when known. */
   position: string | null;
@@ -1410,7 +1439,12 @@ export function useScoring(
    * for the server already): the caller takes the waiting path.
    */
   const scoreInstantly = (
-    type: "recordBall" | "setBatsmen" | "setBowler",
+    type:
+      | "recordBall"
+      | "setBatsmen"
+      | "setBowler"
+      | "retireBatter"
+      | "awardPenalty",
     payload: QueuedAction["payload"],
   ): { error: null } | null => {
     if (!INSTANT_SCORING || awaitingServer) return null;
@@ -1444,8 +1478,13 @@ export function useScoring(
       undoTargetsRef.current,
     );
     if (folded.applied !== pending.length + 1) return null;
-    // For an instant undo of this ball: the state just before it.
-    if (type === "recordBall") {
+    // For an instant undo of this ball (or logged event): the state just
+    // before it.
+    if (
+      type === "recordBall" ||
+      type === "retireBatter" ||
+      type === "awardPenalty"
+    ) {
       const entry = entryForChange(before.state, folded.state);
       if (entry) {
         undoStackRef.current = pushEntry(undoStackRef.current, entry);
@@ -1663,6 +1702,17 @@ export function useScoring(
       (id ? names.get(id)?.full_name : null) ?? null;
     const bowler = name(ball?.bowlerId ?? null);
     const batter = name(ball?.batsmanId ?? null);
+    const event = ball?.isEvent ? eventNotice(ball, name) : null;
+    if (event) {
+      return {
+        ...event,
+        position: `${ball!.over}.${ball!.ball}`,
+        players: null,
+        note,
+        pending,
+        canRedo: redoRef.current.length > 0,
+      };
+    }
     return {
       label: ball
         ? deliveryLabel({
@@ -2019,8 +2069,15 @@ export function useScoring(
     return { error: res.error, queued: false };
   };
 
-  const handleRetireBatter = (payload: RetireBatterPayload) =>
-    runOrQueue(
+  const handleRetireBatter = async (
+    payload: RetireBatterPayload,
+  ): Promise<{ error: string | null; queued: boolean }> => {
+    clearUndone();
+    // Shown at once and sent in the background when it can be predicted.
+    if (scoreInstantly("retireBatter", payload)) {
+      return { error: null, queued: false };
+    }
+    return runOrQueue(
       "retireBatter",
       payload,
       (id) => {
@@ -2032,9 +2089,17 @@ export function useScoring(
         setNonStrikerId((id) => (id === payload.playerId ? null : id));
       },
     );
+  };
 
-  const handleAwardPenalty = (payload: AwardPenaltyPayload) =>
-    runOrQueue(
+  const handleAwardPenalty = async (
+    payload: AwardPenaltyPayload,
+  ): Promise<{ error: string | null; queued: boolean }> => {
+    clearUndone();
+    // To the batting side: shown at once (the fielding side waits).
+    if (scoreInstantly("awardPenalty", payload)) {
+      return { error: null, queued: false };
+    }
+    return runOrQueue(
       "awardPenalty",
       payload,
       (id) => {
@@ -2048,6 +2113,7 @@ export function useScoring(
         }
       },
     );
+  };
 
   const handleReassignOverBowler = (bowlerId: string) =>
     runOrQueue(

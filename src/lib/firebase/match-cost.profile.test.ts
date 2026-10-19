@@ -336,9 +336,9 @@ class ScorerModel {
     await this.applyOrSync(res.delta);
   }
 
-  /** The page syncs after a retirement. */
-  async afterRetire(): Promise<void> {
-    await this.sync();
+  /** A retirement or penalty runs: the reply's documents, else a re-read. */
+  async afterEvent(res: { delta?: ScoringDelta | null }): Promise<void> {
+    await this.applyOrSync(res.delta);
   }
 
   async afterStructural(): Promise<void> {
@@ -670,7 +670,12 @@ describe("Firestore cost of a whole match", () => {
       battingTeam: string,
       bowlingTeam: string,
       pattern: Ev[],
-      extras: { retireAt?: number; undoAt?: number; editAt?: number },
+      extras: {
+        retireAt?: number;
+        penaltyAt?: number;
+        undoAt?: number;
+        editAt?: number;
+      },
     ) {
       const batters = rosterOf(battingTeam);
       const bowlers = rosterOf(bowlingTeam).slice(0, 5);
@@ -729,21 +734,44 @@ describe("Firestore cost of a whole match", () => {
         }
         let cur = scorer.current();
         let stayed: string | null = null;
-        if (i === extras.retireAt && cur.nonStrikerId) {
+        if (i === extras.retireAt && cur.nonStrikerId && cur.strikerId) {
           stayed = cur.strikerId;
+          const payload = {
+            playerId: cur.nonStrikerId,
+            type: "retired_hurt" as const,
+          };
+          // Instant scoring shows it from the documents it holds.
+          const predicted = scorer.predict(queued("retireBatter", payload));
+          expect(predicted).not.toBeNull();
           await act(
             "retire",
-            () =>
-              m.retirePlayer(matchId, {
-                playerId: cur.nonStrikerId!,
-                type: "retired_hurt",
-              }),
-            () => scorer.afterRetire(),
+            () => m.retirePlayer(matchId, payload),
+            (res) => scorer.afterEvent(res),
           );
+          expectPredicted(predicted);
+          // The partner stays at their end; only the retired end is empty.
+          expect(scorer.current().strikerId).toBe(stayed);
+          expect(scorer.current().nonStrikerId).toBeNull();
+        }
+        if (i === extras.penaltyAt && cur.strikerId && cur.bowlerId) {
+          const payload = {
+            teamId: battingTeam,
+            runs: 5,
+            reason: "Fielder's helmet",
+            type: "penalty" as const,
+          };
+          const predicted = scorer.predict(queued("awardPenalty", payload));
+          expect(predicted).not.toBeNull();
+          await act(
+            "penalty",
+            () => m.awardTeamPenalty(matchId, payload),
+            (res) => scorer.afterEvent(res),
+          );
+          expectPredicted(predicted);
         }
         cur = scorer.current();
         if (!cur.strikerId || !cur.nonStrikerId) {
-          // A retirement leaves the crease empty: the other batter returns.
+          // After a retirement the new batter comes in at the empty end.
           const survivor = cur.strikerId ?? cur.nonStrikerId ?? stayed!;
           await setBatsmen(batters[nextBatter]!, survivor);
           nextBatter += 1;
@@ -788,7 +816,7 @@ describe("Firestore cost of a whole match", () => {
     });
     expect(st!.innings_break).toBe(true);
     const firstInningsBalls = ballsScored;
-    await playInnings(TEAM2, TEAM1, second, {});
+    await playInnings(TEAM2, TEAM1, second, { penaltyAt: 9 });
     expect(st!.match_completed).toBe(true);
     expect(ballsScored).toBeGreaterThan(200);
 
