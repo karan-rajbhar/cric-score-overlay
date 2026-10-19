@@ -430,6 +430,40 @@ describe("advanceAfterInnings", () => {
     });
   });
 
+  it("counts wickets in hand from the chasing side's squad", () => {
+    const chase = {
+      ...first,
+      id: "i2",
+      team_id: "t2",
+      innings_number: 2,
+      total_runs: 151,
+      total_wickets: 3,
+      target_runs: 151,
+    } as InningsRow;
+    const result = (squad: number | null, lastManStands = false) =>
+      advanceAfterInnings(
+        {
+          match: { ...baseMatch, last_man_stands: lastManStands } as MatchesRow,
+          completed: chase,
+          allInnings: [first, chase],
+          teamNames: { t2: "Kings" },
+          now: NOW,
+          chaseSquadSize: squad,
+        },
+        "x",
+      ).matchPatch;
+    // Eight players, three down: four wickets in hand.
+    expect(result(8)).toMatchObject({
+      win_margin: 4,
+      result_description: "Kings won by 4 wickets",
+    });
+    // Last man stands: the last batter bats on, so one more.
+    expect(result(8, true)).toMatchObject({ win_margin: 5 });
+    // A full squad, or none known: the match's limit.
+    expect(result(15)).toMatchObject({ win_margin: 7 });
+    expect(result(null)).toMatchObject({ win_margin: 7 });
+  });
+
   it("limits super overs to one over and two wickets", () => {
     expect(inningsLimits(baseMatch, 1)).toEqual({
       maxBalls: 120,

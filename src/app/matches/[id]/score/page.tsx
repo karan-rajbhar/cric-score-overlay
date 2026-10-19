@@ -2068,6 +2068,14 @@ export default function ScoringPage() {
         isProcessing={isProcessing}
         onCreatePlayer={createPickedPlayer("batting")}
         addPlayerDisabledReason={addPlayerDisabledReason}
+        onEndInnings={
+          isScorer
+            ? () => {
+                setShowSelectBatsmen(false);
+                void handleEndInnings();
+              }
+            : undefined
+        }
       />
 
       <BowlerDialog

@@ -12,6 +12,11 @@ export interface AdvanceInput {
   allInnings: InningsRow[];
   teamNames: Record<string, string | undefined>;
   now: string;
+  /**
+   * Players in the chasing side's squad, when known: a side of 8 that wins
+   * 3 down has 4 wickets in hand, not 7 (the match's limit of 10).
+   */
+  chaseSquadSize?: number | null;
 }
 
 export interface AdvanceOutput {
@@ -112,7 +117,14 @@ export function advanceAfterInnings(
   if (runs >= target) {
     winner = completed.team_id;
     marginType = "wickets";
-    margin = Math.max(wicketsCap - wickets, 0);
+    // Wickets in hand: the side can lose at most one fewer than it has
+    // players (all of them with last man stands).
+    const squad = input.chaseSquadSize ?? null;
+    const cap =
+      !isSuperOverInnings(inningsNumber) && squad !== null && squad >= 2
+        ? Math.min(wicketsCap, match.last_man_stands ? squad : squad - 1)
+        : wicketsCap;
+    margin = Math.max(cap - wickets, 0);
     description = `${teamNames[winner] ?? "Team"} won by ${margin} ${pluralise(margin, "wicket", "wickets")}`;
   } else if (runs < target - 1) {
     winner = firstTeam;

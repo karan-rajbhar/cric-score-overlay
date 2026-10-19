@@ -333,3 +333,32 @@ describe("BatsmenDialog", () => {
     expect(screen.queryByText("Opposing Bowler")).not.toBeInTheDocument();
   });
 });
+
+describe("BatsmenDialog with nobody left to bat", () => {
+  it("offers ending the innings (all out) next to adding a player", () => {
+    const players: TeamPlayer[] = [
+      { id: "t1", team_id: "team-1", user_id: "a", user: { id: "a", full_name: "A" } },
+      { id: "t2", team_id: "team-1", user_id: "b", user: { id: "b", full_name: "B" } },
+      { id: "t3", team_id: "team-1", user_id: "c", user: { id: "c", full_name: "C" } },
+    ];
+    const onEndInnings = vi.fn();
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        dismissedPlayerIds={new Set(["b", "c"])}
+        strikerId="a"
+        nonStrikerId={null}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+        onEndInnings={onEndInnings}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Everyone in the squad has batted",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "End innings (all out)" }));
+    expect(onEndInnings).toHaveBeenCalledTimes(1);
+  });
+});

@@ -40,6 +40,11 @@ interface BatsmenDialogProps {
   onCreatePlayer?: (name: string) => Promise<string | null>;
   /** Set while adding is impossible (e.g. offline). */
   addPlayerDisabledReason?: string | null;
+  /**
+   * Ends the innings: offered when a wicket leaves nobody to come in (a
+   * short squad all out), next to adding a player.
+   */
+  onEndInnings?: () => void;
 }
 
 /**
@@ -65,6 +70,7 @@ export function BatsmenDialog({
   isProcessing,
   onCreatePlayer,
   addPlayerDisabledReason,
+  onEndInnings,
 }: BatsmenDialogProps) {
   /** The not-out batter after a wicket (their end is not to be replaced). */
   const survivor =
@@ -225,6 +231,11 @@ export function BatsmenDialog({
   };
 
   const pickingFor = newBatterSlot ?? activeSlot;
+  // After a wicket with nobody left to come in: all out, unless a player
+  // is added (local matches often add the next batter as he walks in).
+  const nobodyLeft =
+    Boolean(survivor) &&
+    !rows.some((r) => !r.disabledReason && r.id !== survivor);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -256,6 +267,29 @@ export function BatsmenDialog({
             </Button>
             {slotButton("nonStriker", "Non-striker", draft.nonStriker)}
           </div>
+
+          {nobodyLeft && (
+            <div
+              role="status"
+              className="space-y-2 rounded-lg border border-border bg-muted/50 p-3 text-sm"
+            >
+              <p>
+                Everyone in the squad has batted. Add the next batter below, or
+                end the innings if the side is all out.
+              </p>
+              {onEndInnings && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 w-full font-semibold"
+                  onClick={onEndInnings}
+                  disabled={isProcessing}
+                >
+                  End innings (all out)
+                </Button>
+              )}
+            </div>
+          )}
 
           <PlayerPicker
             label={

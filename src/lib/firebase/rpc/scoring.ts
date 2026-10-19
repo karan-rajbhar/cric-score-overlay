@@ -644,8 +644,15 @@ async function applyAdvance(
   now: string,
   completedBalls?: readonly BallByBallRow[],
 ): Promise<AppliedAdvance> {
+  // The chasing side's squad, for the wickets in hand (one read, when a
+  // chase ends; the team document holds the roster).
+  const chaseSquadSize =
+    completed.innings_number % 2 === 0
+      ? ((await t.doc<TeamsRow>("teams", completed.team_id))?.roster?.length ??
+        null)
+      : null;
   const out = advanceAfterInnings(
-    { match, completed, allInnings, teamNames, now },
+    { match, completed, allInnings, teamNames, now, chaseSquadSize },
     newId(),
   );
   t.patch("innings", completed.id, out.completedInningsPatch);
