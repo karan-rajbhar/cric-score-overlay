@@ -217,7 +217,7 @@ describe("offline queue replay through /api/scoring/replay", () => {
     // ---- back online; the first batch (10 actions) reaches the server but
     // its reply is lost, so that flush stops there ----
     const sent = wireFetchToRoute((n) => n === 1);
-    expect(await flushPendingActions(M)).toEqual({ synced: 0, failed: 1 });
+    expect(await flushPendingActions(M)).toMatchObject({ synced: 0, failed: 1 });
     expect(getPendingActions(M)).toHaveLength(13);
 
     // Retry: the first ten are recognised (same ids) and not applied again.
@@ -226,7 +226,7 @@ describe("offline queue replay through /api/scoring/replay", () => {
       flushPendingActions(M),
       flushPendingActions(M),
     ]);
-    expect(a).toEqual({ synced: 13, failed: 0 });
+    expect(a).toMatchObject({ synced: 13, failed: 0 });
     expect(b).toBe(a);
     expect(getPendingActions(M)).toHaveLength(0);
     expect(getDeadLetterCount(M)).toBe(0);
@@ -321,7 +321,7 @@ describe("offline queue replay through /api/scoring/replay", () => {
     );
 
     const sent = wireFetchToRoute();
-    expect(await flushPendingActions(M)).toEqual({ synced: 3, failed: 0 });
+    expect(await flushPendingActions(M)).toMatchObject({ synced: 3, failed: 0 });
     expect(sent).toHaveLength(1);
     expect(sent[0]!.batch.actions.map((x) => [x.type, x.id])).toEqual([
       ["recordBall", "1700000000000_old0001"],

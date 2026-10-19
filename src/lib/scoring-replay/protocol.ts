@@ -17,7 +17,14 @@
  * a device left offline can come back long after a deploy. Adding an
  * optional field, or a new action type, needs no new version (an older
  * server answers a type it does not know with `unsupported_action_type`).
+ *
+ * The scoring screen sends every delivery / crease / bowler change through
+ * this route as it happens (instant scoring, `~/lib/scoring-prediction`),
+ * not only queued offline work, and builds its confirmed state from the
+ * response's `delta`.
  */
+
+import type { ScoringDelta } from "~/lib/scoring-delta";
 
 export const REPLAY_PATH = "/api/scoring/replay";
 
@@ -68,6 +75,12 @@ export interface ReplayBatchAction {
   payload?: unknown;
   /** When it was queued (ms since epoch); informational. */
   queuedAt?: number;
+  /**
+   * The client sent this action before (its reply never arrived). Only
+   * then can it be a duplicate: a batch with no resent action skips the
+   * reads that label duplicates (the engine refuses a replay on its own).
+   */
+  resent?: boolean;
 }
 
 export interface ReplayBatch {
@@ -96,6 +109,12 @@ export interface ReplayActionResult {
 export interface ReplayResponse {
   v: number;
   results: ReplayActionResult[];
+  /**
+   * The documents the applied actions committed, as stored after the last
+   * of them (`mergeScoringDeltas`), when each answered with its documents;
+   * null (or absent, from an older server) otherwise: the client re-reads.
+   */
+  delta?: ScoringDelta | null;
 }
 
 export interface ReplayErrorResponse {

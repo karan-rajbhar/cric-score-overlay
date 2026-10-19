@@ -6,10 +6,12 @@ vi.mock("server-only", () => ({}));
 
 const getUser = vi.fn();
 let recentClientActions: string[] = [];
+const fromTable = vi.fn();
 vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({
     auth: { getUser },
-    from: () => {
+    from: (table: string) => {
+      fromTable(table);
       const q = {
         select: () => q,
         eq: () => q,
@@ -93,6 +95,7 @@ async function json(res: Response) {
     }>;
     error?: { code: string; message: string };
     supportedVersions?: number[];
+    delta?: unknown;
   };
 }
 
@@ -369,7 +372,13 @@ describe("POST /api/scoring/replay", () => {
   it("reports actions the match already applied as duplicates without re-running them", async () => {
     recentClientActions = ["x1", "x2"];
     const res = await POST(
-      request(batch([ballAction("x1"), ballAction("x2"), ballAction("x3")])),
+      request(
+        batch([
+          { ...ballAction("x1"), resent: true },
+          { ...ballAction("x2"), resent: true },
+          ballAction("x3"),
+        ]),
+      ),
     );
     expect((await json(res)).results).toEqual([
       { id: "x1", status: "duplicate" },
@@ -380,6 +389,85 @@ describe("POST /api/scoring/replay", () => {
     expect(
       vi.mocked(mutations.recordBall).mock.calls[0]![0].clientActionId,
     ).toBe("x3");
+  });
+
+  it("skips the duplicate lookup when no action was sent before", async () => {
+    recentClientActions = ["x1"];
+    const res = await POST(request(batch([ballAction("x1")])));
+    // The engine itself refuses a replay; the label is only cosmetic.
+    expect((await json(res)).results).toEqual([
+      { id: "x1", status: "applied" },
+    ]);
+    expect(fromTable).not.toHaveBeenCalled();
+
+    await POST(request(batch([{ ...ballAction("x2"), resent: true }])));
+    expect(fromTable).toHaveBeenCalledWith("matches");
+  });
+
+  it("answers with the documents the applied actions committed, merged", async () => {
+    const match = { id: M, status: "live" };
+    const inn = (runs: number) => ({ id: "inn1", total_runs: runs });
+    const over = (n: number, balls: number) => ({
+      id: `inn1_${n}`,
+      innings_id: "inn1",
+      over_number: n,
+      balls: Array.from({ length: balls }, (_, i) => ({ id: `b${i}` })),
+    });
+    vi.mocked(mutations.recordBall)
+      .mockResolvedValueOnce({
+        data: null,
+        error: null,
+        delta: { match, innings: [inn(1)], overs: [over(0, 6)] },
+      } as never)
+      .mockResolvedValueOnce({
+        data: null,
+        error: null,
+        delta: { match, innings: [inn(5)], overs: [over(1, 1)] },
+      } as never);
+    vi.mocked(mutations.setCurrentBowler).mockResolvedValueOnce({
+      error: null,
+      delta: { match, innings: [inn(1)], overs: [] },
+    } as never);
+    const res = await POST(
+      request(
+        batch([
+          ballAction("x1"),
+          { id: "x2", type: "setBowler", payload: { bowlerId: "b2" } },
+          ballAction("x3", 4),
+        ]),
+      ),
+    );
+    const body = await json(res);
+    expect(body.results!.map((r) => r.status)).toEqual([
+      "applied",
+      "applied",
+      "applied",
+    ]);
+    expect(body.delta).toEqual({
+      match,
+      innings: [inn(5)],
+      overs: [over(0, 6), over(1, 1)],
+    });
+  });
+
+  it("answers without documents when an action has none or was a duplicate", async () => {
+    vi.mocked(mutations.recordBall).mockResolvedValueOnce({
+      data: null,
+      error: null,
+      delta: { match: { id: M }, innings: [], overs: [] },
+    } as never);
+    const withUndo = await POST(
+      request(
+        batch([ballAction("x1"), { id: "u1", type: "undoLastBall", payload: {} }]),
+      ),
+    );
+    expect((await json(withUndo)).delta).toBeNull();
+
+    recentClientActions = ["x5"];
+    const dup = await POST(
+      request(batch([{ ...ballAction("x5"), resent: true }])),
+    );
+    expect((await json(dup)).delta).toBeNull();
   });
 
   it("fails an invalid or unknown action in its place, after applying the ones before", async () => {
