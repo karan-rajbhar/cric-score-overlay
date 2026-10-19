@@ -130,50 +130,8 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
             />
           </div>
 
-          <div className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto">
-            {results.map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                disabled={busy !== null}
-                onClick={() => void addExisting(user)}
-                className="flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                    {user.full_name?.substring(0, 1)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {user.full_name}
-                    </p>
-                    {user.username && (
-                      <p className="truncate font-mono text-xs text-muted-foreground">
-                        @{user.username}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {busy === user.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <UserPlus className="h-4 w-4 shrink-0 text-primary" />
-                )}
-              </button>
-            ))}
-
-            {trimmed.length >= 2 && !searching && results.length === 0 && (
-              <p className="px-1 py-2 text-xs text-muted-foreground">
-                No registered player matches “{trimmed}”.
-              </p>
-            )}
-            {searching && (
-              <p className="px-1 py-2 text-xs text-muted-foreground">
-                Searching…
-              </p>
-            )}
-          </div>
-
+          {/* Right under the name box, so it shows while the phone keyboard
+              is open (below the results it was out of sight). */}
           {trimmed.length >= 2 && (
             <Button
               type="button"
@@ -187,6 +145,49 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
               ) : (
                 <UserPlus className="mr-2 h-4 w-4" />
               )}
+              <div className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto">
+                {results.map((user) => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void addExisting(user)}
+                    className="flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                        {user.full_name?.substring(0, 1)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {user.full_name}
+                        </p>
+                        {user.username && (
+                          <p className="truncate font-mono text-xs text-muted-foreground">
+                            @{user.username}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {busy === user.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                  </button>
+                ))}
+
+                {trimmed.length >= 2 && !searching && results.length === 0 && (
+                  <p className="px-1 py-2 text-xs text-muted-foreground">
+                    No registered player matches “{trimmed}”.
+                  </p>
+                )}
+                {searching && (
+                  <p className="px-1 py-2 text-xs text-muted-foreground">
+                    Searching…
+                  </p>
+                )}
+              </div>
               Add “{trimmed}” as a new player
             </Button>
           )}

@@ -197,3 +197,33 @@ describe("PlayerPicker", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("PlayerPicker add while typing", () => {
+  it("puts Add <name> right under the search box, above the list", () => {
+    render(
+      <PlayerPicker
+        label="Choose batter"
+        rows={[
+          { id: "a", name: "Anil Kumble" },
+          { id: "b", name: "Bhuvi Kumar" },
+        ]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        addPlayer={{ teamName: "Mumbai", onAdd: vi.fn() }}
+        noun="batter"
+      />,
+    );
+    const search = screen.getByRole("searchbox", { name: "Search or add a batter" });
+    fireEvent.change(search, { target: { value: "An" } });
+    const add = screen.getByRole("button", { name: /Add .An. to Mumbai/ });
+    const firstRow = screen.getByRole("radio", { name: /Anil Kumble/ });
+    // Before the rows in the page: on a phone it stays in view with the
+    // keyboard open (the search box and it are pinned at the top).
+    expect(
+      add.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      search.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
