@@ -27,6 +27,11 @@
  *
  * The table is printed (console.info) and the totals are bounded below, so
  * a change that adds reads or writes to the scoring loop fails here.
+ *
+ * Instant scoring (`~/lib/scoring-prediction`): before every delivery,
+ * crease and bowler change the scorer also predicts the action from the
+ * documents it holds, and the prediction must equal the state built from
+ * the server's reply (timestamps and the new ball's id aside).
  */
 
 import { readFileSync } from "node:fs";
@@ -72,6 +77,12 @@ import {
   type ScoringDelta,
   type ScoringSnapshot,
 } from "~/lib/scoring-delta";
+import type { QueuedAction } from "~/lib/offline-queue";
+import {
+  baseWithDelta,
+  foldPending,
+  type PredictionBase,
+} from "~/lib/scoring-prediction";
 import type { OversRow } from "./scorecard";
 import type { InningsRow } from "./types";
 import type { AppUser } from "./auth-types";
@@ -192,6 +203,9 @@ type Snapshot = ScoringSnapshot<
  */
 class ScorerModel {
   snap: Snapshot | null = null;
+  /** The stored documents behind `snap` (instant scoring's base). */
+  base: PredictionBase | null = null;
+  predictions = 0;
   private squads: string | null = null;
   private names = new Map<string, { id: string; full_name: string | null }>();
   deltasApplied = 0;
@@ -246,6 +260,23 @@ class ScorerModel {
     const snap = res.data as unknown as Snapshot;
     await this.loadSquads(snap);
     this.snap = snap;
+    this.base = res.base ?? null;
+  }
+
+  /**
+   * What instant scoring would show after `action` (the engine's functions
+   * on the held documents), or null when it would wait for the server.
+   */
+  predict(action: QueuedAction): Snapshot | null {
+    if (!this.snap) return null;
+    const folded = foldPending(
+      { snapshot: this.snap, base: this.base },
+      [action],
+      this.names,
+    );
+    return folded.applied === 1 && !folded.endsInnings
+      ? folded.state.snapshot
+      : null;
   }
 
   /** `applyDelta` in useScoring: the reply's documents, else a re-read. */
@@ -253,10 +284,11 @@ class ScorerModel {
     const next = this.snap
       ? applyScoringDelta(this.snap, delta, this.names)
       : null;
-    if (!next) return this.sync();
+    if (!next || !delta) return this.sync();
     this.deltasApplied += 1;
     await this.verify?.(next);
     await this.loadSquads(next);
+    this.base = baseWithDelta(this.base, next, delta);
     this.snap = next;
   }
 
@@ -319,6 +351,7 @@ class ScorerModel {
     await this.verify?.(snap);
     await this.loadSquads(snap);
     this.snap = snap;
+    this.base = null;
   }
 }
 
@@ -531,19 +564,55 @@ describe("Firestore cost of a whole match", () => {
         .filter((tp) => tp.team_id === teamId)
         .map((tp) => tp.user_id as string);
 
+    /** The scorer's prediction of an action equals the server's result. */
+    const comparable = (snap: Snapshot) =>
+      JSON.parse(
+        JSON.stringify(snap, (key, value) =>
+          key === "updated_at" || key === "created_at" ? undefined : value,
+        ),
+        (key, value) =>
+          key === "id" && typeof value === "string" && value.includes("~")
+            ? value.slice(0, value.indexOf("~"))
+            : value,
+      );
+    let actionSeq = 0;
+    const queued = (
+      type: QueuedAction["type"],
+      payload: QueuedAction["payload"],
+    ) =>
+      ({
+        queueId: `p${(actionSeq += 1)}`,
+        matchId,
+        type,
+        payload,
+        enqueuedAt: 0,
+        instant: true,
+      }) as QueuedAction;
+    function expectPredicted(predicted: Snapshot | null) {
+      if (!predicted) return;
+      scorer.predictions += 1;
+      expect(comparable(predicted)).toEqual(comparable(scorer.snap!));
+    }
+
     async function setBatsmen(s: string, ns: string) {
+      const predicted = scorer.predict(
+        queued("setBatsmen", { strikerId: s, nonStrikerId: ns }),
+      );
       await act(
         "setBatsmen",
         () => m.setCurrentBatsmen(matchId, s, ns),
         (res) => scorer.afterSetBatsmen(res),
       );
+      expectPredicted(predicted);
     }
     async function setBowler(b: string) {
+      const predicted = scorer.predict(queued("setBowler", { bowlerId: b }));
       await act(
         "setBowler",
         () => m.setCurrentBowler(matchId, b),
         (res) => scorer.afterSetBowler(res),
       );
+      expectPredicted(predicted);
     }
 
     type Ev = Parameters<typeof m.recordBall>[0]["event"];
@@ -551,6 +620,15 @@ describe("Firestore cost of a whole match", () => {
     let st: ScoringState | null = null;
     async function ball(event: Ev) {
       const cur = scorer.current();
+      const predicted = scorer.predict(
+        queued("recordBall", {
+          matchId,
+          bowlerId: cur.bowlerId!,
+          batsmanId: cur.strikerId!,
+          nonStrikerId: cur.nonStrikerId!,
+          event,
+        }),
+      );
       const res = await act(
         (r: { data: ScoringState | null }) =>
           r.data?.match_completed
@@ -570,6 +648,10 @@ describe("Firestore cost of a whole match", () => {
         (r) => scorer.afterBall(r),
       );
       expect(res.error).toBeNull();
+      // A delivery that ends the innings or the match waits for the server.
+      if (!res.data?.innings_break && !res.data?.match_completed) {
+        expectPredicted(predicted);
+      }
       ballsScored += 1;
       st = res.data;
       return res.data!;
@@ -787,6 +869,11 @@ describe("Firestore cost of a whole match", () => {
       fullSyncs: coScorer.fullSyncs,
     });
     expect(coScorer.screen.deltasApplied).toBeGreaterThan(290);
+    // Instant scoring predicted (and matched) nearly every action: all but
+    // those right after a full re-read whose over it had not seen, and the
+    // innings' last balls.
+    console.info("instant scoring predictions", scorer.predictions);
+    expect(scorer.predictions).toBeGreaterThan(280);
     expect(totals.coScorerReads).toBeLessThanOrEqual(BOUNDS.matchCoScorerReads);
   }, 120_000);
 });

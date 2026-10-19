@@ -1,6 +1,15 @@
 "use server";
 
-import { withoutScorecardStorage } from "~/lib/firebase/scorecard";
+import {
+  INNINGS_INTERNAL_FIELDS,
+  overDocId,
+  toBallEntry,
+  withoutScorecardStorage,
+  type OversRow,
+} from "~/lib/firebase/scorecard";
+import type { BallByBallRow, InningsRow } from "~/lib/firebase/types";
+import type { PredictionBase } from "~/lib/scoring-prediction";
+import { OVER_DELIVERY_FIELDS } from "~/lib/scoring-delta";
 import { playerDirectory } from "~/lib/firebase/directory";
 import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
@@ -262,6 +271,19 @@ export async function getScoringState(matchId: string) {
       console.error("Error fetching scoring state:", error);
       return { data: null, error: error.message };
     }
+    // The current innings as stored, for the screen's instant scoring
+    // (`~/lib/scoring-prediction`); the snapshot shows it as rows.
+    const storedCurrent = (
+      (stored?.innings ?? []) as Array<InningsRow & { id: string }>
+    ).find((i) => i.innings_number === (stored?.current_innings ?? 1));
+    let baseInnings: (InningsRow & { id: string }) | null = null;
+    if (storedCurrent) {
+      const copy: Record<string, unknown> = { ...storedCurrent };
+      delete copy.batting_performances;
+      delete copy.bowling_performances;
+      for (const k of INNINGS_INTERNAL_FIELDS) delete copy[k];
+      baseInnings = copy as unknown as InningsRow & { id: string };
+    }
     if (stored?.innings) {
       stored.innings = (stored.innings as object[]).map((inn) =>
         withoutScorecardStorage(inn),
@@ -324,6 +346,7 @@ export async function getScoringState(matchId: string) {
       dismissed_player_id?: string | null;
     }> = [];
     let lastOverBowlerId: string | null = null;
+    let displayOverDoc: OversRow | null = null;
     if (current) {
       const bpo = match?.balls_per_over || 6;
       const totalBalls = current.total_balls ?? 0;
@@ -333,15 +356,30 @@ export async function getScoringState(matchId: string) {
       // Only when NO bowler is assigned yet (at over boundary, awaiting bowler selection) do we show the completed over for review.
       const displayOver = isOverBoundary && !bowler ? ongoingOver - 1 : ongoingOver;
 
+      // Whole rows: the over document is rebuilt from them for the base.
       const { data: balls } = await db
         .from("ball_by_ball")
-        .select(
-          "id, over_number, ball_number, runs_scored, extras, extra_type, is_wicket, dismissal_type, bowler_id, batsman_id, dismissed_player_id",
-        )
+        .select("*")
         .eq("innings_id", current.id)
         .eq("over_number", displayOver)
         .order("seq");
-      thisOverDeliveries = balls ?? [];
+      const rows = (balls ?? []) as unknown as BallByBallRow[];
+      thisOverDeliveries = rows.map((b) => {
+        const out: Record<string, unknown> = {};
+        for (const f of OVER_DELIVERY_FIELDS)
+          out[f] = (b as unknown as Record<string, unknown>)[f] ?? null;
+        return out as unknown as (typeof thisOverDeliveries)[number];
+      });
+      if (rows.length) {
+        displayOverDoc = {
+          id: overDocId(current.id, displayOver),
+          match_id: rows[0]!.match_id ?? matchId,
+          innings_id: current.id,
+          over_number: displayOver,
+          balls: rows.map(toBallEntry),
+          updated_at: null,
+        };
+      }
 
       if (ongoingOver > 0 || isOverBoundary) {
         const overToCheck = ongoingOver > 0 ? ongoingOver - 1 : 0;
@@ -365,6 +403,9 @@ export async function getScoringState(matchId: string) {
         lastOverBowlerId,
         thisOverDeliveries,
       },
+      base: (baseInnings && current && baseInnings.id === current.id
+        ? { innings: baseInnings, overs: displayOverDoc ? [displayOverDoc] : [] }
+        : null) satisfies PredictionBase | null,
       error: null,
     };
   } catch (err) {

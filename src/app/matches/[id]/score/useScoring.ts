@@ -25,9 +25,21 @@ import {
   getDeadLetterCount,
   skipHeadAction,
   newActionId,
+  postReplayBatch,
   type AwardPenaltyPayload,
+  type FlushResult,
+  type QueuedAction,
+  type ReplayTransport,
   type RetireBatterPayload,
 } from "~/lib/offline-queue";
+import {
+  baseWithDelta,
+  baseWithDocs,
+  foldPending,
+  isPendingBallId,
+  type PredictionBase,
+} from "~/lib/scoring-prediction";
+import { reportClientError } from "~/lib/report-error";
 import {
   processDeliveryLocally,
   buildContextFromMatch,
@@ -47,6 +59,16 @@ import {
   type LiveChanges,
   type ScoringDelta,
 } from "~/lib/scoring-delta";
+
+/**
+ * Instant scoring (see `~/lib/scoring-prediction`): deliveries, crease and
+ * bowler changes show at once and are saved in the background. Build with
+ * `NEXT_PUBLIC_INSTANT_SCORING=false` to wait for the server instead.
+ */
+const INSTANT_SCORING = process.env.NEXT_PUBLIC_INSTANT_SCORING !== "false";
+
+/** Retry delays (ms) while queued actions cannot reach the server. */
+const RETRY_DELAYS = [2_000, 4_000, 8_000, 15_000, 30_000];
 import { getFirebaseDb } from "~/lib/firebase/client";
 import { readDoc } from "~/lib/firebase/realtime";
 import type { OversRow } from "~/lib/firebase/scorecard";
@@ -63,6 +85,33 @@ type Snapshot = {
 };
 
 type Player = TeamPlayer;
+
+/** What the screen shows of a snapshot, to compare a prediction with the server. */
+function shownFigures(s: Snapshot) {
+  const m = s.match;
+  const inn = m.innings?.find((i) => i.innings_number === m.current_innings);
+  const bat = (id: string | null) => {
+    const p = inn?.batting_performances?.find((b) => b.user_id === id);
+    return p ? [id, p.runs_scored, p.balls_faced, p.fours, p.sixes] : [id];
+  };
+  const bowl = inn?.bowling_performances?.find(
+    (b) => b.user_id === s.bowlerId,
+  );
+  return JSON.stringify([
+    m.current_innings,
+    inn?.total_runs,
+    inn?.total_wickets,
+    inn?.total_balls,
+    bat(s.strikerId),
+    bat(s.nonStrikerId),
+    s.bowlerId,
+    bowl
+      ? [bowl.overs_bowled, bowl.maidens, bowl.runs_conceded, bowl.wickets_taken]
+      : null,
+    s.lastOverBowlerId,
+    s.thisOverDeliveries.map(deliveryLabel),
+  ]);
+}
 
 function isOfflineNow(): boolean {
   return typeof navigator !== "undefined" && !navigator.onLine;
@@ -263,12 +312,17 @@ export function useScoring(
     }
   }, [resolveSquadTeamIds]);
 
-  /** The server state last shown (`getScoringState` or built from a delta). */
+  /**
+   * The server's confirmed state (`getScoringState` or built from a reply's
+   * delta) and the stored documents behind it (instant scoring's base).
+   */
   const snapshotRef = useRef<Snapshot | null>(null);
+  const baseRef = useRef<PredictionBase | null>(null);
+  /** The queued actions cannot be shown yet: the screen waits for the server. */
+  const [awaitingServer, setAwaitingServer] = useState(false);
 
-  /** Show a server snapshot: what `syncFromDb` does once it has read one. */
-  const applySnapshot = useCallback(async (data: Snapshot): Promise<void> => {
-    snapshotRef.current = data;
+  /** Put a snapshot (confirmed or predicted) on screen. */
+  const renderSnapshot = useCallback(async (data: Snapshot): Promise<void> => {
     const {
       match: m,
       strikerId: s,
@@ -314,24 +368,8 @@ export function useScoring(
     });
     localCtxRef.current = buildContextFromMatch(m, s, ns, b);
     setPendingCount(getPendingCount(matchId));
-
-    if (m.status === "live" && !b && s && ns) {
-      optionsRef.current?.onNeedsBowler?.();
-    }
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
-  const syncFromDb = useCallback(async (): Promise<boolean> => {
-    const result = await getScoringState(matchId);
-    if (result.error || !result.data) return false;
-    await applySnapshot(result.data as unknown as Snapshot);
-    return true;
-  }, [matchId, applySnapshot]);
-
-  /**
-   * After a mutation that answered with the documents it committed: the
-   * same state `syncFromDb` would read, built from them (no request);
-   * re-reads when they are not enough (see `~/lib/scoring-delta`).
-   */
   /** Names of the squads' players, for building snapshots from documents. */
   const squadNames = useCallback(() => {
     const names = new Map<string, { id: string; full_name: string | null }>();
@@ -346,12 +384,69 @@ export function useScoring(
     return names;
   }, []);
 
+  /**
+   * Show the confirmed state with the instant actions still queued applied
+   * on top (`foldPending`). Queued offline-mode actions are not predicted:
+   * the confirmed state shows, as before.
+   */
+  const renderShown = useCallback(async (): Promise<Snapshot | null> => {
+    const confirmed = snapshotRef.current;
+    if (!confirmed) return null;
+    const pending = getPendingActions(matchId);
+    if (
+      !INSTANT_SCORING ||
+      pending.length === 0 ||
+      pending.some((a) => !a.instant)
+    ) {
+      setAwaitingServer(false);
+      await renderSnapshot(confirmed);
+      return confirmed;
+    }
+    const folded = foldPending(
+      { snapshot: confirmed, base: baseRef.current },
+      pending,
+      squadNames(),
+    );
+    setAwaitingServer(folded.waiting);
+    await renderSnapshot(folded.state.snapshot);
+    return folded.state.snapshot;
+  }, [matchId, renderSnapshot, squadNames]);
+
+  /** A new confirmed state from the server, shown with what is still queued. */
+  const applySnapshot = useCallback(
+    async (data: Snapshot, base: PredictionBase | null): Promise<void> => {
+      snapshotRef.current = data;
+      baseRef.current = base;
+      const shown = await renderShown();
+      const m = shown?.match;
+      if (m?.status === "live" && shown && !shown.bowlerId && shown.strikerId && shown.nonStrikerId) {
+        optionsRef.current?.onNeedsBowler?.();
+      }
+    },
+    [renderShown],
+  );
+
+  const syncFromDb = useCallback(async (): Promise<boolean> => {
+    const result = await getScoringState(matchId);
+    if (result.error || !result.data) return false;
+    await applySnapshot(
+      result.data as unknown as Snapshot,
+      (result as { base?: PredictionBase | null }).base ?? null,
+    );
+    return true;
+  }, [matchId, applySnapshot]);
+
+  /**
+   * After a mutation that answered with the documents it committed: the
+   * same state `syncFromDb` would read, built from them (no request);
+   * re-reads when they are not enough (see `~/lib/scoring-delta`).
+   */
   const applyDelta = useCallback(
     async (delta: ScoringDelta | null | undefined): Promise<boolean> => {
       const prev = snapshotRef.current;
       const next = prev ? applyScoringDelta(prev, delta, squadNames()) : null;
-      if (!next) return syncFromDb();
-      await applySnapshot(next);
+      if (!next || !delta) return syncFromDb();
+      await applySnapshot(next, baseWithDelta(baseRef.current, next, delta));
       return true;
     },
     [applySnapshot, syncFromDb, squadNames],
@@ -378,15 +473,37 @@ export function useScoring(
         ),
       ]);
       if (innings.some((d) => !d)) return false;
+      const inningsDocs = innings.map((d, i) => ({ ...d!, id: reads.innings[i]! }));
       const next = applyLiveResync(
         prev,
-        innings.map((d, i) => ({ ...d!, id: reads.innings[i]! })),
+        inningsDocs,
         reads.overs.map((id, i) => [id, overs[i] ?? null] as const),
         squadNames(),
       );
       // The screen moved on (an own action) while these were read.
       if (!next || snapshotRef.current !== prev) return false;
-      await applySnapshot(next);
+      await applySnapshot(
+        next,
+        baseWithDocs(
+          baseRef.current,
+          next,
+          inningsDocs,
+          // A missing over was emptied (an undo): it has no ball now.
+          reads.overs.map((id, i) => {
+            const o = overs[i];
+            if (o) return { ...o, id };
+            const cut = id.lastIndexOf("_");
+            return {
+              id,
+              match_id: prev.match.id,
+              innings_id: id.slice(0, cut),
+              over_number: Number(id.slice(cut + 1)),
+              balls: [],
+              updated_at: null,
+            };
+          }),
+        ),
+      );
       return true;
     },
     [applySnapshot, squadNames],
@@ -474,39 +591,231 @@ export function useScoring(
     lastBalls,
   ]);
 
-  const flushOfflineQueue = useCallback(async () => {
-    if (getPendingCount(matchId) === 0) return { synced: 0, failed: 0 };
-    setIsProcessing(true);
-    toast.info("Syncing offline deliveries with server...");
-
-    // Replayed through /api/scoring/replay, not server actions: their ids
-    // change with each deploy, and this queue may predate the current build.
-    // Each action carries its queue id as the idempotency key, so a replay
-    // after a lost response is not applied twice.
-    const res = await flushPendingActions(matchId);
-
-    setPendingCount(getPendingCount(matchId));
-    setDeadLetterCount(getDeadLetterCount(matchId));
-    if (res.synced > 0) {
-      toast.success(`Successfully synced ${res.synced} offline item(s)!`);
-      await syncFromDb();
+  /** Ids of the queued actions in the request being sent right now. */
+  const inFlightRef = useRef<ReadonlySet<string>>(new Set());
+  const sendBatch = useCallback<ReplayTransport>(async (batch) => {
+    inFlightRef.current = new Set(batch.actions.map((a) => a.id));
+    try {
+      return await postReplayBatch(batch);
+    } finally {
+      inFlightRef.current = new Set();
     }
-    if (res.errorCode) {
-      toast.error(
-        res.errorCode === "not_authenticated"
-          ? "Sign in again to sync the queued actions. They are kept on this device."
-          : res.errorCode === "unsupported_version"
-            ? "The server cannot accept this app version's queued actions yet. They are kept on this device."
-            : `Could not sync queued actions (${res.errorMessage ?? res.errorCode}). They are kept on this device.`,
-      );
-    } else if (res.failed > 0) {
-      toast.error(
-        `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
-      );
-    }
-    setIsProcessing(false);
-    return res;
-  }, [matchId, syncFromDb]);
+  }, []);
+  /** Queued actions are being sent. */
+  const [isSaving, setIsSaving] = useState(false);
+  /** The last attempt left actions queued (no connection, or refused). */
+  const [syncStuck, setSyncStuck] = useState(false);
+  const flushRef = useRef<Promise<FlushResult> | null>(null);
+  const retryRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    attempt: number;
+  }>({ timer: null, attempt: 0 });
+  const flushQueueRef = useRef<(() => Promise<FlushResult>) | null>(null);
+
+  /**
+   * The server applied `actions` and answered with `next`: tell when the
+   * prediction the screen showed for them differs (it should not: it is
+   * the engine's own computation), so a drift shows in the server log.
+   */
+  const checkPrediction = useCallback(
+    (
+      before: { snapshot: Snapshot; base: PredictionBase | null },
+      actions: QueuedAction[],
+      next: Snapshot,
+    ) => {
+      if (!actions.length || actions.some((a) => !a.instant)) return;
+      const folded = foldPending(before, actions, squadNames());
+      if (folded.applied !== actions.length || folded.endsInnings) return;
+      const predicted = shownFigures(folded.state.snapshot);
+      const server = shownFigures(next);
+      if (predicted === server) return;
+      console.warn("Instant scoring: the prediction differed from the server", {
+        predicted,
+        server,
+      });
+      reportClientError({
+        kind: "error",
+        message: `Instant scoring prediction differed from the server (${actions
+          .map((a) => a.type)
+          .join(", ")})`,
+        stack: JSON.stringify({ predicted, server }).slice(0, 4000),
+      });
+    },
+    [squadNames],
+  );
+
+  /** Sends what is queued, once; see {@link flushQueue}. */
+  const flushPass = useCallback(
+    async (manual: boolean): Promise<FlushResult> => {
+      const sent = getPendingActions(matchId);
+      if (sent.length === 0 || isOfflineNow()) {
+        return { synced: 0, failed: sent.length ? 1 : 0 };
+      }
+      // Offline-mode work is announced; instant saves are quiet.
+      const loud = manual || sent.some((a) => !a.instant);
+      if (loud) {
+        setIsProcessing(true);
+        toast.info("Syncing offline deliveries with server...");
+      }
+      setIsSaving(true);
+      const before = snapshotRef.current
+        ? { snapshot: snapshotRef.current, base: baseRef.current }
+        : null;
+
+      // Replayed through /api/scoring/replay, not server actions: their ids
+      // change with each deploy, and this queue may predate the current build.
+      // Each action carries its queue id as the idempotency key, so a replay
+      // after a lost response is not applied twice.
+      const res = await flushPendingActions(matchId, sendBatch);
+
+      setPendingCount(getPendingCount(matchId));
+      setDeadLetterCount(getDeadLetterCount(matchId));
+      const appliedIds = new Set(res.applied ?? []);
+      const applied = sent.filter((a) => appliedIds.has(a.queueId));
+      if (res.rejected) {
+        const { dependents } = res.rejected;
+        const error = res.rejected.error.replace(/\.?\s*$/, ".");
+        toast.error(
+          dependents > 0
+            ? `Not saved: ${error} The ${dependents} later action(s) were not sent either. The score shows what was saved.`
+            : `Not saved: ${error} The score shows what was saved.`,
+        );
+        await syncFromDb();
+      } else if (res.synced > 0) {
+        if (applied.some((a) => !a.instant)) {
+          toast.success(`Successfully synced ${res.synced} offline item(s)!`);
+        }
+        const next =
+          before && res.delta && snapshotRef.current === before.snapshot
+            ? applyScoringDelta(before.snapshot, res.delta, squadNames())
+            : null;
+        if (next && res.delta) {
+          checkPrediction(before!, applied, next);
+          await applySnapshot(
+            next,
+            baseWithDelta(before!.base, next, res.delta),
+          );
+        } else {
+          await syncFromDb();
+        }
+        // A delivery that ended the innings or the match (instant actions
+        // wait for the server there; offline mode announces its own).
+        const after = snapshotRef.current;
+        if (before && after && applied.some((a) => a.instant)) {
+          if (
+            after.match.status === "completed" &&
+            before.snapshot.match.status !== "completed"
+          ) {
+            toast.info(after.match.result_description ?? "Match completed");
+            void loadMatch();
+          } else if (
+            after.match.current_innings !== before.snapshot.match.current_innings
+          ) {
+            toast.info("Innings break — set new batsmen and bowler");
+          }
+        }
+      }
+      if (res.errorCode) {
+        toast.error(
+          res.errorCode === "not_authenticated"
+            ? "Sign in again to sync the queued actions. They are kept on this device."
+            : res.errorCode === "unsupported_version"
+              ? "The server cannot accept this app version's queued actions yet. They are kept on this device."
+              : `Could not sync queued actions (${res.errorMessage ?? res.errorCode}). They are kept on this device.`,
+        );
+      } else if (res.failed > 0 && !res.rejected && loud) {
+        toast.error(
+          `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
+        );
+      }
+
+      const stuck = getPendingCount(matchId) > 0 && res.synced === 0;
+      setSyncStuck(stuck);
+      const retry = retryRef.current;
+      if (retry.timer) clearTimeout(retry.timer);
+      retry.timer = null;
+      if (!stuck) {
+        retry.attempt = 0;
+      } else if (!res.errorCode && !isOfflineNow()) {
+        // No reply while "online" (a weak signal): try again shortly.
+        const delay =
+          RETRY_DELAYS[Math.min(retry.attempt, RETRY_DELAYS.length - 1)]!;
+        retry.attempt += 1;
+        retry.timer = setTimeout(() => {
+          retry.timer = null;
+          void flushQueueRef.current?.();
+        }, delay);
+      }
+      setIsSaving(false);
+      if (loud) setIsProcessing(false);
+      return res;
+    },
+    [matchId, sendBatch, syncFromDb, applySnapshot, squadNames, checkPrediction, loadMatch],
+  );
+
+  /**
+   * Sends the queue in the background, one flush at a time, until it is
+   * empty or stuck. A call while one runs shares it (the running one picks
+   * up actions queued meanwhile).
+   */
+  const flushQueue = useCallback(
+    (options?: { manual?: boolean }): Promise<FlushResult> => {
+      if (flushRef.current) return flushRef.current;
+      const run = (async () => {
+        let res = await flushPass(options?.manual ?? false);
+        // Actions queued while the reply was being applied (a pass that
+        // failed is retried later, not straight away).
+        while (
+          getPendingCount(matchId) > 0 &&
+          !isOfflineNow() &&
+          res.synced > 0 &&
+          res.failed === 0 &&
+          !res.errorCode &&
+          !res.rejected
+        ) {
+          const more = await flushPass(false);
+          res = {
+            ...more,
+            synced: res.synced + more.synced,
+            applied: [...(res.applied ?? []), ...(more.applied ?? [])],
+          };
+        }
+        return res;
+      })().finally(() => {
+        flushRef.current = null;
+      });
+      flushRef.current = run;
+      return run;
+    },
+    [matchId, flushPass],
+  );
+  useEffect(() => {
+    flushQueueRef.current = flushQueue;
+  }, [flushQueue]);
+
+  /** The "Sync now" button. */
+  const flushOfflineQueue = useCallback(
+    () => flushQueue({ manual: true }),
+    [flushQueue],
+  );
+
+  useEffect(() => {
+    const retry = retryRef.current;
+    const onVisible = () => {
+      if (
+        document.visibilityState === "visible" &&
+        getPendingCount(matchId) > 0
+      ) {
+        void flushQueueRef.current?.();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      if (retry.timer) clearTimeout(retry.timer);
+      retry.timer = null;
+    };
+  }, [matchId]);
 
   /**
    * Before sending an action straight to the server: replay anything still
@@ -516,14 +825,14 @@ export function useScoring(
    */
   const drainQueue = useCallback(async (): Promise<boolean> => {
     if (getPendingCount(matchId) === 0) return true;
-    await flushOfflineQueue();
+    await flushQueue();
     return getPendingCount(matchId) === 0;
-  }, [matchId, flushOfflineQueue]);
+  }, [matchId, flushQueue]);
 
   useEffect(() => {
     const handleOnline = async () => {
       setIsOffline(false);
-      await flushOfflineQueue();
+      await flushQueue();
     };
     const handleOffline = () => {
       setIsOffline(true);
@@ -537,7 +846,7 @@ export function useScoring(
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [flushOfflineQueue]);
+  }, [flushQueue]);
 
   /**
    * `refresh`: how to catch up with the server afterwards: the reply's
@@ -796,6 +1105,58 @@ export function useScoring(
     }
   };
 
+  /**
+   * Instant scoring: queue the action and show it at once, when the screen
+   * can predict it exactly (the engine's own functions over the confirmed
+   * state and everything queued before it, `foldPending`). Null when it
+   * cannot (offline-mode actions queued, documents not at hand, waiting
+   * for the server already): the caller takes the waiting path.
+   */
+  const scoreInstantly = (
+    type: "recordBall" | "setBatsmen" | "setBowler",
+    payload: QueuedAction["payload"],
+  ): { error: null } | null => {
+    if (!INSTANT_SCORING || awaitingServer) return null;
+    const confirmed = snapshotRef.current;
+    const base = baseRef.current;
+    if (!confirmed || !base) return null;
+    const pending = getPendingActions(matchId);
+    if (pending.some((a) => !a.instant)) return null;
+    const queueId = newActionId();
+    const action = {
+      queueId,
+      matchId,
+      type,
+      payload,
+      enqueuedAt: Date.now(),
+      instant: true,
+    } as QueuedAction;
+    const folded = foldPending(
+      { snapshot: confirmed, base },
+      [...pending, action],
+      squadNames(),
+    );
+    if (folded.applied !== pending.length + 1) return null;
+
+    enqueueAction(matchId, type, payload, queueId, { instant: true });
+    setPendingCount(getPendingCount(matchId));
+    // A delivery that ends the innings shows, then waits for the server:
+    // the next innings or the result is its to decide.
+    setAwaitingServer(folded.waiting);
+    const shown = folded.state.snapshot;
+    void renderSnapshot(shown);
+    if (type === "recordBall" && !folded.endsInnings) {
+      if (!shown.strikerId || !shown.nonStrikerId) {
+        optionsRef.current?.onNeedsBatsman?.();
+      } else if (!shown.bowlerId) {
+        toast.info("Over complete. Select the bowler for the next over.");
+        optionsRef.current?.onNeedsBowler?.();
+      }
+    }
+    if (!isOfflineNow()) void flushQueue();
+    return { error: null };
+  };
+
   const handleStartMatch = async (
     tossWinner: string,
     tossDecision: "bat" | "bowl",
@@ -923,6 +1284,15 @@ export function useScoring(
     nonStriker: string,
     event: BallEvent,
   ) => {
+    const instant = scoreInstantly("recordBall", {
+      matchId,
+      bowlerId,
+      batsmanId,
+      nonStrikerId: nonStriker,
+      event,
+    });
+    if (instant) return { data: null, ...instant };
+
     setIsProcessing(true);
 
     if (isOfflineNow()) {
@@ -967,6 +1337,21 @@ export function useScoring(
   };
 
   const handleUndo = async () => {
+    const pending = getPendingActions(matchId);
+    const last = pending.at(-1);
+    if (INSTANT_SCORING && last && pending.every((a) => a.instant)) {
+      // A delivery the server has not seen yet: just take it back.
+      if (last.type === "recordBall" && !inFlightRef.current.has(last.queueId)) {
+        popLastAction(matchId);
+        setPendingCount(getPendingCount(matchId));
+        await renderShown();
+        toast.success("Last ball undone");
+        return { data: null, error: null };
+      }
+      // Already on its way (or a crease / bowler change): the server gets
+      // everything first, then undoes its last ball as usual.
+    }
+
     setIsProcessing(true);
 
     // While actions are still queued, the last action is a queued one: undo
@@ -1071,9 +1456,19 @@ export function useScoring(
     batsmanId?: string | null;
     bowlerId?: string | null;
   }) => {
+    // Still being saved (instant scoring): its server id is not known yet.
+    if (isPendingBallId(params.ballId) && !isOfflineNow()) {
+      const err = "This delivery is still being saved. Try again in a moment.";
+      toast.error(err);
+      void flushQueue();
+      return { data: null, error: err };
+    }
     // A delivery recorded offline has no server id yet: it cannot be edited
     // until it has synced (undo it and score it again instead).
-    if (params.ballId.startsWith("offline-ball-")) {
+    if (
+      params.ballId.startsWith("offline-ball-") ||
+      isPendingBallId(params.ballId)
+    ) {
       const err =
         "This delivery has not synced yet. Undo it and score it again instead.";
       toast.error(err);
@@ -1365,6 +1760,12 @@ export function useScoring(
       return { error: err };
     }
 
+    const instant = scoreInstantly("setBatsmen", {
+      strikerId: sId,
+      nonStrikerId: nsId,
+    });
+    if (instant) return instant;
+
     setIsProcessing(true);
 
     if (isOfflineNow() || !(await drainQueue())) {
@@ -1478,6 +1879,9 @@ export function useScoring(
       toast.error(err);
       return { error: err };
     }
+
+    const instant = scoreInstantly("setBowler", { bowlerId });
+    if (instant) return instant;
 
     setIsProcessing(true);
 
@@ -1800,7 +2204,12 @@ export function useScoring(
     lastOverBowlerId,
     lastBalls,
     rawDeliveries,
-    isProcessing,
+    // Waiting for the server (an action it must decide) blocks scoring too.
+    isProcessing: isProcessing || awaitingServer,
+    /** Queued actions are being saved in the background. */
+    isSaving,
+    /** Queued actions could not be saved on the last attempt. */
+    syncStuck,
     isOffline,
     pendingCount,
     deadLetterCount,

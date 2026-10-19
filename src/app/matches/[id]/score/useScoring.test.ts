@@ -110,6 +110,7 @@ describe("useScoring", () => {
     vi.unstubAllGlobals();
     vi.mocked(getTeamPlayers).mockResolvedValue({ data: [], error: null });
     vi.mocked(getScoringState).mockResolvedValue({
+      base: null,
       data: mockScoringState,
       error: null,
     });
@@ -367,6 +368,7 @@ describe("useScoring", () => {
     ];
 
     vi.mocked(getScoringState).mockResolvedValueOnce({
+      base: null,
       data: {
         match: {
           id: matchId,
@@ -395,6 +397,7 @@ describe("useScoring", () => {
 
     // When new bowler is confirmed, syncFromDb will return state with bowler assigned
     vi.mocked(getScoringState).mockResolvedValueOnce({
+      base: null,
       data: {
         match: {
           id: matchId,
@@ -433,6 +436,7 @@ describe("useScoring", () => {
       ...extra,
     });
     vi.mocked(getScoringState).mockResolvedValue({
+      base: null,
       data: {
         ...mockScoringState,
         match: {
@@ -561,6 +565,7 @@ describe("useScoring", () => {
 
     // When the innings flips (teams swap), squads are refetched.
     vi.mocked(getScoringState).mockResolvedValue({
+      base: null,
       data: {
         ...mockScoringState,
         match: {
@@ -671,6 +676,7 @@ describe("useScoring", () => {
       thisOverDeliveries: [],
     };
     vi.mocked(getScoringState).mockResolvedValueOnce({
+      base: null,
       data: tiedMatchScoringState,
       error: null,
     });
@@ -743,7 +749,7 @@ describe("useScoring", () => {
     const batches = mockReplayRoute(() => ({ status: "applied" }));
 
     const res = await result.current.flushOfflineQueue();
-    expect(res).toEqual({ synced: 5, failed: 0 });
+    expect(res).toMatchObject({ synced: 5, failed: 0 });
     expect(batches).toHaveLength(1);
     const [batch] = batches;
     expect(batch).toMatchObject({ v: 1, matchId });
@@ -781,7 +787,7 @@ describe("useScoring", () => {
     );
 
     const res = await result.current.flushOfflineQueue();
-    expect(res).toEqual({ synced: 1, failed: 1 });
+    expect(res).toMatchObject({ synced: 1, failed: 1 });
     expect(batches).toHaveLength(1);
     const left = getPendingActions(matchId);
     expect(left.map((a) => a.type)).toEqual(["setBatsmen", "endInnings"]);
@@ -877,6 +883,7 @@ describe("useScoring offline reload", () => {
       }),
     );
     vi.mocked(getScoringState).mockResolvedValue({
+      base: null,
       data: serverState as never,
       error: null,
     });

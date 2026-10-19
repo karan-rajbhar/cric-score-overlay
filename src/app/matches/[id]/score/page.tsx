@@ -152,6 +152,7 @@ import { toast } from "sonner";
 import {
   ChevronLeft,
   Tv,
+  Check,
   Loader2,
   AlertCircle,
   UserPlus,
@@ -289,6 +290,8 @@ export default function ScoringPage() {
     lastBalls,
     rawDeliveries,
     isProcessing,
+    isSaving,
+    syncStuck,
     isOffline,
     pendingCount,
     deadLetterCount,
@@ -1065,6 +1068,39 @@ export default function ScoringPage() {
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {/* Someone else scored this match in the last ~2 minutes */}
             <OtherScorerNotice matchId={matchId} userId={user?.id} />
+            {/* Save status (instant scoring saves in the background) */}
+            {!isOffline && match.status === "live" && isScorer && (
+              syncStuck && pendingCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void flushOfflineQueue()}
+                  title="Some changes have not reached the server yet. Tap to retry."
+                  className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300"
+                >
+                  <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span>Not saved</span>
+                  <span className="tabular-nums">({pendingCount})</span>
+                </button>
+              ) : (
+                <span
+                  className="flex items-center gap-1 px-1 text-[10px] font-medium text-muted-foreground"
+                  title={
+                    pendingCount > 0 || isSaving
+                      ? "Saving to the server"
+                      : "All changes saved"
+                  }
+                >
+                  {pendingCount > 0 || isSaving ? (
+                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="max-sm:sr-only">
+                    {pendingCount > 0 || isSaving ? "Saving…" : "Saved"}
+                  </span>
+                </span>
+              )
+            )}
             {/* Offline indicator */}
             {isOffline && (
               <span
@@ -1354,8 +1390,8 @@ export default function ScoringPage() {
         </div>
       </header>
 
-      {/* Offline Alert & Sync Banner */}
-      {(isOffline || pendingCount > 0) && (
+      {/* Offline Alert & Sync Banner (not for instant saves in progress) */}
+      {(isOffline || (pendingCount > 0 && syncStuck)) && (
         <div
           role="status"
           aria-live="polite"
@@ -1382,8 +1418,9 @@ export default function ScoringPage() {
                 </>
               ) : (
                 <>
-                  <strong className="font-semibold">Back online:</strong>{" "}
-                  {pendingCount} offline update(s) ready to sync.
+                  <strong className="font-semibold">Not saved yet:</strong>{" "}
+                  {pendingCount} update(s) are kept on this device and will
+                  sync when the server can be reached.
                 </>
               )}
             </span>
