@@ -160,13 +160,10 @@ public reads the app needs.
 
 ## Production
 
-- **Hosting.** Firebase project `cricscore-prod-7411`, App Hosting backend
-  `cricscore` in asia-southeast1, configured by `apphosting.yaml`. `ALLOWED_EMAILS`
-  comes from the Secret Manager secret `allowed-emails`.
-- **Domain.** `cricscore.altorstudio.com`, DNS on Cloudflare. The records must be
-  DNS-only (grey cloud), not proxied.
-- **Database.** Firestore in asia-southeast1 with delete protection,
-  point-in-time recovery and daily backups (7-day retention).
+- **Hosting.** Firebase App Hosting, configured by `apphosting.yaml`.
+  `ALLOWED_EMAILS` comes from Secret Manager.
+- **Database.** Firestore with delete protection, point-in-time recovery and
+  daily backups.
 - **Deploys.** `.github/workflows/ci.yml` runs lint, typecheck, tests and build on
   every PR. A merge to `main` then deploys Firestore rules and indexes, runs
   `node scripts/migrate.mjs` (pending data migrations, recorded in `_migrations`),
