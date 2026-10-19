@@ -600,6 +600,34 @@ describe("useScoring: instant scoring", () => {
     expect(server.innings.total_runs).toBe(0);
   });
 
+  it("keeps scoring instantly after reopening the screen offline", async () => {
+    const first = await open();
+    await act(async () => {
+      await first.result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    act(() => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    first.unmount();
+
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const { result } = await open();
+    expect(currentInnings(result.current.match)?.total_runs).toBe(4);
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+    });
+    // Predicted from the saved state, queued as an instant action.
+    expect(currentInnings(result.current.match)?.total_runs).toBe(6);
+    expect(getPendingActions(M)).toMatchObject([{ type: "recordBall", instant: true }]);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(4);
+    expect(getPendingActions(M)).toHaveLength(0);
+    expect(getScoringState).toHaveBeenCalledTimes(1);
+  });
+
   it("undoes a co-scorer's ball at once when it saw it arrive", async () => {
     const { result } = await open();
     server.recordElsewhere({

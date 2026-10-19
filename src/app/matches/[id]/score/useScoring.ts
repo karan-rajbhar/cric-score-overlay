@@ -44,7 +44,12 @@ import {
   deliveryResultToScoringState,
 } from "~/lib/offline-scoring-engine";
 import type { LocalScoringContext } from "~/lib/offline-scoring-engine";
-import { cacheMatchData, getCachedMatchData } from "~/lib/offline-match-cache";
+import {
+  cacheConfirmedState,
+  cacheMatchData,
+  getCachedMatchData,
+  getConfirmedState,
+} from "~/lib/offline-match-cache";
 import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
@@ -565,6 +570,7 @@ export function useScoring(
         : null;
       snapshotRef.current = data;
       baseRef.current = base;
+      cacheConfirmedState<ShownState>(matchId, { snapshot: data, base });
       // One ball-log entry since the last confirmed state (a ball on the
       // waiting path, a co-scorer's, a retirement): the state before it is
       // that last state, when it holds the crease the ball was bowled with.
@@ -585,7 +591,7 @@ export function useScoring(
       const shown = await renderShown();
       if (shown) promptForNeeds(needsOf(shown), false);
     },
-    [renderShown, scheduleUndoSave, promptForNeeds],
+    [matchId, renderShown, scheduleUndoSave, promptForNeeds],
   );
 
   const syncFromDb = useCallback(async (): Promise<boolean> => {
@@ -708,7 +714,17 @@ export function useScoring(
         cached.bowlerId,
       );
       setPendingCount(getPendingCount(matchId));
-      toast.info("Offline: showing the score saved on this device.");
+      loadedSquadTeamsRef.current = resolveSquadTeamIds(cached.match);
+      // The confirmed state and its documents: predicting from them shows
+      // what is queued exactly as online, and keeps instant scoring and
+      // undo working offline (when everything queued was scored that way).
+      const confirmed = getConfirmedState<ShownState>(matchId);
+      if (confirmed?.base && getPendingActions(matchId).every((a) => a.instant)) {
+        snapshotRef.current = confirmed.snapshot;
+        baseRef.current = confirmed.base;
+        void renderShown();
+      }
+      toast.info("Offline: showing the score saved on this device");
       return true;
     };
     const init = async () => {
@@ -728,7 +744,7 @@ export function useScoring(
     return () => {
       cancelled = true;
     };
-  }, [syncFromDb, matchId, restoreUndoHistory]);
+  }, [syncFromDb, matchId, restoreUndoHistory, renderShown, resolveSquadTeamIds]);
 
   useEffect(() => {
     if (!match) return;
