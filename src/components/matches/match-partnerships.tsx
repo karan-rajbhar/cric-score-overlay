@@ -22,6 +22,11 @@ interface Partnership {
   is_current: boolean | null;
   batsman1_id?: string | null;
   batsman2_id?: string | null;
+  /** Each batter's share, kept by the engine (absent on older stands). */
+  batsman1_runs?: number | null;
+  batsman1_balls?: number | null;
+  batsman2_runs?: number | null;
+  batsman2_balls?: number | null;
   batsman1: { full_name: string } | null;
   batsman2: { full_name: string } | null;
 }
@@ -37,9 +42,22 @@ interface StandSplit {
 const pairKey = (a?: string | null, b?: string | null) =>
   [a ?? "", b ?? ""].sort().join("|");
 
+/** The split the engine stored with the stand, as the batting card counts. */
+function storedSplit(p: Partnership): StandSplit | null {
+  if (p.batsman1_runs == null || p.batsman2_runs == null) return null;
+  return {
+    b1Runs: p.batsman1_runs,
+    b2Runs: p.batsman2_runs,
+    extras: Math.max(0, (p.runs ?? 0) - p.batsman1_runs - p.batsman2_runs),
+    b1Balls: p.batsman1_balls ?? 0,
+    b2Balls: p.batsman2_balls ?? 0,
+  };
+}
+
 /**
  * Derive per-batter splits for each stand from ball-by-ball data by
- * grouping consecutive balls with the same batting pair.
+ * grouping consecutive balls with the same batting pair: for stands
+ * recorded before the engine kept them ({@link storedSplit}).
  */
 function deriveSplits(
   balls: BallEvent[],
@@ -84,13 +102,9 @@ function deriveSplits(
       const isStrikerB1 = d.batsman_id === b1;
       if (d.extra_type === "no_ball") {
         // Scorer payload: runs_scored = bat runs, extras = 1 (the no-ball).
-        if (isStrikerB1) {
-          b1Runs += batRuns;
-          b1Balls += 1;
-        } else {
-          b2Runs += batRuns;
-          b2Balls += 1;
-        }
+        // Not a ball faced (the engine counts legal deliveries only).
+        if (isStrikerB1) b1Runs += batRuns;
+        else b2Runs += batRuns;
         extras += ex;
         continue;
       }
@@ -100,7 +114,7 @@ function deriveSplits(
         continue;
       }
       // Other team extras (bye/leg_bye/penalty): not the striker's runs.
-      // Engine counts every delivery except wides as balls faced, so match it.
+      // A legal ball: faced, as the engine counts it.
       if (
         d.extra_type === "bye" ||
         d.extra_type === "leg_bye" ||
@@ -165,7 +179,10 @@ export function MatchPartnerships({ match }: { match: Match }) {
           : "—",
         inningsTotal: inn?.total_runs ?? 0,
         bestId,
-        rows: sorted.map((p) => ({ ...p, split: splits.get(p.id) ?? null })),
+        rows: sorted.map((p) => ({
+          ...p,
+          split: storedSplit(p) ?? splits.get(p.id) ?? null,
+        })),
       };
     });
   }, [data, ballLog, match]);

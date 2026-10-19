@@ -183,7 +183,7 @@ export function PresentationCards({
               </p>
             </div>
 
-            <div className="mt-6 grid max-h-[65vh] grid-cols-1 gap-6 overflow-y-auto pr-1 md:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:max-h-[65vh] sm:overflow-y-auto sm:pr-1 md:grid-cols-2">
               {[
                 {
                   name: team1Name,

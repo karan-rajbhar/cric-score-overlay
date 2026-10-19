@@ -283,7 +283,7 @@ function SquadPanel({
               Searching…
             </p>
           ) : (
-            <ul className="max-h-40 space-y-1 overflow-y-auto">
+            <ul className="space-y-1 sm:max-h-40 sm:overflow-y-auto">
               {visibleResults.map((u) => (
                 <li key={u.id}>
                   <button
@@ -321,7 +321,7 @@ function SquadPanel({
           No players in {team.name} yet. Type a name above to add one.
         </p>
       ) : (
-        <div className="max-h-[42dvh] space-y-3 overflow-y-auto overscroll-contain">
+        <div className="space-y-3 sm:max-h-[42dvh] sm:overflow-y-auto sm:overscroll-contain">
           {yetToPlay.length > 0 && (
             <section aria-label="Yet to play" className="space-y-1">
               <div className="flex items-center justify-between gap-2">

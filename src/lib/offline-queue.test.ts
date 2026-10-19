@@ -409,7 +409,7 @@ describe("Offline queue replay through /api/scoring/replay", () => {
       sent.push(batch.actions.map((a) => a.id));
       return route(batch);
     });
-    expect(result).toEqual({ synced: 12, failed: 0 });
+    expect(result).toMatchObject({ synced: 12, failed: 0 });
     expect(sent.map((s) => s.length)).toEqual([10, 2]);
     expect(sent.flat()).toEqual(ids);
   });
@@ -432,11 +432,11 @@ describe("Offline queue replay through /api/scoring/replay", () => {
       return { ok: true, response: { v: 1, results } };
     };
 
-    expect(await flushPendingActions(matchId, send)).toEqual({ synced: 0, failed: 1 });
+    expect(await flushPendingActions(matchId, send)).toMatchObject({ synced: 0, failed: 1 });
     expect(getPendingActions(matchId)).toHaveLength(2);
     expect(getPendingActions(matchId)[0]!.retryCount).toBe(1);
 
-    expect(await flushPendingActions(matchId, send)).toEqual({ synced: 2, failed: 0 });
+    expect(await flushPendingActions(matchId, send)).toMatchObject({ synced: 2, failed: 0 });
     expect(getPendingActions(matchId)).toHaveLength(0);
     expect(applied.size).toBe(2);
   });
@@ -454,7 +454,7 @@ describe("Offline queue replay through /api/scoring/replay", () => {
         code,
         message: "refused",
       }));
-      expect(result).toEqual({
+      expect(result).toMatchObject({
         synced: 0,
         failed: 0,
         errorCode: code,
@@ -473,7 +473,7 @@ describe("Offline queue replay through /api/scoring/replay", () => {
       code: "http_503",
       message: "Service Unavailable",
     });
-    expect(await flushPendingActions(matchId, down, { maxRetries: 2 })).toEqual({
+    expect(await flushPendingActions(matchId, down, { maxRetries: 2 })).toMatchObject({
       synced: 0,
       failed: 1,
     });
@@ -481,6 +481,90 @@ describe("Offline queue replay through /api/scoring/replay", () => {
     await flushPendingActions(matchId, down, { maxRetries: 2 });
     expect(getPendingActions(matchId)).toHaveLength(0);
     expect(getDeadLetterCount(matchId)).toBe(1);
+  });
+
+  it("marks an action sent before as resent, and never gives up on one that got no reply", async () => {
+    enqueuePendingBall(ball(1));
+    const seen: Array<boolean | undefined> = [];
+    const offline: ReplayTransport = async (batch) => {
+      seen.push(batch.actions[0]!.resent);
+      throw new TypeError("Failed to fetch");
+    };
+    for (let i = 0; i < 5; i++) {
+      await flushPendingActions(matchId, offline, { maxRetries: 2 });
+    }
+    expect(seen).toEqual([undefined, true, true, true, true]);
+    expect(getPendingActions(matchId)).toHaveLength(1);
+    expect(getDeadLetterCount(matchId)).toBe(0);
+  });
+
+  it("passes on the documents of the batch that applied every action", async () => {
+    enqueuePendingBall(ball(1));
+    enqueuePendingBall(ball(2));
+    const delta = { match: { id: matchId }, innings: [], overs: [] };
+    const route = routeLike({ recordBall: async () => ({ error: null }) });
+    const res = await flushPendingActions(matchId, async (batch) => {
+      const out = await route(batch);
+      return out.ok
+        ? { ok: true, response: { ...out.response, delta: delta as never } }
+        : out;
+    });
+    expect(res.applied).toEqual(
+      expect.arrayContaining([expect.any(String), expect.any(String)]),
+    );
+    expect(res.delta).toBe(delta);
+
+    // Two batches: the last batch's documents miss the first one's.
+    for (let i = 0; i < 3; i++) enqueuePendingBall(ball(i));
+    const split = await flushPendingActions(
+      matchId,
+      async (batch) => {
+        const out = await route(batch);
+        return out.ok
+          ? { ok: true, response: { ...out.response, delta: delta as never } }
+          : out;
+      },
+      { batchSize: 2 },
+    );
+    expect(split.synced).toBe(3);
+    expect(split.delta).toBeNull();
+  });
+
+  it("drops a refused instant action and everything queued after it", async () => {
+    enqueueAction(matchId, "recordBall", ball(1), "i1", { instant: true });
+    enqueueAction(matchId, "recordBall", ball(2), "i2", { instant: true });
+    enqueueAction(matchId, "setBowler", { bowlerId: "b9" }, "i3", {
+      instant: true,
+    });
+    const recordBall = vi
+      .fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValue({ error: "match_not_live" });
+    const res = await flushPendingActions(
+      matchId,
+      routeLike({ recordBall, setBowler: async () => ({ error: null }) }),
+    );
+    // A transient-looking error is tried once more first.
+    expect(recordBall).toHaveBeenCalledTimes(3);
+    expect(res.synced).toBe(1);
+    expect(res.rejected).toMatchObject({
+      action: { queueId: "i2" },
+      error: "match_not_live",
+      dependents: 1,
+    });
+    expect(getPendingActions(matchId)).toHaveLength(0);
+    expect(getDeadLetterActions(matchId).map((d) => d.action.queueId)).toEqual([
+      "i2",
+      "i3",
+    ]);
+  });
+
+  it("drops a refused instant action at once when the error is fatal", async () => {
+    enqueueAction(matchId, "recordBall", ball(1), "f1", { instant: true });
+    const recordBall = vi.fn().mockResolvedValue({ error: "not_authorized" });
+    const res = await flushPendingActions(matchId, routeLike({ recordBall }));
+    expect(recordBall).toHaveBeenCalledTimes(1);
+    expect(res.rejected?.dependents).toBe(0);
   });
 
   it("runs one flush per match at a time", async () => {

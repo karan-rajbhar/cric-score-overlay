@@ -43,6 +43,29 @@ describe("GET /matches/[id]/report", () => {
     expect(text).toContain("Report");
   });
 
+  it("links the QR code to the public address, not the server's own", async () => {
+    const { buildMatchReportHtml } = await import("~/lib/match-report");
+    vi.mocked(getFullMatchForExport).mockResolvedValue({
+      data: { id: "11111111-1111-1111-1111-111111111111" } as never,
+      error: null,
+    });
+    const request = new NextRequest(
+      "http://0.0.0.0:8080/matches/11111111-1111-1111-1111-111111111111/report",
+      {
+        headers: {
+          "x-forwarded-host": "cricscore.altorstudio.com",
+          "x-forwarded-proto": "https",
+        },
+      },
+    );
+    await GET(request, {
+      params: Promise.resolve({ id: "11111111-1111-1111-1111-111111111111" }),
+    });
+    expect(vi.mocked(buildMatchReportHtml).mock.calls[0]![1]).toBe(
+      "https://cricscore.altorstudio.com/matches/11111111-1111-1111-1111-111111111111",
+    );
+  });
+
   it("returns 404 when match is not found", async () => {
     vi.mocked(getFullMatchForExport).mockResolvedValue({
       data: null,

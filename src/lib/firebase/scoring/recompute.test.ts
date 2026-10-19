@@ -112,6 +112,75 @@ describe("recomputeInnings", () => {
     });
   });
 
+  it("splits each stand between its batters as the batting card credits them", () => {
+    const balls = [
+      ball({ runs_scored: 1 }),
+      ball({ batsman_id: "n", non_striker_id: "s", runs_scored: 4 }),
+      // Extras: in the stand, not in either batter's share; a wide is not
+      // a ball faced, a bye is.
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        extras: 1,
+        extra_type: "wide",
+      }),
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        extras: 2,
+        extra_type: "bye",
+      }),
+      // A no-ball's bat runs are the batter's (not a legal ball).
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        runs_scored: 2,
+        extras: 1,
+        extra_type: "no_ball",
+      }),
+      ball({
+        batsman_id: "n",
+        non_striker_id: "s",
+        is_wicket: true,
+        dismissal_type: "bowled",
+        dismissed_player_id: "n",
+      }),
+      ball({ batsman_id: "c", non_striker_id: "s", runs_scored: 6 }),
+    ];
+    const out = recomputeInnings({
+      match,
+      innings,
+      balls,
+      existingBatting: [],
+      existingBowling: [],
+      now: NOW,
+    });
+    const [first, second] = out.partnerships;
+    expect(first).toMatchObject({
+      batsman1_id: "s",
+      batsman2_id: "n",
+      runs: 11,
+      balls: 4,
+      batsman1_runs: 1,
+      batsman1_balls: 1,
+      batsman2_runs: 6,
+      batsman2_balls: 3,
+      wicket_number: 1,
+    });
+    // The shares and the extras make up the stand, and agree with the card.
+    const n = out.batting.find((b) => b.user_id === "n")!;
+    expect(n).toMatchObject({ runs_scored: 6, balls_faced: 3 });
+    expect(second).toMatchObject({
+      batsman1_id: "c",
+      batsman2_id: "s",
+      batsman1_runs: 6,
+      batsman1_balls: 1,
+      batsman2_runs: 0,
+      batsman2_balls: 0,
+      is_current: true,
+    });
+  });
+
   it("records wickets, fall of wickets and closes partnerships; retired hurt is not out", () => {
     const balls = [
       ball({ runs_scored: 2 }),
@@ -176,6 +245,143 @@ describe("recomputeInnings", () => {
       overs_bowled: 1,
       is_current_bowler: false,
     });
+  });
+});
+
+describe("recomputeInnings keeps the scorer's choices since the last ball", () => {
+  const batter = (
+    id: string,
+    pos: number,
+    current = false,
+    striker = false,
+  ) => ({
+    id: `i1_${id}`,
+    match_id: "m1",
+    innings_id: "i1",
+    user_id: id,
+    batting_position: pos,
+    runs_scored: 0,
+    balls_faced: 0,
+    minutes_batted: 0,
+    fours: 0,
+    sixes: 0,
+    is_out: false,
+    dismissal_type: null,
+    bowler_id: null,
+    fielder_id: null,
+    is_current_batsman: current,
+    is_striker: striker,
+    created_at: null,
+    updated_at: null,
+  });
+  const bowlerRow = (id: string, current = false) => ({
+    id: `i1_${id}`,
+    match_id: "m1",
+    innings_id: "i1",
+    user_id: id,
+    overs_bowled: 0,
+    balls_bowled: 0,
+    runs_conceded: 0,
+    wickets_taken: 0,
+    maidens: 0,
+    wides: 0,
+    no_balls: 0,
+    is_current_bowler: current,
+    created_at: null,
+    updated_at: null,
+  });
+  const run = (
+    balls: BallInput[],
+    existingBatting: ReturnType<typeof batter>[],
+    existingBowling: ReturnType<typeof bowlerRow>[],
+  ) =>
+    recomputeInnings({
+      match,
+      innings,
+      balls,
+      existingBatting,
+      existingBowling,
+      now: NOW,
+    });
+  const current = (out: ReturnType<typeof run>) => ({
+    striker:
+      out.batting.find((b) => b.is_current_batsman && b.is_striker)?.user_id ??
+      null,
+    nonStriker:
+      out.batting.find((b) => b.is_current_batsman && !b.is_striker)?.user_id ??
+      null,
+    bowler: out.bowling.find((b) => b.is_current_bowler)?.user_id ?? null,
+  });
+
+  it("keeps the openers and the bowler when no ball is left (an innings' first ball undone)", () => {
+    const out = run(
+      [],
+      [batter("s", 1, true, true), batter("n", 2, true)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(out)).toEqual({
+      striker: "s",
+      nonStriker: "n",
+      bowler: "bw1",
+    });
+  });
+
+  it("keeps the next over's bowler when that over's first ball is undone", () => {
+    const over = Array.from({ length: 6 }, (_, i) =>
+      ball({ ball_number: i + 1, batsman_id: "s", non_striker_id: "n" }),
+    );
+    const out = run(
+      over,
+      [batter("s", 1), batter("n", 2, true, true)],
+      [bowlerRow("bw1"), bowlerRow("bw2", true)],
+    );
+    expect(current(out).bowler).toBe("bw2");
+    // Not the bowler of the over that just ended.
+    const same = run(
+      over,
+      [batter("s", 1), batter("n", 2, true, true)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(same).bowler).toBeNull();
+  });
+
+  it("keeps the new batter after a wicket, but not someone the log sent off", () => {
+    const wicket = ball({
+      is_wicket: true,
+      dismissal_type: "bowled",
+      dismissed_player_id: "s",
+    });
+    const out = run(
+      [wicket],
+      [batter("s", 1), batter("n", 2, true), batter("c", 3, true, true)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(out)).toMatchObject({ striker: "c", nonStriker: "n" });
+
+    // A retirement in the log empties that end; the retiree stays off.
+    const retired = ball({
+      runs_scored: 0,
+      is_wicket: true,
+      dismissal_type: "retired_hurt",
+      dismissed_player_id: "s",
+    });
+    const off = run(
+      [retired],
+      [batter("s", 1, true, true), batter("n", 2, true)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(off).striker).toBeNull();
+  });
+
+  it("drops a batter or bowler with nothing recorded who is no longer in", () => {
+    // The wicket was undone: the batter who came in for it is not needed.
+    const out = run(
+      [ball({ runs_scored: 1 })],
+      [batter("s", 1), batter("n", 2), batter("c", 3)],
+      [bowlerRow("bw1"), bowlerRow("bw9")],
+    );
+    expect(out.batting.map((b) => b.user_id).sort()).toEqual(["n", "s"]);
+    expect(out.bowling.map((b) => b.user_id)).toEqual(["bw1"]);
   });
 });
 
@@ -283,6 +489,84 @@ describe("advanceAfterInnings", () => {
       winning_team_id: null,
       result_description: "Match tied",
     });
+  });
+
+  it("judges a chase against its revised target", () => {
+    // 150 first, then rain: 121 to win from fewer overs.
+    const chase = (runs: number, wickets = 3) =>
+      ({
+        ...first,
+        id: "i2",
+        team_id: "t2",
+        innings_number: 2,
+        total_runs: runs,
+        total_wickets: wickets,
+        target_runs: 121,
+      }) as InningsRow;
+    const result = (inn: InningsRow) =>
+      advanceAfterInnings(
+        {
+          match: baseMatch,
+          completed: inn,
+          allInnings: [first, inn],
+          teamNames: { t1: "Tigers", t2: "Kings" },
+          now: NOW,
+        },
+        "x",
+      ).matchPatch;
+
+    // Reached the revised target, though short of the first innings.
+    expect(result(chase(123))).toMatchObject({
+      winning_team_id: "t2",
+      win_margin_type: "wickets",
+      win_margin: 7,
+      result_description: "Kings won by 7 wickets (revised target)",
+    });
+    // Short of it: the margin is from the revised target, not from 150.
+    expect(result(chase(110, 9))).toMatchObject({
+      winning_team_id: "t1",
+      win_margin_type: "runs",
+      win_margin: 10,
+      result_description: "Tigers won by 10 runs (revised target)",
+    });
+    expect(result(chase(120))).toMatchObject({
+      result_type: "tie",
+      result_description: "Match tied",
+    });
+  });
+
+  it("counts wickets in hand from the chasing side's squad", () => {
+    const chase = {
+      ...first,
+      id: "i2",
+      team_id: "t2",
+      innings_number: 2,
+      total_runs: 151,
+      total_wickets: 3,
+      target_runs: 151,
+    } as InningsRow;
+    const result = (squad: number | null, lastManStands = false) =>
+      advanceAfterInnings(
+        {
+          match: { ...baseMatch, last_man_stands: lastManStands } as MatchesRow,
+          completed: chase,
+          allInnings: [first, chase],
+          teamNames: { t2: "Kings" },
+          now: NOW,
+          chaseSquadSize: squad,
+        },
+        "x",
+      ).matchPatch;
+    // Eight players, three down: four wickets in hand.
+    expect(result(8)).toMatchObject({
+      win_margin: 4,
+      result_description: "Kings won by 4 wickets",
+    });
+    // Last man stands: the last batter bats on, so one more.
+    expect(result(8, true)).toMatchObject({ win_margin: 5 });
+    // A full squad, or none known: the match's limit.
+    expect(result(15)).toMatchObject({ win_margin: 7 });
+    expect(result(null)).toMatchObject({ win_margin: 7 });
   });
 
   it("limits super overs to one over and two wickets", () => {

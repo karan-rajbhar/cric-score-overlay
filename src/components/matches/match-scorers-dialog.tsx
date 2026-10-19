@@ -387,7 +387,7 @@ export function MatchScorersDialog({
           )}
 
           {!searching && searchResults.length > 0 && (
-            <div className="rounded-lg border border-border bg-card shadow-sm divide-y divide-border/60 max-h-48 overflow-y-auto">
+            <div className="rounded-lg border border-border bg-card shadow-sm divide-y divide-border/60 sm:max-h-48 sm:overflow-y-auto">
               {searchResults.map((user) => {
                 const isAlreadyScorer = existingAdminIds.has(user.id);
                 return (

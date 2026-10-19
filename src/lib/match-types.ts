@@ -79,6 +79,23 @@ export interface BowlingPerformance {
   user?: UserRef | null;
 }
 
+export interface InningsPartnership {
+  batsman1_id: string;
+  batsman2_id: string;
+  /** The wicket that ended it; null while unbroken (or ended by a retirement). */
+  wicket_number?: number | null;
+  runs?: number | null;
+  balls?: number | null;
+  /** Each batter's runs and balls faced in it (absent on older stands). */
+  batsman1_runs?: number | null;
+  batsman1_balls?: number | null;
+  batsman2_runs?: number | null;
+  batsman2_balls?: number | null;
+  start_over?: number | null;
+  end_over?: number | null;
+  is_current?: boolean | null;
+}
+
 export interface FallOfWicket {
   id: string;
   match_id: string;
@@ -144,6 +161,8 @@ export interface Innings {
   bowling_performances?: BowlingPerformance[];
   ball_by_ball?: BallEvent[];
   fall_of_wickets?: FallOfWicket[];
+  /** Stands in order, as stored on the innings (batters by id). */
+  partnerships?: InningsPartnership[];
 }
 
 export interface Match {

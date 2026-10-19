@@ -48,6 +48,23 @@ interface ScoringPanelProps {
   disabled?: boolean;
   /** Overrides `disabled` for the Undo action only (undo stays useful while a bowler is pending). */
   undoDisabled?: boolean;
+  /**
+   * What the last undo took back: said in a line under the over strip
+   * ("Ball removed: Four, 3.6, Starc to Kohli") with "Restore ball", until
+   * the next scoring action.
+   */
+  undoNotice?: {
+    label: string;
+    /** "3.6" (over.ball). */
+    position: string | null;
+    /** "Starc to Kohli". */
+    players: string | null;
+    /** What else the undo took back. */
+    note: string | null;
+    pending: boolean;
+    canRedo: boolean;
+  } | null;
+  onRedo?: () => void;
   /** Ignore scoring hotkeys while a dialog/menu owns the keyboard. */
   keyboardSuppressed?: boolean;
   isFreeHit?: boolean;
@@ -62,37 +79,21 @@ const EXTRA_TYPES = [
   {
     type: "wide",
     label: "Wide",
-    shortLabel: "Wd",
     activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "no_ball",
     label: "No ball",
-    shortLabel: "Nb",
     activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "bye",
     label: "Bye",
-    shortLabel: "Bye",
     activeClass: "bg-primary text-primary-foreground",
   },
   {
     type: "leg_bye",
     label: "Leg bye",
-    shortLabel: "Lb",
-    activeClass: "bg-primary text-primary-foreground",
-  },
-  {
-    type: "penalty",
-    label: "Penalty",
-    shortLabel: "Pen",
-    activeClass: "bg-primary text-primary-foreground",
-  },
-  {
-    type: "bonus",
-    label: "Bonus",
-    shortLabel: "Bon",
     activeClass: "bg-primary text-primary-foreground",
   },
 ];
@@ -111,6 +112,8 @@ export function ScoringPanel({
   lastBalls,
   disabled = false,
   undoDisabled,
+  undoNotice = null,
+  onRedo,
   keyboardSuppressed = false,
   isFreeHit = false,
   sunlightMode: propSunlightMode,
@@ -178,12 +181,6 @@ export function ScoringPanel({
     if (selectedExtra === "leg_bye") {
       return runs === 0 ? "1 Lb" : `${runs} Lb`;
     }
-    if (selectedExtra === "penalty") {
-      return runs === 0 ? "5 Pen" : `${runs} Pen`;
-    }
-    if (selectedExtra === "bonus") {
-      return runs === 0 ? "1 Bon" : `${runs} Bon`;
-    }
     if (runs === 0) return "Dot";
     if (runs === 4) return "Four";
     if (runs === 5) return "Five";
@@ -193,25 +190,20 @@ export function ScoringPanel({
 
   const getStagedDeliveryDescription = () => {
     if (!selectedExtra) return null;
+    // Short: the scorer reads it at a glance, mid-over.
     if (selectedExtra === "wide") {
-      return "Wide ball: Tap runs to record delivery (0 for 1 Wide, or tap completed runs).";
+      return "Wide selected: tap the runs (0 for just the wide)";
     }
     if (selectedExtra === "no_ball") {
-      return "No ball: Tap runs to record delivery (+1 No Ball extra added). Free hit next delivery.";
+      return "No ball selected: tap the runs off the bat. Free hit next";
     }
     if (selectedExtra === "bye") {
-      return "Bye: Tap runs to record delivery (credited to team extras, 0 to bowler).";
+      return "Byes selected: tap the runs taken";
     }
     if (selectedExtra === "leg_bye") {
-      return "Leg bye: Tap runs to record delivery (credited to team extras, 0 to bowler).";
+      return "Leg byes selected: tap the runs taken";
     }
-    if (selectedExtra === "penalty") {
-      return "Penalty runs: Tap runs to record delivery (default 5 runs).";
-    }
-    if (selectedExtra === "bonus") {
-      return "Bonus runs: Tap runs to record delivery (bonus runs to team).";
-    }
-    return "Tap runs to record delivery";
+    return "Tap the runs to record the ball";
   };
 
   const shouldPromptWagonWheel = useCallback(
@@ -238,12 +230,6 @@ export function ScoringPanel({
       } else if (extraType === "bye" || extraType === "leg_bye") {
         effectiveRuns = 0;
         extra = { type: extraType, runs: runs === 0 ? 1 : runs };
-      } else if (extraType === "penalty") {
-        effectiveRuns = 0;
-        extra = { type: "penalty", runs: runs === 0 ? 5 : runs };
-      } else if (extraType === "bonus") {
-        effectiveRuns = 0;
-        extra = { type: "bonus", runs: runs === 0 ? 1 : runs };
       } else {
         effectiveRuns = runs === 0 ? 0 : runs;
         extra = { type: extraType, runs: runs === 0 ? 1 : runs };
@@ -306,6 +292,11 @@ export function ScoringPanel({
       // Undo stays available while run buttons are disabled (e.g. over
       // complete with bowler pending) as long as undo itself isn't disabled.
       if (key === "u") {
+        if (selectedExtra) {
+          e.preventDefault();
+          setSelectedExtra(null);
+          return;
+        }
         if (undoDisabled ?? disabled) return;
         e.preventDefault();
         hapticUndo();
@@ -443,6 +434,13 @@ export function ScoringPanel({
       <CardContent className="space-y-2 p-2.5 max-sm:flex max-sm:flex-1 max-sm:flex-col sm:space-y-3.5 sm:p-5">
         {/* Screen-reader live summary of over state */}
         <p aria-live="polite" className="sr-only">
+          {undoNotice
+            ? `${undoNotice.pending ? "Removing" : "Removed"} ${
+                undoNotice.position ? `ball ${undoNotice.position}` : "the last ball"
+              }${undoNotice.label ? `, ${getBallLabel(undoNotice.label)}` : ""}. ${
+                undoNotice.note ? `${undoNotice.note}. ` : ""
+              }${undoNotice.canRedo && !undoNotice.pending ? "Restore ball is available. " : ""}`
+            : ""}
           Over {currentOver}.{currentBall}
           {lastBalls.length > 0
             ? `, this over: ${lastBalls.map(getBallLabel).join(", ")}`
@@ -478,10 +476,10 @@ export function ScoringPanel({
                   </button>
                 ))}
               </div>
-              <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
-                {overSummary.runs}r
-                {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
-              </span>
+                <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
+                  {overSummary.runs}r
+                  {overSummary.wickets > 0 ? ` · ${overSummary.wickets}w` : ""}
+                </span>
             </>
           ) : (
             <span className="truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
@@ -489,6 +487,66 @@ export function ScoringPanel({
             </span>
           )}
         </div>
+
+        {/* What the last undo took back, in words, with a way to put it back */}
+        {undoNotice && (
+          <div
+            data-testid="undo-notice"
+            className={cn(
+              "flex items-center justify-between gap-2 rounded-xl border px-3 py-1.5",
+              sunlightMode
+                ? "border-2 border-black bg-white text-black"
+                : "border-border bg-muted/60 text-foreground",
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <RotateCcw
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <p
+                className="min-w-0 text-xs leading-snug"
+                title={[
+                  undoNotice.position,
+                  undoNotice.players,
+                  undoNotice.note,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              >
+                <span className="font-semibold">
+                  {undoNotice.pending ? "Removing ball" : "Ball removed"}
+                  {undoNotice.label ? `: ${getBallLabel(undoNotice.label)}` : ""}
+                </span>
+                {(undoNotice.position || undoNotice.players) && (
+                  <span className="text-muted-foreground">
+                    {" · "}
+                    {[undoNotice.position, undoNotice.players]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                )}
+                {undoNotice.note && (
+                  <span className="block text-2xs text-muted-foreground">
+                    {undoNotice.note}
+                  </span>
+                )}
+              </p>
+            </div>
+            {undoNotice.canRedo && !undoNotice.pending && onRedo && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onRedo}
+                disabled={disabled}
+                className="h-8 shrink-0 px-2.5 text-xs font-semibold"
+              >
+                Restore ball
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Free Hit Delivery Banner (MCC Law 21.19) */}
         {isFreeHit && (
@@ -587,6 +645,8 @@ export function ScoringPanel({
                 }
                 className={cn(
                   "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
+                  // An armed extra changes what every run button records.
+                  selectedExtra && "ring-2 ring-amber-500/70 ring-offset-1 ring-offset-background",
                   sunlightMode
                     ? cn(
                         "border-2 font-bold shadow-none",
@@ -741,11 +801,11 @@ export function ScoringPanel({
 
         {/* Extras: single row of toggles */}
         <div
-          className="grid grid-cols-6 gap-1 sm:gap-2"
+          className="grid grid-cols-4 gap-1.5 sm:gap-2"
           role="group"
           aria-label="Extras"
         >
-          {EXTRA_TYPES.map(({ type, label, shortLabel, activeClass }) => (
+          {EXTRA_TYPES.map(({ type, label, activeClass }) => (
             <button
               key={type}
               type="button"
@@ -754,7 +814,7 @@ export function ScoringPanel({
               aria-pressed={selectedExtra === type}
               aria-label={label}
               className={cn(
-                "h-10 rounded-lg text-2xs font-semibold transition-colors disabled:opacity-50 sm:h-11 sm:rounded-xl sm:text-xs",
+                "h-11 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 sm:rounded-xl",
                 sunlightMode
                   ? selectedExtra === type
                     ? "border-2 border-black bg-black font-bold text-white shadow-none"
@@ -764,20 +824,16 @@ export function ScoringPanel({
                     : "border border-border bg-background text-foreground hover:bg-muted",
               )}
             >
-              <span className="sm:hidden" aria-hidden="true">
-                {shortLabel}
-              </span>
-              <span className="hidden sm:inline" aria-hidden="true">
-                {label}
-              </span>
+              <span aria-hidden="true">{label}</span>
             </button>
           ))}
         </div>
 
-        {/* Primary actions: Wicket + Undo */}
+        {/* Primary actions: Wicket + Undo, set apart from the extras above so
+            a hurried tap does not land on Wide / No ball instead */}
         <div
           className={cn(
-            "grid gap-2 sm:gap-3",
+            "mt-1 grid gap-2 border-t border-border/70 pt-2.5 sm:gap-3 sm:pt-3",
             onUndo ? "grid-cols-2" : "grid-cols-1",
           )}
           role="group"
@@ -787,7 +843,7 @@ export function ScoringPanel({
             variant="destructive"
             size="lg"
             className={cn(
-              "h-11 gap-1.5 rounded-xl text-sm font-semibold sm:h-12 sm:gap-2 sm:rounded-2xl sm:text-sm",
+              "h-12 gap-1.5 rounded-xl text-sm font-semibold sm:gap-2 sm:rounded-2xl sm:text-sm",
               sunlightMode
                 ? "border-2 border-black bg-red-600 font-bold text-white shadow-none hover:bg-red-700"
                 : "",
@@ -823,11 +879,20 @@ export function ScoringPanel({
               size="lg"
               onClick={() => {
                 hapticUndo();
+                // An armed extra (often a mis-tap) is taken back first.
+                if (selectedExtra) {
+                  setSelectedExtra(null);
+                  return;
+                }
                 onUndo();
               }}
-              disabled={undoDisabled ?? disabled}
-              title="Undo last ball (U)"
-              aria-label="Undo last ball"
+              disabled={selectedExtra ? false : (undoDisabled ?? disabled)}
+              title={selectedExtra ? "Cancel the extra (Esc)" : "Undo last ball (U)"}
+              aria-label={
+                selectedExtra
+                  ? `Cancel ${selectedExtra.replace("_", " ")}`
+                  : "Undo last ball"
+              }
               className={cn(
                 "h-11 gap-1.5 rounded-xl border-2 px-2 text-sm font-semibold sm:h-12 sm:gap-2 sm:rounded-2xl sm:px-4 sm:text-sm",
                 sunlightMode
@@ -837,7 +902,13 @@ export function ScoringPanel({
             >
               <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
               <span aria-hidden="true">
-                Undo<span className="hidden sm:inline"> (U)</span>
+                {selectedExtra ? (
+                  `Cancel ${EXTRA_TYPES.find((x) => x.type === selectedExtra)?.label.toLowerCase() ?? "extra"}`
+                ) : (
+                  <>
+                    Undo<span className="hidden sm:inline"> (U)</span>
+                  </>
+                )}
               </span>
             </Button>
           )}

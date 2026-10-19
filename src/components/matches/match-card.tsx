@@ -7,7 +7,11 @@ import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { MapPin, CalendarDays, PlayCircle } from "lucide-react";
 import type { Team, Innings, Match } from "~/lib/match-types";
-import { formatMatchResult, formatStatus } from "~/lib/cricket";
+import {
+  formatMatchResult,
+  formatStatus,
+  sidesInBattingOrder,
+} from "~/lib/cricket";
 import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
 
 interface MatchCardProps {
@@ -70,14 +74,27 @@ export function MatchCard({
 }: MatchCardProps) {
   // A live match follows its live_state doc (no refresh needed).
   const match = useLiveListMatch(fetched);
-  const inningsFor = (teamId: string) =>
-    match.innings?.find((i) => i.team_id === teamId);
+  // Batting order, as on a scorecard: the side that batted first on top.
+  const [first, second] = sidesInBattingOrder({
+    ...match,
+    team1_id: match.team1_id ?? match.team1.id,
+    team2_id: match.team2_id ?? match.team2.id,
+  });
 
-  const inn1 = inningsFor(match.team1.id);
-  const inn2 = inningsFor(match.team2.id);
-
-  // The team currently ahead on the scoreboard gets the accent treatment.
-  const team1Leading = (inn1?.total_runs ?? 0) >= (inn2?.total_runs ?? 0);
+  // The winner gets the accent; until the result, the side ahead (none
+  // after a tie or before anyone has scored).
+  const winnerId =
+    match.status === "completed" ? (match.winning_team_id ?? null) : null;
+  const firstRuns = first.innings?.total_runs ?? 0;
+  const secondRuns = second.innings?.total_runs ?? 0;
+  const firstLeading =
+    match.status === "completed"
+      ? winnerId === first.team.id
+      : firstRuns > secondRuns;
+  const secondLeading =
+    match.status === "completed"
+      ? winnerId === second.team.id
+      : secondRuns > firstRuns;
 
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "TBD";
@@ -108,11 +125,15 @@ export function MatchCard({
 
           {/* Teams */}
           <div className="space-y-4 px-4 py-4">
-            <TeamRow team={match.team1} innings={inn1} leading={team1Leading} />
             <TeamRow
-              team={match.team2}
-              innings={inn2}
-              leading={!team1Leading}
+              team={first.team}
+              innings={first.innings}
+              leading={firstLeading}
+            />
+            <TeamRow
+              team={second.team}
+              innings={second.innings}
+              leading={secondLeading}
             />
           </div>
 

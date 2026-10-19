@@ -144,3 +144,37 @@ export function wasScorer(matchId: string, userId: string | null | undefined): b
     return false;
   }
 }
+
+const CONFIRMED_KEY_PREFIX = 'cric_confirmed_state_';
+
+/**
+ * The server's last confirmed scoring state and the stored documents behind
+ * it (instant scoring's base), kept on the device so that a screen opened
+ * offline predicts from it as it does online. Its own key: the display
+ * cache above is rewritten on every render without it.
+ */
+export function cacheConfirmedState<S>(matchId: string, state: S): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    window.localStorage.setItem(
+      `${CONFIRMED_KEY_PREFIX}${matchId}`,
+      JSON.stringify({ state, cachedAt: Date.now() }),
+    );
+  } catch {
+    // Storage full: offline reopening falls back to the display cache.
+  }
+}
+
+/** {@link cacheConfirmedState}'s state, unless missing or older than a day. */
+export function getConfirmedState<S>(matchId: string): S | null {
+  if (!isLocalStorageAvailable()) return null;
+  try {
+    const raw = window.localStorage.getItem(`${CONFIRMED_KEY_PREFIX}${matchId}`);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { state: S; cachedAt: number };
+    if (Date.now() - saved.cachedAt > CACHE_EXPIRY_MS) return null;
+    return saved.state;
+  } catch {
+    return null;
+  }
+}

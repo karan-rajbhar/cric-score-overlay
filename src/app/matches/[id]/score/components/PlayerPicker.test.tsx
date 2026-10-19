@@ -5,7 +5,7 @@ import type { PickerRow } from "./player-rows";
 
 const rows: PickerRow[] = [
   { id: "a", name: "Anil Kumble", role: "(c)", detail: "2-0-14-1" },
-  { id: "b", name: "Bhuvi Kumar", tag: "Next in" },
+  { id: "b", name: "Bhuvi Kumar", tag: "Bowling" },
   { id: "c", name: "Chahal", disabledReason: "Bowled last over" },
   { id: "d", name: "Deepak Chahar", note: "Quota used" },
 ];
@@ -35,7 +35,7 @@ describe("PlayerPicker", () => {
     expect(radios[0]).toHaveTextContent("(c)");
     expect(radios[0]).toHaveTextContent("2-0-14-1");
     expect(radios[0]).toHaveAttribute("aria-checked", "true");
-    expect(radios[1]).toHaveTextContent("Next in");
+    expect(radios[1]).toHaveTextContent("Bowling");
     expect(radios[2]).toBeDisabled();
     expect(radios[2]).toHaveTextContent("Bowled last over");
     expect(radios[3]).toBeEnabled();
@@ -195,5 +195,35 @@ describe("PlayerPicker", () => {
     expect(
       screen.getByText("No players in Team A yet. Type a name to add one."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("PlayerPicker add while typing", () => {
+  it("puts Add <name> right under the search box, above the list", () => {
+    render(
+      <PlayerPicker
+        label="Choose batter"
+        rows={[
+          { id: "a", name: "Anil Kumble" },
+          { id: "b", name: "Bhuvi Kumar" },
+        ]}
+        selectedId={null}
+        onSelect={vi.fn()}
+        addPlayer={{ teamName: "Mumbai", onAdd: vi.fn() }}
+        noun="batter"
+      />,
+    );
+    const search = screen.getByRole("searchbox", { name: "Search or add a batter" });
+    fireEvent.change(search, { target: { value: "An" } });
+    const add = screen.getByRole("button", { name: /Add .An. to Mumbai/ });
+    const firstRow = screen.getByRole("radio", { name: /Anil Kumble/ });
+    // Before the rows in the page: on a phone it stays in view with the
+    // keyboard open (the search box and it are pinned at the top).
+    expect(
+      add.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      search.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

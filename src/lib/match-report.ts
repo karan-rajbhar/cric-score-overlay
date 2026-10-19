@@ -2,12 +2,15 @@ import QRCode from "qrcode";
 import type { Match } from "./match-types";
 import {
   bowlerEconomy,
+  byBattingOrder,
   dismissalText,
   formatBowlerOvers,
   formatDecimalOvers,
+  formatMatchResult,
   inningsBalls,
   oversFromBalls,
   scoreLine,
+  sidesInBattingOrder,
   strikeRate,
   topBatters,
   topBowlers,
@@ -97,14 +100,226 @@ export function buildExportSummary(
       : null,
     result: match.result_description ?? "Match completed",
     matchUrl,
-    team1: teamStats(match.team1),
-    team2: teamStats(match.team2),
+    // In batting order: the side that batted first is shown first.
+    team1: teamStats(sidesInBattingOrder(match)[0].team),
+    team2: teamStats(sidesInBattingOrder(match)[1].team),
     playerOfTheMatch: match.player_of_the_match?.full_name ?? null,
   };
 }
 
+/**
+ * "Share PDF" on the report page: the report is turned into a PDF file in
+ * the browser (html2canvas renders each page in its desktop A4 layout,
+ * jsPDF assembles them; both pinned on jsDelivr with integrity hashes) as
+ * soon as the page has loaded, so a tap opens the phone's share sheet
+ * (WhatsApp, Gmail, ...) at once: browsers allow sharing only right after
+ * a tap. Where files cannot be shared (Firefox, Linux) it downloads. If
+ * anything fails the button goes away; "Save as PDF / Print" remains.
+ */
+const SHARE_PDF_SCRIPT = `<script>
+(function () {
+  var btn = document.getElementById("btn-share-pdf");
+  if (!btn) return;
+  var LIBS = [
+    ["https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+     "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"],
+    ["https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
+     "sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/"]
+  ];
+  var A4_W = 210, A4_H = 297;
+  var fileName = btn.getAttribute("data-file-name") || "match-report.pdf";
+  var canShareFiles = (function () {
+    try {
+      return !!(navigator.canShare && navigator.canShare({
+        files: [new File(["x"], "x.pdf", { type: "application/pdf" })]
+      }));
+    } catch (e) { return false; }
+  })();
+  var file = null;
+
+  function load(src, integrity) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src; s.integrity = integrity; s.crossOrigin = "anonymous";
+      s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function each(list, fn) { return Array.prototype.map.call(list, fn); }
+
+  // Team logos live on another site, which a canvas may not read: they go
+  // in through this site's image optimizer, or show initials (as when a
+  // team has no logo) if that fails.
+  var logoVia = {};
+  function proxyLogos() {
+    return Promise.all(each(document.querySelectorAll("img[data-initials]"), function (img) {
+      var src = img.getAttribute("src") || "";
+      var url;
+      try { url = new URL(src, location.href); } catch (e) { return null; }
+      if (url.origin === location.origin || url.protocol === "data:") return null;
+      var via = location.origin + "/_next/image?url=" + encodeURIComponent(url.href) + "&w=256&q=75";
+      return new Promise(function (resolve) {
+        var probe = new Image();
+        probe.onload = function () { logoVia[src] = via; resolve(); };
+        probe.onerror = function () { resolve(); };
+        probe.src = via;
+      });
+    }));
+  }
+
+  // The copy html2canvas renders (desktop A4 layout): no toolbar, logos as
+  // cover backgrounds (it ignores object-fit), and where a sheet may end:
+  // not through a small block (a row, a card, a line of text), nor right
+  // after a heading.
+  var KEEP_WHOLE = 400, KEEP_WITH_NEXT = 60;
+  var cuts = [], blocks = [], box = null;
+  function prepare(doc, el) {
+    var bar = doc.getElementById("screen-toolbar");
+    if (bar) bar.remove();
+    each(doc.querySelectorAll("img[data-initials]"), function (img) {
+      var span = doc.createElement("span");
+      var via = logoVia[img.getAttribute("src") || ""];
+      if (via) {
+        span.style.cssText = "display:block;width:100%;height:100%;background:url(" +
+          JSON.stringify(via) + ") center / cover no-repeat";
+      } else {
+        span.textContent = img.getAttribute("data-initials");
+      }
+      img.replaceWith(span);
+    });
+    box = el.getBoundingClientRect();
+    cuts = []; blocks = [];
+    each(el.querySelectorAll("*"), function (n) {
+      var rect = n.getBoundingClientRect();
+      var t = rect.top - box.top, b = rect.bottom - box.top;
+      if (b - t <= 0) return;
+      cuts.push(t, b);
+      if (n.matches("h1, h2, h3, h4, [class*='title'], [class*='header']")) b += KEEP_WITH_NEXT;
+      if (b - t <= KEEP_WHOLE) blocks.push([t, b]);
+    });
+  }
+  function clean(y) {
+    return !blocks.some(function (k) { return k[0] < y - 0.5 && k[1] > y + 0.5; });
+  }
+
+  // Sheets of one page: [top, bottom] in CSS px, each at most an A4 high,
+  // ending at the lowest clean cut in its lower half (else a sheet high).
+  function sheets(pageWidth, height) {
+    var sheetH = pageWidth * A4_H / A4_W, out = [], y = 0;
+    while (height - y > 1) {
+      var end = Math.min(height, y + sheetH);
+      if (end < height) {
+        var from = y + sheetH / 2, limit = end;
+        var fit = cuts.filter(function (c) { return c > from && c <= limit && clean(c); });
+        if (fit.length) end = Math.max.apply(null, fit);
+      }
+      out.push([y, end]);
+      y = end;
+    }
+    return out;
+  }
+
+  function build() {
+    return Promise.all(LIBS.map(function (l) { return load(l[0], l[1]); }))
+      .then(function () { return document.fonts ? document.fonts.ready : null; })
+      .then(proxyLogos)
+      .then(function () {
+        var pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
+        var first = true;
+        var pages = document.querySelectorAll(".report-page");
+        return Array.prototype.reduce.call(pages, function (chain, el) {
+          return chain.then(function () {
+            return window.html2canvas(el, {
+              scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false,
+              windowWidth: 1024, windowHeight: 1400, scrollX: 0, scrollY: 0,
+              onclone: prepare
+            });
+          }).then(function (canvas) {
+            var k = canvas.width / box.width, px = canvas.width / A4_W;
+            sheets(box.width, canvas.height / k).forEach(function (sheet) {
+              var y = Math.round(sheet[0] * k);
+              var h = Math.min(canvas.height, Math.round(sheet[1] * k)) - y;
+              if (h <= 0) return;
+              var part = document.createElement("canvas");
+              part.width = canvas.width; part.height = h;
+              var ctx = part.getContext("2d");
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(0, 0, part.width, h);
+              ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+              if (!first) pdf.addPage();
+              first = false;
+              pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_W, h / px);
+            });
+          });
+        }, Promise.resolve()).then(function () {
+          return new File([pdf.output("blob")], fileName, { type: "application/pdf" });
+        });
+      });
+  }
+
+  function download(f) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+
+  // Built ahead, once the page has loaded: the share sheet only opens
+  // straight from a tap, with no wait in between.
+  function start() {
+    var idle = window.requestIdleCallback || function (f) { setTimeout(f, 200); };
+    idle(function () {
+      build().then(function (f) {
+        file = f;
+        btn.disabled = false;
+        btn.textContent = canShareFiles ? "Share PDF" : "Download PDF";
+        btn.setAttribute("data-ready", "true");
+      }, function (err) {
+        console.error("Share PDF: could not build the file", err);
+        btn.hidden = true;
+      });
+    });
+  }
+  if (document.readyState === "complete") start();
+  else window.addEventListener("load", start);
+
+  btn.addEventListener("click", function () {
+    if (!file) return;
+    if (!canShareFiles) return download(file);
+    // The file alone: with text as well, some share targets (WhatsApp on
+    // iOS) drop the file. The link and QR code are in the PDF.
+    navigator.share({ files: [file] }).catch(function (e) {
+      // Cancelled: nothing to do. Refused (the tap expired): download.
+      if (e && e.name !== "AbortError") download(file);
+    });
+  });
+})();
+</script>`;
+
+/** The brand mark: src/app/icon.svg (stumps and bails on board green). */
+const BRAND_MARK = `<svg class="brand-tile" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#113227"/><g fill="#f3f5f0"><rect x="8" y="10" width="4" height="16" rx="0.5"/><rect x="14" y="10" width="4" height="16" rx="0.5"/><rect x="20" y="10" width="4" height="16" rx="0.5"/><rect x="8" y="6" width="7" height="2" rx="0.5"/><rect x="17" y="6" width="7" height="2" rx="0.5"/></g></svg>`;
+
+/** What a team's crest shows without a logo. */
+function crestText(team: { name: string; short_name?: string | null }) {
+  return team.short_name?.slice(0, 3) || team.name.slice(0, 2).toUpperCase();
+}
+
 function inningsFor(match: Match, teamId: string) {
   return match.innings?.find((i) => i.team_id === teamId);
+}
+
+/**
+ * The 1st and 2nd innings in batting order (the side that batted first,
+ * then the chase), whichever of team 1 / team 2 batted first.
+ */
+function mainInningsInOrder(
+  match: Match,
+): [InningsRow | undefined, InningsRow | undefined] {
+  const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
+  return [
+    main.find((i) => i.innings_number === 1),
+    main.find((i) => i.innings_number === 2),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -113,12 +328,24 @@ function inningsFor(match: Match, teamId: string) {
 
 type InningsRow = NonNullable<Match["innings"]>[number];
 
+/** Batted in the innings (a not-out batter who has not faced yet too). */
+function hasBatted(
+  b: NonNullable<InningsRow["batting_performances"]>[number],
+): boolean {
+  return (
+    (b.balls_faced ?? 0) > 0 ||
+    b.is_out ||
+    (b.runs_scored ?? 0) > 0 ||
+    Boolean(b.is_current_batsman) ||
+    Boolean(b.dismissal_type)
+  );
+}
+
 function battingRows(inn: InningsRow): string {
+  // The order they came in, as on a scorecard.
   const batters = (inn.batting_performances ?? [])
-    .filter(
-      (b) => (b.balls_faced ?? 0) > 0 || b.is_out || (b.runs_scored ?? 0) > 0,
-    )
-    .sort((a, b) => (b.balls_faced ?? 0) - (a.balls_faced ?? 0));
+    .filter(hasBatted)
+    .sort(byBattingOrder);
 
   if (!batters.length) {
     return `<tr><td colspan="6" class="muted text-center py-3">No batting recorded</td></tr>`;
@@ -138,7 +365,7 @@ function battingRows(inn: InningsRow): string {
       return `<tr>
                 <td class="name">
                     <div class="player-name">${esc(b.user?.full_name ?? "—")}</div>
-                    <div class="howout">${esc(dismissalText(b, inn.fall_of_wickets ?? []))}</div>
+                    <div class="howout">${esc(!b.is_out && b.dismissal_type === "retired_hurt" ? "retired hurt" : dismissalText(b, inn.fall_of_wickets ?? []))}</div>
                 </td>
                 <td class="num">${runBadge}</td>
                 <td class="num">${b.balls_faced ?? 0}</td>
@@ -156,11 +383,7 @@ function didNotBat(
 ): string {
   if (!team?.team_players || team.team_players.length === 0) return "";
   const battedIds = new Set(
-    (inn.batting_performances ?? [])
-      .filter(
-        (b) => (b.balls_faced ?? 0) > 0 || b.is_out || (b.runs_scored ?? 0) > 0,
-      )
-      .map((b) => b.user_id),
+    (inn.batting_performances ?? []).filter(hasBatted).map((b) => b.user_id),
   );
   const dnb = team.team_players
     .filter((p) => p.user?.id && !battedIds.has(p.user.id))
@@ -203,13 +426,13 @@ function fowRow(inn: InningsRow): string {
 }
 
 function bowlingRows(inn: InningsRow): string {
-  const bowlers = (inn.bowling_performances ?? [])
-    .filter((b) => (b.balls_bowled ?? 0) > 0 || (b.overs_bowled ?? 0) > 0)
-    .sort(
-      (a, b) =>
-        (b.wickets_taken ?? 0) - (a.wickets_taken ?? 0) ||
-        (a.runs_conceded ?? 0) - (b.runs_conceded ?? 0),
-    );
+  // In the order they came on (the stored order), as on a scorecard.
+  const bowlers = (inn.bowling_performances ?? []).filter(
+    (b) =>
+      (b.balls_bowled ?? 0) > 0 ||
+      (b.overs_bowled ?? 0) > 0 ||
+      (b.runs_conceded ?? 0) > 0,
+  );
 
   if (!bowlers.length) {
     return `<tr><td colspan="11" class="muted text-center py-3">No bowling recorded</td></tr>`;
@@ -272,137 +495,99 @@ function getOrdinalSuffix(n: number): string {
   return s[(v - 20) % 10] || s[v] || s[0] || "th";
 }
 
+/**
+ * The innings' partnerships from its ball log, in the order the balls were
+ * bowled (`seq`): a partnership is the pair at the crease, ended by a
+ * wicket or by either batter leaving (a retirement, a change); each
+ * batter's share is the runs and balls he faced in it. Runs include extras
+ * and penalty runs to this side. Without a ball log there is nothing to
+ * tell who batted together: none.
+ */
 function getInningsPartnerships(inn: InningsRow): Partnership[] {
   const deliveries = (inn.ball_by_ball ?? []).slice().sort((a, b) => {
+    const sa = (a as { seq?: number | null }).seq;
+    const sb = (b as { seq?: number | null }).seq;
+    if (typeof sa === "number" && typeof sb === "number") return sa - sb;
     const overDiff = (a.over_number ?? 0) - (b.over_number ?? 0);
     if (overDiff !== 0) return overDiff;
     return (a.ball_number ?? 0) - (b.ball_number ?? 0);
   });
+  const nameOf = (id: string, fromBall?: { full_name?: string | null } | null) =>
+    fromBall?.full_name ??
+    inn.batting_performances?.find((bp) => bp.user_id === id)?.user
+      ?.full_name ??
+    "Batter";
 
   const partnerships: Partnership[] = [];
+  let wicketsDown = 0;
+  let current: {
+    ids: [string, string];
+    runs: number;
+    balls: number;
+    share: Map<string, { name: string; runs: number; balls: number }>;
+  } | null = null;
 
-  if (deliveries.length > 0) {
-    let curWicket = 1;
-    let pRuns = 0;
-    let pBalls = 0;
-    const batterMap = new Map<string, { name: string; runs: number; balls: number }>();
+  const close = (isUnbroken: boolean) => {
+    if (!current) return;
+    if (current.runs > 0 || current.balls > 0 || !isUnbroken) {
+      const [a, b] = current.ids;
+      partnerships.push({
+        wicketNumber: wicketsDown + 1,
+        runs: current.runs,
+        balls: current.balls,
+        batter1: { ...current.share.get(a)! },
+        batter2: { ...current.share.get(b)! },
+        isUnbroken,
+      });
+    }
+    current = null;
+  };
 
-    for (const d of deliveries) {
-      const runs = d.runs_scored ?? 0;
-      const extras = d.extras ?? 0;
-      const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
-
-      pRuns += runs + extras;
-      if (isLegal) pBalls++;
-
-      if (d.batsman_id) {
-        const b = batterMap.get(d.batsman_id) ?? {
-          name:
-            d.batsman?.full_name ??
-            inn.batting_performances?.find((bp) => bp.user_id === d.batsman_id)
-              ?.user?.full_name ??
-            "Batter",
+  for (const d of deliveries) {
+    const penaltyTeam = (d as { penalty_team_id?: string | null }).penalty_team_id;
+    // Penalty runs logged for the other side are not this pair's.
+    if (penaltyTeam && penaltyTeam !== inn.team_id) continue;
+    const striker = d.batsman_id;
+    const other = d.non_striker_id;
+    if (striker && other) {
+      const samePair =
+        current !== null &&
+        current.ids.includes(striker) &&
+        current.ids.includes(other);
+      if (!samePair) {
+        // A new pair without a wicket in between: a retirement or a change.
+        close(false);
+        current = {
+          ids: [striker, other],
           runs: 0,
           balls: 0,
+          share: new Map([
+            [striker, { name: nameOf(striker, d.batsman), runs: 0, balls: 0 }],
+            [other, { name: nameOf(other, d.non_striker), runs: 0, balls: 0 }],
+          ]),
         };
-        b.runs += runs;
-        if (d.extra_type !== "wide") b.balls++;
-        batterMap.set(d.batsman_id, b);
-      }
-
-      if (d.non_striker_id && !batterMap.has(d.non_striker_id)) {
-        batterMap.set(d.non_striker_id, {
-          name:
-            d.non_striker?.full_name ??
-            inn.batting_performances?.find(
-              (bp) => bp.user_id === d.non_striker_id,
-            )?.user?.full_name ??
-            "Batter",
-          runs: 0,
-          balls: 0,
-        });
-      }
-
-      if (d.is_wicket) {
-        const activeBatters = Array.from(batterMap.values());
-        const b1 = activeBatters[0] ?? { name: "Batter 1", runs: 0, balls: 0 };
-        const b2 = activeBatters[1] ?? { name: "Batter 2", runs: 0, balls: 0 };
-
-        partnerships.push({
-          wicketNumber: curWicket,
-          runs: pRuns,
-          balls: pBalls,
-          batter1: { ...b1 },
-          batter2: { ...b2 },
-          isUnbroken: false,
-        });
-
-        curWicket++;
-        pRuns = 0;
-        pBalls = 0;
-        const dismissedId = d.dismissed_player_id || d.batsman_id;
-        if (dismissedId) {
-          batterMap.delete(dismissedId);
-        } else if (activeBatters.length > 0) {
-          const firstKey = Array.from(batterMap.keys())[0];
-          if (firstKey) batterMap.delete(firstKey);
-        }
-        for (const [id, val] of batterMap.entries()) {
-          batterMap.set(id, { ...val, runs: 0, balls: 0 });
-        }
       }
     }
-
-    if (batterMap.size > 0 && (pRuns > 0 || pBalls > 0 || partnerships.length === 0)) {
-      const activeBatters = Array.from(batterMap.values());
-      const b1 = activeBatters[0] ?? { name: "Batter 1", runs: 0, balls: 0 };
-      const b2 = activeBatters[1] ?? { name: "Batter 2", runs: 0, balls: 0 };
-      partnerships.push({
-        wicketNumber: curWicket,
-        runs: pRuns,
-        balls: pBalls,
-        batter1: { ...b1 },
-        batter2: { ...b2 },
-        isUnbroken: true,
-      });
+    if (!current) continue;
+    const runs = d.runs_scored ?? 0;
+    const extras = d.extras ?? 0;
+    current.runs += runs + extras;
+    if (d.extra_type !== "wide" && d.extra_type !== "no_ball" && !penaltyTeam) {
+      current.balls += 1;
     }
-  } else if (inn.fall_of_wickets && inn.fall_of_wickets.length > 0) {
-    const sortedFow = inn.fall_of_wickets
-      .slice()
-      .sort((a, b) => a.wicket_number - b.wicket_number);
-    let prevRuns = 0;
-    for (const f of sortedFow) {
-      const partRuns = Math.max(0, (f.runs_at_fall ?? 0) - prevRuns);
-      partnerships.push({
-        wicketNumber: f.wicket_number,
-        runs: partRuns,
-        balls: 0,
-        batter1: {
-          name: f.batsman?.full_name ?? "Batter",
-          runs: partRuns,
-          balls: 0,
-        },
-        batter2: { name: "Partner", runs: 0, balls: 0 },
-        isUnbroken: false,
-      });
-      prevRuns = f.runs_at_fall ?? 0;
+    const facing = striker ? current.share.get(striker) : undefined;
+    if (facing && !penaltyTeam) {
+      facing.runs += runs;
+      if (d.extra_type !== "wide") facing.balls += 1;
     }
-    if ((inn.total_runs ?? 0) > prevRuns) {
-      partnerships.push({
-        wicketNumber: sortedFow.length + 1,
-        runs: (inn.total_runs ?? 0) - prevRuns,
-        balls: 0,
-        batter1: {
-          name: "Active Batters",
-          runs: (inn.total_runs ?? 0) - prevRuns,
-          balls: 0,
-        },
-        batter2: { name: "Partner", runs: 0, balls: 0 },
-        isUnbroken: true,
-      });
+    if (d.is_wicket) {
+      // Retired hurt ends the stand but is not a wicket.
+      const isWicket = d.dismissal_type !== "retired_hurt";
+      close(false);
+      if (isWicket) wicketsDown += 1;
     }
   }
-
+  close(true);
   return partnerships;
 }
 
@@ -482,12 +667,12 @@ function inningsSection(
     <div class="innings-scorecard-wrap">
         <div class="section-badge-header">
             <div class="section-title-wrap">
-                <h2 class="section-page-title">${index === 0 ? "1st Innings Scorecard" : "2nd Innings Scorecard"}</h2>
+                <h2 class="section-page-title">${index === 0 ? "1st Innings Scorecard" : index === 1 ? "2nd Innings Scorecard" : "Super Over Scorecard"}</h2>
                 <span class="innings-team-pill">${esc(team.name)}</span>
             </div>
             <div class="innings-score-pill">
                 <span class="score-main">${total}</span>
-                <span class="score-details">(${overs} ov &bull; RR: ${rr}${inn.is_completed ? "" : ", in progress"})</span>
+                <span class="score-details">(${overs} ov &bull; RR: ${rr}${inn.target_runs && inn.innings_number % 2 === 0 ? ` &bull; Target ${inn.target_runs}` : ""}${inn.is_completed ? "" : ", in progress"})</span>
             </div>
         </div>
 
@@ -797,14 +982,31 @@ interface PhaseStat {
   rr: string;
 }
 
+/**
+ * Powerplay / middle / death overs for an innings of `maxOvers`: the
+ * usual 1-6 / 7-15 / 16-20 for T20, 1-10 / 11-40 / 41-50 for 50 overs,
+ * and in proportion for other lengths (null when too short to split).
+ */
+export function phaseBoundaries(
+  maxOvers: number,
+): { ppEnd: number; midEnd: number } | null {
+  if (maxOvers < 4) return null;
+  const ppEnd = maxOvers >= 40 ? 10 : Math.max(1, Math.round(maxOvers * 0.3));
+  const deathOvers =
+    maxOvers >= 40 ? 10 : Math.max(1, Math.round(maxOvers * 0.25));
+  const midEnd = Math.max(ppEnd + 1, maxOvers - deathOvers);
+  return midEnd < maxOvers ? { ppEnd, midEnd } : null;
+}
+
 function getPhaseStatsForInnings(
   inn: InningsRow | undefined,
   maxOvers = 20,
+  ballsPerOver = 6,
 ): PhaseStat[] {
   if (!inn) return [];
-
-  const ppEnd = maxOvers <= 10 ? 3 : maxOvers <= 20 ? 6 : 10;
-  const midEnd = maxOvers <= 10 ? 7 : maxOvers <= 20 ? 15 : 40;
+  const bounds = phaseBoundaries(maxOvers);
+  if (!bounds) return [];
+  const { ppEnd, midEnd } = bounds;
 
   const phasesDef = [
     { name: "Powerplay", start: 1, end: ppEnd, label: `Ov 1-${ppEnd}` },
@@ -839,7 +1041,7 @@ function getPhaseStatsForInnings(
         }
       }
 
-      const oversDec = pBalls / 6;
+      const oversDec = pBalls / (ballsPerOver > 0 ? ballsPerOver : 6);
       const rr = oversDec > 0 ? (pRuns / oversDec).toFixed(2) : "0.00";
 
       return {
@@ -857,18 +1059,19 @@ function getPhaseStatsForInnings(
 }
 
 function renderPhaseAnalysis(match: Match): string {
-  const inn1 =
-    match.innings?.find((i) => i.team_id === match.team1_id) ??
-    match.innings?.[0];
-  const inn2 =
-    match.innings?.find((i) => i.team_id === match.team2_id) ??
-    match.innings?.[1];
+  const [inn1, inn2] = mainInningsInOrder(match);
 
   const maxOvers = match.overs_per_innings || 20;
-  const p1 = getPhaseStatsForInnings(inn1, maxOvers);
-  const p2 = getPhaseStatsForInnings(inn2, maxOvers);
+  const bpo = match.balls_per_over || 6;
+  const p1 = getPhaseStatsForInnings(inn1, maxOvers, bpo);
+  const p2 = getPhaseStatsForInnings(inn2, maxOvers, bpo);
 
   if (p1.length === 0 && p2.length === 0) return "";
+  // The columns follow the innings: the side that batted first, then the
+  // chase (team 1 / team 2 only when team 1 batted first).
+  const [{ team: firstTeam }, { team: secondTeam }] = sidesInBattingOrder(match);
+  const tag = (t: typeof firstTeam) =>
+    t.short_name ?? t.name.slice(0, 3).toUpperCase();
 
   const rows = p1
     .map((stat1, idx) => {
@@ -877,10 +1080,10 @@ function renderPhaseAnalysis(match: Match): string {
       let advantageColor = "neutral";
 
       if (stat1.runs > stat2.runs + 4) {
-        advantage = `${match.team1.short_name ?? match.team1.name.slice(0, 3).toUpperCase()}`;
+        advantage = tag(firstTeam);
         advantageColor = "team1";
       } else if (stat2.runs > stat1.runs + 4) {
-        advantage = `${match.team2.short_name ?? match.team2.name.slice(0, 3).toUpperCase()}`;
+        advantage = tag(secondTeam);
         advantageColor = "team2";
       }
 
@@ -905,8 +1108,8 @@ function renderPhaseAnalysis(match: Match): string {
     })
     .join("");
 
-  const t1Header = esc(match.team1.short_name ?? match.team1.name);
-  const t2Header = esc(match.team2.short_name ?? match.team2.name);
+  const t1Header = esc(firstTeam.short_name ?? firstTeam.name);
+  const t2Header = esc(secondTeam.short_name ?? secondTeam.name);
 
   return `
     <div class="phase-analysis-card">
@@ -1094,12 +1297,7 @@ function renderImpactLeaderboard(match: Match): string {
 // ---------------------------------------------------------------------------
 
 function generateWormChartSvg(match: Match): string {
-  const inn1 =
-    match.innings?.find((i) => i.team_id === match.team1_id) ??
-    match.innings?.[0];
-  const inn2 =
-    match.innings?.find((i) => i.team_id === match.team2_id) ??
-    match.innings?.[1];
+  const [inn1, inn2] = mainInningsInOrder(match);
 
   if (!inn1) return "";
 
@@ -1108,8 +1306,10 @@ function generateWormChartSvg(match: Match): string {
 
   if (inn1Overs.length === 0 && inn2Overs.length === 0) return "";
 
-  const team1Name = match.team1.short_name ?? match.team1.name;
-  const team2Name = match.team2.short_name ?? match.team2.name;
+  // Series follow the innings: the side that batted first, then the chase.
+  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
+  const team1Name = firstSide.short_name ?? firstSide.name;
+  const team2Name = secondSide.short_name ?? secondSide.name;
 
   const totalOversMax = Math.max(
     match.overs_per_innings || 20,
@@ -1145,7 +1345,7 @@ function generateWormChartSvg(match: Match): string {
     const gy = getY(val);
     gridLines.push(`
       <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">${val}</text>
+      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
     `);
   }
 
@@ -1155,7 +1355,7 @@ function generateWormChartSvg(match: Match): string {
   for (let ov = tickStep; ov <= totalOversMax; ov += tickStep) {
     const gx = getX(ov);
     xTicks.push(`
-      <text x="${gx}" y="${mt + ph + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">Ov ${ov}</text>
+      <text x="${gx}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">Ov ${ov}</text>
     `);
   }
 
@@ -1180,7 +1380,7 @@ function generateWormChartSvg(match: Match): string {
     .filter((p) => p.wickets > 0)
     .map(
       (p) =>
-        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#0f766e" stroke="#ffffff" stroke-width="1.5" />`,
+        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#1c6949" stroke="#ffffff" stroke-width="1.5" />`,
     )
     .join("");
 
@@ -1218,25 +1418,25 @@ function generateWormChartSvg(match: Match): string {
 
   return `
     <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#0f766e" />
-        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team1Name)}: ${inn1ScoreStr}</text>
+        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
+        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team1Name)}: ${inn1ScoreStr}</text>
 
         ${
           inn2Overs.length > 0
             ? `
         <rect x="${ml + 180}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 195}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team2Name)}: ${inn2ScoreStr}</text>
+        <text x="${ml + 195}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team2Name)}: ${inn2ScoreStr}</text>
         `
             : ""
         }
 
         <circle cx="${ml + 350}" cy="15" r="3.5" fill="#64748b" />
-        <text x="${ml + 360}" y="19" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" fill="#64748b">Wicket</text>
+        <text x="${ml + 360}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
 
         ${gridLines.join("")}
         ${xTicks.join("")}
 
-        <path d="${d1}" fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="${d1}" fill="none" stroke="#1c6949" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
         ${d2 ? `<path d="${d2}" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ""}
 
         ${w1Circles}
@@ -1245,12 +1445,8 @@ function generateWormChartSvg(match: Match): string {
 }
 
 function generateManhattanChartSvg(match: Match): string {
-  const inn1 =
-    match.innings?.find((i) => i.team_id === match.team1_id) ??
-    match.innings?.[0];
-  const inn2 =
-    match.innings?.find((i) => i.team_id === match.team2_id) ??
-    match.innings?.[1];
+  const [inn1, inn2] = mainInningsInOrder(match);
+  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
 
   if (!inn1) return "";
 
@@ -1285,7 +1481,7 @@ function generateManhattanChartSvg(match: Match): string {
     const gy = getY(val);
     gridLines.push(`
       <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'JetBrains Mono', monospace" font-size="8.5" fill="#94a3b8">${val}</text>
+      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
     `);
   }
 
@@ -1308,7 +1504,7 @@ function generateManhattanChartSvg(match: Match): string {
       const by = mt + ph - bh;
       if (o1.runs > 0) {
         bars.push(
-          `<rect x="${(slotLeft + 1).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#0f766e" />`,
+          `<rect x="${(slotLeft + 1).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#1c6949" />`,
         );
       }
       if (o1.wickets > 0) {
@@ -1335,21 +1531,21 @@ function generateManhattanChartSvg(match: Match): string {
 
     if (ovNum % tickStep === 0 || ovNum === 1) {
       xLabels.push(
-        `<text x="${(slotLeft + slotW / 2).toFixed(1)}" y="${mt + ph + 14}" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="8" fill="#94a3b8">${ovNum}</text>`,
+        `<text x="${(slotLeft + slotW / 2).toFixed(1)}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8" fill="#94a3b8">${ovNum}</text>`,
       );
     }
   }
 
   return `
     <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#0f766e" />
-        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(match.team1.short_name ?? match.team1.name)}</text>
+        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
+        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(firstSide.short_name ?? firstSide.name)}</text>
 
         <rect x="${ml + 150}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 165}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(match.team2.short_name ?? match.team2.name)}</text>
+        <text x="${ml + 165}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(secondSide.short_name ?? secondSide.name)}</text>
 
         <circle cx="${ml + 300}" cy="15" r="3" fill="#e11d48" />
-        <text x="${ml + 308}" y="19" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" fill="#64748b">Wicket</text>
+        <text x="${ml + 308}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
 
         ${gridLines.join("")}
         ${xLabels.join("")}
@@ -1363,11 +1559,16 @@ function generateManhattanChartSvg(match: Match): string {
 // ---------------------------------------------------------------------------
 
 function renderSignoffBlock(match: Match): string {
-  const team1Cap = match.team1.captain?.full_name ?? "Team 1 Captain";
-  const team2Cap = match.team2.captain?.full_name ?? "Team 2 Captain";
-  const leadUmpire = match.umpire1_name ?? "Lead Match Umpire";
-  const scorerRef =
-    match.scorer_name ?? match.umpire2_name ?? "Official Scorer";
+  // Names only when the match holds them; otherwise a blank line to write
+  // the name on (never the role repeated as a name).
+  const team1Cap = match.team1.captain?.full_name ?? null;
+  const team2Cap = match.team2.captain?.full_name ?? null;
+  const leadUmpire = match.umpire1_name ?? null;
+  const scorerRef = match.scorer_name ?? null;
+  const nameLine = (name: string | null) =>
+    name
+      ? `<div class="signoff-name font-medium">${esc(name)}</div>`
+      : `<div class="signoff-name signoff-name-blank" aria-label="Name"></div>`;
 
   const matchIdShort = match.id.slice(0, 8).toUpperCase();
   const dateStr = new Date().toISOString().slice(0, 10);
@@ -1393,7 +1594,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">${esc(team1Role)}</div>
-                    <div class="signoff-name font-medium">${esc(team1Cap)}</div>
+                    ${nameLine(team1Cap)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1403,7 +1604,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">${esc(team2Role)}</div>
-                    <div class="signoff-name font-medium">${esc(team2Cap)}</div>
+                    ${nameLine(team2Cap)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1413,7 +1614,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">Lead Match Umpire</div>
-                    <div class="signoff-name font-medium">${esc(leadUmpire)}</div>
+                    ${nameLine(leadUmpire)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1423,7 +1624,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">Official Scorer / Referee</div>
-                    <div class="signoff-name font-medium">${esc(scorerRef)}</div>
+                    ${nameLine(scorerRef)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1434,7 +1635,7 @@ function renderSignoffBlock(match: Match): string {
 
         <div class="signoff-footer">
             <span>By signing above, both teams and officiating umpires ratify this scorecard as the binding and final record of the fixture.</span>
-            <span class="font-mono">Match ID: #${matchIdShort} &bull; Verified: ${dateStr}</span>
+            <span class="font-mono">Match ID: #${matchIdShort} &bull; Generated: ${dateStr}</span>
         </div>
     </div>`;
 }
@@ -1510,14 +1711,17 @@ export async function buildMatchReportHtml(
   match: Match,
   matchUrl: string,
 ): Promise<string> {
+  // A 4-module quiet zone (the QR standard): with less, phone cameras
+  // often fail to read it from paper.
   const qrDataUrl = await QRCode.toDataURL(matchUrl, {
-    margin: 1,
+    margin: 4,
     width: 260,
-    color: { dark: "#065f46", light: "#ffffff" },
+    errorCorrectionLevel: "M",
+    color: { dark: "#113227", light: "#ffffff" },
   });
 
   const toss = match.toss_winner_team_id
-    ? `${match.toss_winner_team_id === match.team1.id ? match.team1.name : match.team2.name} Opted To ${match.toss_decision === "bowl" ? "Bowl" : "Bat"}`
+    ? `${match.toss_winner_team_id === match.team2.id ? match.team2.name : match.team1.name} won the toss and chose to ${match.toss_decision === "bowl" ? "bowl" : "bat"}`
     : null;
 
   const formattedDate = match.scheduled_at
@@ -1527,12 +1731,15 @@ export async function buildMatchReportHtml(
       })
     : "—";
 
-  const inn1 =
-    match.innings?.find((i) => i.team_id === match.team1_id) ??
-    match.innings?.[0];
-  const inn2 =
-    match.innings?.find((i) => i.team_id === match.team2_id) ??
-    match.innings?.[1];
+  // Batting order: the side that batted first, then the chase.
+  const [
+    { team: firstTeam, innings: inn1 },
+    { team: secondTeam, innings: inn2 },
+  ] = sidesInBattingOrder(match);
+  const pdfFileName = `${firstTeam.name} vs ${secondTeam.name} – match report.pdf`
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const formatTeamHeadlineScore = (inn: InningsRow | undefined) => {
     if (!inn) return `<span class="headline-score-empty">Yet to bat</span>`;
@@ -1658,6 +1865,17 @@ export async function buildMatchReportHtml(
 
   const innings1Html = inn1Obj ? inningsSection(inn1Obj, 0, inn1Team) : "";
   const innings2Html = inn2Obj ? inningsSection(inn2Obj, 1, inn2Team) : "";
+  // Super overs (innings 3+), after the match's two innings.
+  const superOversHtml = sortedInnings
+    .slice(2)
+    .map((inn) =>
+      inningsSection(
+        inn,
+        inn.innings_number - 1,
+        inn.team_id === match.team2_id ? match.team2 : match.team1,
+      ),
+    )
+    .join("");
 
   const phaseHtml = renderPhaseAnalysis(match);
   const impactHtml = renderImpactLeaderboard(match);
@@ -1675,6 +1893,35 @@ export async function buildMatchReportHtml(
   ]
     .filter(Boolean)
     .join(", ");
+  // Only what the match holds: a missing fact gets no row, not a filler.
+  const infoRows = (
+    [
+      ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
+      ["Match Title", match.title],
+      ["Match Format", match.match_format],
+      ["Overs", `${match.overs_per_innings} ov per side`],
+      ["Venue", match.venue ?? null],
+      ["Date &amp; Time", match.scheduled_at ? formattedDate : null],
+      ["Toss", toss],
+      ["Match Umpires", umpiresStr || null],
+      ["Scorer", match.scorer_name ?? null],
+      ["Ball Type", match.ball_type ?? null],
+    ] as Array<[string, string | null | undefined]>
+  )
+    .filter(([, v]) => Boolean(v))
+    .map(
+      ([label, v]) => `<div class="info-row">
+                        <span class="info-label">${label}</span>
+                        <span class="info-val">${esc(v)}</span>
+                    </div>`,
+    )
+    .concat(
+      `<div class="info-row">
+                        <span class="info-label">Match ID</span>
+                        <span class="info-val font-mono">#${esc(match.id.slice(0, 8))}</span>
+                    </div>`,
+    )
+    .join("\n                    ");
   const conditionsStr = [match.pitch_conditions, match.weather_conditions]
     .filter(Boolean)
     .join(" &bull; ");
@@ -1689,7 +1936,7 @@ export async function buildMatchReportHtml(
 <title>${esc(match.title)} — Official Match Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
     @page {
         size: A4 portrait;
@@ -1703,9 +1950,10 @@ export async function buildMatchReportHtml(
     }
 
     :root {
-        --brand-teal: #0f766e;
-        --brand-dark: #042f2e;
-        --brand-light: #f0fdfa;
+        --brand-teal: #1c6949; /* pitch green, the app's primary */
+        --brand-dark: #113227; /* scoreboard green, the brand mark's tile */
+        --brand-light: #f4fbf8;
+        --brand-ruby: #ba2626;
         --slate-900: #090d16;
         --slate-800: #1e293b;
         --slate-700: #334155;
@@ -1717,7 +1965,7 @@ export async function buildMatchReportHtml(
     }
 
     body {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: 'Barlow', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         color: var(--slate-900);
         background: #f1f5f9;
         margin: 0;
@@ -1731,7 +1979,7 @@ export async function buildMatchReportHtml(
     .text-left { text-align: left !important; }
     .text-center { text-align: center !important; }
     .text-right { text-align: right !important; }
-    .font-mono { font-family: 'JetBrains Mono', monospace !important; font-variant-numeric: tabular-nums; }
+    .font-mono { font-family: 'Barlow Condensed', sans-serif !important; font-variant-numeric: tabular-nums; }
     .font-medium { font-weight: 500 !important; }
     .font-semibold { font-weight: 600 !important; }
     .font-bold { font-weight: 700 !important; }
@@ -1756,7 +2004,7 @@ export async function buildMatchReportHtml(
         box-sizing: border-box;
     }
     #screen-toolbar .toolbar-info {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 13px;
         font-weight: 600;
         color: #e2e8f0;
@@ -1774,21 +2022,28 @@ export async function buildMatchReportHtml(
         padding: 8px 18px;
         font-size: 12px;
         font-weight: 700;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Barlow', sans-serif;
         border-radius: 8px;
         border: none;
         transition: transform 0.15s, opacity 0.15s;
     }
     #screen-toolbar .btn-print {
-        background: #0d9488;
+        background: #1c6949;
         color: #ffffff;
-        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+        box-shadow: 0 2px 8px rgba(28, 105, 73, 0.3);
     }
-    #screen-toolbar .btn-close {
+    #screen-toolbar .btn-close,
+    #screen-toolbar .btn-share {
         background: #1e293b;
         color: #f1f5f9;
         border: 1px solid #334155;
     }
+    #screen-toolbar button:disabled {
+        opacity: 0.6;
+        cursor: progress;
+        transform: none;
+    }
+    #screen-toolbar button[hidden] { display: none; }
     #screen-toolbar button:hover {
         opacity: 0.92;
         transform: translateY(-1px);
@@ -1874,15 +2129,46 @@ export async function buildMatchReportHtml(
         margin-bottom: 16px;
     }
     .brand-mark {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
-        letter-spacing: 0.08em;
-        color: var(--brand-teal);
-        text-transform: uppercase;
+        color: var(--brand-dark);
         display: flex;
         align-items: center;
         gap: 8px;
+    }
+    .brand-tile {
+        width: 26px;
+        height: 26px;
+        flex-shrink: 0;
+        display: block;
+    }
+    /* The app's wordmark: condensed, bold; its full stop is the red ball. */
+    .brand-wordmark {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--brand-dark);
+        display: inline-flex;
+        align-items: baseline;
+        gap: 3px;
+    }
+    .brand-ball {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--brand-ruby);
+        display: inline-block;
+    }
+    .toolbar-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .toolbar-brand .brand-tile {
+        width: 20px;
+        height: 20px;
     }
     .brand-mark span.badge-sub {
         font-size: 10.5px;
@@ -1915,7 +2201,7 @@ export async function buildMatchReportHtml(
     }
 
     h1.report-main-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 26px;
         font-weight: 800;
         letter-spacing: -0.02em;
@@ -1949,9 +2235,9 @@ export async function buildMatchReportHtml(
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #0d9488, #0f766e);
+        background: var(--brand-dark);
         color: #ffffff;
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         display: flex;
@@ -1972,7 +2258,7 @@ export async function buildMatchReportHtml(
         flex-direction: column;
     }
     .duel-team-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 15px;
         font-weight: 800;
         color: var(--slate-900);
@@ -1980,7 +2266,7 @@ export async function buildMatchReportHtml(
         text-transform: uppercase;
     }
     .headline-score {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 15px;
         font-weight: 700;
         color: var(--slate-800);
@@ -2011,7 +2297,7 @@ export async function buildMatchReportHtml(
         color: var(--brand-teal);
     }
     .result-pill-desc {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         color: var(--slate-900);
@@ -2033,20 +2319,20 @@ export async function buildMatchReportHtml(
         color: #d97706;
     }
     .potm-hero-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12.5px;
         font-weight: 700;
         color: var(--slate-900);
     }
     .potm-hero-stats {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 10px;
         color: var(--slate-600);
     }
 
     /* Section Headers */
     .section-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 14px;
         font-weight: 800;
         letter-spacing: -0.01em;
@@ -2117,7 +2403,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 6px;
     }
     .summary-team-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 13px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2168,7 +2454,7 @@ export async function buildMatchReportHtml(
         gap: 10px;
     }
     .section-page-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 18px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2190,7 +2476,7 @@ export async function buildMatchReportHtml(
         gap: 6px;
     }
     .score-main {
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
         font-size: 17px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2209,7 +2495,7 @@ export async function buildMatchReportHtml(
     }
 
     .table-subheading {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2251,7 +2537,7 @@ export async function buildMatchReportHtml(
     }
 
     .player-name {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-weight: 600;
         color: var(--slate-900);
         font-size: 11.5px;
@@ -2268,7 +2554,7 @@ export async function buildMatchReportHtml(
         font-size: 10.5px;
         padding: 1px 5px;
         border-radius: 4px;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .milestone-badge.fifty {
         background: #dcfce7;
@@ -2319,7 +2605,7 @@ export async function buildMatchReportHtml(
         align-items: baseline;
     }
     .fow-label {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-weight: 700;
         color: var(--slate-700);
     }
@@ -2350,7 +2636,7 @@ export async function buildMatchReportHtml(
         text-align: center;
     }
     .comp-team-label {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12px;
         font-weight: 800;
         color: var(--brand-teal);
@@ -2404,7 +2690,7 @@ export async function buildMatchReportHtml(
         border-radius: 4px;
         font-size: 10px;
         font-weight: 700;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .ball-dot { background: #f1f5f9; color: var(--slate-600); border: 1px solid #e2e8f0; }
     .ball-single { background: #ffffff; color: var(--slate-900); border: 1px solid #cbd5e1; }
@@ -2465,7 +2751,7 @@ export async function buildMatchReportHtml(
         gap: 3px;
     }
     .footer-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 11px;
         font-weight: 700;
         color: var(--brand-teal);
@@ -2473,7 +2759,7 @@ export async function buildMatchReportHtml(
     .footer-url {
         font-size: 10.5px;
         color: var(--slate-600);
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
     }
     .footer-stamp {
         font-size: 9px;
@@ -2541,7 +2827,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 4px;
     }
     .part-wkt-badge {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 700;
         color: var(--brand-teal);
@@ -2562,7 +2848,7 @@ export async function buildMatchReportHtml(
         margin-bottom: 5px;
     }
     .part-bar-seg.seg-1 {
-        background: #0f766e;
+        background: #1c6949;
     }
     .part-bar-seg.seg-2 {
         background: #d97706;
@@ -2627,7 +2913,7 @@ export async function buildMatchReportHtml(
         font-size: 11px;
     }
     .phase-table th {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9.5px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2669,7 +2955,7 @@ export async function buildMatchReportHtml(
         margin-top: 1px;
     }
     .adv-pill {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9.5px;
         font-weight: 800;
         padding: 3px 8px;
@@ -2679,8 +2965,8 @@ export async function buildMatchReportHtml(
         letter-spacing: 0.03em;
     }
     .adv-team1 {
-        background: #ccfbf1;
-        color: #0f766e;
+        background: #e2f3ec;
+        color: #1c6949;
     }
     .adv-team2 {
         background: #fef3c7;
@@ -2713,7 +2999,7 @@ export async function buildMatchReportHtml(
         display: flex;
         align-items: center;
         justify-content: center;
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 10px;
         font-weight: 800;
         flex-shrink: 0;
@@ -2809,7 +3095,7 @@ export async function buildMatchReportHtml(
         overflow: hidden;
     }
     .chart-panel-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2848,7 +3134,7 @@ export async function buildMatchReportHtml(
     .seal-icon {
         width: 18px;
         height: 18px;
-        background: #0f766e;
+        background: #1c6949;
         color: #ffffff;
         border-radius: 50%;
         display: flex;
@@ -2858,7 +3144,7 @@ export async function buildMatchReportHtml(
         font-weight: 800;
     }
     .seal-title {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 12px;
         font-weight: 800;
         color: var(--slate-900);
@@ -2889,7 +3175,7 @@ export async function buildMatchReportHtml(
         min-height: 82px;
     }
     .signoff-role {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Barlow', sans-serif;
         font-size: 9px;
         font-weight: 700;
         text-transform: uppercase;
@@ -2906,6 +3192,11 @@ export async function buildMatchReportHtml(
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    .signoff-name-blank {
+      min-height: 1.1em;
+      margin-top: 4px;
+      border-bottom: 1px dotted #cbd5e1;
     }
     .signoff-sig-area {
         margin-top: 14px;
@@ -2948,7 +3239,15 @@ export async function buildMatchReportHtml(
             gap: 10px;
         }
         #screen-toolbar .toolbar-info {
-            font-size: 11.5px;
+            display: none;
+        }
+        #screen-toolbar .toolbar-actions {
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        #screen-toolbar .toolbar-actions button {
+            flex: 1 1 40%;
         }
         #screen-toolbar button {
             padding: 6px 14px;
@@ -3118,10 +3417,17 @@ export async function buildMatchReportHtml(
 <body>
     <div id="screen-toolbar">
         <div class="toolbar-info">
-            <span><svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore Match Report &bull; Print Preview</span>
+            <span class="toolbar-brand">${BRAND_MARK}CricScore match report</span>
         </div>
         <div class="toolbar-actions">
-            <button class="btn-print" onclick="window.print()">
+            <button id="btn-share-pdf" class="btn-print" type="button" disabled
+                data-file-name="${esc(pdfFileName)}">
+                Preparing PDF…
+            </button>
+            <button class="btn-share" type="button" data-url="${esc(matchUrl)}" onclick="(function(b){var u=b.getAttribute('data-url');if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){b.textContent='Link copied';});}})(this)">
+                Share link
+            </button>
+            <button class="btn-close" onclick="(document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){window.print();})">
                 Save as PDF / Print
             </button>
             <button class="btn-close" onclick="window.close()">
@@ -3135,7 +3441,7 @@ export async function buildMatchReportHtml(
         <div class="page-inner">
             <header class="report-top-header">
                 <div class="brand-mark">
-                    <span><svg style="width:16px;height:16px;display:inline-block;vertical-align:-3px;margin-right:5px;color:#10b981;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore</span>
+                    ${BRAND_MARK}<span class="brand-wordmark">CricScore<span class="brand-ball" aria-hidden="true"></span></span>
                     <span style="font-weight: normal; color: #cbd5e1;">|</span>
                     <span class="badge-sub">Official Match Record</span>
                 </div>
@@ -3152,19 +3458,19 @@ export async function buildMatchReportHtml(
                 <div class="duel-teams-col">
                     <div class="duel-team-item">
                         <div class="team-avatar-crest">
-                            ${match.team1.logo_url ? `<img src="${esc(match.team1.logo_url)}" alt="${esc(match.team1.name)}" />` : esc(match.team1.short_name?.slice(0, 3) || match.team1.name.slice(0, 2).toUpperCase())}
+                            ${firstTeam.logo_url ? `<img src="${esc(firstTeam.logo_url)}" alt="${esc(firstTeam.name)}" data-initials="${esc(crestText(firstTeam))}" />` : esc(crestText(firstTeam))}
                         </div>
                         <div class="duel-team-info">
-                            <span class="duel-team-name">${esc(match.team1.name)}</span>
+                            <span class="duel-team-name">${esc(firstTeam.name)}</span>
                             <div>${formatTeamHeadlineScore(inn1)}</div>
                         </div>
                     </div>
                     <div class="duel-team-item">
                         <div class="team-avatar-crest">
-                            ${match.team2.logo_url ? `<img src="${esc(match.team2.logo_url)}" alt="${esc(match.team2.name)}" />` : esc(match.team2.short_name?.slice(0, 3) || match.team2.name.slice(0, 2).toUpperCase())}
+                            ${secondTeam.logo_url ? `<img src="${esc(secondTeam.logo_url)}" alt="${esc(secondTeam.name)}" data-initials="${esc(crestText(secondTeam))}" />` : esc(crestText(secondTeam))}
                         </div>
                         <div class="duel-team-info">
-                            <span class="duel-team-name">${esc(match.team2.name)}</span>
+                            <span class="duel-team-name">${esc(secondTeam.name)}</span>
                             <div>${formatTeamHeadlineScore(inn2)}</div>
                         </div>
                     </div>
@@ -3173,7 +3479,7 @@ export async function buildMatchReportHtml(
                 <div class="duel-outcome-col">
                     <div class="result-pill-box">
                         <span class="result-pill-label">Result</span>
-                        <span class="result-pill-desc">${esc(match.result_description ?? "Match Completed")}</span>
+                        <span class="result-pill-desc">${esc(formatMatchResult(match) || "Match in progress")}</span>
                     </div>
                     ${potmHtml}
                 </div>
@@ -3186,54 +3492,7 @@ export async function buildMatchReportHtml(
             <div class="section-title">Match Information &amp; Playing Conditions</div>
             <div class="match-info-card">
                 <div class="info-grid">
-                    <div class="info-row">
-                        <span class="info-label">Organiser</span>
-                        <span class="info-val">${esc(match.tournament?.name ?? match.club?.name ?? "Host Organiser")}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Match Title</span>
-                        <span class="info-val">${esc(match.title)}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Match Format</span>
-                        <span class="info-val">${esc(match.match_format)}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Playing</span>
-                        <span class="info-val">11 Per Side</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Overs</span>
-                        <span class="info-val">${match.overs_per_innings} ov per side</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Venue</span>
-                        <span class="info-val">${esc(match.venue ?? "—")}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Date &amp; Time</span>
-                        <span class="info-val">${formattedDate}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Toss</span>
-                        <span class="info-val">${esc(toss ?? "—")}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Match Umpires</span>
-                        <span class="info-val">${esc(umpiresStr || (match.umpire1_name ?? "Official League Umpires"))}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Official Scorer</span>
-                        <span class="info-val">${esc(match.scorer_name ?? match.umpire2_name ?? "Official Scorer")}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Ball Type</span>
-                        <span class="info-val">${esc(match.ball_type ?? "Standard Leather Ball")}</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Match ID</span>
-                        <span class="info-val font-mono">#${esc(match.id.slice(0, 8))}</span>
-                    </div>
+                    ${infoRows}
                     ${conditionsStr ? `<div class="info-row" style="grid-column: span 2;"><span class="info-label">Pitch &amp; Weather</span><span class="info-val">${conditionsStr}</span></div>` : ""}
                     ${rulesList.length > 0 ? `<div class="info-row" style="grid-column: span 2;"><span class="info-label">Special Rules</span><span class="info-val">${rulesList.map(esc).join(", ")}</span></div>` : ""}
                 </div>
@@ -3243,8 +3502,8 @@ export async function buildMatchReportHtml(
             ${inn1Obj ? innings1Html : `
             <div class="section-title">Match Summary</div>
             <div class="summary-card">
-                ${renderTeamPerformers(match.team1, match.team2, inn1)}
-                ${renderTeamPerformers(match.team2, match.team1, inn2)}
+                ${renderTeamPerformers(firstTeam, secondTeam, inn1)}
+                ${renderTeamPerformers(secondTeam, firstTeam, inn2)}
             </div>
             `}
 
@@ -3280,6 +3539,8 @@ export async function buildMatchReportHtml(
         <div class="page-inner">
             ${innings2Html}
 
+            ${superOversHtml}
+
             ${overComparisonHtml}
 
             ${renderSignoffBlock(match)}
@@ -3298,6 +3559,7 @@ export async function buildMatchReportHtml(
         </footer>
     </div>
     ` : ""}
+${SHARE_PDF_SCRIPT}
 </body>
 </html>`;
 }

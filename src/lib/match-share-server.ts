@@ -6,6 +6,7 @@ import type { DataSource } from "./firebase/datasource";
 import { inningsSummaryEntry } from "./firebase/derive.mjs";
 import { staleSummaryInnings } from "./firebase/innings-summary";
 import type { ShareMatch } from "./match-share";
+import { originFromHeaders } from "./request-origin";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,12 +52,5 @@ export async function loadShareMatch(
  * Next.js fallback for a missing `metadataBase` is localhost.
  */
 export async function requestOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3005";
-  const proto =
-    h.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
-    (host.startsWith("localhost") || host.startsWith("127.")
-      ? "http"
-      : "https");
-  return `${proto}://${host.split(",")[0]!.trim()}`;
+  return originFromHeaders(await headers());
 }

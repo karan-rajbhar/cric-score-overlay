@@ -100,4 +100,48 @@ describe("createTeamPlayer", () => {
       /^player\.samlee\.[0-9a-f]{8}@players\.local$/,
     );
   });
+
+  it("lets a match's invited scorer add players to its teams until it is over", async () => {
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "owner", club_id: null },
+        { id: "t3", created_by: "owner", club_id: null },
+      ],
+      matches: [
+        {
+          id: "m1",
+          created_by: "owner",
+          match_admins: ["coscorer"],
+          team1_id: "t1",
+          team2_id: "t2",
+          status: "live",
+        },
+      ],
+    });
+    // Not without the match, and not to a team outside it.
+    await expect(
+      createTeamPlayer(ds, "coscorer", "t1", "Ana", null),
+    ).rejects.toThrow(/not_authorized/);
+    await expect(
+      createTeamPlayer(ds, "coscorer", "t3", "Ana", null, "m1"),
+    ).rejects.toThrow(/not_authorized/);
+    // Someone who does not score the match.
+    await expect(
+      createTeamPlayer(ds, "stranger", "t1", "Ana", null, "m1"),
+    ).rejects.toThrow(/not_authorized/);
+
+    for (const team of ["t1", "t2"]) {
+      const res = await createTeamPlayer(ds, "coscorer", team, "Ana", null, "m1");
+      const rows = await ds.query("team_players", [
+        { field: "user_id", op: "==", value: res.user_id },
+      ]);
+      expect(rows).toMatchObject([{ team_id: team, added_by: "coscorer" }]);
+    }
+
+    await ds.update("matches", "m1", { status: "completed" });
+    await expect(
+      createTeamPlayer(ds, "coscorer", "t1", "Ana", null, "m1"),
+    ).rejects.toThrow(/not_authorized/);
+  });
 });

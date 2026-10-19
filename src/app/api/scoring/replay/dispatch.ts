@@ -20,6 +20,7 @@ import {
   updateBall,
 } from "~/app/matches/mutations";
 import type { ServerClient } from "~/lib/firebase/server";
+import { mergeScoringDeltas, type ScoringDelta } from "~/lib/scoring-delta";
 import type {
   ReplayActionResult,
   ReplayBatchAction,
@@ -29,6 +30,23 @@ import {
   type ValidReplayAction,
 } from "~/lib/scoring-replay/schemas";
 
+/** What running one action came back with. */
+interface RunOutcome {
+  error: string | null;
+  /** The documents it committed, when the mutation answers with them. */
+  delta: ScoringDelta | null;
+}
+
+const withoutDelta = (res: { error: string | null }): RunOutcome => ({
+  error: res.error,
+  delta: null,
+});
+
+const withDelta = (res: {
+  error: string | null;
+  delta?: ScoringDelta | null;
+}): RunOutcome => ({ error: res.error, delta: res.delta ?? null });
+
 /**
  * Runs one action; its id goes to the engine as the idempotency key
  * (`p_client_action_id`), so an action it has already applied is not
@@ -37,12 +55,12 @@ import {
 async function run(
   matchId: string,
   action: ValidReplayAction,
-): Promise<string | null> {
+): Promise<RunOutcome> {
   const id = action.id;
   switch (action.type) {
     case "recordBall": {
       const { bowlerId, batsmanId, nonStrikerId, event } = action.payload;
-      return (
+      return withDelta(
         await recordBall({
           matchId,
           bowlerId,
@@ -50,46 +68,47 @@ async function run(
           nonStrikerId,
           event,
           clientActionId: id,
-        })
-      ).error;
+        }),
+      );
     }
     case "undoLastBall":
-      return (await undoLastBall(matchId, id)).error;
+      return withDelta(await undoLastBall(matchId, id));
     case "endInnings":
-      return (await endInnings(matchId, id)).error;
+      return withoutDelta(await endInnings(matchId, id));
     case "startSuperOver":
-      return (await startSuperOver(matchId, id)).error;
+      return withoutDelta(await startSuperOver(matchId, id));
     case "setBatsmen":
-      return (
+      return withDelta(
         await setCurrentBatsmen(
           matchId,
           action.payload.strikerId,
           action.payload.nonStrikerId,
           id,
-        )
-      ).error;
+        ),
+      );
     case "setBowler":
-      return (await setCurrentBowler(matchId, action.payload.bowlerId, id))
-        .error;
+      return withDelta(
+        await setCurrentBowler(matchId, action.payload.bowlerId, id),
+      );
     case "retireBatter":
-      return (
-        await retirePlayer(matchId, { ...action.payload, clientActionId: id })
-      ).error;
+      return withoutDelta(
+        await retirePlayer(matchId, { ...action.payload, clientActionId: id }),
+      );
     case "awardPenalty":
-      return (
+      return withoutDelta(
         await awardTeamPenalty(matchId, {
           ...action.payload,
           clientActionId: id,
-        })
-      ).error;
+        }),
+      );
     case "reassignOverBowler":
-      return (
-        await reassignCurrentOverBowler(matchId, action.payload.bowlerId, id)
-      ).error;
+      return withoutDelta(
+        await reassignCurrentOverBowler(matchId, action.payload.bowlerId, id),
+      );
     case "updateBall":
-      return (
-        await updateBall({ matchId, ...action.payload, clientActionId: id })
-      ).error;
+      return withoutDelta(
+        await updateBall({ matchId, ...action.payload, clientActionId: id }),
+      );
   }
 }
 
@@ -130,15 +149,20 @@ async function appliedActionIds(
 /**
  * Applies `actions` in order and stops at the first failure: the actions
  * after it are not attempted (and get no result), so the client keeps them
- * queued in order behind the failed one.
+ * queued in order behind the failed one. `delta`: the documents the applied
+ * actions committed (see `ReplayResponse.delta`).
  */
 export async function replayActions(
   db: ServerClient,
   matchId: string,
   actions: ReplayBatchAction[],
-): Promise<ReplayActionResult[]> {
-  const seen = await appliedActionIds(db, matchId);
+): Promise<{ results: ReplayActionResult[]; delta: ScoringDelta | null }> {
+  // Only an action sent before can have been applied already.
+  const seen = actions.some((a) => a.resent)
+    ? await appliedActionIds(db, matchId)
+    : new Set<string>();
   const results: ReplayActionResult[] = [];
+  const deltas: Array<ScoringDelta | null> = [];
   for (const raw of actions) {
     const parsed = parseReplayAction(matchId, raw);
     if (!parsed.ok) {
@@ -154,24 +178,32 @@ export async function replayActions(
       results.push({ id: raw.id, status: "duplicate" });
       continue;
     }
-    let error: string | null;
+    let outcome: RunOutcome;
     try {
-      error = await run(matchId, parsed.action);
+      outcome = await run(matchId, parsed.action);
     } catch (err) {
       console.error(`replay: ${raw.type} failed:`, err);
-      error = err instanceof Error ? err.message : String(err);
+      outcome = {
+        error: err instanceof Error ? err.message : String(err),
+        delta: null,
+      };
     }
-    if (error) {
+    if (outcome.error) {
       results.push({
         id: raw.id,
         status: "failed",
         code: "action_failed",
-        error,
+        error: outcome.error,
       });
       break;
     }
     seen.add(raw.id);
+    deltas.push(outcome.delta);
     results.push({ id: raw.id, status: "applied" });
   }
-  return results;
+  // A duplicate wrote nothing this time, so its documents are unknown.
+  const delta = results.some((r) => r.status === "duplicate")
+    ? null
+    : mergeScoringDeltas(deltas);
+  return { results, delta };
 }

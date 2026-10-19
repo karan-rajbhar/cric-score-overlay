@@ -28,6 +28,8 @@ interface PlayerPickerProps {
   /** Show the search box once the list is longer than this. */
   searchThreshold?: number;
   emptyMessage?: string;
+  /** What the rows are, for the search box: "batter", "bowler", "fielder". */
+  noun?: string;
   className?: string;
 }
 
@@ -60,6 +62,7 @@ export function PlayerPicker({
   addPlayer,
   searchThreshold = 8,
   emptyMessage = "No players in this squad yet.",
+  noun = "player",
   className,
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
@@ -137,26 +140,69 @@ export function PlayerPicker({
   return (
     <div className={cn("space-y-2", className)}>
       {showSearch && (
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            id={inputId}
-            type="search"
-            name="player-search"
-            autoComplete="off"
-            enterKeyHint={firstEnabled ? "go" : "done"}
-            aria-label={addPlayer ? "Search or add a player" : "Search players"}
-            placeholder={
-              addPlayer ? "Search or add a player" : "Search players"
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onSearchKeyDown}
-            className="h-11 pl-9 text-base sm:text-sm"
-          />
+        // On phones the list does not scroll on its own (the dialog does:
+        // one scroll), so the search stays pinned at the top while it moves.
+        <div className="max-sm:sticky max-sm:top-0 max-sm:z-10 max-sm:-mx-1 max-sm:bg-card max-sm:px-1 max-sm:py-1">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              id={inputId}
+              type="search"
+              name="player-search"
+              autoComplete="off"
+              enterKeyHint={firstEnabled ? "go" : "done"}
+              aria-label={
+                addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`
+              }
+              placeholder={
+                addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`
+              }
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onSearchKeyDown}
+              className="h-11 pl-9 text-base sm:text-sm"
+            />
+          </div>
+          {/* Right under the search box (pinned with it on phones), so
+              "Add <name>" shows while the keyboard is open instead of
+              below the list, out of sight. */}
+          <div className="mt-2 space-y-2 empty:hidden">
+            {addPlayer && q && (
+              <div className="space-y-1">
+                {exactMatch && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    {exactMatch.name} is already in {addPlayer.teamName}. Add
+                    another player only if this is a different person.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full justify-start gap-2"
+                  disabled={!canAdd || adding}
+                  onClick={() => void add()}
+                >
+                  {adding ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <UserPlus className="h-4 w-4" aria-hidden />
+                  )}
+                  <span className="truncate">
+                    {exactMatch ? "Add another" : "Add"} “{query.trim()}” to{" "}
+                    {addPlayer.teamName}
+                  </span>
+                </Button>
+              </div>
+            )}
+            {addPlayer?.disabledReason && (q || rows.length === 0) && (
+              <p className="text-xs text-muted-foreground">
+                {addPlayer.disabledReason}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -164,7 +210,7 @@ export function PlayerPicker({
         ref={listRef}
         role="radiogroup"
         aria-label={label}
-        className="max-h-[min(42dvh,22rem)] space-y-1 overflow-y-auto overscroll-contain"
+        className="space-y-1 sm:max-h-[min(42dvh,22rem)] sm:overflow-y-auto sm:overscroll-contain"
       >
         {visible.map((row) => {
           const selected = row.id === selectedId;
@@ -250,39 +296,6 @@ export function PlayerPicker({
           </p>
         )}
       </div>
-
-      {addPlayer && q && (
-        <div className="space-y-1">
-          {exactMatch && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
-              {exactMatch.name} is already in {addPlayer.teamName}. Add another
-              player only if this is a different person.
-            </p>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 w-full justify-start gap-2"
-            disabled={!canAdd || adding}
-            onClick={() => void add()}
-          >
-            {adding ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <UserPlus className="h-4 w-4" aria-hidden />
-            )}
-            <span className="truncate">
-              {exactMatch ? "Add another" : "Add"} “{query.trim()}” to{" "}
-              {addPlayer.teamName}
-            </span>
-          </Button>
-        </div>
-      )}
-      {addPlayer?.disabledReason && (q || rows.length === 0) && (
-        <p className="text-xs text-muted-foreground">
-          {addPlayer.disabledReason}
-        </p>
-      )}
     </div>
   );
 }

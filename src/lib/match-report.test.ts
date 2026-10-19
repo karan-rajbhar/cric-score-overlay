@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildExportSummary, buildMatchReportHtml } from "./match-report";
+import {
+  buildExportSummary,
+  buildMatchReportHtml,
+  phaseBoundaries,
+} from "./match-report";
 import { makeMatch } from "~/test/factories";
 import type { Innings, Match } from "./match-types";
 
@@ -239,10 +243,13 @@ describe("match-report export helpers", () => {
         '6-141</strong> <span class="fow-sub">(Alex Davis, 17.1 ov)',
       );
 
-      // Typography & Modern styles
-      expect(html).toContain("Outfit");
-      expect(html).toContain("Plus Jakarta Sans");
-      expect(html).toContain("JetBrains Mono");
+      // The app's brand: its fonts, the stumps mark and the wordmark.
+      expect(html).toContain("family=Barlow:");
+      expect(html).toContain("Barlow+Condensed");
+      expect(html).not.toMatch(/Outfit|Plus Jakarta Sans|JetBrains Mono/);
+      expect(html).toContain('class="brand-tile"');
+      expect(html).toContain('<span class="brand-wordmark">CricScore');
+      expect(html).not.toContain("13 2 3 14 12 14 11 22 21 10 12 10 13 2");
       expect(html).toContain("match-duel-hero");
     });
 
@@ -331,22 +338,88 @@ describe("match-report export helpers", () => {
       expect(html).toContain("Official Verification &amp; Match Sign-off");
     });
 
-    it("renders key partnerships and fallback sign-off when deliveries are not present", async () => {
+    it("leaves out partnerships without a ball log, and signs off with blank name lines", async () => {
       const html = await buildMatchReportHtml(
         sampleMatch,
         "https://cricket.app/matches/match-124",
       );
 
-      // Partnerships computed from fall_of_wickets
-      expect(html).toContain("Key Partnerships");
-      expect(html).toContain("1st Wkt");
-      expect(html).toContain("David Brown");
+      // Who batted together is not known without the ball log: no made-up
+      // "Partner" rows.
+      expect(html).not.toContain("Key Partnerships");
+      expect(html).not.toContain("Active Batters");
 
-      // Verification signoff block
+      // Verification signoff block: roles, and a line to write unknown names
       expect(html).toContain("Official Verification &amp; Match Sign-off");
       expect(html).toContain("Certified Official Scoresheet");
       expect(html).toContain("Lead Match Umpire");
       expect(html).toContain("Official Scorer");
+      expect(html).toContain("signoff-name-blank");
+      expect(html).not.toContain("Team 1 Captain");
+      expect(html).toContain("Generated:");
+    });
+
+    it("builds partnerships from the actual pair, ball by ball", async () => {
+      const del = (
+        seq: number,
+        batsman: string,
+        nonStriker: string,
+        extra: Record<string, unknown> = {},
+      ) => ({
+        id: `d${seq}`,
+        match_id: "m1",
+        innings_id: "inn1",
+        seq,
+        over_number: 0,
+        ball_number: seq,
+        runs_scored: 1,
+        extras: 0,
+        extra_type: null,
+        is_wicket: false,
+        dismissal_type: null,
+        bowler_id: "bw",
+        batsman_id: batsman,
+        non_striker_id: nonStriker,
+        ...extra,
+      });
+      const names: Record<string, string> = { a: "Alpha", b: "Bravo", c: "Charlie" };
+      const match: Match = {
+        ...sampleMatch,
+        innings: [
+          {
+            ...innings1,
+            batting_performances: Object.entries(names).map(([id, full_name], i) => ({
+              id: `bp-${id}`,
+              match_id: "m1",
+              innings_id: "inn1",
+              user_id: id,
+              batting_position: i + 1,
+              runs_scored: 1,
+              balls_faced: 1,
+              fours: 0,
+              sixes: 0,
+              is_out: false,
+              user: { id, full_name },
+            })),
+            ball_by_ball: [
+              del(1, "a", "b"),
+              // Retired hurt: the stand ends, but it is no wicket.
+              del(2, "b", "a", { runs_scored: 0, is_wicket: true, dismissal_type: "retired_hurt", dismissed_player_id: "a" }),
+              del(3, "b", "c", { runs_scored: 4 }),
+              del(4, "c", "b", { runs_scored: 0, extras: 1, extra_type: "wide" }),
+            ] as never,
+          },
+        ],
+      };
+      const html = await buildMatchReportHtml(match, "https://x.test/m");
+      const section = html.slice(html.indexOf("Key Partnerships"));
+      // First stand Alpha-Bravo (2 balls), then Bravo-Charlie unbroken, still
+      // for the 1st wicket (retired hurt is not one).
+      expect(section).toContain("Alpha");
+      expect(section).toContain("Charlie");
+      expect(section.match(/1st Wkt/g)?.length).toBe(2);
+      expect(section).toContain("1st Wkt (Unbroken)");
+      expect(section).not.toContain("2nd Wkt");
     });
 
     it("verifies clean text alignment, CSS rules scoping, and signature lines in generated report", async () => {
@@ -445,5 +518,145 @@ describe("match-report export helpers", () => {
       expect(html).toContain("Official Verification &amp; Match Sign-off");
       expect(html).toContain("data:image/png;base64,"); // QR code
     });
+      it("lists the side that batted first first and batters in batting order", async () => {
+      const bat = (id: string, name: string, pos: number, balls: number) => ({
+        id: `bp-${id}`,
+        match_id: "m1",
+        innings_id: "inn1",
+        user_id: id,
+        batting_position: pos,
+        runs_scored: balls,
+        balls_faced: balls,
+        fours: 0,
+        sixes: 0,
+        is_out: true,
+        user: { id, full_name: name },
+      });
+      const match: Match = {
+        ...sampleMatch,
+        innings: [
+          { ...innings2, team_id: "t2", innings_number: 1 },
+          {
+            ...innings1,
+            team_id: "t1",
+            innings_number: 2,
+            target_runs: 161,
+            batting_performances: [
+              // Number 5 faced the most balls: still listed fifth.
+              bat("u5", "Fifth In", 5, 60),
+              bat("u1", "Opener One", 1, 10),
+              bat("u2", "Opener Two", 2, 12),
+            ],
+          },
+        ],
+      };
+      const html = await buildMatchReportHtml(match, "https://x.test/m");
+      const hero = html.slice(html.indexOf("match-duel-hero"));
+      expect(hero.indexOf("Coastal Kings")).toBeLessThan(
+        hero.indexOf("Royal Tigers"),
+      );
+      expect(html).toContain("Target 161");
+      const card = html.slice(html.indexOf("2nd Innings Scorecard"));
+      const order = ["Opener One", "Opener Two", "Fifth In"].map((n) =>
+        card.indexOf(n),
+      );
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+    });
+
+    it("states only facts the match holds, in plain words", async () => {
+      const html = await buildMatchReportHtml(
+        { ...sampleMatch, toss_winner_team_id: "t2", toss_decision: "bowl" },
+        "https://x.test/m",
+      );
+      for (const filler of [
+        "11 Per Side",
+        "Official League Umpires",
+        "Standard Leather Ball",
+        "Host Organiser",
+        "Opted To",
+      ]) {
+        expect(html).not.toContain(filler);
+      }
+      expect(html).toContain("Coastal Kings won the toss and chose to bowl");
+      const withScorer = await buildMatchReportHtml(
+        { ...sampleMatch, umpire1_name: "A Umpire", scorer_name: "C Scorer" },
+        "https://x.test/m",
+      );
+      expect(withScorer).toContain("A Umpire");
+      expect(withScorer).toContain("C Scorer");
+    });
+
+    it("includes super overs and marks a retired batter", async () => {
+      const match: Match = {
+        ...sampleMatch,
+        innings: [
+          {
+            ...innings1,
+            batting_performances: [
+              ...(innings1.batting_performances ?? []),
+              {
+                id: "bp-r",
+                match_id: "m1",
+                innings_id: "inn1",
+                user_id: "ur",
+                batting_position: 3,
+                runs_scored: 7,
+                balls_faced: 5,
+                fours: 1,
+                sixes: 0,
+                is_out: false,
+                dismissal_type: "retired_hurt",
+                user: { id: "ur", full_name: "Hurt Batter" },
+              },
+            ],
+          },
+          innings2,
+          { ...innings1, id: "inn3", innings_number: 3 },
+          { ...innings2, id: "inn4", innings_number: 4 },
+        ],
+      };
+      const html = await buildMatchReportHtml(match, "https://x.test/m");
+      expect(html).toContain("retired hurt");
+      expect(html.match(/Super Over Scorecard/g)).toHaveLength(2);
+    });
+  });
+
+  describe("phase analysis", () => {
+    it("splits any length into powerplay, middle and death overs", () => {
+      expect(phaseBoundaries(20)).toEqual({ ppEnd: 6, midEnd: 15 });
+      expect(phaseBoundaries(10)).toEqual({ ppEnd: 3, midEnd: 7 });
+      expect(phaseBoundaries(50)).toEqual({ ppEnd: 10, midEnd: 40 });
+      expect(phaseBoundaries(5)).toEqual({ ppEnd: 2, midEnd: 4 });
+      expect(phaseBoundaries(3)).toBeNull();
+    });
+  });
+
+  it("offers the report as a PDF file to share, built ahead of the tap", async () => {
+    const html = await buildMatchReportHtml(
+      {
+        ...sampleMatch,
+        team1: { ...sampleMatch.team1!, logo_url: "https://cdn.test/a.png" },
+      },
+      "https://x.test/m",
+    );
+    // Disabled until the file is ready; named after the sides in batting order.
+    expect(html).toMatch(/<button id="btn-share-pdf"[^>]*disabled/);
+    expect(html).toMatch(/data-file-name="[^"]+ vs [^"]+ – match report\.pdf"/);
+    // Pinned libraries, checked by the browser.
+    expect(html).toContain("html2canvas@1.4.1");
+    expect(html).toContain("jspdf@2.5.2");
+    expect(html.match(/"sha384-[A-Za-z0-9+/=]{64}"/g)).toHaveLength(2);
+    // The file alone goes to the share sheet (WhatsApp on iOS drops it
+    // when text comes with it).
+    expect(html).toContain("navigator.share({ files: [file] })");
+    // Logos carry what the crest shows without them.
+    expect(html).toContain('data-initials="');
+  });
+
+  it("shares the link and waits for fonts before printing", async () => {
+    const html = await buildMatchReportHtml(sampleMatch, "https://x.test/m");
+    expect(html).toContain('data-url="https://x.test/m"');
+    expect(html).toContain("Share link");
+    expect(html).toContain("document.fonts.ready");
   });
 });

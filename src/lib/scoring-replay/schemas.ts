@@ -122,6 +122,7 @@ export const replayBatchSchemaV1 = z.object({
         type: z.string().min(1).max(64),
         payload: z.unknown(),
         queuedAt: z.number().optional(),
+        resent: z.boolean().optional(),
       }),
     )
     .min(1)

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { LiveMatchHUD } from "./live-match-hud";
@@ -110,29 +110,55 @@ describe("LiveMatchHUD Component", () => {
     expect(screen.getByText(/wickets in hand/i)).toBeInTheDocument();
   });
 
-  it("renders active striker and non-striker with swap button", () => {
+  it("marks only the striker, and puts the other batter on strike when tapped", () => {
     const onSwapStriker = vi.fn();
+    const onChangeStriker = vi.fn();
+    const onChangeNonStriker = vi.fn();
+    const props = {
+      match: mockMatchChasing,
+      currentInnings: mockCurrentInningsChasing,
+      bowler: mockBowler,
+      lastBalls: ["1", "4"],
+      onSwapStriker,
+      onChangeStriker,
+      onChangeNonStriker,
+    };
+    const first = { ...mockStriker, position: 1 };
+    const second = { ...mockNonStriker, position: 2 };
+    const { rerender } = render(
+      <LiveMatchHUD {...props} striker={first} nonStriker={second} />,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Batter on strike" });
+    const radios = within(group).getAllByRole("radio");
+    // One on strike, marked once.
+    expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", "false"]);
+    expect(within(group).getAllByText("On strike")).toHaveLength(1);
+    expect(radios[0]).toHaveTextContent("Virat Kohli *");
+    expect(radios[1]).not.toHaveTextContent("*");
 
-    render(
+    // Tapping the other batter puts him on strike; tapping the striker does nothing.
+    fireEvent.click(radios[0]!);
+    expect(onSwapStriker).not.toHaveBeenCalled();
+    fireEvent.click(radios[1]!);
+    expect(onSwapStriker).toHaveBeenCalledTimes(1);
+
+    // After the change of strike the rows stay put; only the mark moves.
+    rerender(
       <LiveMatchHUD
-        match={mockMatchChasing}
-        currentInnings={mockCurrentInningsChasing}
-        striker={mockStriker}
-        nonStriker={mockNonStriker}
-        bowler={mockBowler}
-        lastBalls={["1", "4"]}
-        onSwapStriker={onSwapStriker}
+        {...props}
+        striker={{ ...second, isStriker: true }}
+        nonStriker={{ ...first, isStriker: false }}
       />,
     );
+    const after = within(screen.getByRole("radiogroup")).getAllByRole("radio");
+    expect(after[0]).toHaveTextContent(/Virat Kohli/);
+    expect(after.map((r) => r.getAttribute("aria-checked"))).toEqual(["false", "true"]);
 
-    expect(screen.getByText(/Virat Kohli \*/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hardik Pandya/i)).toBeInTheDocument();
-
-    const swapBtn = screen.getByRole("button", {
-      name: /swap active striker/i,
-    });
-    fireEvent.click(swapBtn);
-    expect(onSwapStriker).toHaveBeenCalledTimes(1);
+    // Each batter can be changed on his own.
+    fireEvent.click(screen.getByRole("button", { name: /change virat kohli/i }));
+    expect(onChangeNonStriker).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /change hardik pandya/i }));
+    expect(onChangeStriker).toHaveBeenCalledTimes(1);
   });
 
   it("renders bowler figures and max overs quota", () => {

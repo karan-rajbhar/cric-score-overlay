@@ -399,3 +399,32 @@ export function applyLiveResync<M extends SnapshotMatch, D>(
     names,
   );
 }
+
+/**
+ * Several mutations' deltas, committed one after the other, as one: the
+ * last match document and, per innings / over document, its last stored
+ * version. Applying it gives what applying each in turn would. Null when
+ * one of them is null (its documents are not known) or there are none.
+ */
+export function mergeScoringDeltas(
+  deltas: ReadonlyArray<ScoringDelta | null | undefined>,
+): ScoringDelta | null {
+  if (!deltas.length) return null;
+  const innings = new Map<string, ScoringDelta["innings"][number]>();
+  const overs = new Map<string, OversRow>();
+  let match: ScoringDelta["match"] | null = null;
+  for (const d of deltas) {
+    if (!d) return null;
+    if (match && d.match.id !== match.id) return null;
+    match = d.match;
+    for (const i of d.innings) {
+      innings.delete(i.id);
+      innings.set(i.id, i);
+    }
+    for (const o of d.overs) {
+      overs.delete(o.id);
+      overs.set(o.id, o);
+    }
+  }
+  return { match: match!, innings: [...innings.values()], overs: [...overs.values()] };
+}

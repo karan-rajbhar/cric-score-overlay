@@ -12,7 +12,7 @@ export interface PickerRow {
   role?: string | null;
   /** Today's figures, e.g. "23 (17)" or "2-0-14-1". */
   detail?: string | null;
-  /** Neutral marker such as "Next in", "Striker", "Bowling". */
+  /** Neutral marker such as "Striker", "Bowling". */
   tag?: string | null;
   /** Why the row cannot be picked; the row is disabled when set. */
   disabledReason?: string | null;
@@ -57,7 +57,7 @@ const nameOf = (p: PickablePlayer) => p.user?.full_name || "Unknown";
 
 /**
  * Batting candidates, ordered: yet to bat (batting order, then roster order;
- * the first is "Next in"), retired hurt (may resume), the pair at the crease
+ * in batting order, nobody preselected), retired hurt (may resume), the pair at the crease
  * (picking one swaps the slots), then dismissed batters (disabled).
  */
 export function buildBatterRows({
@@ -76,7 +76,7 @@ export function buildBatterRows({
   bowlerId?: string | null;
   strikerId?: string | null;
   nonStrikerId?: string | null;
-}): { rows: PickerRow[]; nextInId: string | null } {
+}): { rows: PickerRow[] } {
   const perfs = new Map(performances.map((p) => [p.user_id, p]));
   const roster = rosterOf(players, [excludeIds, bowlerId]);
 
@@ -112,8 +112,6 @@ export function buildBatterRows({
   });
 
   yetToBat.sort((a, b) => a.order - b.order || a.index - b.index);
-  const nextInId = yetToBat[0]?.row.id ?? null;
-  if (yetToBat[0]) yetToBat[0].row.tag = "Next in";
   out.sort((a, b) => a.position - b.position);
 
   return {
@@ -123,7 +121,6 @@ export function buildBatterRows({
       ...crease,
       ...out.map((o) => o.row),
     ],
-    nextInId,
   };
 }
 
