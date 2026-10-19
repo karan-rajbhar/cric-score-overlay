@@ -18,10 +18,12 @@
  * a scorecard, `max_balls_per_over` rules, a crease the documents do not
  * agree with, an over document the screen has not seen) is not predicted:
  * {@link foldPending} stops there and the screen waits for the server, as
- * it did before. So does every other action type (undo, edits, end of
- * innings, retirements, penalties), and so does a delivery that ends the
- * innings: what follows it (the next innings, the result) is the server's
- * to decide.
+ * it did before. So does every other action type (edits, end of innings,
+ * retirements, penalties), and so does a delivery that ends the innings:
+ * what follows it (the next innings, the result) is the server's to
+ * decide. An undo is predicted as the state the screen showed just before
+ * the ball it undoes ({@link UndoTargets}): the server's undo restores the
+ * crease and bowler that ball was bowled with, i.e. that same state.
  */
 
 import {
@@ -351,14 +353,59 @@ export function predictBowler<M extends SnapshotMatch, D>(
   }
 }
 
+/**
+ * For a queued undo: the screen state just before the ball it undoes, as
+ * the screen showed it (`ScoringUndo` in useScoring). An undo the screen
+ * has no such state for (e.g. after a reload) is not predicted.
+ */
+export type UndoTargets<M, D> = ReadonlyMap<string, ScreenState<M, D>>;
+
+/**
+ * `target` (the state before the undone ball) as the server leaves it
+ * after the undo: everything as before the ball, except the ball `seq`
+ * counter, which never goes back (the next ball gets a new seq).
+ */
+function undoneTo<M extends SnapshotMatch, D>(
+  state: ScreenState<M, D>,
+  target: ScreenState<M, D>,
+): ScreenState<M, D> & { base: PredictionBase } {
+  const base = target.base!;
+  const counter = Math.max(
+    base.innings.last_ball_seq ?? 0,
+    state.base?.innings.id === base.innings.id
+      ? (state.base.innings.last_ball_seq ?? 0)
+      : 0,
+  );
+  if (counter === (base.innings.last_ball_seq ?? 0)) return { ...target, base };
+  const innings = { ...base.innings, last_ball_seq: counter };
+  return {
+    snapshot: {
+      ...target.snapshot,
+      match: {
+        ...target.snapshot.match,
+        innings: target.snapshot.match.innings?.map((i) =>
+          i.id === innings.id ? { ...i, last_ball_seq: counter } : i,
+        ),
+      },
+    },
+    base: { ...base, innings },
+  };
+}
+
 /** One queued action applied to `state`, when it can be predicted. */
 export function predictAction<M extends SnapshotMatch, D>(
   state: ScreenState<M, D>,
   action: QueuedAction,
   names: Names,
   now: string,
+  undoTargets?: UndoTargets<M, D>,
 ): Prediction<M, D> {
   switch (action.type) {
+    case "undoLastBall": {
+      const target = undoTargets?.get(action.queueId);
+      if (!target?.base) return fail("unpredicted_undoLastBall");
+      return { ok: true, state: undoneTo(state, target), endsInnings: false };
+    }
     case "recordBall":
       return predictBall(state, action, names, now);
     case "setBatsmen":
@@ -395,10 +442,11 @@ export function foldPending<M extends SnapshotMatch, D>(
   actions: readonly QueuedAction[],
   names: Names,
   now: string = new Date().toISOString(),
+  undoTargets?: UndoTargets<M, D>,
 ): Folded<M, D> {
   let state = confirmed;
   for (let i = 0; i < actions.length; i += 1) {
-    const p = predictAction(state, actions[i]!, names, now);
+    const p = predictAction(state, actions[i]!, names, now, undoTargets);
     if (!p.ok) {
       return {
         state,

@@ -618,8 +618,12 @@ describe("Firestore cost of a whole match", () => {
     type Ev = Parameters<typeof m.recordBall>[0]["event"];
     let ballsScored = 0;
     let st: ScoringState | null = null;
+    /** The scorer's state just before the latest ball (instant undo's target). */
+    let beforeLastBall: { snapshot: Snapshot; base: PredictionBase | null } | null =
+      null;
     async function ball(event: Ev) {
       const cur = scorer.current();
+      beforeLastBall = { snapshot: scorer.snap!, base: scorer.base };
       const predicted = scorer.predict(
         queued("recordBall", {
           matchId,
@@ -681,10 +685,28 @@ describe("Firestore cost of a whole match", () => {
         const s = await ball(event);
         if (s.match_completed || s.innings_break) return;
         if (i === extras.undoAt) {
+          // Instant undo shows the state from just before the ball (the
+          // screen's prediction, `foldPending` with its undo target): the
+          // server's undo must come back to exactly that.
+          const undo = queued("undoLastBall", {} as never);
+          const predicted = foldPending(
+            { snapshot: scorer.snap!, base: scorer.base },
+            [undo],
+            scorer.squadNames,
+            undefined,
+            new Map([[undo.queueId, beforeLastBall!]]),
+          );
+          expect(predicted.applied).toBe(1);
           await act(
             "undo",
             () => m.undoLastBall(matchId),
             () => scorer.afterUndo(),
+          );
+          expect(comparable(scorer.snap!)).toEqual(
+            comparable(predicted.state.snapshot),
+          );
+          expect(scorer.base?.innings.last_ball_seq).toBe(
+            predicted.state.base?.innings.last_ball_seq,
           );
           await ball({ runsScored: 1 });
         }

@@ -387,6 +387,39 @@ async function loadInningsBundle(
   return bundleOf(match, innings, overs);
 }
 
+/**
+ * `bundle` with its batters' / bowlers' current flags set to the crease and
+ * bowler `ball` was recorded with (unchanged when one of them has no row).
+ */
+function withCreaseOf(
+  bundle: InningsBundle,
+  ball: BallByBallRow,
+): InningsBundle {
+  const { batsman_id: s, non_striker_id: ns, bowler_id: bw } = ball;
+  if (
+    !s ||
+    !ns ||
+    !bw ||
+    !bundle.batting.some((b) => b.user_id === s) ||
+    !bundle.batting.some((b) => b.user_id === ns) ||
+    !bundle.bowling.some((b) => b.user_id === bw)
+  ) {
+    return bundle;
+  }
+  return {
+    ...bundle,
+    batting: bundle.batting.map((b) => ({
+      ...b,
+      is_current_batsman: b.user_id === s || b.user_id === ns,
+      is_striker: b.user_id === s,
+    })),
+    bowling: bundle.bowling.map((b) => ({
+      ...b,
+      is_current_bowler: b.user_id === bw,
+    })),
+  };
+}
+
 function runRecompute(
   bundle: InningsBundle,
   balls: BallByBallRow[],
@@ -1260,7 +1293,10 @@ async function undoInTransaction(
   }
 
   const remaining = bundle.balls.filter((b) => b.id !== last.id);
-  const out = runRecompute(bundle, remaining, now);
+  // The crease and bowler the undone ball was bowled with are the ones
+  // chosen since the ball before it: where the remaining log leaves an end
+  // empty (a wicket, an over's end, no ball left), the recompute keeps them.
+  const out = runRecompute(withCreaseOf(bundle, last), remaining, now);
   // Removing the ball that closed an innings (or finished the match) reopens
   // that innings so scoring can resume from it.
   if (crossingBoundary || target.is_completed) {

@@ -187,7 +187,21 @@ class FakeServer {
     return scoringStateOf(this.innings, this.overs);
   }
 
-  private apply(a: ReplayBatchAction): ScoringDelta {
+  /** Server states before each ball, for its undo. */
+  private history: Array<{ innings: InningsRow & { id: string }; overs: OversRow[] }> = [];
+
+  private apply(a: ReplayBatchAction): ScoringDelta | null {
+    if (a.type === "undoLastBall") {
+      const prev = this.history.pop()!;
+      this.innings = prev.innings;
+      this.overs = prev.overs;
+      this.tamper?.(this.innings);
+      // Like the real route: an undo answers without its documents.
+      return null;
+    }
+    if (a.type === "recordBall") {
+      this.history.push({ innings: this.innings, overs: this.overs });
+    }
     const now = `2026-10-19T10:00:${String((this.n += 1)).padStart(2, "0")}.000Z`;
     if (a.type === "recordBall") {
       const args = recordBallArgsOf(M, a.payload as never);
@@ -234,7 +248,7 @@ class FakeServer {
         this.batches.push(batch);
         if (this.hold) await new Promise<void>((r) => this.waiting.push(r));
         const results = [];
-        const deltas: ScoringDelta[] = [];
+        const deltas: Array<ScoringDelta | null> = [];
         for (const action of batch.actions) {
           const error = this.fail(action);
           if (error) {
@@ -245,12 +259,12 @@ class FakeServer {
           results.push({ id: action.id, status: "applied" });
         }
         const last = deltas.at(-1);
-        const delta = last
+        const delta = last && !deltas.includes(null)
           ? {
               match: last.match,
               innings: [this.innings],
               overs: this.overs.filter((o) =>
-                deltas.some((d) => d.overs.some((w) => w.id === o.id)),
+                deltas.some((d) => d!.overs.some((w) => w.id === o.id)),
               ),
             }
           : null;
@@ -426,24 +440,106 @@ describe("useScoring: instant scoring", () => {
     expect(server.batches).toHaveLength(0);
   });
 
-  it("lets a ball already on its way reach the server before undoing it there", async () => {
+  it("undoes a saved ball at once, without a toast, and saves the undo in the background", async () => {
+    const { result } = await open();
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.innings.total_runs).toBe(5);
+
+    server.hold = true;
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    // On screen before the server has answered.
+    expect(currentInnings(result.current.match)?.total_runs).toBe(4);
+    expect(result.current.strikerId).toBe("p1");
+    expect(result.current.lastBalls).toEqual(["4"]);
+    expect(result.current.isProcessing).toBe(false);
+    expect(undoLastBall).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+
+    // A second undo straight away, while the first is being saved.
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+    expect(result.current.lastBalls).toEqual([]);
+
+    await act(async () => server.release());
+    await waitFor(() => expect(server.batches.length).toBeGreaterThanOrEqual(4));
+    await act(async () => server.release());
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.innings.total_runs).toBe(0);
+    await waitFor(() =>
+      expect(currentInnings(result.current.match)?.total_runs).toBe(0),
+    );
+    expect(reportClientError).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("reports an undo the server answers differently, and shows the server's", async () => {
+    const { result } = await open();
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    server.tamper = (inn) => {
+      inn.total_runs = 2;
+    };
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    await waitFor(() =>
+      expect(currentInnings(result.current.match)?.total_runs).toBe(2),
+    );
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("(undoLastBall)"),
+      }),
+    );
+  });
+
+  it("undoes a ball still on its way right after it, in order", async () => {
     const { result } = await open();
     server.hold = true;
     await act(async () => {
       await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
     });
-    vi.mocked(undoLastBall).mockResolvedValueOnce({ data: null, error: null });
-    let undone: Promise<unknown>;
-    act(() => {
-      undone = result.current.handleUndo();
-    });
-    expect(undoLastBall).not.toHaveBeenCalled();
-    await act(async () => server.release());
     await act(async () => {
-      await undone;
+      await result.current.handleUndo();
     });
-    expect(server.innings.total_runs).toBe(4);
+    expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+    await act(async () => server.release());
+    await waitFor(() => expect(server.batches).toHaveLength(2));
+    await act(async () => server.release());
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.batches.map((b) => b.actions.map((a) => a.type))).toEqual([
+      ["recordBall"],
+      ["undoLastBall"],
+    ]);
+    expect(server.innings.total_runs).toBe(0);
+    expect(undoLastBall).not.toHaveBeenCalled();
+  });
+
+  it("waits for the server's undo when the screen did not see the ball happen", async () => {
+    const { result } = await open();
+    // Another scorer's ball: the screen only re-read the state after it.
+    server.innings = { ...server.innings, total_runs: 6 };
+    vi.mocked(undoLastBall).mockResolvedValueOnce({ data: null, error: null });
+    await act(async () => {
+      await result.current.syncFromDb();
+    });
+    await act(async () => {
+      await result.current.handleUndo();
+    });
     expect(undoLastBall).toHaveBeenCalledTimes(1);
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("goes back to the saved score when the server refuses a ball, with what came after it", async () => {

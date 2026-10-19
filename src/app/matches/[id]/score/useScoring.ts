@@ -74,6 +74,9 @@ import { readDoc } from "~/lib/firebase/realtime";
 import type { OversRow } from "~/lib/firebase/scorecard";
 import type { InningsRow } from "~/lib/firebase/types";
 
+/** A screen state and the stored documents behind it. */
+type ShownState = { snapshot: Snapshot; base: PredictionBase | null };
+
 /** What `getScoringState` returns. */
 type Snapshot = {
   match: Match;
@@ -320,6 +323,16 @@ export function useScoring(
   const baseRef = useRef<PredictionBase | null>(null);
   /** The queued actions cannot be shown yet: the screen waits for the server. */
   const [awaitingServer, setAwaitingServer] = useState(false);
+  /**
+   * Instant undo: for each delivery the screen predicted, the state it
+   * showed just before it (the state the server's undo restores), tagged
+   * with that ball's innings and seq; and for each queued undo, the state
+   * it shows (`UndoTargets` in `~/lib/scoring-prediction`).
+   */
+  const undoStackRef = useRef<
+    Array<{ before: ShownState; inningsId: string; ballSeq: number }>
+  >([]);
+  const undoTargetsRef = useRef(new Map<string, ShownState>());
 
   /** Put a snapshot (confirmed or predicted) on screen. */
   const renderSnapshot = useCallback(async (data: Snapshot): Promise<void> => {
@@ -406,6 +419,8 @@ export function useScoring(
       { snapshot: confirmed, base: baseRef.current },
       pending,
       squadNames(),
+      undefined,
+      undoTargetsRef.current,
     );
     setAwaitingServer(folded.waiting);
     await renderSnapshot(folded.state.snapshot);
@@ -624,7 +639,13 @@ export function useScoring(
       next: Snapshot,
     ) => {
       if (!actions.length || actions.some((a) => !a.instant)) return;
-      const folded = foldPending(before, actions, squadNames());
+      const folded = foldPending(
+        before,
+        actions,
+        squadNames(),
+        undefined,
+        undoTargetsRef.current,
+      );
       if (folded.applied !== actions.length || folded.endsInnings) return;
       const predicted = shownFigures(folded.state.snapshot);
       const server = shownFigures(next);
@@ -672,6 +693,9 @@ export function useScoring(
       setDeadLetterCount(getDeadLetterCount(matchId));
       const appliedIds = new Set(res.applied ?? []);
       const applied = sent.filter((a) => appliedIds.has(a.queueId));
+      // Every applied action is one this pass knew of (not one queued while
+      // it ran): only then can its prediction be compared.
+      const knownAll = applied.length === appliedIds.size;
       if (res.rejected) {
         const { dependents } = res.rejected;
         const error = res.rejected.error.replace(/\.?\s*$/, ".");
@@ -690,13 +714,23 @@ export function useScoring(
             ? applyScoringDelta(before.snapshot, res.delta, squadNames())
             : null;
         if (next && res.delta) {
-          checkPrediction(before!, applied, next);
+          if (knownAll) checkPrediction(before!, applied, next);
           await applySnapshot(
             next,
             baseWithDelta(before!.base, next, res.delta),
           );
         } else {
+          // An undo answers without its documents: re-read, then compare
+          // with what the screen showed for it.
           await syncFromDb();
+          if (
+            knownAll &&
+            before &&
+            snapshotRef.current &&
+            applied.some((a) => a.type === "undoLastBall")
+          ) {
+            checkPrediction(before, applied, snapshotRef.current);
+          }
         }
         // A delivery that ended the innings or the match (instant actions
         // wait for the server there; offline mode announces its own).
@@ -727,6 +761,12 @@ export function useScoring(
         toast.error(
           `Failed to sync ${res.failed} offline item(s). Will retry automatically on next connection.`,
         );
+      }
+
+      // Undo states of actions no longer queued are not needed.
+      const queued = new Set(getPendingActions(matchId).map((a) => a.queueId));
+      for (const id of undoTargetsRef.current.keys()) {
+        if (!queued.has(id)) undoTargetsRef.current.delete(id);
       }
 
       const stuck = getPendingCount(matchId) > 0 && res.synced === 0;
@@ -1131,12 +1171,33 @@ export function useScoring(
       enqueuedAt: Date.now(),
       instant: true,
     } as QueuedAction;
+    const names = squadNames();
+    const before = foldPending(
+      { snapshot: confirmed, base },
+      pending,
+      names,
+      undefined,
+      undoTargetsRef.current,
+    );
     const folded = foldPending(
       { snapshot: confirmed, base },
       [...pending, action],
-      squadNames(),
+      names,
+      undefined,
+      undoTargetsRef.current,
     );
     if (folded.applied !== pending.length + 1) return null;
+    // For an instant undo of this ball: the state just before it.
+    const ballSeq = folded.state.base?.innings.last_ball?.seq;
+    if (type === "recordBall" && folded.state.base && typeof ballSeq === "number") {
+      const stack = undoStackRef.current;
+      stack.push({
+        before: before.state,
+        inningsId: folded.state.base.innings.id,
+        ballSeq,
+      });
+      if (stack.length > 60) stack.shift();
+    }
 
     enqueueAction(matchId, type, payload, queueId, { instant: true });
     setPendingCount(getPendingCount(matchId));
@@ -1336,20 +1397,73 @@ export function useScoring(
     }
   };
 
+  /**
+   * Undo the last ball at once: show the state the screen had just before
+   * it and queue the undo (the server's undo restores that same state).
+   * False when the screen cannot vouch for that state (another scorer's
+   * change, a full re-read, a new innings, actions it does not predict).
+   */
+  const undoInstantly = async (pending: QueuedAction[]): Promise<boolean> => {
+    const confirmed = snapshotRef.current;
+    if (!INSTANT_SCORING || awaitingServer || !confirmed) return false;
+    const folded = foldPending(
+      { snapshot: confirmed, base: baseRef.current },
+      pending,
+      squadNames(),
+      undefined,
+      undoTargetsRef.current,
+    );
+    const base = folded.state.base;
+    if (folded.waiting || folded.applied !== pending.length || !base) {
+      return false;
+    }
+    const stack = undoStackRef.current;
+    const lastSeq = base.innings.last_ball?.seq ?? -1;
+    // Entries of another innings, or of balls since undone, are stale.
+    while (
+      stack.length &&
+      (stack.at(-1)!.inningsId !== base.innings.id ||
+        stack.at(-1)!.ballSeq > lastSeq)
+    ) {
+      stack.pop();
+    }
+    const top = stack.at(-1);
+    if (!top || top.ballSeq !== lastSeq) return false;
+    stack.pop();
+    const queueId = newActionId();
+    undoTargetsRef.current.set(queueId, top.before);
+    enqueueAction(
+      matchId,
+      "undoLastBall",
+      {} as Record<string, never>,
+      queueId,
+      { instant: true },
+    );
+    setPendingCount(getPendingCount(matchId));
+    await renderShown();
+    if (!isOfflineNow()) void flushQueue();
+    return true;
+  };
+
   const handleUndo = async () => {
     const pending = getPendingActions(matchId);
     const last = pending.at(-1);
-    if (INSTANT_SCORING && last && pending.every((a) => a.instant)) {
+    if (INSTANT_SCORING && pending.every((a) => a.instant)) {
       // A delivery the server has not seen yet: just take it back.
-      if (last.type === "recordBall" && !inFlightRef.current.has(last.queueId)) {
+      if (
+        last?.type === "recordBall" &&
+        !inFlightRef.current.has(last.queueId)
+      ) {
         popLastAction(matchId);
+        // Its undo entry (the state before it) is not needed any more.
+        undoStackRef.current.pop();
         setPendingCount(getPendingCount(matchId));
         await renderShown();
-        toast.success("Last ball undone");
         return { data: null, error: null };
       }
-      // Already on its way (or a crease / bowler change): the server gets
-      // everything first, then undoes its last ball as usual.
+      if (await undoInstantly(pending)) return { data: null, error: null };
+      // Otherwise the server gets everything first, then undoes its last
+      // ball as usual.
     }
 
     setIsProcessing(true);
@@ -1364,7 +1478,6 @@ export function useScoring(
           setRawDeliveries((prev) => prev.slice(0, -1));
           setLastBalls((prev) => prev.slice(0, -1));
         }
-        toast.success("Undid last offline action");
 
         // Replay remaining pending actions on top of cached baseline
         const cached = getCachedMatchData(matchId);
@@ -1435,11 +1548,7 @@ export function useScoring(
     }
 
     const result = await undoLastBall(matchId);
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      toast.success("Last ball undone");
-    }
+    if (result.error) toast.error(result.error);
     // The state after an undo is the server's to say (the crease and bowler
     // the undone ball was bowled with): shown from a fresh read, not run
     // through the after-a-ball handling (which would add a ball to the
