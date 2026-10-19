@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { useSwipeTabs } from "~/lib/hooks/useSwipeTabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
@@ -92,6 +93,17 @@ import {
 import { LiveIndicator } from "~/components/matches/live-indicator";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
 
+/** The match page's tabs, in tab-bar order (swiping follows it). */
+const MATCH_TABS = [
+  "summary",
+  "scorecard",
+  "superstars",
+  "stats",
+  "balls",
+  "info",
+  "h2h",
+] as const;
+
 /** Tabs that show per-player figures (refetched per change unless live). */
 const FULL_MATCH_TABS = new Set(["summary", "scorecard", "superstars"]);
 /**
@@ -112,6 +124,25 @@ function MatchDetailsPageContent() {
   const matchId = params.id as string;
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("summary");
+  // Swipe between the tabs, in the order the tab bar shows them; the new
+  // tab's button is scrolled into view in the (scrolling) tab bar.
+  const swipe = useSwipeTabs({
+    tabs: MATCH_TABS,
+    value: activeTab as (typeof MATCH_TABS)[number],
+    onChange: (tab) => {
+      setActiveTab(tab);
+      requestAnimationFrame(() => {
+        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        document
+          .querySelector<HTMLElement>(`[role="tab"][data-tab-value="${tab}"]`)
+          ?.scrollIntoView({
+            block: "nearest",
+            inline: "center",
+            behavior: reduce ? "auto" : "smooth",
+          });
+      });
+    },
+  });
   const {
     data: matchData,
     isLoading: loading,
@@ -752,6 +783,7 @@ function MatchDetailsPageContent() {
           <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 sm:grid sm:grid-cols-7 sm:justify-stretch">
             <TabsTrigger
               value="summary"
+              data-tab-value="summary"
               className="shrink-0 gap-1.5"
             >
               <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -759,6 +791,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
+              data-tab-value="scorecard"
               className="shrink-0 gap-1.5"
             >
               <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -766,6 +799,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="superstars"
+              data-tab-value="superstars"
               className="shrink-0 gap-1.5"
             >
               <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -773,6 +807,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="stats"
+              data-tab-value="stats"
               className="shrink-0 gap-1.5"
             >
               <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -780,6 +815,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="balls"
+              data-tab-value="balls"
               className="shrink-0 gap-1.5"
             >
               <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -787,6 +823,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="info"
+              data-tab-value="info"
               className="shrink-0 gap-1.5"
             >
               <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -794,6 +831,7 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
             <TabsTrigger
               value="h2h"
+              data-tab-value="h2h"
               className="shrink-0 gap-1.5"
             >
               <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -801,6 +839,13 @@ function MatchDetailsPageContent() {
             </TabsTrigger>
           </TabsList>
 
+          {/* Swipe left / right here for the next / previous tab */}
+          <div
+            className="touch-pan-y"
+            onTouchStart={swipe.onTouchStart}
+            onTouchEnd={swipe.onTouchEnd}
+            onTouchCancel={swipe.onTouchCancel}
+          >
           <TabsContent value="summary">
             <MatchSummary match={match} />
           </TabsContent>
@@ -833,6 +878,7 @@ function MatchDetailsPageContent() {
               currentMatchId={match.id}
             />
           </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>
