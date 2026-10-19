@@ -298,137 +298,99 @@ function getOrdinalSuffix(n: number): string {
   return s[(v - 20) % 10] || s[v] || s[0] || "th";
 }
 
+/**
+ * The innings' partnerships from its ball log, in the order the balls were
+ * bowled (`seq`): a partnership is the pair at the crease, ended by a
+ * wicket or by either batter leaving (a retirement, a change); each
+ * batter's share is the runs and balls he faced in it. Runs include extras
+ * and penalty runs to this side. Without a ball log there is nothing to
+ * tell who batted together: none.
+ */
 function getInningsPartnerships(inn: InningsRow): Partnership[] {
   const deliveries = (inn.ball_by_ball ?? []).slice().sort((a, b) => {
+    const sa = (a as { seq?: number | null }).seq;
+    const sb = (b as { seq?: number | null }).seq;
+    if (typeof sa === "number" && typeof sb === "number") return sa - sb;
     const overDiff = (a.over_number ?? 0) - (b.over_number ?? 0);
     if (overDiff !== 0) return overDiff;
     return (a.ball_number ?? 0) - (b.ball_number ?? 0);
   });
+  const nameOf = (id: string, fromBall?: { full_name?: string | null } | null) =>
+    fromBall?.full_name ??
+    inn.batting_performances?.find((bp) => bp.user_id === id)?.user
+      ?.full_name ??
+    "Batter";
 
   const partnerships: Partnership[] = [];
+  let wicketsDown = 0;
+  let current: {
+    ids: [string, string];
+    runs: number;
+    balls: number;
+    share: Map<string, { name: string; runs: number; balls: number }>;
+  } | null = null;
 
-  if (deliveries.length > 0) {
-    let curWicket = 1;
-    let pRuns = 0;
-    let pBalls = 0;
-    const batterMap = new Map<string, { name: string; runs: number; balls: number }>();
+  const close = (isUnbroken: boolean) => {
+    if (!current) return;
+    if (current.runs > 0 || current.balls > 0 || !isUnbroken) {
+      const [a, b] = current.ids;
+      partnerships.push({
+        wicketNumber: wicketsDown + 1,
+        runs: current.runs,
+        balls: current.balls,
+        batter1: { ...current.share.get(a)! },
+        batter2: { ...current.share.get(b)! },
+        isUnbroken,
+      });
+    }
+    current = null;
+  };
 
-    for (const d of deliveries) {
-      const runs = d.runs_scored ?? 0;
-      const extras = d.extras ?? 0;
-      const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
-
-      pRuns += runs + extras;
-      if (isLegal) pBalls++;
-
-      if (d.batsman_id) {
-        const b = batterMap.get(d.batsman_id) ?? {
-          name:
-            d.batsman?.full_name ??
-            inn.batting_performances?.find((bp) => bp.user_id === d.batsman_id)
-              ?.user?.full_name ??
-            "Batter",
+  for (const d of deliveries) {
+    const penaltyTeam = (d as { penalty_team_id?: string | null }).penalty_team_id;
+    // Penalty runs logged for the other side are not this pair's.
+    if (penaltyTeam && penaltyTeam !== inn.team_id) continue;
+    const striker = d.batsman_id;
+    const other = d.non_striker_id;
+    if (striker && other) {
+      const samePair =
+        current !== null &&
+        current.ids.includes(striker) &&
+        current.ids.includes(other);
+      if (!samePair) {
+        // A new pair without a wicket in between: a retirement or a change.
+        close(false);
+        current = {
+          ids: [striker, other],
           runs: 0,
           balls: 0,
+          share: new Map([
+            [striker, { name: nameOf(striker, d.batsman), runs: 0, balls: 0 }],
+            [other, { name: nameOf(other, d.non_striker), runs: 0, balls: 0 }],
+          ]),
         };
-        b.runs += runs;
-        if (d.extra_type !== "wide") b.balls++;
-        batterMap.set(d.batsman_id, b);
-      }
-
-      if (d.non_striker_id && !batterMap.has(d.non_striker_id)) {
-        batterMap.set(d.non_striker_id, {
-          name:
-            d.non_striker?.full_name ??
-            inn.batting_performances?.find(
-              (bp) => bp.user_id === d.non_striker_id,
-            )?.user?.full_name ??
-            "Batter",
-          runs: 0,
-          balls: 0,
-        });
-      }
-
-      if (d.is_wicket) {
-        const activeBatters = Array.from(batterMap.values());
-        const b1 = activeBatters[0] ?? { name: "Batter 1", runs: 0, balls: 0 };
-        const b2 = activeBatters[1] ?? { name: "Batter 2", runs: 0, balls: 0 };
-
-        partnerships.push({
-          wicketNumber: curWicket,
-          runs: pRuns,
-          balls: pBalls,
-          batter1: { ...b1 },
-          batter2: { ...b2 },
-          isUnbroken: false,
-        });
-
-        curWicket++;
-        pRuns = 0;
-        pBalls = 0;
-        const dismissedId = d.dismissed_player_id || d.batsman_id;
-        if (dismissedId) {
-          batterMap.delete(dismissedId);
-        } else if (activeBatters.length > 0) {
-          const firstKey = Array.from(batterMap.keys())[0];
-          if (firstKey) batterMap.delete(firstKey);
-        }
-        for (const [id, val] of batterMap.entries()) {
-          batterMap.set(id, { ...val, runs: 0, balls: 0 });
-        }
       }
     }
-
-    if (batterMap.size > 0 && (pRuns > 0 || pBalls > 0 || partnerships.length === 0)) {
-      const activeBatters = Array.from(batterMap.values());
-      const b1 = activeBatters[0] ?? { name: "Batter 1", runs: 0, balls: 0 };
-      const b2 = activeBatters[1] ?? { name: "Batter 2", runs: 0, balls: 0 };
-      partnerships.push({
-        wicketNumber: curWicket,
-        runs: pRuns,
-        balls: pBalls,
-        batter1: { ...b1 },
-        batter2: { ...b2 },
-        isUnbroken: true,
-      });
+    if (!current) continue;
+    const runs = d.runs_scored ?? 0;
+    const extras = d.extras ?? 0;
+    current.runs += runs + extras;
+    if (d.extra_type !== "wide" && d.extra_type !== "no_ball" && !penaltyTeam) {
+      current.balls += 1;
     }
-  } else if (inn.fall_of_wickets && inn.fall_of_wickets.length > 0) {
-    const sortedFow = inn.fall_of_wickets
-      .slice()
-      .sort((a, b) => a.wicket_number - b.wicket_number);
-    let prevRuns = 0;
-    for (const f of sortedFow) {
-      const partRuns = Math.max(0, (f.runs_at_fall ?? 0) - prevRuns);
-      partnerships.push({
-        wicketNumber: f.wicket_number,
-        runs: partRuns,
-        balls: 0,
-        batter1: {
-          name: f.batsman?.full_name ?? "Batter",
-          runs: partRuns,
-          balls: 0,
-        },
-        batter2: { name: "Partner", runs: 0, balls: 0 },
-        isUnbroken: false,
-      });
-      prevRuns = f.runs_at_fall ?? 0;
+    const facing = striker ? current.share.get(striker) : undefined;
+    if (facing && !penaltyTeam) {
+      facing.runs += runs;
+      if (d.extra_type !== "wide") facing.balls += 1;
     }
-    if ((inn.total_runs ?? 0) > prevRuns) {
-      partnerships.push({
-        wicketNumber: sortedFow.length + 1,
-        runs: (inn.total_runs ?? 0) - prevRuns,
-        balls: 0,
-        batter1: {
-          name: "Active Batters",
-          runs: (inn.total_runs ?? 0) - prevRuns,
-          balls: 0,
-        },
-        batter2: { name: "Partner", runs: 0, balls: 0 },
-        isUnbroken: true,
-      });
+    if (d.is_wicket) {
+      // Retired hurt ends the stand but is not a wicket.
+      const isWicket = d.dismissal_type !== "retired_hurt";
+      close(false);
+      if (isWicket) wicketsDown += 1;
     }
   }
-
+  close(true);
   return partnerships;
 }
 
@@ -823,14 +785,31 @@ interface PhaseStat {
   rr: string;
 }
 
+/**
+ * Powerplay / middle / death overs for an innings of `maxOvers`: the
+ * usual 1-6 / 7-15 / 16-20 for T20, 1-10 / 11-40 / 41-50 for 50 overs,
+ * and in proportion for other lengths (null when too short to split).
+ */
+export function phaseBoundaries(
+  maxOvers: number,
+): { ppEnd: number; midEnd: number } | null {
+  if (maxOvers < 4) return null;
+  const ppEnd = maxOvers >= 40 ? 10 : Math.max(1, Math.round(maxOvers * 0.3));
+  const deathOvers =
+    maxOvers >= 40 ? 10 : Math.max(1, Math.round(maxOvers * 0.25));
+  const midEnd = Math.max(ppEnd + 1, maxOvers - deathOvers);
+  return midEnd < maxOvers ? { ppEnd, midEnd } : null;
+}
+
 function getPhaseStatsForInnings(
   inn: InningsRow | undefined,
   maxOvers = 20,
+  ballsPerOver = 6,
 ): PhaseStat[] {
   if (!inn) return [];
-
-  const ppEnd = maxOvers <= 10 ? 3 : maxOvers <= 20 ? 6 : 10;
-  const midEnd = maxOvers <= 10 ? 7 : maxOvers <= 20 ? 15 : 40;
+  const bounds = phaseBoundaries(maxOvers);
+  if (!bounds) return [];
+  const { ppEnd, midEnd } = bounds;
 
   const phasesDef = [
     { name: "Powerplay", start: 1, end: ppEnd, label: `Ov 1-${ppEnd}` },
@@ -865,7 +844,7 @@ function getPhaseStatsForInnings(
         }
       }
 
-      const oversDec = pBalls / 6;
+      const oversDec = pBalls / (ballsPerOver > 0 ? ballsPerOver : 6);
       const rr = oversDec > 0 ? (pRuns / oversDec).toFixed(2) : "0.00";
 
       return {
@@ -886,10 +865,16 @@ function renderPhaseAnalysis(match: Match): string {
   const [inn1, inn2] = mainInningsInOrder(match);
 
   const maxOvers = match.overs_per_innings || 20;
-  const p1 = getPhaseStatsForInnings(inn1, maxOvers);
-  const p2 = getPhaseStatsForInnings(inn2, maxOvers);
+  const bpo = match.balls_per_over || 6;
+  const p1 = getPhaseStatsForInnings(inn1, maxOvers, bpo);
+  const p2 = getPhaseStatsForInnings(inn2, maxOvers, bpo);
 
   if (p1.length === 0 && p2.length === 0) return "";
+  // The columns follow the innings: the side that batted first, then the
+  // chase (team 1 / team 2 only when team 1 batted first).
+  const [{ team: firstTeam }, { team: secondTeam }] = sidesInBattingOrder(match);
+  const tag = (t: typeof firstTeam) =>
+    t.short_name ?? t.name.slice(0, 3).toUpperCase();
 
   const rows = p1
     .map((stat1, idx) => {
@@ -898,10 +883,10 @@ function renderPhaseAnalysis(match: Match): string {
       let advantageColor = "neutral";
 
       if (stat1.runs > stat2.runs + 4) {
-        advantage = `${match.team1.short_name ?? match.team1.name.slice(0, 3).toUpperCase()}`;
+        advantage = tag(firstTeam);
         advantageColor = "team1";
       } else if (stat2.runs > stat1.runs + 4) {
-        advantage = `${match.team2.short_name ?? match.team2.name.slice(0, 3).toUpperCase()}`;
+        advantage = tag(secondTeam);
         advantageColor = "team2";
       }
 
@@ -926,8 +911,8 @@ function renderPhaseAnalysis(match: Match): string {
     })
     .join("");
 
-  const t1Header = esc(match.team1.short_name ?? match.team1.name);
-  const t2Header = esc(match.team2.short_name ?? match.team2.name);
+  const t1Header = esc(firstTeam.short_name ?? firstTeam.name);
+  const t2Header = esc(secondTeam.short_name ?? secondTeam.name);
 
   return `
     <div class="phase-analysis-card">
@@ -1124,8 +1109,10 @@ function generateWormChartSvg(match: Match): string {
 
   if (inn1Overs.length === 0 && inn2Overs.length === 0) return "";
 
-  const team1Name = match.team1.short_name ?? match.team1.name;
-  const team2Name = match.team2.short_name ?? match.team2.name;
+  // Series follow the innings: the side that batted first, then the chase.
+  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
+  const team1Name = firstSide.short_name ?? firstSide.name;
+  const team2Name = secondSide.short_name ?? secondSide.name;
 
   const totalOversMax = Math.max(
     match.overs_per_innings || 20,
@@ -1262,6 +1249,7 @@ function generateWormChartSvg(match: Match): string {
 
 function generateManhattanChartSvg(match: Match): string {
   const [inn1, inn2] = mainInningsInOrder(match);
+  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
 
   if (!inn1) return "";
 
@@ -1354,10 +1342,10 @@ function generateManhattanChartSvg(match: Match): string {
   return `
     <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
         <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#0f766e" />
-        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(match.team1.short_name ?? match.team1.name)}</text>
+        <text x="${ml + 15}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(firstSide.short_name ?? firstSide.name)}</text>
 
         <rect x="${ml + 150}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 165}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(match.team2.short_name ?? match.team2.name)}</text>
+        <text x="${ml + 165}" y="19" font-family="'Outfit', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(secondSide.short_name ?? secondSide.name)}</text>
 
         <circle cx="${ml + 300}" cy="15" r="3" fill="#e11d48" />
         <text x="${ml + 308}" y="19" font-family="'Plus Jakarta Sans', sans-serif" font-size="9" fill="#64748b">Wicket</text>
@@ -1374,11 +1362,16 @@ function generateManhattanChartSvg(match: Match): string {
 // ---------------------------------------------------------------------------
 
 function renderSignoffBlock(match: Match): string {
-  const team1Cap = match.team1.captain?.full_name ?? "Team 1 Captain";
-  const team2Cap = match.team2.captain?.full_name ?? "Team 2 Captain";
-  const leadUmpire = match.umpire1_name ?? "Lead Match Umpire";
-  const scorerRef =
-    match.scorer_name ?? match.umpire2_name ?? "Official Scorer";
+  // Names only when the match holds them; otherwise a blank line to write
+  // the name on (never the role repeated as a name).
+  const team1Cap = match.team1.captain?.full_name ?? null;
+  const team2Cap = match.team2.captain?.full_name ?? null;
+  const leadUmpire = match.umpire1_name ?? null;
+  const scorerRef = match.scorer_name ?? null;
+  const nameLine = (name: string | null) =>
+    name
+      ? `<div class="signoff-name font-medium">${esc(name)}</div>`
+      : `<div class="signoff-name signoff-name-blank" aria-label="Name"></div>`;
 
   const matchIdShort = match.id.slice(0, 8).toUpperCase();
   const dateStr = new Date().toISOString().slice(0, 10);
@@ -1404,7 +1397,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">${esc(team1Role)}</div>
-                    <div class="signoff-name font-medium">${esc(team1Cap)}</div>
+                    ${nameLine(team1Cap)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1414,7 +1407,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">${esc(team2Role)}</div>
-                    <div class="signoff-name font-medium">${esc(team2Cap)}</div>
+                    ${nameLine(team2Cap)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1424,7 +1417,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">Lead Match Umpire</div>
-                    <div class="signoff-name font-medium">${esc(leadUmpire)}</div>
+                    ${nameLine(leadUmpire)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1434,7 +1427,7 @@ function renderSignoffBlock(match: Match): string {
             <div class="signoff-box">
                 <div class="signoff-meta">
                     <div class="signoff-role">Official Scorer / Referee</div>
-                    <div class="signoff-name font-medium">${esc(scorerRef)}</div>
+                    ${nameLine(scorerRef)}
                 </div>
                 <div class="signoff-sig-area">
                     <div class="signoff-sig-line"></div>
@@ -1445,7 +1438,7 @@ function renderSignoffBlock(match: Match): string {
 
         <div class="signoff-footer">
             <span>By signing above, both teams and officiating umpires ratify this scorecard as the binding and final record of the fixture.</span>
-            <span class="font-mono">Match ID: #${matchIdShort} &bull; Verified: ${dateStr}</span>
+            <span class="font-mono">Match ID: #${matchIdShort} &bull; Generated: ${dateStr}</span>
         </div>
     </div>`;
 }
@@ -1837,7 +1830,8 @@ export async function buildMatchReportHtml(
         color: #ffffff;
         box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
     }
-    #screen-toolbar .btn-close {
+    #screen-toolbar .btn-close,
+    #screen-toolbar .btn-share {
         background: #1e293b;
         color: #f1f5f9;
         border: 1px solid #334155;
@@ -2960,6 +2954,11 @@ export async function buildMatchReportHtml(
         overflow: hidden;
         text-overflow: ellipsis;
     }
+    .signoff-name-blank {
+      min-height: 1.1em;
+      margin-top: 4px;
+      border-bottom: 1px dotted #cbd5e1;
+    }
     .signoff-sig-area {
         margin-top: 14px;
     }
@@ -3174,7 +3173,10 @@ export async function buildMatchReportHtml(
             <span><svg style="width:14px;height:14px;display:inline-block;vertical-align:-2px;margin-right:4px;" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>CricScore Match Report &bull; Print Preview</span>
         </div>
         <div class="toolbar-actions">
-            <button class="btn-print" onclick="window.print()">
+            <button class="btn-share" type="button" data-url="${esc(matchUrl)}" onclick="(function(b){var u=b.getAttribute('data-url');if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){b.textContent='Link copied';});}})(this)">
+                Share link
+            </button>
+            <button class="btn-print" onclick="(document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){window.print();})">
                 Save as PDF / Print
             </button>
             <button class="btn-close" onclick="window.close()">

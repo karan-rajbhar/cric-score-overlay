@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildExportSummary, buildMatchReportHtml } from "./match-report";
+import {
+  buildExportSummary,
+  buildMatchReportHtml,
+  phaseBoundaries,
+} from "./match-report";
 import { makeMatch } from "~/test/factories";
 import type { Innings, Match } from "./match-types";
 
@@ -331,22 +335,88 @@ describe("match-report export helpers", () => {
       expect(html).toContain("Official Verification &amp; Match Sign-off");
     });
 
-    it("renders key partnerships and fallback sign-off when deliveries are not present", async () => {
+    it("leaves out partnerships without a ball log, and signs off with blank name lines", async () => {
       const html = await buildMatchReportHtml(
         sampleMatch,
         "https://cricket.app/matches/match-124",
       );
 
-      // Partnerships computed from fall_of_wickets
-      expect(html).toContain("Key Partnerships");
-      expect(html).toContain("1st Wkt");
-      expect(html).toContain("David Brown");
+      // Who batted together is not known without the ball log: no made-up
+      // "Partner" rows.
+      expect(html).not.toContain("Key Partnerships");
+      expect(html).not.toContain("Active Batters");
 
-      // Verification signoff block
+      // Verification signoff block: roles, and a line to write unknown names
       expect(html).toContain("Official Verification &amp; Match Sign-off");
       expect(html).toContain("Certified Official Scoresheet");
       expect(html).toContain("Lead Match Umpire");
       expect(html).toContain("Official Scorer");
+      expect(html).toContain("signoff-name-blank");
+      expect(html).not.toContain("Team 1 Captain");
+      expect(html).toContain("Generated:");
+    });
+
+    it("builds partnerships from the actual pair, ball by ball", async () => {
+      const del = (
+        seq: number,
+        batsman: string,
+        nonStriker: string,
+        extra: Record<string, unknown> = {},
+      ) => ({
+        id: `d${seq}`,
+        match_id: "m1",
+        innings_id: "inn1",
+        seq,
+        over_number: 0,
+        ball_number: seq,
+        runs_scored: 1,
+        extras: 0,
+        extra_type: null,
+        is_wicket: false,
+        dismissal_type: null,
+        bowler_id: "bw",
+        batsman_id: batsman,
+        non_striker_id: nonStriker,
+        ...extra,
+      });
+      const names: Record<string, string> = { a: "Alpha", b: "Bravo", c: "Charlie" };
+      const match: Match = {
+        ...sampleMatch,
+        innings: [
+          {
+            ...innings1,
+            batting_performances: Object.entries(names).map(([id, full_name], i) => ({
+              id: `bp-${id}`,
+              match_id: "m1",
+              innings_id: "inn1",
+              user_id: id,
+              batting_position: i + 1,
+              runs_scored: 1,
+              balls_faced: 1,
+              fours: 0,
+              sixes: 0,
+              is_out: false,
+              user: { id, full_name },
+            })),
+            ball_by_ball: [
+              del(1, "a", "b"),
+              // Retired hurt: the stand ends, but it is no wicket.
+              del(2, "b", "a", { runs_scored: 0, is_wicket: true, dismissal_type: "retired_hurt", dismissed_player_id: "a" }),
+              del(3, "b", "c", { runs_scored: 4 }),
+              del(4, "c", "b", { runs_scored: 0, extras: 1, extra_type: "wide" }),
+            ] as never,
+          },
+        ],
+      };
+      const html = await buildMatchReportHtml(match, "https://x.test/m");
+      const section = html.slice(html.indexOf("Key Partnerships"));
+      // First stand Alpha-Bravo (2 balls), then Bravo-Charlie unbroken, still
+      // for the 1st wicket (retired hurt is not one).
+      expect(section).toContain("Alpha");
+      expect(section).toContain("Charlie");
+      expect(section.match(/1st Wkt/g)?.length).toBe(2);
+      expect(section).toContain("1st Wkt (Unbroken)");
+      expect(section).not.toContain("2nd Wkt");
     });
 
     it("verifies clean text alignment, CSS rules scoping, and signature lines in generated report", async () => {
@@ -546,5 +616,22 @@ describe("match-report export helpers", () => {
       expect(html).toContain("retired hurt");
       expect(html.match(/Super Over Scorecard/g)).toHaveLength(2);
     });
+  });
+
+  describe("phase analysis", () => {
+    it("splits any length into powerplay, middle and death overs", () => {
+      expect(phaseBoundaries(20)).toEqual({ ppEnd: 6, midEnd: 15 });
+      expect(phaseBoundaries(10)).toEqual({ ppEnd: 3, midEnd: 7 });
+      expect(phaseBoundaries(50)).toEqual({ ppEnd: 10, midEnd: 40 });
+      expect(phaseBoundaries(5)).toEqual({ ppEnd: 2, midEnd: 4 });
+      expect(phaseBoundaries(3)).toBeNull();
+    });
+  });
+
+  it("shares the link and waits for fonts before printing", async () => {
+    const html = await buildMatchReportHtml(sampleMatch, "https://x.test/m");
+    expect(html).toContain('data-url="https://x.test/m"');
+    expect(html).toContain("Share link");
+    expect(html).toContain("document.fonts.ready");
   });
 });
