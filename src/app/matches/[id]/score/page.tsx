@@ -300,8 +300,6 @@ export default function ScoringPage() {
     deadLetterCount,
     flushOfflineQueue,
     handleSkipHeadAction,
-    setStrikerId,
-    setNonStrikerId,
     setCurrentBowlerId,
     handleStartMatch,
     handleScore,
@@ -899,18 +897,11 @@ export default function ScoringPage() {
     if (res.error) {
       toast.error(res.error);
     } else {
+      // The hook shows the crease the server now has (or, queued, without
+      // the retired batter).
       if (!res.queued) {
-        toast.success(
-          `Batsman retired (${type === "retired_hurt" ? "Retired Hurt" : "Retired Out"})`,
-        );
+        toast.success(type === "retired_hurt" ? "Retired hurt" : "Retired out");
       }
-      if (strikerId === playerId) {
-        setStrikerId(null);
-      }
-      if (nonStrikerId === playerId) {
-        setNonStrikerId(null);
-      }
-      if (!res.queued) await syncFromDb();
       setShowSelectBatsmen(true);
     }
   };
@@ -929,7 +920,6 @@ export default function ScoringPage() {
       toast.success(
         `${params.type === "penalty" ? "Penalty" : "Bonus"} of ${params.runs} runs recorded`,
       );
-      await syncFromDb();
     }
   };
 
@@ -1072,18 +1062,18 @@ export default function ScoringPage() {
                 <span
                   className="flex items-center gap-1 px-1 text-[10px] font-medium text-muted-foreground"
                   title={
-                    pendingCount > 0 || isSaving
+                    pendingCount > 0 || isSaving || isProcessing
                       ? "Saving to the server"
                       : "All changes saved"
                   }
                 >
-                  {pendingCount > 0 || isSaving ? (
+                  {pendingCount > 0 || isSaving || isProcessing ? (
                     <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
                   ) : (
                     <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
                   )}
                   <span className="max-sm:sr-only">
-                    {pendingCount > 0 || isSaving ? "Saving…" : "Saved"}
+                    {pendingCount > 0 || isSaving || isProcessing ? "Saving…" : "Saved"}
                   </span>
                 </span>
               )
@@ -2106,13 +2096,10 @@ export default function ScoringPage() {
               toast.error(res.error);
             } else {
               if (!res.queued) {
-                toast.success(
-                  "Bowler updated and current over deliveries reassigned",
-                );
+                toast.success("Bowler changed for this over's deliveries");
               }
               setShowSelectBowler(false);
               setReassignOverDeliveries(false);
-              if (!res.queued) await syncFromDb();
             }
           } else {
             const res = await handleConfirmBowler(bowlerId);

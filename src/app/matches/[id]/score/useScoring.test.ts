@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useScoring } from "./useScoring";
 import { getScoringState, getTeamPlayers } from "../../queries";
@@ -61,6 +61,8 @@ vi.mock("sonner", () => ({
  */
 function mockReplayRoute(
   answer: (action: ReplayBatchAction) => { status: "applied" | "duplicate" | "failed"; error?: string },
+  /** The committed documents the route answers with, per batch. */
+  delta: (batch: ReplayBatch) => unknown = () => null,
 ): ReplayBatch[] {
   const batches: ReplayBatch[] = [];
   vi.stubGlobal(
@@ -76,7 +78,7 @@ function mockReplayRoute(
         results.push({ id: action.id, ...r });
         if (r.status === "failed") break;
       }
-      return new Response(JSON.stringify({ v: 1, results }), {
+      return new Response(JSON.stringify({ v: 1, results, delta: delta(batch) }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
@@ -357,9 +359,10 @@ describe("useScoring", () => {
   });
 
   it("does not leak previous over deliveries into new bowler's over when syncing from DB", async () => {
-    // Online mode
+    // Online mode: the bowler change goes through the replay route, which
+    // answers without documents, so the screen re-reads.
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
-    vi.mocked(setCurrentBowler).mockResolvedValue({ error: null });
+    mockReplayRoute(() => ({ status: "applied" }));
 
     // Initial state: Over 0 finished, waiting for bowler
     const finishedOverDeliveries = [
@@ -419,7 +422,9 @@ describe("useScoring", () => {
       error: null,
     });
 
-    await result.current.handleConfirmBowler("new-bowler-id");
+    await act(async () => {
+      await result.current.handleConfirmBowler("new-bowler-id");
+    });
 
     await waitFor(() => {
       expect(result.current.currentBowlerId).toBe("new-bowler-id");
@@ -476,19 +481,8 @@ describe("useScoring", () => {
       bowler_id: "b1",
       batsman_id: "p1",
     };
-    vi.mocked(recordBall).mockResolvedValueOnce({
-      data: {
-        ...mockScoringState,
-        striker_id: "p2",
-        non_striker_id: "p1",
-        bowler_id: "b1",
-        status: "live",
-        current_innings: 1,
-        current_over: 0,
-        current_ball: 1,
-      } as never,
-      error: null,
-      delta: {
+    const deltas: unknown[] = [
+      {
         match: {
           id: matchId,
           status: "live",
@@ -523,19 +517,23 @@ describe("useScoring", () => {
           } as never,
         ],
       },
+      null,
+    ];
+    mockReplayRoute(
+      () => ({ status: "applied" }),
+      () => deltas.shift() ?? null,
+    );
+    await act(async () => {
+      await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
     });
-    await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
     await waitFor(() => expect(result.current.strikerId).toBe("p2"));
     expect(getScoringState).toHaveBeenCalledTimes(1);
     expect(result.current.rawDeliveries.map((d) => d.id)).toEqual(["i1_0~x"]);
 
     // Without the documents (or when they are not enough): one re-read.
-    vi.mocked(recordBall).mockResolvedValueOnce({
-      data: { ...mockScoringState, status: "live" } as never,
-      error: null,
-      delta: null,
+    await act(async () => {
+      await result.current.handleScore("b1", "p2", "p1", { runsScored: 0 });
     });
-    await result.current.handleScore("b1", "p2", "p1", { runsScored: 0 });
     await waitFor(() => expect(getScoringState).toHaveBeenCalledTimes(2));
   });
 
@@ -796,7 +794,14 @@ describe("useScoring", () => {
 
   it("queues a ball whose reply was lost under the id it was sent with", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
-    vi.mocked(recordBall).mockRejectedValue(new Error("Failed to fetch"));
+    const sent: ReplayBatch[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        sent.push(JSON.parse(String(init.body)) as ReplayBatch);
+        throw new TypeError("Failed to fetch");
+      }),
+    );
     const { result } = renderHook(() => useScoring(matchId));
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -804,7 +809,7 @@ describe("useScoring", () => {
 
     const res = await result.current.handleScore("u3", "p1", "p2", { runsScored: 1 });
     expect(res.error).toBeNull();
-    const sentId = vi.mocked(recordBall).mock.calls[0]![0].clientActionId;
+    const sentId = sent[0]!.actions[0]!.id;
     expect(sentId).toBeTruthy();
     const queued = getPendingActions(matchId);
     expect(queued).toHaveLength(1);

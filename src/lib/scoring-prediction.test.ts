@@ -115,7 +115,7 @@ function stateOf(inn = innings(), overs: OversRow[] = [], match = MATCH) {
     overs.map((o) => [o.id, o] as const),
     NAMES,
   )!;
-  return { snapshot, base: { innings: inn, overs } as PredictionBase };
+  return { snapshot, base: { innings: inn, overs } as PredictionBase | null };
 }
 
 let n = 0;

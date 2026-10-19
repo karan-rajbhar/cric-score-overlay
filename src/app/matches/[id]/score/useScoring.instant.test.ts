@@ -416,15 +416,24 @@ describe("useScoring: instant scoring", () => {
       });
     }
     await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
-    // Not predicted (the engine refuses it): the waiting path sends it.
-    const { setCurrentBowler } = await import("../../mutations");
-    vi.mocked(setCurrentBowler).mockResolvedValueOnce({
-      error: "The same bowler cannot bowl consecutive overs.",
-    });
+    // Not predicted (the engine refuses it): sent now, through the replay
+    // route; the screen shows nothing until the server answers.
+    server.fail = (a) =>
+      a.type === "setBowler"
+        ? "The same bowler cannot bowl consecutive overs."
+        : undefined;
+    const sent = server.batches.length;
     await act(async () => {
       await result.current.handleConfirmBowler("b1");
     });
-    expect(setCurrentBowler).toHaveBeenCalledTimes(1);
+    expect(server.batches.slice(sent).map((b) => b.actions[0]!.type)).toEqual([
+      "setBowler",
+    ]);
+    expect(toast.error).toHaveBeenCalledWith(
+      "The same bowler cannot bowl consecutive overs.",
+    );
+    // Refused: not shown as the bowler, nothing queued.
+    expect(result.current.currentBowlerId).toBeNull();
     expect(getPendingActions(M)).toHaveLength(0);
   });
 
@@ -622,10 +631,7 @@ describe("useScoring: instant scoring", () => {
     await act(async () => {
       await result.current.syncFromDb();
     });
-    let release: (v: { data: null; error: null }) => void = () => {};
-    vi.mocked(undoLastBall).mockImplementationOnce(
-      () => new Promise((r) => (release = r)),
-    );
+    server.hold = true;
     let undone: Promise<unknown>;
     act(() => {
       undone = result.current.handleUndo();
@@ -634,8 +640,9 @@ describe("useScoring: instant scoring", () => {
       expect(result.current.undoNotice).toMatchObject({ label: "4", pending: true }),
     );
     expect(result.current.undoBusy).toBe(true);
+    await waitFor(() => expect(server.batches.at(-1)!.actions[0]!.type).toBe("undoLastBall"));
     await act(async () => {
-      release({ data: null, error: null });
+      server.release();
       await undone;
     });
     expect(result.current.undoNotice).toMatchObject({ pending: false });
@@ -720,12 +727,14 @@ describe("useScoring: instant scoring", () => {
     vi.mocked(getScoringState).mockImplementation(
       async () => ({ ...server.state(), base: null }) as never,
     );
-    vi.mocked(recordBall).mockResolvedValueOnce({ data: null, error: null });
     const { result } = await open();
     await act(async () => {
       await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
     });
-    expect(recordBall).toHaveBeenCalledTimes(1);
-    expect(server.batches).toHaveLength(0);
+    // Sent (deploy-safe route), then shown as the server has it.
+    expect(server.batches).toHaveLength(1);
+    expect(server.batches[0]!.actions[0]!.type).toBe("recordBall");
+    expect(recordBall).not.toHaveBeenCalled();
+    expect(server.innings.total_runs).toBe(4);
   });
 });
