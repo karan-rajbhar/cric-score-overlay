@@ -14,6 +14,7 @@ import { cn } from "~/lib/utils";
 import type { BattingPerformance, TeamPlayer } from "~/lib/match-types";
 import { PlayerPicker } from "./PlayerPicker";
 import { buildBatterRows } from "./player-rows";
+import { RoleBand } from "./RoleBand";
 
 type Slot = "striker" | "nonStriker";
 
@@ -91,10 +92,7 @@ export function BatsmenDialog({
   const firstEmpty = (d: typeof draft): Slot =>
     !d.striker ? "striker" : !d.nonStriker ? "nonStriker" : "striker";
   const [activeSlot, setActiveSlot] = useState<Slot>(firstEmpty(draft));
-  /** Whether the next in has been applied to the empty end. */
-  const [suggested, setSuggested] = useState(false);
-
-  const { rows, nextInId } = useMemo(
+  const { rows } = useMemo(
     () =>
       buildBatterRows({
         players: battingTeamPlayers,
@@ -117,8 +115,9 @@ export function BatsmenDialog({
   );
 
   // Start from the crease each time the dialog opens (or the crease
-  // changes meanwhile, e.g. a co-scorer's change); after a wicket, the
-  // next batter in fills the empty end until the scorer picks another.
+  // changes meanwhile, e.g. a co-scorer's change). Nobody is picked for
+  // the scorer: a wrong default would be a wrong scorecard, so the empty
+  // end stays empty until they tap a batter.
   const crease = `${open}:${strikerId}:${nonStrikerId}:${focusEnd}`;
   const [seen, setSeen] = useState("");
   if (crease !== seen) {
@@ -126,13 +125,6 @@ export function BatsmenDialog({
     if (open) {
       const fresh = { striker: strikerId, nonStriker: nonStrikerId };
       const empty = firstEmpty(fresh);
-      if (survivor && nextInId && nextInId !== survivor) {
-        if (empty === "striker") fresh.striker = nextInId;
-        else fresh.nonStriker = nextInId;
-        setSuggested(true);
-      } else {
-        setSuggested(false);
-      }
       setDraft(fresh);
       setActiveSlot(strikerId && nonStrikerId && focusEnd ? focusEnd : empty);
     }
@@ -170,7 +162,6 @@ export function BatsmenDialog({
     const otherKey = key === "striker" ? "nonStriker" : "striker";
     const current = draft[key];
     if (id === current) return;
-    setSuggested(false);
     if (id === draft[otherKey]) {
       // Picking the batter at the other end swaps the two (not after a
       // wicket: the not-out batter is not the one being chosen).
@@ -202,11 +193,7 @@ export function BatsmenDialog({
   const slotButton = (slot: Slot, label: string, id: string | null) => {
     const locked = Boolean(newBatterSlot) && slot !== newBatterSlot;
     const active = newBatterSlot ? slot === newBatterSlot : activeSlot === slot;
-    const note = locked
-      ? "Not out"
-      : suggested && newBatterSlot === slot && id === nextInId
-        ? "Next in"
-        : null;
+    const note = locked ? "Not out" : null;
     return (
       <button
         type="button"
@@ -237,29 +224,47 @@ export function BatsmenDialog({
   };
 
   const pickingFor = newBatterSlot ?? activeSlot;
+  const changing = Boolean(strikerId && nonStrikerId && focusEnd);
+  // The task, in the title; the action, on the button.
+  const title = survivor
+    ? "Choose the new batter"
+    : !strikerId && !nonStrikerId
+      ? "Choose the opening batters"
+      : changing
+        ? `Change ${nameOf(focusEnd === "striker" ? strikerId : nonStrikerId) ?? "batter"}`
+        : "Batters at the crease";
+  const confirmLabel = survivor
+    ? "Confirm new batter"
+    : !strikerId && !nonStrikerId
+      ? "Confirm openers"
+      : changing
+        ? "Confirm change"
+        : "Confirm batters";
+  // Only who can be picked: those out never are; after a wicket, the pair
+  // at the crease is not being chosen either.
+  const pickable = rows.filter(
+    (r) =>
+      !r.disabledReason &&
+      !(survivor && (r.id === strikerId || r.id === nonStrikerId)),
+  );
   // After a wicket with nobody left to come in: all out, unless a player
   // is added (local matches often add the next batter as he walks in).
-  const nobodyLeft =
-    Boolean(survivor) &&
-    !rows.some((r) => !r.disabledReason && r.id !== survivor);
+  const nobodyLeft = Boolean(survivor) && pickable.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-balance">
-            {survivor
-              ? "New batter"
-              : strikerId && nonStrikerId && focusEnd
-                ? `Change ${nameOf(focusEnd === "striker" ? strikerId : nonStrikerId) ?? "batter"}`
-                : "Select batsmen"}
-          </DialogTitle>
+        <DialogHeader className="space-y-2 text-left">
+          <RoleBand role="batting" teamName={battingTeamName} />
+          <DialogTitle className="text-balance">{title}</DialogTitle>
           <DialogDescription>
             {survivor
-              ? `Who comes in with ${nameOf(survivor) ?? "the not-out batter"}? Use Swap ends if the new batter faces the next ball.`
-              : strikerId && nonStrikerId && focusEnd
-                ? "Tap the player who replaces them. The other batter stays."
-                : "Tap a player to fill the highlighted end."}
+              ? `Comes in with ${nameOf(survivor) ?? "the not-out batter"}. Swap ends if the new batter faces the next ball.`
+              : changing
+                ? "Tap who replaces them. The other batter stays."
+                : !strikerId && !nonStrikerId
+                  ? "Tap the striker, then the non-striker."
+                  : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -311,7 +316,7 @@ export function BatsmenDialog({
                   ? "Choose striker"
                   : "Choose non-striker"
             }
-            rows={rows}
+            rows={pickable}
             selectedId={
               pickingFor === "striker" ? draft.striker : draft.nonStriker
             }
@@ -325,7 +330,12 @@ export function BatsmenDialog({
                   }
                 : undefined
             }
-            emptyMessage="No players in the batting squad yet."
+            emptyMessage={
+              survivor
+                ? "Nobody left to come in."
+                : "No players in the batting squad yet."
+            }
+            noun="batter"
           />
 
           {/* Pinned on phones: reachable however long the squad is */}
@@ -335,7 +345,7 @@ export function BatsmenDialog({
               onClick={confirm}
               disabled={!canConfirm}
             >
-              Confirm
+              {confirmLabel}
             </Button>
           </div>
         </div>

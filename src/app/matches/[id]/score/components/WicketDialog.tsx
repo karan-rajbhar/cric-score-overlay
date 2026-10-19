@@ -332,6 +332,7 @@ export function WicketDialog({
                     : undefined
                 }
                 emptyMessage="No players in the fielding squad yet."
+                noun="fielder"
               />
             </div>
           )}

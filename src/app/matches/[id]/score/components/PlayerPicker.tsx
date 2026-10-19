@@ -28,6 +28,8 @@ interface PlayerPickerProps {
   /** Show the search box once the list is longer than this. */
   searchThreshold?: number;
   emptyMessage?: string;
+  /** What the rows are, for the search box: "batter", "bowler", "fielder". */
+  noun?: string;
   className?: string;
 }
 
@@ -60,6 +62,7 @@ export function PlayerPicker({
   addPlayer,
   searchThreshold = 8,
   emptyMessage = "No players in this squad yet.",
+  noun = "player",
   className,
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
@@ -150,10 +153,8 @@ export function PlayerPicker({
             name="player-search"
             autoComplete="off"
             enterKeyHint={firstEnabled ? "go" : "done"}
-            aria-label={addPlayer ? "Search or add a player" : "Search players"}
-            placeholder={
-              addPlayer ? "Search or add a player" : "Search players"
-            }
+            aria-label={addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`}
+            placeholder={addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onSearchKeyDown}

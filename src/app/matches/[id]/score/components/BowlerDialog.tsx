@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -12,6 +12,7 @@ import {
 import type { BowlingPerformance, TeamPlayer } from "~/lib/match-types";
 import { focusPickerRow, PlayerPicker } from "./PlayerPicker";
 import { buildBowlerRows } from "./player-rows";
+import { RoleBand } from "./RoleBand";
 
 interface BowlerDialogProps {
   open: boolean;
@@ -29,8 +30,12 @@ interface BowlerDialogProps {
   currentBall?: number;
   reassignOverDeliveries?: boolean;
   onReassignOverDeliveriesChange?: (val: boolean) => void;
-  onBowlerChange: (v: string) => void;
-  /** Receives the bowler to confirm, including a preselected one. */
+  /** The over being bowled (1-based), for the title. */
+  overNumber?: number;
+  /**
+   * Receives the bowler to confirm. Nothing on the screen changes before:
+   * the pick stays in the dialog until Confirm.
+   */
   onConfirm: (bowlerId: string) => void;
   isProcessing: boolean;
   /** Creates a player in the bowling side; resolves to the new id. */
@@ -54,13 +59,13 @@ export function BowlerDialog({
   currentBall,
   reassignOverDeliveries = false,
   onReassignOverDeliveriesChange,
-  onBowlerChange,
+  overNumber,
   onConfirm,
   isProcessing,
   onCreatePlayer,
   addPlayerDisabledReason,
 }: BowlerDialogProps) {
-  const { rows, onlyEligibleId } = useMemo(
+  const { rows } = useMemo(
     () =>
       buildBowlerRows({
         players: bowlingTeamPlayers,
@@ -85,8 +90,17 @@ export function BowlerDialog({
 
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // With a single eligible bowler, preselect them; confirming applies it.
-  const draftBowlerId = currentBowlerId ?? onlyEligibleId;
+  // The scorer's pick, starting from the current bowler (or nobody: a
+  // wrong default would put the wrong bowler on).
+  const [draftBowlerId, setDraftBowlerId] = useState<string | null>(
+    currentBowlerId,
+  );
+  const [seen, setSeen] = useState("");
+  const key = `${open}:${currentBowlerId}`;
+  if (key !== seen) {
+    setSeen(key);
+    if (open) setDraftBowlerId(currentBowlerId);
+  }
 
   const blockedReason = (id: string | null): string | null => {
     if (!id) return null;
@@ -106,9 +120,9 @@ export function BowlerDialog({
 
   const confirm = (id: string | null = draftBowlerId) => {
     if (!id || blockedReason(id) || isProcessing) return;
-    if (id !== currentBowlerId) onBowlerChange(id);
     onConfirm(id);
   };
+  const changingOver = currentBall !== undefined && currentBall > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,11 +131,17 @@ export function BowlerDialog({
         className="sm:max-w-md"
         onOpenAutoFocus={(e) => focusPickerRow(e, contentRef.current)}
       >
-        <DialogHeader>
-          <DialogTitle>Select bowler</DialogTitle>
+        <DialogHeader className="space-y-2 text-left">
+          <RoleBand role="bowling" teamName={bowlingTeamName} />
+          <DialogTitle className="text-balance">
+            {changingOver
+              ? `Change the bowler of over ${overNumber ?? ""}`.trim()
+              : overNumber
+                ? `Choose the bowler for over ${overNumber}`
+                : "Choose the bowler"}
+          </DialogTitle>
           <DialogDescription>
-            Choose the bowler for this over. Figures are
-            overs-maidens-runs-wickets.
+            Figures are overs-maidens-runs-wickets.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -129,7 +149,7 @@ export function BowlerDialog({
             label="Choose bowler"
             rows={rows}
             selectedId={draftBowlerId}
-            onSelect={onBowlerChange}
+            onSelect={setDraftBowlerId}
             onSubmit={(id) => confirm(id)}
             addPlayer={
               onCreatePlayer
@@ -141,6 +161,7 @@ export function BowlerDialog({
                 : undefined
             }
             emptyMessage="No players in the bowling squad yet."
+            noun="bowler"
           />
 
           {selectedBlocked && (

@@ -49,7 +49,7 @@ const bowl = (
 
 describe("buildBatterRows", () => {
   it("orders yet-to-bat by batting order, then retired hurt, the crease, and the dismissed", () => {
-    const { rows, nextInId } = buildBatterRows({
+    const { rows } = buildBatterRows({
       players: [
         p("a"),
         p("b", { batting_order: 5 }),
@@ -83,8 +83,9 @@ describe("buildBatterRows", () => {
       nonStrikerId: null,
     });
     expect(rows.map((r) => r.id)).toEqual(["c", "b", "e", "f", "d", "a"]);
-    expect(nextInId).toBe("c");
-    expect(rows[0]).toMatchObject({ tag: "Next in", role: "(wk)" });
+    // In batting order; nobody is marked or picked for the scorer.
+    expect(rows[0]).toMatchObject({ role: "(wk)" });
+    expect(rows[0]?.tag).toBeUndefined();
     expect(rows.find((r) => r.id === "e")).toMatchObject({
       note: "Retired hurt",
       detail: "8 (5)",

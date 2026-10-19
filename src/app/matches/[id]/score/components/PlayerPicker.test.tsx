@@ -5,7 +5,7 @@ import type { PickerRow } from "./player-rows";
 
 const rows: PickerRow[] = [
   { id: "a", name: "Anil Kumble", role: "(c)", detail: "2-0-14-1" },
-  { id: "b", name: "Bhuvi Kumar", tag: "Next in" },
+  { id: "b", name: "Bhuvi Kumar", tag: "Bowling" },
   { id: "c", name: "Chahal", disabledReason: "Bowled last over" },
   { id: "d", name: "Deepak Chahar", note: "Quota used" },
 ];
@@ -35,7 +35,7 @@ describe("PlayerPicker", () => {
     expect(radios[0]).toHaveTextContent("(c)");
     expect(radios[0]).toHaveTextContent("2-0-14-1");
     expect(radios[0]).toHaveAttribute("aria-checked", "true");
-    expect(radios[1]).toHaveTextContent("Next in");
+    expect(radios[1]).toHaveTextContent("Bowling");
     expect(radios[2]).toBeDisabled();
     expect(radios[2]).toHaveTextContent("Bowled last over");
     expect(radios[3]).toBeEnabled();

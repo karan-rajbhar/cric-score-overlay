@@ -300,7 +300,6 @@ export default function ScoringPage() {
     deadLetterCount,
     flushOfflineQueue,
     handleSkipHeadAction,
-    setCurrentBowlerId,
     handleStartMatch,
     handleScore,
     handleUndo,
@@ -2108,7 +2107,7 @@ export default function ScoringPage() {
         currentBall={match.current_ball}
         reassignOverDeliveries={reassignOverDeliveries}
         onReassignOverDeliveriesChange={setReassignOverDeliveries}
-        onBowlerChange={setCurrentBowlerId}
+        overNumber={(match.current_over ?? 0) + 1}
         onConfirm={async (bowlerId) => {
           if (reassignOverDeliveries && (match.current_ball ?? 0) > 0) {
             const res = await handleReassignOverBowler(bowlerId);

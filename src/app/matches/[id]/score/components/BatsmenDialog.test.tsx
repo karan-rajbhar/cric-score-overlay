@@ -32,7 +32,11 @@ describe("BatsmenDialog", () => {
       />,
     );
 
-    expect(screen.getByText(/Select.*Batsmen/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Choose the opening batters" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("role-band-batting")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm openers" })).toBeDisabled();
     expect(screen.getByText("Striker")).toBeInTheDocument();
     expect(screen.getByText("Non-striker")).toBeInTheDocument();
     expect(
@@ -88,7 +92,7 @@ describe("BatsmenDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({
       strikerId: "user-new",
       nonStrikerId: "user-2",
@@ -111,7 +115,7 @@ describe("BatsmenDialog", () => {
     fireEvent.click(screen.getByRole("radio", { name: /Virat Kohli/ }));
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
     expect(onConfirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({
       strikerId: "user-1",
       nonStrikerId: "user-2",
@@ -162,15 +166,21 @@ describe("BatsmenDialog", () => {
         />,
       );
 
-    it("suggests the next batter in and confirms in one tap", () => {
+    it("picks nobody for the scorer and lists only who can come in", () => {
       const onConfirm = vi.fn();
       afterWicket(onConfirm);
-      expect(screen.getByText("New batter")).toBeInTheDocument();
-      expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toBeDisabled();
       expect(
-        screen.getByRole("button", { name: /Non-striker.*Shubman Gill/ }),
-      ).toHaveTextContent("Next in");
-      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+        screen.getByRole("heading", { name: "Choose the new batter" }),
+      ).toBeInTheDocument();
+      // No "Next in": the empty end stays empty until a batter is tapped.
+      expect(screen.queryByText("Next in")).toBeNull();
+      const confirm = screen.getByRole("button", { name: "Confirm new batter" });
+      expect(confirm).toBeDisabled();
+      // The batter who is out and the one not out are not in the list.
+      expect(screen.queryByRole("radio", { name: /Rohit Sharma/ })).toBeNull();
+      expect(screen.queryByRole("radio", { name: /Virat Kohli/ })).toBeNull();
+      fireEvent.click(screen.getByRole("radio", { name: /Shubman Gill/ }));
+      fireEvent.click(confirm);
       expect(onConfirm).toHaveBeenCalledWith({
         strikerId: "user-1",
         nonStrikerId: "user-3",
@@ -184,7 +194,7 @@ describe("BatsmenDialog", () => {
       expect(notOut).toBeDisabled();
       expect(notOut).toHaveTextContent("Not out");
       fireEvent.click(screen.getByRole("radio", { name: /Shreyas Iyer/ }));
-      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+      fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
       expect(onConfirm).toHaveBeenCalledWith({
         strikerId: "user-1",
         nonStrikerId: "user-4",
@@ -196,7 +206,7 @@ describe("BatsmenDialog", () => {
       afterWicket(onConfirm);
       fireEvent.click(screen.getByRole("button", { name: "Swap ends" }));
       fireEvent.click(screen.getByRole("radio", { name: /Shreyas Iyer/ }));
-      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+      fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
       expect(onConfirm).toHaveBeenCalledWith({
         strikerId: "user-4",
         nonStrikerId: "user-1",
@@ -218,7 +228,7 @@ describe("BatsmenDialog", () => {
       />,
     );
     fireEvent.click(screen.getByRole("radio", { name: /Rohit Sharma/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({
       strikerId: "user-2",
       nonStrikerId: "user-1",
@@ -240,7 +250,7 @@ describe("BatsmenDialog", () => {
       />,
     );
 
-    const confirmButton = screen.getByRole("button", { name: "Confirm" });
+    const confirmButton = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmButton).toBeDisabled();
   });
 
@@ -259,7 +269,7 @@ describe("BatsmenDialog", () => {
       />,
     );
 
-    const confirmButton = screen.getByRole("button", { name: "Confirm" });
+    const confirmButton = screen.getByRole("button", { name: /^Confirm/ });
     expect(confirmButton).toBeEnabled();
 
     fireEvent.click(confirmButton);
@@ -285,7 +295,7 @@ describe("BatsmenDialog", () => {
     );
 
     // Confirm is disabled because striker is currentBowlerId
-    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Confirm/ })).toBeDisabled();
 
     // If striker is an opposing team player in bowlingTeamPlayerIds
     rerender(
@@ -302,7 +312,7 @@ describe("BatsmenDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Confirm/ })).toBeDisabled();
   });
 
   it("filters out opposing team players from selectable batting list when in bowlingTeamPlayerIds", () => {
@@ -386,7 +396,7 @@ describe("BatsmenDialog changing one batter", () => {
     );
     expect(screen.getByText("Change B")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /^C/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
   });
 });

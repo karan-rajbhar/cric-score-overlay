@@ -127,7 +127,7 @@ export function PotmDialog({
       } else {
         const winnerName =
           topPerformer?.playerName || enrichedPlayers[0]?.name || "Player";
-        toast.success(`Automatically awarded to ${winnerName}!`);
+        toast.success(`Player of the match: ${winnerName}`);
         handleOpenChange(false);
         onSuccess?.(targetId);
       }

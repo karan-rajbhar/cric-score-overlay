@@ -27,7 +27,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId={null}
         lastOverBowlerId={null}
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
       />,
@@ -49,7 +48,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId={null}
         lastOverBowlerId={null}
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
       />,
@@ -67,7 +65,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId="user-kishor"
         lastOverBowlerId="user-kishor"
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
       />,
@@ -92,7 +89,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId="user-rahul"
         lastOverBowlerId="user-kishor"
-        onBowlerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
       />,
@@ -107,7 +103,7 @@ describe("BowlerDialog", () => {
 
   it("allows inline addition of a new bowler to squad", async () => {
     const onCreatePlayer = vi.fn().mockResolvedValue("user-new");
-    const onBowlerChange = vi.fn();
+    const onConfirm = vi.fn();
 
     render(
       <BowlerDialog
@@ -117,8 +113,7 @@ describe("BowlerDialog", () => {
         bowlingTeamName="Chennai"
         currentBowlerId={null}
         lastOverBowlerId="user-kishor"
-        onBowlerChange={onBowlerChange}
-        onConfirm={vi.fn()}
+        onConfirm={onConfirm}
         isProcessing={false}
         onCreatePlayer={onCreatePlayer}
       />,
@@ -133,12 +128,12 @@ describe("BowlerDialog", () => {
     await waitFor(() =>
       expect(onCreatePlayer).toHaveBeenCalledWith("Jasprit Bumrah"),
     );
-    await waitFor(() =>
-      expect(onBowlerChange).toHaveBeenCalledWith("user-new"),
-    );
+    // The new player is picked; confirming bowls them.
+    fireEvent.click(screen.getByRole("button", { name: "Confirm bowler" }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith("user-new"));
   });
 
-  it("shows why the previous over's bowler is unavailable and preselects the only eligible one", () => {
+  it("shows why the previous over's bowler is unavailable and preselects nobody", () => {
     const onConfirm = vi.fn();
     render(
       <BowlerDialog
@@ -147,7 +142,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         currentBowlerId={null}
         lastOverBowlerId="user-kishor"
-        onBowlerChange={vi.fn()}
         onConfirm={onConfirm}
         isProcessing={false}
       />,
@@ -156,15 +150,38 @@ describe("BowlerDialog", () => {
     const kishor = screen.getByRole("radio", { name: /Kishor/ });
     expect(kishor).toBeDisabled();
     expect(kishor).toHaveTextContent("Bowled last over");
-    expect(screen.getByRole("radio", { name: /Rahul/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    const rahul = screen.getByRole("radio", { name: /Rahul/ });
+    expect(rahul).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("button", { name: "Confirm bowler" })).toBeDisabled();
+    // Picking does not bowl them yet: only Confirm does.
+    fireEvent.click(rahul);
+    expect(onConfirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm bowler" }));
     expect(onConfirm).toHaveBeenCalledWith("user-rahul");
   });
 
-  it("focuses the preselected row on open (no phone keyboard) and confirms with Enter", async () => {
+  it("says it is the bowling side's dialog, and for which over", () => {
+    render(
+      <BowlerDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        bowlingTeamPlayers={mockPlayers}
+        bowlingTeamName="Chennai"
+        currentBowlerId={null}
+        overNumber={5}
+        onConfirm={vi.fn()}
+        isProcessing={false}
+        onCreatePlayer={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("role-band-bowling")).toHaveTextContent("Bowling · Chennai");
+    expect(
+      screen.getByRole("heading", { name: "Choose the bowler for over 5" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Search or add a bowler" })).toBeInTheDocument();
+  });
+
+  it("focuses the first available row on open (no phone keyboard) and confirms with Enter", async () => {
     const onConfirm = vi.fn();
     render(
       <BowlerDialog
@@ -174,7 +191,6 @@ describe("BowlerDialog", () => {
         bowlingTeamName="Chennai"
         currentBowlerId={null}
         lastOverBowlerId="user-kishor"
-        onBowlerChange={vi.fn()}
         onConfirm={onConfirm}
         isProcessing={false}
         onCreatePlayer={vi.fn()}
@@ -194,7 +210,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mockPlayers}
         bowlingTeamName="Chennai"
         currentBowlerId={null}
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
         onCreatePlayer={vi.fn()}
@@ -225,7 +240,6 @@ describe("BowlerDialog", () => {
         currentBall={3}
         reassignOverDeliveries={false}
         onReassignOverDeliveriesChange={handleReassignChange}
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
       />,
@@ -251,7 +265,6 @@ describe("BowlerDialog", () => {
         currentBowlerId="user-kishor"
         strikerId="user-kishor"
         nonStrikerId="user-other"
-        onBowlerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
       />,
@@ -274,7 +287,6 @@ describe("BowlerDialog", () => {
         currentBowlerId="user-kishor"
         strikerId="user-other"
         nonStrikerId="user-kishor"
-        onBowlerChange={vi.fn()}
         onConfirm={handleConfirm}
         isProcessing={false}
       />,
@@ -303,7 +315,6 @@ describe("BowlerDialog", () => {
         bowlingTeamPlayers={mixedPlayers}
         battingTeamPlayerIds={new Set(["user-batter-1"])}
         currentBowlerId={null}
-        onBowlerChange={vi.fn()}
         onConfirm={vi.fn()}
         isProcessing={false}
       />,
