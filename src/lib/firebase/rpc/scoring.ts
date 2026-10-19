@@ -1854,6 +1854,11 @@ export async function setCurrentBatsmen(
     // actions may have moved the crease on since.
     await guardClientAction(t, ctx, match, current);
     if (!current) throw new DbQueryError("no_open_innings", "22000");
+    // A finished match or innings has no crease to change.
+    if (match.status === "completed" || match.status === "abandoned")
+      throw new DbQueryError("match_not_live", "22000");
+    if (current.is_completed)
+      throw new DbQueryError("innings_already_completed", "22000");
     requireScorecard(current);
 
     const roster = await t.where<TeamPlayersRow>("team_players", [
@@ -1913,6 +1918,11 @@ export async function setCurrentBowler(
     // over may have started since, with another bowler.
     await guardClientAction(t, ctx, match, current);
     if (!current) throw new DbQueryError("no_open_innings", "22000");
+    // A finished match or innings has no crease to change.
+    if (match.status === "completed" || match.status === "abandoned")
+      throw new DbQueryError("match_not_live", "22000");
+    if (current.is_completed)
+      throw new DbQueryError("innings_already_completed", "22000");
     requireScorecard(current);
 
     const currentOver = matchPositionOf(match, current).current_over;

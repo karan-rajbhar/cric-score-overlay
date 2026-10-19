@@ -350,26 +350,47 @@ export function ballDocsAfter(input: BallDocsInput): BallDocs | null {
 }
 
 /**
+ * Whether a batter's entry records nothing: no ball faced, no run, not out
+ * or retired. Such an entry leaving the crease was a mistaken selection.
+ */
+function untouched(b: BattingEntry): boolean {
+  return (
+    !b.is_out &&
+    !b.dismissal_type &&
+    (b.balls_faced ?? 0) === 0 &&
+    (b.runs_scored ?? 0) === 0
+  );
+}
+
+/**
  * The innings' batting entries with `strikerId` / `nonStrikerId` at the
- * crease (newcomers appended at the next batting positions), or null when
- * nothing changes. Validation (roster, already out) is the caller's.
+ * crease, or null when nothing changes. Newcomers are appended at the next
+ * batting positions. A batter sent away from the crease
+ * before anything happened to them (a wrong pick, corrected) is dropped, so
+ * they keep no scorecard row or batting position. Validation (roster,
+ * already out) is the caller's.
  */
 export function battingWithCrease(
   batting: readonly BattingEntry[],
   strikerId: string,
   nonStrikerId: string,
 ): BattingEntry[] | null {
-  let nextPos = batting.reduce(
+  const atCrease = (id: string) => id === strikerId || id === nonStrikerId;
+  const kept = batting.filter(
+    (b) => atCrease(b.user_id) || !b.is_current_batsman || !untouched(b),
+  );
+  let changed = kept.length !== batting.length;
+  let nextPos = kept.reduce(
     (m, b) => Math.max(m, b.batting_position ?? 0),
     0,
   );
+  // Sorted, as the engine always has (its replay fixtures pin it).
   const newcomers = [strikerId, nonStrikerId]
-    .filter((id) => !batting.some((b) => b.user_id === id))
+    .filter((id) => !kept.some((b) => b.user_id === id))
     .sort();
 
-  let changed = false;
-  const next = batting.map((b) => {
-    const isCurrent = b.user_id === strikerId || b.user_id === nonStrikerId;
+  const next = kept.map((b) => {
+    const isCurrent = atCrease(b.user_id);
     const isStriker = b.user_id === strikerId;
     if (
       Boolean(b.is_current_batsman) === isCurrent &&

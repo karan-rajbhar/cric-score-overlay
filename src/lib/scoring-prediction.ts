@@ -175,7 +175,9 @@ function currentBase<M extends SnapshotMatch, D>(
   state: ScreenState<M, D>,
 ): PredictionBase | null {
   const base = state.base;
-  if (!base) return null;
+  if (!base || base.innings.is_completed) return null;
+  const status = (state.snapshot.match as { status?: string | null }).status;
+  if (status === "completed" || status === "abandoned") return null;
   return currentInningsId(state.snapshot.match) === base.innings.id
     ? base
     : null;
@@ -215,13 +217,13 @@ export function predictBall<M extends SnapshotMatch, D>(
   names: Names,
   now: string,
 ): Prediction<M, D> {
-  const base = currentBase(state);
-  if (!base) return fail("no_base");
   const match = state.snapshot.match as unknown as MatchesRow & {
     id: string;
     status?: string | null;
   };
   if (match.status !== "live") return fail("match_not_live");
+  const base = currentBase(state);
+  if (!base) return fail("no_base");
   const args = recordBallArgsOf(match.id, action.payload);
   const checked = checkBallArgs(args);
   if (!checked.ok) return fail(checked.code);

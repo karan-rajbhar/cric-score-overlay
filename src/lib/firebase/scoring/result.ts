@@ -100,15 +100,24 @@ export function advanceAfterInnings(
   let margin: number | null = null;
   let description: string;
 
-  if (runs > firstRuns) {
+  // The chase is against its target, which follows the first innings
+  // (penalty runs included) unless it was revised (DLS, reduced overs):
+  // reaching it wins, falling one short ties.
+  const target =
+    completed.target_runs !== null && completed.target_runs !== undefined
+      ? completed.target_runs
+      : firstRuns + 1;
+  const revised = target !== firstRuns + 1;
+
+  if (runs >= target) {
     winner = completed.team_id;
     marginType = "wickets";
     margin = Math.max(wicketsCap - wickets, 0);
     description = `${teamNames[winner] ?? "Team"} won by ${margin} ${pluralise(margin, "wicket", "wickets")}`;
-  } else if (firstRuns > runs) {
+  } else if (runs < target - 1) {
     winner = firstTeam;
     marginType = "runs";
-    margin = firstRuns - runs;
+    margin = target - 1 - runs;
     description = `${teamNames[winner] ?? "Team"} won by ${margin} ${pluralise(margin, "run", "runs")}`;
   } else {
     resultType = "tie";
@@ -117,6 +126,8 @@ export function advanceAfterInnings(
 
   if (isSuperOverInnings(inningsNumber) && resultType === "win") {
     description = `${description} (Super Over)`;
+  } else if (revised && resultType === "win") {
+    description = `${description} (revised target)`;
   }
 
   return {

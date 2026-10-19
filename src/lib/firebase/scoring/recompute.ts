@@ -208,6 +208,20 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
   let ballsInCurrentOver = 0;
   let currentOverNum = 0;
   let overJustEnded = false;
+  /** The bowler of the over the last ball ended (not allowed the next one). */
+  let endedOverBowler: string | null = null;
+  /** Players the ball log names (their rows stay, whatever their figures). */
+  const named = new Set<string>();
+  for (const ball of balls) {
+    for (const id of [
+      ball.batsman_id,
+      ball.non_striker_id,
+      ball.bowler_id,
+      ball.dismissed_player_id,
+    ]) {
+      if (id) named.add(id);
+    }
+  }
 
   // Pre-compute per-over totals for maiden detection (all balls, as SQL did).
   const overTotals = new Map<number, number>();
@@ -441,9 +455,44 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
           bw.maidens = (bw.maidens ?? 0) + 1;
         }
       }
+      endedOverBowler = ball.bowler_id ?? null;
       lastBowler = null;
     }
   }
+
+  // An end the log leaves empty (after a wicket, an over, or before the
+  // first ball) keeps whom the scorer has put there since the last ball:
+  // `set_current_batsmen` / `set_current_bowler` choices the log cannot
+  // hold yet. Without this, undoing or editing a ball would lose them
+  // (e.g. undoing an over's first ball would leave no bowler).
+  if (finalStriker === null || finalNonStriker === null) {
+    // Never someone the log has sent off (out, or retired since).
+    const chosen = input.existingBatting.filter((b) => {
+      const now = batting.get(b.user_id);
+      return (
+        b.is_current_batsman && now && !now.is_out && !now.dismissal_type
+      );
+    });
+    const striker = chosen.find((b) => b.is_striker);
+    const nonStriker = chosen.find((b) => !b.is_striker);
+    const stillIn = [finalStriker, finalNonStriker].filter(
+      (id): id is string => id !== null,
+    );
+    if (
+      striker &&
+      nonStriker &&
+      stillIn.every((id) => id === striker.user_id || id === nonStriker.user_id)
+    ) {
+      finalStriker = striker.user_id;
+      finalNonStriker = nonStriker.user_id;
+    }
+  }
+  const chosenBowler =
+    lastBowler === null
+      ? (input.existingBowling.find(
+          (b) => b.is_current_bowler && b.user_id !== endedOverBowler,
+        )?.user_id ?? null)
+      : null;
 
   if (finalStriker && batting.has(finalStriker)) {
     const bp = batting.get(finalStriker)!;
@@ -458,7 +507,9 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
 
   for (const bw of bowling.values()) {
     bw.overs_bowled = oversFromBalls(bw.balls_bowled ?? 0, bpo);
-    if (overJustEnded) {
+    if (chosenBowler) {
+      bw.is_current_bowler = bw.user_id === chosenBowler;
+    } else if (overJustEnded) {
       bw.is_current_bowler = false;
     } else if (lastBowler) {
       bw.is_current_bowler = bw.user_id === lastBowler;
@@ -490,8 +541,28 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
       current_over: Math.floor(legal / bpo),
       current_ball: legal % bpo,
     },
-    batting: Array.from(batting.values()),
-    bowling: Array.from(bowling.values()),
+    // A batter or bowler the log does not name, with nothing recorded and
+    // no longer at the crease or bowling (brought in after a ball since
+    // undone or edited away), has no place on the scorecard.
+    batting: Array.from(batting.values()).filter(
+      (b) =>
+        named.has(b.user_id) ||
+        b.is_current_batsman ||
+        b.is_out ||
+        Boolean(b.dismissal_type) ||
+        (b.balls_faced ?? 0) > 0 ||
+        (b.runs_scored ?? 0) > 0,
+    ),
+    bowling: Array.from(bowling.values()).filter(
+      (b) =>
+        named.has(b.user_id) ||
+        b.is_current_bowler ||
+        (b.balls_bowled ?? 0) > 0 ||
+        (b.runs_conceded ?? 0) > 0 ||
+        (b.wickets_taken ?? 0) > 0 ||
+        (b.wides ?? 0) > 0 ||
+        (b.no_balls ?? 0) > 0,
+    ),
     fallOfWickets,
     partnerships,
     overJustEnded,
