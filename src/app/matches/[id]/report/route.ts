@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFullMatchForExport } from "~/app/matches/queries";
 import { buildMatchReportHtml } from "~/lib/match-report";
+import { originFromHeaders } from "~/lib/request-origin";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,9 @@ export async function GET(
     return new NextResponse(res.error || "Match not found", { status: 404 });
   }
 
-  const origin = request.nextUrl.origin;
-  const matchUrl = `${origin}/matches/${id}`;
+  // The public address, not the server's own (behind App Hosting's proxy
+  // or the dev tunnel that is an internal host a phone cannot open).
+  const matchUrl = `${originFromHeaders(request.headers)}/matches/${id}`;
 
   const html = await buildMatchReportHtml(res.data, matchUrl);
 

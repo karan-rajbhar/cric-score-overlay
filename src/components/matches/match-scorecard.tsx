@@ -17,6 +17,7 @@ import {
   economyRate,
   formatDecimalOvers,
   oversFromBalls,
+  byBattingOrder,
   strikeRate,
   teamName,
 } from "~/lib/cricket";
@@ -146,13 +147,8 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(innings.batting_performances || [])
-                        .sort((a, b) => {
-                          if (a.batting_position && b.batting_position) {
-                            return a.batting_position - b.batting_position;
-                          }
-                          return b.runs_scored - a.runs_scored;
-                        })
+                      {[...(innings.batting_performances || [])]
+                        .sort(byBattingOrder)
                         .map((bp) => (
                           <TableRow
                             key={bp.id}
@@ -288,8 +284,8 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* In the order they came on, as on a scorecard. */}
                       {(innings.bowling_performances || [])
-                        .sort((a, b) => b.wickets_taken - a.wickets_taken)
                         .map((bp) => (
                           <TableRow
                             key={bp.id}

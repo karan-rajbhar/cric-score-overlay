@@ -349,11 +349,50 @@ export const inningsForTeam = (
   teamId: string,
 ): Innings | undefined => match.innings?.find((i) => i.team_id === teamId);
 
+/**
+ * The two sides in batting order, as official scorecards list them: the
+ * side that batted first, then the chasing side (team 1 first until
+ * someone has batted). Each with its main innings (not a super over).
+ */
+export function sidesInBattingOrder<
+  T,
+  I extends { team_id?: string | null; innings_number: number },
+>(match: {
+  team1_id?: string | null;
+  team2_id?: string | null;
+  team1: T;
+  team2: T;
+  innings?: I[] | null;
+}): [{ team: T; innings: I | undefined }, { team: T; innings: I | undefined }] {
+  const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
+  const inningsOf = (teamId?: string | null) =>
+    main.find((i) => i.team_id === teamId);
+  const side1 = { team: match.team1, innings: inningsOf(match.team1_id) };
+  const side2 = { team: match.team2, innings: inningsOf(match.team2_id) };
+  const firstBatting = main.find((i) => i.innings_number === 1)?.team_id;
+  return firstBatting && firstBatting === match.team2_id
+    ? [side2, side1]
+    : [side1, side2];
+}
+
 /** Innings in which a team bowled (i.e. the opponent's innings). */
 export const bowlingInningsForTeam = (
   match: Match,
   teamId: string,
 ): Innings | undefined => match.innings?.find((i) => i.team_id !== teamId);
+
+/**
+ * Scorecard order: the order the batters came in (`batting_position`),
+ * those without one last, in their stored order (sort is stable).
+ */
+export function byBattingOrder(
+  a: { batting_position?: number | null },
+  b: { batting_position?: number | null },
+): number {
+  const pa = a.batting_position || Number.MAX_SAFE_INTEGER;
+  const pb = b.batting_position || Number.MAX_SAFE_INTEGER;
+  return pa - pb;
+}
 
 /** Top batters of a team, best first. */
 export function topBatters(

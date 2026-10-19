@@ -203,247 +203,132 @@ describe("match-report export helpers", () => {
   });
 
   describe("buildMatchReportHtml", () => {
-    it("generates complete HTML document with QR code and scorecard tables", async () => {
-      const html = await buildMatchReportHtml(
-        sampleMatch,
-        "https://cricket.app/matches/match-124",
-      );
+    const URL = "https://cricscore.example.com/matches/match-124";
+
+    it("renders a complete scorecard with the result, the facts and a QR code", async () => {
+      const html = await buildMatchReportHtml(sampleMatch, URL);
 
       expect(html.toLowerCase()).toContain("<!doctype html>");
+      expect(html).toContain("<h1>Royal Tigers vs Coastal Kings</h1>");
       expect(html).toContain("T20 Championship Final");
       expect(html).toContain("Melbourne Cricket Ground");
       expect(html).toContain("Royal Tigers won by 18 runs");
       expect(html).toContain("Virat Kohli");
       expect(html).toContain("Jasprit Bumrah");
-      expect(html).toContain("data:image/png;base64,"); // QR code data url
-      expect(html).toContain('class="innings"');
+      expect(html).toContain("data:image/png;base64,");
+      expect(html).toContain(`<a href="${URL}">${URL}</a>`);
       expect(html).toContain("@media print");
-
-      // Verify Fall of Wickets formatting
+      expect(html).toContain("@page { size: A4");
       expect(html).toContain(
-        '1-26</strong> <span class="fow-sub">(David Brown, 2.5 ov)',
+        "1-26 (David Brown, 2.5 ov), 2-46 (Tom Garcia, 5.4 ov)",
       );
-      expect(html).toContain(
-        '2-46</strong> <span class="fow-sub">(Tom Garcia, 5.4 ov)',
-      );
-      expect(html).toContain(
-        '3-73</strong> <span class="fow-sub">(Mike Wilson, 8.4 ov)',
-      );
-      expect(html).toContain(
-        '4-94</strong> <span class="fow-sub">(John Smith, 11.3 ov)',
-      );
-      expect(html).toContain(
-        '5-117</strong> <span class="fow-sub">(Ryan Martinez, 14.2 ov)',
-      );
-      expect(html).toContain(
-        '6-141</strong> <span class="fow-sub">(Alex Davis, 17.1 ov)',
-      );
-
-      // Typography & Modern styles
-      expect(html).toContain("Outfit");
-      expect(html).toContain("Plus Jakarta Sans");
-      expect(html).toContain("JetBrains Mono");
-      expect(html).toContain("match-duel-hero");
+      // Extras with their breakdown, and the total with the run rate.
+      expect(html).toContain("b 2, lb 1, w 5, nb 2");
+      expect(html).toContain("178/5 <span class=\"muted\">(20.0 ov, RR 8.90)</span>");
     });
 
-    it("renders over comparison page when deliveries are present", async () => {
-      const matchWithDeliveries: Match = {
+    it("states only facts the match holds", async () => {
+      const html = await buildMatchReportHtml(sampleMatch, URL);
+      for (const filler of [
+        "11 Per Side",
+        "Official League Umpires",
+        "Official Scorer",
+        "Standard Leather Ball",
+        "Verified Electronic Record",
+      ]) {
+        expect(html).not.toContain(filler);
+      }
+      const withOfficials = await buildMatchReportHtml(
+        {
+          ...sampleMatch,
+          umpire1_name: "A Umpire",
+          umpire2_name: "B Umpire",
+          scorer_name: "C Scorer",
+        },
+        URL,
+      );
+      expect(withOfficials).toContain("<dt>Umpires</dt><dd>A Umpire, B Umpire</dd>");
+      expect(withOfficials).toContain("<dt>Scorer</dt><dd>C Scorer</dd>");
+    });
+
+    it("lists the side that batted first first, and batters in batting order", async () => {
+      const bat = (id: string, name: string, pos: number, balls: number) => ({
+        id: `bp-${id}`,
+        match_id: "m1",
+        innings_id: "inn1",
+        user_id: id,
+        batting_position: pos,
+        runs_scored: balls,
+        balls_faced: balls,
+        fours: 0,
+        sixes: 0,
+        is_out: true,
+        user: { id, full_name: name },
+      });
+      const match: Match = {
+        ...sampleMatch,
+        innings: [
+          { ...innings2, team_id: "t2", innings_number: 1 },
+          {
+            ...innings1,
+            team_id: "t1",
+            innings_number: 2,
+            target_runs: 161,
+            batting_performances: [
+              // Number 5 faced the most balls: still listed fifth.
+              bat("u5", "Fifth In", 5, 60),
+              bat("u1", "Opener One", 1, 10),
+              bat("u2", "Opener Two", 2, 12),
+            ],
+          },
+        ],
+      };
+      const html = await buildMatchReportHtml(match, URL);
+      expect(html).toContain("<h1>Coastal Kings vs Royal Tigers</h1>");
+      expect(html.indexOf("Coastal Kings innings")).toBeLessThan(
+        html.indexOf("Royal Tigers innings"),
+      );
+      expect(html).toContain("Target 161");
+      const order = ["Opener One", "Opener Two", "Fifth In"].map((n) =>
+        html.indexOf(n),
+      );
+      expect(order).toEqual([...order].sort((a, b) => a - b));
+    });
+
+    it("marks not-out and retired batters, and includes super overs", async () => {
+      const match: Match = {
         ...sampleMatch,
         innings: [
           {
             ...innings1,
-            ball_by_ball: [
+            batting_performances: [
+              ...(innings1.batting_performances ?? []),
               {
-                id: "b1",
+                id: "bp-r",
                 match_id: "m1",
                 innings_id: "inn1",
-                over_number: 1,
-                ball_number: 1,
-                runs_scored: 4,
-                extras: 0,
-                extra_type: null,
-                is_wicket: false,
-                dismissal_type: null,
-                bowler_id: "b_u1",
-                batsman_id: "u1",
-                non_striker_id: "u2",
-                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
-                batsman: { id: "u1", full_name: "Virat Kohli" },
-              },
-              {
-                id: "b2",
-                match_id: "m1",
-                innings_id: "inn1",
-                over_number: 1,
-                ball_number: 2,
-                runs_scored: 0,
-                extras: 1,
-                extra_type: "wide",
-                is_wicket: false,
-                dismissal_type: null,
-                bowler_id: "b_u1",
-                batsman_id: "u1",
-                non_striker_id: "u2",
-                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
-                batsman: { id: "u1", full_name: "Virat Kohli" },
-              },
-              {
-                id: "b3",
-                match_id: "m1",
-                innings_id: "inn1",
-                over_number: 1,
-                ball_number: 3,
-                runs_scored: 0,
-                extras: 0,
-                extra_type: null,
-                is_wicket: true,
-                dismissal_type: "bowled",
-                bowler_id: "b_u1",
-                batsman_id: "u1",
-                non_striker_id: "u2",
-                bowler: { id: "b_u1", full_name: "Mitchell Starc" },
-                batsman: { id: "u1", full_name: "Virat Kohli" },
+                user_id: "ur",
+                batting_position: 3,
+                runs_scored: 7,
+                balls_faced: 5,
+                fours: 1,
+                sixes: 0,
+                is_out: false,
+                dismissal_type: "retired_hurt",
+                user: { id: "ur", full_name: "Hurt Batter" },
               },
             ],
           },
           innings2,
+          { ...innings1, id: "inn3", innings_number: 3, fall_of_wickets: [] },
+          { ...innings2, id: "inn4", innings_number: 4 },
         ],
       };
-
-      const html = await buildMatchReportHtml(
-        matchWithDeliveries,
-        "https://cricket.app/matches/match-124",
-      );
-
-      expect(html).toContain("Over Comparison");
-      expect(html).toContain("Mitchell Starc");
-      expect(html).toContain("ball-pill");
-      expect(html).toContain("ball-wicket");
-      expect(html).toContain("ball-four");
-      expect(html).toContain("ball-extra");
-
-      // Advanced visual analytics
-      expect(html).toContain("Worm Chart");
-      expect(html).toContain("Manhattan Chart");
-      expect(html).toContain("<svg");
-      expect(html).toContain("Phase-by-Phase Match Comparison");
-      expect(html).toContain("Match Impact &amp; MVP Index");
-      expect(html).toContain("Official Verification &amp; Match Sign-off");
-    });
-
-    it("renders key partnerships and fallback sign-off when deliveries are not present", async () => {
-      const html = await buildMatchReportHtml(
-        sampleMatch,
-        "https://cricket.app/matches/match-124",
-      );
-
-      // Partnerships computed from fall_of_wickets
-      expect(html).toContain("Key Partnerships");
-      expect(html).toContain("1st Wkt");
-      expect(html).toContain("David Brown");
-
-      // Verification signoff block
-      expect(html).toContain("Official Verification &amp; Match Sign-off");
-      expect(html).toContain("Certified Official Scoresheet");
-      expect(html).toContain("Lead Match Umpire");
-      expect(html).toContain("Official Scorer");
-    });
-
-    it("verifies clean text alignment, CSS rules scoping, and signature lines in generated report", async () => {
-      const html = await buildMatchReportHtml(
-        sampleMatch,
-        "https://cricket.app/matches/match-124",
-      );
-
-      // CSS rules scoping and utility classes
-      expect(html).toContain(".text-left { text-align: left !important; }");
-      expect(html).toContain(".text-center { text-align: center !important; }");
-      expect(html).toContain(".text-right { text-align: right !important; }");
-      expect(html).toContain(".font-mono {");
-      expect(html).toContain(".partnerships-wrap {");
-      expect(html).toContain(".phase-analysis-card, .impact-card {");
-      expect(html).toContain(".official-signoff-card {");
-
-      // Verify signoff signature elements (no raw underscore overflow)
-      expect(html).toContain("signoff-sig-line");
-      expect(html).toContain("Signature &amp; Date");
-      expect(html).not.toContain("______________________");
-
-      // Match info card alignment and styling
-      expect(html).toContain("class=\"match-info-card\"");
-      expect(html).toContain("class=\"info-grid\"");
-      expect(html).toContain("class=\"info-row\"");
-      expect(html).toContain("class=\"info-label\"");
-      expect(html).toContain("class=\"info-val\"");
-
-      // Match impact leaderboard
-      expect(html).toContain("class=\"impact-card\"");
-      expect(html).toContain("class=\"impact-list\"");
-      expect(html).toContain("class=\"impact-rank rank-gold\"");
-      expect(html).toContain("class=\"impact-pts\"");
-    });
-
-    it("verifies mobile responsive CSS and table-responsive containers", async () => {
-      const html = await buildMatchReportHtml(
-        sampleMatch,
-        "https://cricket.app/matches/match-124",
-      );
-
-      // Mobile responsive queries and wrapper classes
-      expect(html).toContain("@media screen and (max-width: 768px)");
-      expect(html).toContain("@media screen and (max-width: 640px)");
-      expect(html).toContain(".table-responsive {");
-      expect(html).toContain("overflow-x: auto;");
-      expect(html).toContain("-webkit-overflow-scrolling: touch;");
-      expect(html).toContain("class=\"table-responsive\"");
-
-      // Avoid page-break cuts mid-card
-      expect(html).toContain("break-inside: avoid !important;");
-      expect(html).toContain("break-after: avoid !important;");
-
-      // Verify cascade order: media queries must appear AFTER base styles to override them
-      const baseReportPageIdx = html.indexOf(".report-page {");
-      const baseChartsGridIdx = html.indexOf(".charts-duo-grid {");
-      const mediaQueryIdx = html.indexOf("@media screen and (max-width: 768px)");
-
-      expect(mediaQueryIdx).toBeGreaterThan(baseReportPageIdx);
-      expect(mediaQueryIdx).toBeGreaterThan(baseChartsGridIdx);
-    });
-
-    it("flows 1st innings directly on Page 1 to eliminate wasted space and splits 2nd innings on Page 2", async () => {
-      const html = await buildMatchReportHtml(
-        sampleMatch,
-        "https://cricket.app/matches/match-124",
-      );
-
-      // 1st innings is directly inside Page 1 (match-overview-page)
-      const page1Index = html.indexOf('class="report-page match-overview-page"');
-      const inn1Index = html.indexOf('1st Innings Scorecard');
-      const page2Index = html.indexOf('class="report-page page-break innings-page-2"');
-      const inn2Index = html.indexOf('2nd Innings Scorecard');
-
-      expect(page1Index).toBeGreaterThan(-1);
-      expect(inn1Index).toBeGreaterThan(page1Index);
-      expect(page2Index).toBeGreaterThan(inn1Index);
-      expect(inn2Index).toBeGreaterThan(page2Index);
-    });
-
-    it("renders single innings match cleanly on Page 1 with signoff and footer", async () => {
-      const singleInningsMatch: Match = {
-        ...sampleMatch,
-        innings: [innings1],
-      };
-
-      const html = await buildMatchReportHtml(
-        singleInningsMatch,
-        "https://cricket.app/matches/match-124",
-      );
-
-      expect(html).toContain("1st Innings Scorecard");
-      expect(html).not.toContain("2nd Innings Scorecard");
-      expect(html).not.toContain("innings-page-2");
-      expect(html).toContain("Official Verification &amp; Match Sign-off");
-      expect(html).toContain("data:image/png;base64,"); // QR code
+      const html = await buildMatchReportHtml(match, URL);
+      expect(html).toContain("Rohit Sharma *");
+      expect(html).toContain("retired hurt");
+      expect(html).toContain("Royal Tigers, super over");
+      expect(html).toContain("Coastal Kings, super over");
     });
   });
 });

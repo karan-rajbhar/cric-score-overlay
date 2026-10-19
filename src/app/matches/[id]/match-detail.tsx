@@ -21,6 +21,7 @@ import {
   inningsBalls,
   oversFromBalls,
   formatMatchResult,
+  sidesInBattingOrder,
 } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -262,8 +263,8 @@ function MatchDetailsPageContent() {
     );
   }
 
-  const team1Innings = match.innings?.find((i) => i.team_id === match.team1_id);
-  const team2Innings = match.innings?.find((i) => i.team_id === match.team2_id);
+  // Scoreboard in batting order: the side that batted first, then the chase.
+  const [side1, side2] = sidesInBattingOrder(match);
   const isScorer =
     (!!user &&
       (match.created_by === user.id ||
@@ -562,19 +563,19 @@ function MatchDetailsPageContent() {
 
           {/* Desktop Stadium Scoreboard */}
           <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 lg:gap-10">
-            {/* Team 1 Card */}
+            {/* Side that batted first */}
             <div className="flex items-center justify-end gap-4 rounded-xl p-3 text-right">
               <div className="min-w-0">
                 <p className="truncate text-base font-bold text-board-foreground lg:text-lg">
-                  {match.team1.name}
+                  {side1.team.name}
                 </p>
-                {team1Innings ? (
+                {side1.innings ? (
                   <div className="mt-0.5 flex items-baseline justify-end gap-2">
                     <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
-                      {team1Innings.total_runs}/{team1Innings.total_wickets}
+                      {side1.innings.total_runs}/{side1.innings.total_wickets}
                     </span>
                     <span className="scoreboard-label text-sm lg:text-base font-semibold">
-                      ({oversFromBalls(inningsBalls(team1Innings))} ov)
+                      ({oversFromBalls(inningsBalls(side1.innings))} ov)
                     </span>
                   </div>
                 ) : (
@@ -582,9 +583,9 @@ function MatchDetailsPageContent() {
                 )}
               </div>
               <TeamLogo
-                name={match.team1.name}
-                shortName={match.team1.short_name}
-                logoUrl={match.team1.logo_url}
+                name={side1.team.name}
+                shortName={side1.team.short_name}
+                logoUrl={side1.team.logo_url}
                 className="h-14 w-14 shrink-0 text-base shadow-sm ring-1 ring-board-line"
               />
             </div>
@@ -596,25 +597,25 @@ function MatchDetailsPageContent() {
               </span>
             </div>
 
-            {/* Team 2 Card */}
+            {/* Chasing side */}
             <div className="flex items-center gap-4 rounded-xl p-3 text-left">
               <TeamLogo
-                name={match.team2.name}
-                shortName={match.team2.short_name}
-                logoUrl={match.team2.logo_url}
+                name={side2.team.name}
+                shortName={side2.team.short_name}
+                logoUrl={side2.team.logo_url}
                 className="h-14 w-14 shrink-0 text-base shadow-sm ring-1 ring-board-line"
               />
               <div className="min-w-0">
                 <p className="truncate text-base font-bold text-board-foreground lg:text-lg">
-                  {match.team2.name}
+                  {side2.team.name}
                 </p>
-                {team2Innings ? (
+                {side2.innings ? (
                   <div className="mt-0.5 flex items-baseline gap-2">
                     <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
-                      {team2Innings.total_runs}/{team2Innings.total_wickets}
+                      {side2.innings.total_runs}/{side2.innings.total_wickets}
                     </span>
                     <span className="scoreboard-label text-sm lg:text-base font-semibold">
-                      ({oversFromBalls(inningsBalls(team2Innings))} ov)
+                      ({oversFromBalls(inningsBalls(side2.innings))} ov)
                     </span>
                   </div>
                 ) : (
@@ -629,21 +630,21 @@ function MatchDetailsPageContent() {
             <div className="flex items-center justify-between gap-3 rounded-xl border border-board-line bg-board-line/20 p-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <TeamLogo
-                  name={match.team1.name}
-                  shortName={match.team1.short_name}
-                  logoUrl={match.team1.logo_url}
+                  name={side1.team.name}
+                  shortName={side1.team.short_name}
+                  logoUrl={side1.team.logo_url}
                   className="h-9 w-9 shrink-0 text-xs ring-1 ring-board-line"
                 />
                 <p className="truncate text-sm font-bold text-board-foreground">
-                  {match.team1.name}
+                  {side1.team.name}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                {team1Innings ? (
+                {side1.innings ? (
                   <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
-                    {team1Innings.total_runs}/{team1Innings.total_wickets}
+                    {side1.innings.total_runs}/{side1.innings.total_wickets}
                     <span className="scoreboard-label ml-1 text-xs font-medium">
-                      ({oversFromBalls(inningsBalls(team1Innings))} ov)
+                      ({oversFromBalls(inningsBalls(side1.innings))} ov)
                     </span>
                   </p>
                 ) : (
@@ -655,21 +656,21 @@ function MatchDetailsPageContent() {
             <div className="flex items-center justify-between gap-3 rounded-xl border border-board-line bg-board-line/20 p-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <TeamLogo
-                  name={match.team2.name}
-                  shortName={match.team2.short_name}
-                  logoUrl={match.team2.logo_url}
+                  name={side2.team.name}
+                  shortName={side2.team.short_name}
+                  logoUrl={side2.team.logo_url}
                   className="h-9 w-9 shrink-0 text-xs ring-1 ring-board-line"
                 />
                 <p className="truncate text-sm font-bold text-board-foreground">
-                  {match.team2.name}
+                  {side2.team.name}
                 </p>
               </div>
               <div className="shrink-0 text-right">
-                {team2Innings ? (
+                {side2.innings ? (
                   <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
-                    {team2Innings.total_runs}/{team2Innings.total_wickets}
+                    {side2.innings.total_runs}/{side2.innings.total_wickets}
                     <span className="scoreboard-label ml-1 text-xs font-medium">
-                      ({oversFromBalls(inningsBalls(team2Innings))} ov)
+                      ({oversFromBalls(inningsBalls(side2.innings))} ov)
                     </span>
                   </p>
                 ) : (
