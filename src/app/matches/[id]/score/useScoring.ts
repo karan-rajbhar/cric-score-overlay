@@ -177,8 +177,15 @@ function deliveryLabel(d: {
 export interface UndoNotice {
   /** The undone ball as the over strip labels it ("4", "W", "Wd"...). */
   label: string;
-  /** "3.6 · Starc to Kohli" (empty when not known). */
-  detail: string;
+  /** Where it was, "3.6" (over.ball), when known. */
+  position: string | null;
+  /** "Starc to Kohli", when known. */
+  players: string | null;
+  /**
+   * What else the undo took back, e.g. the bowler chosen for the next over
+   * ("Pick the bowler for the next over again").
+   */
+  note: string | null;
   /** Still waiting for the server's undo (it could not be shown at once). */
   pending: boolean;
   canRedo: boolean;
@@ -1630,7 +1637,11 @@ export function useScoring(
   };
 
   /** The over strip's note for an undone ball (and redo, when possible). */
-  const noticeFor = (ball: UndoneBall | null, pending = false): UndoNotice => {
+  const noticeFor = (
+    ball: UndoneBall | null,
+    pending = false,
+    note: string | null = null,
+  ): UndoNotice => {
     const names = squadNames();
     const name = (id: string | null) =>
       (id ? names.get(id)?.full_name : null) ?? null;
@@ -1645,17 +1656,33 @@ export function useScoring(
             is_wicket: ball.event.isWicket ?? false,
           })
         : "",
-      detail: ball
-        ? [
-            `${ball.over}.${ball.ball}`,
-            bowler && batter ? `${bowler} to ${batter}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        : "",
+      position: ball ? `${ball.over}.${ball.ball}` : null,
+      players: bowler && batter ? `${bowler} to ${batter}` : null,
+      note,
       pending,
       canRedo: redoRef.current.length > 0,
     };
+  };
+
+  /**
+   * What an undo from `from` to `to` took back besides the ball: a bowler
+   * or batter chosen after it (they are chosen again).
+   */
+  const sideEffectsOf = (from: ShownState | null, to: ShownState | null) => {
+    if (!from || !to) return null;
+    const a = from.snapshot;
+    const b = to.snapshot;
+    if (a.match.current_innings !== b.match.current_innings) {
+      return "The innings is open again";
+    }
+    if (a.bowlerId && a.bowlerId !== b.bowlerId) {
+      return "The bowler chosen after it was taken back too";
+    }
+    const crease = (s: Snapshot) => [s.strikerId, s.nonStrikerId].sort().join();
+    if (a.strikerId && a.nonStrikerId && crease(a) !== crease(b)) {
+      return "The batter chosen after it was taken back too";
+    }
+    return null;
   };
 
   /** The screen state with everything queued applied, when all of it is shown. */
@@ -1672,10 +1699,14 @@ export function useScoring(
     return folded.applied === pending.length ? folded.state : null;
   };
 
-  /** Note the undo of `ball` in the over strip, with redo when it is a delivery. */
-  const noteUndone = (ball: UndoneBall | null, pending = false) => {
+  /** Note the undo of `ball` in the keypad, with restore when it is a delivery. */
+  const noteUndone = (
+    ball: UndoneBall | null,
+    pending = false,
+    note: string | null = null,
+  ) => {
     if (ball && !ball.isEvent && !pending) redoRef.current.push(ball);
-    setUndoNotice(noticeFor(ball, pending));
+    setUndoNotice(noticeFor(ball, pending, note));
   };
 
   /**
@@ -1700,7 +1731,7 @@ export function useScoring(
       { instant: true },
     );
     setPendingCount(getPendingCount(matchId));
-    noteUndone(entry.ball);
+    noteUndone(entry.ball, false, sideEffectsOf(shown, entry.before));
     scheduleUndoSave();
     await renderShown();
     if (!isOfflineNow()) void flushQueue();

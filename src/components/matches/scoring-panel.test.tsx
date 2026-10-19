@@ -106,73 +106,6 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     );
   });
 
-  it("supports awarding 5 penalty runs via Penalty extra button", () => {
-    const onScore = vi.fn();
-    render(<ScoringPanel {...defaultProps} onScore={onScore} />);
-
-    // Click Penalty (+5)
-    const penaltyButton = screen.getByRole("button", { name: /penalty/i });
-    fireEvent.click(penaltyButton);
-
-    // Click 0 runs / dot ball
-    const dotButton = screen.getByRole("button", { name: /0 runs/i });
-    fireEvent.click(dotButton);
-
-    // Skip wagon wheel to record
-    const skipButton = screen.getByRole("button", {
-      name: /skip.*without zone/i,
-    });
-    fireEvent.click(skipButton);
-
-    expect(onScore).toHaveBeenCalledWith(
-      0,
-      { type: "penalty", runs: 5 },
-      undefined,
-    );
-  });
-
-  it("supports custom penalty runs when selecting penalty and a run value", () => {
-    const onScore = vi.fn();
-    render(
-      <ScoringPanel
-        {...defaultProps}
-        onScore={onScore}
-        wagonWheelPrompt={false}
-      />,
-    );
-    const penaltyBtn = screen.getByRole("button", { name: /^penalty$/i });
-    fireEvent.click(penaltyBtn);
-    const twoBtn = screen.getByRole("button", { name: /^2 runs$/i });
-    fireEvent.click(twoBtn);
-
-    expect(onScore).toHaveBeenCalledWith(
-      0,
-      { type: "penalty", runs: 2 },
-      undefined,
-    );
-  });
-
-  it("supports awarding bonus runs via Bonus extra button", () => {
-    const onScore = vi.fn();
-    render(
-      <ScoringPanel
-        {...defaultProps}
-        onScore={onScore}
-        wagonWheelPrompt={false}
-      />,
-    );
-    const bonusBtn = screen.getByRole("button", { name: /^bonus$/i });
-    fireEvent.click(bonusBtn);
-    const zeroBtn = screen.getByRole("button", { name: /0 runs/i });
-    fireEvent.click(zeroBtn);
-
-    expect(onScore).toHaveBeenCalledWith(
-      0,
-      { type: "bonus", runs: 1 },
-      undefined,
-    );
-  });
-
   it("supports scoring 5 runs directly from the keypad", () => {
     const onScore = vi.fn();
     render(
@@ -289,7 +222,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(wideButton.className).toContain("bg-black");
     expect(wideButton.className).toContain("text-white");
     expect(
-      screen.getByText(/Tap runs to record delivery/i),
+      screen.getByText(/selected: tap the runs/i),
     ).toBeInTheDocument();
   });
 
@@ -375,5 +308,81 @@ describe("ScoringPanel keyboard guards", () => {
 
     await user.keyboard("{Escape}");
     expect(onScore).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScoringPanel guards against mis-taps and says what undo did", () => {
+  const base = {
+    onScore: vi.fn(),
+    onWicket: vi.fn(),
+    currentOver: 3,
+    currentBall: 5,
+    lastBalls: ["1", "0", "4", "2", "1"],
+  };
+
+  it("keeps penalty and bonus out of the keypad (they are in Match Tools)", () => {
+    render(<ScoringPanel {...base} onUndo={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /penalty/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /bonus/i })).toBeNull();
+    for (const name of ["Wide", "No ball", "Bye", "Leg bye"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("turns Undo into Cancel while an extra is armed, so a mis-tap costs no ball", () => {
+    const onUndo = vi.fn();
+    render(<ScoringPanel {...base} onUndo={onUndo} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wide" }));
+    const cancel = screen.getByRole("button", { name: "Cancel wide" });
+    fireEvent.click(cancel);
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(screen.queryByText(/wide selected/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Undo last ball" }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("says in words which ball was removed, with Restore ball", () => {
+    const onRedo = vi.fn();
+    render(
+      <ScoringPanel
+        {...base}
+        onUndo={vi.fn()}
+        onRedo={onRedo}
+        undoNotice={{
+          label: "4",
+          position: "3.6",
+          players: "Starc to Kohli",
+          note: "The bowler chosen after it was taken back too",
+          pending: false,
+          canRedo: true,
+        }}
+      />,
+    );
+    const notice = screen.getByTestId("undo-notice");
+    expect(notice).toHaveTextContent("Ball removed: Four · 3.6, Starc to Kohli");
+    expect(notice).toHaveTextContent("The bowler chosen after it was taken back too");
+    fireEvent.click(screen.getByRole("button", { name: "Restore ball" }));
+    expect(onRedo).toHaveBeenCalledTimes(1);
+  });
+
+  it("says it is removing the ball while the server does it", () => {
+    render(
+      <ScoringPanel
+        {...base}
+        onUndo={vi.fn()}
+        undoNotice={{
+          label: "W",
+          position: "3.6",
+          players: null,
+          note: null,
+          pending: true,
+          canRedo: false,
+        }}
+      />,
+    );
+    expect(screen.getByTestId("undo-notice")).toHaveTextContent(
+      "Removing ball: Wicket · 3.6",
+    );
+    expect(screen.queryByRole("button", { name: "Restore ball" })).toBeNull();
   });
 });

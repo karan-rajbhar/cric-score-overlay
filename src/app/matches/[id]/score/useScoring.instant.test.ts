@@ -551,7 +551,9 @@ describe("useScoring: instant scoring", () => {
     });
     expect(result.current.undoNotice).toEqual({
       label: "4",
-      detail: "0.1 · Player b1 to Player p1",
+      position: "0.1",
+      players: "Player b1 to Player p1",
+      note: null,
       pending: false,
       canRedo: true,
     });
