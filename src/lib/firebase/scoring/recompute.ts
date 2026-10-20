@@ -60,6 +60,22 @@ export const NON_BOWLER_DISMISSALS = new Set([
   "obstructing",
 ]);
 
+/**
+ * A batter a log entry names after they retired hurt has resumed their
+ * innings (Law 25.4.2): they are no longer retired.
+ */
+export function resumeIfRetiredHurt(
+  bp: Pick<
+    BattingPerformancesRow,
+    "is_out" | "dismissal_type" | "bowler_id" | "fielder_id"
+  >,
+): void {
+  if (bp.is_out || bp.dismissal_type !== "retired_hurt") return;
+  bp.dismissal_type = null;
+  bp.bowler_id = null;
+  bp.fielder_id = null;
+}
+
 /** Each batter's share of a stand that starts now. */
 export const NEW_STAND_SPLIT = {
   batsman1_runs: 0,
@@ -118,7 +134,8 @@ export function penaltyCountsFor(
   return !!ball.penalty_team_id && ball.penalty_team_id === innings.team_id;
 }
 
-function bowlerConcedes(ball: BallInput): number {
+/** What the bowler is charged for `ball` (not byes, leg byes or penalties). */
+export function bowlerConcedes(ball: BallInput): number {
   const runs = ball.runs_scored ?? 0;
   const extras = ball.extras ?? 0;
   const t = ball.extra_type;
@@ -127,18 +144,327 @@ function bowlerConcedes(ball: BallInput): number {
   return runs + extras;
 }
 
-export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
-  const { match, innings, balls, now } = input;
-  const bpo =
-    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
-  const inningsId = innings.id;
-  const matchId = innings.match_id ?? match.id;
+// ---------------------------------------------------------------------------
+// One log entry's effects, shared by the replay below and the one-ball
+// engine (`incremental.ts`), so both stay one implementation.
+// ---------------------------------------------------------------------------
 
+type MatchRules = RecomputeInput["match"];
+
+/** What `ball` gives the striker: runs credited, and whether they faced it. */
+export interface BatterCredit {
+  runs: number;
+  faced: boolean;
+}
+
+export function batterCreditOf(
+  match: MatchRules,
+  ball: BallInput,
+): BatterCredit {
+  const extrasToBatter =
+    (ball.extra_type === "wide" && match.wide_runs_to_batsman) ||
+    (ball.extra_type === "no_ball" && match.noball_extras_to_batsman);
+  return {
+    runs: (ball.runs_scored ?? 0) + (extrasToBatter ? (ball.extras ?? 0) : 0),
+    faced:
+      isLegalDelivery(ball) ||
+      (ball.extra_type === "wide" && Boolean(match.wide_counts_as_ball_faced)),
+  };
+}
+
+/** Adds `ball` to the striker's figures. */
+export function creditBatter(
+  bp: BattingPerformancesRow,
+  ball: BallInput,
+  credit: BatterCredit,
+): void {
+  bp.runs_scored = (bp.runs_scored ?? 0) + credit.runs;
+  bp.balls_faced = (bp.balls_faced ?? 0) + (credit.faced ? 1 : 0);
+  if (ball.runs_scored === 4) bp.fours = (bp.fours ?? 0) + 1;
+  if (ball.runs_scored === 6) bp.sixes = (bp.sixes ?? 0) + 1;
+}
+
+/** Adds `ball` to the bowler's figures (a maiden needs the whole over). */
+export function creditBowler(
+  bw: BowlingPerformancesRow,
+  ball: BallInput,
+): void {
+  bw.balls_bowled = (bw.balls_bowled ?? 0) + (isLegalDelivery(ball) ? 1 : 0);
+  bw.runs_conceded = (bw.runs_conceded ?? 0) + bowlerConcedes(ball);
+  if (ball.extra_type === "wide") bw.wides = (bw.wides ?? 0) + 1;
+  if (ball.extra_type === "no_ball") bw.no_balls = (bw.no_balls ?? 0) + 1;
+  if (ball.is_wicket && !NON_BOWLER_DISMISSALS.has(ball.dismissal_type ?? "")) {
+    bw.wickets_taken = (bw.wickets_taken ?? 0) + 1;
+  }
+}
+
+/** An innings' running totals (its `total_*` / `extras_*` fields). */
+export interface InningsTotals {
+  runs: number;
+  wickets: number;
+  byes: number;
+  legByes: number;
+  wides: number;
+  noBalls: number;
+  penalties: number;
+  bonuses: number;
+}
+
+const EXTRAS_FIELD = new Map<string, keyof InningsTotals>([
+  ["bye", "byes"],
+  ["leg_bye", "legByes"],
+  ["wide", "wides"],
+  ["no_ball", "noBalls"],
+  ["penalty", "penalties"],
+  ["bonus", "bonuses"],
+]);
+
+/** Adds `ball`'s runs and extras (a wicket is counted with the dismissal). */
+export function addToTotals(totals: InningsTotals, ball: BallInput): void {
+  const extras = ball.extras ?? 0;
+  totals.runs += (ball.runs_scored ?? 0) + extras;
+  const field = EXTRAS_FIELD.get(ball.extra_type ?? "");
+  if (field) totals[field] += extras;
+}
+
+/** The innings and match patches of `totals` after `legal` legal balls. */
+export function totalsPatches(
+  totals: InningsTotals,
+  legal: number,
+  bpo: number,
+  now: string,
+): Pick<RecomputeOutput, "inningsPatch" | "matchPatch"> {
+  return {
+    inningsPatch: {
+      total_runs: totals.runs,
+      total_wickets: totals.wickets,
+      total_balls: legal,
+      total_overs: oversFromBalls(legal, bpo),
+      extras_total:
+        totals.byes +
+        totals.legByes +
+        totals.wides +
+        totals.noBalls +
+        totals.penalties +
+        totals.bonuses,
+      extras_byes: totals.byes,
+      extras_leg_byes: totals.legByes,
+      extras_wides: totals.wides,
+      extras_no_balls: totals.noBalls,
+      extras_penalties: totals.penalties,
+      extras_bonuses: totals.bonuses,
+      updated_at: now,
+    },
+    matchPatch: {
+      current_over: Math.floor(legal / bpo),
+      current_ball: legal % bpo,
+    },
+  };
+}
+
+/** Whether recording `ball` starts a new partnership row. */
+export function startsNewPartnership(
+  ball: Pick<BallInput, "batsman_id" | "non_striker_id">,
+  current: Pick<PartnershipsRow, "batsman1_id" | "batsman2_id"> | null,
+): boolean {
+  if (!current) return true;
+  const a = current.batsman1_id;
+  const b = current.batsman2_id;
+  return !(
+    (ball.batsman_id === a && ball.non_striker_id === b) ||
+    (ball.batsman_id === b && ball.non_striker_id === a)
+  );
+}
+
+/** The stand `ball`'s pair starts, the `number`th of the innings. */
+export function newStandRow(args: {
+  inningsId: string;
+  matchId: string;
+  number: number;
+  ball: BallInput;
+  startOver: number;
+  now: string;
+}): PartnershipsRow {
+  return {
+    id: `${args.inningsId}_p${args.number}`,
+    match_id: args.matchId,
+    innings_id: args.inningsId,
+    batsman1_id: args.ball.batsman_id!,
+    batsman2_id: args.ball.non_striker_id!,
+    wicket_number: null,
+    runs: 0,
+    balls: 0,
+    ...NEW_STAND_SPLIT,
+    start_over: args.startOver,
+    end_over: null,
+    is_current: true,
+    created_at: args.now,
+    updated_at: args.now,
+  };
+}
+
+/** Adds `ball` to the stand of the pair at the crease. */
+export function addToStand(
+  stand: PartnershipsRow,
+  ball: BallInput,
+  credit: BatterCredit,
+): void {
+  stand.runs = (stand.runs ?? 0) + (ball.runs_scored ?? 0) + (ball.extras ?? 0);
+  stand.balls = (stand.balls ?? 0) + (isLegalDelivery(ball) ? 1 : 0);
+  creditStand(stand, ball.batsman_id, credit.runs, credit.faced);
+}
+
+/** `bp` dismissed by `ball` (retired hurt is not out). */
+export function dismissBatter(
+  bp: BattingPerformancesRow,
+  ball: BallInput,
+): void {
+  const hurt = ball.dismissal_type === "retired_hurt";
+  bp.is_out = !hurt;
+  bp.dismissal_type = hurt ? "retired_hurt" : (ball.dismissal_type ?? null);
+  bp.bowler_id = ball.bowler_id ?? null;
+  bp.fielder_id = ball.fielder_id ?? null;
+}
+
+/** The fall of the `wicket`th wicket, taken by `ball`. */
+export function fallOfWicketRow(args: {
+  inningsId: string;
+  matchId: string;
+  wicket: number;
+  runsAtFall: number;
+  oversAtFall: number;
+  batterId: string;
+  ball: BallInput;
+  now: string;
+}): FallOfWicketsRow {
+  return {
+    id: `${args.inningsId}_w${args.wicket}`,
+    match_id: args.matchId,
+    innings_id: args.inningsId,
+    wicket_number: args.wicket,
+    runs_at_fall: args.runsAtFall,
+    overs_at_fall: args.oversAtFall,
+    batsman_out_id: args.batterId,
+    dismissal_type: args.ball.dismissal_type ?? "bowled",
+    bowler_id: args.ball.bowler_id ?? null,
+    fielder_id: args.ball.fielder_id ?? null,
+    created_at: args.now,
+  };
+}
+
+/** Who is at each end. */
+export interface Ends {
+  striker: string | null;
+  nonStriker: string | null;
+}
+
+/**
+ * The ends after `ball` (by its batter `ball.batsman_id`), before an over's
+ * end swaps them; `dismissedId` left the crease (null: that end is empty).
+ */
+export function endsAfterBall(
+  ball: BallInput,
+  dismissedId: string | null,
+): Ends {
+  const byeRuns =
+    ball.extra_type === "bye" || ball.extra_type === "leg_bye"
+      ? (ball.extras ?? 0)
+      : 0;
+  const swap = ((ball.runs_scored ?? 0) + byeRuns) % 2 === 1;
+  const batter = ball.batsman_id;
+  const partner = ball.non_striker_id ?? null;
+  if (!ball.is_wicket) {
+    return swap
+      ? { striker: partner, nonStriker: batter }
+      : { striker: batter, nonStriker: partner };
+  }
+  if (dismissedId === ball.non_striker_id) {
+    return swap
+      ? { striker: null, nonStriker: batter }
+      : { striker: batter, nonStriker: null };
+  }
+  if (ball.dismissal_type === "run_out" && swap) {
+    return { striker: partner, nonStriker: null };
+  }
+  return { striker: null, nonStriker: partner };
+}
+
+// ---------------------------------------------------------------------------
+// The replay
+// ---------------------------------------------------------------------------
+
+/** A replay of one innings' ball log: its rows and running figures. */
+interface Replay {
+  match: MatchRules;
+  innings: RecomputeInput["innings"];
+  inningsId: string;
+  matchId: string;
+  bpo: number;
+  now: string;
+  batting: Map<string, BattingPerformancesRow>;
+  bowling: Map<string, BowlingPerformancesRow>;
+  maxPosition: number;
+  fallOfWickets: FallOfWicketsRow[];
+  partnerships: PartnershipsRow[];
+  /** The stand in progress (none before the first ball or after a wicket). */
+  stand: PartnershipsRow | null;
+  totals: InningsTotals;
+  legal: number;
+  /** What each over conceded, over the whole log (maidens, as SQL did). */
+  overTotals: Map<number, number>;
+  ends: Ends;
+  lastBowler: string | null;
+  overNumber: number;
+  ballsInOver: number;
+  overJustEnded: boolean;
+  /** The bowler of the over the last ball ended (not allowed the next one). */
+  endedOverBowler: string | null;
+  /** Who the log's last entry retired hurt (not to be put back at the crease). */
+  retiredByLast: string | null;
+}
+
+/** The replay's start: the stored rows with their figures cleared. */
+function startReplay(input: RecomputeInput): Replay {
+  const { match, innings, now } = input;
+  const r: Replay = {
+    match,
+    innings,
+    inningsId: innings.id,
+    matchId: innings.match_id ?? match.id,
+    bpo:
+      match.balls_per_over && match.balls_per_over > 0
+        ? match.balls_per_over
+        : 6,
+    now,
+    batting: new Map(),
+    bowling: new Map(),
+    maxPosition: 0,
+    fallOfWickets: [],
+    partnerships: [],
+    stand: null,
+    totals: {
+      runs: 0,
+      wickets: 0,
+      byes: 0,
+      legByes: 0,
+      wides: 0,
+      noBalls: 0,
+      penalties: 0,
+      bonuses: 0,
+    },
+    legal: 0,
+    overTotals: new Map(),
+    ends: { striker: null, nonStriker: null },
+    lastBowler: null,
+    overNumber: 0,
+    ballsInOver: 0,
+    overJustEnded: false,
+    endedOverBowler: null,
+    retiredByLast: null,
+  };
   // Reset existing performance rows (keeping ids and batting positions).
-  const batting = new Map<string, BattingPerformancesRow>();
-  let maxPosition = 0;
   for (const bp of input.existingBatting) {
-    batting.set(bp.user_id, {
+    r.batting.set(bp.user_id, {
       ...bp,
       runs_scored: 0,
       balls_faced: 0,
@@ -152,11 +478,10 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
       is_striker: false,
       updated_at: now,
     });
-    maxPosition = Math.max(maxPosition, bp.batting_position ?? 0);
+    r.maxPosition = Math.max(r.maxPosition, bp.batting_position ?? 0);
   }
-  const bowling = new Map<string, BowlingPerformancesRow>();
   for (const bw of input.existingBowling) {
-    bowling.set(bw.user_id, {
+    r.bowling.set(bw.user_id, {
       ...bw,
       balls_bowled: 0,
       runs_conceded: 0,
@@ -169,79 +494,258 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
       updated_at: now,
     });
   }
+  for (const ball of input.balls) {
+    const conceded = r.overTotals.get(ball.over_number) ?? 0;
+    r.overTotals.set(ball.over_number, conceded + bowlerConcedes(ball));
+  }
+  return r;
+}
 
-  const ensureBatter = (userId: string | null | undefined) => {
-    if (!userId) return;
-    if (batting.has(userId)) return;
-    maxPosition += 1;
-    batting.set(userId, {
-      id: `${inningsId}_${userId}`,
-      match_id: matchId,
-      innings_id: inningsId,
-      user_id: userId,
-      batting_position: maxPosition,
-      runs_scored: 0,
-      balls_faced: 0,
-      minutes_batted: 0,
-      fours: 0,
-      sixes: 0,
-      is_out: false,
-      dismissal_type: null,
-      bowler_id: null,
-      fielder_id: null,
-      is_current_batsman: false,
-      is_striker: false,
-      created_at: now,
-      updated_at: now,
+function ensureBatter(r: Replay, userId: string | null | undefined): void {
+  if (!userId || r.batting.has(userId)) return;
+  r.maxPosition += 1;
+  r.batting.set(userId, {
+    id: `${r.inningsId}_${userId}`,
+    match_id: r.matchId,
+    innings_id: r.inningsId,
+    user_id: userId,
+    batting_position: r.maxPosition,
+    runs_scored: 0,
+    balls_faced: 0,
+    minutes_batted: 0,
+    fours: 0,
+    sixes: 0,
+    is_out: false,
+    dismissal_type: null,
+    bowler_id: null,
+    fielder_id: null,
+    is_current_batsman: false,
+    is_striker: false,
+    created_at: r.now,
+    updated_at: r.now,
+  });
+}
+
+function ensureBowler(r: Replay, userId: string | null | undefined): void {
+  if (!userId || r.bowling.has(userId)) return;
+  r.bowling.set(userId, {
+    id: `${r.inningsId}_${userId}`,
+    match_id: r.matchId,
+    innings_id: r.inningsId,
+    user_id: userId,
+    overs_bowled: 0,
+    balls_bowled: 0,
+    runs_conceded: 0,
+    wickets_taken: 0,
+    maidens: 0,
+    wides: 0,
+    no_balls: 0,
+    is_current_bowler: false,
+    created_at: r.now,
+    updated_at: r.now,
+  });
+}
+
+/**
+ * Penalty runs awarded to a fielding side (see `penaltyCountsFor`): only
+ * runs for the team that bats this innings; no effect on the crease, the
+ * over or the bowler.
+ */
+function replayFieldingPenalty(r: Replay, ball: BallInput): void {
+  if (!penaltyCountsFor(ball, r.innings)) return;
+  r.totals.runs += (ball.runs_scored ?? 0) + (ball.extras ?? 0);
+  if (ball.extra_type === "bonus") r.totals.bonuses += ball.extras ?? 0;
+  else r.totals.penalties += ball.extras ?? 0;
+}
+
+/** The stand `ball` adds to, started when the pair at the crease changes. */
+function replayStand(r: Replay, ball: BallInput, credit: BatterCredit): void {
+  if (!r.stand || startsNewPartnership(ball, r.stand)) {
+    if (r.stand) {
+      r.stand.is_current = false;
+      r.stand.end_over = oversFromBalls(r.legal, r.bpo);
+    }
+    const legalBefore = r.legal - (isLegalDelivery(ball) ? 1 : 0);
+    r.stand = newStandRow({
+      inningsId: r.inningsId,
+      matchId: r.matchId,
+      number: r.partnerships.length + 1,
+      ball,
+      startOver: oversFromBalls(legalBefore, r.bpo),
+      now: r.now,
     });
-  };
+    r.partnerships.push(r.stand);
+  }
+  addToStand(r.stand, ball, credit);
+}
 
-  const ensureBowler = (userId: string | null | undefined) => {
-    if (!userId) return;
-    if (bowling.has(userId)) return;
-    bowling.set(userId, {
-      id: `${inningsId}_${userId}`,
-      match_id: matchId,
-      innings_id: inningsId,
-      user_id: userId,
-      overs_bowled: 0,
-      balls_bowled: 0,
-      runs_conceded: 0,
-      wickets_taken: 0,
-      maidens: 0,
-      wides: 0,
-      no_balls: 0,
-      is_current_bowler: false,
-      created_at: now,
-      updated_at: now,
-    });
-  };
+/**
+ * The dismissal `ball` records (retired hurt is not out and not a wicket);
+ * returns who left the crease.
+ */
+function replayWicket(r: Replay, ball: BallInput): string | null {
+  const dismissedId = ball.dismissed_player_id ?? ball.batsman_id ?? null;
+  if (dismissedId) ensureBatter(r, dismissedId);
+  if (ball.dismissal_type === "retired_hurt") {
+    r.retiredByLast = dismissedId;
+  } else {
+    r.totals.wickets += 1;
+    if (dismissedId) {
+      r.fallOfWickets.push(
+        fallOfWicketRow({
+          inningsId: r.inningsId,
+          matchId: r.matchId,
+          wicket: r.totals.wickets,
+          runsAtFall: r.totals.runs,
+          oversAtFall: oversFromBalls(r.legal, r.bpo),
+          batterId: dismissedId,
+          ball,
+          now: r.now,
+        }),
+      );
+    }
+  }
+  const bp = dismissedId ? r.batting.get(dismissedId) : undefined;
+  if (bp) {
+    dismissBatter(bp, ball);
+    bp.is_current_batsman = false;
+    bp.is_striker = false;
+  }
+  if (r.stand) {
+    r.stand.is_current = false;
+    r.stand.end_over = oversFromBalls(r.legal, r.bpo);
+    r.stand.wicket_number = r.totals.wickets;
+    r.stand = null;
+  }
+  return dismissedId;
+}
 
-  const fallOfWickets: FallOfWicketsRow[] = [];
-  const partnerships: PartnershipsRow[] = [];
+/** An over that `ball` ends: the ends swap, the bowler may get a maiden. */
+function replayOverEnd(r: Replay, ball: BallInput): void {
+  const max = r.match.max_balls_per_over;
+  r.overJustEnded =
+    (isLegalDelivery(ball) && r.legal % r.bpo === 0) ||
+    (max !== null && max !== undefined && r.ballsInOver >= max);
+  if (!r.overJustEnded) return;
+  r.ends = { striker: r.ends.nonStriker, nonStriker: r.ends.striker };
+  if (ball.bowler_id && (r.overTotals.get(ball.over_number) ?? 0) === 0) {
+    const bw = r.bowling.get(ball.bowler_id)!;
+    bw.maidens = (bw.maidens ?? 0) + 1;
+  }
+  r.endedOverBowler = ball.bowler_id ?? null;
+  r.lastBowler = null;
+}
 
-  let legal = 0;
-  let totalRuns = 0;
-  let totalWickets = 0;
-  let wicketNo = 0;
-  let extrasByes = 0;
-  let extrasLegByes = 0;
-  let extrasWides = 0;
-  let extrasNoBalls = 0;
-  let extrasPenalties = 0;
-  let extrasBonuses = 0;
-  let finalStriker: string | null = null;
-  let finalNonStriker: string | null = null;
-  let lastBowler: string | null = null;
-  let currentPartnership: PartnershipsRow | null = null;
-  let partnerA: string | null = null;
-  let partnerB: string | null = null;
-  let ballsInCurrentOver = 0;
-  let currentOverNum = 0;
-  let overJustEnded = false;
-  /** The bowler of the over the last ball ended (not allowed the next one). */
-  let endedOverBowler: string | null = null;
-  /** Players the ball log names (their rows stay, whatever their figures). */
+/** One log entry applied to the replay. */
+function replayEntry(r: Replay, ball: BallInput): void {
+  if (ball.penalty_team_id) {
+    replayFieldingPenalty(r, ball);
+    return;
+  }
+  if (ball.bowler_id) r.lastBowler = ball.bowler_id;
+  if (ball.over_number !== r.overNumber) {
+    r.overNumber = ball.over_number;
+    r.ballsInOver = 1;
+  } else {
+    r.ballsInOver += 1;
+  }
+
+  ensureBatter(r, ball.batsman_id);
+  ensureBatter(r, ball.non_striker_id);
+  ensureBowler(r, ball.bowler_id);
+  r.retiredByLast = null;
+  for (const id of [ball.batsman_id, ball.non_striker_id]) {
+    if (id) resumeIfRetiredHurt(r.batting.get(id)!);
+  }
+
+  const credit = batterCreditOf(r.match, ball);
+  if (ball.batsman_id)
+    creditBatter(r.batting.get(ball.batsman_id)!, ball, credit);
+  if (ball.bowler_id) creditBowler(r.bowling.get(ball.bowler_id)!, ball);
+  r.legal += isLegalDelivery(ball) ? 1 : 0;
+  addToTotals(r.totals, ball);
+  if (ball.batsman_id && ball.non_striker_id) replayStand(r, ball, credit);
+  const dismissedId = ball.is_wicket ? replayWicket(r, ball) : null;
+  if (ball.batsman_id) r.ends = endsAfterBall(ball, dismissedId);
+  replayOverEnd(r, ball);
+}
+
+/**
+ * An end the log leaves empty (after a wicket, an over, or before the
+ * first ball) keeps whom the scorer has put there since the last ball:
+ * `set_current_batsmen` choices the log cannot hold yet. Without this,
+ * undoing or editing a ball would lose them.
+ */
+function keepChosenCrease(r: Replay, existing: BattingPerformancesRow[]): void {
+  if (r.ends.striker !== null && r.ends.nonStriker !== null) return;
+  // Never someone the log has sent off: out, or retired by its last
+  // entry. A batter who retired hurt before that may have been brought
+  // back, and stays until they bat again.
+  const chosen = existing.filter((b) => {
+    const now = r.batting.get(b.user_id);
+    return (
+      b.is_current_batsman &&
+      now &&
+      !now.is_out &&
+      (!now.dismissal_type ||
+        (now.dismissal_type === "retired_hurt" &&
+          b.user_id !== r.retiredByLast))
+    );
+  });
+  const striker = chosen.find((b) => b.is_striker);
+  const nonStriker = chosen.find((b) => !b.is_striker);
+  const stillIn = [r.ends.striker, r.ends.nonStriker].filter(
+    (id): id is string => id !== null,
+  );
+  if (
+    striker &&
+    nonStriker &&
+    stillIn.every((id) => id === striker.user_id || id === nonStriker.user_id)
+  ) {
+    r.ends = { striker: striker.user_id, nonStriker: nonStriker.user_id };
+  }
+}
+
+/**
+ * Marks the crease and the current bowler. With no bowler in the over yet,
+ * the one the scorer chose since the last ball stays (`set_current_bowler`),
+ * unless they bowled the over just ended.
+ */
+function markCurrent(r: Replay, existing: BowlingPerformancesRow[]): void {
+  const chosenBowler =
+    r.lastBowler === null
+      ? (existing.find(
+          (b) => b.is_current_bowler && b.user_id !== r.endedOverBowler,
+        )?.user_id ?? null)
+      : null;
+
+  const striker = r.ends.striker ? r.batting.get(r.ends.striker) : undefined;
+  if (striker) {
+    striker.is_current_batsman = true;
+    striker.is_striker = true;
+  }
+  const nonStriker = r.ends.nonStriker
+    ? r.batting.get(r.ends.nonStriker)
+    : undefined;
+  if (nonStriker) {
+    nonStriker.is_current_batsman = true;
+    nonStriker.is_striker = false;
+  }
+
+  for (const bw of r.bowling.values()) {
+    bw.overs_bowled = oversFromBalls(bw.balls_bowled ?? 0, r.bpo);
+    if (chosenBowler) {
+      bw.is_current_bowler = bw.user_id === chosenBowler;
+    } else if (r.overJustEnded) {
+      bw.is_current_bowler = false;
+    } else if (r.lastBowler) {
+      bw.is_current_bowler = bw.user_id === r.lastBowler;
+    }
+  }
+}
+
+/** Players the ball log names (their rows stay, whatever their figures). */
+function namedPlayers(balls: BallInput[]): Set<string> {
   const named = new Set<string>();
   for (const ball of balls) {
     for (const id of [
@@ -253,333 +757,22 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
       if (id) named.add(id);
     }
   }
+  return named;
+}
 
-  // Pre-compute per-over totals for maiden detection (all balls, as SQL did).
-  const overTotals = new Map<number, number>();
-  for (const ball of balls) {
-    const current = overTotals.get(ball.over_number) ?? 0;
-    overTotals.set(ball.over_number, current + bowlerConcedes(ball));
-  }
+export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
+  const r = startReplay(input);
+  for (const ball of input.balls) replayEntry(r, ball);
+  keepChosenCrease(r, input.existingBatting);
+  markCurrent(r, input.existingBowling);
 
-  for (const ball of balls) {
-    // Penalty runs awarded to a fielding side (see `penaltyCountsFor`): only
-    // runs for the team that bats this innings; no effect on the crease,
-    // the over or the bowler.
-    if (ball.penalty_team_id) {
-      if (penaltyCountsFor(ball, innings)) {
-        totalRuns += (ball.runs_scored ?? 0) + (ball.extras ?? 0);
-        if (ball.extra_type === "bonus") extrasBonuses += ball.extras ?? 0;
-        else extrasPenalties += ball.extras ?? 0;
-      }
-      continue;
-    }
-    const legalBall = isLegalDelivery(ball);
-    const runs = ball.runs_scored ?? 0;
-    const extras = ball.extras ?? 0;
-    const teamRuns = runs + extras;
-    const concedes = bowlerConcedes(ball);
-
-    if (ball.bowler_id) lastBowler = ball.bowler_id;
-
-    if (ball.over_number !== currentOverNum) {
-      currentOverNum = ball.over_number;
-      ballsInCurrentOver = 1;
-    } else {
-      ballsInCurrentOver += 1;
-    }
-
-    ensureBatter(ball.batsman_id);
-    ensureBatter(ball.non_striker_id);
-    ensureBowler(ball.bowler_id);
-
-    // ---- batting stats ----
-    let creditedRuns = 0;
-    let faced = false;
-    if (ball.batsman_id) {
-      const bp = batting.get(ball.batsman_id)!;
-      creditedRuns = runs;
-      if (ball.extra_type === "wide" && match.wide_runs_to_batsman)
-        creditedRuns += extras;
-      if (ball.extra_type === "no_ball" && match.noball_extras_to_batsman)
-        creditedRuns += extras;
-      bp.runs_scored = (bp.runs_scored ?? 0) + creditedRuns;
-      faced =
-        legalBall ||
-        (ball.extra_type === "wide" &&
-          Boolean(match.wide_counts_as_ball_faced));
-      bp.balls_faced = (bp.balls_faced ?? 0) + (faced ? 1 : 0);
-      if (runs === 4) bp.fours = (bp.fours ?? 0) + 1;
-      if (runs === 6) bp.sixes = (bp.sixes ?? 0) + 1;
-    }
-
-    // ---- bowling stats ----
-    if (ball.bowler_id) {
-      const bw = bowling.get(ball.bowler_id)!;
-      bw.balls_bowled = (bw.balls_bowled ?? 0) + (legalBall ? 1 : 0);
-      bw.runs_conceded = (bw.runs_conceded ?? 0) + concedes;
-      if (ball.extra_type === "wide") bw.wides = (bw.wides ?? 0) + 1;
-      if (ball.extra_type === "no_ball") bw.no_balls = (bw.no_balls ?? 0) + 1;
-      if (
-        ball.is_wicket &&
-        !NON_BOWLER_DISMISSALS.has(ball.dismissal_type ?? "")
-      ) {
-        bw.wickets_taken = (bw.wickets_taken ?? 0) + 1;
-      }
-    }
-
-    // ---- innings totals ----
-    legal += legalBall ? 1 : 0;
-    totalRuns += teamRuns;
-    switch (ball.extra_type) {
-      case "bye":
-        extrasByes += extras;
-        break;
-      case "leg_bye":
-        extrasLegByes += extras;
-        break;
-      case "wide":
-        extrasWides += extras;
-        break;
-      case "no_ball":
-        extrasNoBalls += extras;
-        break;
-      case "penalty":
-        extrasPenalties += extras;
-        break;
-      case "bonus":
-        extrasBonuses += extras;
-        break;
-    }
-
-    // ---- partnerships ----
-    if (ball.batsman_id && ball.non_striker_id) {
-      const samePair =
-        partnerA !== null &&
-        ((ball.batsman_id === partnerA && ball.non_striker_id === partnerB) ||
-          (ball.batsman_id === partnerB && ball.non_striker_id === partnerA));
-      if (partnerA === null || !samePair) {
-        if (currentPartnership) {
-          currentPartnership.is_current = false;
-          currentPartnership.end_over = oversFromBalls(legal, bpo);
-        }
-        const legalBefore = legal - (legalBall ? 1 : 0);
-        currentPartnership = {
-          id: `${inningsId}_p${partnerships.length + 1}`,
-          match_id: matchId,
-          innings_id: inningsId,
-          batsman1_id: ball.batsman_id,
-          batsman2_id: ball.non_striker_id,
-          wicket_number: null,
-          runs: 0,
-          balls: 0,
-          ...NEW_STAND_SPLIT,
-          start_over: oversFromBalls(legalBefore, bpo),
-          end_over: null,
-          is_current: true,
-          created_at: now,
-          updated_at: now,
-        };
-        partnerships.push(currentPartnership);
-        partnerA = ball.batsman_id;
-        partnerB = ball.non_striker_id;
-      }
-      currentPartnership!.runs = (currentPartnership!.runs ?? 0) + teamRuns;
-      currentPartnership!.balls =
-        (currentPartnership!.balls ?? 0) + (legalBall ? 1 : 0);
-      creditStand(currentPartnership!, ball.batsman_id, creditedRuns, faced);
-    }
-
-    // ---- wickets (retired hurt is not out and not a wicket) ----
-    let dismissedId: string | null = null;
-    if (ball.is_wicket) {
-      dismissedId = ball.dismissed_player_id ?? ball.batsman_id ?? null;
-      if (dismissedId) ensureBatter(dismissedId);
-      const bp = dismissedId ? batting.get(dismissedId) : undefined;
-      if ((ball.dismissal_type ?? "") === "retired_hurt") {
-        if (bp) {
-          bp.is_out = false;
-          bp.dismissal_type = "retired_hurt";
-          bp.bowler_id = ball.bowler_id ?? null;
-          bp.fielder_id = ball.fielder_id ?? null;
-          bp.is_current_batsman = false;
-          bp.is_striker = false;
-        }
-      } else {
-        wicketNo += 1;
-        totalWickets += 1;
-        if (dismissedId) {
-          fallOfWickets.push({
-            id: `${inningsId}_w${wicketNo}`,
-            match_id: matchId,
-            innings_id: inningsId,
-            wicket_number: wicketNo,
-            runs_at_fall: totalRuns,
-            overs_at_fall: oversFromBalls(legal, bpo),
-            batsman_out_id: dismissedId,
-            dismissal_type: ball.dismissal_type ?? "bowled",
-            bowler_id: ball.bowler_id ?? null,
-            fielder_id: ball.fielder_id ?? null,
-            created_at: now,
-          });
-        }
-        if (bp) {
-          bp.is_out = true;
-          bp.dismissal_type = ball.dismissal_type ?? null;
-          bp.bowler_id = ball.bowler_id ?? null;
-          bp.fielder_id = ball.fielder_id ?? null;
-          bp.is_current_batsman = false;
-          bp.is_striker = false;
-        }
-      }
-
-      if (currentPartnership) {
-        currentPartnership.is_current = false;
-        currentPartnership.end_over = oversFromBalls(legal, bpo);
-        currentPartnership.wicket_number = wicketNo;
-        currentPartnership = null;
-        partnerA = null;
-        partnerB = null;
-      }
-    }
-
-    // ---- strike rotation ----
-    const byeRuns =
-      ball.extra_type === "bye" || ball.extra_type === "leg_bye" ? extras : 0;
-    const strikeSwap = (runs + byeRuns) % 2 === 1;
-
-    if (ball.batsman_id) {
-      if (ball.is_wicket) {
-        if (dismissedId === ball.non_striker_id) {
-          if (strikeSwap) {
-            finalStriker = null;
-            finalNonStriker = ball.batsman_id;
-          } else {
-            finalStriker = ball.batsman_id;
-            finalNonStriker = null;
-          }
-        } else if ((ball.dismissal_type ?? "") === "run_out" && strikeSwap) {
-          finalStriker = ball.non_striker_id ?? null;
-          finalNonStriker = null;
-        } else {
-          finalStriker = null;
-          finalNonStriker = ball.non_striker_id ?? null;
-        }
-      } else if (strikeSwap) {
-        finalStriker = ball.non_striker_id ?? null;
-        finalNonStriker = ball.batsman_id;
-      } else {
-        finalStriker = ball.batsman_id;
-        finalNonStriker = ball.non_striker_id ?? null;
-      }
-    }
-
-    // ---- over boundary ----
-    overJustEnded =
-      (legalBall && legal % bpo === 0) ||
-      (match.max_balls_per_over !== null &&
-        match.max_balls_per_over !== undefined &&
-        ballsInCurrentOver >= match.max_balls_per_over);
-
-    if (overJustEnded) {
-      const tmp: string | null = finalStriker;
-      finalStriker = finalNonStriker;
-      finalNonStriker = tmp;
-      if (ball.bowler_id) {
-        const bw = bowling.get(ball.bowler_id)!;
-        if ((overTotals.get(ball.over_number) ?? 0) === 0) {
-          bw.maidens = (bw.maidens ?? 0) + 1;
-        }
-      }
-      endedOverBowler = ball.bowler_id ?? null;
-      lastBowler = null;
-    }
-  }
-
-  // An end the log leaves empty (after a wicket, an over, or before the
-  // first ball) keeps whom the scorer has put there since the last ball:
-  // `set_current_batsmen` / `set_current_bowler` choices the log cannot
-  // hold yet. Without this, undoing or editing a ball would lose them
-  // (e.g. undoing an over's first ball would leave no bowler).
-  if (finalStriker === null || finalNonStriker === null) {
-    // Never someone the log has sent off (out, or retired since).
-    const chosen = input.existingBatting.filter((b) => {
-      const now = batting.get(b.user_id);
-      return (
-        b.is_current_batsman && now && !now.is_out && !now.dismissal_type
-      );
-    });
-    const striker = chosen.find((b) => b.is_striker);
-    const nonStriker = chosen.find((b) => !b.is_striker);
-    const stillIn = [finalStriker, finalNonStriker].filter(
-      (id): id is string => id !== null,
-    );
-    if (
-      striker &&
-      nonStriker &&
-      stillIn.every((id) => id === striker.user_id || id === nonStriker.user_id)
-    ) {
-      finalStriker = striker.user_id;
-      finalNonStriker = nonStriker.user_id;
-    }
-  }
-  const chosenBowler =
-    lastBowler === null
-      ? (input.existingBowling.find(
-          (b) => b.is_current_bowler && b.user_id !== endedOverBowler,
-        )?.user_id ?? null)
-      : null;
-
-  if (finalStriker && batting.has(finalStriker)) {
-    const bp = batting.get(finalStriker)!;
-    bp.is_current_batsman = true;
-    bp.is_striker = true;
-  }
-  if (finalNonStriker && batting.has(finalNonStriker)) {
-    const bp = batting.get(finalNonStriker)!;
-    bp.is_current_batsman = true;
-    bp.is_striker = false;
-  }
-
-  for (const bw of bowling.values()) {
-    bw.overs_bowled = oversFromBalls(bw.balls_bowled ?? 0, bpo);
-    if (chosenBowler) {
-      bw.is_current_bowler = bw.user_id === chosenBowler;
-    } else if (overJustEnded) {
-      bw.is_current_bowler = false;
-    } else if (lastBowler) {
-      bw.is_current_bowler = bw.user_id === lastBowler;
-    }
-  }
-
+  // A batter or bowler the log does not name, with nothing recorded and
+  // no longer at the crease or bowling (brought in after a ball since
+  // undone or edited away), has no place on the scorecard.
+  const named = namedPlayers(input.balls);
   return {
-    inningsPatch: {
-      total_runs: totalRuns,
-      total_wickets: totalWickets,
-      total_balls: legal,
-      total_overs: oversFromBalls(legal, bpo),
-      extras_total:
-        extrasByes +
-        extrasLegByes +
-        extrasWides +
-        extrasNoBalls +
-        extrasPenalties +
-        extrasBonuses,
-      extras_byes: extrasByes,
-      extras_leg_byes: extrasLegByes,
-      extras_wides: extrasWides,
-      extras_no_balls: extrasNoBalls,
-      extras_penalties: extrasPenalties,
-      extras_bonuses: extrasBonuses,
-      updated_at: now,
-    },
-    matchPatch: {
-      current_over: Math.floor(legal / bpo),
-      current_ball: legal % bpo,
-    },
-    // A batter or bowler the log does not name, with nothing recorded and
-    // no longer at the crease or bowling (brought in after a ball since
-    // undone or edited away), has no place on the scorecard.
-    batting: Array.from(batting.values()).filter(
+    ...totalsPatches(r.totals, r.legal, r.bpo, r.now),
+    batting: Array.from(r.batting.values()).filter(
       (b) =>
         named.has(b.user_id) ||
         b.is_current_batsman ||
@@ -588,7 +781,7 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
         (b.balls_faced ?? 0) > 0 ||
         (b.runs_scored ?? 0) > 0,
     ),
-    bowling: Array.from(bowling.values()).filter(
+    bowling: Array.from(r.bowling.values()).filter(
       (b) =>
         named.has(b.user_id) ||
         b.is_current_bowler ||
@@ -598,8 +791,8 @@ export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
         (b.wides ?? 0) > 0 ||
         (b.no_balls ?? 0) > 0,
     ),
-    fallOfWickets,
-    partnerships,
-    overJustEnded,
+    fallOfWickets: r.fallOfWickets,
+    partnerships: r.partnerships,
+    overJustEnded: r.overJustEnded,
   };
 }

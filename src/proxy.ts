@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { sessionCookieValue } from "~/lib/firebase/session-cookie";
 
 /**
  * Route guard (Next.js 16 `proxy`). The session cookie is verified by the
  * Admin SDK inside server components and actions; here we only check for its
  * presence so the redirect happens before anything renders.
  */
-const SESSION_COOKIE_NAME = "cric_session";
-
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  const hasSession = Boolean(
+    sessionCookieValue((name) => request.cookies.get(name)?.value),
+  );
 
   const guarded =
     pathname.startsWith("/dashboard") || pathname.startsWith("/invitations");

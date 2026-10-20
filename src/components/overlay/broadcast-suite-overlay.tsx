@@ -10,6 +10,7 @@ import type {
   TeamPlayer,
 } from "~/lib/match-types";
 import { X } from "lucide-react";
+import { formatDismissalType } from "~/lib/cricket";
 
 export interface BroadcastSuiteOverlayProps {
   state: LiveMatchState;
@@ -854,7 +855,7 @@ export function BroadcastSuiteOverlay({
                           not out
                         </span>
                       ) : (
-                        <span>{bp.dismissal_type ?? "out"}</span>
+                        <span>{formatDismissalType(bp.dismissal_type)}</span>
                       )}
                     </div>
                     <div className="runs">{bp.runs_scored}</div>
@@ -1544,7 +1545,9 @@ export function BroadcastSuiteOverlay({
                     {state.last_ball_dismissed_player ?? "Last Out Batter"}
                   </p>
                   <p className="player_stat_name lastOutString mt-0.5 text-xs text-slate-400">
-                    {state.last_ball_dismissal_type ?? "Dismissed"}
+                    {state.last_ball_dismissal_type
+                      ? formatDismissalType(state.last_ball_dismissal_type)
+                      : "Dismissed"}
                   </p>
                 </div>
                 <div className="scoreRow player player_current mt-1 border-0 p-0">

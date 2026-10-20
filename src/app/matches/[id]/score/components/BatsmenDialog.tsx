@@ -51,6 +51,27 @@ interface BatsmenDialogProps {
    * short squad all out), next to adding a player.
    */
   onEndInnings?: () => void;
+  /**
+   * Retires a batter at the crease (opens the retire dialog): offered for
+   * one who has batted, whom Change cannot take off.
+   */
+  onRetire?: (playerId: string) => void;
+}
+
+/**
+ * Whether a batter has something on the scorecard (a ball faced, a run, a
+ * retirement). Change is for a wrong pick before that: taking such a batter
+ * off without a record would leave them "not out" with their runs, off the
+ * crease. They retire instead (as PlayHQ allows a change only before the
+ * batter's first ball).
+ */
+function hasBatted(perf: BattingPerformance | undefined): boolean {
+  return Boolean(
+    perf &&
+      ((perf.balls_faced ?? 0) > 0 ||
+        (perf.runs_scored ?? 0) > 0 ||
+        perf.dismissal_type),
+  );
 }
 
 /**
@@ -59,7 +80,8 @@ interface BatsmenDialogProps {
  * - after a wicket (one end empty): only the new batter is chosen (the
  *   next in is suggested); the not-out batter stays, and "Swap ends" sets
  *   who faces the next ball;
- * - both at the crease (opened from the menu): either end can be changed.
+ * - both at the crease (a batter's Change): either end can be changed, as
+ *   long as the batter leaving has not batted yet (otherwise: retire).
  */
 export function BatsmenDialog({
   open,
@@ -78,6 +100,7 @@ export function BatsmenDialog({
   onCreatePlayer,
   addPlayerDisabledReason,
   onEndInnings,
+  onRetire,
 }: BatsmenDialogProps) {
   /** The not-out batter after a wicket (their end is not to be replaced). */
   const survivor =
@@ -132,6 +155,8 @@ export function BatsmenDialog({
 
   const nameOf = (id: string | null) =>
     id ? (rows.find((r) => r.id === id)?.name ?? "Unknown") : null;
+  const perfOf = (id: string | null) =>
+    id ? battingPerformances?.find((p) => p.user_id === id) : undefined;
 
   const isOpponent = (id: string | null) =>
     Boolean(
@@ -178,11 +203,18 @@ export function BatsmenDialog({
     setDraft({ striker: draft.nonStriker, nonStriker: draft.striker });
   };
 
+  /** Batters at the crease now whom the draft would take off. */
+  const leaving = [strikerId, nonStrikerId].filter(
+    (id): id is string =>
+      Boolean(id) && id !== draft.striker && id !== draft.nonStriker,
+  );
+
   const canConfirm =
     Boolean(draft.striker && draft.nonStriker) &&
     draft.striker !== draft.nonStriker &&
     !isOpponent(draft.striker) &&
     !isOpponent(draft.nonStriker) &&
+    !leaving.some((id) => hasBatted(perfOf(id))) &&
     !isProcessing;
 
   const confirm = () => {
@@ -225,6 +257,16 @@ export function BatsmenDialog({
 
   const pickingFor = newBatterSlot ?? activeSlot;
   const changing = Boolean(strikerId && nonStrikerId && focusEnd);
+  // Both in: the batter at the end being changed, when they have batted
+  // (they retire instead of being replaced).
+  const occupant =
+    strikerId && nonStrikerId
+      ? pickingFor === "striker"
+        ? strikerId
+        : nonStrikerId
+      : null;
+  const battedOccupant =
+    occupant && hasBatted(perfOf(occupant)) ? occupant : null;
   // The task, in the title; the action, on the button.
   const title = survivor
     ? "Choose the new batter"
@@ -259,12 +301,16 @@ export function BatsmenDialog({
           <DialogTitle className="text-balance">{title}</DialogTitle>
           <DialogDescription>
             {survivor
-              ? `Comes in with ${nameOf(survivor) ?? "the not-out batter"}. Swap ends if the new batter faces the next ball.`
-              : changing
-                ? "Tap who replaces them. The other batter stays."
-                : !strikerId && !nonStrikerId
-                  ? "Tap the striker, then the non-striker."
-                  : "Tap a player to fill the highlighted end."}
+              ? newBatterSlot === "striker"
+                ? `The new batter faces the next ball, with ${nameOf(survivor) ?? "the not-out batter"} at the other end. Swap ends if ${nameOf(survivor) ?? "the not-out batter"} faces it instead.`
+                : `${nameOf(survivor) ?? "The not-out batter"} faces the next ball. Swap ends if the new batter faces it instead.`
+              : battedOccupant
+                ? "Swap ends, or retire them to bring in another batter."
+                : changing
+                  ? "Tap who replaces them. The other batter stays."
+                  : !strikerId && !nonStrikerId
+                    ? "Tap the striker, then the non-striker."
+                    : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -308,35 +354,65 @@ export function BatsmenDialog({
             </div>
           )}
 
-          <PlayerPicker
-            label={
-              survivor
-                ? "Choose the new batter"
-                : pickingFor === "striker"
-                  ? "Choose striker"
-                  : "Choose non-striker"
-            }
-            rows={pickable}
-            selectedId={
-              pickingFor === "striker" ? draft.striker : draft.nonStriker
-            }
-            onSelect={select}
-            addPlayer={
-              onCreatePlayer
-                ? {
-                    teamName: battingTeamName ?? "the batting side",
-                    onAdd: onCreatePlayer,
-                    disabledReason: addPlayerDisabledReason,
-                  }
-                : undefined
-            }
-            emptyMessage={
-              survivor
-                ? "Nobody left to come in."
-                : "No players in the batting squad yet."
-            }
-            noun="batter"
-          />
+          {battedOccupant ? (
+            <div
+              role="status"
+              className="space-y-3 rounded-lg border border-border bg-muted/50 p-3 text-sm"
+            >
+              <p>
+                {nameOf(battedOccupant)} has batted (
+                {perfOf(battedOccupant)?.runs_scored ?? 0} off{" "}
+                {perfOf(battedOccupant)?.balls_faced ?? 0}), so another player
+                cannot take their place. Change is for a wrong pick before a
+                batter&apos;s first ball.
+              </p>
+              {onRetire && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full font-semibold"
+                  onClick={() => onRetire(battedOccupant)}
+                  disabled={isProcessing}
+                >
+                  Retire {nameOf(battedOccupant)}
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Leaving the field: retire them (hurt, not out; or out). Wrong
+                player recorded: undo, or edit the balls they faced.
+              </p>
+            </div>
+          ) : (
+            <PlayerPicker
+              label={
+                survivor
+                  ? "Choose the new batter"
+                  : pickingFor === "striker"
+                    ? "Choose striker"
+                    : "Choose non-striker"
+              }
+              rows={pickable}
+              selectedId={
+                pickingFor === "striker" ? draft.striker : draft.nonStriker
+              }
+              onSelect={select}
+              addPlayer={
+                onCreatePlayer
+                  ? {
+                      teamName: battingTeamName ?? "the batting side",
+                      onAdd: onCreatePlayer,
+                      disabledReason: addPlayerDisabledReason,
+                    }
+                  : undefined
+              }
+              emptyMessage={
+                survivor
+                  ? "Nobody left to come in."
+                  : "No players in the batting squad yet."
+              }
+              noun="batter"
+            />
+          )}
 
           {/* Pinned on phones: reachable however long the squad is */}
           <div className="max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:border-t max-sm:border-border/70 max-sm:bg-card max-sm:px-4 max-sm:pb-4 max-sm:pt-3">

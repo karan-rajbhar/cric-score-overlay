@@ -135,6 +135,9 @@ export function ClubTournamentsTab({
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <Input
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               placeholder="Search tournaments or venues..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

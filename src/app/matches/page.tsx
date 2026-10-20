@@ -122,6 +122,9 @@ export default function MatchesPage() {
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground shrink-0" />
           <Input
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             aria-label="Search matches"
             placeholder="Search teams, titles or venues…"
             value={searchQuery}

@@ -37,9 +37,9 @@ import { matchPositionOf } from "../../match-position";
 import {
   applyBallIncrementally,
   isRetirementAtCrease,
-  startsNewPartnership,
   type IncrementalOutput,
 } from "./incremental";
+import { startsNewPartnership } from "./recompute";
 import { inningsLimits } from "./result";
 
 type WithId<T> = T & { id: string };

@@ -12,7 +12,7 @@ import { cookies } from "next/headers";
 import { getAdminAuth, getAdminFirestore } from "./admin";
 import { AdminDataSource } from "./datasource-admin";
 import { serverClientFor, type ServerClient } from "./server-client";
-import { SESSION_COOKIE_NAME, getUserFromSessionCookie } from "./session";
+import { getUserFromSessionCookie, sessionCookieValue } from "./session";
 import { storage } from "./storage";
 import type { AppUser } from "./auth-types";
 
@@ -35,5 +35,7 @@ function buildServerClient(sessionCookie: string | undefined): ServerClient {
 /** Client bound to the signed-in user of the current request (if any). */
 export async function createServerClient(): Promise<ServerClient> {
   const store = await cookies();
-  return buildServerClient(store.get(SESSION_COOKIE_NAME)?.value);
+  return buildServerClient(
+    sessionCookieValue((name) => store.get(name)?.value),
+  );
 }

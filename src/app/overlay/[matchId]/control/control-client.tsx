@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { firebase } from "~/lib/firebase";
+import { sendOverlayCommand } from "./send-command";
 import type {
   LiveMatchState,
   OverlayTheme,
@@ -387,9 +387,6 @@ export function ControlClient({
 
   const [activeDeckTab, setActiveDeckTab] = useState<string>("scorebars");
   const monitorRef = useRef<HTMLDivElement>(null);
-  const controlChannelRef = useRef<ReturnType<typeof firebase.channel> | null>(
-    null,
-  );
 
   const activeState = state ?? DEMO_MATCH_STATE;
   const activeMatch = match ?? DEMO_MATCH_DETAILS;
@@ -409,17 +406,6 @@ export function ControlClient({
     return () => ro.disconnect();
   }, [setMonitorScale]);
 
-  // Realtime broadcast channel to the overlay
-  useEffect(() => {
-    const channel = firebase.channel(`overlay_control_${matchId}`);
-    controlChannelRef.current = channel;
-    channel.subscribe();
-
-    return () => {
-      void firebase.removeChannel(channel);
-    };
-  }, [matchId]);
-
   // Live scoreboard: one listener on live_state/{matchId} (1 read per
   // change). Once the match is completed or abandoned it stops; the
   // producer can resume it (e.g. after a scorer undoes the final ball).
@@ -437,20 +423,14 @@ export function ControlClient({
     setState(live.state);
   }
 
-  // Command dispatcher
-  const sendCommand = useCallback((cmd: Omit<ProducerCommand, "timestamp">) => {
-    const fullCmd: ProducerCommand = {
-      ...cmd,
-      timestamp: Date.now(),
-    };
-    if (controlChannelRef.current) {
-      void controlChannelRef.current.send({
-        type: "broadcast",
-        event: "command",
-        payload: fullCmd,
-      });
-    }
-  }, []);
+  // Command dispatcher: to the overlay, through the server (which checks
+  // this producer may drive this match's overlay).
+  const sendCommand = useCallback(
+    (cmd: Omit<ProducerCommand, "timestamp">) => {
+      void sendOverlayCommand(matchId, { ...cmd, timestamp: Date.now() });
+    },
+    [matchId],
+  );
 
   const setActiveSting = useCallback(
     (sting: ActiveEventSting | null) => {

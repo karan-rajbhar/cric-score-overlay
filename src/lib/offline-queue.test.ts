@@ -18,6 +18,7 @@ import {
   clearDeadLetterActions,
   skipHeadAction,
   postReplayBatch,
+  replayTimeoutMs,
   type PendingBallParams,
   type QueuedActionType,
   type ReplayTransport,
@@ -628,5 +629,32 @@ describe("Offline queue replay through /api/scoring/replay", () => {
       status: 502,
       code: "http_502",
     });
+  });
+
+  it("postReplayBatch gives up on a request that gets no reply (a stalled connection)", async () => {
+    vi.useFakeTimers();
+    try {
+      // A fetch that never settles until it is aborted.
+      const fetchMock = vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const batch = {
+        v: 1,
+        matchId,
+        actions: [{ id: "x", type: "undoLastBall", payload: {} }],
+      };
+      const sent = postReplayBatch(batch);
+      const outcome = expect(sent).rejects.toThrow("aborted");
+      await vi.advanceTimersByTimeAsync(replayTimeoutMs(1));
+      await outcome;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -399,4 +399,54 @@ describe("BatsmenDialog changing one batter", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
   });
+
+  it("offers Retire, not a replacement, for a batter who has batted", () => {
+    const players: TeamPlayer[] = ["a", "b", "c"].map((id) => ({
+      id: `t-${id}`,
+      team_id: "team-1",
+      user_id: id,
+      user: { id, full_name: id.toUpperCase() },
+    }));
+    const batted = (user_id: string, runs: number, balls: number) => ({
+      id: `i1_${user_id}`,
+      match_id: "m1",
+      innings_id: "i1",
+      user_id,
+      runs_scored: runs,
+      balls_faced: balls,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+    });
+    const onConfirm = vi.fn();
+    const onRetire = vi.fn();
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        battingPerformances={[batted("a", 12, 8), batted("b", 0, 0)]}
+        strikerId="a"
+        nonStrikerId="b"
+        focusEnd="striker"
+        onConfirm={onConfirm}
+        onRetire={onRetire}
+        isProcessing={false}
+      />,
+    );
+    // No list to pick a replacement from: A would be left "not out" off
+    // the crease with their runs.
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "A has batted (12 off 8)",
+    );
+    expect(screen.queryByRole("radio", { name: /^C/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retire A" }));
+    expect(onRetire).toHaveBeenCalledWith("a");
+
+    // The other batter has not faced a ball: still changeable.
+    fireEvent.click(screen.getByRole("button", { name: /Non-striker/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^C/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
+    expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
+  });
 });

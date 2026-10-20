@@ -29,6 +29,7 @@ import {
   type PredictionBase,
 } from "~/lib/scoring-prediction";
 import { reportClientError } from "~/lib/report-error";
+import { deliveryLabel } from "~/lib/cricket";
 import {
   entryForChange,
   pushEntry,
@@ -49,6 +50,7 @@ import {
   cacheMatchData,
   getCachedMatchData,
   getConfirmedState,
+  UNDO_KEY_PREFIX,
 } from "~/lib/offline-match-cache";
 import { createPlayerQuick } from "../../../teams/actions";
 import { toast } from "sonner";
@@ -72,6 +74,14 @@ const INSTANT_SCORING = process.env.NEXT_PUBLIC_INSTANT_SCORING !== "false";
 
 /** Retry delays (ms) while queued actions cannot reach the server. */
 const RETRY_DELAYS = [2_000, 4_000, 8_000, 15_000, 30_000];
+
+/**
+ * How long the screen waits for a read of the scoring state. Past it the
+ * read counts as unanswered (the screen keeps what it shows and scoring
+ * carries on, queued on the device), instead of waiting on a dead
+ * connection.
+ */
+const SYNC_TIMEOUT_MS = 15_000;
 import { getFirebaseDb } from "~/lib/firebase/client";
 import { readDoc } from "~/lib/firebase/realtime";
 import type { OversRow } from "~/lib/firebase/scorecard";
@@ -176,29 +186,6 @@ function penaltyLocally(
     : ctx;
 }
 
-function deliveryLabel(d: {
-  runs_scored?: number | null;
-  extras?: number | null;
-  extra_type?: string | null;
-  is_wicket?: boolean | null;
-}): string {
-  if (d.is_wicket) return "W";
-  if (d.extra_type === "wide") {
-    const w = d.extras ?? 1;
-    return w === 1 ? "Wd" : `Wd+${w - 1}`;
-  }
-  if (d.extra_type === "no_ball") {
-    const batRuns = d.runs_scored ?? 0;
-    return batRuns === 0 ? "Nb" : `Nb+${batRuns}`;
-  }
-  if (d.extra_type === "bye") return `B${d.extras ?? 0}`;
-  if (d.extra_type === "leg_bye") return `Lb${d.extras ?? 0}`;
-  if (d.extra_type === "penalty") return `P${d.extras ?? 0}`;
-  const runs = d.runs_scored ?? 0;
-  if (runs === 0) return "0";
-  return String(runs);
-}
-
 /** What the over strip shows after an undo (see `scoring-undo`). */
 export interface UndoNotice {
   /**
@@ -225,7 +212,6 @@ export interface UndoNotice {
   canRedo: boolean;
 }
 
-const UNDO_STORAGE_PREFIX = "cric_undo_history_";
 
 /**
  * Single-responsibility hook: all scoring state + data fetching.
@@ -384,7 +370,7 @@ export function useScoring(
     try {
       if (typeof window === "undefined") return;
       window.localStorage.setItem(
-        `${UNDO_STORAGE_PREFIX}${matchId}`,
+        `${UNDO_KEY_PREFIX}${matchId}`,
         JSON.stringify({
           v: 1,
           stack: undoStackRef.current.slice(-6),
@@ -414,7 +400,7 @@ export function useScoring(
   /** The saved history, once, when the screen first has a state. */
   const restoreUndoHistory = useCallback(() => {
     try {
-      const raw = window.localStorage.getItem(`${UNDO_STORAGE_PREFIX}${matchId}`);
+      const raw = window.localStorage.getItem(`${UNDO_KEY_PREFIX}${matchId}`);
       const saved = raw ? JSON.parse(raw) : null;
       if (saved?.v !== 1) return;
       if (!undoStackRef.current.length && Array.isArray(saved.stack)) {
@@ -623,8 +609,22 @@ export function useScoring(
     [matchId, renderShown, scheduleUndoSave, promptForNeeds],
   );
 
-  const syncFromDb = useCallback(async (): Promise<boolean> => {
-    const result = await getScoringState(matchId);
+  /**
+   * Reads the scoring state from the server and shows it. Throws when the
+   * server cannot be reached, including no answer within SYNC_TIMEOUT_MS
+   * (a connection that stalled while the phone switched networks).
+   */
+  const readFromServer = useCallback(async (): Promise<boolean> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      getScoringState(matchId),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("No answer from the server")),
+          SYNC_TIMEOUT_MS,
+        );
+      }),
+    ]).finally(() => clearTimeout(timer));
     if (result.error || !result.data) return false;
     await applySnapshot(
       result.data as unknown as Snapshot,
@@ -632,6 +632,18 @@ export function useScoring(
     );
     return true;
   }, [matchId, applySnapshot]);
+
+  /**
+   * {@link readFromServer}, never throwing: when the server cannot be
+   * reached the screen stays as it is and scoring carries on (actions are
+   * queued on the device and sent once the connection is back); the next
+   * reply, action or live_state change reads again. Without this, a read
+   * hanging on a dead connection kept the keypad disabled until a reload.
+   */
+  const syncFromDb = useCallback(
+    () => readFromServer().catch(() => false),
+    [readFromServer],
+  );
 
   /**
    * After a mutation that answered with the documents it committed: the
@@ -761,7 +773,7 @@ export function useScoring(
       // Offline: don't wait for a server call that cannot succeed.
       if (!(isOfflineNow() && restoreFromCache())) {
         try {
-          await syncFromDb();
+          await readFromServer();
         } catch {
           // Server unreachable — fall back to the device copy.
           restoreFromCache();
@@ -773,7 +785,7 @@ export function useScoring(
     return () => {
       cancelled = true;
     };
-  }, [syncFromDb, matchId, restoreUndoHistory, renderShown, resolveSquadTeamIds]);
+  }, [readFromServer, matchId, restoreUndoHistory, renderShown, resolveSquadTeamIds]);
 
   useEffect(() => {
     if (!match) return;
@@ -1720,6 +1732,7 @@ export function useScoring(
             extras: ball.event.extras ?? 0,
             extra_type: ball.event.extraType ?? null,
             is_wicket: ball.event.isWicket ?? false,
+            dismissal_type: ball.event.dismissalType ?? null,
           })
         : "",
       position: ball ? `${ball.over}.${ball.ball}` : null,

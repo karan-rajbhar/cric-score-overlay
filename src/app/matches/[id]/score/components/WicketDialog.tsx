@@ -64,14 +64,25 @@ export const ALL_DISMISSAL_TYPES = [
     allowedOnWide: true,
     allowedOnNoBall: true,
   },
-  {
-    value: "retired_hurt",
-    label: "Retired Hurt",
-    needsFielder: false,
-    allowedOnWide: true,
-    allowedOnNoBall: true,
-  },
 ];
+
+/**
+ * Retirements (Law 25.4): recorded between deliveries, never as a ball, by
+ * the retire action. Offered next to the dismissals, where scorers look for
+ * them, but only for a plain wicket (not on an extra).
+ */
+export const RETIREMENT_TYPES = [
+  { value: "retired_hurt", label: "Retired hurt" },
+  { value: "retired_out", label: "Retired out" },
+] as const;
+
+export type RetirementType = (typeof RETIREMENT_TYPES)[number]["value"];
+
+export function isRetirementType(
+  v: string | null | undefined,
+): v is RetirementType {
+  return RETIREMENT_TYPES.some((r) => r.value === v);
+}
 
 interface WicketDialogProps {
   open: boolean;
@@ -134,16 +145,21 @@ export function WicketDialog({
   // Filter dismissal types based on MCC laws when an extra delivery or Free Hit is active
   const availableDismissals = ALL_DISMISSAL_TYPES.filter((d) => {
     if (isFreeHit) {
-      return d.value === "run_out" || d.value === "obstructing" || d.value === "retired_hurt";
+      return d.value === "run_out" || d.value === "obstructing";
     }
     if (extraType === "no_ball") return d.allowedOnNoBall;
     if (extraType === "wide") return d.allowedOnWide;
     return true;
   });
+  const retirements = extraType ? [] : RETIREMENT_TYPES;
+  const retiring = isRetirementType(dismissalType);
 
   // If currently selected dismissal is not valid under the active extra/free hit, auto-select first valid
   useEffect(() => {
-    if (open && !availableDismissals.some((d) => d.value === dismissalType)) {
+    const valid =
+      availableDismissals.some((d) => d.value === dismissalType) ||
+      (!extraType && isRetirementType(dismissalType));
+    if (open && !valid) {
       onDismissalTypeChange(availableDismissals[0]?.value ?? "run_out");
     }
   }, [
@@ -154,6 +170,27 @@ export function WicketDialog({
     availableDismissals,
     onDismissalTypeChange,
   ]);
+
+  /** A run out or a retirement can be either batter; the rest the striker. */
+  const eitherBatter = (type: string) =>
+    type === "run_out" || isRetirementType(type);
+  const pickType = (type: string) => {
+    onDismissalTypeChange(type);
+    if (!eitherBatter(type) && strikerId && dismissedPlayerId !== strikerId) {
+      onDismissedPlayerChange?.(strikerId);
+    }
+  };
+  const chipClass = (selected: boolean) =>
+    cn(
+      "touch-target flex h-11 min-h-[44px] items-center justify-center rounded-xl border text-xs font-semibold transition-colors",
+      selected
+        ? "border-black bg-black text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
+        : "border-border/80 bg-background text-foreground hover:bg-muted",
+    );
+  const retireeName =
+    (dismissedPlayerId || strikerId) === nonStrikerId
+      ? nonStrikerName || "Non-striker"
+      : strikerName || "Striker";
 
   // Ensure dismissed player is initialized to striker if not selected
   useEffect(() => {
@@ -192,7 +229,7 @@ export function WicketDialog({
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
               <span>
                 {extraType === "no_ball"
-                  ? "No-ball: Under MCC Law 21.18, batter can only be Run Out, Obstructing the Field, or Retired Hurt."
+                  ? "No-ball: Under MCC Law 21.18, batter can only be Run Out or Obstructing the Field."
                   : "Wide: Under MCC Law 22.17, batter cannot be Bowled, Caught, or LBW."}
               </span>
             </div>
@@ -202,33 +239,32 @@ export function WicketDialog({
             <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
               <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
               <span>
-                Free Hit Delivery: Under Law 21.19, batter can only be dismissed Run Out, Obstructing, or Retired Hurt.
+                Free Hit Delivery: Under Law 21.19, batter can only be dismissed
+                Run Out or Obstructing.
               </span>
             </div>
           )}
 
           <div>
-            <label className="text-sm font-bold text-foreground">
+            <p
+              className="text-sm font-semibold text-foreground"
+              id="dismissal-label"
+            >
               How was the batsman out?
-            </label>
+            </p>
             {/* Rapid 1-Tap Dismissal Chips for outdoor scoring */}
             <div
               className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4"
               role="group"
-              aria-label="Dismissal options"
+              aria-labelledby="dismissal-label"
             >
               {availableDismissals.map((d) => (
                 <button
                   key={d.value}
                   type="button"
                   aria-pressed={dismissalType === d.value}
-                  onClick={() => onDismissalTypeChange(d.value)}
-                  className={cn(
-                    "touch-target flex h-11 min-h-[44px] items-center justify-center rounded-xl border text-xs font-bold transition-all active:scale-95",
-                    dismissalType === d.value
-                      ? "border-black bg-black text-white shadow-sm font-bold dark:border-white dark:bg-white dark:text-black"
-                      : "border-border/80 bg-background text-foreground hover:bg-muted",
-                  )}
+                  onClick={() => pickType(d.value)}
+                  className={chipClass(dismissalType === d.value)}
                 >
                   {d.label}
                 </button>
@@ -236,11 +272,48 @@ export function WicketDialog({
             </div>
           </div>
 
-          {/* Who was dismissed: only a run out can take the non-striker */}
+          {retirements.length > 0 && (
+            <div>
+              <p
+                className="text-sm font-semibold text-foreground"
+                id="retirement-label"
+              >
+                Or a retirement (not a ball)
+              </p>
+              <div
+                className="mt-2 grid grid-cols-2 gap-1.5"
+                role="group"
+                aria-labelledby="retirement-label"
+              >
+                {retirements.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    aria-pressed={dismissalType === r.value}
+                    onClick={() => pickType(r.value)}
+                    className={chipClass(dismissalType === r.value)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              {retiring && (
+                <p className="mt-2 text-xs text-muted-foreground" role="note">
+                  {dismissalType === "retired_hurt"
+                    ? "Not out: they can bat again later in the innings."
+                    : "Out: counts as a wicket, not the bowler's."}{" "}
+                  The over and the bowler's figures stay as they are. Next,
+                  choose who comes in.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Who was dismissed: a run out or a retirement can take the non-striker */}
           {strikerId && nonStrikerId && onDismissedPlayerChange && (
             <div>
               <p className="text-sm font-medium" id="dismissed-batter-label">
-                Batsman dismissed
+                {retiring ? "Who retires" : "Batsman dismissed"}
               </p>
               <div
                 className="mt-1.5 grid grid-cols-2 gap-2"
@@ -256,7 +329,8 @@ export function WicketDialog({
                   },
                 ].map((b) => {
                   const selected = (dismissedPlayerId || strikerId) === b.id;
-                  const disabled = dismissalType !== "run_out" && b.id !== strikerId;
+                  const disabled =
+                    !eitherBatter(dismissalType) && b.id !== strikerId;
                   return (
                     <button
                       key={b.id}
@@ -344,7 +418,9 @@ export function WicketDialog({
               onClick={onConfirm}
               disabled={isProcessing}
             >
-              Confirm wicket
+              {retiring
+                ? `${dismissalType === "retired_hurt" ? "Retire hurt" : "Retire out"}: ${retireeName}`
+                : "Confirm wicket"}
             </Button>
           </div>
         </div>

@@ -567,7 +567,7 @@ export function MatchSuperstars({ match }: MatchSuperstarsProps) {
             <button
               type="button"
               onClick={() => setIsInfoOpen(true)}
-              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 transition-colors hover:bg-black/50 hover:text-white focus:outline-none"
+              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 transition-colors hover:bg-black/50 hover:text-white focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               title="Superstar 11 Points Rules"
               aria-label="Superstar 11 Points Rules"
             >

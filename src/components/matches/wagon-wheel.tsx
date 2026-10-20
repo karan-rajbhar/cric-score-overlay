@@ -711,7 +711,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               type="button"
               onClick={() => handleToggleRunFilter(1)}
               className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none",
+                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                 activeRunFilter === 1
                   ? "bg-white/15 ring-2 ring-white scale-105"
                   : "hover:bg-white/10 active:scale-95",
@@ -732,7 +732,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               type="button"
               onClick={() => handleToggleRunFilter(2)}
               className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none",
+                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                 activeRunFilter === 2
                   ? "bg-white/15 ring-2 ring-blue-400 scale-105"
                   : "hover:bg-white/10 active:scale-95",
@@ -753,7 +753,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               type="button"
               onClick={() => handleToggleRunFilter(3)}
               className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none",
+                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                 activeRunFilter === 3
                   ? "bg-white/15 ring-2 ring-purple-400 scale-105"
                   : "hover:bg-white/10 active:scale-95",
@@ -774,7 +774,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               type="button"
               onClick={() => handleToggleRunFilter(4)}
               className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none",
+                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                 activeRunFilter === 4
                   ? "bg-white/15 ring-2 ring-yellow-400 scale-105"
                   : "hover:bg-white/10 active:scale-95",
@@ -795,7 +795,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               type="button"
               onClick={() => handleToggleRunFilter(6)}
               className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none",
+                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
                 activeRunFilter === 6
                   ? "bg-white/15 ring-2 ring-orange-400 scale-105"
                   : "hover:bg-white/10 active:scale-95",

@@ -11,6 +11,7 @@ import {
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
+import { canManageTeam } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
@@ -364,51 +365,6 @@ export async function createPlayerQuick(
   }
 }
 
-async function checkTeamManageAuth(
-  db: Awaited<ReturnType<typeof createServerClient>>,
-  teamId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data: team } = await db
-    .from("teams")
-    .select("created_by, captain_id, vice_captain_id, club_id")
-    .eq("id", teamId)
-    .single();
-
-  if (!team) return false;
-
-  if (
-    team.created_by === userId ||
-    team.captain_id === userId ||
-    team.vice_captain_id === userId
-  ) {
-    return true;
-  }
-
-  if (team.club_id) {
-    const { data: club } = await db
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", team.club_id)
-      .single();
-
-    if (club?.owner_id === userId) return true;
-
-    const { data: mem } = await db
-      .from("club_memberships")
-      .select("id")
-      .eq("club_id", team.club_id)
-      .eq("user_id", userId)
-      .in("role", ["owner", "admin"])
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (mem) return true;
-  }
-
-  return false;
-}
-
 export async function addPlayerToTeam(
   teamId: string,
   userId: string,
@@ -424,7 +380,7 @@ export async function addPlayerToTeam(
 
   await ensureUserProfile(db, user);
 
-  const canManage = await checkTeamManageAuth(db, teamId, user.id);
+  const canManage = await canManageTeam(db, teamId, user.id);
   if (!canManage) {
     return {
       error:
@@ -467,7 +423,7 @@ export async function removePlayerFromTeam(
 
   const isSelf = user.id === userInputId;
   if (!isSelf) {
-    const canManage = await checkTeamManageAuth(db, teamId, user.id);
+    const canManage = await canManageTeam(db, teamId, user.id);
     if (!canManage) {
       return {
         error:
@@ -505,7 +461,7 @@ export async function updatePlayerRole(
 
   if (!user) return { error: "You must be logged in to change player roles" };
 
-  const canManage = await checkTeamManageAuth(db, teamId, user.id);
+  const canManage = await canManageTeam(db, teamId, user.id);
   if (!canManage) {
     return {
       error:
@@ -588,7 +544,7 @@ export async function updateTeamLogo(teamId: string, file: File) {
   } = await db.auth.getUser();
   if (!user) return { data: null, error: "You must be logged in" };
 
-  const canManage = await checkTeamManageAuth(db, teamId, user.id);
+  const canManage = await canManageTeam(db, teamId, user.id);
   if (!canManage) {
     return {
       data: null,
@@ -648,7 +604,7 @@ export async function removeTeamLogo(teamId: string) {
   } = await db.auth.getUser();
   if (!user) return { error: "You must be logged in" };
 
-  const canManage = await checkTeamManageAuth(db, teamId, user.id);
+  const canManage = await canManageTeam(db, teamId, user.id);
   if (!canManage) {
     return {
       error:

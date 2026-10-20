@@ -11,6 +11,8 @@ import { createServerClient } from "~/lib/firebase/server";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
 
+export const metadata = { title: "Teams" };
+
 export default async function TeamsPage({
   searchParams,
 }: {
@@ -81,6 +83,9 @@ export default async function TeamsPage({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <form action="/teams" method="GET">
             <Input
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               name="search"
               type="search"
               aria-label="Search teams"

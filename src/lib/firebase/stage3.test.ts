@@ -20,7 +20,7 @@ import { MemoryDataSource, type Doc } from "./datasource";
 import { refreshRoster } from "./denorm";
 import { derivedFieldsDataSource } from "./derived-fields";
 import { canonicalJson, searchFieldsOf } from "./derive.mjs";
-import { refreshInningsSummary } from "./innings-summary";
+import { refreshInningsSummary } from "./scorecard-refresh";
 import { rebuildPlayerMatches } from "./scorecard-sync";
 
 const seed = JSON.parse(

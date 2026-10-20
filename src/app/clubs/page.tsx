@@ -13,6 +13,8 @@ import {
   SectionHeader,
 } from "~/components/layout/page";
 
+export const metadata = { title: "Clubs" };
+
 export const dynamic = "force-dynamic";
 
 interface ClubRow {

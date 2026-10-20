@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
 import {
   attachMatchTeams,
@@ -78,6 +80,27 @@ interface MatchRow {
   innings?: InningsRow[];
 }
 
+/** The tournament: read once per request, by the page and its title. */
+const loadTournament = cache(async (id: string) => {
+  const db = await createServerClient();
+  return db
+    .from("tournaments")
+    .select("*, club:clubs(id, name, short_name)")
+    .eq("id", id)
+    .single();
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { title: "Tournament" };
+  const { data: tournament } = await loadTournament(id);
+  return { title: tournament?.name ?? "Tournament" };
+}
+
 export default async function TournamentPage({
   params,
   searchParams,
@@ -100,11 +123,7 @@ export default async function TournamentPage({
     { data: registrations },
     { data: matches },
   ] = await Promise.all([
-    db
-      .from("tournaments")
-      .select("*, club:clubs(id, name, short_name)")
-      .eq("id", id)
-      .single(),
+    loadTournament(id),
     db
       .from("tournament_standings")
       .select(

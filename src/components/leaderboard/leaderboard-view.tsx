@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Initials } from "~/components/ui/initials";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -536,12 +537,67 @@ function LeaderSpotlightBanner({
 // Main Leaderboard View Component
 // ---------------------------------------------------------------------------
 
-export function LeaderboardView({
-  title = "Statistics & Leaderboards",
-  subtitle = "Comprehensive performance records, milestones, and MVP rankings across all fixtures.",
-  data,
-  showHighlights = true,
-}: LeaderboardViewProps) {
+/** One ranked player on phones: rank, name, the metric and its context. */
+function RankCard({
+  rank,
+  name,
+  fallback,
+  subtitle,
+  hero,
+  stats,
+}: {
+  rank: number;
+  name: string;
+  fallback: string;
+  subtitle: string;
+  hero: { value: string; label: string };
+  stats: { label: string; value: string }[];
+}) {
+  return (
+    <Card className="border-border/80 p-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
+            {rank}
+          </span>
+          <Initials name={name} fallback={fallback} className="h-8 w-8" />
+          <div className="min-w-0">
+            <div className="font-bold text-foreground text-sm truncate">
+              {name}
+            </div>
+            <div className="text-2xs text-muted-foreground truncate">
+              {subtitle}
+            </div>
+          </div>
+        </div>
+
+        <div className="text-right shrink-0">
+          <div className="text-base font-bold tabular-nums text-foreground">
+            {hero.value}
+          </div>
+          <div className="text-2xs text-muted-foreground">{hero.label}</div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
+        {stats.map((st) => (
+          <div key={st.label} className="flex justify-between">
+            <span className="text-muted-foreground">{st.label}:</span>
+            <span className="font-semibold tabular-nums text-foreground">
+              {st.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/** The leaderboard's tab, search, sort and table mode, and the lists they give. */
+function useLeaderboardState(
+  data: LeaderboardViewProps["data"],
+  showHighlights: boolean,
+) {
   const [activeTab, setActiveTab] = useState<
     "overview" | "batting" | "bowling" | "fielding" | "mvp"
   >("overview");
@@ -601,6 +657,1636 @@ export function LeaderboardView({
     return sortMvpEntries(list, mvpSort);
   }, [data.mvp, searchQuery, mvpSort]);
 
+  return {
+    data,
+    showHighlights,
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    battingSort,
+    setBattingSort,
+    bowlingSort,
+    setBowlingSort,
+    fieldingSort,
+    setFieldingSort,
+    mvpSort,
+    setMvpSort,
+    battingTableMode,
+    setBattingTableMode,
+    bowlingTableMode,
+    setBowlingTableMode,
+    hasAnyData,
+    filteredBatting,
+    filteredBowling,
+    filteredFielding,
+    filteredMvp,
+  };
+}
+
+type LeaderboardState = ReturnType<typeof useLeaderboardState>;
+
+const LEADERBOARD_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "batting", label: "Batting" },
+  { id: "bowling", label: "Bowling" },
+  { id: "fielding", label: "Fielding" },
+  { id: "mvp", label: "MVP" },
+] as const;
+
+function OverviewTab({ view }: { view: LeaderboardState }) {
+  const { data, showHighlights, setActiveTab } = view;
+  return (
+    <div className="space-y-6">
+      {/* Highlight Cards Grid */}
+      {showHighlights && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Orange Cap */}
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  Orange Cap
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Most runs
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {data.highlights.orangeCap ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-foreground">
+                      {data.highlights.orangeCap.name}
+                    </div>
+                    <div className="text-2xs text-muted-foreground">
+                      {data.highlights.orangeCap.innings} inn • Avg:{" "}
+                      {data.highlights.orangeCap.averageDisplay} • SR:{" "}
+                      {data.highlights.orangeCap.strikeRateDisplay}
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                    {data.highlights.orangeCap.runs}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  No batting records yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Purple Cap */}
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  Purple Cap
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Most wickets
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {data.highlights.purpleCap ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-foreground">
+                      {data.highlights.purpleCap.name}
+                    </div>
+                    <div className="text-2xs text-muted-foreground">
+                      {data.highlights.purpleCap.overs} ov • Avg:{" "}
+                      {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
+                      {data.highlights.purpleCap.economyDisplay}
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                    {data.highlights.purpleCap.wickets}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  No bowling records yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* MVP Leader */}
+          <Card>
+            <CardHeader className="p-4 pb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-foreground">
+                  MVP leader
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  All-round points
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              {data.highlights.mvpLeader ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold text-foreground">
+                      {data.highlights.mvpLeader.name}
+                    </div>
+                    <div className="text-2xs text-muted-foreground">
+                      {data.highlights.mvpLeader.summary}
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                    {data.highlights.mvpLeader.totalPoints}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  No MVP records yet
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Most Sixes */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Most sixes (max)
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div className="truncate font-semibold text-foreground">
+                  {data.highlights.mostSixes?.name ?? "—"}
+                </div>
+                <div className="text-xl font-bold tabular-nums text-foreground">
+                  {data.highlights.mostSixes?.sixes ?? 0}
+                </div>
+              </div>
+              <div className="mt-0.5 text-2xs text-muted-foreground">
+                {data.highlights.mostSixes
+                  ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
+                  : "No sixes recorded"}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Highest Individual Score */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Highest individual score
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div className="truncate font-semibold text-foreground">
+                  {data.highlights.highestScore?.name ?? "—"}
+                </div>
+                <div className="text-xl font-bold tabular-nums text-foreground">
+                  {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
+                </div>
+              </div>
+              <div className="mt-0.5 text-2xs text-muted-foreground">
+                {data.highlights.highestScore
+                  ? data.highlights.highestScore.highestScoreBalls
+                    ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
+                    : `${data.highlights.highestScore.runs} total runs in tournament`
+                  : "No batting records"}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Best Bowling Inning */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Best bowling figures
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div className="truncate font-semibold text-foreground">
+                  {data.highlights.bestBowling?.name ?? "—"}
+                </div>
+                <div className="text-xl font-bold tabular-nums text-foreground">
+                  {data.highlights.bestBowling?.bestBowling.display ?? "—"}
+                </div>
+              </div>
+              <div className="mt-0.5 text-2xs text-muted-foreground">
+                {data.highlights.bestBowling
+                  ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
+                  : "No bowling figures recorded"}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Fielder */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Top fielder
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline justify-between">
+                <div className="truncate font-semibold text-foreground">
+                  {data.highlights.topFielder?.name ?? "—"}
+                </div>
+                <div className="text-xl font-bold tabular-nums text-foreground">
+                  {data.highlights.topFielder?.totalDismissals ?? 0}
+                </div>
+              </div>
+              <div className="mt-0.5 text-2xs text-muted-foreground">
+                {data.highlights.topFielder
+                  ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
+                  : "No dismissals recorded"}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Quick Previews: Top Batters & Top Bowlers */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Top 5 Batters */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base font-semibold">
+              Leading run scorers
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveTab("batting")}
+              className="h-7 text-xs font-medium"
+            >
+              View all ({data.batting.length})
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data.batting.length === 0 ? (
+              <div className="p-6 text-center text-xs text-muted-foreground">
+                No batting data available yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-border text-xs">
+                {data.batting.slice(0, 5).map((b, idx) => (
+                  <div
+                    key={b.userId}
+                    className="flex items-center justify-between p-3"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                        {idx + 1}
+                      </span>
+                      <Initials name={b.name} fallback="P" className="h-7 w-7" />
+                      <div>
+                        <div className="font-semibold text-foreground">
+                          {b.name}
+                        </div>
+                        <div className="text-2xs text-muted-foreground">
+                          {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
+                          {b.strikeRateDisplay}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold tabular-nums text-foreground">
+                        {b.runs}
+                      </div>
+                      <div className="text-2xs text-muted-foreground">
+                        {b.fours}×4, {b.sixes}×6
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top 5 Bowlers */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base font-semibold">
+              Leading wicket takers
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveTab("bowling")}
+              className="h-7 text-xs font-medium"
+            >
+              View all ({data.bowling.length})
+            </Button>
+          </CardHeader>
+          <CardContent className="p-0">
+            {data.bowling.length === 0 ? (
+              <div className="p-6 text-center text-xs text-muted-foreground">
+                No bowling data available yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-border text-xs">
+                {data.bowling.slice(0, 5).map((bw, idx) => (
+                  <div
+                    key={bw.userId}
+                    className="flex items-center justify-between p-3"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                        {idx + 1}
+                      </span>
+                      <Initials name={bw.name} fallback="B" className="h-7 w-7" />
+                      <div>
+                        <div className="font-semibold text-foreground">
+                          {bw.name}
+                        </div>
+                        <div className="text-2xs text-muted-foreground">
+                          {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
+                          {bw.bestBowling.display}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold tabular-nums text-foreground">
+                        {bw.wickets}
+                      </div>
+                      <div className="text-2xs text-muted-foreground">
+                        Avg {bw.averageDisplay}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function BattingTab({ view }: { view: LeaderboardState }) {
+  const { battingSort, setBattingSort, battingTableMode, setBattingTableMode, filteredBatting } = view;
+  return (
+    <div className="space-y-4">
+      {/* Filter & Sort Chips + Table View Mode Toggle */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
+            Rank by:
+          </span>
+          {(
+            [
+              { id: "runs", label: "Most Runs" },
+              { id: "centuries", label: "100s" },
+              { id: "fifties", label: "50s" },
+              { id: "highestScore", label: "Highest Score" },
+              { id: "average", label: "Batting Avg" },
+              { id: "strikeRate", label: "Strike Rate" },
+              { id: "sixes", label: "Most 6s" },
+              { id: "fours", label: "Most 4s" },
+              { id: "balls", label: "Balls Faced" },
+            ] as const
+          ).map((chip) => (
+            <Button
+              key={chip.id}
+              variant={battingSort === chip.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setBattingSort(chip.id)}
+              className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
+            >
+              {chip.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* View Toggle: Focused Perspective vs All Columns */}
+        {battingSort !== "runs" && (
+          <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
+            <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
+            <button
+              type="button"
+              onClick={() => setBattingTableMode("focused")}
+              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                battingTableMode === "focused"
+                  ? "bg-card text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Focused knock view
+            </button>
+            <button
+              type="button"
+              onClick={() => setBattingTableMode("all")}
+              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                battingTableMode === "all"
+                  ? "bg-card text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              All columns
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Active Metric Leader Spotlight Banner */}
+      <LeaderSpotlightBanner
+        title={`Batting Leaderboard • ${BATTING_CONFIGS[battingSort].label}`}
+        description={BATTING_CONFIGS[battingSort].description}
+        leader={filteredBatting[0]}
+        heroValue={
+          filteredBatting[0]
+            ? BATTING_CONFIGS[battingSort].getHeroStat(filteredBatting[0]).value
+            : undefined
+        }
+        heroLabel={
+          filteredBatting[0]
+            ? BATTING_CONFIGS[battingSort].getHeroStat(filteredBatting[0]).label
+            : undefined
+        }
+        contextStats={
+          filteredBatting[0]
+            ? BATTING_CONFIGS[battingSort].getContextStats(filteredBatting[0])
+            : undefined
+        }
+      />
+
+      {/* Responsive Cards for Mobile View (< md) */}
+      <div className="grid gap-2.5 md:hidden">
+        {filteredBatting.length === 0 ? (
+          <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
+            No batting records found matching your search.
+          </div>
+        ) : (
+          filteredBatting.map((b, idx) => {
+            const hero = BATTING_CONFIGS[battingSort].getHeroStat(b);
+            const stats = BATTING_CONFIGS[battingSort].getContextStats(b);
+            return (
+              <RankCard
+                key={b.userId}
+                rank={idx + 1}
+                name={b.name}
+                fallback="P"
+                subtitle={`${b.matches} matches • ${b.innings} innings`}
+                hero={hero}
+                stats={stats}
+              />
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table: Focused Knock Perspective for Highest Score */}
+      {battingSort === "highestScore" && battingTableMode === "focused" ? (
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 w-10 text-center">#</th>
+                    <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                    <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
+                      High score (HS)
+                    </th>
+                    <th className="px-3 py-2.5 text-center">Balls (knock)</th>
+                    <th className="px-3 py-2.5 text-right">SR (knock)</th>
+                    <th className="px-3 py-2.5 text-center">Knock 4s</th>
+                    <th className="px-3 py-2.5 text-center">Knock 6s</th>
+                    <th className="px-3 py-2.5 text-center">Innings</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                      Total tournament runs
+                    </th>
+                    <th className="px-3 py-2.5 text-right">Overall avg</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredBatting.map((b, idx) => (
+                    <tr
+                      key={b.userId}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        {idx === 0 ? (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                            1
+                          </span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
+                          <span className="font-semibold text-foreground truncate max-w-[160px]">
+                            {b.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
+                        {b.highestScoreDisplay}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                        {b.highestScoreBalls ? `${b.highestScoreBalls} balls` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {b.highestScoreStrikeRateDisplay ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {b.highestScoreFours ?? 0}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {b.highestScoreSixes ?? 0}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {b.innings}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                        {b.runs}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {b.averageDisplay}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Full Batting Table for Desktop (>= md) */
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 w-10 text-center">#</th>
+                    <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                    <th className="px-2.5 py-2.5 text-center">Mat</th>
+                    <th className="px-2.5 py-2.5 text-center">Inn</th>
+                    <th className="px-2.5 py-2.5 text-center">NO</th>
+                    <th
+                      className={`px-3 py-2.5 text-right transition-colors ${
+                        battingSort === "runs"
+                          ? "bg-muted text-foreground font-semibold"
+                          : "font-bold text-foreground"
+                      }`}
+                    >
+                      Runs
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-center transition-colors ${
+                        battingSort === "highestScore"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      HS
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-right transition-colors ${
+                        battingSort === "average"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      Avg
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-right transition-colors ${
+                        battingSort === "balls"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      BF
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-right transition-colors ${
+                        battingSort === "strikeRate"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      SR
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        battingSort === "centuries"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      100
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        battingSort === "fifties"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      50
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        battingSort === "fours"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      4s
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        battingSort === "sixes"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      6s
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredBatting.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={14}
+                        className="py-8 text-center text-xs text-muted-foreground"
+                      >
+                        No batting records found matching your search.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBatting.map((b, idx) => (
+                      <tr
+                        key={b.userId}
+                        className="hover:bg-muted/40 transition-colors"
+                      >
+                        <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                          {idx === 0 ? (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                              1
+                            </span>
+                          ) : (
+                            idx + 1
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
+                            <span className="font-semibold text-foreground truncate max-w-[160px]">
+                              {b.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                          {b.matches}
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                          {b.innings}
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                          {b.notOuts}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                            battingSort === "runs"
+                              ? "bg-muted/60 text-foreground"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {b.runs}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                            battingSort === "highestScore"
+                              ? "bg-muted/60 text-foreground"
+                              : ""
+                          }`}
+                        >
+                          {b.highestScoreDisplay}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-right tabular-nums ${
+                            battingSort === "average"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : ""
+                          }`}
+                        >
+                          {b.averageDisplay}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-right tabular-nums ${
+                            battingSort === "balls"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {b.balls}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-right tabular-nums ${
+                            battingSort === "strikeRate"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-medium"
+                          }`}
+                        >
+                          {b.strikeRateDisplay}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            battingSort === "centuries"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-semibold text-foreground"
+                          }`}
+                        >
+                          {b.centuries}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            battingSort === "fifties"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-semibold text-foreground"
+                          }`}
+                        >
+                          {b.fifties}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            battingSort === "fours"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {b.fours}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            battingSort === "sixes"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {b.sixes}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function BowlingTab({ view }: { view: LeaderboardState }) {
+  const { bowlingSort, setBowlingSort, bowlingTableMode, setBowlingTableMode, filteredBowling } = view;
+  return (
+    <div className="space-y-4">
+      {/* Filter & Sort Chips + Table View Mode Toggle */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
+            Rank by:
+          </span>
+          {(
+            [
+              { id: "wickets", label: "Most Wickets" },
+              { id: "bestBowling", label: "Best Bowling (BBI)" },
+              { id: "average", label: "Bowling Avg" },
+              { id: "economy", label: "Economy Rate" },
+              { id: "maidens", label: "Maidens" },
+              { id: "threeWickets", label: "3-Wkt Hauls" },
+              { id: "fiveWickets", label: "5-Wkt Hauls" },
+              { id: "balls", label: "Balls Bowled" },
+            ] as const
+          ).map((chip) => (
+            <Button
+              key={chip.id}
+              variant={bowlingSort === chip.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setBowlingSort(chip.id)}
+              className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
+            >
+              {chip.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* View Toggle for Bowling */}
+        {bowlingSort === "bestBowling" && (
+          <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
+            <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
+            <button
+              type="button"
+              onClick={() => setBowlingTableMode("focused")}
+              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                bowlingTableMode === "focused"
+                  ? "bg-card text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Focused spell view
+            </button>
+            <button
+              type="button"
+              onClick={() => setBowlingTableMode("all")}
+              className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
+                bowlingTableMode === "all"
+                  ? "bg-card text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              All columns
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Active Metric Leader Spotlight Banner */}
+      <LeaderSpotlightBanner
+        title={`Bowling Leaderboard • ${BOWLING_CONFIGS[bowlingSort].label}`}
+        description={BOWLING_CONFIGS[bowlingSort].description}
+        leader={filteredBowling[0]}
+        heroValue={
+          filteredBowling[0]
+            ? BOWLING_CONFIGS[bowlingSort].getHeroStat(filteredBowling[0]).value
+            : undefined
+        }
+        heroLabel={
+          filteredBowling[0]
+            ? BOWLING_CONFIGS[bowlingSort].getHeroStat(filteredBowling[0]).label
+            : undefined
+        }
+        contextStats={
+          filteredBowling[0]
+            ? BOWLING_CONFIGS[bowlingSort].getContextStats(filteredBowling[0])
+            : undefined
+        }
+      />
+
+      {/* Responsive Cards for Mobile View (< md) */}
+      <div className="grid gap-2.5 md:hidden">
+        {filteredBowling.length === 0 ? (
+          <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
+            No bowling records found matching your search.
+          </div>
+        ) : (
+          filteredBowling.map((bw, idx) => {
+            const hero = BOWLING_CONFIGS[bowlingSort].getHeroStat(bw);
+            const stats = BOWLING_CONFIGS[bowlingSort].getContextStats(bw);
+            return (
+              <RankCard
+                key={bw.userId}
+                rank={idx + 1}
+                name={bw.name}
+                fallback="B"
+                subtitle={`${bw.matches} matches • ${bw.innings} innings`}
+                hero={hero}
+                stats={stats}
+              />
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table: Focused Spell View for Best Bowling (BBI) */}
+      {bowlingSort === "bestBowling" && bowlingTableMode === "focused" ? (
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 w-10 text-center">#</th>
+                    <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                    <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
+                      Best figures (BBI)
+                    </th>
+                    <th className="px-3 py-2.5 text-center">Overs in spell</th>
+                    <th className="px-3 py-2.5 text-right">Spell economy</th>
+                    <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                      Total tournament wkts
+                    </th>
+                    <th className="px-3 py-2.5 text-center">Total overs</th>
+                    <th className="px-3 py-2.5 text-right">Overall econ</th>
+                    <th className="px-3 py-2.5 text-right">Bowling avg</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredBowling.map((bw, idx) => (
+                    <tr
+                      key={bw.userId}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        {idx === 0 ? (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                            1
+                          </span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
+                          <span className="font-semibold text-foreground truncate max-w-[160px]">
+                            {bw.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
+                        {bw.bestBowling.display}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                        {bw.bestBowling.overs ? `${bw.bestBowling.overs} ov` : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {bw.bestBowling.economy ?? "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                        {bw.wickets}
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {bw.overs}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {bw.economyDisplay}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {bw.averageDisplay}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        /* Full Bowling Table for Desktop (>= md) */
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 w-10 text-center">#</th>
+                    <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                    <th className="px-2.5 py-2.5 text-center">Mat</th>
+                    <th className="px-2.5 py-2.5 text-center">Inn</th>
+                    <th className="px-2.5 py-2.5 text-center">Overs</th>
+                    <th
+                      className={`px-2.5 py-2.5 text-center transition-colors ${
+                        bowlingSort === "balls"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      Balls
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-center transition-colors ${
+                        bowlingSort === "maidens"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      Mdns
+                    </th>
+                    <th className="px-2.5 py-2.5 text-right">Runs</th>
+                    <th
+                      className={`px-3 py-2.5 text-right transition-colors ${
+                        bowlingSort === "wickets"
+                          ? "bg-muted text-foreground font-semibold"
+                          : "font-bold text-foreground"
+                      }`}
+                    >
+                      Wkts
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-center transition-colors ${
+                        bowlingSort === "bestBowling"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      BBI
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-right transition-colors ${
+                        bowlingSort === "average"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      Avg
+                    </th>
+                    <th
+                      className={`px-2.5 py-2.5 text-right transition-colors ${
+                        bowlingSort === "economy"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      Econ
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        bowlingSort === "threeWickets"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      3w
+                    </th>
+                    <th
+                      className={`px-2 py-2.5 text-center transition-colors ${
+                        bowlingSort === "fiveWickets"
+                          ? "bg-muted text-foreground font-semibold"
+                          : ""
+                      }`}
+                    >
+                      5w
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredBowling.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={14}
+                        className="py-8 text-center text-xs text-muted-foreground"
+                      >
+                        No bowling records found matching your search.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBowling.map((bw, idx) => (
+                      <tr
+                        key={bw.userId}
+                        className="hover:bg-muted/40 transition-colors"
+                      >
+                        <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                          {idx === 0 ? (
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                              1
+                            </span>
+                          ) : (
+                            idx + 1
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
+                            <span className="font-semibold text-foreground truncate max-w-[160px]">
+                              {bw.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                          {bw.matches}
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                          {bw.innings}
+                        </td>
+                        <td className="px-2.5 py-2 text-center tabular-nums font-medium">
+                          {bw.overs}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-center tabular-nums ${
+                            bowlingSort === "balls"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {bw.balls}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-center tabular-nums ${
+                            bowlingSort === "maidens"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {bw.maidens}
+                        </td>
+                        <td className="px-2.5 py-2 text-right tabular-nums text-muted-foreground">
+                          {bw.runsConceded}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                            bowlingSort === "wickets"
+                              ? "bg-muted/60 text-foreground"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {bw.wickets}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                            bowlingSort === "bestBowling"
+                              ? "bg-muted/60 text-foreground"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {bw.bestBowling.display}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-right tabular-nums ${
+                            bowlingSort === "average"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : ""
+                          }`}
+                        >
+                          {bw.averageDisplay}
+                        </td>
+                        <td
+                          className={`px-2.5 py-2 text-right tabular-nums ${
+                            bowlingSort === "economy"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-medium"
+                          }`}
+                        >
+                          {bw.economyDisplay}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            bowlingSort === "threeWickets"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-semibold text-muted-foreground"
+                          }`}
+                        >
+                          {bw.threeWickets}
+                        </td>
+                        <td
+                          className={`px-2 py-2 text-center tabular-nums ${
+                            bowlingSort === "fiveWickets"
+                              ? "bg-muted/60 font-bold text-foreground"
+                              : "font-semibold text-foreground"
+                          }`}
+                        >
+                          {bw.fiveWickets}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function FieldingTab({ view }: { view: LeaderboardState }) {
+  const { fieldingSort, setFieldingSort, filteredFielding } = view;
+  return (
+    <div className="space-y-4">
+      {/* Filter & Sort Chips */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
+          Rank by:
+        </span>
+        {(
+          [
+            { id: "totalDismissals", label: "Total Dismissals" },
+            { id: "catches", label: "Catches" },
+            { id: "stumpings", label: "Stumpings" },
+            { id: "runOuts", label: "Run Outs" },
+          ] as const
+        ).map((chip) => (
+          <Button
+            key={chip.id}
+            variant={fieldingSort === chip.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFieldingSort(chip.id)}
+            className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
+          >
+            {chip.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Active Metric Leader Spotlight Banner */}
+      <LeaderSpotlightBanner
+        title={`Fielding Leaderboard • ${FIELDING_CONFIGS[fieldingSort].label}`}
+        description={FIELDING_CONFIGS[fieldingSort].description}
+        leader={filteredFielding[0]}
+        heroValue={
+          filteredFielding[0]
+            ? FIELDING_CONFIGS[fieldingSort].getHeroStat(filteredFielding[0]).value
+            : undefined
+        }
+        heroLabel={
+          filteredFielding[0]
+            ? FIELDING_CONFIGS[fieldingSort].getHeroStat(filteredFielding[0]).label
+            : undefined
+        }
+        contextStats={
+          filteredFielding[0]
+            ? FIELDING_CONFIGS[fieldingSort].getContextStats(filteredFielding[0])
+            : undefined
+        }
+      />
+
+      {/* Responsive Cards for Mobile View (< md) */}
+      <div className="grid gap-2.5 md:hidden">
+        {filteredFielding.length === 0 ? (
+          <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
+            No fielding records found matching your search.
+          </div>
+        ) : (
+          filteredFielding.map((f, idx) => {
+            const hero = FIELDING_CONFIGS[fieldingSort].getHeroStat(f);
+            const stats = FIELDING_CONFIGS[fieldingSort].getContextStats(f);
+            return (
+              <RankCard
+                key={f.userId}
+                rank={idx + 1}
+                name={f.name}
+                fallback="F"
+                subtitle={`${f.matches} matches`}
+                hero={hero}
+                stats={stats}
+              />
+            );
+          })
+        )}
+      </div>
+
+      {/* Full Fielding Table for Desktop (>= md) */}
+      <Card className="hidden md:block">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2.5 w-10 text-center">#</th>
+                  <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                  <th className="px-3 py-2.5 text-center">Matches</th>
+                  <th
+                    className={`px-3 py-2.5 text-right transition-colors ${
+                      fieldingSort === "totalDismissals"
+                        ? "bg-muted text-foreground font-semibold"
+                        : "font-bold text-foreground"
+                    }`}
+                  >
+                    Total dismissals
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      fieldingSort === "catches"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Catches (Ct)
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      fieldingSort === "stumpings"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Stumpings (St)
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      fieldingSort === "runOuts"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Run outs (RO)
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredFielding.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="py-8 text-center text-xs text-muted-foreground"
+                    >
+                      No fielding records found matching your search.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredFielding.map((f, idx) => (
+                    <tr
+                      key={f.userId}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        {idx === 0 ? (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                            1
+                          </span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Initials name={f.name} fallback="F" className="h-6 w-6 text-2xs" />
+                          <span className="font-semibold text-foreground truncate max-w-[180px]">
+                            {f.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {f.matches}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                          fieldingSort === "totalDismissals"
+                            ? "bg-muted/60 text-foreground"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {f.totalDismissals}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                          fieldingSort === "catches"
+                            ? "bg-muted/60 text-foreground"
+                            : ""
+                        }`}
+                      >
+                        {f.catches}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                          fieldingSort === "stumpings"
+                            ? "bg-muted/60 text-foreground"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {f.stumpings}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                          fieldingSort === "runOuts"
+                            ? "bg-muted/60 text-foreground"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {f.runOuts}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MvpTab({ view }: { view: LeaderboardState }) {
+  const { mvpSort, setMvpSort, filteredMvp } = view;
+  return (
+    <div className="space-y-4">
+      {/* Filter & Sort Chips */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
+          Rank by:
+        </span>
+        {(
+          [
+            { id: "totalPoints", label: "Total MVP Points" },
+            { id: "battingPoints", label: "Batting Impact" },
+            { id: "bowlingPoints", label: "Bowling Impact" },
+            { id: "fieldingPoints", label: "Fielding Impact" },
+          ] as const
+        ).map((chip) => (
+          <Button
+            key={chip.id}
+            variant={mvpSort === chip.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => setMvpSort(chip.id)}
+            className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
+          >
+            {chip.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Active Metric Leader Spotlight Banner */}
+      <LeaderSpotlightBanner
+        title={`MVP Leaderboard • ${MVP_CONFIGS[mvpSort].label}`}
+        description={MVP_CONFIGS[mvpSort].description}
+        leader={filteredMvp[0]}
+        heroValue={
+          filteredMvp[0]
+            ? MVP_CONFIGS[mvpSort].getHeroStat(filteredMvp[0]).value
+            : undefined
+        }
+        heroLabel={
+          filteredMvp[0]
+            ? MVP_CONFIGS[mvpSort].getHeroStat(filteredMvp[0]).label
+            : undefined
+        }
+        contextStats={
+          filteredMvp[0]
+            ? MVP_CONFIGS[mvpSort].getContextStats(filteredMvp[0])
+            : undefined
+        }
+      />
+
+      {/* Responsive Cards for Mobile View (< md) */}
+      <div className="grid gap-2.5 md:hidden">
+        {filteredMvp.length === 0 ? (
+          <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
+            No MVP records found matching your search.
+          </div>
+        ) : (
+          filteredMvp.map((m, idx) => {
+            const hero = MVP_CONFIGS[mvpSort].getHeroStat(m);
+            const stats = MVP_CONFIGS[mvpSort].getContextStats(m);
+            return (
+              <RankCard
+                key={m.userId}
+                rank={idx + 1}
+                name={m.name}
+                fallback="P"
+                subtitle={m.summary}
+                hero={hero}
+                stats={stats}
+              />
+            );
+          })
+        )}
+      </div>
+
+      {/* Full MVP Table for Desktop (>= md) */}
+      <Card className="hidden md:block">
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2.5 w-10 text-center">#</th>
+                  <th className="px-3 py-2.5 min-w-[150px]">Player</th>
+                  <th className="px-3 py-2.5 text-center">Matches</th>
+                  <th
+                    className={`px-3 py-2.5 text-right transition-colors ${
+                      mvpSort === "totalPoints"
+                        ? "bg-muted text-foreground font-semibold"
+                        : "font-bold text-foreground"
+                    }`}
+                  >
+                    Total points
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      mvpSort === "battingPoints"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Bat pts
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      mvpSort === "bowlingPoints"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Bowl pts
+                  </th>
+                  <th
+                    className={`px-3 py-2.5 text-center transition-colors ${
+                      mvpSort === "fieldingPoints"
+                        ? "bg-muted text-foreground font-semibold"
+                        : ""
+                    }`}
+                  >
+                    Field pts
+                  </th>
+                  <th className="px-3 py-2.5 min-w-[180px]">Key stats</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredMvp.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="py-8 text-center text-xs text-muted-foreground"
+                    >
+                      No MVP records found matching your search.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMvp.map((m, idx) => (
+                    <tr
+                      key={m.userId}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        {idx === 0 ? (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
+                            1
+                          </span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Initials name={m.name} fallback="P" className="h-6 w-6 text-2xs" />
+                          <span className="font-semibold text-foreground truncate max-w-[160px]">
+                            {m.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                        {m.matches}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                          mvpSort === "totalPoints"
+                            ? "bg-muted/60 text-foreground"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {m.totalPoints}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums ${
+                          mvpSort === "battingPoints"
+                            ? "bg-muted/60 font-bold text-foreground"
+                            : "font-medium text-foreground"
+                        }`}
+                      >
+                        {m.battingPoints}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums ${
+                          mvpSort === "bowlingPoints"
+                            ? "bg-muted/60 font-bold text-foreground"
+                            : "font-medium text-foreground"
+                        }`}
+                      >
+                        {m.bowlingPoints}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center tabular-nums ${
+                          mvpSort === "fieldingPoints"
+                            ? "bg-muted/60 font-bold text-foreground"
+                            : "font-medium text-foreground"
+                        }`}
+                      >
+                        {m.fieldingPoints}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        <span className="truncate block max-w-[240px]">
+                          {m.summary}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+export function LeaderboardView({
+  title = "Statistics & Leaderboards",
+  subtitle = "Comprehensive performance records, milestones, and MVP rankings across all fixtures.",
+  data,
+  showHighlights = true,
+}: LeaderboardViewProps) {
+  const view = useLeaderboardState(data, showHighlights);
+  const { activeTab, setActiveTab, searchQuery, setSearchQuery, hasAnyData } =
+    view;
+
   if (!hasAnyData) {
     return (
       <EmptyState
@@ -626,6 +2312,11 @@ export function LeaderboardView({
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search player name..."
+            aria-label="Search players"
+            type="search"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 text-xs"
@@ -633,1782 +2324,47 @@ export function LeaderboardView({
         </div>
       </div>
 
-      {/* Main Tabs Navigation */}
-      <div className="space-y-6">
+      {/* Main Tabs Navigation (arrow keys move between tabs) */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        className="space-y-6"
+      >
         <div className="overflow-x-auto pb-1 no-scrollbar">
-          <div
-            role="tablist"
-            className="inline-flex h-10 w-full min-w-max justify-start gap-1 rounded-xl bg-muted/80 p-1 sm:w-auto"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "overview"}
-              onClick={() => setActiveTab("overview")}
-              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "overview"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Overview
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "batting"}
-              onClick={() => setActiveTab("batting")}
-              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "batting"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Batting
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
-                {data.batting.length}
-              </Badge>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "bowling"}
-              onClick={() => setActiveTab("bowling")}
-              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "bowling"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Bowling
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
-                {data.bowling.length}
-              </Badge>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "fielding"}
-              onClick={() => setActiveTab("fielding")}
-              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "fielding"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Fielding
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
-                {data.fielding.length}
-              </Badge>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "mvp"}
-              onClick={() => setActiveTab("mvp")}
-              className={`inline-flex shrink-0 whitespace-nowrap min-h-[36px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === "mvp"
-                  ? "bg-card text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              MVP
-              <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
-                {data.mvp.length}
-              </Badge>
-            </button>
-          </div>
+          <TabsList className="inline-flex h-10 w-full min-w-max justify-start gap-1 rounded-xl bg-muted/80 p-1 text-muted-foreground sm:w-auto">
+            {LEADERBOARD_TABS.map((tab) => (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="min-h-[36px] gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all data-[state=active]:bg-card data-[state=active]:shadow-xs"
+              >
+                {tab.label}
+                {tab.id !== "overview" && (
+                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
+                    {data[tab.id].length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </div>
 
-        {/* 1. OVERVIEW TAB */}
-        {activeTab === "overview" && (
-          <div className="space-y-6">
-            {/* Highlight Cards Grid */}
-            {showHighlights && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {/* Orange Cap */}
-                <Card>
-                  <CardHeader className="p-4 pb-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">
-                        Orange Cap
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Most runs
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    {data.highlights.orangeCap ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-foreground">
-                            {data.highlights.orangeCap.name}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {data.highlights.orangeCap.innings} inn • Avg:{" "}
-                            {data.highlights.orangeCap.averageDisplay} • SR:{" "}
-                            {data.highlights.orangeCap.strikeRateDisplay}
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold tabular-nums text-foreground">
-                          {data.highlights.orangeCap.runs}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        No batting records yet
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Purple Cap */}
-                <Card>
-                  <CardHeader className="p-4 pb-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">
-                        Purple Cap
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Most wickets
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    {data.highlights.purpleCap ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-foreground">
-                            {data.highlights.purpleCap.name}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {data.highlights.purpleCap.overs} ov • Avg:{" "}
-                            {data.highlights.purpleCap.averageDisplay} • Econ:{" "}
-                            {data.highlights.purpleCap.economyDisplay}
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold tabular-nums text-foreground">
-                          {data.highlights.purpleCap.wickets}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        No bowling records yet
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* MVP Leader */}
-                <Card>
-                  <CardHeader className="p-4 pb-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">
-                        MVP leader
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        All-round points
-                      </span>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-2">
-                    {data.highlights.mvpLeader ? (
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold text-foreground">
-                            {data.highlights.mvpLeader.name}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {data.highlights.mvpLeader.summary}
-                          </div>
-                        </div>
-                        <div className="text-2xl font-bold tabular-nums text-foreground">
-                          {data.highlights.mvpLeader.totalPoints}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        No MVP records yet
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Most Sixes */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        Most sixes (max)
-                      </span>
-                    </div>
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-semibold text-foreground">
-                        {data.highlights.mostSixes?.name ?? "—"}
-                      </div>
-                      <div className="text-xl font-bold tabular-nums text-foreground">
-                        {data.highlights.mostSixes?.sixes ?? 0}
-                      </div>
-                    </div>
-                    <div className="mt-0.5 text-2xs text-muted-foreground">
-                      {data.highlights.mostSixes
-                        ? `${data.highlights.mostSixes.runs} total runs • ${data.highlights.mostSixes.fours} fours`
-                        : "No sixes recorded"}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Highest Individual Score */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        Highest individual score
-                      </span>
-                    </div>
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-semibold text-foreground">
-                        {data.highlights.highestScore?.name ?? "—"}
-                      </div>
-                      <div className="text-xl font-bold tabular-nums text-foreground">
-                        {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
-                      </div>
-                    </div>
-                    <div className="mt-0.5 text-2xs text-muted-foreground">
-                      {data.highlights.highestScore
-                        ? data.highlights.highestScore.highestScoreBalls
-                          ? `${data.highlights.highestScore.highestScoreBalls} balls • SR ${data.highlights.highestScore.highestScoreStrikeRateDisplay}`
-                          : `${data.highlights.highestScore.runs} total runs in tournament`
-                        : "No batting records"}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Best Bowling Inning */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        Best bowling figures
-                      </span>
-                    </div>
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-semibold text-foreground">
-                        {data.highlights.bestBowling?.name ?? "—"}
-                      </div>
-                      <div className="text-xl font-bold tabular-nums text-foreground">
-                        {data.highlights.bestBowling?.bestBowling.display ?? "—"}
-                      </div>
-                    </div>
-                    <div className="mt-0.5 text-2xs text-muted-foreground">
-                      {data.highlights.bestBowling
-                        ? `${data.highlights.bestBowling.wickets} total wkts • Econ ${data.highlights.bestBowling.economyDisplay}`
-                        : "No bowling figures recorded"}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Top Fielder */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        Top fielder
-                      </span>
-                    </div>
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <div className="truncate font-semibold text-foreground">
-                        {data.highlights.topFielder?.name ?? "—"}
-                      </div>
-                      <div className="text-xl font-bold tabular-nums text-foreground">
-                        {data.highlights.topFielder?.totalDismissals ?? 0}
-                      </div>
-                    </div>
-                    <div className="mt-0.5 text-2xs text-muted-foreground">
-                      {data.highlights.topFielder
-                        ? `${data.highlights.topFielder.catches} catches • ${data.highlights.topFielder.stumpings} st • ${data.highlights.topFielder.runOuts} ro`
-                        : "No dismissals recorded"}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* Quick Previews: Top Batters & Top Bowlers */}
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Top 5 Batters */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <CardTitle className="text-base font-semibold">
-                    Leading run scorers
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setActiveTab("batting")}
-                    className="h-7 text-xs font-medium"
-                  >
-                    View all ({data.batting.length})
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {data.batting.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-muted-foreground">
-                      No batting data available yet.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border text-xs">
-                      {data.batting.slice(0, 5).map((b, idx) => (
-                        <div
-                          key={b.userId}
-                          className="flex items-center justify-between p-3"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
-                              {idx + 1}
-                            </span>
-                            <Initials name={b.name} fallback="P" className="h-7 w-7" />
-                            <div>
-                              <div className="font-semibold text-foreground">
-                                {b.name}
-                              </div>
-                              <div className="text-2xs text-muted-foreground">
-                                {b.innings} inn • HS: {b.highestScoreDisplay} • SR:{" "}
-                                {b.strikeRateDisplay}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold tabular-nums text-foreground">
-                              {b.runs}
-                            </div>
-                            <div className="text-2xs text-muted-foreground">
-                              {b.fours}×4, {b.sixes}×6
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Top 5 Bowlers */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <CardTitle className="text-base font-semibold">
-                    Leading wicket takers
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setActiveTab("bowling")}
-                    className="h-7 text-xs font-medium"
-                  >
-                    View all ({data.bowling.length})
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {data.bowling.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-muted-foreground">
-                      No bowling data available yet.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-border text-xs">
-                      {data.bowling.slice(0, 5).map((bw, idx) => (
-                        <div
-                          key={bw.userId}
-                          className="flex items-center justify-between p-3"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
-                              {idx + 1}
-                            </span>
-                            <Initials name={bw.name} fallback="B" className="h-7 w-7" />
-                            <div>
-                              <div className="font-semibold text-foreground">
-                                {bw.name}
-                              </div>
-                              <div className="text-2xs text-muted-foreground">
-                                {bw.overs} ov • Econ: {bw.economyDisplay} • BBI:{" "}
-                                {bw.bestBowling.display}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-bold tabular-nums text-foreground">
-                              {bw.wickets}
-                            </div>
-                            <div className="text-2xs text-muted-foreground">
-                              Avg {bw.averageDisplay}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {/* 2. BATTING TAB */}
-        {activeTab === "batting" && (
-          <div className="space-y-4">
-            {/* Filter & Sort Chips + Table View Mode Toggle */}
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-                  Rank by:
-                </span>
-                {(
-                  [
-                    { id: "runs", label: "Most Runs" },
-                    { id: "centuries", label: "100s" },
-                    { id: "fifties", label: "50s" },
-                    { id: "highestScore", label: "Highest Score" },
-                    { id: "average", label: "Batting Avg" },
-                    { id: "strikeRate", label: "Strike Rate" },
-                    { id: "sixes", label: "Most 6s" },
-                    { id: "fours", label: "Most 4s" },
-                    { id: "balls", label: "Balls Faced" },
-                  ] as const
-                ).map((chip) => (
-                  <Button
-                    key={chip.id}
-                    variant={battingSort === chip.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setBattingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-                  >
-                    {chip.label}
-                  </Button>
-                ))}
-              </div>
-
-              {/* View Toggle: Focused Perspective vs All Columns */}
-              {battingSort !== "runs" && (
-                <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
-                  <button
-                    type="button"
-                    onClick={() => setBattingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
-                      battingTableMode === "focused"
-                        ? "bg-card text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Focused knock view
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBattingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
-                      battingTableMode === "all"
-                        ? "bg-card text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    All columns
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Active Metric Leader Spotlight Banner */}
-            <LeaderSpotlightBanner
-              title={`Batting Leaderboard • ${BATTING_CONFIGS[battingSort].label}`}
-              description={BATTING_CONFIGS[battingSort].description}
-              leader={filteredBatting[0]}
-              heroValue={
-                filteredBatting[0]
-                  ? BATTING_CONFIGS[battingSort].getHeroStat(filteredBatting[0]).value
-                  : undefined
-              }
-              heroLabel={
-                filteredBatting[0]
-                  ? BATTING_CONFIGS[battingSort].getHeroStat(filteredBatting[0]).label
-                  : undefined
-              }
-              contextStats={
-                filteredBatting[0]
-                  ? BATTING_CONFIGS[battingSort].getContextStats(filteredBatting[0])
-                  : undefined
-              }
-            />
-
-            {/* Responsive Cards for Mobile View (< md) */}
-            <div className="grid gap-2.5 md:hidden">
-              {filteredBatting.length === 0 ? (
-                <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
-                  No batting records found matching your search.
-                </div>
-              ) : (
-                filteredBatting.map((b, idx) => {
-                  const hero = BATTING_CONFIGS[battingSort].getHeroStat(b);
-                  const stats = BATTING_CONFIGS[battingSort].getContextStats(b);
-                  return (
-                    <Card key={b.userId} className="border-border/80 p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
-                            {idx + 1}
-                          </span>
-                          <Initials name={b.name} fallback="P" className="h-8 w-8" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground text-sm truncate">
-                              {b.name}
-                            </div>
-                            <div className="text-2xs text-muted-foreground">
-                              {b.matches} matches • {b.innings} innings
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-bold tabular-nums text-foreground">
-                            {hero.value}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {hero.label}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
-                        {stats.map((st) => (
-                          <div key={st.label} className="flex justify-between">
-                            <span className="text-muted-foreground">{st.label}:</span>
-                            <span className="font-semibold tabular-nums text-foreground">
-                              {st.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Desktop Table: Focused Knock Perspective for Highest Score */}
-            {battingSort === "highestScore" && battingTableMode === "focused" ? (
-              <Card className="hidden md:block">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2.5 w-10 text-center">#</th>
-                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
-                            High score (HS)
-                          </th>
-                          <th className="px-3 py-2.5 text-center">Balls (knock)</th>
-                          <th className="px-3 py-2.5 text-right">SR (knock)</th>
-                          <th className="px-3 py-2.5 text-center">Knock 4s</th>
-                          <th className="px-3 py-2.5 text-center">Knock 6s</th>
-                          <th className="px-3 py-2.5 text-center">Innings</th>
-                          <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total tournament runs
-                          </th>
-                          <th className="px-3 py-2.5 text-right">Overall avg</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredBatting.map((b, idx) => (
-                          <tr
-                            key={b.userId}
-                            className="hover:bg-muted/40 transition-colors"
-                          >
-                            <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                              {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                  1
-                                </span>
-                              ) : (
-                                idx + 1
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
-                                <span className="font-semibold text-foreground truncate max-w-[160px]">
-                                  {b.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
-                              {b.highestScoreDisplay}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
-                              {b.highestScoreBalls ? `${b.highestScoreBalls} balls` : "—"}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums font-medium">
-                              {b.highestScoreStrikeRateDisplay ?? "—"}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {b.highestScoreFours ?? 0}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {b.highestScoreSixes ?? 0}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {b.innings}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
-                              {b.runs}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {b.averageDisplay}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              /* Full Batting Table for Desktop (>= md) */
-              <Card className="hidden md:block">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2.5 w-10 text-center">#</th>
-                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-2.5 py-2.5 text-center">Mat</th>
-                          <th className="px-2.5 py-2.5 text-center">Inn</th>
-                          <th className="px-2.5 py-2.5 text-center">NO</th>
-                          <th
-                            className={`px-3 py-2.5 text-right transition-colors ${
-                              battingSort === "runs"
-                                ? "bg-muted text-foreground font-semibold"
-                                : "font-bold text-foreground"
-                            }`}
-                          >
-                            Runs
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-center transition-colors ${
-                              battingSort === "highestScore"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            HS
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-right transition-colors ${
-                              battingSort === "average"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            Avg
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-right transition-colors ${
-                              battingSort === "balls"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            BF
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-right transition-colors ${
-                              battingSort === "strikeRate"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            SR
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              battingSort === "centuries"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            100
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              battingSort === "fifties"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            50
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              battingSort === "fours"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            4s
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              battingSort === "sixes"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            6s
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredBatting.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={14}
-                              className="py-8 text-center text-xs text-muted-foreground"
-                            >
-                              No batting records found matching your search.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredBatting.map((b, idx) => (
-                            <tr
-                              key={b.userId}
-                              className="hover:bg-muted/40 transition-colors"
-                            >
-                              <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                                {idx === 0 ? (
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                    1
-                                  </span>
-                                ) : (
-                                  idx + 1
-                                )}
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                  <Initials name={b.name} fallback="P" className="h-6 w-6 text-2xs" />
-                                  <span className="font-semibold text-foreground truncate max-w-[160px]">
-                                    {b.name}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                                {b.matches}
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                                {b.innings}
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                                {b.notOuts}
-                              </td>
-                              <td
-                                className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
-                                  battingSort === "runs"
-                                    ? "bg-muted/60 text-foreground"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {b.runs}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
-                                  battingSort === "highestScore"
-                                    ? "bg-muted/60 text-foreground"
-                                    : ""
-                                }`}
-                              >
-                                {b.highestScoreDisplay}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-right tabular-nums ${
-                                  battingSort === "average"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : ""
-                                }`}
-                              >
-                                {b.averageDisplay}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-right tabular-nums ${
-                                  battingSort === "balls"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {b.balls}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-right tabular-nums ${
-                                  battingSort === "strikeRate"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-medium"
-                                }`}
-                              >
-                                {b.strikeRateDisplay}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  battingSort === "centuries"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-semibold text-foreground"
-                                }`}
-                              >
-                                {b.centuries}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  battingSort === "fifties"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-semibold text-foreground"
-                                }`}
-                              >
-                                {b.fifties}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  battingSort === "fours"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {b.fours}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  battingSort === "sixes"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {b.sixes}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* 3. BOWLING TAB */}
-        {activeTab === "bowling" && (
-          <div className="space-y-4">
-            {/* Filter & Sort Chips + Table View Mode Toggle */}
-            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-                  Rank by:
-                </span>
-                {(
-                  [
-                    { id: "wickets", label: "Most Wickets" },
-                    { id: "bestBowling", label: "Best Bowling (BBI)" },
-                    { id: "average", label: "Bowling Avg" },
-                    { id: "economy", label: "Economy Rate" },
-                    { id: "maidens", label: "Maidens" },
-                    { id: "threeWickets", label: "3-Wkt Hauls" },
-                    { id: "fiveWickets", label: "5-Wkt Hauls" },
-                    { id: "balls", label: "Balls Bowled" },
-                  ] as const
-                ).map((chip) => (
-                  <Button
-                    key={chip.id}
-                    variant={bowlingSort === chip.id ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setBowlingSort(chip.id)}
-                    className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-                  >
-                    {chip.label}
-                  </Button>
-                ))}
-              </div>
-
-              {/* View Toggle for Bowling */}
-              {bowlingSort === "bestBowling" && (
-                <div className="flex items-center gap-1.5 self-start sm:self-auto rounded-lg border border-border/70 bg-muted/40 p-1">
-                  <SlidersHorizontal className="h-3 w-3 text-muted-foreground ml-1 shrink-0" />
-                  <button
-                    type="button"
-                    onClick={() => setBowlingTableMode("focused")}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
-                      bowlingTableMode === "focused"
-                        ? "bg-card text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Focused spell view
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBowlingTableMode("all")}
-                    className={`rounded-md px-2.5 py-1 text-2xs font-medium min-h-[32px] sm:min-h-0 transition-all ${
-                      bowlingTableMode === "all"
-                        ? "bg-card text-foreground shadow-xs font-semibold"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    All columns
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Active Metric Leader Spotlight Banner */}
-            <LeaderSpotlightBanner
-              title={`Bowling Leaderboard • ${BOWLING_CONFIGS[bowlingSort].label}`}
-              description={BOWLING_CONFIGS[bowlingSort].description}
-              leader={filteredBowling[0]}
-              heroValue={
-                filteredBowling[0]
-                  ? BOWLING_CONFIGS[bowlingSort].getHeroStat(filteredBowling[0]).value
-                  : undefined
-              }
-              heroLabel={
-                filteredBowling[0]
-                  ? BOWLING_CONFIGS[bowlingSort].getHeroStat(filteredBowling[0]).label
-                  : undefined
-              }
-              contextStats={
-                filteredBowling[0]
-                  ? BOWLING_CONFIGS[bowlingSort].getContextStats(filteredBowling[0])
-                  : undefined
-              }
-            />
-
-            {/* Responsive Cards for Mobile View (< md) */}
-            <div className="grid gap-2.5 md:hidden">
-              {filteredBowling.length === 0 ? (
-                <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
-                  No bowling records found matching your search.
-                </div>
-              ) : (
-                filteredBowling.map((bw, idx) => {
-                  const hero = BOWLING_CONFIGS[bowlingSort].getHeroStat(bw);
-                  const stats = BOWLING_CONFIGS[bowlingSort].getContextStats(bw);
-                  return (
-                    <Card key={bw.userId} className="border-border/80 p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
-                            {idx + 1}
-                          </span>
-                          <Initials name={bw.name} fallback="B" className="h-8 w-8" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground text-sm truncate">
-                              {bw.name}
-                            </div>
-                            <div className="text-2xs text-muted-foreground">
-                              {bw.matches} matches • {bw.innings} innings
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-bold tabular-nums text-foreground">
-                            {hero.value}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {hero.label}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
-                        {stats.map((st) => (
-                          <div key={st.label} className="flex justify-between">
-                            <span className="text-muted-foreground">{st.label}:</span>
-                            <span className="font-semibold tabular-nums text-foreground">
-                              {st.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Desktop Table: Focused Spell View for Best Bowling (BBI) */}
-            {bowlingSort === "bestBowling" && bowlingTableMode === "focused" ? (
-              <Card className="hidden md:block">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2.5 w-10 text-center">#</th>
-                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-3 py-2.5 text-center bg-muted text-foreground font-semibold">
-                            Best figures (BBI)
-                          </th>
-                          <th className="px-3 py-2.5 text-center">Overs in spell</th>
-                          <th className="px-3 py-2.5 text-right">Spell economy</th>
-                          <th className="px-3 py-2.5 text-right font-bold text-foreground">
-                            Total tournament wkts
-                          </th>
-                          <th className="px-3 py-2.5 text-center">Total overs</th>
-                          <th className="px-3 py-2.5 text-right">Overall econ</th>
-                          <th className="px-3 py-2.5 text-right">Bowling avg</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredBowling.map((bw, idx) => (
-                          <tr
-                            key={bw.userId}
-                            className="hover:bg-muted/40 transition-colors"
-                          >
-                            <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                              {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                  1
-                                </span>
-                              ) : (
-                                idx + 1
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
-                                <span className="font-semibold text-foreground truncate max-w-[160px]">
-                                  {bw.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
-                              {bw.bestBowling.display}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
-                              {bw.bestBowling.overs ? `${bw.bestBowling.overs} ov` : "—"}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums font-medium">
-                              {bw.bestBowling.economy ?? "—"}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
-                              {bw.wickets}
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {bw.overs}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {bw.economyDisplay}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                              {bw.averageDisplay}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              /* Full Bowling Table for Desktop (>= md) */
-              <Card className="hidden md:block">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-2.5 w-10 text-center">#</th>
-                          <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                          <th className="px-2.5 py-2.5 text-center">Mat</th>
-                          <th className="px-2.5 py-2.5 text-center">Inn</th>
-                          <th className="px-2.5 py-2.5 text-center">Overs</th>
-                          <th
-                            className={`px-2.5 py-2.5 text-center transition-colors ${
-                              bowlingSort === "balls"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            Balls
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-center transition-colors ${
-                              bowlingSort === "maidens"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            Mdns
-                          </th>
-                          <th className="px-2.5 py-2.5 text-right">Runs</th>
-                          <th
-                            className={`px-3 py-2.5 text-right transition-colors ${
-                              bowlingSort === "wickets"
-                                ? "bg-muted text-foreground font-semibold"
-                                : "font-bold text-foreground"
-                            }`}
-                          >
-                            Wkts
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-center transition-colors ${
-                              bowlingSort === "bestBowling"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            BBI
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-right transition-colors ${
-                              bowlingSort === "average"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            Avg
-                          </th>
-                          <th
-                            className={`px-2.5 py-2.5 text-right transition-colors ${
-                              bowlingSort === "economy"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            Econ
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              bowlingSort === "threeWickets"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            3w
-                          </th>
-                          <th
-                            className={`px-2 py-2.5 text-center transition-colors ${
-                              bowlingSort === "fiveWickets"
-                                ? "bg-muted text-foreground font-semibold"
-                                : ""
-                            }`}
-                          >
-                            5w
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredBowling.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={14}
-                              className="py-8 text-center text-xs text-muted-foreground"
-                            >
-                              No bowling records found matching your search.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredBowling.map((bw, idx) => (
-                            <tr
-                              key={bw.userId}
-                              className="hover:bg-muted/40 transition-colors"
-                            >
-                              <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                                {idx === 0 ? (
-                                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                    1
-                                  </span>
-                                ) : (
-                                  idx + 1
-                                )}
-                              </td>
-                              <td className="px-3 py-2">
-                                <div className="flex items-center gap-2">
-                                  <Initials name={bw.name} fallback="B" className="h-6 w-6 text-2xs" />
-                                  <span className="font-semibold text-foreground truncate max-w-[160px]">
-                                    {bw.name}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                                {bw.matches}
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
-                                {bw.innings}
-                              </td>
-                              <td className="px-2.5 py-2 text-center tabular-nums font-medium">
-                                {bw.overs}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-center tabular-nums ${
-                                  bowlingSort === "balls"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {bw.balls}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-center tabular-nums ${
-                                  bowlingSort === "maidens"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {bw.maidens}
-                              </td>
-                              <td className="px-2.5 py-2 text-right tabular-nums text-muted-foreground">
-                                {bw.runsConceded}
-                              </td>
-                              <td
-                                className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
-                                  bowlingSort === "wickets"
-                                    ? "bg-muted/60 text-foreground"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {bw.wickets}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
-                                  bowlingSort === "bestBowling"
-                                    ? "bg-muted/60 text-foreground"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {bw.bestBowling.display}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-right tabular-nums ${
-                                  bowlingSort === "average"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : ""
-                                }`}
-                              >
-                                {bw.averageDisplay}
-                              </td>
-                              <td
-                                className={`px-2.5 py-2 text-right tabular-nums ${
-                                  bowlingSort === "economy"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-medium"
-                                }`}
-                              >
-                                {bw.economyDisplay}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  bowlingSort === "threeWickets"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-semibold text-muted-foreground"
-                                }`}
-                              >
-                                {bw.threeWickets}
-                              </td>
-                              <td
-                                className={`px-2 py-2 text-center tabular-nums ${
-                                  bowlingSort === "fiveWickets"
-                                    ? "bg-muted/60 font-bold text-foreground"
-                                    : "font-semibold text-foreground"
-                                }`}
-                              >
-                                {bw.fiveWickets}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* 4. FIELDING TAB */}
-        {activeTab === "fielding" && (
-          <div className="space-y-4">
-            {/* Filter & Sort Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-              <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-                Rank by:
-              </span>
-              {(
-                [
-                  { id: "totalDismissals", label: "Total Dismissals" },
-                  { id: "catches", label: "Catches" },
-                  { id: "stumpings", label: "Stumpings" },
-                  { id: "runOuts", label: "Run Outs" },
-                ] as const
-              ).map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant={fieldingSort === chip.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFieldingSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-                >
-                  {chip.label}
-                </Button>
-              ))}
-            </div>
-
-            {/* Active Metric Leader Spotlight Banner */}
-            <LeaderSpotlightBanner
-              title={`Fielding Leaderboard • ${FIELDING_CONFIGS[fieldingSort].label}`}
-              description={FIELDING_CONFIGS[fieldingSort].description}
-              leader={filteredFielding[0]}
-              heroValue={
-                filteredFielding[0]
-                  ? FIELDING_CONFIGS[fieldingSort].getHeroStat(filteredFielding[0]).value
-                  : undefined
-              }
-              heroLabel={
-                filteredFielding[0]
-                  ? FIELDING_CONFIGS[fieldingSort].getHeroStat(filteredFielding[0]).label
-                  : undefined
-              }
-              contextStats={
-                filteredFielding[0]
-                  ? FIELDING_CONFIGS[fieldingSort].getContextStats(filteredFielding[0])
-                  : undefined
-              }
-            />
-
-            {/* Responsive Cards for Mobile View (< md) */}
-            <div className="grid gap-2.5 md:hidden">
-              {filteredFielding.length === 0 ? (
-                <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
-                  No fielding records found matching your search.
-                </div>
-              ) : (
-                filteredFielding.map((f, idx) => {
-                  const hero = FIELDING_CONFIGS[fieldingSort].getHeroStat(f);
-                  const stats = FIELDING_CONFIGS[fieldingSort].getContextStats(f);
-                  return (
-                    <Card key={f.userId} className="border-border/80 p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
-                            {idx + 1}
-                          </span>
-                          <Initials name={f.name} fallback="F" className="h-8 w-8" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground text-sm truncate">
-                              {f.name}
-                            </div>
-                            <div className="text-2xs text-muted-foreground">
-                              {f.matches} matches
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-bold tabular-nums text-foreground">
-                            {hero.value}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {hero.label}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
-                        {stats.map((st) => (
-                          <div key={st.label} className="flex justify-between">
-                            <span className="text-muted-foreground">{st.label}:</span>
-                            <span className="font-semibold tabular-nums text-foreground">
-                              {st.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Full Fielding Table for Desktop (>= md) */}
-            <Card className="hidden md:block">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2.5 w-10 text-center">#</th>
-                        <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                        <th className="px-3 py-2.5 text-center">Matches</th>
-                        <th
-                          className={`px-3 py-2.5 text-right transition-colors ${
-                            fieldingSort === "totalDismissals"
-                              ? "bg-muted text-foreground font-semibold"
-                              : "font-bold text-foreground"
-                          }`}
-                        >
-                          Total dismissals
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            fieldingSort === "catches"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Catches (Ct)
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            fieldingSort === "stumpings"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Stumpings (St)
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            fieldingSort === "runOuts"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Run outs (RO)
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredFielding.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={7}
-                            className="py-8 text-center text-xs text-muted-foreground"
-                          >
-                            No fielding records found matching your search.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredFielding.map((f, idx) => (
-                          <tr
-                            key={f.userId}
-                            className="hover:bg-muted/40 transition-colors"
-                          >
-                            <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                              {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                  1
-                                </span>
-                              ) : (
-                                idx + 1
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <Initials name={f.name} fallback="F" className="h-6 w-6 text-2xs" />
-                                <span className="font-semibold text-foreground truncate max-w-[180px]">
-                                  {f.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {f.matches}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
-                                fieldingSort === "totalDismissals"
-                                  ? "bg-muted/60 text-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {f.totalDismissals}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
-                                fieldingSort === "catches"
-                                  ? "bg-muted/60 text-foreground"
-                                  : ""
-                              }`}
-                            >
-                              {f.catches}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
-                                fieldingSort === "stumpings"
-                                  ? "bg-muted/60 text-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {f.stumpings}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums font-semibold ${
-                                fieldingSort === "runOuts"
-                                  ? "bg-muted/60 text-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {f.runOuts}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* 5. MVP TAB */}
-        {activeTab === "mvp" && (
-          <div className="space-y-4">
-            {/* Filter & Sort Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-              <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-                Rank by:
-              </span>
-              {(
-                [
-                  { id: "totalPoints", label: "Total MVP Points" },
-                  { id: "battingPoints", label: "Batting Impact" },
-                  { id: "bowlingPoints", label: "Bowling Impact" },
-                  { id: "fieldingPoints", label: "Fielding Impact" },
-                ] as const
-              ).map((chip) => (
-                <Button
-                  key={chip.id}
-                  variant={mvpSort === chip.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setMvpSort(chip.id)}
-                  className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-                >
-                  {chip.label}
-                </Button>
-              ))}
-            </div>
-
-            {/* Active Metric Leader Spotlight Banner */}
-            <LeaderSpotlightBanner
-              title={`MVP Leaderboard • ${MVP_CONFIGS[mvpSort].label}`}
-              description={MVP_CONFIGS[mvpSort].description}
-              leader={filteredMvp[0]}
-              heroValue={
-                filteredMvp[0]
-                  ? MVP_CONFIGS[mvpSort].getHeroStat(filteredMvp[0]).value
-                  : undefined
-              }
-              heroLabel={
-                filteredMvp[0]
-                  ? MVP_CONFIGS[mvpSort].getHeroStat(filteredMvp[0]).label
-                  : undefined
-              }
-              contextStats={
-                filteredMvp[0]
-                  ? MVP_CONFIGS[mvpSort].getContextStats(filteredMvp[0])
-                  : undefined
-              }
-            />
-
-            {/* Responsive Cards for Mobile View (< md) */}
-            <div className="grid gap-2.5 md:hidden">
-              {filteredMvp.length === 0 ? (
-                <div className="rounded-lg border border-border p-6 text-center text-xs text-muted-foreground">
-                  No MVP records found matching your search.
-                </div>
-              ) : (
-                filteredMvp.map((m, idx) => {
-                  const hero = MVP_CONFIGS[mvpSort].getHeroStat(m);
-                  const stats = MVP_CONFIGS[mvpSort].getContextStats(m);
-                  return (
-                    <Card key={m.userId} className="border-border/80 p-3.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-foreground font-semibold text-2xs">
-                            {idx + 1}
-                          </span>
-                          <Initials name={m.name} fallback="P" className="h-8 w-8" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-foreground text-sm truncate">
-                              {m.name}
-                            </div>
-                            <div className="text-2xs text-muted-foreground truncate">
-                              {m.summary}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-base font-bold tabular-nums text-foreground">
-                            {hero.value}
-                          </div>
-                          <div className="text-2xs text-muted-foreground">
-                            {hero.label}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-2xs">
-                        {stats.map((st) => (
-                          <div key={st.label} className="flex justify-between">
-                            <span className="text-muted-foreground">{st.label}:</span>
-                            <span className="font-semibold tabular-nums text-foreground">
-                              {st.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Full MVP Table for Desktop (>= md) */}
-            <Card className="hidden md:block">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="border-b bg-muted/50 text-2xs font-semibold text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2.5 w-10 text-center">#</th>
-                        <th className="px-3 py-2.5 min-w-[150px]">Player</th>
-                        <th className="px-3 py-2.5 text-center">Matches</th>
-                        <th
-                          className={`px-3 py-2.5 text-right transition-colors ${
-                            mvpSort === "totalPoints"
-                              ? "bg-muted text-foreground font-semibold"
-                              : "font-bold text-foreground"
-                          }`}
-                        >
-                          Total points
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            mvpSort === "battingPoints"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Bat pts
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            mvpSort === "bowlingPoints"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Bowl pts
-                        </th>
-                        <th
-                          className={`px-3 py-2.5 text-center transition-colors ${
-                            mvpSort === "fieldingPoints"
-                              ? "bg-muted text-foreground font-semibold"
-                              : ""
-                          }`}
-                        >
-                          Field pts
-                        </th>
-                        <th className="px-3 py-2.5 min-w-[180px]">Key stats</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {filteredMvp.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={8}
-                            className="py-8 text-center text-xs text-muted-foreground"
-                          >
-                            No MVP records found matching your search.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredMvp.map((m, idx) => (
-                          <tr
-                            key={m.userId}
-                            className="hover:bg-muted/40 transition-colors"
-                          >
-                            <td className="px-3 py-2 text-center font-bold text-muted-foreground">
-                              {idx === 0 ? (
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
-                                  1
-                                </span>
-                              ) : (
-                                idx + 1
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <Initials name={m.name} fallback="P" className="h-6 w-6 text-2xs" />
-                                <span className="font-semibold text-foreground truncate max-w-[160px]">
-                                  {m.name}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
-                              {m.matches}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
-                                mvpSort === "totalPoints"
-                                  ? "bg-muted/60 text-foreground"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {m.totalPoints}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums ${
-                                mvpSort === "battingPoints"
-                                  ? "bg-muted/60 font-bold text-foreground"
-                                  : "font-medium text-foreground"
-                              }`}
-                            >
-                              {m.battingPoints}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums ${
-                                mvpSort === "bowlingPoints"
-                                  ? "bg-muted/60 font-bold text-foreground"
-                                  : "font-medium text-foreground"
-                              }`}
-                            >
-                              {m.bowlingPoints}
-                            </td>
-                            <td
-                              className={`px-3 py-2 text-center tabular-nums ${
-                                mvpSort === "fieldingPoints"
-                                  ? "bg-muted/60 font-bold text-foreground"
-                                  : "font-medium text-foreground"
-                              }`}
-                            >
-                              {m.fieldingPoints}
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              <span className="truncate block max-w-[240px]">
-                                {m.summary}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+        <TabsContent value="overview" className="mt-0">
+          <OverviewTab view={view} />
+        </TabsContent>
+        <TabsContent value="batting" className="mt-0">
+          <BattingTab view={view} />
+        </TabsContent>
+        <TabsContent value="bowling" className="mt-0">
+          <BowlingTab view={view} />
+        </TabsContent>
+        <TabsContent value="fielding" className="mt-0">
+          <FieldingTab view={view} />
+        </TabsContent>
+        <TabsContent value="mvp" className="mt-0">
+          <MvpTab view={view} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

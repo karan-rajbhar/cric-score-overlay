@@ -15,7 +15,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { formatStatus } from "~/lib/cricket";
+import { formatDismissalType, formatStatus } from "~/lib/cricket";
 import type {
   LiveMatchState,
   LayoutMode,
@@ -201,7 +201,9 @@ export function OverlayClient({
             ? `${state.last_ball_dismissed_player} out`
             : "Batter out",
           detail: [
-            state.last_ball_dismissal_type,
+            state.last_ball_dismissal_type
+              ? formatDismissalType(state.last_ball_dismissal_type)
+              : null,
             state.last_ball_fielder ? `c ${state.last_ball_fielder}` : null,
             state.current_bowler_name ? `b ${state.current_bowler_name}` : null,
           ]

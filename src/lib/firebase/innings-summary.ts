@@ -12,7 +12,7 @@
  *   ball, so its entry is refreshed only with the next structural change
  *   (innings or match end, undo across innings, any other match write);
  * - builder writes to innings (match start, abandon, target edits): the
- *   write hook calls {@link refreshInningsSummary}.
+ *   write hook calls `refreshInningsSummary` (`scorecard-refresh.ts`).
  *
  * So in a live match the entry of an innings that is not completed may be
  * behind: readers that show it re-read that innings
@@ -21,7 +21,6 @@
  * it still work.
  */
 
-import type { DataSource } from "./datasource";
 import {
   canonicalJson,
   inningsSummaryEntry,
@@ -178,24 +177,3 @@ export async function stageInningsSummaries(t: ScoringTx): Promise<void> {
   }
 }
 
-/**
- * Rebuild one match's summary from its innings (after builder writes to
- * innings). Runs in a transaction so it cannot interleave with scoring.
- */
-export async function refreshInningsSummary(
-  ds: DataSource,
-  matchId: string,
-): Promise<void> {
-  const { runScoringTransaction } = await import("./scoring/tx");
-  await runScoringTransaction({ ds }, async (t) => {
-    const [match, innings] = await Promise.all([
-      t.getById("matches", matchId),
-      t.query("innings", [{ field: "match_id", op: "==", value: matchId }]),
-    ]);
-    if (!match) return;
-    const next = inningsSummaryOf(innings);
-    if (canonicalJson(match.innings_summary ?? null) !== canonicalJson(next)) {
-      t.patch("matches", matchId, { innings_summary: next });
-    }
-  });
-}

@@ -25,7 +25,6 @@ vi.mock("~/lib/firebase", () => ({
   firebase: {
     channel: vi.fn(() => ({
       subscribe: vi.fn(),
-      send: vi.fn(),
     })),
     removeChannel: vi.fn(),
     from: vi.fn(() => ({

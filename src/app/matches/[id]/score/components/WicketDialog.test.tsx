@@ -169,4 +169,45 @@ describe("WicketDialog", () => {
     );
     await waitFor(() => expect(onFielderChange).toHaveBeenCalledWith("u-sub"));
   });
+
+  it("offers a retirement apart from dismissals, for either batter, never on an extra", () => {
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      onDismissalTypeChange: vi.fn(),
+      fielderId: "",
+      onFielderChange: vi.fn(),
+      bowlingTeamPlayers: mockFielders,
+      strikerId: "s-1",
+      nonStrikerId: "ns-1",
+      strikerName: "Virat Kohli",
+      nonStrikerName: "Rohit Sharma",
+      onDismissedPlayerChange: vi.fn(),
+      onConfirm: vi.fn(),
+      isProcessing: false,
+    };
+    const { rerender } = render(
+      <WicketDialog {...props} dismissalType="retired_hurt" dismissedPlayerId="ns-1" />,
+    );
+    expect(
+      screen.getByRole("group", { name: "Or a retirement (not a ball)" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent(/not out/i);
+    // Either batter can retire; the button says who.
+    expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Retire hurt: Rohit Sharma" }),
+    ).toBeInTheDocument();
+
+    // Back to a dismissal only the striker can take: the striker is picked.
+    fireEvent.click(screen.getByRole("button", { name: "Bowled" }));
+    expect(props.onDismissalTypeChange).toHaveBeenCalledWith("bowled");
+    expect(props.onDismissedPlayerChange).toHaveBeenCalledWith("s-1");
+
+    // A wicket on a no-ball: no retirement offered.
+    rerender(
+      <WicketDialog {...props} dismissalType="run_out" extraType="no_ball" />,
+    );
+    expect(screen.queryByRole("button", { name: "Retired hurt" })).toBeNull();
+  });
 });

@@ -142,19 +142,14 @@
     letter-spacing: 0.01em;
   }
 
-  /* Performance Containment & Deferred Off-Screen Rendering */
-  .content-visibility-auto {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 120px;
-  }
-
+  /* Deferred off-screen rendering of long table rows (cards set their own
+     size with [content-visibility:auto] [contain-intrinsic-size:...]). */
   .content-visibility-row {
     content-visibility: auto;
     contain-intrinsic-size: auto 44px;
   }
 
   @supports not (content-visibility: auto) {
-    .content-visibility-auto,
     .content-visibility-row {
       contain: layout style paint;
     }
@@ -266,18 +261,30 @@
   }
 }
 
-/* Respect reduced motion: kill infinite broadcast loops, keep state changes instant */
+/*
+ * Respect reduced motion, element by element (squeezing every animation to
+ * 0.01ms makes some more jarring, and froze spinners): no entrance / exit
+ * or looping animations (matched by class fragment, so variants such as
+ * `data-[state=open]:animate-in` count too), and movement transitions
+ * become instant while colour fades stay. Spinners keep turning: they show
+ * that work is in progress.
+ */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-  .animate-marquee,
-  .animate-pulse {
+  [class*="animate-in"],
+  [class*="animate-out"],
+  [class*="animate-marquee"],
+  [class*="animate-pulse"],
+  [class*="animate-bounce"],
+  [class*="animate-ping"] {
     animation: none !important;
+  }
+  * {
+    transition-property:
+      color, background-color, border-color, outline-color, opacity,
+      box-shadow, fill, stroke !important;
+  }
+  html {
+    scroll-behavior: auto !important;
   }
 }
 

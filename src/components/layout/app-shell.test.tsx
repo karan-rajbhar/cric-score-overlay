@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { AppShell, useSidebar } from "./app-shell";
+import { AppShell } from "./app-shell";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
 const mockUsePathname = vi.fn();
@@ -20,10 +20,6 @@ describe("AppShell Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSidebarStore.setState({ collapsed: false, mobileOpen: false });
-  });
-
-  it("exports useSidebar referencing useSidebarStore", () => {
-    expect(useSidebar).toBe(useSidebarStore);
   });
 
   it("renders pure overlay container without navigation or footer for /overlay routes", () => {

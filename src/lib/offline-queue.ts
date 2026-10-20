@@ -298,14 +298,11 @@ export function getPendingCount(matchId: string): number {
   return getPendingActions(matchId).length;
 }
 
-/**
- * Pending actions across every match on this device (used to hold back an
- * app update while anything is still waiting to sync).
- */
-export function getTotalPendingCount(): number {
+/** Matches with actions still waiting to be sent from this device. */
+export function matchesWithPendingActions(): Set<string> {
+  const ids = new Set<string>();
   try {
-    if (typeof window === "undefined" || !window.localStorage) return 0;
-    const ids = new Set<string>();
+    if (typeof window === "undefined" || !window.localStorage) return ids;
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
       if (key?.startsWith(ACTIONS_KEY_PREFIX)) {
@@ -314,12 +311,20 @@ export function getTotalPendingCount(): number {
         ids.add(key.slice(STORAGE_KEY_PREFIX.length));
       }
     }
-    let total = 0;
-    for (const id of ids) total += getPendingCount(id);
-    return total;
   } catch {
-    return 0;
+    // Storage unavailable: nothing queued here.
   }
+  return new Set([...ids].filter((id) => getPendingCount(id) > 0));
+}
+
+/**
+ * Pending actions across every match on this device (used to hold back an
+ * app update, or a sign-out, while anything is still waiting to sync).
+ */
+export function getTotalPendingCount(): number {
+  let total = 0;
+  for (const id of matchesWithPendingActions()) total += getPendingCount(id);
+  return total;
 }
 
 /**
@@ -604,24 +609,51 @@ export type ReplayTransport = (
 const KEEPALIVE_MAX_BYTES = 32 * 1024;
 
 /**
+ * How long a replay request may take before it counts as unanswered. A
+ * connection that stalls without failing (a phone switching from 5G to LTE,
+ * a power saver cutting the radio) would otherwise hold the request, and
+ * every flush and action waiting behind it, until the page is reloaded.
+ * The actions stay queued and are re-sent under the same ids, so any the
+ * server did apply are not applied twice.
+ */
+export function replayTimeoutMs(actions: number): number {
+  return 10_000 + 2_000 * actions;
+}
+
+/**
  * POSTs a batch to the replay route. `keepalive` lets a small batch finish
- * when the scorer closes or reloads the page mid-sync.
+ * when the scorer closes or reloads the page mid-sync. Throws (like a
+ * network failure) when no reply comes within {@link replayTimeoutMs}.
  */
 export const postReplayBatch: ReplayTransport = async (batch) => {
   const body = JSON.stringify(batch);
-  const res = await fetch(REPLAY_PATH, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-    credentials: "same-origin",
-    cache: "no-store",
-    keepalive: new TextEncoder().encode(body).byteLength <= KEEPALIVE_MAX_BYTES,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    replayTimeoutMs(batch.actions.length),
+  );
+  let res: Response;
   let json: unknown = null;
   try {
-    json = await res.json();
-  } catch {
-    // Not JSON (a proxy error page): handled below by status.
+    res = await fetch(REPLAY_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      credentials: "same-origin",
+      cache: "no-store",
+      keepalive:
+        new TextEncoder().encode(body).byteLength <= KEEPALIVE_MAX_BYTES,
+      signal: controller.signal,
+    });
+    try {
+      json = await res.json();
+    } catch (err) {
+      // The body stalled: no reply.
+      if (controller.signal.aborted) throw err;
+      // Not JSON (a proxy error page): handled below by status.
+    }
+  } finally {
+    clearTimeout(timer);
   }
   const results = (json as Partial<ReplayResponse> | null)?.results;
   if (res.ok && Array.isArray(results)) {

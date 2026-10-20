@@ -7,6 +7,8 @@ import {
   battingRowsOfPlayerMatch,
   bowlingRowsOfPlayerMatch,
 } from "~/lib/firebase/scorecard";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
 import type { PlayerMatchesRow } from "~/lib/firebase/types";
 import {
@@ -44,6 +46,42 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return <StatTile label={label} value={value} className="bg-muted/30" />;
 }
 
+/** The player id or @handle in the URL, normalised; null when invalid. */
+function playerParam(rawId: string): { value: string; isUuid: boolean } | null {
+  const value = decodeURIComponent(rawId).replace(/^@/, "").trim().toLowerCase();
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+  const isValidHandle = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/.test(value);
+  return isUuid || isValidHandle ? { value, isUuid } : null;
+}
+
+/**
+ * The player, by UUID or by @username handle (usernames are stored lower
+ * case, so the handle is one equality lookup). Read once per request, by
+ * the page and its title.
+ */
+const loadPlayer = cache(async (value: string, isUuid: boolean) => {
+  const db = await createServerClient();
+  return db
+    .from("users")
+    .select("id, full_name, avatar_url, username")
+    .eq(isUuid ? "id" : "username", value)
+    .maybeSingle();
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const param = playerParam((await params).id);
+  if (!param) return { title: "Player" };
+  const { data: player } = await loadPlayer(param.value, param.isUuid);
+  return { title: player?.full_name ?? "Player" };
+}
+
 export default async function PlayerPage({
   params,
   searchParams,
@@ -57,15 +95,8 @@ export default async function PlayerPage({
     tab?: string;
   }>;
 }) {
-  const { id: rawId } = await params;
-  const cleanParam = decodeURIComponent(rawId).replace(/^@/, "").trim().toLowerCase();
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      cleanParam,
-    );
-  const isValidHandle = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/.test(cleanParam);
-
-  if (!isUuid && !isValidHandle) {
+  const param = playerParam((await params).id);
+  if (!param) {
     notFound();
   }
 
@@ -75,21 +106,7 @@ export default async function PlayerPage({
 
   const db = await createServerClient();
 
-  // Find user by UUID or by @username handle (usernames are stored lower
-  // case, so the handle is one equality lookup).
-  const userQuery = isUuid
-    ? db
-        .from("users")
-        .select("id, full_name, avatar_url, username")
-        .eq("id", cleanParam)
-        .maybeSingle()
-    : db
-        .from("users")
-        .select("id, full_name, avatar_url, username")
-        .eq("username", cleanParam)
-        .maybeSingle();
-
-  const { data: user } = await userQuery;
+  const { data: user } = await loadPlayer(param.value, param.isUuid);
   if (!user) {
     notFound();
   }

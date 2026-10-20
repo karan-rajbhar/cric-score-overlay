@@ -9,12 +9,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Invite-only: only accounts that passed the invite check have a profile.
-    function member() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
     // Public directory and profile data. `users` holds no contact details;
     // those live in users_private (server only, below).
     match /users/{id}                    { allow read: if true; allow write: if false; }
@@ -54,13 +48,13 @@ service cloud.firestore {
     match /users_private/{id}            { allow read, write: if false; }
     match /invitations/{id}              { allow read, write: if false; }
 
-    // Realtime broadcast messages (score pings, overlay producer commands).
+    // Realtime broadcast messages (overlay producer commands): the overlay
+    // (an unauthenticated OBS source) reads them; only the server writes
+    // them, after checking the producer is an admin of that match
+    // (/api/overlay/command).
     match /broadcasts/{topic}/messages/{id} {
       allow read: if true;
-      allow create: if member()
-        && request.resource.data.keys().hasAll(['event', 'ts'])
-        && request.resource.data.event is string;
-      allow update, delete: if false;
+      allow write: if false;
     }
   }
 }

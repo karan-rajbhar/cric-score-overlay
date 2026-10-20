@@ -280,7 +280,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               </Card>
 
               {/* Batting Card */}
-              <Card className="content-visibility-auto overflow-hidden border-border">
+              <Card className="[content-visibility:auto] [contain-intrinsic-size:auto_36rem] overflow-hidden border-border">
                 <CardHeader className="border-b border-border/50 py-3.5">
                   <CardTitle className="text-base sm:text-lg">
                     Batting
@@ -354,14 +354,24 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                                   <span className="text-xs font-semibold text-foreground sm:text-sm">
                                     {bp.user?.full_name}
                                   </span>
-                                  {!bp.is_out && (
-                                    <Badge
-                                      variant="outline"
-                                      className="border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-2xs font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs"
-                                    >
-                                      not out
-                                    </Badge>
-                                  )}
+                                  {!bp.is_out &&
+                                    (bp.dismissal_type === "retired_hurt" ? (
+                                      // Not out, off the field (as the
+                                      // match report shows it).
+                                      <Badge
+                                        variant="outline"
+                                        className="px-1.5 py-0 text-2xs font-semibold text-muted-foreground sm:text-xs"
+                                      >
+                                        retired hurt
+                                      </Badge>
+                                    ) : (
+                                      <Badge
+                                        variant="outline"
+                                        className="border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-2xs font-semibold text-emerald-600 dark:text-emerald-400 sm:text-xs"
+                                      >
+                                        not out
+                                      </Badge>
+                                    ))}
                                 </div>
                                 {bp.is_out && (
                                   <p className="text-2xs text-muted-foreground sm:text-xs">
@@ -503,7 +513,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               </Card>
 
               {/* Bowling Card */}
-              <Card className="content-visibility-auto overflow-hidden border-border">
+              <Card className="[content-visibility:auto] [contain-intrinsic-size:auto_22rem] overflow-hidden border-border">
                 <CardHeader className="border-b border-border/50 py-3.5">
                   <CardTitle className="text-base sm:text-lg">
                     Bowling
@@ -624,7 +634,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               </Card>
 
               {stands.length > 0 && (
-                <Card className="content-visibility-auto overflow-hidden border-border">
+                <Card className="[content-visibility:auto] [contain-intrinsic-size:auto_18rem] overflow-hidden border-border">
                   <CardHeader className="border-b border-border/50 py-3.5">
                     <div className="flex items-baseline justify-between gap-3">
                       <CardTitle className="text-base sm:text-lg">

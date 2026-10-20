@@ -5,14 +5,14 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
 import { Label } from "~/components/ui/label";
 import { Input } from "~/components/ui/input";
-import { HeartPulse, ShieldAlert } from "lucide-react";
+import { cn } from "~/lib/utils";
+import { RETIREMENT_TYPES, type RetirementType } from "./WicketDialog";
 
 interface RetirePlayerDialogProps {
   open: boolean;
@@ -21,12 +21,23 @@ interface RetirePlayerDialogProps {
   playerId: string;
   onConfirm: (params: {
     playerId: string;
-    type: "retired_hurt" | "retired_out";
+    type: RetirementType;
     reason?: string | null;
   }) => Promise<void> | void;
   isProcessing?: boolean;
 }
 
+/** What each retirement means for the scorecard, in plain words. */
+const MEANING: Record<RetirementType, string> = {
+  retired_hurt: "Not out. They can bat again later in the innings.",
+  retired_out: "Out. Counts as a wicket, not the bowler's.",
+};
+
+/**
+ * Retire a batter (Law 25.4): between deliveries, so no ball is recorded.
+ * Nothing is preselected: hurt (not out) and out (a wicket) score
+ * differently, so the scorer picks one.
+ */
 export function RetirePlayerDialog({
   open,
   onOpenChange,
@@ -35,107 +46,91 @@ export function RetirePlayerDialog({
   onConfirm,
   isProcessing = false,
 }: RetirePlayerDialogProps) {
-  const [retireType, setRetireType] = useState<"retired_hurt" | "retired_out">(
-    "retired_hurt",
-  );
+  const [retireType, setRetireType] = useState<RetirementType | null>(null);
   const [reason, setReason] = useState("");
+
+  // A fresh form each time the dialog opens (or opens for another batter).
+  const key = `${open}:${playerId}`;
+  const [seen, setSeen] = useState(key);
+  if (key !== seen) {
+    setSeen(key);
+    setRetireType(null);
+    setReason("");
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!retireType) return;
+    onOpenChange(false);
     await onConfirm({
       playerId,
       type: retireType,
       reason: reason.trim() || null,
     });
-    onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                <HeartPulse className="h-4 w-4" />
-              </span>
-              <DialogTitle className="text-lg font-semibold">
-                Retire Batsman: {playerName}
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Select whether the batter is retiring hurt or retiring out.
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-balance">
+              Retire {playerName}
+            </DialogTitle>
+            <DialogDescription>
+              Not a ball: the over and the bowler&apos;s figures stay as they
+              are. Next, you choose who comes in at {playerName}&apos;s end.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold">Retirement type</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRetireType("retired_hurt")}
-                  className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all ${
-                    retireType === "retired_hurt"
-                      ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500"
-                      : "border-border bg-card/60 hover:bg-muted"
-                  }`}
-                >
-                  <span className="text-xs font-bold text-foreground">
-                    Retire hurt
-                  </span>
-                  <span className="text-2xs text-muted-foreground">
-                    Law 25.4: Injury/Illness. <strong>NOT OUT</strong>. Team wickets do not increase.
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRetireType("retired_out")}
-                  className={`flex flex-col items-start gap-1 rounded-2xl border p-3 text-left transition-all ${
-                    retireType === "retired_out"
-                      ? "border-destructive bg-destructive/10 ring-1 ring-destructive"
-                      : "border-border bg-card/60 hover:bg-muted"
-                  }`}
-                >
-                  <span className="text-xs font-bold text-foreground">
-                    Retire out
-                  </span>
-                  <span className="text-2xs text-muted-foreground">
-                    Law 25.4: Tactical retirement. <strong>OUT</strong>. Counts as a wicket down.
-                  </span>
-                </button>
-              </div>
+            <div
+              role="radiogroup"
+              aria-label="How they retire"
+              className="grid gap-2"
+            >
+              {RETIREMENT_TYPES.map((r) => {
+                const checked = retireType === r.value;
+                return (
+                  <button
+                    key={r.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    onClick={() => setRetireType(r.value)}
+                    className={cn(
+                      "flex min-h-14 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors",
+                      checked
+                        ? "border-primary bg-primary/10"
+                        : "border-border/70 bg-background hover:bg-muted",
+                    )}
+                  >
+                    <span className="text-sm font-medium">{r.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {MEANING[r.value]}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="retire-reason" className="text-xs font-bold">
-                Reason / injury notes (optional)
+              <Label htmlFor="retire-reason" className="text-sm font-medium">
+                Note (optional)
               </Label>
               <Input
                 id="retire-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="e.g. Hamstring strain, finger injury..."
-                className="h-9 text-xs"
+                placeholder="e.g. hamstring strain"
               />
-            </div>
-
-            <div className="flex items-start gap-2 rounded-xl border border-muted p-2.5 text-xs text-muted-foreground">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-              <span>
-                {retireType === "retired_hurt"
-                  ? "Retiring hurt vacates the crease. You will be prompted to select the new incoming batter."
-                  : "Retiring out credits a wicket to the team and closes this batter's innings as OUT."}
-              </span>
             </div>
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-end gap-2">
+          <div className="flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
-              size="sm"
               onClick={() => onOpenChange(false)}
               disabled={isProcessing}
             >
@@ -143,21 +138,16 @@ export function RetirePlayerDialog({
             </Button>
             <Button
               type="submit"
-              size="sm"
-              disabled={isProcessing}
-              className={
-                retireType === "retired_out"
-                  ? "bg-destructive font-bold text-destructive-foreground hover:bg-destructive/90"
-                  : "bg-emerald-600 font-bold text-white hover:bg-emerald-700"
-              }
+              className="font-semibold"
+              disabled={!retireType || isProcessing}
             >
-              {isProcessing
-                ? "Processing..."
-                : retireType === "retired_hurt"
-                  ? "Retire Hurt (Not Out)"
-                  : "Retire Out (Wicket)"}
+              {retireType === "retired_hurt"
+                ? "Retire hurt"
+                : retireType === "retired_out"
+                  ? "Retire out"
+                  : "Choose how they retire"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

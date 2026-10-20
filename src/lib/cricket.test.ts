@@ -123,6 +123,13 @@ describe("cricket math & formatting utilities", () => {
   });
 
   describe("deliveryLabel", () => {
+    it("labels a retirement rh / ro, not as a wicket ball", () => {
+      const retired = { is_wicket: true, runs_scored: 0, extras: 0, extra_type: null };
+      expect(deliveryLabel({ ...retired, dismissal_type: "retired_hurt" })).toBe("rh");
+      expect(deliveryLabel({ ...retired, dismissal_type: "retired_out" })).toBe("ro");
+      expect(deliveryLabel({ ...retired, dismissal_type: "run_out" })).toBe("W");
+    });
+
     it("returns W for wickets", () => {
       expect(
         deliveryLabel({
@@ -319,18 +326,18 @@ describe("cricket math & formatting utilities", () => {
 
   describe("formatDismissalType", () => {
     it("formats known dismissal types into human-friendly strings", () => {
-      expect(formatDismissalType("run_out")).toBe("Run Out");
+      expect(formatDismissalType("run_out")).toBe("Run out");
       expect(formatDismissalType("bowled")).toBe("Bowled");
       expect(formatDismissalType("caught")).toBe("Caught");
       expect(formatDismissalType("lbw")).toBe("LBW");
       expect(formatDismissalType("stumped")).toBe("Stumped");
-      expect(formatDismissalType("hit_wicket")).toBe("Hit Wicket");
+      expect(formatDismissalType("hit_wicket")).toBe("Hit wicket");
     });
 
     it("handles null, undefined, or custom values gracefully", () => {
       expect(formatDismissalType(null)).toBe("Out");
       expect(formatDismissalType(undefined)).toBe("Out");
-      expect(formatDismissalType("custom_dismissal")).toBe("Custom Dismissal");
+      expect(formatDismissalType("custom_dismissal")).toBe("Custom dismissal");
     });
   });
 

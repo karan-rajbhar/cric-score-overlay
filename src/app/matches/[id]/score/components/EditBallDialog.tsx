@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { ALL_DISMISSAL_TYPES } from "./WicketDialog";
+import { ALL_DISMISSAL_TYPES, RETIREMENT_TYPES } from "./WicketDialog";
 import type { ExtraType } from "~/app/matches/types";
 import type { TeamPlayer } from "~/lib/match-types";
 
@@ -132,8 +132,14 @@ export function EditBallDialog({
 
         <div className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Runs off bat</Label>
-            <div className="flex gap-2">
+            <Label id="edit-runs-label" className="text-xs font-semibold">
+              Runs off bat
+            </Label>
+            <div
+              className="flex gap-2"
+              role="group"
+              aria-labelledby="edit-runs-label"
+            >
               {[0, 1, 2, 3, 4, 6].map((r) => (
                 <Button
                   key={r}
@@ -150,9 +156,11 @@ export function EditBallDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold">Extra type</Label>
+            <Label htmlFor="edit-extra-type" className="text-xs font-semibold">
+              Extra type
+            </Label>
             <Select value={extraType} onValueChange={setExtraType}>
-              <SelectTrigger>
+              <SelectTrigger id="edit-extra-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -168,9 +176,13 @@ export function EditBallDialog({
 
           {extraType !== "none" && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Extras count</Label>
+              <Label htmlFor="edit-extras" className="text-xs font-semibold">
+                Extras count
+              </Label>
               <Input
+                id="edit-extras"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 max={10}
                 value={extras}
@@ -197,13 +209,25 @@ export function EditBallDialog({
 
           {isWicket && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Dismissal type</Label>
+              <Label
+                htmlFor="edit-dismissal-type"
+                className="text-xs font-semibold"
+              >
+                Dismissal type
+              </Label>
               <Select value={dismissalType} onValueChange={setDismissalType}>
-                <SelectTrigger>
+                <SelectTrigger id="edit-dismissal-type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ALL_DISMISSAL_TYPES.map((d) => (
+                  {/* A retirement is not a ball: listed only for a ball
+                      recorded as one before (to keep or change it) */}
+                  {[
+                    ...ALL_DISMISSAL_TYPES,
+                    ...RETIREMENT_TYPES.filter(
+                      (r) => r.value === delivery?.dismissal_type,
+                    ),
+                  ].map((d) => (
                     <SelectItem key={d.value} value={d.value}>
                       {d.label}
                     </SelectItem>
@@ -214,19 +238,28 @@ export function EditBallDialog({
           )}
 
           {/* Player Attribution (Correct wrong batter or bowler) */}
-          <div className="space-y-3 rounded-2xl border border-border/80 bg-muted/20 p-3">
-            <Label className="text-xs font-bold text-muted-foreground">
+          <div
+            className="space-y-3 rounded-2xl border border-border/80 bg-muted/20 p-3"
+            role="group"
+            aria-labelledby="edit-attribution-label"
+          >
+            <Label
+              id="edit-attribution-label"
+              className="text-xs font-bold text-muted-foreground"
+            >
               Player attribution (correct wrong batter or bowler)
             </Label>
 
             {battingTeamPlayers.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-2xs font-semibold">Batsman (striker)</Label>
+                <Label htmlFor="edit-batsman" className="text-2xs font-semibold">
+                  Batsman (striker)
+                </Label>
                 <Select
                   value={batsmanId || ""}
                   onValueChange={(val) => setBatsmanId(val || null)}
                 >
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger id="edit-batsman" className="h-8 text-xs">
                     <SelectValue placeholder="Select batsman" />
                   </SelectTrigger>
                   <SelectContent>
@@ -242,12 +275,14 @@ export function EditBallDialog({
 
             {bowlingTeamPlayers.length > 0 && (
               <div className="space-y-1">
-                <Label className="text-2xs font-semibold">Bowler</Label>
+                <Label htmlFor="edit-bowler" className="text-2xs font-semibold">
+                  Bowler
+                </Label>
                 <Select
                   value={bowlerId || ""}
                   onValueChange={(val) => setBowlerId(val || null)}
                 >
-                  <SelectTrigger className="h-8 text-xs">
+                  <SelectTrigger id="edit-bowler" className="h-8 text-xs">
                     <SelectValue placeholder="Select bowler" />
                   </SelectTrigger>
                   <SelectContent>

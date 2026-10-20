@@ -7,7 +7,7 @@ import { listSentInvitations, SENT_INVITES_LIMIT } from "./data";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Invites — CricScore" };
+export const metadata = { title: "Invites" };
 
 export default async function InvitationsPage() {
   const db = await createServerClient();

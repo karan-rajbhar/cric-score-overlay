@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  battingWithCrease,
   eventDocsAfter,
   newEventBall,
   penaltyFields,
@@ -281,6 +282,58 @@ describe("eventDocsAfter", () => {
     expect(after.batting?.find((b) => b.user_id === striker)).toMatchObject({
       is_out: false,
       dismissal_type: "retired_hurt",
+    });
+  });
+
+  it("brings a retired-hurt batter back as the server does", () => {
+    const match = matchWith(SETTINGS[0]!);
+    const log: BallInput[] = [...deliveries(5)].slice(0, 3);
+    let doc = stored(match, log, null);
+    const crease = (d: Innings) =>
+      (d.batting ?? []).filter((b) => b.is_current_batsman);
+    const retiree = crease(doc).find((b) => b.is_striker)!.user_id;
+    const partner = crease(doc).find((b) => !b.is_striker)!.user_id;
+    const retire = newEventBall(
+      match,
+      doc,
+      retirementFields(doc, retiree, "retired_hurt", null),
+      NOW,
+      "r1",
+    );
+    log.push(retire as BallInput);
+    doc = stored(match, log, doc);
+    // Brought back (the scorer's pick, not in the log), then the partner
+    // retires: the log names the retiree again, so they have resumed.
+    doc = {
+      ...doc,
+      batting: battingWithCrease(doc.batting!, retiree, partner)!,
+    };
+    const event = newEventBall(
+      match,
+      doc,
+      retirementFields(doc, partner, "retired_hurt", null),
+      NOW,
+      "r2",
+    );
+    const over =
+      oversOfBalls("m1", "i1", log as BallByBallRow[], NOW).find(
+        (o) => o.over_number === event.over_number,
+      ) ?? null;
+    const docs = eventDocsAfter({
+      match,
+      innings: doc,
+      overDoc: over,
+      event,
+      now: NOW,
+    });
+    expect(docs).not.toBeNull();
+    const server = stored(match, [...log, event as BallInput], doc);
+    expect(comparable({ ...doc, ...docs!.inningsPatch })).toEqual(
+      comparable(server),
+    );
+    expect(server.batting?.find((b) => b.user_id === retiree)).toMatchObject({
+      is_current_batsman: true,
+      dismissal_type: null,
     });
   });
 

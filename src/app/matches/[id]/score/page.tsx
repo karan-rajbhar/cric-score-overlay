@@ -9,7 +9,10 @@ import { Badge } from "~/components/ui/badge";
 import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { LiveMatchHUD } from "~/components/matches/live-match-hud";
 import dynamic from "next/dynamic";
-import { ALL_DISMISSAL_TYPES } from "./components/WicketDialog";
+import {
+  ALL_DISMISSAL_TYPES,
+  isRetirementType,
+} from "./components/WicketDialog";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
 import { useLiveResync } from "./useLiveResync";
@@ -190,7 +193,11 @@ import {
 } from "~/lib/share-match";
 import { LiveIndicator } from "~/components/matches/live-indicator";
 
-export default function ScoringPage() {
+/**
+ * The scoring screen's state, handlers and derived values (everything the
+ * page renders reads them from here).
+ */
+function useScoringScreen() {
   const params = useParams();
   const matchId = params.id as string;
   const { user, loading: authLoading } = useAuth();
@@ -260,7 +267,8 @@ export default function ScoringPage() {
   const isScorerRef = useRef(false);
   const remoteSyncRef = useRef(false);
   const handleNeedsBowler = useCallback(() => {
-    if (!remoteSyncRef.current || isScorerRef.current) setShowSelectBowler(true);
+    if (!remoteSyncRef.current || isScorerRef.current)
+      setShowSelectBowler(true);
   }, [setShowSelectBowler]);
 
   const handleNeedsBatsman = useCallback(() => {
@@ -383,7 +391,10 @@ export default function ScoringPage() {
   // offline, then ask the service worker to keep what the page loaded.
   useEffect(() => {
     if (!isScorer || isOffline) return;
-    if (typeof navigator === "undefined" || !navigator.serviceWorker?.controller) {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.serviceWorker?.controller
+    ) {
       return;
     }
     const timer = window.setTimeout(() => {
@@ -419,9 +430,12 @@ export default function ScoringPage() {
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,
   );
-  const isFreeHit =
-    rawDeliveries.length > 0 &&
-    rawDeliveries[rawDeliveries.length - 1]?.extra_type === "no_ball";
+  // This over's balls, without retirements (logged between balls): the
+  // last of them decides a free hit and is the one "Edit last ball" edits.
+  const overBalls = rawDeliveries.filter(
+    (d) => !(d.is_wicket && isRetirementType(d.dismissal_type)),
+  );
+  const isFreeHit = overBalls.at(-1)?.extra_type === "no_ball";
   const battingTeam = currentInnings
     ? currentInnings.team_id === match?.team1_id
       ? match?.team1
@@ -781,7 +795,19 @@ export default function ScoringPage() {
   };
 
   const onWicketConfirm = async () => {
-    if (!strikerId || !nonStrikerId || !currentBowlerId) return;
+    if (!strikerId || !nonStrikerId) return;
+    // A retirement is not a ball: recorded as the retire action does.
+    if (isRetirementType(dismissalType)) {
+      setShowWicketDialog(false);
+      setFielderId("");
+      setWicketExtraType(null);
+      await handleRetirePlayerConfirm({
+        playerId: dismissedPlayerId || strikerId,
+        type: dismissalType,
+      });
+      return;
+    }
+    if (!currentBowlerId) return;
     const selectedDismissal = ALL_DISMISSAL_TYPES.find(
       (d) => d.value === dismissalType,
     );
@@ -902,11 +928,9 @@ export default function ScoringPage() {
     if (res.error) {
       toast.error(res.error);
     } else {
-      // The hook shows the crease the server now has (or, queued, without
-      // the retired batter).
-      if (!res.queued) {
-        toast.success(type === "retired_hurt" ? "Retired hurt" : "Retired out");
-      }
+      // The crease now shows the retired batter's end empty; the dialog
+      // asking who comes in is the confirmation (no toast).
+      setBatsmenFocus(null);
       setShowSelectBatsmen(true);
     }
   };
@@ -958,45 +982,485 @@ export default function ScoringPage() {
     }
   };
 
-  if (loading || authLoading || isAuthorized === null) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  return {
+    addPlayerDisabledReason,
+    authLoading,
+    batsmenFocus,
+    battingBench,
+    battingTeam,
+    battingTeamPlayerIds,
+    battingTeamPlayers,
+    bowlerDisplay,
+    bowlingSpells,
+    bowlingTeam,
+    bowlingTeamPlayerIds,
+    bowlingTeamPlayers,
+    canDeleteMatch,
+    createPickedPlayer,
+    createSquadPlayer,
+    currentBowlerId,
+    currentInnings,
+    deadLetterCount,
+    dismissalType,
+    dismissedPlayerId,
+    dismissedPlayerIds,
+    editingDelivery,
+    error,
+    fielderId,
+    flushOfflineQueue,
+    handleAbandonMatchConfirm,
+    handleAwardPenaltyConfirm,
+    handleConfirmBatsmen,
+    handleConfirmBowler,
+    handleEndInnings,
+    handleReassignOverBowler,
+    handleRedo,
+    handleRetirePlayerConfirm,
+    handleReviseTargetConfirm,
+    handleSkipHeadAction,
+    handleStartMatch,
+    handleStartSuperOver,
+    handleUndo,
+    handleUpdateBall,
+    isAuthorized,
+    isFreeHit,
+    isInningsComplete,
+    isOffline,
+    isOverComplete,
+    isProcessing,
+    isSaving,
+    isScorer,
+    isScoringDisabled,
+    isScreenAwake,
+    lastBalls,
+    lastOverBowlerId,
+    loading,
+    match,
+    matchId,
+    nonStrikerDisplay,
+    nonStrikerId,
+    onScore,
+    onWicketConfirm,
+    openWicketDialog,
+    overBalls,
+    params,
+    pendingCount,
+    rawDeliveries,
+    reassignOverDeliveries,
+    refreshSquads,
+    retireTarget,
+    runsCompletedBeforeRunOut,
+    scoringKeyboardSuppressed,
+    setActionsMenuOpen,
+    setBatsmenFocus,
+    setDismissalType,
+    setDismissedPlayerId,
+    setEditingDelivery,
+    setFielderId,
+    setReassignOverDeliveries,
+    setRetireTarget,
+    setRunsCompletedBeforeRunOut,
+    setSelectedTossWinner,
+    setShowAbandonMatchDialog,
+    setShowAddPlayerDialog,
+    setShowDeleteMatchDialog,
+    setShowEditBallDialog,
+    setShowInviteDialog,
+    setShowMatchSettingsDialog,
+    setShowPenaltyBonusDialog,
+    setShowPotmDialog,
+    setShowReviseTargetDialog,
+    setShowSelectBatsmen,
+    setShowSelectBowler,
+    setShowShortcuts,
+    setShowWicketDialog,
+    setTossDecision,
+    setTossDialogDismissed,
+    shareText,
+    shareTitle,
+    showAbandonMatchDialog,
+    showAddPlayerDialog,
+    showDeleteMatchDialog,
+    showEditBallDialog,
+    showInviteDialog,
+    showMatchSettingsDialog,
+    showPenaltyBonusDialog,
+    showPotmDialog,
+    showReviseTargetDialog,
+    showSelectBatsmen,
+    showSelectBowler,
+    showShortcuts,
+    showTossDialog,
+    showWicketDialog,
+    squadActiveIds,
+    squadUsedIds,
+    strikerDisplay,
+    strikerId,
+    sunlightMode,
+    syncFromDb,
+    syncStuck,
+    toggleSunlightMode,
+    toggleVoiceAnnouncements,
+    toggleWagonWheelPrompt,
+    tossDecision,
+    tossWinner,
+    undoBusy,
+    undoNotice,
+    user,
+    voiceAnnouncements,
+    wagonWheelPrompt,
+    wicketExtraType,
+  };
+}
 
-  if (error || !match) {
-    return (
-      <div className="container mx-auto max-w-2xl px-4 py-8">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-destructive" />
-            <p>{error ?? "Match not found"}</p>
-            <Button asChild className="mt-4">
-              <Link href="/matches">Back to matches</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+type ScoringScreen = ReturnType<typeof useScoringScreen>;
 
+/** The screen once its match has loaded (what the sections render). */
+type LoadedScreen = ScoringScreen & {
+  match: NonNullable<ScoringScreen["match"]>;
+};
+
+/** Save, offline, sunlight and awake status, and the toss button. */
+function HeaderIndicators({ s }: { s: LoadedScreen }) {
+  const {
+    matchId,
+    user,
+    isOffline,
+    match,
+    isScorer,
+    syncStuck,
+    pendingCount,
+    flushOfflineQueue,
+    isSaving,
+    isProcessing,
+    sunlightMode,
+    isScreenAwake,
+    setTossDialogDismissed,
+  } = s;
   return (
-    <div
-      data-sunlight={sunlightMode ? "true" : "false"}
-      className={cn(
-        "min-h-screen w-full max-w-full overflow-x-hidden bg-background",
-        sunlightMode && "sunlight-mode",
+    <>
+      {/* Someone else scored this match in the last ~2 minutes */}
+      <OtherScorerNotice matchId={matchId} userId={user?.id} />
+      {/* Save status (instant scoring saves in the background) */}
+      {!isOffline &&
+        match.status === "live" &&
+        isScorer &&
+        (syncStuck && pendingCount > 0 ? (
+          <button
+            type="button"
+            onClick={() => void flushOfflineQueue()}
+            title="Some changes have not reached the server yet. Tap to retry."
+            className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[0.625rem] font-semibold text-amber-800 dark:text-amber-300"
+          >
+            <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>Not saved</span>
+            <span className="tabular-nums">({pendingCount})</span>
+          </button>
+        ) : (
+          <span
+            className="flex items-center gap-1 px-1 text-[0.625rem] font-medium text-muted-foreground"
+            title={
+              pendingCount > 0 || isSaving || isProcessing
+                ? "Saving to the server"
+                : "All changes saved"
+            }
+          >
+            {pendingCount > 0 || isSaving || isProcessing ? (
+              <Loader2
+                className="h-3 w-3 shrink-0 animate-spin"
+                aria-hidden="true"
+              />
+            ) : (
+              <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+            )}
+            <span className="max-sm:sr-only">
+              {pendingCount > 0 || isSaving || isProcessing
+                ? "Saving…"
+                : "Saved"}
+            </span>
+          </span>
+        ))}
+      {/* Offline indicator */}
+      {isOffline && (
+        <span
+          role="status"
+          title="Working offline — changes saved locally"
+          className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[0.625rem] font-bold text-amber-800 dark:text-amber-300"
+        >
+          <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <span className="hidden sm:inline">Offline</span>
+          {pendingCount > 0 && <span>({pendingCount})</span>}
+        </span>
       )}
-    >
-      <a
-        href="#main-scoring-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:ring-2 focus:ring-ring"
-      >
-        Skip to scoring console
-      </a>
+      {/* Sunlight indicator */}
+      {sunlightMode && (
+        <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[0.625rem] font-semibold text-white sm:inline-flex">
+          <Sun className="h-3 w-3" aria-hidden="true" /> Sun
+        </span>
+      )}
 
+      {/* Awake indicator */}
+      {isScreenAwake && (
+        <span
+          title="Screen wake lock active to prevent display timeout"
+          className="hidden items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground sm:inline-flex"
+        >
+          Awake
+        </span>
+      )}
+
+      {/* Start Match / Toss if scheduled */}
+      {match.status === "scheduled" && isScorer && (
+        <Button
+          size="sm"
+          onClick={() => setTossDialogDismissed(false)}
+          className="h-8 gap-1 rounded-lg px-2.5 text-xs font-bold"
+        >
+          <Play className="h-3.5 w-3.5" />
+          <span>Toss</span>
+        </Button>
+      )}
+    </>
+  );
+}
+
+/** The Match Tools menu (match-level actions). */
+function MatchToolsMenu({ s }: { s: LoadedScreen }) {
+  const {
+    setActionsMenuOpen,
+    sunlightMode,
+    isScorer,
+    setShowMatchSettingsDialog,
+    match,
+    setShowReviseTargetDialog,
+    strikerDisplay,
+    setRetireTarget,
+    nonStrikerDisplay,
+    setShowPenaltyBonusDialog,
+    setShowAddPlayerDialog,
+    user,
+    shareTitle,
+    shareText,
+    setShowInviteDialog,
+    toggleWagonWheelPrompt,
+    wagonWheelPrompt,
+    toggleVoiceAnnouncements,
+    voiceAnnouncements,
+    toggleSunlightMode,
+    setShowShortcuts,
+    canDeleteMatch,
+    setShowDeleteMatchDialog,
+  } = s;
+  return (
+    <>
+      {/* Consolidated "Match Tools" Menu (Clean on Desktop & Mobile) */}
+      <DropdownMenu onOpenChange={setActionsMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 gap-1.5 rounded-lg px-2 text-xs font-medium sm:px-2.5",
+              sunlightMode && "border-2 border-black font-bold",
+            )}
+            aria-label="Match actions and scoring options"
+            title="Match tools & scoring options"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Match tools</span>
+            <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
+            <MoreVertical className="h-3.5 w-3.5 sm:hidden" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5">
+          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+            Scoring controls
+          </DropdownMenuLabel>
+          {isScorer && (
+            <DropdownMenuItem
+              onClick={() => setShowMatchSettingsDialog(true)}
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+              <span>Match rules & settings</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && (
+            <DropdownMenuItem
+              onClick={() => setShowReviseTargetDialog(true)}
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <Crosshair className="h-4 w-4 text-muted-foreground" />
+              <span>Revise target / overs</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && strikerDisplay && (
+            <DropdownMenuItem
+              onClick={() =>
+                setRetireTarget({
+                  playerId: strikerDisplay.id,
+                  playerName: strikerDisplay.name,
+                })
+              }
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <HeartPulse className="h-4 w-4 text-muted-foreground" />
+              <span>Retire {strikerDisplay.name}</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && nonStrikerDisplay && (
+            <DropdownMenuItem
+              onClick={() =>
+                setRetireTarget({
+                  playerId: nonStrikerDisplay.id,
+                  playerName: nonStrikerDisplay.name,
+                })
+              }
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <HeartPulse className="h-4 w-4 text-muted-foreground" />
+              <span>Retire {nonStrikerDisplay.name}</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && (
+            <DropdownMenuItem
+              onClick={() => setShowPenaltyBonusDialog(true)}
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+              <span>Penalty / bonus runs</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && (
+            <DlsCalculatorModal
+              match={match}
+              canEdit={isScorer}
+              triggerButton={
+                <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
+                  <CloudRain className="h-4 w-4 text-muted-foreground" />
+                  <span>DLS calculator</span>
+                </div>
+              }
+            />
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setShowAddPlayerDialog(true)}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <span>Squads &amp; players</span>
+          </DropdownMenuItem>
+          {isScorer && (
+            <MatchScorersDialog
+              matchId={match.id}
+              isCreator={match.created_by === user?.id}
+              triggerButton={
+                <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span>Add or invite scorers</span>
+                </div>
+              }
+            />
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+            Share
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={() => {
+              void shareMatch(
+                matchShareUrl(match.id),
+                shareTitle,
+                shareText,
+              ).then((outcome) => {
+                if (outcome === "copied") toast.success("Link copied");
+              });
+            }}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <Share2 className="h-4 w-4 text-muted-foreground" />
+            <span>Share live score</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a
+              href={whatsappShareUrl(
+                `${shareText}\n${matchShareUrl(match.id)}`,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <MessageCircle className="h-4 w-4 text-muted-foreground" />
+              <span>Share on WhatsApp</span>
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => setShowInviteDialog(true)}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <span>Invite someone to CricScore</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
+            Scoring preferences
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onClick={toggleWagonWheelPrompt}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <Compass className="h-4 w-4 text-muted-foreground" />
+            <span>Wagon wheel prompt: {wagonWheelPrompt ? "On" : "Off"}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={toggleVoiceAnnouncements}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <span>
+              Voice announcements: {voiceAnnouncements ? "On" : "Off"}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={toggleSunlightMode}
+            className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+          >
+            <Sun className="h-4 w-4 text-muted-foreground" />
+            <span>Sunlight mode: {sunlightMode ? "On" : "Off"}</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setShowShortcuts(true)}
+            className="hidden cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium sm:flex"
+          >
+            <Keyboard className="h-4 w-4 text-muted-foreground" />
+            <span>Keyboard shortcuts</span>
+          </DropdownMenuItem>
+          {canDeleteMatch && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => setShowDeleteMatchDialog(true)}
+                className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete match</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+/** The console's header: back, title, status and tools. */
+function ScoringHeader({ s }: { s: LoadedScreen }) {
+  const { sunlightMode, match, setShowAddPlayerDialog, shareTitle, shareText } =
+    s;
+  return (
+    <>
       {/* Dedicated Scorer Console Header (Distraction-Free) */}
       <header
         className={cn(
@@ -1034,13 +1498,13 @@ export default function ScoringPage() {
                 ) : (
                   <Badge
                     variant="secondary"
-                    className="hidden h-4 px-1.5 text-[10px] font-medium capitalize sm:inline-flex"
+                    className="hidden h-4 px-1.5 text-[0.625rem] font-medium capitalize sm:inline-flex"
                   >
                     {match.status}
                   </Badge>
                 )}
               </div>
-              <p className="truncate text-[10px] text-muted-foreground sm:text-xs">
+              <p className="truncate text-[0.625rem] text-muted-foreground sm:text-xs">
                 {match.title} • {match.match_format.toUpperCase()}
               </p>
             </div>
@@ -1048,81 +1512,7 @@ export default function ScoringPage() {
 
           {/* Right: Quick Tools & Consolidated Actions Menu */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            {/* Someone else scored this match in the last ~2 minutes */}
-            <OtherScorerNotice matchId={matchId} userId={user?.id} />
-            {/* Save status (instant scoring saves in the background) */}
-            {!isOffline && match.status === "live" && isScorer && (
-              syncStuck && pendingCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => void flushOfflineQueue()}
-                  title="Some changes have not reached the server yet. Tap to retry."
-                  className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300"
-                >
-                  <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  <span>Not saved</span>
-                  <span className="tabular-nums">({pendingCount})</span>
-                </button>
-              ) : (
-                <span
-                  className="flex items-center gap-1 px-1 text-[10px] font-medium text-muted-foreground"
-                  title={
-                    pendingCount > 0 || isSaving || isProcessing
-                      ? "Saving to the server"
-                      : "All changes saved"
-                  }
-                >
-                  {pendingCount > 0 || isSaving || isProcessing ? (
-                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  )}
-                  <span className="max-sm:sr-only">
-                    {pendingCount > 0 || isSaving || isProcessing ? "Saving…" : "Saved"}
-                  </span>
-                </span>
-              )
-            )}
-            {/* Offline indicator */}
-            {isOffline && (
-              <span
-                role="status"
-                title="Working offline — changes saved locally"
-                className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300"
-              >
-                <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="hidden sm:inline">Offline</span>
-                {pendingCount > 0 && <span>({pendingCount})</span>}
-              </span>
-            )}
-            {/* Sunlight indicator */}
-            {sunlightMode && (
-              <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[10px] font-semibold text-white sm:inline-flex">
-                <Sun className="h-3 w-3" aria-hidden="true" /> Sun
-              </span>
-            )}
-
-            {/* Awake indicator */}
-            {isScreenAwake && (
-              <span
-                title="Screen wake lock active to prevent display timeout"
-                className="hidden items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex"
-              >
-                Awake
-              </span>
-            )}
-
-            {/* Start Match / Toss if scheduled */}
-            {match.status === "scheduled" && isScorer && (
-              <Button
-                size="sm"
-                onClick={() => setTossDialogDismissed(false)}
-                className="h-8 gap-1 rounded-lg px-2.5 text-xs font-bold"
-              >
-                <Play className="h-3.5 w-3.5" />
-                <span>Toss</span>
-              </Button>
-            )}
+            <HeaderIndicators s={s} />
 
             {/* Squads (phones; the sidebar shows them on larger screens) */}
             <Button
@@ -1163,215 +1553,27 @@ export default function ScoringPage() {
               </Link>
             </Button>
 
-            {/* Consolidated "Match Tools" Menu (Clean on Desktop & Mobile) */}
-            <DropdownMenu onOpenChange={setActionsMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-8 gap-1.5 rounded-lg px-2 text-xs font-medium sm:px-2.5",
-                    sunlightMode && "border-2 border-black font-bold",
-                  )}
-                  aria-label="Match actions and scoring options"
-                  title="Match tools & scoring options"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
-                  <span className="hidden sm:inline">Match tools</span>
-                  <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
-                  <MoreVertical className="h-3.5 w-3.5 sm:hidden" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                className="w-56 rounded-xl p-1.5"
-              >
-                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                  Scoring controls
-                </DropdownMenuLabel>
-                {isScorer && (
-                  <DropdownMenuItem
-                    onClick={() => setShowMatchSettingsDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                    <span>Match rules & settings</span>
-                  </DropdownMenuItem>
-                )}
-                {match.status === "live" && isScorer && (
-                  <DropdownMenuItem
-                    onClick={() => setShowReviseTargetDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <Crosshair className="h-4 w-4 text-muted-foreground" />
-                    <span>Revise target / overs</span>
-                  </DropdownMenuItem>
-                )}
-                {match.status === "live" && isScorer && strikerDisplay && (
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setRetireTarget({
-                        playerId: strikerDisplay.id,
-                        playerName: strikerDisplay.name,
-                      })
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <HeartPulse className="h-4 w-4 text-muted-foreground" />
-                    <span>Retire {strikerDisplay.name}</span>
-                  </DropdownMenuItem>
-                )}
-                {match.status === "live" && isScorer && nonStrikerDisplay && (
-                  <DropdownMenuItem
-                    onClick={() =>
-                      setRetireTarget({
-                        playerId: nonStrikerDisplay.id,
-                        playerName: nonStrikerDisplay.name,
-                      })
-                    }
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <HeartPulse className="h-4 w-4 text-muted-foreground" />
-                    <span>Retire {nonStrikerDisplay.name}</span>
-                  </DropdownMenuItem>
-                )}
-                {match.status === "live" && isScorer && (
-                  <DropdownMenuItem
-                    onClick={() => setShowPenaltyBonusDialog(true)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-                    <span>Penalty / bonus runs</span>
-                  </DropdownMenuItem>
-                )}
-                {match.status === "live" && isScorer && (
-                  <DlsCalculatorModal
-                    match={match}
-                    canEdit={isScorer}
-                    triggerButton={
-                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
-                        <CloudRain className="h-4 w-4 text-muted-foreground" />
-                        <span>DLS calculator</span>
-                      </div>
-                    }
-                  />
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setShowAddPlayerDialog(true)}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  <span>Squads &amp; players</span>
-                </DropdownMenuItem>
-                {isScorer && (
-                  <MatchScorersDialog
-                    matchId={match.id}
-                    isCreator={match.created_by === user?.id}
-                    triggerButton={
-                      <div className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium hover:bg-muted">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>Add or invite scorers</span>
-                      </div>
-                    }
-                  />
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                  Share
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    void shareMatch(
-                      matchShareUrl(match.id),
-                      shareTitle,
-                      shareText,
-                    ).then((outcome) => {
-                      if (outcome === "copied") toast.success("Link copied");
-                    });
-                  }}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <Share2 className="h-4 w-4 text-muted-foreground" />
-                  <span>Share live score</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a
-                    href={whatsappShareUrl(
-                      `${shareText}\n${matchShareUrl(match.id)}`,
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                  >
-                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                    <span>Share on WhatsApp</span>
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => setShowInviteDialog(true)}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
-                  <span>Invite someone to CricScore</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                  Scoring preferences
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  onClick={toggleWagonWheelPrompt}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <Compass className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    Wagon wheel prompt: {wagonWheelPrompt ? "On" : "Off"}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={toggleVoiceAnnouncements}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <Volume2 className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    Voice announcements: {voiceAnnouncements ? "On" : "Off"}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={toggleSunlightMode}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
-                >
-                  <Sun className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    Sunlight mode: {sunlightMode ? "On" : "Off"}
-                  </span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setShowShortcuts(true)}
-                  className="hidden cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium sm:flex"
-                >
-                  <Keyboard className="h-4 w-4 text-muted-foreground" />
-                  <span>Keyboard shortcuts</span>
-                </DropdownMenuItem>
-                {canDeleteMatch && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => setShowDeleteMatchDialog(true)}
-                      className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete match</span>
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <MatchToolsMenu s={s} />
           </div>
         </div>
       </header>
+    </>
+  );
+}
 
+/** Offline / unsynced actions banner. */
+function SyncBanner({ s }: { s: LoadedScreen }) {
+  const {
+    isOffline,
+    pendingCount,
+    syncStuck,
+    deadLetterCount,
+    isProcessing,
+    flushOfflineQueue,
+    handleSkipHeadAction,
+  } = s;
+  return (
+    <>
       {/* Offline Alert & Sync Banner (not for instant saves in progress) */}
       {(isOffline || (pendingCount > 0 && syncStuck)) && (
         <div
@@ -1395,25 +1597,25 @@ export default function ScoringPage() {
             <span>
               {isOffline ? (
                 <>
-                  <strong className="font-semibold">Offline:</strong>{" "}
-                  Scoring is active. Deliveries are saved locally.
+                  <strong className="font-semibold">Offline:</strong> Scoring is
+                  active. Deliveries are saved locally.
                 </>
               ) : (
                 <>
                   <strong className="font-semibold">Not saved yet:</strong>{" "}
-                  {pendingCount} update(s) are kept on this device and will
-                  sync when the server can be reached.
+                  {pendingCount} update(s) are kept on this device and will sync
+                  when the server can be reached.
                 </>
               )}
             </span>
             {pendingCount > 0 && (
-              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-bold">
+              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[0.625rem] font-bold">
                 {pendingCount} queued
               </span>
             )}
             {deadLetterCount > 0 && (
               <span
-                className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-bold text-destructive"
+                className="rounded-full bg-destructive/15 px-2 py-0.5 text-[0.625rem] font-bold text-destructive"
                 title="Items that failed server validation were moved to Dead Letter Queue to unblock scoring"
               >
                 {deadLetterCount} rejected
@@ -1449,590 +1651,793 @@ export default function ScoringPage() {
           )}
         </div>
       )}
+    </>
+  );
+}
 
-      <main
-        id="main-scoring-content"
-        className="container mx-auto grid w-full min-w-0 max-w-6xl gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3"
-      >
-        <div className="flex w-full min-w-0 flex-col gap-2 max-sm:min-h-[calc(100dvh-3.75rem)] sm:gap-4 lg:col-span-2">
-          {match.status === "scheduled" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
-              <div>
-                <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  Match scheduled: toss required
+/** Notices for a match not started, finished, or watched. */
+function MatchNotices({ s }: { s: LoadedScreen }) {
+  const {
+    match,
+    setTossDialogDismissed,
+    setShowPotmDialog,
+    isScorer,
+    user,
+    matchId,
+  } = s;
+  return (
+    <>
+      {match.status === "scheduled" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              Match scheduled: toss required
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Record the toss winner and their decision to start the match and
+              enable scoring.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setTossDialogDismissed(false)}
+            className="font-medium"
+          >
+            <Play className="mr-1.5 h-4 w-4" /> Record toss & start
+          </Button>
+        </div>
+      )}
+
+      {match.status === "completed" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-semibold">
+              Match completed
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {match.result_description || "Results official"}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setShowPotmDialog(true)}
+            className="font-medium"
+          >
+            <Award className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {match.player_of_the_match_id
+              ? "Change POTM"
+              : "Choose player of the match"}
+          </Button>
+        </div>
+      )}
+
+      {!isScorer && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 sm:p-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Eye
+              className="h-5 w-5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-foreground sm:text-sm">
+                  Spectator view
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  Record the toss winner and their decision to start the match
-                  and enable scoring.
-                </p>
+                {match.status === "live" && <LiveIndicator />}
               </div>
-              <Button
-                size="sm"
-                onClick={() => setTossDialogDismissed(false)}
-                className="font-medium"
-              >
-                <Play className="mr-1.5 h-4 w-4" /> Record toss & start
+              <p className="truncate text-2xs text-muted-foreground sm:text-xs">
+                {user
+                  ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
+                  : "Sign in with scorer credentials to record deliveries and manage match state."}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {!user ? (
+              <Button size="sm" asChild className="h-8 text-xs font-bold">
+                <Link href={`/auth/login?redirect=/matches/${matchId}/score`}>
+                  Sign in to score
+                </Link>
               </Button>
-            </div>
-          )}
+            ) : null}
+            <Button
+              size="sm"
+              variant="outline"
+              asChild
+              className="h-8 text-xs font-bold"
+            >
+              <Link href={`/matches/${matchId}`}>Match centre</Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              asChild
+              className="h-8 text-xs font-bold"
+            >
+              <Link href={`/overlay/${matchId}`} target="_blank">
+                Overlay
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
-          {match.status === "completed" && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
-              <div>
-                <p className="flex items-center gap-1.5 text-sm font-semibold">
-                  Match completed
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {match.result_description || "Results official"}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setShowPotmDialog(true)}
-                className="font-medium"
-              >
-                <Award className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                {match.player_of_the_match_id
-                  ? "Change POTM"
-                  : "Choose player of the match"}
-              </Button>
-            </div>
-          )}
-
-          {!isScorer && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 sm:p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <Eye className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-foreground sm:text-sm">
-                      Spectator view
-                    </p>
-                    {match.status === "live" && <LiveIndicator />}
-                  </div>
-                  <p className="truncate text-2xs text-muted-foreground sm:text-xs">
-                    {user
-                      ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
-                      : "Sign in with scorer credentials to record deliveries and manage match state."}
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {!user ? (
-                  <Button size="sm" asChild className="h-8 text-xs font-bold">
-                    <Link
-                      href={`/auth/login?redirect=/matches/${matchId}/score`}
-                    >
-                      Sign in to score
-                    </Link>
-                  </Button>
-                ) : null}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  asChild
-                  className="h-8 text-xs font-bold"
-                >
-                  <Link href={`/matches/${matchId}`}>Match centre</Link>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  asChild
-                  className="h-8 text-xs font-bold"
-                >
-                  <Link href={`/overlay/${matchId}`} target="_blank">
-                    Overlay
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <LiveMatchHUD
-            match={match}
-            currentInnings={currentInnings}
-            battingTeamName={battingTeam?.name}
-            onEndInnings={isScorer ? () => void handleEndInnings() : undefined}
-            isProcessing={isProcessing}
-            striker={strikerDisplay}
-            nonStriker={nonStrikerDisplay}
-            bowler={bowlerDisplay}
-            lastBalls={lastBalls}
-            rawDeliveries={rawDeliveries}
-            onSwapStriker={
-              isScorer
-                ? () => {
-                    if (strikerId && nonStrikerId && !isProcessing) {
-                      void handleConfirmBatsmen(nonStrikerId, strikerId);
-                    }
-                  }
-                : undefined
-            }
-            onChangeStriker={
-              isScorer
-                ? () => {
-                    if (match.status === "scheduled") {
-                      setTossDialogDismissed(false);
-                      toast.info("Please record the toss to start the match");
-                      return;
-                    }
-                    setBatsmenFocus("striker");
-                    setShowSelectBatsmen(true);
-                  }
-                : undefined
-            }
-            onChangeNonStriker={
-              isScorer
-                ? () => {
-                    if (match.status === "scheduled") {
-                      setTossDialogDismissed(false);
-                      toast.info("Please record the toss to start the match");
-                      return;
-                    }
-                    setBatsmenFocus("nonStriker");
-                    setShowSelectBatsmen(true);
-                  }
-                : undefined
-            }
-            onChangeBowler={
-              isScorer
-                ? () => {
-                    if (match.status === "scheduled") {
-                      setTossDialogDismissed(false);
-                      toast.info("Please record the toss to start the match");
-                      return;
-                    }
-                    setShowSelectBowler(true);
-                  }
-                : undefined
-            }
-            sunlightMode={sunlightMode}
-          />
-
-          {/* Innings Complete Banner */}
-          {isInningsComplete && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
-              <div className="space-y-0.5">
-                <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                  Innings complete
-                </p>
-                <p className="text-2xs text-muted-foreground sm:text-xs">
-                  {match.current_innings === 1
-                    ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
-                    : "Match has reached target or overs limit."}
-                </p>
-              </div>
-              {match.current_innings === 1 && isScorer && (
-                <Button
-                  size="sm"
-                  onClick={() => void handleEndInnings()}
-                  disabled={isProcessing}
-                  className="h-8 text-xs font-semibold"
-                >
-                  End innings & switch sides
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Over Complete — Select Bowler Banner */}
-          {isOverComplete && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200 sm:p-4">
-              <div className="space-y-0.5">
-                <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                  Over {match.current_over} complete
-                </p>
-                <p className="text-2xs text-muted-foreground sm:text-xs">
-                  Select the bowler for over {match.current_over + 1} to resume
-                  scoring.
-                </p>
-              </div>
-              {isScorer && (
-                <Button
-                  size="sm"
-                  onClick={() => setShowSelectBowler(true)}
-                  disabled={isProcessing}
-                  className="h-8 text-xs font-bold"
-                >
-                  Select bowler
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Select Batsmen Banner */}
-          {match.status === "live" &&
-            (!strikerId || !nonStrikerId) &&
-            !isInningsComplete && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
-                <div className="space-y-0.5">
-                  <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                    Select batters to continue
-                  </p>
-                  <p className="text-2xs text-muted-foreground sm:text-xs">
-                    A wicket has fallen or batsmen need to be set to resume
-                    scoring.
-                  </p>
-                </div>
-                {isScorer && (
-                  <Button
-                    size="sm"
-                    onClick={() => setShowSelectBatsmen(true)}
-                    disabled={isProcessing}
-                    className="h-8 text-xs font-bold"
-                  >
-                    Select batters
-                  </Button>
-                )}
-              </div>
-            )}
-
-          {!isScorer ? (
-            <div className="space-y-3">
-              <Card className="rounded-xl border border-border bg-card shadow-sm">
-                <CardContent className="space-y-3 p-3.5 sm:p-4">
-                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-foreground">
-                        Over {match.current_over}
-                      </h3>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-bold text-muted-foreground"
-                    >
-                      {rawDeliveries.length} ball
-                      {rawDeliveries.length === 1 ? "" : "s"} this over
-                    </Badge>
-                  </div>
-
-                  {rawDeliveries.length > 0 ? (
-                    <div className="space-y-2">
-                      {rawDeliveries
-                        .slice()
-                        .reverse()
-                        .map((d, idx) => {
-                          const bowlerName =
-                            bowlingTeamPlayers.find(
-                              (p) => p.user_id === d.bowler_id,
-                            )?.user?.full_name ??
-                            bowlerDisplay?.name ??
-                            "Bowler";
-                          const batterName =
-                            battingTeamPlayers.find(
-                              (p) => p.user_id === d.batsman_id,
-                            )?.user?.full_name ??
-                            (d.is_wicket
-                              ? "Dismissed Batter"
-                              : (strikerDisplay?.name ?? "Batter"));
-                          const isBoundary =
-                            d.runs_scored === 4 || d.runs_scored === 6;
-                          const isWicket = d.is_wicket;
-                          return (
-                            <div
-                              key={d.id || idx}
-                              className={cn(
-                                "flex items-center justify-between rounded-xl border p-2.5 text-xs transition-colors",
-                                isWicket
-                                  ? "border-rose-500/30 bg-rose-500/10 text-rose-950 dark:text-rose-100"
-                                  : isBoundary
-                                    ? d.runs_scored === 6
-                                      ? "border-purple-500/30 bg-purple-500/10 text-purple-950 dark:text-purple-100"
-                                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
-                                    : "border-border/50 bg-muted/30 text-foreground",
-                              )}
-                            >
-                              <div className="flex min-w-0 items-center gap-2.5">
-                                <span className="tabular-nums w-8 shrink-0 font-score text-xs font-bold text-muted-foreground">
-                                  {d.over_number}.{d.ball_number}
-                                </span>
-                                <div className="min-w-0">
-                                  <p className="truncate font-semibold">
-                                    <strong>{bowlerName}</strong> to{" "}
-                                    <strong>{batterName}</strong>
-                                  </p>
-                                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                                    {d.extra_type ? (
-                                      <span className="font-medium capitalize text-amber-700 dark:text-amber-400">
-                                        {d.extra_type.replace("_", " ")} (
-                                        {d.extras} extra
-                                        {d.extras === 1 ? "" : "s"})
-                                      </span>
-                                    ) : null}
-                                    {d.shot_zone ? (
-                                      <span className="capitalize text-sky-600 dark:text-sky-400">
-                                        Shot: {d.shot_zone.replace("_", " ")}
-                                      </span>
-                                    ) : null}
-                                    {d.dismissal_type ? (
-                                      <span className="font-medium capitalize text-rose-600 dark:text-rose-400">
-                                        Out:{" "}
-                                        {d.dismissal_type.replace("_", " ")}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="shrink-0 text-right">
-                                <span
-                                  className={cn(
-                                    "inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-bold tabular-nums",
-                                    isWicket
-                                      ? "bg-red-600 text-white"
-                                      : d.runs_scored === 6
-                                        ? "bg-purple-600 text-white"
-                                        : d.runs_scored === 4
-                                          ? "bg-emerald-600 text-white"
-                                          : d.runs_scored === 0 && !d.extra_type
-                                            ? "bg-muted text-muted-foreground"
-                                            : "border border-amber-500/30 bg-amber-500/20 text-amber-900 dark:text-amber-200",
-                                  )}
-                                >
-                                  {isWicket
-                                    ? "W"
-                                    : d.extra_type
-                                      ? `${d.runs_scored || 0}${d.extra_type === "wide" ? "wd" : d.extra_type === "no_ball" ? "nb" : "ex"}`
-                                      : d.runs_scored}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-border/60 py-6 text-center text-xs text-muted-foreground">
-                      <Clock className="mx-auto mb-1.5 h-5 w-5 opacity-40" />
-                      Awaiting the first delivery of over {match.current_over}
-                      ...
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Locked Console Info Card */}
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-                  <span>
-                    Scoring keypad locked · Live feed updates automatically
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  asChild
-                  className="h-6 text-2xs font-bold"
-                >
-                  <Link href={`/matches/${matchId}`}>Full scorecard</Link>
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <ScoringPanel
-              onScore={onScore}
-              onWicket={openWicketDialog}
-              onUndo={() => void handleUndo()}
-              onEditLastBall={() => {
-                const d = rawDeliveries[rawDeliveries.length - 1];
-                if (d) {
-                  setEditingDelivery(d);
-                  setShowEditBallDialog(true);
-                }
-              }}
-              onSwapStriker={() => {
+/** The live scoreboard (batters, bowler, this over). */
+function Scoreboard({ s }: { s: LoadedScreen }) {
+  const {
+    match,
+    currentInnings,
+    battingTeam,
+    isScorer,
+    handleEndInnings,
+    isProcessing,
+    strikerDisplay,
+    nonStrikerDisplay,
+    bowlerDisplay,
+    lastBalls,
+    rawDeliveries,
+    strikerId,
+    nonStrikerId,
+    handleConfirmBatsmen,
+    setTossDialogDismissed,
+    setBatsmenFocus,
+    setShowSelectBatsmen,
+    setShowSelectBowler,
+    sunlightMode,
+  } = s;
+  return (
+    <>
+      <LiveMatchHUD
+        match={match}
+        currentInnings={currentInnings}
+        battingTeamName={battingTeam?.name}
+        onEndInnings={isScorer ? () => void handleEndInnings() : undefined}
+        isProcessing={isProcessing}
+        striker={strikerDisplay}
+        nonStriker={nonStrikerDisplay}
+        bowler={bowlerDisplay}
+        lastBalls={lastBalls}
+        rawDeliveries={rawDeliveries}
+        onSwapStriker={
+          isScorer
+            ? () => {
                 if (strikerId && nonStrikerId && !isProcessing) {
                   void handleConfirmBatsmen(nonStrikerId, strikerId);
                 }
-              }}
-              onSelectBall={(idx) => {
-                const d = rawDeliveries[idx];
-                if (d) {
-                  setEditingDelivery(d);
-                  setShowEditBallDialog(true);
-                }
-              }}
-              currentOver={match.current_over}
-              currentBall={match.current_ball}
-              lastBalls={lastBalls}
-              isFreeHit={isFreeHit}
-              disabled={isScoringDisabled}
-              undoDisabled={
-                !isScorer ||
-                undoBusy ||
-                (match?.status !== "live" && match?.status !== "completed")
               }
-              undoNotice={undoNotice}
-              onRedo={() => void handleRedo()}
-              keyboardSuppressed={scoringKeyboardSuppressed}
-              sunlightMode={sunlightMode}
-              wagonWheelPrompt={wagonWheelPrompt}
-              shortcutsOpen={showShortcuts}
-              onShortcutsOpenChange={setShowShortcuts}
-            />
+            : undefined
+        }
+        onChangeStriker={
+          isScorer
+            ? () => {
+                if (match.status === "scheduled") {
+                  setTossDialogDismissed(false);
+                  toast.info("Please record the toss to start the match");
+                  return;
+                }
+                setBatsmenFocus("striker");
+                setShowSelectBatsmen(true);
+              }
+            : undefined
+        }
+        onChangeNonStriker={
+          isScorer
+            ? () => {
+                if (match.status === "scheduled") {
+                  setTossDialogDismissed(false);
+                  toast.info("Please record the toss to start the match");
+                  return;
+                }
+                setBatsmenFocus("nonStriker");
+                setShowSelectBatsmen(true);
+              }
+            : undefined
+        }
+        onChangeBowler={
+          isScorer
+            ? () => {
+                if (match.status === "scheduled") {
+                  setTossDialogDismissed(false);
+                  toast.info("Please record the toss to start the match");
+                  return;
+                }
+                setShowSelectBowler(true);
+              }
+            : undefined
+        }
+        sunlightMode={sunlightMode}
+      />
+    </>
+  );
+}
+
+/** Innings complete, new over and new batter prompts. */
+function ConsoleBanners({ s }: { s: LoadedScreen }) {
+  const {
+    isInningsComplete,
+    match,
+    isScorer,
+    handleEndInnings,
+    isProcessing,
+    isOverComplete,
+    setShowSelectBowler,
+    strikerId,
+    nonStrikerId,
+    setShowSelectBatsmen,
+  } = s;
+  return (
+    <>
+      {/* Innings Complete Banner */}
+      {isInningsComplete && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
+          <div className="space-y-0.5">
+            <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
+              Innings complete
+            </p>
+            <p className="text-2xs text-muted-foreground sm:text-xs">
+              {match.current_innings === 1
+                ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
+                : "Match has reached target or overs limit."}
+            </p>
+          </div>
+          {match.current_innings === 1 && isScorer && (
+            <Button
+              size="sm"
+              onClick={() => void handleEndInnings()}
+              disabled={isProcessing}
+              className="h-8 text-xs font-semibold"
+            >
+              End innings & switch sides
+            </Button>
           )}
-
-          {match.status === "completed" &&
-            match.result_description?.toLowerCase().includes("tie") &&
-            isScorer && (
-              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-center">
-                <h4 className="text-base font-bold text-amber-800 dark:text-amber-200">
-                  Match tied
-                </h4>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Scores are level. You can initiate a Super Over tiebreaker
-                  according to tournament rules.
-                </p>
-                <Button
-                  className="mt-3 gap-2"
-                  onClick={() => void handleStartSuperOver()}
-                  disabled={isProcessing}
-                >
-                  Start Super Over
-                </Button>
-              </div>
-            )}
         </div>
+      )}
 
-        <div className="hidden space-y-4 lg:block">
-          {/* Bench & Batting Order */}
-          <Card className="content-visibility-auto rounded-xl border border-border bg-card shadow-sm">
-            <CardContent className="space-y-3.5 p-4">
+      {/* Over Complete — Select Bowler Banner */}
+      {isOverComplete && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200 sm:p-4">
+          <div className="space-y-0.5">
+            <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
+              Over {match.current_over} complete
+            </p>
+            <p className="text-2xs text-muted-foreground sm:text-xs">
+              Select the bowler for over {match.current_over + 1} to resume
+              scoring.
+            </p>
+          </div>
+          {isScorer && (
+            <Button
+              size="sm"
+              onClick={() => setShowSelectBowler(true)}
+              disabled={isProcessing}
+              className="h-8 text-xs font-bold"
+            >
+              Select bowler
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Select Batsmen Banner */}
+      {match.status === "live" &&
+        (!strikerId || !nonStrikerId) &&
+        !isInningsComplete && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
+            <div className="space-y-0.5">
+              <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
+                Select batters to continue
+              </p>
+              <p className="text-2xs text-muted-foreground sm:text-xs">
+                A wicket has fallen or batsmen need to be set to resume scoring.
+              </p>
+            </div>
+            {isScorer && (
+              <Button
+                size="sm"
+                onClick={() => setShowSelectBatsmen(true)}
+                disabled={isProcessing}
+                className="h-8 text-xs font-bold"
+              >
+                Select batters
+              </Button>
+            )}
+          </div>
+        )}
+    </>
+  );
+}
+
+/** The keypad for scorers, the read-only view for others. */
+function Console({ s }: { s: LoadedScreen }) {
+  const {
+    isScorer,
+    match,
+    rawDeliveries,
+    bowlingTeamPlayers,
+    bowlerDisplay,
+    battingTeamPlayers,
+    strikerDisplay,
+    matchId,
+    onScore,
+    openWicketDialog,
+    handleUndo,
+    overBalls,
+    setEditingDelivery,
+    setShowEditBallDialog,
+    strikerId,
+    nonStrikerId,
+    isProcessing,
+    handleConfirmBatsmen,
+    lastBalls,
+    isFreeHit,
+    isScoringDisabled,
+    undoBusy,
+    undoNotice,
+    handleRedo,
+    scoringKeyboardSuppressed,
+    sunlightMode,
+    wagonWheelPrompt,
+    showShortcuts,
+    setShowShortcuts,
+  } = s;
+  return (
+    <>
+      {!isScorer ? (
+        <div className="space-y-3">
+          <Card className="rounded-xl border border-border bg-card shadow-sm">
+            <CardContent className="space-y-3 p-3.5 sm:p-4">
               <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                <h3 className="text-sm font-semibold">
-                  <span>{battingTeam?.name ?? "Batting team"} bench</span>
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Over {match.current_over}
+                  </h3>
+                </div>
                 <Badge
                   variant="outline"
-                  className="text-[10px] font-medium"
+                  className="text-[0.625rem] font-bold text-muted-foreground"
                 >
-                  Inns {match.current_innings}
+                  {rawDeliveries.length} ball
+                  {rawDeliveries.length === 1 ? "" : "s"} this over
                 </Badge>
               </div>
 
-              {/* 2. Yet To Bat */}
-              {battingBench.yetToBat.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Yet to bat ({battingBench.yetToBat.length})
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {battingBench.yetToBat.map((p) => (
-                      <Badge
-                        key={p.playerId}
-                        variant="secondary"
-                        className="text-2xs font-semibold"
-                      >
-                        {p.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {rawDeliveries.length > 0 ? (
+                <div className="space-y-2">
+                  {rawDeliveries
+                    .slice()
+                    .reverse()
+                    .map((d, idx) => {
+                      const bowlerName =
+                        bowlingTeamPlayers.find(
+                          (p) => p.user_id === d.bowler_id,
+                        )?.user?.full_name ??
+                        bowlerDisplay?.name ??
+                        "Bowler";
+                      const batterName =
+                        battingTeamPlayers.find(
+                          (p) => p.user_id === d.batsman_id,
+                        )?.user?.full_name ??
+                        (d.is_wicket
+                          ? "Dismissed Batter"
+                          : (strikerDisplay?.name ?? "Batter"));
+                      const isBoundary =
+                        d.runs_scored === 4 || d.runs_scored === 6;
+                      const isWicket = d.is_wicket;
+                      return (
+                        <div
+                          key={d.id || idx}
+                          className={cn(
+                            "flex items-center justify-between rounded-xl border p-2.5 text-xs transition-colors",
+                            isWicket
+                              ? "border-rose-500/30 bg-rose-500/10 text-rose-950 dark:text-rose-100"
+                              : isBoundary
+                                ? d.runs_scored === 6
+                                  ? "border-purple-500/30 bg-purple-500/10 text-purple-950 dark:text-purple-100"
+                                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
+                                : "border-border/50 bg-muted/30 text-foreground",
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <span className="w-8 shrink-0 font-score text-xs font-bold tabular-nums text-muted-foreground">
+                              {d.over_number}.{d.ball_number}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold">
+                                <strong>{bowlerName}</strong> to{" "}
+                                <strong>{batterName}</strong>
+                              </p>
+                              <div className="flex items-center gap-2 text-[0.625rem] text-muted-foreground">
+                                {d.extra_type ? (
+                                  <span className="font-medium capitalize text-amber-700 dark:text-amber-400">
+                                    {d.extra_type.replace("_", " ")} ({d.extras}{" "}
+                                    extra
+                                    {d.extras === 1 ? "" : "s"})
+                                  </span>
+                                ) : null}
+                                {d.shot_zone ? (
+                                  <span className="capitalize text-sky-600 dark:text-sky-400">
+                                    Shot: {d.shot_zone.replace("_", " ")}
+                                  </span>
+                                ) : null}
+                                {d.dismissal_type ? (
+                                  <span className="font-medium capitalize text-rose-600 dark:text-rose-400">
+                                    Out: {d.dismissal_type.replace("_", " ")}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
 
-              {/* 3. Dismissed Batters */}
-              {battingBench.dismissed.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Dismissed ({battingBench.dismissed.length})
-                  </p>
-                  <div className="space-y-1">
-                    {battingBench.dismissed.map((d) => (
-                      <div
-                        key={d.playerId}
-                        className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-xs"
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className="truncate font-medium text-foreground">
-                            {d.name}
-                          </p>
-                          <p className="truncate text-[10px] text-muted-foreground">
-                            {d.dismissalType
-                              ? d.dismissalType.replace("_", " ")
-                              : "out"}
-                          </p>
+                          <div className="shrink-0 text-right">
+                            <span
+                              className={cn(
+                                "inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-bold tabular-nums",
+                                isWicket
+                                  ? "bg-red-600 text-white"
+                                  : d.runs_scored === 6
+                                    ? "bg-purple-600 text-white"
+                                    : d.runs_scored === 4
+                                      ? "bg-emerald-600 text-white"
+                                      : d.runs_scored === 0 && !d.extra_type
+                                        ? "bg-muted text-muted-foreground"
+                                        : "border border-amber-500/30 bg-amber-500/20 text-amber-900 dark:text-amber-200",
+                              )}
+                            >
+                              {isWicket
+                                ? "W"
+                                : d.extra_type
+                                  ? `${d.runs_scored || 0}${d.extra_type === "wide" ? "wd" : d.extra_type === "no_ball" ? "nb" : "ex"}`
+                                  : d.runs_scored}
+                            </span>
+                          </div>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <span className="font-score text-xs font-bold tabular-nums">
-                            {d.runs}
-                          </span>
-                          <span className="ml-1 text-[10px] text-muted-foreground">
-                            ({d.balls})
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      );
+                    })}
                 </div>
-              )}
-
-              {isScorer && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 w-full text-xs font-bold"
-                  onClick={() => setShowAddPlayerDialog(true)}
-                >
-                  <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage players
-                </Button>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/60 py-6 text-center text-xs text-muted-foreground">
+                  <Clock className="mx-auto mb-1.5 h-5 w-5 opacity-40" />
+                  Awaiting the first delivery of over {match.current_over}
+                  ...
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Bowling Attack Spell Table */}
-          {bowlingSpells.length > 0 && (
-            <Card className="content-visibility-auto rounded-xl border border-border bg-card shadow-sm">
-              <CardContent className="space-y-2.5 p-3.5 sm:p-4">
-                <div className="flex items-center justify-between border-b border-border/50 pb-2">
-                  <h3 className="text-sm font-semibold">
-                    <span>{bowlingTeam?.name ?? "Bowling"} attack</span>
-                  </h3>
-                  <span className="text-[10px] font-semibold text-muted-foreground">
-                    O · M · R · W · Econ
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {bowlingSpells.map((sp) => (
-                    <div
-                      key={sp.playerId}
-                      className={cn(
-                        "flex items-center justify-between rounded-xl border p-2 text-xs transition-colors",
-                        sp.isCurrent
-                          ? "border-foreground/30 bg-muted font-medium"
-                          : "border-border/40 bg-muted/30",
-                      )}
-                    >
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate font-medium text-foreground">
-                          {sp.name}
-                          {sp.isCurrent && (
-                            <span className="ml-1 text-muted-foreground">*</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="shrink-0 space-x-1.5 text-right font-mono text-2xs font-bold tabular-nums text-foreground">
-                        <span>{sp.overs}ov</span>
-                        <span className="text-muted-foreground">
-                          {sp.maidens}m
-                        </span>
-                        <span>{sp.runs}r</span>
-                        <span className="font-bold text-rose-600 dark:text-rose-400">
-                          {sp.wickets}w
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          ({sp.econ})
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Locked Console Info Card */}
+          <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3.5 py-2.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              <span>
+                Scoring keypad locked · Live feed updates automatically
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              asChild
+              className="h-6 text-2xs font-bold"
+            >
+              <Link href={`/matches/${matchId}`}>Full scorecard</Link>
+            </Button>
+          </div>
         </div>
-      </main>
+      ) : (
+        <ScoringPanel
+          onScore={onScore}
+          onWicket={openWicketDialog}
+          onUndo={() => void handleUndo()}
+          onEditLastBall={() => {
+            const d = overBalls.at(-1);
+            if (d) {
+              setEditingDelivery(d);
+              setShowEditBallDialog(true);
+            }
+          }}
+          onSwapStriker={() => {
+            if (strikerId && nonStrikerId && !isProcessing) {
+              void handleConfirmBatsmen(nonStrikerId, strikerId);
+            }
+          }}
+          onSelectBall={(idx) => {
+            const d = rawDeliveries[idx];
+            if (d) {
+              setEditingDelivery(d);
+              setShowEditBallDialog(true);
+            }
+          }}
+          currentOver={match.current_over}
+          currentBall={match.current_ball}
+          lastBalls={lastBalls}
+          isFreeHit={isFreeHit}
+          disabled={isScoringDisabled}
+          undoDisabled={
+            !isScorer ||
+            undoBusy ||
+            (match?.status !== "live" && match?.status !== "completed")
+          }
+          undoNotice={undoNotice}
+          onRedo={() => void handleRedo()}
+          keyboardSuppressed={scoringKeyboardSuppressed}
+          sunlightMode={sunlightMode}
+          wagonWheelPrompt={wagonWheelPrompt}
+          shortcutsOpen={showShortcuts}
+          onShortcutsOpenChange={setShowShortcuts}
+        />
+      )}
+    </>
+  );
+}
 
+/** Super over after a tie. */
+function TieActions({ s }: { s: LoadedScreen }) {
+  const { match, isScorer, handleStartSuperOver, isProcessing } = s;
+  return (
+    <>
+      {match.status === "completed" &&
+        match.result_description?.toLowerCase().includes("tie") &&
+        isScorer && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-center">
+            <h4 className="text-base font-bold text-amber-800 dark:text-amber-200">
+              Match tied
+            </h4>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Scores are level. You can initiate a Super Over tiebreaker
+              according to tournament rules.
+            </p>
+            <Button
+              className="mt-3 gap-2"
+              onClick={() => void handleStartSuperOver()}
+              disabled={isProcessing}
+            >
+              Start Super Over
+            </Button>
+          </div>
+        )}
+    </>
+  );
+}
+
+/** The batting side's bench and batting order (wide screens). */
+function BenchCard({ s }: { s: LoadedScreen }) {
+  const { battingTeam, match, battingBench, isScorer, setShowAddPlayerDialog } =
+    s;
+  return (
+    <>
+      {/* Bench & Batting Order */}
+      <Card className="rounded-xl border border-border bg-card shadow-sm">
+        <CardContent className="space-y-3.5 p-4">
+          <div className="flex items-center justify-between border-b border-border/50 pb-2">
+            <h3 className="text-sm font-semibold">
+              <span>{battingTeam?.name ?? "Batting team"} bench</span>
+            </h3>
+            <Badge variant="outline" className="text-[0.625rem] font-medium">
+              Inns {match.current_innings}
+            </Badge>
+          </div>
+
+          {/* 2. Yet To Bat */}
+          {battingBench.yetToBat.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Yet to bat ({battingBench.yetToBat.length})
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {battingBench.yetToBat.map((p) => (
+                  <Badge
+                    key={p.playerId}
+                    variant="secondary"
+                    className="text-2xs font-semibold"
+                  >
+                    {p.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. Dismissed Batters */}
+          {battingBench.dismissed.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Dismissed ({battingBench.dismissed.length})
+              </p>
+              <div className="space-y-1">
+                {battingBench.dismissed.map((d) => (
+                  <div
+                    key={d.playerId}
+                    className="flex items-center justify-between rounded-lg border border-border px-2.5 py-1.5 text-xs"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="truncate font-medium text-foreground">
+                        {d.name}
+                      </p>
+                      <p className="truncate text-[0.625rem] text-muted-foreground">
+                        {d.dismissalType
+                          ? d.dismissalType.replace("_", " ")
+                          : "out"}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="font-score text-xs font-bold tabular-nums">
+                        {d.runs}
+                      </span>
+                      <span className="ml-1 text-[0.625rem] text-muted-foreground">
+                        ({d.balls})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isScorer && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 w-full text-xs font-bold"
+              onClick={() => setShowAddPlayerDialog(true)}
+            >
+              <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage players
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+/** This innings' bowling figures (wide screens). */
+function BowlingAttackCard({ s }: { s: LoadedScreen }) {
+  const { bowlingSpells, bowlingTeam } = s;
+  return (
+    <>
+      {/* Bowling Attack Spell Table */}
+      {bowlingSpells.length > 0 && (
+        <Card className="rounded-xl border border-border bg-card shadow-sm">
+          <CardContent className="space-y-2.5 p-3.5 sm:p-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <h3 className="text-sm font-semibold">
+                <span>{bowlingTeam?.name ?? "Bowling"} attack</span>
+              </h3>
+              <span className="text-[0.625rem] font-semibold text-muted-foreground">
+                O · M · R · W · Econ
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {bowlingSpells.map((sp) => (
+                <div
+                  key={sp.playerId}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl border p-2 text-xs transition-colors",
+                    sp.isCurrent
+                      ? "border-foreground/30 bg-muted font-medium"
+                      : "border-border/40 bg-muted/30",
+                  )}
+                >
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-medium text-foreground">
+                      {sp.name}
+                      {sp.isCurrent && (
+                        <span className="ml-1 text-muted-foreground">*</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="shrink-0 space-x-1.5 text-right font-mono text-2xs font-bold tabular-nums text-foreground">
+                    <span>{sp.overs}ov</span>
+                    <span className="text-muted-foreground">{sp.maidens}m</span>
+                    <span>{sp.runs}r</span>
+                    <span className="font-bold text-rose-600 dark:text-rose-400">
+                      {sp.wickets}w
+                    </span>
+                    <span className="text-[0.625rem] text-muted-foreground">
+                      ({sp.econ})
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
+
+/** Every dialog of the scoring screen. */
+function ScoringDialogs({ s }: { s: LoadedScreen }) {
+  const {
+    showTossDialog,
+    setTossDialogDismissed,
+    match,
+    tossWinner,
+    tossDecision,
+    setSelectedTossWinner,
+    setTossDecision,
+    handleStartMatch,
+    setShowSelectBatsmen,
+    isProcessing,
+    showSelectBatsmen,
+    setBatsmenFocus,
+    batsmenFocus,
+    battingTeamPlayers,
+    battingTeam,
+    currentInnings,
+    bowlingTeamPlayerIds,
+    currentBowlerId,
+    strikerId,
+    nonStrikerId,
+    dismissedPlayerIds,
+    handleConfirmBatsmen,
+    setShowSelectBowler,
+    createPickedPlayer,
+    addPlayerDisabledReason,
+    isScorer,
+    setRetireTarget,
+    handleEndInnings,
+    showSelectBowler,
+    setReassignOverDeliveries,
+    bowlingTeamPlayers,
+    bowlingTeam,
+    lastOverBowlerId,
+    battingTeamPlayerIds,
+    reassignOverDeliveries,
+    handleReassignOverBowler,
+    handleConfirmBowler,
+    showAddPlayerDialog,
+    setShowAddPlayerDialog,
+    squadActiveIds,
+    squadUsedIds,
+    createSquadPlayer,
+    refreshSquads,
+    isOffline,
+    showWicketDialog,
+    setShowWicketDialog,
+    dismissalType,
+    setDismissalType,
+    fielderId,
+    setFielderId,
+    dismissedPlayerId,
+    setDismissedPlayerId,
+    wicketExtraType,
+    runsCompletedBeforeRunOut,
+    setRunsCompletedBeforeRunOut,
+    onWicketConfirm,
+    isFreeHit,
+    showEditBallDialog,
+    setShowEditBallDialog,
+    editingDelivery,
+    params,
+    handleUpdateBall,
+    showPotmDialog,
+    setShowPotmDialog,
+    matchId,
+    showMatchSettingsDialog,
+    setShowMatchSettingsDialog,
+    syncFromDb,
+    setShowAbandonMatchDialog,
+    showPenaltyBonusDialog,
+    setShowPenaltyBonusDialog,
+    handleAwardPenaltyConfirm,
+    showInviteDialog,
+    setShowInviteDialog,
+    canDeleteMatch,
+    showDeleteMatchDialog,
+    setShowDeleteMatchDialog,
+    showAbandonMatchDialog,
+    handleAbandonMatchConfirm,
+    retireTarget,
+    handleRetirePlayerConfirm,
+    showReviseTargetDialog,
+    setShowReviseTargetDialog,
+    handleReviseTargetConfirm,
+  } = s;
+  return (
+    <>
       <TossDialog
         open={showTossDialog}
         onOpenChange={(open) => setTossDialogDismissed(!open)}
@@ -2073,12 +2478,27 @@ export default function ScoringPage() {
           );
           if (!res.error) {
             setShowSelectBatsmen(false);
+            setBatsmenFocus(null);
             if (!currentBowlerId) setShowSelectBowler(true);
           }
         }}
         isProcessing={isProcessing}
         onCreatePlayer={createPickedPlayer("batting")}
         addPlayerDisabledReason={addPlayerDisabledReason}
+        onRetire={
+          isScorer && match.status === "live"
+            ? (playerId) => {
+                setShowSelectBatsmen(false);
+                setBatsmenFocus(null);
+                setRetireTarget({
+                  playerId,
+                  playerName:
+                    battingTeamPlayers.find((p) => p.user_id === playerId)?.user
+                      ?.full_name ?? "Batter",
+                });
+              }
+            : undefined
+        }
         onEndInnings={
           isScorer
             ? () => {
@@ -2300,6 +2720,83 @@ export default function ScoringPage() {
         onConfirm={handleReviseTargetConfirm}
         isProcessing={isProcessing}
       />
+    </>
+  );
+}
+
+export default function ScoringPage() {
+  const s = useScoringScreen();
+  const { authLoading, error, isAuthorized, loading, match, sunlightMode } = s;
+
+  if (loading || authLoading || isAuthorized === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !match) {
+    return (
+      <div className="container mx-auto max-w-2xl px-4 py-8">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="mx-auto mb-2 h-8 w-8 text-destructive" />
+            <p>{error ?? "Match not found"}</p>
+            <Button asChild className="mt-4">
+              <Link href="/matches">Back to matches</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const screen: LoadedScreen = { ...s, match };
+
+  return (
+    <div
+      data-sunlight={sunlightMode ? "true" : "false"}
+      className={cn(
+        "min-h-screen w-full max-w-full overflow-x-hidden bg-background",
+        sunlightMode && "sunlight-mode",
+      )}
+    >
+      <a
+        href="#main-scoring-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        Skip to scoring console
+      </a>
+
+      <ScoringHeader s={screen} />
+
+      <SyncBanner s={screen} />
+
+      <main
+        id="main-scoring-content"
+        className="container mx-auto grid w-full min-w-0 max-w-6xl gap-2 px-2 py-2 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-3"
+      >
+        <div className="flex w-full min-w-0 flex-col gap-2 max-sm:min-h-[calc(100dvh-3.75rem)] sm:gap-4 lg:col-span-2">
+          <MatchNotices s={screen} />
+
+          <Scoreboard s={screen} />
+
+          <ConsoleBanners s={screen} />
+
+          <Console s={screen} />
+
+          <TieActions s={screen} />
+        </div>
+
+        <div className="hidden space-y-4 lg:block">
+          <BenchCard s={screen} />
+
+          <BowlingAttackCard s={screen} />
+        </div>
+      </main>
+
+      <ScoringDialogs s={screen} />
     </div>
   );
 }

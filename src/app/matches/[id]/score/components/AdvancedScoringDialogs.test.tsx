@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AbandonMatchDialog } from "./AbandonMatchDialog";
 import { PenaltyBonusDialog } from "./PenaltyBonusDialog";
 import { RetirePlayerDialog } from "./RetirePlayerDialog";
@@ -104,7 +104,7 @@ describe("Advanced Scoring Dialogs", () => {
   });
 
   describe("RetirePlayerDialog", () => {
-    it("renders and confirms retired hurt without counting as an out wicket", () => {
+    it("asks how they retire (nothing preselected), then confirms retired hurt", async () => {
       const onConfirm = vi.fn();
       render(
         <RetirePlayerDialog
@@ -116,23 +116,32 @@ describe("Advanced Scoring Dialogs", () => {
         />,
       );
 
-      expect(screen.getByText(/retire batsman/i)).toBeInTheDocument();
-      expect(screen.getByText(/virat kohli/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Retire Virat Kohli" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/not a ball/i)).toBeInTheDocument();
+      const hurt = screen.getByRole("radio", { name: /retired hurt/i });
+      expect(hurt).toHaveAttribute("aria-checked", "false");
+      expect(
+        screen.getByRole("button", { name: "Choose how they retire" }),
+      ).toBeDisabled();
 
-      const reasonInput = screen.getByPlaceholderText(/hamstring strain/i);
-      fireEvent.change(reasonInput, { target: { value: "Finger contusion from bouncer" } });
-
-      const confirmButton = screen.getByRole("button", { name: /retire hurt \(not out\)/i });
-      fireEvent.click(confirmButton);
-
-      expect(onConfirm).toHaveBeenCalledWith({
-        playerId: "player-10",
-        type: "retired_hurt",
-        reason: "Finger contusion from bouncer",
+      fireEvent.click(hurt);
+      fireEvent.change(screen.getByPlaceholderText(/hamstring strain/i), {
+        target: { value: "Finger contusion from bouncer" },
       });
+      fireEvent.click(screen.getByRole("button", { name: "Retire hurt" }));
+
+      await waitFor(() =>
+        expect(onConfirm).toHaveBeenCalledWith({
+          playerId: "player-10",
+          type: "retired_hurt",
+          reason: "Finger contusion from bouncer",
+        }),
+      );
     });
 
-    it("allows selecting retired out", () => {
+    it("allows selecting retired out", async () => {
       const onConfirm = vi.fn();
       render(
         <RetirePlayerDialog
@@ -144,18 +153,16 @@ describe("Advanced Scoring Dialogs", () => {
         />,
       );
 
-      // Select retired out option
-      const retiredOutOption = screen.getByText("Retire out");
-      fireEvent.click(retiredOutOption);
+      fireEvent.click(screen.getByRole("radio", { name: /retired out/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Retire out" }));
 
-      const confirmButton = screen.getByRole("button", { name: /retire out \(wicket\)/i });
-      fireEvent.click(confirmButton);
-
-      expect(onConfirm).toHaveBeenCalledWith({
-        playerId: "player-20",
-        type: "retired_out",
-        reason: null,
-      });
+      await waitFor(() =>
+        expect(onConfirm).toHaveBeenCalledWith({
+          playerId: "player-20",
+          type: "retired_out",
+          reason: null,
+        }),
+      );
     });
   });
 

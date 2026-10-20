@@ -222,6 +222,9 @@ function TeamList({
             aria-hidden="true"
           />
           <Input
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
             id={searchId}
             type="search"
             value={query}

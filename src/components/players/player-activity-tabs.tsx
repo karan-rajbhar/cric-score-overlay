@@ -54,6 +54,27 @@ export interface PlayerTeamMembership {
   };
 }
 
+interface PerformanceTeam {
+  id: string;
+  name: string;
+  short_name?: string | null;
+  logo_url?: string | null;
+}
+
+/** The match of a batting or bowling record. */
+export interface PerformanceMatch {
+  id: string;
+  title: string;
+  match_format: string;
+  scheduled_at?: string | null;
+  status: string;
+  venue?: string | null;
+  result_description?: string | null;
+  winning_team_id?: string | null;
+  team1: PerformanceTeam;
+  team2: PerformanceTeam;
+}
+
 export interface PlayerBattingPerformance {
   id: string;
   match_id: string;
@@ -67,28 +88,7 @@ export interface PlayerBattingPerformance {
   dismissal_type?: string | null;
   bowler?: { id: string; full_name: string } | null;
   fielder?: { id: string; full_name: string } | null;
-  match?: {
-    id: string;
-    title: string;
-    match_format: string;
-    scheduled_at?: string | null;
-    status: string;
-    venue?: string | null;
-    result_description?: string | null;
-    winning_team_id?: string | null;
-    team1: {
-      id: string;
-      name: string;
-      short_name?: string | null;
-      logo_url?: string | null;
-    };
-    team2: {
-      id: string;
-      name: string;
-      short_name?: string | null;
-      logo_url?: string | null;
-    };
-  } | null;
+  match?: PerformanceMatch | null;
 }
 
 export interface PlayerBowlingPerformance {
@@ -102,28 +102,7 @@ export interface PlayerBowlingPerformance {
   maidens: number;
   wides: number;
   no_balls: number;
-  match?: {
-    id: string;
-    title: string;
-    match_format: string;
-    scheduled_at?: string | null;
-    status: string;
-    venue?: string | null;
-    result_description?: string | null;
-    winning_team_id?: string | null;
-    team1: {
-      id: string;
-      name: string;
-      short_name?: string | null;
-      logo_url?: string | null;
-    };
-    team2: {
-      id: string;
-      name: string;
-      short_name?: string | null;
-      logo_url?: string | null;
-    };
-  } | null;
+  match?: PerformanceMatch | null;
 }
 
 export interface PlayerMatchItem {
@@ -181,6 +160,89 @@ interface PlayerActivityTabsProps {
   initialTab?: string;
 }
 
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return "TBD";
+  return new Date(dateStr).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** First cell of a batting or bowling row: the opponent and the match. */
+function MatchOpponentCell({
+  match,
+  opponent,
+}: {
+  match?: PerformanceMatch | null;
+  opponent: PerformanceTeam | null;
+}) {
+  return (
+    <TableCell>
+      <div className="flex items-center gap-2.5">
+        {opponent && (
+          <TeamLogo
+            name={opponent.name}
+            shortName={opponent.short_name}
+            logoUrl={opponent.logo_url}
+            className="h-7 w-7 shrink-0 text-xs"
+          />
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-foreground">
+            vs {opponent ? opponent.name : (match?.title ?? "Match")}
+          </p>
+          <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
+            <span>{formatDate(match?.scheduled_at)}</span>
+            {match?.match_format && (
+              <>
+                <span>•</span>
+                <span>{match.match_format}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </TableCell>
+  );
+}
+
+/** Last cells of a batting or bowling row: the result and the scorecard link. */
+function MatchResultCells({
+  match,
+  userId,
+}: {
+  match?: PerformanceMatch | null;
+  userId: string;
+}) {
+  return (
+    <>
+      <TableCell>
+        <div
+          className="max-w-[200px] truncate text-xs text-muted-foreground"
+          title={match?.result_description ?? ""}
+        >
+          {match?.result_description ?? (
+            <StatusBadge status={match?.status ?? "scheduled"} />
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="text-right">
+        {match && (
+          <Button asChild variant="ghost" size="sm" className="h-7 w-7 p-0">
+            <Link
+              href={`/matches/${match.id}?playerId=${userId}`}
+              title="View Match Scorecard"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
+      </TableCell>
+    </>
+  );
+}
+
 export function PlayerActivityTabs({
   userId,
   teams,
@@ -203,32 +265,8 @@ export function PlayerActivityTabs({
 
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return "TBD";
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
   // Helper to determine opponent team name
-  const getOpponent = (
-    match?: {
-      team1: {
-        id: string;
-        name: string;
-        short_name?: string | null;
-        logo_url?: string | null;
-      };
-      team2: {
-        id: string;
-        name: string;
-        short_name?: string | null;
-        logo_url?: string | null;
-      };
-    } | null,
-  ) => {
+  const getOpponent = (match?: PerformanceMatch | null) => {
     if (!match) return null;
     const playerTeamIds = new Set(teams.map((t) => t.team.id));
     if (playerTeamIds.has(match.team1.id)) return match.team2;
@@ -346,37 +384,10 @@ export function PlayerActivityTabs({
                     return (
                       <TableRow key={bp.id} className="hover:bg-muted/30">
                         {/* Match & Opponent */}
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            {opponent && (
-                              <TeamLogo
-                                name={opponent.name}
-                                shortName={opponent.short_name}
-                                logoUrl={opponent.logo_url}
-                                className="h-7 w-7 shrink-0 text-xs"
-                              />
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-foreground">
-                                vs{" "}
-                                {opponent
-                                  ? opponent.name
-                                  : (bp.match?.title ?? "Match")}
-                              </p>
-                              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                                <span>
-                                  {formatDate(bp.match?.scheduled_at)}
-                                </span>
-                                {bp.match?.match_format && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{bp.match.match_format}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
+                        <MatchOpponentCell
+                          match={bp.match}
+                          opponent={opponent}
+                        />
 
                         {/* Runs */}
                         <TableCell className="text-center">
@@ -435,38 +446,7 @@ export function PlayerActivityTabs({
                           </span>
                         </TableCell>
 
-                        {/* Result */}
-                        <TableCell>
-                          <div
-                            className="max-w-[200px] truncate text-xs text-muted-foreground"
-                            title={bp.match?.result_description ?? ""}
-                          >
-                            {bp.match?.result_description ?? (
-                              <StatusBadge
-                                status={bp.match?.status ?? "scheduled"}
-                              />
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Action Link */}
-                        <TableCell className="text-right">
-                          {bp.match && (
-                            <Button
-                              asChild
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                            >
-                              <Link
-                                href={`/matches/${bp.match.id}?playerId=${userId}`}
-                                title="View Match Scorecard"
-                              >
-                                <ArrowRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          )}
-                        </TableCell>
+                        <MatchResultCells match={bp.match} userId={userId} />
                       </TableRow>
                     );
                   })}
@@ -533,37 +513,10 @@ export function PlayerActivityTabs({
                     return (
                       <TableRow key={bp.id} className="hover:bg-muted/30">
                         {/* Match / Opponent */}
-                        <TableCell>
-                          <div className="flex items-center gap-2.5">
-                            {opponent && (
-                              <TeamLogo
-                                name={opponent.name}
-                                shortName={opponent.short_name}
-                                logoUrl={opponent.logo_url}
-                                className="h-7 w-7 shrink-0 text-xs"
-                              />
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-foreground">
-                                vs{" "}
-                                {opponent
-                                  ? opponent.name
-                                  : (bp.match?.title ?? "Match")}
-                              </p>
-                              <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-                                <span>
-                                  {formatDate(bp.match?.scheduled_at)}
-                                </span>
-                                {bp.match?.match_format && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{bp.match.match_format}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
+                        <MatchOpponentCell
+                          match={bp.match}
+                          opponent={opponent}
+                        />
 
                         {/* Figures */}
                         <TableCell className="text-center">
@@ -612,38 +565,7 @@ export function PlayerActivityTabs({
                           {bp.wides}/{bp.no_balls}
                         </TableCell>
 
-                        {/* Result */}
-                        <TableCell>
-                          <div
-                            className="max-w-[200px] truncate text-xs text-muted-foreground"
-                            title={bp.match?.result_description ?? ""}
-                          >
-                            {bp.match?.result_description ?? (
-                              <StatusBadge
-                                status={bp.match?.status ?? "scheduled"}
-                              />
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Action Link */}
-                        <TableCell className="text-right">
-                          {bp.match && (
-                            <Button
-                              asChild
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                            >
-                              <Link
-                                href={`/matches/${bp.match.id}?playerId=${userId}`}
-                                title="View Match Scorecard"
-                              >
-                                <ArrowRight className="h-4 w-4" />
-                              </Link>
-                            </Button>
-                          )}
-                        </TableCell>
+                        <MatchResultCells match={bp.match} userId={userId} />
                       </TableRow>
                     );
                   })}

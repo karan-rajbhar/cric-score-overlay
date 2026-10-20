@@ -7,8 +7,6 @@ import { AppSidebar } from "~/components/layout/app-sidebar";
 import { NavigationBar } from "~/components/navigation-bar";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
-export const useSidebar = useSidebarStore;
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { collapsed } = useSidebarStore();

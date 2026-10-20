@@ -9,7 +9,8 @@
  *   reads are in the transaction, so a concurrent scorer write retries it.
  * - `writeLiveState` (every refresh, and live_state's first build) and the
  *   write hook for builder writes to innings rebuild it from the stored
- *   innings with {@link stageFullLiveScorecard} / {@link refreshLiveScorecard}.
+ *   innings with {@link stageFullLiveScorecard} (`refreshLiveScorecard` in
+ *   `scorecard-refresh.ts`).
  *
  * The doc is written only when its content changes, so listeners are billed
  * only for real changes. Names come from the previous doc, the live_state
@@ -17,8 +18,6 @@
  * roster snapshots; a profile is read only for a player on neither roster.
  */
 
-import type { Firestore } from "firebase-admin/firestore";
-import type { DataSource } from "./datasource";
 import { matchIdOf } from "./innings-summary";
 import {
   buildLiveScorecard,
@@ -199,37 +198,3 @@ export async function stageLiveScorecards(t: ScoringTx): Promise<void> {
   }
 }
 
-/**
- * Rebuild `live_scorecard/{matchId}` from the stored innings (after builder
- * writes to innings, or to create it for a match that predates it).
- */
-export async function refreshLiveScorecard(
-  ds: DataSource,
-  matchId: string,
-  db?: Firestore | null,
-): Promise<void> {
-  const { runScoringTransaction } = await import("./scoring/tx");
-  await runScoringTransaction({ ds, db }, (t) =>
-    stageFullLiveScorecard(t, matchId),
-  );
-}
-
-/**
- * The stored doc (1 read), created on first use for live matches that
- * predate it. Null when the match has no innings yet.
- */
-export async function ensureLiveScorecard(
-  ds: DataSource,
-  matchId: string,
-  db?: Firestore | null,
-): Promise<LiveScorecardDoc | null> {
-  const read = async () =>
-    (await ds.getById(
-      LIVE_SCORECARD_COLLECTION,
-      matchId,
-    )) as unknown as LiveScorecardDoc | null;
-  const existing = await read();
-  if (existing) return existing;
-  await refreshLiveScorecard(ds, matchId, db);
-  return read();
-}

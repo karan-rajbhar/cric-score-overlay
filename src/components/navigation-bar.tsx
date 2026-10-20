@@ -34,7 +34,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { useSidebar } from "~/components/layout/app-shell";
+import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import { getTotalPendingCount } from "~/lib/offline-queue";
 
 export function NavigationBar() {
   const { user, signOut, loading } = useAuth();
@@ -45,7 +46,7 @@ export function NavigationBar() {
   const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
   const username =
     !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
-  const { toggleCollapsed, toggleMobile } = useSidebar();
+  const { toggleCollapsed, toggleMobile } = useSidebarStore();
   useIosInstallHint(Boolean(user));
 
   useEffect(() => {
@@ -69,6 +70,15 @@ export function NavigationBar() {
 
   const handleSignOut = async () => {
     if (signOutLoading) return;
+    const unsent = getTotalPendingCount();
+    if (
+      unsent > 0 &&
+      !window.confirm(
+        `${unsent} scoring ${unsent === 1 ? "change has" : "changes have"} not reached the server yet. Reconnect and open the match to send ${unsent === 1 ? "it" : "them"} first. Sign out anyway? ${unsent === 1 ? "It stays" : "They stay"} on this device.`,
+      )
+    ) {
+      return;
+    }
     try {
       setSignOutLoading(true);
       await signOut();
@@ -147,6 +157,9 @@ export function NavigationBar() {
               aria-hidden="true"
             />
             <input
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               id="global-search-input"
               type="search"
               aria-label="Search matches, tournaments and players"

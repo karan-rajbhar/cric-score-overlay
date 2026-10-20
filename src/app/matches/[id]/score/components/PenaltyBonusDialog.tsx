@@ -106,8 +106,14 @@ export function PenaltyBonusDialog({
           <div className="space-y-4 py-4">
             {/* Type selector */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Award type</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label id="award-type-label" className="text-xs font-bold">
+                Award type
+              </Label>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="group"
+                aria-labelledby="award-type-label"
+              >
                 <Button
                   type="button"
                   variant={awardType === "penalty" ? "default" : "outline"}
