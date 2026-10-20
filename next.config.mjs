@@ -82,6 +82,23 @@ const FRAME_HEADERS = [
   },
 ];
 
+/**
+ * Development over the Cloudflare tunnel: Cloudflare turns the dev server's
+ * `no-cache` into a 4-hour browser cache (and caches `.js` at its edge), and
+ * dev chunk names do not change with their content, so the browser would
+ * keep running old code against fresh server HTML (hydration mismatches,
+ * stale pages). `no-store` is respected by both.
+ */
+const DEV_NO_CACHE = [
+  {
+    source: "/_next/:path*",
+    headers: [
+      { key: "Cache-Control", value: "no-store, must-revalidate" },
+      { key: "CDN-Cache-Control", value: "no-store" },
+    ],
+  },
+];
+
 /** @type {import("next").NextConfig} */
 const config = {
   output: "standalone",
@@ -110,6 +127,7 @@ const config = {
       { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
     ];
     return [
+      ...(process.env.NODE_ENV === "production" ? [] : DEV_NO_CACHE),
       { source: "/:path*", headers: SECURITY_HEADERS },
       // Not on Firebase Auth's proxied helper pages (`/__/`), nor on the
       // overlays, which web-based streaming tools may embed in a frame.

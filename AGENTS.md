@@ -68,7 +68,7 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 - `npm run dev`: dev server + Cloudflare tunnel (`scripts/dev-tunnel.sh`) for phones; fixed host with `DEV_TUNNEL_NAME` / `DEV_TUNNEL_HOST` in `.env.local`, else a random trycloudflare URL. It registers the host as an Auth authorized domain (`scripts/firebase-auth-domain.mjs`) and skips the tunnel when the emulators are in use.
 - Cloud dev project instead of emulators: set `NEXT_PUBLIC_FIREBASE_USE_EMULATOR=false`, the Firebase config and `FIREBASE_SERVICE_ACCOUNT_JSON` in `.env.local`. `npm run seed -- --project=<id>` refuses ids containing "prod".
 - Signing in on the emulator: "Sign in with Google" → **Add new account** in the fake picker → a seeded email such as `john.smith@email.com` (`scripts/seed-emulator.mjs`; seeded users have no passwords).
-- Environment traps (details in `README.md` → Troubleshooting): leftover service worker on port 3005; stale Turbopack cache after deleting files; `ChunkLoadError` or hangs over the tunnel. For the last two, stop the dev server, `rm -rf .next`, restart.
+- Environment traps (details in `README.md` → Troubleshooting): leftover service worker on port 3005; stale Turbopack cache after deleting files; `ChunkLoadError` or hangs over the tunnel. For the last two, stop the dev server, `rm -rf .next`, restart. Over the tunnel, `next.config.mjs` serves `/_next/*` with `no-store` in development (Cloudflare otherwise caches dev chunks for 4 hours, and their names do not change with their content: stale code, hydration mismatches), and allows `DEV_TUNNEL_HOST` in `allowedDevOrigins` (Next 16.4 refuses dev resources to other hosts).
 
 ## Scoring screen
 
