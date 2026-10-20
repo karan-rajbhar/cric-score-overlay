@@ -87,7 +87,14 @@ const config = {
   output: "standalone",
   env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   reactStrictMode: true,
-  allowedDevOrigins: ["*.trycloudflare.com", "*.loca.lt"],
+  // Hosts the dev server may be opened from (Next.js refuses its dev
+  // resources, HMR and chunks, to any other origin): the quick tunnels, and
+  // the fixed tunnel host from .env.local (`npm run dev`).
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "*.loca.lt",
+    ...(process.env.DEV_TUNNEL_HOST ? [process.env.DEV_TUNNEL_HOST] : []),
+  ],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "firebasestorage.googleapis.com" },
