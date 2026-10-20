@@ -1,13 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import config, { firebaseAuthProxyRewrites } from "../next.config.mjs";
+import { appRewrites, firebaseAuthProxyRewrites } from "./lib/next-rewrites.mjs";
 
-type RewriteGroups = {
-  beforeFiles: { source: string; destination: string }[];
-  afterFiles: { source: string; destination: string }[];
-};
-
-async function rewrites(): Promise<RewriteGroups> {
-  return (await config.rewrites!()) as unknown as RewriteGroups;
+// Not next.config.mjs itself: App Hosting replaces it at build time with a
+// wrapper exporting only the default config (see next-rewrites.mjs).
+async function rewrites() {
+  return appRewrites();
 }
 
 describe("next.config rewrites", () => {
