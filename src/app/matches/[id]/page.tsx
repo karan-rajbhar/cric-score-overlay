@@ -15,7 +15,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const match = await loadShareMatch(id);
-  if (!match) return { title: "Match — CricScore" };
+  if (!match) return { title: "Match" };
 
   const summary = matchShareSummary(match);
   const origin = await requestOrigin();
@@ -27,7 +27,7 @@ export async function generateMetadata({
     alt: summary.title,
   };
   return {
-    title: `${summary.title} | CricScore`,
+    title: summary.title,
     description: summary.description,
     alternates: { canonical: url },
     openGraph: {

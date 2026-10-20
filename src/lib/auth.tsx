@@ -20,6 +20,8 @@ import {
 } from "react";
 import { getFirebaseAuth, toAppUser } from "~/lib/firebase/client";
 import { clearAppCaches } from "~/lib/pwa/service-worker";
+import { clearScorerData } from "~/lib/offline-match-cache";
+import { matchesWithPendingActions } from "~/lib/offline-queue";
 import {
   toAuthError,
   type AppUser,
@@ -300,8 +302,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     syncedUidRef.current = null;
     resyncUidRef.current = null;
     setUser(null);
-    // Cached scoring pages hold this user's view; don't leave them behind.
+    // Cached scoring pages and per-match data hold this user's view; don't
+    // leave them behind (except what queued actions still need to be sent).
     await clearAppCaches(true);
+    clearScorerData(matchesWithPendingActions());
     router.push("/");
     router.refresh();
   }, [router]);

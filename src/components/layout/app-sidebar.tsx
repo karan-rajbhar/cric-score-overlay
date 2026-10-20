@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSidebar } from "./app-shell";
+import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import {
@@ -75,7 +75,7 @@ export function AppSidebar() {
   const { user } = useAuth();
   const pathname = usePathname();
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } =
-    useSidebar();
+    useSidebarStore();
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";

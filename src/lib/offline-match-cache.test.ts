@@ -4,6 +4,7 @@ import {
   getCachedMatchData,
   clearMatchCache,
   hasMatchCache,
+  clearScorerData,
   type CachedMatchData,
 } from "./offline-match-cache";
 import type { Match } from "./match-types";
@@ -86,5 +87,30 @@ describe("offline-match-cache", () => {
 
     expect(() => cacheMatchData(matchId, sampleData)).not.toThrow();
     expect(consoleSpy).toHaveBeenCalled();
+  });
+});
+
+describe("clearScorerData", () => {
+  it("forgets scored matches on sign-out, except those with actions to send", () => {
+    localStorage.clear();
+    for (const id of ["m1", "m2"]) {
+      localStorage.setItem(`cric_match_cache_${id}`, "{}");
+      localStorage.setItem(`cric_confirmed_state_${id}`, "{}");
+      localStorage.setItem(`cric_scorer_${id}`, "u1");
+      localStorage.setItem(`cric_undo_history_${id}`, "[]");
+    }
+    localStorage.setItem("cric_pending_actions_m2", "[{}]");
+    localStorage.setItem("theme", "dark");
+
+    clearScorerData(new Set(["m2"]));
+
+    expect(localStorage.getItem("cric_match_cache_m1")).toBeNull();
+    expect(localStorage.getItem("cric_confirmed_state_m1")).toBeNull();
+    expect(localStorage.getItem("cric_scorer_m1")).toBeNull();
+    expect(localStorage.getItem("cric_undo_history_m1")).toBeNull();
+    // m2 still has a queued action: what sending it needs stays.
+    expect(localStorage.getItem("cric_confirmed_state_m2")).toBe("{}");
+    expect(localStorage.getItem("cric_pending_actions_m2")).toBe("[{}]");
+    expect(localStorage.getItem("theme")).toBe("dark");
   });
 });

@@ -149,6 +149,9 @@ export function PlayerPicker({
               aria-hidden
             />
             <Input
+              autoCorrect="off"
+              autoCapitalize="words"
+              spellCheck={false}
               id={inputId}
               type="search"
               name="player-search"

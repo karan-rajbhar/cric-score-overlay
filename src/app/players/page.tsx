@@ -8,6 +8,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Initials } from "~/components/ui/initials";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 
+export const metadata = { title: "Players" };
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 30;
@@ -77,6 +79,9 @@ export default async function PlayersPage({
       >
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           name="q"
           type="search"
           aria-label="Search players"

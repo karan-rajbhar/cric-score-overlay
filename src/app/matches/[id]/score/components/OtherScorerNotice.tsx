@@ -73,7 +73,7 @@ export function OtherScorerNotice({
       aria-label={`${label}. Dismiss`}
       title={`${label} (last change ${new Date(active.at).toLocaleTimeString()}). Tap to dismiss.`}
       onClick={() => setDismissed(active.uid)}
-      className="flex min-w-0 items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 sm:text-xs"
+      className="flex min-w-0 items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground transition-colors hover:bg-muted/70 sm:text-xs"
     >
       <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
       <span className="max-w-[5rem] truncate sm:max-w-[14rem]">

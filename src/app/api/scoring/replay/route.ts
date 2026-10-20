@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "~/lib/firebase/server";
+import { isJsonRequest, isSameOrigin, readCapped } from "~/lib/api-request";
 import {
   MAX_REPLAY_BODY_BYTES,
   SUPPORTED_REPLAY_VERSIONS,
@@ -35,52 +36,6 @@ function fail(
   return NextResponse.json(body, { status, headers: NO_STORE });
 }
 
-/** The request's `Origin` is this host (behind a proxy: X-Forwarded-Host). */
-function isSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin || origin === "null") return false;
-  let originHost: string;
-  try {
-    originHost = new URL(origin).host;
-  } catch {
-    return false;
-  }
-  const host =
-    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
-    request.headers.get("host");
-  return Boolean(host) && originHost === host;
-}
-
-/** The body as text, or null once it exceeds `max` bytes. */
-async function readCapped(
-  request: NextRequest,
-  max: number,
-): Promise<string | null> {
-  const declared = Number(request.headers.get("content-length") ?? 0);
-  if (declared > max) return null;
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel().catch(() => undefined);
-      return null;
-    }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const c of chunks) {
-    bytes.set(c, offset);
-    offset += c.byteLength;
-  }
-  return new TextDecoder().decode(bytes);
-}
-
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return fail(
@@ -89,8 +44,7 @@ export async function POST(request: NextRequest) {
       "Cross-origin replay requests are not allowed",
     );
   }
-  const type = request.headers.get("content-type") ?? "";
-  if (!/^application\/json\s*(;|$)/i.test(type)) {
+  if (!isJsonRequest(request)) {
     return fail(
       415,
       "unsupported_media_type",

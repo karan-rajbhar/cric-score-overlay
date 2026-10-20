@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Initials } from "~/components/ui/initials";
 import { notFound } from "next/navigation";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
 import {
   attachMatchTeams,
@@ -148,6 +150,23 @@ interface HallOfFameRow {
   } | null;
 }
 
+/** The club document: read once per request, by the page and its title. */
+const loadClub = cache(async (id: string) => {
+  const db = await createServerClient();
+  return db.from("clubs").select("*").eq("id", id).single();
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { title: "Club" };
+  const { data: club } = await loadClub(id);
+  return { title: club?.name ?? "Club" };
+}
+
 export default async function ClubPage({
   params,
   searchParams,
@@ -177,7 +196,7 @@ export default async function ClubPage({
     { data: seasons },
     { data: hallOfFame },
   ] = await Promise.all([
-    db.from("clubs").select("*").eq("id", id).single(),
+    loadClub(id),
     db
       .from("teams")
       .select(

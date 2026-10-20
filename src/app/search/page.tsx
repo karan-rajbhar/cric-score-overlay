@@ -7,6 +7,8 @@ import { PageContainer, PageHeader, SectionHeader } from "~/components/layout/pa
 import { Search } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 
+export const metadata = { title: "Search" };
+
 export const dynamic = "force-dynamic";
 
 function Section<T>({
@@ -57,6 +59,9 @@ export default async function SearchPage({
       <form action="/search" method="GET" role="search" className="relative">
         <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           id="search-query"
           name="q"
           type="search"

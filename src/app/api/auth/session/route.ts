@@ -4,6 +4,7 @@ import { AdminDataSource } from "~/lib/firebase/datasource-admin";
 import { acceptInvitations, canSignIn } from "~/lib/firebase/rpc/access";
 import { ensureOwnProfile } from "~/lib/firebase/rpc/profiles";
 import {
+  LEGACY_SESSION_COOKIE_NAME,
   SESSION_COOKIE_NAME,
   SESSION_HINT_COOKIE_NAME,
   createSessionCookie,
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ ok: true, user });
     const options = sessionCookieOptions();
     response.cookies.set(SESSION_COOKIE_NAME, cookie, options);
+    clearLegacySessionCookie(response);
     response.cookies.set(SESSION_HINT_COOKIE_NAME, "1", {
       ...options,
       httpOnly: false,
@@ -69,10 +71,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/** The pre-`__Host-` session cookie, replaced by the current one. */
+function clearLegacySessionCookie(response: NextResponse) {
+  if (LEGACY_SESSION_COOKIE_NAME === SESSION_COOKIE_NAME) return;
+  response.cookies.set(LEGACY_SESSION_COOKIE_NAME, "", {
+    ...sessionCookieOptions(),
+    maxAge: 0,
+  });
+}
+
 export async function DELETE() {
-  const response = NextResponse.json({ ok: true });
+  // The browser's HTTP cache may hold this user's pages. Not "storage": it
+  // would also delete scoring actions queued offline and not yet sent.
+  const response = NextResponse.json(
+    { ok: true },
+    { headers: { "Clear-Site-Data": '"cache"' } },
+  );
   const options = { ...sessionCookieOptions(), maxAge: 0 };
   response.cookies.set(SESSION_COOKIE_NAME, "", options);
+  clearLegacySessionCookie(response);
   response.cookies.set(SESSION_HINT_COOKIE_NAME, "", {
     ...options,
     httpOnly: false,

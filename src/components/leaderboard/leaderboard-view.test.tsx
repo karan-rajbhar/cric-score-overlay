@@ -1,7 +1,13 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { LeaderboardView } from "./leaderboard-view";
 import { buildLeaderboardData } from "~/lib/leaderboard";
+
+/** Radix tabs switch on pointer down, as a real click starts. */
+function selectTab(tab: HTMLElement) {
+  fireEvent.mouseDown(tab, { button: 0 });
+}
 
 describe("LeaderboardView Component", () => {
   it("renders empty state when no data exists", () => {
@@ -76,11 +82,25 @@ describe("LeaderboardView Component", () => {
     expect(screen.getAllByText("Jasprit Bumrah").length).toBeGreaterThan(0);
   });
 
+  it("moves between tabs with the arrow keys, each with its tab panel", async () => {
+    const user = userEvent.setup();
+    render(<LeaderboardView data={mockData} />);
+    await user.click(screen.getByRole("tab", { name: /overview/i }));
+    await user.keyboard("{ArrowRight}");
+    const batting = screen.getByRole("tab", { name: /batting/i });
+    expect(batting).toHaveFocus();
+    expect(batting).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute(
+      "aria-labelledby",
+      batting.id,
+    );
+  });
+
   it("allows switching to Batting tab and shows detailed metrics", () => {
     render(<LeaderboardView data={mockData} />);
 
     const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
-    fireEvent.click(battingTabTrigger);
+    selectTab(battingTabTrigger);
 
     // Verify batting table headers
     expect(screen.getByText("Runs")).toBeInTheDocument();
@@ -98,7 +118,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const bowlingTabTrigger = screen.getByRole("tab", { name: /bowling/i });
-    fireEvent.click(bowlingTabTrigger);
+    selectTab(bowlingTabTrigger);
 
     // Verify bowling table headers
     expect(screen.getByText("Wkts")).toBeInTheDocument();
@@ -111,7 +131,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const fieldingTabTrigger = screen.getByRole("tab", { name: /fielding/i });
-    fireEvent.click(fieldingTabTrigger);
+    selectTab(fieldingTabTrigger);
 
     expect(screen.getAllByText("Ravindra Jadeja").length).toBeGreaterThan(0);
     expect(screen.getAllByText("MS Dhoni").length).toBeGreaterThan(0);
@@ -123,7 +143,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const mvpTabTrigger = screen.getByRole("tab", { name: /mvp/i });
-    fireEvent.click(mvpTabTrigger);
+    selectTab(mvpTabTrigger);
 
     expect(screen.getByText("Total points")).toBeInTheDocument();
     expect(screen.getByText("Bat pts")).toBeInTheDocument();
@@ -135,7 +155,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
-    fireEvent.click(battingTabTrigger);
+    selectTab(battingTabTrigger);
 
     const searchInput = screen.getByPlaceholderText(/search player name/i);
     fireEvent.change(searchInput, { target: { value: "Kohli" } });
@@ -148,7 +168,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
-    fireEvent.click(battingTabTrigger);
+    selectTab(battingTabTrigger);
 
     // Default is Most Runs
     expect(screen.getByText(/Batting Leaderboard • Most Runs/i)).toBeInTheDocument();
@@ -172,7 +192,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const battingTabTrigger = screen.getByRole("tab", { name: /batting/i });
-    fireEvent.click(battingTabTrigger);
+    selectTab(battingTabTrigger);
 
     // Switch to Highest Score
     const hsButton = screen.getByRole("button", { name: /highest score/i });
@@ -201,7 +221,7 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} />);
 
     const bowlingTabTrigger = screen.getByRole("tab", { name: /bowling/i });
-    fireEvent.click(bowlingTabTrigger);
+    selectTab(bowlingTabTrigger);
 
     // Switch to Best Bowling
     const bbiButton = screen.getByRole("button", { name: /best bowling/i });

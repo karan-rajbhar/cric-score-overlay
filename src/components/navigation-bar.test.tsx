@@ -35,8 +35,8 @@ vi.mock("~/lib/firebase/client", () => ({
 const mockToggleCollapsed = vi.fn();
 const mockToggleMobile = vi.fn();
 
-vi.mock("~/components/layout/app-shell", () => ({
-  useSidebar: () => ({
+vi.mock("~/lib/stores/useSidebarStore", () => ({
+  useSidebarStore: () => ({
     isCollapsed: false,
     isMobileOpen: false,
     toggleCollapsed: mockToggleCollapsed,

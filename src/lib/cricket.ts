@@ -118,13 +118,19 @@ export const requiredRunRate = (
   return ballsRem > 0 ? ((runsNeeded * bpo) / ballsRem).toFixed(2) : "—";
 };
 
-/** "4 1 W wd 6" style label for one delivery. */
+/**
+ * "4 1 W wd 6" style label for one entry of an over; a retirement (logged
+ * between deliveries) is "rh" / "ro", not a wicket ball.
+ */
 export function deliveryLabel(b: {
-  runs_scored: number | null | undefined;
-  extras: number | null | undefined;
-  extra_type: string | null | undefined;
-  is_wicket: boolean | null | undefined;
+  runs_scored?: number | null;
+  extras?: number | null;
+  extra_type?: string | null;
+  is_wicket?: boolean | null;
+  dismissal_type?: string | null;
 }): string {
+  if (b.is_wicket && b.dismissal_type === "retired_hurt") return "rh";
+  if (b.is_wicket && b.dismissal_type === "retired_out") return "ro";
   if (b.is_wicket) return "W";
   switch (b.extra_type) {
     case "wide":
@@ -215,26 +221,24 @@ export function dismissalText(
   return formatHowOut(batter.is_out, type, bowlerName, fielderName);
 }
 
-/** Human-friendly label for dismissal types, e.g. "run_out" -> "Run Out", "bowled" -> "Bowled", "lbw" -> "LBW". */
+/** Sentence-case label for dismissal types, e.g. "run_out" -> "Run out", "bowled" -> "Bowled", "lbw" -> "LBW". */
 export function formatDismissalType(type?: string | null): string {
   if (!type) return "Out";
   const map: Record<string, string> = {
     bowled: "Bowled",
     caught: "Caught",
     lbw: "LBW",
-    run_out: "Run Out",
+    run_out: "Run out",
     stumped: "Stumped",
-    hit_wicket: "Hit Wicket",
-    obstructing: "Obstructing the Field",
-    timed_out: "Timed Out",
-    handled_ball: "Handled Ball",
-    retired_hurt: "Retired Hurt",
-    retired_out: "Retired Out",
+    hit_wicket: "Hit wicket",
+    obstructing: "Obstructing the field",
+    timed_out: "Timed out",
+    handled_ball: "Handled ball",
+    retired_hurt: "Retired hurt",
+    retired_out: "Retired out",
   };
-  return (
-    map[type] ??
-    type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+  const words = type.replace(/_/g, " ");
+  return map[type] ?? words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** Human-friendly label for extra types, e.g. "no_ball" -> "No Ball", "leg_bye" -> "Leg Bye". */

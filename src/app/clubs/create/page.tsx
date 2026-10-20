@@ -105,9 +105,9 @@ export default function CreateClubPage() {
                 />
               </div>
               <div>
-                <Label>Club type</Label>
+                <Label htmlFor="club-type">Club type</Label>
                 <Select name="club_type" defaultValue="community">
-                  <SelectTrigger className="mt-2">
+                  <SelectTrigger id="club-type" className="mt-2">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
+import { isClubAdminOf } from "~/lib/firebase/permissions";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
@@ -320,28 +321,7 @@ async function checkMatchAdminAuth(
   const checks: Promise<boolean>[] = [];
 
   if (match.club_id) {
-    checks.push(
-      (async () => {
-        const { data: club } = await db
-          .from("clubs")
-          .select("owner_id")
-          .eq("id", match.club_id)
-          .single();
-
-        if (club?.owner_id === userId) return true;
-
-        const { data: mem } = await db
-          .from("club_memberships")
-          .select("id")
-          .eq("club_id", match.club_id)
-          .eq("user_id", userId)
-          .in("role", ["owner", "admin"])
-          .eq("status", "active")
-          .maybeSingle();
-
-        return !!mem;
-      })(),
-    );
+    checks.push(isClubAdminOf(db, match.club_id, userId));
   }
 
   if (match.tournament_id) {
@@ -354,28 +334,7 @@ async function checkMatchAdminAuth(
           .single();
 
         if (tournament?.created_by === userId) return true;
-
-        if (tournament?.club_id) {
-          const { data: club } = await db
-            .from("clubs")
-            .select("owner_id")
-            .eq("id", tournament.club_id)
-            .single();
-
-          if (club?.owner_id === userId) return true;
-
-          const { data: mem } = await db
-            .from("club_memberships")
-            .select("id")
-            .eq("club_id", tournament.club_id)
-            .eq("user_id", userId)
-            .in("role", ["owner", "admin"])
-            .eq("status", "active")
-            .maybeSingle();
-
-          return !!mem;
-        }
-        return false;
+        return isClubAdminOf(db, tournament?.club_id, userId);
       })(),
     );
   }

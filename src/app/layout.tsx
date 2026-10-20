@@ -5,6 +5,7 @@ import { AuthProvider } from "~/lib/auth";
 import { ErrorReporter } from "~/components/error-reporter";
 import { ServiceWorkerRegistrar } from "~/components/pwa/service-worker-registrar";
 import { ViewportVars } from "~/components/viewport-vars";
+import { WebVitalsReporter } from "~/components/web-vitals-reporter";
 import { QueryProvider } from "~/providers/query-provider";
 import { ThemeProvider } from "~/lib/theme-provider";
 import { AppShell } from "~/components/layout/app-shell";
@@ -26,7 +27,11 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "CricScore — Live Cricket Scoring & Overlay",
+  // Each page names itself: "<page> | CricScore".
+  title: {
+    default: "CricScore — Live Cricket Scoring & Overlay",
+    template: "%s | CricScore",
+  },
   description:
     "Ball-by-ball cricket scoring, live scorecards and club tournaments.",
   keywords: "cricket, scoring, live, management, tournament, OBS, streaming",
@@ -53,29 +58,14 @@ export default async function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          type="speculationrules"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              prerender: [
-                {
-                  where: { href_matches: "/matches/*" },
-                  eagerness: "moderate",
-                },
-                {
-                  where: { href_matches: "/tournaments/*" },
-                  eagerness: "moderate",
-                },
-              ],
-            }),
-          }}
-        />
-      </head>
+      {/* No speculation rules: navigation is client-side (next/link, which
+          prefetches routes itself), so a prerendered document is never used
+          but still costs a server render and Firestore reads and listeners. */}
       <body
         className={`font-sans ${barlow.variable} ${barlowCondensed.variable} overflow-x-hidden antialiased`}
       >
         <ErrorReporter />
+        <WebVitalsReporter />
         <ViewportVars />
         <ThemeProvider defaultTheme="light">
           <AuthProvider>

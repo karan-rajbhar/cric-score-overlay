@@ -216,6 +216,10 @@ export function WagonWheelSelector({
                 onKeyDown={(e) => handleKeyDown(e, s.id)}
                 onMouseEnter={() => setHoveredSector(s.id)}
                 onMouseLeave={() => setHoveredSector(null)}
+                // Keyboard focus shows the hover highlight (an outline does
+                // not draw on an SVG group).
+                onFocus={() => setHoveredSector(s.id)}
+                onBlur={() => setHoveredSector(null)}
                 className="cursor-pointer focus:outline-none"
               >
                 {/* Sector wedge on turf (inside the boundary) */}

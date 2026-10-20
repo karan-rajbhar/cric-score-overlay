@@ -200,7 +200,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                     ).length;
 
                     return (
-                      <Card key={overNum} className="content-visibility-auto overflow-hidden border-border bg-card">
+                      <Card key={overNum} className="[content-visibility:auto] [contain-intrinsic-size:auto_18rem] overflow-hidden border-border bg-card">
                         <CardHeader className="border-b border-border/50 py-3 px-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-bold">
@@ -276,7 +276,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
                                       )}
                                     >
                                       {ball.is_wicket
-                                        ? `Wicket! (${formatDismissalType(ball.dismissal_type)})`
+                                        ? `Wicket (${formatDismissalType(ball.dismissal_type)})`
                                         : `${ball.runs_scored + (ball.extras || 0)} run${
                                             ball.runs_scored +
                                               (ball.extras || 0) !==

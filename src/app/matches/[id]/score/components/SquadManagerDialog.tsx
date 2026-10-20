@@ -222,6 +222,9 @@ function SquadPanel({
           aria-hidden
         />
         <Input
+          autoCorrect="off"
+          autoCapitalize="words"
+          spellCheck={false}
           id={`find-player-${side}`}
           type="search"
           name="playerSearch"

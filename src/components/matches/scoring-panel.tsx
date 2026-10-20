@@ -28,6 +28,66 @@ import {
   hapticWicket,
   hapticUndo,
 } from "~/lib/haptics";
+
+type BallKind = "wicket" | "retired" | "four" | "six" | "extra" | "runs";
+
+/**
+ * What a "This over" label (`deliveryLabel` in ~/lib/cricket) stands for:
+ * spoken text, the runs it adds and whether a wicket fell. A retirement
+ * ("rh" / "ro") is not a ball.
+ */
+export function readBallLabel(ball: string): {
+  kind: BallKind;
+  spoken: string;
+  runs: number;
+  wicket: boolean;
+} {
+  const plural = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+  if (ball === "W") return { kind: "wicket", spoken: "Wicket", runs: 0, wicket: true };
+  if (ball === "rh")
+    return { kind: "retired", spoken: "Retired hurt", runs: 0, wicket: false };
+  if (ball === "ro")
+    return { kind: "retired", spoken: "Retired out", runs: 0, wicket: true };
+  const extra = /^(wd|nb)(?:\+(\d+))?$/.exec(ball);
+  if (extra) {
+    const more = Number(extra[2] ?? 0);
+    const name = extra[1] === "wd" ? "Wide" : "No ball";
+    return {
+      kind: "extra",
+      spoken: more ? `${name} + ${plural(more, "run", "runs")}` : name,
+      runs: 1 + more,
+      wicket: false,
+    };
+  }
+  const other = /^(b|lb|p|bon)(\d+)$/.exec(ball);
+  if (other) {
+    const n = Number(other[2]);
+    const spoken =
+      other[1] === "b"
+        ? plural(n, "bye", "byes")
+        : other[1] === "lb"
+          ? plural(n, "leg bye", "leg byes")
+          : `${plural(n, "run", "runs")} ${other[1] === "p" ? "penalty" : "bonus"}`;
+    return { kind: "extra", spoken, runs: n, wicket: false };
+  }
+  const runs = ball === "•" ? 0 : Number(ball);
+  if (!Number.isFinite(runs))
+    return { kind: "runs", spoken: ball, runs: 0, wicket: false };
+  return {
+    kind: runs === 4 ? "four" : runs === 6 ? "six" : "runs",
+    spoken:
+      runs === 4
+        ? "Four"
+        : runs === 6
+          ? "Six"
+          : runs === 0
+            ? "Dot ball"
+            : plural(runs, "run", "runs"),
+    runs,
+    wicket: false,
+  };
+}
 import { announceDelivery, announceUndo } from "~/lib/speech";
 import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 
@@ -156,16 +216,9 @@ export function ScoringPanel({
     let runs = 0;
     let wickets = 0;
     for (const b of lastBalls) {
-      if (b === "W") {
-        wickets++;
-      } else {
-        const num = parseInt(b, 10);
-        if (!isNaN(num)) {
-          runs += num;
-        } else if (b.includes("wd") || b.includes("nb")) {
-          runs += 1;
-        }
-      }
+      const read = readBallLabel(b);
+      runs += read.runs;
+      if (read.wicket) wickets++;
     }
     return { runs, wickets };
   }, [lastBalls]);
@@ -391,39 +444,37 @@ export function ScoringPanel({
   };
 
   const getBallDisplay = (ball: string) => {
+    const { kind } = readBallLabel(ball);
     if (sunlightMode) {
-      if (ball === "W")
+      if (kind === "wicket")
         return "bg-red-600 text-white border-2 border-black font-bold rounded-md shadow-none";
-      if (ball === "4")
+      if (kind === "four")
         return "bg-emerald-600 text-white border-2 border-black font-bold rounded-full shadow-none";
-      if (ball === "6")
+      if (kind === "six")
         return "bg-purple-700 text-white border-2 border-black font-bold rounded-full shadow-none";
-      if (ball.includes("wd") || ball.includes("nb"))
+      if (kind === "extra")
         return "bg-amber-300 text-black border-2 border-black font-bold rounded-full shadow-none";
+      if (kind === "retired")
+        return "bg-white text-black border-2 border-dashed border-black font-bold rounded-md shadow-none";
       return "bg-white text-black border-2 border-black font-bold rounded-full shadow-none";
     }
 
     // Shape + text carry meaning, not color alone (color-blind safe).
-    if (ball === "W")
+    if (kind === "wicket")
       return "bg-red-600 text-white border-red-700 font-bold rounded-md outline outline-1 outline-offset-1 outline-red-800";
-    if (ball === "4")
+    if (kind === "four")
       return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-600 font-bold rounded-full";
-    if (ball === "6")
+    if (kind === "six")
       return "bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-600 font-bold rounded-full";
-    if (ball.includes("wd") || ball.includes("nb"))
+    if (kind === "extra")
       return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border-amber-600 border-dashed font-bold rounded-full";
+    // A retirement is not a ball: square, dashed, quiet.
+    if (kind === "retired")
+      return "bg-background text-foreground border-border border-dashed font-semibold rounded-md";
     return "bg-muted/60 text-muted-foreground border-border/80 font-medium rounded-full";
   };
 
-  const getBallLabel = (ball: string) => {
-    if (ball === "W") return "Wicket";
-    if (ball === "4") return "Four";
-    if (ball === "6") return "Six";
-    if (ball.includes("wd")) return `Wide ${ball}`;
-    if (ball.includes("nb")) return `No ball ${ball}`;
-    if (ball === "0" || ball === "•") return "Dot ball";
-    return `${ball} run${ball === "1" ? "" : "s"}`;
-  };
+  const getBallLabel = (ball: string) => readBallLabel(ball).spoken;
 
   return (
     <Card
@@ -462,21 +513,47 @@ export function ScoringPanel({
                 role="group"
                 aria-label="Balls this over"
               >
-                {lastBalls.map((ball, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => onSelectBall?.(idx)}
-                    className={cn(
-                      "flex h-8 w-8 shrink-0 items-center justify-center border text-2xs transition-colors hover:brightness-95 active:scale-95 sm:h-9 sm:w-9 sm:text-xs",
-                      getBallDisplay(ball),
-                    )}
-                    title={`Ball ${idx + 1}: ${getBallLabel(ball)} (tap to edit)`}
-                    aria-label={`Ball ${idx + 1}: ${getBallLabel(ball)}`}
-                  >
-                    {ball}
-                  </button>
-                ))}
+                {lastBalls.map((ball, idx) => {
+                  const chip =
+                    "flex h-8 w-8 shrink-0 items-center justify-center border text-2xs sm:h-9 sm:w-9 sm:text-xs";
+                  // A retirement sits between balls: shown, not numbered
+                  // or edited (undo removes it).
+                  if (readBallLabel(ball).kind === "retired") {
+                    return (
+                      <span
+                        key={idx}
+                        className={cn(chip, getBallDisplay(ball))}
+                        title={`${getBallLabel(ball)} (not a ball)`}
+                      >
+                        <span aria-hidden="true">{ball}</span>
+                        <span className="sr-only">
+                          {getBallLabel(ball)}, not a ball
+                        </span>
+                      </span>
+                    );
+                  }
+                  const number =
+                    lastBalls
+                      .slice(0, idx)
+                      .filter((b) => readBallLabel(b).kind !== "retired")
+                      .length + 1;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => onSelectBall?.(idx)}
+                      className={cn(
+                        chip,
+                        "transition-colors hover:brightness-95 active:scale-95",
+                        getBallDisplay(ball),
+                      )}
+                      title={`Ball ${number}: ${getBallLabel(ball)} (tap to edit)`}
+                      aria-label={`Ball ${number}: ${getBallLabel(ball)}`}
+                    >
+                      {ball}
+                    </button>
+                  );
+                })}
               </div>
                 <span className="tabular-nums shrink-0 rounded-full bg-muted/80 px-2 py-0.5 text-2xs font-bold text-foreground">
                   {overSummary.runs}r
@@ -687,7 +764,7 @@ export function ScoringPanel({
                 {subLabel && (
                   <span
                     className={cn(
-                      "mt-1 font-sans text-[9px] font-semibold leading-none sm:text-2xs",
+                      "mt-1 font-sans text-[0.5625rem] font-semibold leading-none sm:text-2xs",
                       sunlightMode
                         ? isFour || isSix
                           ? "text-white"
@@ -729,7 +806,7 @@ export function ScoringPanel({
             <span className="text-base font-semibold leading-none sm:text-lg">
               More
             </span>
-            <span className="mt-1 font-sans text-[9px] font-bold leading-none text-muted-foreground sm:text-[10px]">
+            <span className="mt-1 font-sans text-[0.5625rem] font-bold leading-none text-muted-foreground sm:text-[0.625rem]">
               7–13+
             </span>
           </button>
@@ -786,6 +863,8 @@ export function ScoringPanel({
                   value={customRunsInput}
                   onChange={(e) => setCustomRunsInput(e.target.value)}
                   placeholder="Custom..."
+                  aria-label="Custom runs"
+                  inputMode="numeric"
                   className="h-9 w-24 text-xs font-bold"
                 />
                 <Button
@@ -868,7 +947,7 @@ export function ScoringPanel({
             <span aria-hidden="true">
               Wicket<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
-                <span className="ml-1 text-[10px] font-bold tracking-normal text-amber-200">
+                <span className="ml-1 text-[0.625rem] font-bold tracking-normal text-amber-200">
                   (Run Out)
                 </span>
               )}

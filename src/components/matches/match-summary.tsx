@@ -20,6 +20,7 @@ import {
   runRate,
   ballsRemaining,
   requiredRunRate,
+  formatDismissalType,
 } from "~/lib/cricket";
 
 interface MatchSummaryProps {
@@ -144,7 +145,7 @@ export function MatchSummary({ match }: MatchSummaryProps) {
           badge: `Over ${formatDecimalOvers(fow.overs_at_fall)}`,
           title: `Wicket ${fow.wicket_number}: ${batterName}${bowlerName} (${fow.runs_at_fall}/${fow.wicket_number})`,
           description: fow.dismissal_type
-            ? `Dismissal: ${fow.dismissal_type}`
+            ? `Dismissal: ${formatDismissalType(fow.dismissal_type)}`
             : undefined,
           icon: <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />,
         });

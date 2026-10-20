@@ -8,6 +8,8 @@ import { Trophy, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { formatTournamentFormat } from "~/lib/cricket";
 
+export const metadata = { title: "Tournaments" };
+
 export const dynamic = "force-dynamic";
 
 export default async function TournamentsPage() {

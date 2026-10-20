@@ -5,8 +5,10 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 import type { DataSource } from "./datasource";
-import { refreshInningsSummary } from "./innings-summary";
-import { refreshLiveScorecard } from "./live-scorecard-sync";
+import {
+  refreshInningsSummary,
+  refreshLiveScorecard,
+} from "./scorecard-refresh";
 import { syncMatchParentSnapshots } from "./match-snapshots";
 import type { WriteEvent } from "./query-builder";
 import { maybeRecalculateStandings } from "./rpc/standings";

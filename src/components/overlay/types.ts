@@ -2,69 +2,39 @@
  * Type definitions for the live cricket broadcast overlay system.
  */
 
-export interface LiveMatchState {
-  match_id: string;
-  title: string | null;
-  status: string | null;
-  match_format: string | null;
-  overs_per_innings: number | null;
-  venue: string | null;
-  current_innings: number | null;
-  current_over: number | null;
-  current_ball: number | null;
-  result_type: string | null;
-  result_description: string | null;
-  toss_winner_team_id?: string | null;
-  toss_decision?: string | null;
-  umpire1_name?: string | null;
-  umpire2_name?: string | null;
-  tournament_name?: string | null;
-  team1_name: string | null;
-  team1_short_name: string | null;
-  team1_logo_url?: string | null;
-  team2_name: string | null;
-  team2_short_name: string | null;
-  team2_logo_url?: string | null;
-  winning_team_name: string | null;
-  innings_number: number | null;
-  total_runs: number | null;
-  total_wickets: number | null;
-  total_overs: number | null;
-  total_balls: number | null;
-  extras_total: number | null;
-  innings_completed: boolean | null;
-  target_runs: number | null;
-  batting_team_name: string | null;
-  batting_team_short_name: string | null;
-  bowling_team_name: string | null;
-  bowling_team_short_name: string | null;
-  striker_name: string | null;
-  striker_runs: number | null;
-  striker_balls: number | null;
-  non_striker_name: string | null;
-  non_striker_runs: number | null;
-  non_striker_balls: number | null;
-  current_bowler_name: string | null;
-  bowler_balls: number | null;
-  bowler_runs: number | null;
-  bowler_wickets: number | null;
-  partnership_runs: number | null;
-  partnership_balls: number | null;
-  this_over_balls: string | null;
-  current_run_rate: number | null;
-  runs_needed: number | null;
-  balls_remaining: number | null;
-  required_run_rate: number | null;
-  last_ball_runs?: number | null;
-  last_ball_extras?: number | null;
-  last_ball_extra_type?: string | null;
-  last_ball_is_wicket?: boolean | null;
-  last_ball_dismissal_type?: string | null;
-  last_ball_dismissed_player?: string | null;
-  last_ball_fielder?: string | null;
-  last_ball_commentary?: string | null;
-  last_ball_seq?: number | null;
-}
+import type { LiveMatchStateRow } from "~/lib/firebase/types";
+
+/**
+ * Fields an overlay may get without: documents written before they existed,
+ * and the demo data.
+ */
+type OptionalLiveFields =
+  | "toss_winner_team_id"
+  | "toss_decision"
+  | "umpire1_name"
+  | "umpire2_name"
+  | "tournament_name"
+  | "team1_logo_url"
+  | "team2_logo_url"
+  | "last_ball_runs"
+  | "last_ball_extras"
+  | "last_ball_extra_type"
+  | "last_ball_is_wicket"
+  | "last_ball_dismissal_type"
+  | "last_ball_dismissed_player"
+  | "last_ball_fielder"
+  | "last_ball_commentary"
+  | "last_ball_seq";
+
+/**
+ * The live scoreboard as overlays read it (`live_state/{matchId}`): the
+ * server's {@link LiveMatchStateRow}, for a known match.
+ */
+export type LiveMatchState = Omit<
+  LiveMatchStateRow,
+  "match_id" | OptionalLiveFields
+> &
+  Partial<Pick<LiveMatchStateRow, OptionalLiveFields>> & { match_id: string };
 
 export type LayoutMode = "bottom" | "top" | "compact" | "broadcast";
 export type OverlayTheme =

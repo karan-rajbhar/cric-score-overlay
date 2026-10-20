@@ -386,3 +386,30 @@ describe("ScoringPanel guards against mis-taps and says what undo did", () => {
     expect(screen.queryByRole("button", { name: "Restore ball" })).toBeNull();
   });
 });
+
+describe("ScoringPanel's This over", () => {
+  it("shows a retirement between balls: not numbered, not editable, no wicket", () => {
+    const onSelectBall = vi.fn();
+    render(
+      <ScoringPanel
+        onScore={vi.fn()}
+        onWicket={vi.fn()}
+        onUndo={vi.fn()}
+        onSelectBall={onSelectBall}
+        currentOver={2}
+        currentBall={2}
+        lastBalls={["1", "rh", "nb+4", "wd"]}
+      />,
+    );
+    const balls = screen.getByRole("group", { name: "Balls this over" });
+    expect(balls).toHaveTextContent("Retired hurt, not a ball");
+    // Numbered without the retirement; extras read in words.
+    expect(
+      screen.getByRole("button", { name: "Ball 2: No ball + 4 runs" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ball 3: Wide" }));
+    expect(onSelectBall).toHaveBeenCalledWith(3);
+    // 1 + (1 + 4) + 1 runs, and retired hurt is not a wicket.
+    expect(screen.getByText("7r")).toBeInTheDocument();
+  });
+});

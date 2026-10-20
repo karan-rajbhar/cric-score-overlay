@@ -139,7 +139,9 @@ export function DlsCalculatorModal({
         <div className="space-y-4 pt-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">1st Innings Runs</Label>
+              <Label htmlFor="dls-t1-runs" className="text-xs font-semibold">
+                1st Innings Runs
+              </Label>
               <Input
                 id="dls-t1-runs"
                 name="t1Runs"
@@ -151,7 +153,9 @@ export function DlsCalculatorModal({
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">1st Innings Overs</Label>
+              <Label htmlFor="dls-t1-overs" className="text-xs font-semibold">
+                1st Innings Overs
+              </Label>
               <Input
                 id="dls-t1-overs"
                 name="t1Overs"
@@ -167,7 +171,7 @@ export function DlsCalculatorModal({
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold">
+              <Label htmlFor="dls-t2-overs" className="text-xs font-semibold">
                 2nd Innings Revised Overs
               </Label>
               <span className="text-xs font-medium text-sky-600 dark:text-sky-400">
@@ -175,6 +179,7 @@ export function DlsCalculatorModal({
               </span>
             </div>
             <input
+              id="dls-t2-overs"
               type="range"
               min={5}
               max={t1Overs}
@@ -209,11 +214,16 @@ export function DlsCalculatorModal({
             <p className="text-xs font-semibold">Live par score checker</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-2xs text-muted-foreground">
+                <Label
+                  htmlFor="dls-overs-bowled"
+                  className="text-2xs text-muted-foreground"
+                >
                   Overs bowled
                 </Label>
                 <Input
+                  id="dls-overs-bowled"
                   type="number"
+                  inputMode="decimal"
                   min={0}
                   max={t2Overs}
                   value={currentOversBowled}
@@ -224,11 +234,16 @@ export function DlsCalculatorModal({
                 />
               </div>
               <div>
-                <Label className="text-2xs text-muted-foreground">
+                <Label
+                  htmlFor="dls-wickets-lost"
+                  className="text-2xs text-muted-foreground"
+                >
                   Wickets lost
                 </Label>
                 <Input
+                  id="dls-wickets-lost"
                   type="number"
+                  inputMode="numeric"
                   min={0}
                   max={9}
                   value={wicketsLost}

@@ -111,9 +111,9 @@ function CreateTournamentForm() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <div>
-              <Label>Tournament format</Label>
+              <Label htmlFor="tournament-format">Tournament format</Label>
               <Select name="tournament_format" defaultValue="league">
-                <SelectTrigger className="mt-2">
+                <SelectTrigger id="tournament-format" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,9 +125,9 @@ function CreateTournamentForm() {
               </Select>
             </div>
             <div>
-              <Label>Match format</Label>
+              <Label htmlFor="tournament-match-format">Match format</Label>
               <Select name="match_format" defaultValue="T20">
-                <SelectTrigger className="mt-2">
+                <SelectTrigger id="tournament-match-format" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -48,6 +48,40 @@ function buildId() {
   return process.env.CRICSCORE_BUILD_ID;
 }
 
+/**
+ * Security headers on every response. HSTS starts short (5 minutes) so a
+ * mistake cannot lock the domain to HTTPS for long; raise it to a year
+ * (`max-age=31536000`) once it has run cleanly in production. Features the
+ * app never uses are switched off (it uses clipboard, Web Share, vibration
+ * and the screen wake lock, which stay allowed).
+ */
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value:
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
+  },
+  ...(process.env.NODE_ENV === "production"
+    ? [{ key: "Strict-Transport-Security", value: "max-age=300" }]
+    : []),
+];
+
+/**
+ * Clickjacking protection, plus the CSP directives that cannot break the
+ * app's scripts. A script-src policy (nonces, Trusted Types) needs testing
+ * in a browser first, so it is not here yet.
+ */
+const FRAME_HEADERS = [
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  {
+    key: "Content-Security-Policy",
+    value:
+      "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'",
+  },
+];
+
 /** @type {import("next").NextConfig} */
 const config = {
   output: "standalone",
@@ -69,6 +103,10 @@ const config = {
       { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
     ];
     return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // Not on Firebase Auth's proxied helper pages (`/__/`), nor on the
+      // overlays, which web-based streaming tools may embed in a frame.
+      { source: "/:path((?!__/|overlay/).*)", headers: FRAME_HEADERS },
       { source: "/sw.js", headers: noStore },
       { source: "/sw-config.json", headers: noStore },
       {

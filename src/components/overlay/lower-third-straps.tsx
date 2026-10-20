@@ -5,6 +5,7 @@ import type {
   ActiveLowerThirdStrap,
   LayoutMode,
   LiveMatchState,
+  LowerThirdStrapType,
   OverlayTheme,
 } from "./types";
 import { THEME_ACCENT } from "./theme-accent";
@@ -16,6 +17,119 @@ interface LowerThirdStrapsProps {
   onDismiss: () => void;
   theme?: OverlayTheme;
 }
+
+interface StrapText {
+  badge: string;
+  title: string;
+  subtitle: string;
+  detail: string;
+}
+
+const teamOf = (state: LiveMatchState, fallback: string) =>
+  state.batting_team_short_name ?? state.batting_team_name ?? fallback;
+
+/** Each strap type's text when the producer gives none, from the live score. */
+const STRAP_DEFAULTS: Partial<
+  Record<LowerThirdStrapType, (state: LiveMatchState) => StrapText>
+> = {
+  batsman: (state) => {
+    const sr =
+      state.striker_runs && state.striker_balls && state.striker_balls > 0
+        ? ((state.striker_runs / state.striker_balls) * 100).toFixed(1)
+        : "0.0";
+    return {
+      badge: "Batsman innings",
+      title: state.striker_name || "Striker",
+      subtitle: `${state.striker_runs ?? 0} runs off ${state.striker_balls ?? 0} balls`,
+      detail: `Strike rate: ${sr} · Batting for ${teamOf(state, "Team")}`,
+    };
+  },
+  bowler: (state) => {
+    const balls = state.bowler_balls ?? 0;
+    const econ =
+      state.bowler_runs !== null && state.bowler_runs !== undefined && balls > 0
+        ? (state.bowler_runs / (balls / 6)).toFixed(2)
+        : "0.00";
+    return {
+      badge: "Current spell",
+      title: state.current_bowler_name || "Bowler",
+      subtitle: `${state.bowler_wickets ?? 0} wickets for ${state.bowler_runs ?? 0} runs`,
+      detail: `Overs: ${Math.floor(balls / 6)}.${balls % 6} · Economy: ${econ}`,
+    };
+  },
+  partnership: (state) => ({
+    badge: "Partnership",
+    title: "Current partnership",
+    subtitle: `${state.partnership_runs ?? 0} runs off ${state.partnership_balls ?? 0} balls`,
+    detail: `${state.striker_name ?? "Batter 1"}: ${state.striker_runs ?? 0}* · ${state.non_striker_name ?? "Batter 2"}: ${state.non_striker_runs ?? 0}*`,
+  }),
+  target: (state) => ({
+    badge: "Chase equation",
+    title: `Target: ${state.target_runs ?? "—"} runs`,
+    subtitle:
+      state.runs_needed !== null
+        ? `Need ${state.runs_needed} runs from ${state.balls_remaining} deliveries`
+        : "Chasing target",
+    detail: `Required RR: ${state.required_run_rate ?? "—"} · Current RR: ${state.current_run_rate ?? "—"}`,
+  }),
+  powerplay: () => ({
+    badge: "Powerplay 1",
+    title: "Fielding restrictions",
+    subtitle: "Overs 1 to 6",
+    detail: "Maximum 2 fielders outside the 30-yard circle",
+  }),
+  drinks: (state) => ({
+    badge: "Interval",
+    title: "Drinks break",
+    subtitle: "Scheduled drinks break",
+    detail: `${teamOf(state, "Batting")}: ${state.total_runs ?? 0}/${state.total_wickets ?? 0}`,
+  }),
+  timeout: () => ({
+    badge: "Strategic timeout",
+    title: "Strategic timeout (2:30)",
+    subtitle: "Teams in discussion",
+    detail: "Play resumes shortly",
+  }),
+  rain_delay: () => ({
+    badge: "Weather delay",
+    title: "Rain stopped play",
+    subtitle: "Covers are on",
+    detail: "Awaiting an inspection by the umpires",
+  }),
+  innings_break: (state) => ({
+    badge: "Interval",
+    title: "Innings break",
+    subtitle: `${state.bowling_team_name ?? "Bowling team"} to chase next`,
+    detail: `Target: ${state.target_runs ?? (state.total_runs ? state.total_runs + 1 : "—")} runs to win`,
+  }),
+};
+
+/** The strap's text: what the producer set, else its type's default. */
+export function strapText(
+  strap: ActiveLowerThirdStrap,
+  state: LiveMatchState,
+): StrapText {
+  if (strap.type === "custom") {
+    return {
+      badge: strap.badge || "Match alert",
+      title: strap.title || "Notice",
+      subtitle: strap.customText || strap.subtitle || "",
+      detail: strap.detail || "",
+    };
+  }
+  const defaults = STRAP_DEFAULTS[strap.type]?.(state);
+  return {
+    badge: strap.badge ?? defaults?.badge ?? "Match notice",
+    title: strap.title || defaults?.title || strap.title,
+    subtitle: strap.subtitle || defaults?.subtitle || "",
+    detail: strap.detail || defaults?.detail || "",
+  };
+}
+
+const POSITION_CLASS: Partial<Record<LayoutMode, string>> = {
+  top: "top-24 left-1/2 -translate-x-1/2",
+  compact: "bottom-52 left-6",
+};
 
 export function LowerThirdStraps({
   strap,
@@ -46,126 +160,11 @@ export function LowerThirdStraps({
 
   if (!strap || strap.type === "none") return null;
 
-  // Derive dynamic details based on strap type if not explicitly supplied
-  let badge = strap.badge ?? "Match notice";
-  let title = strap.title;
-  let subtitle = strap.subtitle ?? "";
-  let detail = strap.detail ?? "";
-
-  switch (strap.type) {
-    case "batsman": {
-      badge = strap.badge ?? "Batsman innings";
-      title = title || state.striker_name || "Striker";
-      const sr =
-        state.striker_runs && state.striker_balls && state.striker_balls > 0
-          ? ((state.striker_runs / state.striker_balls) * 100).toFixed(1)
-          : "0.0";
-      subtitle =
-        subtitle ||
-        `${state.striker_runs ?? 0} runs off ${state.striker_balls ?? 0} balls`;
-      detail =
-        detail ||
-        `Strike rate: ${sr} · Batting for ${state.batting_team_short_name ?? state.batting_team_name ?? "Team"}`;
-      break;
-    }
-    case "bowler": {
-      badge = strap.badge ?? "Current spell";
-      title = title || state.current_bowler_name || "Bowler";
-      const balls = state.bowler_balls ?? 0;
-      const oversFormatted = `${Math.floor(balls / 6)}.${balls % 6}`;
-      const econ =
-        state.bowler_runs !== null &&
-        state.bowler_runs !== undefined &&
-        balls > 0
-          ? (state.bowler_runs / (balls / 6)).toFixed(2)
-          : "0.00";
-      subtitle =
-        subtitle ||
-        `${state.bowler_wickets ?? 0} wickets for ${state.bowler_runs ?? 0} runs`;
-      detail = detail || `Overs: ${oversFormatted} · Economy: ${econ}`;
-      break;
-    }
-    case "partnership": {
-      badge = strap.badge ?? "Partnership";
-      title = title || "Current partnership";
-      subtitle =
-        subtitle ||
-        `${state.partnership_runs ?? 0} runs off ${state.partnership_balls ?? 0} balls`;
-      detail =
-        detail ||
-        `${state.striker_name ?? "Batter 1"}: ${state.striker_runs ?? 0}* · ${state.non_striker_name ?? "Batter 2"}: ${state.non_striker_runs ?? 0}*`;
-      break;
-    }
-    case "target": {
-      badge = strap.badge ?? "Chase equation";
-      title = title || `Target: ${state.target_runs ?? "—"} runs`;
-      subtitle =
-        subtitle ||
-        (state.runs_needed !== null
-          ? `Need ${state.runs_needed} runs from ${state.balls_remaining} deliveries`
-          : "Chasing target");
-      detail =
-        detail ||
-        `Required RR: ${state.required_run_rate ?? "—"} · Current RR: ${state.current_run_rate ?? "—"}`;
-      break;
-    }
-    case "powerplay": {
-      badge = strap.badge ?? "Powerplay 1";
-      title = title || "Fielding restrictions";
-      subtitle = subtitle || "Overs 1 to 6";
-      detail = detail || "Maximum 2 fielders outside the 30-yard circle";
-      break;
-    }
-    case "drinks": {
-      badge = strap.badge ?? "Interval";
-      title = title || "Drinks break";
-      subtitle = subtitle || "Scheduled drinks break";
-      detail =
-        detail ||
-        `${state.batting_team_short_name ?? state.batting_team_name ?? "Batting"}: ${state.total_runs ?? 0}/${state.total_wickets ?? 0}`;
-      break;
-    }
-    case "timeout": {
-      badge = strap.badge ?? "Strategic timeout";
-      title = title || "Strategic timeout (2:30)";
-      subtitle = subtitle || "Teams in discussion";
-      detail = detail || "Play resumes shortly";
-      break;
-    }
-    case "rain_delay": {
-      badge = strap.badge ?? "Weather delay";
-      title = title || "Rain stopped play";
-      subtitle = subtitle || "Covers are on";
-      detail = detail || "Awaiting an inspection by the umpires";
-      break;
-    }
-    case "innings_break": {
-      badge = strap.badge ?? "Interval";
-      title = title || "Innings break";
-      subtitle =
-        subtitle ||
-        `${state.bowling_team_name ?? "Bowling team"} to chase next`;
-      detail =
-        detail ||
-        `Target: ${state.target_runs ?? (state.total_runs ? state.total_runs + 1 : "—")} runs to win`;
-      break;
-    }
-    case "custom": {
-      badge = strap.badge || "Match alert";
-      title = strap.title || "Notice";
-      subtitle = strap.customText || strap.subtitle || "";
-      detail = strap.detail || "";
-      break;
-    }
-  }
+  const { badge, title, subtitle, detail } = strapText(strap, state);
 
   // Positioning relative to the layout mode
   const positionClass =
-    layout === "top"
-      ? "top-24 left-1/2 -translate-x-1/2"
-      : layout === "compact"
-        ? "bottom-52 left-6"
-        : "bottom-32 left-1/2 -translate-x-1/2";
+    POSITION_CLASS[layout] ?? "bottom-32 left-1/2 -translate-x-1/2";
 
   const accent = THEME_ACCENT[theme] ?? THEME_ACCENT.starsports;
   const source = state.tournament_name ?? state.title;

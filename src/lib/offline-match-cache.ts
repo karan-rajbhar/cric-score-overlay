@@ -178,3 +178,38 @@ export function getConfirmedState<S>(matchId: string): S | null {
     return null;
   }
 }
+
+/** Instant-undo history of a match (`useScoring`). */
+export const UNDO_KEY_PREFIX = 'cric_undo_history_';
+
+/** What this device keeps of the matches its user scored, by key prefix. */
+const SCORER_DATA_PREFIXES = [
+  CACHE_KEY_PREFIX,
+  CONFIRMED_KEY_PREFIX,
+  SCORER_KEY_PREFIX,
+  UNDO_KEY_PREFIX,
+];
+
+/**
+ * On sign-out: forget the scored matches this device kept (display cache,
+ * confirmed state, scorer flag, undo history), except those in
+ * `keepMatchIds`: matches whose queued actions still need them to be sent.
+ */
+export function clearScorerData(keepMatchIds: ReadonlySet<string>): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key) keys.push(key);
+    }
+    for (const key of keys) {
+      const prefix = SCORER_DATA_PREFIXES.find((p) => key.startsWith(p));
+      if (prefix && !keepMatchIds.has(key.slice(prefix.length))) {
+        window.localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Storage unavailable: nothing kept.
+  }
+}

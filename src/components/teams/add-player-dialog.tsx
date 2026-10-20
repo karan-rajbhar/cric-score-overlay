@@ -121,6 +121,9 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              autoCorrect="off"
+              autoCapitalize="words"
+              spellCheck={false}
               placeholder="Player name"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "~/lib/firebase/server";
+import { canManageTeam, isClubAdminOf } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
@@ -96,71 +97,7 @@ async function checkTournamentAdminAuth(
 
   if (!tournament) return false;
   if (tournament.created_by === userId) return true;
-
-  if (tournament.club_id) {
-    const { data: club } = await db
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", tournament.club_id)
-      .single();
-
-    if (club?.owner_id === userId) return true;
-
-    const { data: mem } = await db
-      .from("club_memberships")
-      .select("id")
-      .eq("club_id", tournament.club_id)
-      .eq("user_id", userId)
-      .in("role", ["owner", "admin"])
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (mem) return true;
-  }
-
-  return false;
-}
-
-async function checkTeamRepAuth(
-  db: Awaited<ReturnType<typeof createServerClient>>,
-  teamId: string,
-  userId: string,
-): Promise<boolean> {
-  const { data: team } = await db
-    .from("teams")
-    .select("created_by, captain_id, vice_captain_id, club_id")
-    .eq("id", teamId)
-    .single();
-
-  if (!team) return false;
-  if (
-    team.created_by === userId ||
-    team.captain_id === userId ||
-    team.vice_captain_id === userId
-  ) {
-    return true;
-  }
-
-  if (team.club_id) {
-    const { data: club } = await db
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", team.club_id)
-      .single();
-    if (club?.owner_id === userId) return true;
-
-    const { data: mem } = await db
-      .from("club_memberships")
-      .select("id")
-      .eq("club_id", team.club_id)
-      .eq("user_id", userId)
-      .in("role", ["owner", "admin"])
-      .eq("status", "active")
-      .maybeSingle();
-    if (mem) return true;
-  }
-
-  return false;
+  return isClubAdminOf(db, tournament.club_id, userId);
 }
 
 export async function registerTeamForTournament(
@@ -181,7 +118,7 @@ export async function registerTeamForTournament(
     tournamentId,
     user.id,
   );
-  const isTeamRep = await checkTeamRepAuth(db, teamId, user.id);
+  const isTeamRep = await canManageTeam(db, teamId, user.id);
 
   if (!isTournAdmin && !isTeamRep) {
     return {

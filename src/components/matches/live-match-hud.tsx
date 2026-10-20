@@ -271,7 +271,7 @@ export function LiveMatchHUD({
                   <Badge
                     variant="outline"
                     className={cn(
-                      "px-1.5 py-0 text-[10px] font-medium sm:text-xs",
+                      "px-1.5 py-0 text-[0.625rem] font-medium sm:text-xs",
                       sunlightMode
                         ? "border-black text-black"
                         : "border-white/20 bg-white/5 text-white/80",
@@ -434,7 +434,7 @@ export function LiveMatchHUD({
                       </h3>
                       <p
                         className={cn(
-                          "text-[10px] font-medium sm:text-2xs",
+                          "text-[0.625rem] font-medium sm:text-2xs",
                           dim,
                         )}
                       >
@@ -459,7 +459,7 @@ export function LiveMatchHUD({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "shrink-0 gap-1 px-2 py-0.5 text-[10px] font-bold tabular-nums sm:px-2.5 sm:py-1 sm:text-xs",
+                        "shrink-0 gap-1 px-2 py-0.5 text-[0.625rem] font-bold tabular-nums sm:px-2.5 sm:py-1 sm:text-xs",
                         sunlightMode
                           ? "border-2 border-black font-bold text-black"
                           : isAheadOfRate
@@ -514,7 +514,7 @@ export function LiveMatchHUD({
                     >
                       <p
                         className={cn(
-                          "text-[10px] font-medium",
+                          "text-[0.625rem] font-medium",
                           sunlightMode ? "text-neutral-600" : "text-white/60",
                         )}
                       >
@@ -555,7 +555,7 @@ export function LiveMatchHUD({
                       </h3>
                       <p
                         className={cn(
-                          "text-[10px] font-medium sm:text-2xs",
+                          "text-[0.625rem] font-medium sm:text-2xs",
                           dim,
                         )}
                       >
@@ -728,7 +728,7 @@ export function LiveMatchHUD({
                             {onStrike ? " *" : ""}
                           </span>
                           {onStrike && (
-                            <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-200">
+                            <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-800 dark:text-emerald-200">
                               On strike
                             </span>
                           )}
@@ -815,7 +815,7 @@ export function LiveMatchHUD({
               </div>
               {bowler ? (
                 <>
-                  <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground sm:text-xs">
+                  <div className="mt-1 flex items-center justify-between text-[0.625rem] text-muted-foreground sm:text-xs">
                     <span>
                       Overs:{" "}
                       <strong className="font-bold tabular-nums text-foreground">
@@ -851,18 +851,18 @@ export function LiveMatchHUD({
                   </div>
                 </>
               ) : (
-                <p className="text-[10px] text-muted-foreground sm:text-xs">
+                <p className="text-[0.625rem] text-muted-foreground sm:text-xs">
                   No bowler selected for this over
                 </p>
               )}
               {isBowlerSpellFinished && (
-                <p className="mt-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                <p className="mt-1 text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">
                   Max quota reached ({maxBowlerOvers} ov)
                 </p>
               )}
             </div>
             {lastBalls.length === 0 && (
-              <p className="hidden text-[10px] text-muted-foreground sm:block sm:text-2xs">
+              <p className="hidden text-[0.625rem] text-muted-foreground sm:block sm:text-2xs">
                 Awaiting first ball of over
               </p>
             )}

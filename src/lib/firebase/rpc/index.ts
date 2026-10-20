@@ -42,7 +42,7 @@ import {
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
-import { ensureLiveScorecard } from "../live-scorecard-sync";
+import { ensureLiveScorecard } from "../scorecard-refresh";
 
 export interface RpcContext {
   db: Firestore | null;

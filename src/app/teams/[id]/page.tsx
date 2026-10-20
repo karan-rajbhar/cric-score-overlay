@@ -21,6 +21,8 @@ import {
   Swords,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
+import { cache } from "react";
+import type { Metadata } from "next";
 import { getTeam } from "../actions";
 import type { Doc } from "~/lib/firebase/datasource";
 import { sortRows } from "~/lib/firebase/filters";
@@ -62,6 +64,19 @@ function TeamLogoStatic({
   );
 }
 
+/** The team: read once per request, by the page and its title. */
+const loadTeam = cache(getTeam);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const { data: team } = await loadTeam(id);
+  return { title: team?.name ?? "Team" };
+}
+
 export default async function TeamDetailsPage({
   params,
   searchParams,
@@ -78,7 +93,7 @@ export default async function TeamDetailsPage({
   const resolvedSearchParams = await searchParams;
   const { tournamentId, clubId } = resolvedSearchParams ?? {};
 
-  const { data: team, error } = await getTeam(id);
+  const { data: team, error } = await loadTeam(id);
 
   const db = await createServerClient();
   const {

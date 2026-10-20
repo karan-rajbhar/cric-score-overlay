@@ -6,10 +6,11 @@
  *   `~/lib/hooks/useLiveState`.
  * - {@link readDoc}: one read of one document (the ball log re-reads the
  *   `overs` docs a live change touched).
- * - {@link RealtimeChannel} `broadcast`: fire-and-forget messages between
- *   clients that are not stored anywhere else (overlay producer commands).
- *   Messages are appended to `broadcasts/{topic}/messages` and expire via
- *   Firestore TTL; each send is a document write plus a read per listener.
+ * - {@link RealtimeChannel} `broadcast`: listens to fire-and-forget
+ *   messages that are not stored anywhere else (overlay producer
+ *   commands). The server appends them to `broadcasts/{topic}/messages`
+ *   (`/api/overlay/command`; browsers cannot write there) and they expire
+ *   via Firestore TTL; each message is a write plus a read per listener.
  *
  * There is deliberately no collection-change listener: its first snapshot
  * bills a read for every matching document (the whole ball log).
@@ -17,21 +18,19 @@
 
 import "client-only";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocFromServer,
   onSnapshot,
   query,
-  serverTimestamp,
   Timestamp,
   where,
   type DocumentData,
   type Firestore,
   type Unsubscribe,
 } from "firebase/firestore";
-import { BROADCAST_COLLECTION, BROADCAST_TTL_MS } from "./config";
+import { BROADCAST_COLLECTION } from "./config";
 
 export type ChannelStatus =
   | "SUBSCRIBED"
@@ -117,28 +116,6 @@ export class RealtimeChannel {
       );
     }
     return this;
-  }
-
-  async send(message: {
-    type: "broadcast";
-    event: string;
-    payload?: unknown;
-  }): Promise<"ok" | "error"> {
-    try {
-      await addDoc(
-        collection(this.db, BROADCAST_COLLECTION, this.topic, "messages"),
-        {
-          event: message.event,
-          payload: message.payload ?? null,
-          ts: serverTimestamp(),
-          expires_at: Timestamp.fromMillis(Date.now() + BROADCAST_TTL_MS),
-        },
-      );
-      return "ok";
-    } catch (err) {
-      console.error(`[realtime] broadcast send failed (${this.topic}):`, err);
-      return "error";
-    }
   }
 
   async unsubscribe(): Promise<"ok"> {

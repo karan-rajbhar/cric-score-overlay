@@ -101,6 +101,27 @@ export interface CricsheetMatch {
   innings: CricsheetInnings[];
 }
 
+/** Official Cricsheet dismissal kinds, by normalised internal type. */
+const CRICSHEET_DISMISSALS = new Map<string, string>([
+  ["caught", "caught"],
+  ["bowled", "bowled"],
+  ["lbw", "lbw"],
+  ["run_out", "run out"],
+  ["runout", "run out"],
+  ["stumped", "stumped"],
+  ["hit_wicket", "hit wicket"],
+  ["hitwicket", "hit wicket"],
+  ["obstructing", "obstructing the field"],
+  ["obstructing_the_field", "obstructing the field"],
+  ["handled_ball", "handled the ball"],
+  ["hit_the_ball_twice", "hit the ball twice"],
+  ["hit_twice", "hit the ball twice"],
+  ["timed_out", "timed out"],
+  ["timedout", "timed out"],
+  ["retired_hurt", "retired hurt"],
+  ["retired_out", "retired out"],
+]);
+
 /**
  * Maps database/internal dismissal types to official Cricsheet dismissal kind strings.
  */
@@ -113,421 +134,357 @@ export function toCricsheetDismissalKind(
     .toLowerCase()
     .trim()
     .replace(/[\s-]+/g, "_");
-  switch (normalized) {
-    case "caught":
-      return "caught";
-    case "bowled":
-      return "bowled";
-    case "lbw":
-      return "lbw";
-    case "run_out":
-    case "runout":
-      return "run out";
-    case "stumped":
-      return "stumped";
-    case "hit_wicket":
-    case "hitwicket":
-      return "hit wicket";
-    case "obstructing":
-    case "obstructing_the_field":
-      return "obstructing the field";
-    case "handled_ball":
-      return "handled the ball";
-    case "hit_the_ball_twice":
-    case "hit_twice":
-      return "hit the ball twice";
-    case "timed_out":
-    case "timedout":
-      return "timed out";
-    case "retired_hurt":
-      return "retired hurt";
-    case "retired_out":
-      return "retired out";
-    default:
-      return "bowled";
+  return CRICSHEET_DISMISSALS.get(normalized) ?? "bowled";
+}
+
+type Innings = NonNullable<Match["innings"]>[number];
+
+/** The people of the match: Cricsheet's registry and each side's players. */
+interface People {
+  registry: Record<string, string>;
+  nameById: Map<string, string>;
+  playersByTeam: Record<string, string[]>;
+  register: (
+    name: string | null | undefined,
+    id: string | null | undefined,
+    teamName?: string,
+  ) => void;
+}
+
+function peopleOf(team1Name: string, team2Name: string): People {
+  const registry: Record<string, string> = {};
+  const nameById = new Map<string, string>();
+  const playersByTeam: Record<string, string[]> = {
+    [team1Name]: [],
+    [team2Name]: [],
+  };
+  const register: People["register"] = (name, id, teamName) => {
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (id && id.trim()) {
+      registry[trimmed] = id.trim();
+      nameById.set(id.trim(), trimmed);
+    } else if (!registry[trimmed]) {
+      // Deterministic pseudo-ID for officials/players lacking DB UUID
+      registry[trimmed] =
+        `person-${trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+    }
+    const players = teamName ? playersByTeam[teamName] : undefined;
+    if (players && !players.includes(trimmed)) players.push(trimmed);
+  };
+  return { registry, nameById, playersByTeam, register };
+}
+
+/** The two sides' names, and which bats and bowls in an innings. */
+interface Sides {
+  team1: string;
+  team2: string;
+  of: (inn: Innings) => { batting: string; bowling: string };
+}
+
+function sidesOf(match: Match): Sides {
+  const team1 = match.team1?.name ?? "Team 1";
+  const team2 = match.team2?.name ?? "Team 2";
+  return {
+    team1,
+    team2,
+    of: (inn) =>
+      inn.team_id === match.team1_id
+        ? { batting: team1, bowling: team2 }
+        : { batting: team2, bowling: team1 },
+  };
+}
+
+/** Squad players (rosters), then everyone on the innings scorecards. */
+function registerSquads(match: Match, people: People, sides: Sides): void {
+  const rosters = [
+    [match.team1?.team_players, sides.team1],
+    [match.team2?.team_players, sides.team2],
+  ] as const;
+  for (const [roster, teamName] of rosters) {
+    for (const tp of roster || []) {
+      people.register(tp.user?.full_name, tp.user?.id || tp.user_id, teamName);
+    }
   }
+  for (const inn of match.innings || []) registerScorecard(inn, people, sides);
+}
+
+function registerScorecard(inn: Innings, people: People, sides: Sides): void {
+  const { batting, bowling } = sides.of(inn);
+  for (const bp of inn.batting_performances || []) {
+    people.register(bp.user?.full_name, bp.user?.id || bp.user_id, batting);
+  }
+  for (const bowl of inn.bowling_performances || []) {
+    people.register(bowl.user?.full_name, bowl.user_id, bowling);
+  }
+  for (const fow of inn.fall_of_wickets || []) {
+    people.register(fow.batsman?.full_name, fow.batsman_out_id, batting);
+    people.register(fow.bowler?.full_name, fow.bowler_id, bowling);
+    people.register(fow.fielder?.full_name, fow.fielder_id, bowling);
+  }
+}
+
+/** The umpires (registered as people), when the match names any. */
+function officialsOf(
+  match: Match,
+  people: People,
+): CricsheetMatch["info"]["officials"] {
+  const umpires: string[] = [];
+  const tvUmpires: string[] = [];
+  const named = [
+    [match.umpire1_name, umpires, `umpire-1-${match.id}`],
+    [match.umpire2_name, umpires, `umpire-2-${match.id}`],
+    [match.third_umpire_name, tvUmpires, `tv-umpire-${match.id}`],
+  ] as const;
+  for (const [raw, list, id] of named) {
+    const name = raw?.trim();
+    if (!name) continue;
+    list.push(name);
+    people.register(name, id);
+  }
+  if (umpires.length === 0 && tvUmpires.length === 0) return undefined;
+  return {
+    ...(umpires.length > 0 ? { umpires } : {}),
+    ...(tvUmpires.length > 0 ? { tv_umpires: tvUmpires } : {}),
+  };
+}
+
+/** The tournament, or else the club, the match was played in. */
+function eventOf(match: Match): CricsheetMatch["info"]["event"] {
+  const name = match.tournament?.name || match.club?.name;
+  return name ? { name, match_number: match.title } : undefined;
+}
+
+function tossOf(match: Match, sides: Sides): CricsheetMatch["info"]["toss"] {
+  return {
+    winner:
+      match.toss_winner_team_id === match.team2_id ? sides.team2 : sides.team1,
+    decision: match.toss_decision === "bowl" ? "field" : "bat",
+  };
+}
+
+/** The winning margin: stored, or read from the result's wording. */
+function marginOf(
+  match: Match,
+): { runs?: number; wickets?: number } | undefined {
+  if (match.win_margin_type === "runs" && match.win_margin) {
+    return { runs: match.win_margin };
+  }
+  if (match.win_margin_type === "wickets" && match.win_margin) {
+    return { wickets: match.win_margin };
+  }
+  const desc = match.result_description;
+  const runs = desc?.match(/by\s+(\d+)\s+runs?/i)?.[1];
+  if (runs) return { runs: parseInt(runs, 10) };
+  const wickets = desc?.match(/by\s+(\d+)\s+wickets?/i)?.[1];
+  if (wickets) return { wickets: parseInt(wickets, 10) };
+  return undefined;
+}
+
+/** A completed match's result (before any D/L method). */
+function completedOutcome(
+  match: Match,
+  sides: Sides,
+  desc: string,
+): CricsheetMatch["info"]["outcome"] {
+  const isTie =
+    match.result_type === "tie" ||
+    desc.includes("tie") ||
+    desc.includes("tied");
+  const isSuperOver =
+    desc.includes("super over") || desc.includes("eliminator");
+  const winnerName =
+    match.winning_team_id === match.team1_id ? sides.team1 : sides.team2;
+  if (isTie && isSuperOver && match.winning_team_id) {
+    return { winner: winnerName, result: "tie", eliminator: winnerName };
+  }
+  if (isTie) return { result: "tie" };
+  if (!match.winning_team_id) return undefined;
+  const by = marginOf(match);
+  return { winner: winnerName, ...(by ? { by } : {}) };
+}
+
+function outcomeOf(
+  match: Match,
+  sides: Sides,
+): CricsheetMatch["info"]["outcome"] {
+  if (match.status === "completed") {
+    const desc = match.result_description?.toLowerCase() ?? "";
+    const outcome = completedOutcome(match, sides, desc);
+    const dl = ["d/l", "dls", "duckworth"].some((w) => desc.includes(w));
+    return dl ? { ...outcome, method: "D/L" } : outcome;
+  }
+  if (match.status === "abandoned" || match.result_type === "no_result") {
+    return { result: "no result" };
+  }
+  return undefined;
+}
+
+const CRICSHEET_EXTRAS = new Map<
+  string,
+  keyof NonNullable<CricsheetDelivery["extras"]>
+>([
+  ["wide", "wides"],
+  ["no_ball", "noballs"],
+  ["bye", "byes"],
+  ["leg_bye", "legbyes"],
+  ["penalty", "penalty"],
+]);
+
+function extrasOf(b: BallEvent): CricsheetDelivery["extras"] {
+  const runs = b.extras ?? 0;
+  if (!b.extra_type || runs <= 0) return undefined;
+  const field = CRICSHEET_EXTRAS.get(b.extra_type);
+  return field ? { [field]: runs } : {};
+}
+
+/** A person's name: from the ball's embedded user, else from the registry. */
+function nameOn(
+  people: People,
+  user: { full_name?: string | null } | null | undefined,
+  id: string | null | undefined,
+): string | undefined {
+  return user?.full_name || (id ? people.nameById.get(id) : undefined);
+}
+
+/** The wicket `b` records, with its people registered. */
+function wicketOf(
+  b: BallEvent,
+  batterName: string,
+  people: People,
+  side: { batting: string; bowling: string },
+): NonNullable<CricsheetDelivery["wickets"]>[number] {
+  const outPlayerName =
+    nameOn(people, b.dismissed_player, b.dismissed_player_id) || batterName;
+  people.register(
+    outPlayerName,
+    b.dismissed_player_id || b.batsman_id,
+    side.batting,
+  );
+  const isCaughtAndBowled =
+    (b.dismissal_type === "caught" ||
+      b.dismissal_type === "caught and bowled") &&
+    !!b.fielder_id &&
+    b.fielder_id === b.bowler_id;
+  const kind = toCricsheetDismissalKind(b.dismissal_type, isCaughtAndBowled);
+  const fielderName = nameOn(people, b.fielder, b.fielder_id);
+  if (!fielderName || isCaughtAndBowled) {
+    return { player_out: outPlayerName, kind };
+  }
+  people.register(fielderName, b.fielder_id, side.bowling);
+  return { player_out: outPlayerName, kind, fielders: [{ name: fielderName }] };
+}
+
+/** One ball in Cricsheet's form, with its people registered. */
+function deliveryOf(
+  b: BallEvent,
+  inn: Innings,
+  people: People,
+  side: { batting: string; bowling: string },
+): CricsheetDelivery {
+  const batterName =
+    nameOn(people, b.batsman, b.batsman_id) || "Unknown Batter";
+  const bowlerName = nameOn(people, b.bowler, b.bowler_id) || "Unknown Bowler";
+  const nonStrikerName =
+    nameOn(people, b.non_striker, b.non_striker_id) ??
+    // The other batter on the innings scorecard.
+    inn.batting_performances?.find(
+      (bp) => bp.user_id !== b.batsman_id && bp.user?.full_name,
+    )?.user?.full_name ??
+    "Non-Striker";
+
+  people.register(batterName, b.batsman_id, side.batting);
+  if (b.bowler_id) people.register(bowlerName, b.bowler_id, side.bowling);
+  if (b.non_striker_id) {
+    people.register(nonStrikerName, b.non_striker_id, side.batting);
+  }
+
+  const batRuns = b.runs_scored ?? 0;
+  const extraRuns = b.extras ?? 0;
+  const delivery: CricsheetDelivery = {
+    batter: batterName,
+    bowler: bowlerName,
+    non_striker: nonStrikerName,
+    runs: { batter: batRuns, extras: extraRuns, total: batRuns + extraRuns },
+  };
+  const extras = extrasOf(b);
+  if (extras) delivery.extras = extras;
+  if (b.is_wicket) {
+    delivery.wickets = [wicketOf(b, batterName, people, side)];
+  }
+  return delivery;
+}
+
+function byOverThenSeq(a: BallEvent, b: BallEvent): number {
+  if (a.over_number !== b.over_number) return a.over_number - b.over_number;
+  if (a.seq != null && b.seq != null) return a.seq - b.seq;
+  return a.ball_number - b.ball_number;
+}
+
+/** One innings: its balls by over (embedded, or else the external ones). */
+function inningsOf(
+  match: Match,
+  inn: Innings,
+  balls: BallEvent[],
+  people: People,
+  sides: Sides,
+): CricsheetInnings {
+  const side = sides.of(inn);
+  const rawBalls =
+    inn.ball_by_ball && inn.ball_by_ball.length > 0 ? inn.ball_by_ball : balls;
+  const oversMap = new Map<number, CricsheetDelivery[]>();
+  for (const b of [...rawBalls].sort(byOverThenSeq)) {
+    const delivery = deliveryOf(b, inn, people, side);
+    const over = oversMap.get(b.over_number) ?? [];
+    over.push(delivery);
+    oversMap.set(b.over_number, over);
+  }
+  const overs: CricsheetOver[] = Array.from(oversMap.entries())
+    .sort(([o1], [o2]) => o1 - o2)
+    .map(([over, deliveries]) => ({ over, deliveries }));
+
+  const innObj: CricsheetInnings = {
+    team: side.batting,
+    ...(inn.innings_number > 2 ? { super_over: true } : {}),
+    overs,
+  };
+  if (inn.target_runs) {
+    innObj.target = { runs: inn.target_runs, overs: match.overs_per_innings };
+  }
+  if (inn.extras_penalties && inn.extras_penalties > 0) {
+    innObj.penalty_runs = { post: inn.extras_penalties };
+  }
+  return innObj;
 }
 
 export function buildCricsheetJson(
   match: Match,
   externalBalls?: BallEvent[],
 ): CricsheetMatch {
-  const team1Name = match.team1?.name ?? "Team 1";
-  const team2Name = match.team2?.name ?? "Team 2";
-
+  const sides = sidesOf(match);
+  const people = peopleOf(sides.team1, sides.team2);
   const dateStr = (
     match.actual_start_time ||
     match.scheduled_at ||
     new Date().toISOString()
   ).split("T")[0]!;
 
-  const peopleRegistry: Record<string, string> = {};
-  const peopleNameById = new Map<string, string>();
-  const playersByTeam: Record<string, string[]> = {
-    [team1Name]: [],
-    [team2Name]: [],
-  };
+  registerSquads(match, people, sides);
+  const officials = officialsOf(match, people);
+  const potm = match.player_of_the_match;
+  if (potm?.full_name) people.register(potm.full_name, potm.id);
 
-  const registerPerson = (
-    name: string | null | undefined,
-    id: string | null | undefined,
-    teamName?: string,
-  ) => {
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim();
-    if (id && id.trim()) {
-      peopleRegistry[trimmed] = id.trim();
-      peopleNameById.set(id.trim(), trimmed);
-    } else if (!peopleRegistry[trimmed]) {
-      // Deterministic pseudo-ID for officials/players lacking DB UUID
-      peopleRegistry[trimmed] =
-        `person-${trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-    }
-    if (
-      teamName &&
-      playersByTeam[teamName] &&
-      !playersByTeam[teamName].includes(trimmed)
-    ) {
-      playersByTeam[teamName].push(trimmed);
-    }
-  };
-
-  // 1. Populate squad players from team rosters (playing XI & squad)
-  for (const tp of match.team1?.team_players || []) {
-    if (tp.user?.full_name) {
-      registerPerson(tp.user.full_name, tp.user.id || tp.user_id, team1Name);
-    }
+  const ballsByInnings = new Map<string, BallEvent[]>();
+  for (const b of externalBalls ?? []) {
+    const list = ballsByInnings.get(b.innings_id) ?? [];
+    list.push(b);
+    ballsByInnings.set(b.innings_id, list);
   }
-  for (const tp of match.team2?.team_players || []) {
-    if (tp.user?.full_name) {
-      registerPerson(tp.user.full_name, tp.user.id || tp.user_id, team2Name);
-    }
-  }
-
-  // 2. Populate players from innings scorecards (batting & bowling performances)
-  for (const inn of match.innings || []) {
-    const isTeam1 = inn.team_id === match.team1_id;
-    const battingTeam = isTeam1 ? team1Name : team2Name;
-    const bowlingTeam = isTeam1 ? team2Name : team1Name;
-
-    for (const bp of inn.batting_performances || []) {
-      if (bp.user?.full_name) {
-        registerPerson(
-          bp.user.full_name,
-          bp.user.id || bp.user_id,
-          battingTeam,
-        );
-      }
-    }
-    for (const bowl of inn.bowling_performances || []) {
-      if (bowl.user?.full_name) {
-        registerPerson(bowl.user.full_name, bowl.user_id, bowlingTeam);
-      }
-    }
-    for (const fow of inn.fall_of_wickets || []) {
-      if (fow.batsman?.full_name) {
-        registerPerson(fow.batsman.full_name, fow.batsman_out_id, battingTeam);
-      }
-      if (fow.bowler?.full_name) {
-        registerPerson(fow.bowler.full_name, fow.bowler_id, bowlingTeam);
-      }
-      if (fow.fielder?.full_name) {
-        registerPerson(fow.fielder.full_name, fow.fielder_id, bowlingTeam);
-      }
-    }
-  }
-
-  // 3. Match Officials
-  const umpires: string[] = [];
-  if (match.umpire1_name?.trim()) {
-    const u1 = match.umpire1_name.trim();
-    umpires.push(u1);
-    registerPerson(u1, `umpire-1-${match.id}`);
-  }
-  if (match.umpire2_name?.trim()) {
-    const u2 = match.umpire2_name.trim();
-    umpires.push(u2);
-    registerPerson(u2, `umpire-2-${match.id}`);
-  }
-  const tvUmpires: string[] = [];
-  if (match.third_umpire_name?.trim()) {
-    const tv = match.third_umpire_name.trim();
-    tvUmpires.push(tv);
-    registerPerson(tv, `tv-umpire-${match.id}`);
-  }
-  const officials: CricsheetMatch["info"]["officials"] =
-    umpires.length > 0 || tvUmpires.length > 0
-      ? {
-          ...(umpires.length > 0 ? { umpires } : {}),
-          ...(tvUmpires.length > 0 ? { tv_umpires: tvUmpires } : {}),
-        }
-      : undefined;
-
-  // 4. Event / Tournament
-  let event: CricsheetMatch["info"]["event"] = undefined;
-  if (match.tournament?.name) {
-    event = {
-      name: match.tournament.name,
-      match_number: match.title,
-    };
-  } else if (match.club?.name) {
-    event = {
-      name: match.club.name,
-      match_number: match.title,
-    };
-  }
-
-  // 5. Toss info
-  const tossWinnerName =
-    match.toss_winner_team_id === match.team1_id
-      ? team1Name
-      : match.toss_winner_team_id === match.team2_id
-        ? team2Name
-        : team1Name;
-  const tossDecision = match.toss_decision === "bowl" ? "field" : "bat";
-
-  // 6. Outcome
-  let outcome: CricsheetMatch["info"]["outcome"] = undefined;
-  if (match.status === "completed") {
-    const desc = match.result_description?.toLowerCase() ?? "";
-    const isTie =
-      match.result_type === "tie" ||
-      desc.includes("tie") ||
-      desc.includes("tied");
-    const isSuperOver =
-      desc.includes("super over") || desc.includes("eliminator");
-
-    if (isTie && isSuperOver && match.winning_team_id) {
-      const winnerName =
-        match.winning_team_id === match.team1_id ? team1Name : team2Name;
-      outcome = {
-        winner: winnerName,
-        result: "tie",
-        eliminator: winnerName,
-      };
-    } else if (isTie) {
-      outcome = { result: "tie" };
-    } else if (match.winning_team_id) {
-      const winnerName =
-        match.winning_team_id === match.team1_id ? team1Name : team2Name;
-      let by: { runs?: number; wickets?: number } | undefined = undefined;
-
-      if (match.win_margin_type === "runs" && match.win_margin) {
-        by = { runs: match.win_margin };
-      } else if (match.win_margin_type === "wickets" && match.win_margin) {
-        by = { wickets: match.win_margin };
-      } else {
-        const runsMatch =
-          match.result_description?.match(/by\s+(\d+)\s+runs?/i);
-        const wktsMatch = match.result_description?.match(
-          /by\s+(\d+)\s+wickets?/i,
-        );
-        if (runsMatch?.[1]) {
-          by = { runs: parseInt(runsMatch[1], 10) };
-        } else if (wktsMatch?.[1]) {
-          by = { wickets: parseInt(wktsMatch[1], 10) };
-        }
-      }
-
-      outcome = {
-        winner: winnerName,
-        ...(by ? { by } : {}),
-      };
-    }
-    if (
-      desc.includes("d/l") ||
-      desc.includes("dls") ||
-      desc.includes("duckworth")
-    ) {
-      if (!outcome) outcome = {};
-      outcome.method = "D/L";
-    }
-  } else if (
-    match.status === "abandoned" ||
-    match.result_type === "no_result"
-  ) {
-    outcome = { result: "no result" };
-  }
-
-  // 7. Venue
-  const venue = match.venue?.trim() || "Unknown Venue";
-
-  // 8. Player of the Match
-  if (match.player_of_the_match?.full_name) {
-    registerPerson(
-      match.player_of_the_match.full_name,
-      match.player_of_the_match.id,
+  const innings = [...(match.innings || [])]
+    .sort((a, b) => a.innings_number - b.innings_number)
+    .map((inn) =>
+      inningsOf(match, inn, ballsByInnings.get(inn.id) ?? [], people, sides),
     );
-  }
-
-  // 9. Prepare external balls indexing if provided
-  const externalBallsByInnings = new Map<string, BallEvent[]>();
-  if (externalBalls && externalBalls.length > 0) {
-    for (const b of externalBalls) {
-      const arr = externalBallsByInnings.get(b.innings_id) ?? [];
-      arr.push(b);
-      externalBallsByInnings.set(b.innings_id, arr);
-    }
-  }
-
-  // 10. Innings & deliveries
-  const cricsheetInnings: CricsheetInnings[] = [];
-  const sortedInnings = [...(match.innings || [])].sort(
-    (a, b) => a.innings_number - b.innings_number,
-  );
-
-  for (const inn of sortedInnings) {
-    const isTeam1 = inn.team_id === match.team1_id;
-    const battingTeam = isTeam1 ? team1Name : team2Name;
-    const bowlingTeam = isTeam1 ? team2Name : team1Name;
-
-    // Use deliveries from inn.ball_by_ball or fallback to externalBalls
-    const rawBalls =
-      inn.ball_by_ball && inn.ball_by_ball.length > 0
-        ? inn.ball_by_ball
-        : (externalBallsByInnings.get(inn.id) ?? []);
-
-    const sortedBalls = [...rawBalls].sort((a, b) => {
-      if (a.over_number !== b.over_number) return a.over_number - b.over_number;
-      if (a.seq != null && b.seq != null) return a.seq - b.seq;
-      return a.ball_number - b.ball_number;
-    });
-
-    const oversMap = new Map<number, CricsheetDelivery[]>();
-
-    for (const b of sortedBalls) {
-      const overNum = b.over_number;
-      const batterName =
-        b.batsman?.full_name ||
-        (b.batsman_id ? peopleNameById.get(b.batsman_id) : undefined) ||
-        "Unknown Batter";
-
-      const bowlerName =
-        b.bowler?.full_name ||
-        (b.bowler_id ? peopleNameById.get(b.bowler_id) : undefined) ||
-        "Unknown Bowler";
-
-      // Resolve non-striker player name
-      let nonStrikerName =
-        b.non_striker?.full_name ||
-        (b.non_striker_id ? peopleNameById.get(b.non_striker_id) : undefined);
-
-      if (!nonStrikerName) {
-        // Find other batter in current innings scorecard
-        const otherBat = inn.batting_performances?.find(
-          (bp) => bp.user_id !== b.batsman_id && bp.user?.full_name,
-        );
-        nonStrikerName = otherBat?.user?.full_name ?? "Non-Striker";
-      }
-
-      registerPerson(batterName, b.batsman_id, battingTeam);
-      if (b.bowler_id) registerPerson(bowlerName, b.bowler_id, bowlingTeam);
-      if (b.non_striker_id)
-        registerPerson(nonStrikerName, b.non_striker_id, battingTeam);
-
-      const batRuns = b.runs_scored ?? 0;
-      const extraRuns = b.extras ?? 0;
-      const totalRuns = batRuns + extraRuns;
-
-      const delivery: CricsheetDelivery = {
-        batter: batterName,
-        bowler: bowlerName,
-        non_striker: nonStrikerName,
-        runs: {
-          batter: batRuns,
-          extras: extraRuns,
-          total: totalRuns,
-        },
-      };
-
-      if (b.extra_type && extraRuns > 0) {
-        delivery.extras = {};
-        if (b.extra_type === "wide") delivery.extras.wides = extraRuns;
-        else if (b.extra_type === "no_ball")
-          delivery.extras.noballs = extraRuns;
-        else if (b.extra_type === "bye") delivery.extras.byes = extraRuns;
-        else if (b.extra_type === "leg_bye")
-          delivery.extras.legbyes = extraRuns;
-        else if (b.extra_type === "penalty")
-          delivery.extras.penalty = extraRuns;
-      }
-
-      if (b.is_wicket) {
-        const outPlayerName =
-          b.dismissed_player?.full_name ||
-          (b.dismissed_player_id
-            ? peopleNameById.get(b.dismissed_player_id)
-            : undefined) ||
-          batterName;
-
-        registerPerson(
-          outPlayerName,
-          b.dismissed_player_id || b.batsman_id,
-          battingTeam,
-        );
-
-        const isCaughtAndBowled =
-          (b.dismissal_type === "caught" ||
-            b.dismissal_type === "caught and bowled") &&
-          !!b.fielder_id &&
-          b.fielder_id === b.bowler_id;
-
-        const kind = toCricsheetDismissalKind(
-          b.dismissal_type,
-          isCaughtAndBowled,
-        );
-
-        let fielders: Array<{ name: string }> | undefined = undefined;
-        const fielderName =
-          b.fielder?.full_name ||
-          (b.fielder_id ? peopleNameById.get(b.fielder_id) : undefined);
-
-        if (fielderName && !isCaughtAndBowled) {
-          fielders = [{ name: fielderName }];
-          registerPerson(fielderName, b.fielder_id, bowlingTeam);
-        }
-
-        delivery.wickets = [
-          {
-            player_out: outPlayerName,
-            kind,
-            ...(fielders ? { fielders } : {}),
-          },
-        ];
-      }
-
-      if (!oversMap.has(overNum)) {
-        oversMap.set(overNum, []);
-      }
-      oversMap.get(overNum)!.push(delivery);
-    }
-
-    const cricsheetOvers: CricsheetOver[] = Array.from(oversMap.entries())
-      .sort(([o1], [o2]) => o1 - o2)
-      .map(([over, deliveries]) => ({
-        over,
-        deliveries,
-      }));
-
-    const isSuperOver = inn.innings_number > 2;
-    const innObj: CricsheetInnings = {
-      team: battingTeam,
-      ...(isSuperOver ? { super_over: true } : {}),
-      overs: cricsheetOvers,
-    };
-    if (inn.target_runs) {
-      innObj.target = {
-        runs: inn.target_runs,
-        overs: match.overs_per_innings,
-      };
-    }
-    if (inn.extras_penalties && inn.extras_penalties > 0) {
-      innObj.penalty_runs = {
-        post: inn.extras_penalties,
-      };
-    }
-    cricsheetInnings.push(innObj);
-  }
 
   return {
     meta: {
@@ -538,28 +495,23 @@ export function buildCricsheetJson(
     info: {
       balls_per_over: 6,
       dates: [dateStr],
-      event,
+      event: eventOf(match),
       gender: "male",
       match_type: match.match_format ? match.match_format.toUpperCase() : "T20",
       officials,
       overs: match.overs_per_innings,
-      outcome,
-      player_of_match: match.player_of_the_match?.full_name
-        ? [match.player_of_the_match.full_name]
-        : undefined,
-      players: playersByTeam,
+      outcome: outcomeOf(match, sides),
+      player_of_match: potm?.full_name ? [potm.full_name] : undefined,
+      players: people.playersByTeam,
       registry: {
-        people: peopleRegistry,
+        people: people.registry,
       },
       team_type: "club",
-      teams: [team1Name, team2Name],
-      toss: {
-        winner: tossWinnerName,
-        decision: tossDecision,
-      },
-      venue,
+      teams: [sides.team1, sides.team2],
+      toss: tossOf(match, sides),
+      venue: match.venue?.trim() || "Unknown Venue",
     },
-    innings: cricsheetInnings,
+    innings,
   };
 }
 

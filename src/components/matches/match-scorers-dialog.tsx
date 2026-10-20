@@ -353,6 +353,9 @@ export function MatchScorersDialog({
           <form onSubmit={handleFormSubmit} className="relative flex gap-2">
             <div className="relative flex-1">
               <Input
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
                 id="scorer-search-input"
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}

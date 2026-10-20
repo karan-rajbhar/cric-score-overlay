@@ -131,18 +131,16 @@ export function liveStateUserIds(
 }
 
 /** Pure projection of the loaded parts into a `live_match_state` row. */
-export function composeLiveMatchState(
-  parts: LiveStateParts,
-): LiveMatchStateRow {
-  const { match, teams, innings: ci, nameOf } = parts;
+/** The match's own fields (header, teams, result). */
+function matchFields(parts: LiveStateParts) {
+  const { match, teams, innings: ci } = parts;
   const position = matchPositionOf(match, ci);
   const t1 = teams.get(match.team1_id);
   const t2 = teams.get(match.team2_id);
   const winner = match.winning_team_id
     ? teams.get(match.winning_team_id)
     : undefined;
-
-  const base: LiveMatchStateRow = {
+  return {
     match_id: match.id,
     title: match.title,
     status: match.status ?? null,
@@ -166,74 +164,65 @@ export function composeLiveMatchState(
     team2_short_name: t2?.short_name ?? null,
     team2_logo_url: t2?.logo_url ?? null,
     winning_team_name: winner?.name ?? null,
-    innings_number: null,
-    total_runs: null,
-    total_wickets: null,
-    total_overs: null,
-    total_balls: null,
-    extras_total: null,
-    innings_completed: null,
-    target_runs: null,
-    batting_team_name: null,
-    batting_team_short_name: null,
-    bowling_team_name: null,
-    bowling_team_short_name: null,
-    striker_name: null,
-    striker_runs: null,
-    striker_balls: null,
-    non_striker_name: null,
-    non_striker_runs: null,
-    non_striker_balls: null,
-    current_bowler_name: null,
-    bowler_balls: null,
-    bowler_runs: null,
-    bowler_wickets: null,
-    partnership_runs: null,
-    partnership_balls: null,
-    this_over_balls: null,
-    current_run_rate: null,
-    runs_needed: null,
-    balls_remaining: null,
-    required_run_rate: null,
-    last_ball_runs: null,
-    last_ball_extras: null,
-    last_ball_extra_type: null,
-    last_ball_is_wicket: null,
-    last_ball_dismissal_type: null,
-    last_ball_dismissed_player: null,
-    last_ball_fielder: null,
-    last_ball_commentary: null,
-    last_ball_seq: null,
   };
+}
 
-  if (!ci) return base;
+/** The innings fields of a match with no innings yet (in the row's order). */
+const NO_INNINGS_FIELDS = {
+  innings_number: null,
+  total_runs: null,
+  total_wickets: null,
+  total_overs: null,
+  total_balls: null,
+  extras_total: null,
+  innings_completed: null,
+  target_runs: null,
+  batting_team_name: null,
+  batting_team_short_name: null,
+  bowling_team_name: null,
+  bowling_team_short_name: null,
+  striker_name: null,
+  striker_runs: null,
+  striker_balls: null,
+  non_striker_name: null,
+  non_striker_runs: null,
+  non_striker_balls: null,
+  current_bowler_name: null,
+  bowler_balls: null,
+  bowler_runs: null,
+  bowler_wickets: null,
+  partnership_runs: null,
+  partnership_balls: null,
+  this_over_balls: null,
+  current_run_rate: null,
+  runs_needed: null,
+  balls_remaining: null,
+  required_run_rate: null,
+  last_ball_runs: null,
+  last_ball_extras: null,
+  last_ball_extra_type: null,
+  last_ball_is_wicket: null,
+  last_ball_dismissal_type: null,
+  last_ball_dismissed_player: null,
+  last_ball_fielder: null,
+  last_ball_commentary: null,
+  last_ball_seq: null,
+} as const;
 
-  const { striker, nonStriker, bowler, partnership, lastBall, thisOver } =
-    parts;
-  const limits = inningsLimits(match, ci.innings_number);
-  const bpo = limits.ballsPerOver;
-  const totalBalls = ci.total_balls ?? 0;
-  const totalRuns = ci.total_runs ?? 0;
+/** The current innings' totals and sides. */
+function inningsFields(parts: LiveStateParts, ci: InningsRow) {
+  const { match, teams } = parts;
   const battingTeam = teams.get(ci.team_id);
   const bowlingTeamId =
     ci.team_id === match.team1_id ? match.team2_id : match.team1_id;
   const bowlingTeam =
     match.status === "live" ? teams.get(bowlingTeamId) : undefined;
-
-  const chasing =
-    ci.target_runs !== null && ci.target_runs !== undefined && !ci.is_completed;
-  const ballsRemaining = chasing
-    ? Math.max(limits.maxBalls - totalBalls, 0)
-    : null;
-  const runsNeeded = chasing ? (ci.target_runs ?? 0) - totalRuns : null;
-
   return {
-    ...base,
     innings_number: ci.innings_number,
-    total_runs: totalRuns,
+    total_runs: ci.total_runs ?? 0,
     total_wickets: ci.total_wickets ?? 0,
     total_overs: ci.total_overs ?? 0,
-    total_balls: totalBalls,
+    total_balls: ci.total_balls ?? 0,
     extras_total: ci.extras_total ?? 0,
     innings_completed: ci.is_completed ?? false,
     target_runs: ci.target_runs ?? null,
@@ -241,6 +230,13 @@ export function composeLiveMatchState(
     batting_team_short_name: battingTeam?.short_name ?? null,
     bowling_team_name: bowlingTeam?.name ?? null,
     bowling_team_short_name: bowlingTeam?.short_name ?? null,
+  };
+}
+
+/** The batters, bowler and stand in progress. */
+function creaseFields(parts: LiveStateParts) {
+  const { striker, nonStriker, bowler, partnership, nameOf } = parts;
+  return {
     striker_name: nameOf(striker?.user_id),
     striker_runs: striker?.runs_scored ?? null,
     striker_balls: striker?.balls_faced ?? null,
@@ -253,29 +249,80 @@ export function composeLiveMatchState(
     bowler_wickets: bowler?.wickets_taken ?? null,
     partnership_runs: partnership?.runs ?? null,
     partnership_balls: partnership?.balls ?? null,
-    this_over_balls: overText(thisOver),
+  };
+}
+
+/** Run rates, and the chase when there is a target. */
+function rateFields(parts: LiveStateParts, ci: InningsRow) {
+  const limits = inningsLimits(parts.match, ci.innings_number);
+  const bpo = limits.ballsPerOver;
+  const totalBalls = ci.total_balls ?? 0;
+  const totalRuns = ci.total_runs ?? 0;
+  const chasing =
+    ci.target_runs !== null && ci.target_runs !== undefined && !ci.is_completed;
+  const ballsRemaining = chasing
+    ? Math.max(limits.maxBalls - totalBalls, 0)
+    : null;
+  const runsNeeded = chasing ? (ci.target_runs ?? 0) - totalRuns : null;
+  return {
     current_run_rate:
       totalBalls > 0 ? round2((totalRuns * bpo) / totalBalls) : null,
     runs_needed: runsNeeded,
     balls_remaining: ballsRemaining,
     required_run_rate:
-      chasing &&
-      ballsRemaining !== null &&
-      ballsRemaining > 0 &&
-      runsNeeded !== null
+      ballsRemaining !== null && ballsRemaining > 0 && runsNeeded !== null
         ? round2((runsNeeded * bpo) / ballsRemaining)
         : null,
-    last_ball_runs: lastBall?.runs_scored ?? null,
-    last_ball_extras: lastBall?.extras ?? null,
-    last_ball_extra_type: lastBall?.extra_type ?? null,
-    last_ball_is_wicket: lastBall?.is_wicket ?? null,
-    last_ball_dismissal_type: lastBall?.dismissal_type ?? null,
-    last_ball_dismissed_player: lastBall
-      ? nameOf(lastBall.dismissed_player_id ?? lastBall.batsman_id)
-      : null,
-    last_ball_fielder: lastBall ? nameOf(lastBall.fielder_id) : null,
-    last_ball_commentary: lastBall?.commentary ?? null,
-    last_ball_seq: lastBall?.seq ?? null,
+  };
+}
+
+/** The last entry of the ball log. */
+function lastBallFields(parts: LiveStateParts) {
+  const { lastBall, nameOf } = parts;
+  if (!lastBall) {
+    return {
+      last_ball_runs: null,
+      last_ball_extras: null,
+      last_ball_extra_type: null,
+      last_ball_is_wicket: null,
+      last_ball_dismissal_type: null,
+      last_ball_dismissed_player: null,
+      last_ball_fielder: null,
+      last_ball_commentary: null,
+      last_ball_seq: null,
+    };
+  }
+  return {
+    last_ball_runs: lastBall.runs_scored ?? null,
+    last_ball_extras: lastBall.extras ?? null,
+    last_ball_extra_type: lastBall.extra_type ?? null,
+    last_ball_is_wicket: lastBall.is_wicket ?? null,
+    last_ball_dismissal_type: lastBall.dismissal_type ?? null,
+    last_ball_dismissed_player: nameOf(
+      lastBall.dismissed_player_id ?? lastBall.batsman_id,
+    ),
+    last_ball_fielder: nameOf(lastBall.fielder_id),
+    last_ball_commentary: lastBall.commentary ?? null,
+    last_ball_seq: lastBall.seq ?? null,
+  };
+}
+
+export function composeLiveMatchState(
+  parts: LiveStateParts,
+): LiveMatchStateRow {
+  const base: LiveMatchStateRow = {
+    ...matchFields(parts),
+    ...NO_INNINGS_FIELDS,
+  };
+  const ci = parts.innings;
+  if (!ci) return base;
+  return {
+    ...base,
+    ...inningsFields(parts, ci),
+    ...creaseFields(parts),
+    this_over_balls: overText(parts.thisOver),
+    ...rateFields(parts, ci),
+    ...lastBallFields(parts),
   };
 }
 

@@ -11,7 +11,11 @@ import type { DecodedIdToken } from "firebase-admin/auth";
 import { getAdminAuth } from "./admin";
 import type { AppUser } from "./auth-types";
 
-export const SESSION_COOKIE_NAME = "cric_session";
+export {
+  LEGACY_SESSION_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  sessionCookieValue,
+} from "./session-cookie";
 
 /** Non-HTTP-only twin of the session cookie, readable by the browser. */
 export const SESSION_HINT_COOKIE_NAME = "cric_session_hint";

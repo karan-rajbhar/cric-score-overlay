@@ -373,6 +373,59 @@ describe("recomputeInnings keeps the scorer's choices since the last ball", () =
     expect(current(off).striker).toBeNull();
   });
 
+  it("keeps a retired-hurt batter brought back, who is no longer retired once they bat", () => {
+    const log = [
+      ball({ runs_scored: 2 }),
+      ball({
+        bowler_id: null,
+        is_wicket: true,
+        dismissal_type: "retired_hurt",
+        dismissed_player_id: "s",
+      }),
+      ball({ batsman_id: "c", is_wicket: true, dismissal_type: "bowled" }),
+    ];
+    // Brought back after c's wicket (stored still marked retired hurt), then
+    // an edit recomputes the innings before they face a ball.
+    const back = {
+      ...batter("s", 1, true, true),
+      dismissal_type: "retired_hurt",
+    } as unknown as ReturnType<typeof batter>;
+    const out = run(
+      log,
+      [back, batter("n", 2, true), batter("c", 3)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(out)).toMatchObject({ striker: "s", nonStriker: "n" });
+
+    // Retired hurt again by the log's last entry: off.
+    const again = run(
+      [
+        ...log,
+        ball({
+          bowler_id: null,
+          is_wicket: true,
+          dismissal_type: "retired_hurt",
+          dismissed_player_id: "s",
+        }),
+      ],
+      [back, batter("n", 2, true), batter("c", 3)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(current(again).striker).toBeNull();
+
+    // Once they bat again, the retirement no longer stands.
+    const batted = run(
+      [...log, ball({ runs_scored: 1 })],
+      [back, batter("n", 2, true), batter("c", 3)],
+      [bowlerRow("bw1", true)],
+    );
+    expect(batted.batting.find((b) => b.user_id === "s")).toMatchObject({
+      runs_scored: 3,
+      is_out: false,
+      dismissal_type: null,
+    });
+  });
+
   it("drops a batter or bowler with nothing recorded who is no longer in", () => {
     // The wicket was undone: the batter who came in for it is not needed.
     const out = run(
