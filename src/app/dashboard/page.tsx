@@ -1,56 +1,98 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { Plus, Search, Trophy } from "lucide-react";
 import { useAuth } from "~/lib/auth";
-import { createClient } from "~/lib/firebase/client";
-import { Button } from "~/components/ui/button";
-import { MatchCard } from "~/components/matches/match-card";
-import { TeamLogo } from "~/components/teams/team-logo";
-import { LiveIndicator } from "~/components/matches/live-indicator";
+import { Button, buttonVariants } from "~/components/ds/button";
+import { Carousel } from "~/components/ds/carousel";
+import { cardSurface } from "~/components/ds/card";
+import { GreetingBar } from "~/components/ds/app-bar";
+import { SectionHeader } from "~/components/ds/list";
+import { CompetitionGroup, FixtureCard } from "~/components/ds/match-card";
+import { MatchCard, matchStart } from "~/components/matches/match-card";
+import { LiveHeroCard } from "~/components/matches/live-hero-card";
+import { teamRef } from "~/components/matches/match-hero";
 import {
   useMatchesQuery,
   useUserAdminClubIdsQuery,
 } from "~/lib/hooks/useMatchQueries";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
-import { InviteDialog } from "~/components/invite-dialog";
 import { GetStarted } from "~/components/dashboard/get-started";
-import {
-  PageContainer,
-  PageHeader,
-  SectionHeader,
-} from "~/components/layout/page";
-import { Plus, Radio, Tv, Trophy, Users } from "lucide-react";
+import { PageContainer } from "~/components/layout/page";
 import type { Match } from "~/lib/match-types";
 
+const noSubscribe = () => () => {};
+
+/** "Good morning" by the device's clock; "Welcome back" while rendering on the server. */
+function useGreeting(): string {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => {
+      const h = new Date().getHours();
+      return h < 12
+        ? "Good morning"
+        : h < 17
+          ? "Good afternoon"
+          : "Good evening";
+    },
+    () => "Welcome back",
+  );
+}
+
+/** Upcoming matches under their competition, soonest first. */
+function UpcomingGroups({ matches }: { matches: Match[] }) {
+  const groups = new Map<string, Match[]>();
+  for (const m of [...matches].sort((a, b) =>
+    (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""),
+  )) {
+    const name = m.tournament?.name ?? m.club?.name ?? "Friendly matches";
+    groups.set(name, [...(groups.get(name) ?? []), m]);
+  }
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {Array.from(groups, ([name, items]) => (
+        <CompetitionGroup
+          key={name}
+          name={name}
+          aside={`${items[0]!.match_format} · ${items[0]!.overs_per_innings} overs`}
+        >
+          {items.map((m) => {
+            const start = matchStart(m.scheduled_at);
+            return (
+              <FixtureCard
+                key={m.id}
+                bare
+                href={`/matches/${m.id}?from=dashboard`}
+                date={start?.date ?? "Date to be confirmed"}
+                time={start?.time ?? "TBC"}
+                home={teamRef(m.team1)}
+                away={teamRef(m.team2)}
+                venue={m.venue}
+              />
+            );
+          })}
+        </CompetitionGroup>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Home for signed-in users, after the Home screen in /design: the greeting,
+ * live matches as big swipeable cards, upcoming fixtures by competition,
+ * then recent results.
+ */
 export default function Dashboard() {
   const { user } = useAuth();
-  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const username = !user
-    ? null
-    : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    let isMounted = true;
-    const db = createClient();
-    void db
-      .from("users")
-      .select("username")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (isMounted && data?.username) {
-          setFetchedUsername(data.username);
-        }
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.id]);
+  const greeting = useGreeting();
   const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
     status: "live",
+  });
+  const { data: upcomingData } = useMatchesQuery({
+    status: "scheduled",
+    limit: 6,
   });
   const { data: recentData, isLoading: recentLoading } = useMatchesQuery({
     status: "completed",
@@ -58,11 +100,8 @@ export default function Dashboard() {
   });
   const { data: adminClubsSet } = useUserAdminClubIdsQuery(user?.id);
   const liveMatches = liveData ?? [];
+  const upcoming = upcomingData ?? [];
   const recentMatches = recentData ?? [];
-  const loading =
-    (liveLoading || recentLoading) &&
-    liveMatches.length === 0 &&
-    recentMatches.length === 0;
   const myClubAdminIds = adminClubsSet ?? new Set<string>();
 
   const canScoreMatch = (match: Match) => {
@@ -73,325 +112,79 @@ export default function Dashboard() {
     return Boolean(clubId && myClubAdminIds.has(clubId));
   };
 
-  const featuredLive = liveMatches[0];
-  const otherLiveMatches = liveMatches.slice(1);
-  const featuredInn1 = featuredLive?.innings?.find(
-    (i) => i.team_id === featuredLive.team1?.id,
-  );
-  const featuredInn2 = featuredLive?.innings?.find(
-    (i) => i.team_id === featuredLive.team2?.id,
-  );
+  const fullName = (user?.user_metadata?.full_name as string | undefined) ?? "";
+  const firstName = fullName.split(" ")[0] || "there";
 
   return (
     <PageContainer>
-      <PageHeader
-        title={
-          user?.user_metadata?.full_name
-            ? `Welcome back, ${user.user_metadata.full_name.split(" ")[0]}`
-            : "Dashboard"
-        }
-        description="Live matches, recent results and your teams"
+      <GreetingBar
+        name={firstName}
+        greeting={greeting}
+        photoUrl={user?.user_metadata?.avatar_url as string | undefined}
         actions={
           <>
-            <InviteDialog />
-            <Button asChild size="sm" variant="ghost">
-              <Link href="/invitations">Invites</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/teams">
-                <Users />
-                Manage teams
-              </Link>
-            </Button>
-            <Button asChild size="sm">
+            <Link
+              href="/search"
+              aria-label="Search"
+              className={buttonVariants({ variant: "surface", size: "icon" })}
+            >
+              <Search />
+            </Link>
+            <Link
+              href="/matches/create"
+              aria-label="New match"
+              className={buttonVariants({ variant: "primary", size: "icon" })}
+            >
+              <Plus />
+            </Link>
+          </>
+        }
+      />
+
+      {user && <GetStarted userId={user.id} />}
+
+      <section aria-label="Live matches">
+        {liveLoading && liveMatches.length === 0 ? (
+          <div className={`${cardSurface} h-72 animate-pulse`} />
+        ) : liveMatches.length > 0 ? (
+          <Carousel label="Live matches" gridFromMd>
+            {liveMatches.map((m) => (
+              <LiveHeroCard key={m.id} match={m} canScore={canScoreMatch(m)} />
+            ))}
+          </Carousel>
+        ) : (
+          <div className={`${cardSurface} p-5`}>
+            <h2 className="text-balance text-lg font-semibold text-foreground">
+              No live matches right now
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Start a match to score it ball by ball, or follow one when it goes
+              live.
+            </p>
+            <Button asChild className="mt-4 w-full sm:w-auto">
               <Link href="/matches/create">
                 <Plus />
                 New match
               </Link>
             </Button>
-          </>
-        }
-      >
-        {username && (
-          <p className="mt-2 font-mono text-xs text-muted-foreground">
-            @{username}
-          </p>
+          </div>
         )}
-      </PageHeader>
+      </section>
 
-      {user && <GetStarted userId={user.id} />}
-
-      {/* Featured Match Hero or Matchday Launchpad */}
-      {loading ? (
-        <div className="h-56 animate-pulse rounded-xl border border-border/70 bg-card/50" />
-      ) : featuredLive ? (
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border/70 pb-4">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <LiveIndicator />
-              <span
-                className="text-xs font-medium text-muted-foreground"
-                aria-label={`${featuredLive.match_format}, ${featuredLive.overs_per_innings} overs${featuredLive.venue ? ` at ${featuredLive.venue}` : ""}`}
-              >
-                {featuredLive.match_format} · {featuredLive.overs_per_innings}{" "}
-                overs
-                {featuredLive.venue && ` · ${featuredLive.venue}`}
-              </span>
-            </div>
-
-            {featuredLive.tournament && (
-              <Link
-                href={`/tournaments/${featuredLive.tournament.id}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <Trophy className="h-3 w-3 shrink-0" />
-                <span>{featuredLive.tournament.name}</span>
-              </Link>
-            )}
-          </div>
-
-          {/* Teams and Scores Display */}
-          <div className="my-4 grid gap-3 sm:my-5 sm:grid-cols-2 sm:gap-6">
-            {/* Team 1 */}
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3.5 sm:p-4">
-              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                <TeamLogo
-                  name={featuredLive.team1.name}
-                  shortName={featuredLive.team1.short_name}
-                  logoUrl={featuredLive.team1.logo_url}
-                  className="h-10 w-10 shrink-0 text-xs sm:h-11 sm:w-11"
-                />
-                <div className="min-w-0">
-                  <h3 className="truncate font-semibold text-foreground sm:text-lg">
-                    {featuredLive.team1.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {featuredInn1
-                      ? featuredInn1.is_completed
-                        ? "Innings closed"
-                        : "Batting now"
-                      : "Yet to bat"}
-                  </p>
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="score-display text-2xl font-bold tabular-nums leading-none sm:text-4xl">
-                  {featuredInn1
-                    ? `${featuredInn1.total_runs}/${featuredInn1.total_wickets}`
-                    : "-"}
-                </p>
-                {featuredInn1 && (
-                  <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                    {featuredInn1.total_overs.toFixed(1)} ov
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Team 2 */}
-            <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 p-3.5 sm:p-4">
-              <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                <TeamLogo
-                  name={featuredLive.team2.name}
-                  shortName={featuredLive.team2.short_name}
-                  logoUrl={featuredLive.team2.logo_url}
-                  className="h-10 w-10 shrink-0 text-xs sm:h-11 sm:w-11"
-                />
-                <div className="min-w-0">
-                  <h3 className="truncate font-semibold text-foreground sm:text-lg">
-                    {featuredLive.team2.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {featuredInn2
-                      ? featuredInn2.is_completed
-                        ? "Innings closed"
-                        : "Batting now"
-                      : "Yet to bat"}
-                  </p>
-                </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="score-display text-2xl font-bold tabular-nums leading-none sm:text-4xl">
-                  {featuredInn2
-                    ? `${featuredInn2.total_runs}/${featuredInn2.total_wickets}`
-                    : "-"}
-                </p>
-                {featuredInn2 && (
-                  <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-                    {featuredInn2.total_overs.toFixed(1)} ov
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {featuredLive.result_description && (
-            <p className="mb-4 text-sm font-semibold text-primary">
-              {featuredLive.result_description}
-            </p>
-          )}
-
-          {/* Action Bar */}
-          <div className="flex flex-col gap-2 border-t border-border/70 pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
-            {canScoreMatch(featuredLive) && (
-              <Button asChild size="sm" className="w-full sm:w-auto">
-                <Link href={`/matches/${featuredLive.id}/score`}>
-                  <Radio className="h-4 w-4 shrink-0" />
-                  Score live match
-                </Link>
-              </Button>
-            )}
-            <Button
-              asChild
-              size="sm"
-              variant="outline"
-              className="w-full sm:w-auto"
-            >
-              <Link href={`/matches/${featuredLive.id}`}>View scorecard</Link>
-            </Button>
-            <Button
-              asChild
-              size="sm"
-              variant="ghost"
-              className="w-full text-muted-foreground hover:text-foreground sm:w-auto"
-            >
-              <Link href={`/overlay/${featuredLive.id}`} target="_blank">
-                <Tv className="h-4 w-4 shrink-0" />
-                Launch OBS overlay
-              </Link>
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
-          <div className="max-w-2xl space-y-2">
-            <h2 className="text-balance text-lg font-semibold text-foreground">
-              No live matches right now
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Start a match to score it ball by ball, or check tournament
-              standings.
-            </p>
-            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-              <Button asChild className="w-full sm:w-auto">
-                <Link href="/matches/create">
-                  <Plus className="h-4 w-4 shrink-0" />
-                  New match
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full sm:w-auto">
-                <Link href="/tournaments">Tournaments</Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                className="w-full text-muted-foreground hover:text-foreground sm:w-auto"
-              >
-                <Link href="/teams">Manage teams</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick links */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Link
-          href="/matches"
-          className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <Radio className="h-5 w-5 shrink-0" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
-                Match center
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {liveMatches.length > 0
-                  ? `${liveMatches.length} live now`
-                  : "All fixtures and scorecards"}
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/tournaments"
-          className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <Trophy className="h-5 w-5 shrink-0" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
-                Tournaments
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Points tables and qualification
-              </p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/overlay/test"
-          className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-accent/50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <Tv className="h-5 w-5 shrink-0" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground transition-colors group-hover:text-primary">
-                Stream overlays
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Scoreboard for OBS
-              </p>
-            </div>
-          </div>
-        </Link>
-      </div>
-
-      {/* Additional Live Matches (if more than 1) */}
-      {otherLiveMatches.length > 0 && (
+      {upcoming.length > 0 && (
         <section className="space-y-4">
           <SectionHeader
-            title="Other live matches"
-            count={otherLiveMatches.length}
-            live
+            title="Upcoming"
+            href="/matches"
+            actionLabel="See more"
           />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {otherLiveMatches.map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match as never}
-                contextQuery="from=dashboard"
-                canScore={canScoreMatch(match)}
-              />
-            ))}
-          </div>
+          <UpcomingGroups matches={upcoming} />
         </section>
       )}
 
-      {/* Recent Completed Results Section */}
       <section className="space-y-4">
-        <SectionHeader
-          title="Recent results"
-          action={
-            <Link
-              href="/matches?status=completed"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground"
-            >
-              View all
-            </Link>
-          }
-        />
-
-        {loading ? (
+        <SectionHeader title="Results" href="/matches" actionLabel="See more" />
+        {recentLoading && recentMatches.length === 0 ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <MatchCardSkeleton />
             <MatchCardSkeleton />
@@ -402,7 +195,7 @@ export default function Dashboard() {
             {recentMatches.map((match) => (
               <MatchCard
                 key={match.id}
-                match={match as never}
+                match={match}
                 contextQuery="from=dashboard"
                 canScore={false}
               />

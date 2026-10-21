@@ -1,19 +1,8 @@
-import React from "react";
+import type React from "react";
 import { cn } from "~/lib/utils";
 import { deriveShortName } from "~/lib/utils";
 import { Shield } from "lucide-react";
-
-/**
- * Deterministic accent hue for a club name so every club gets a stable,
- * distinctive brand color when no custom logo is uploaded.
- */
-function clubHue(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) % 360;
-}
+import { nameHue, TINT } from "~/components/ds/avatar";
 
 interface ClubLogoProps {
   name: string;
@@ -23,8 +12,8 @@ interface ClubLogoProps {
 }
 
 /**
- * Club crest: uploaded logo if present, otherwise auto-generated initials
- * on a distinct, stable club accent shield.
+ * Club crest, like a team's: the uploaded logo, else its initials on the
+ * club's own soft tint, round.
  */
 export function ClubLogo({
   name,
@@ -41,27 +30,23 @@ export function ClubLogo({
         loading="lazy"
         decoding="async"
         className={cn(
-          "h-12 w-12 shrink-0 rounded-2xl border border-border object-cover shadow-sm",
+          "h-12 w-12 shrink-0 rounded-full bg-card object-contain",
           className,
         )}
       />
     );
   }
 
-  const hue = clubHue(name);
   const initials = deriveShortName(shortName || name);
 
   return (
     <div
       className={cn(
-        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border transition-colors",
+        "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full",
+        TINT,
         className,
       )}
-      style={{
-        backgroundColor: `hsl(${hue} 40% 18%)`,
-        borderColor: `hsl(${hue} 50% 32%)`,
-        color: `hsl(${hue} 85% 75%)`,
-      }}
+      style={{ "--h": nameHue(name) } as React.CSSProperties}
       title={name}
       aria-label={`${name} emblem`}
     >

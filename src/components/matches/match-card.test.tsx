@@ -65,7 +65,10 @@ const liveMatch = makeMatch({
 describe("MatchCard scoring actions", () => {
   it("shows the Score action for a scorer on a live match without duplicate live badges", () => {
     renderCard(<MatchCard match={liveMatch} canScore />);
-    expect(screen.getByText("Score")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /score/i })).toHaveAttribute(
+      "href",
+      `/matches/${liveMatch.id}/score`,
+    );
     // The card should only display a single Live status pill, never duplicate Live action buttons
     expect(screen.getAllByText("Live")).toHaveLength(1);
   });
@@ -79,9 +82,27 @@ describe("MatchCard scoring actions", () => {
     expect(screen.getAllByText("Live")).toHaveLength(1);
   });
 
-  it("always shows the scorecard link", () => {
-    renderCard(<MatchCard match={liveMatch} />);
-    expect(screen.getByText("Scorecard")).toBeInTheDocument();
+  it("opens the match from the card", () => {
+    renderCard(<MatchCard match={liveMatch} contextQuery="from=matches" />);
+    expect(
+      screen.getByRole("link", { name: "Royal Tigers versus Coastal Kings" }),
+    ).toHaveAttribute("href", `/matches/${liveMatch.id}?from=matches`);
+  });
+
+  it("shows an upcoming match as a fixture with its start time", () => {
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          status: "scheduled",
+          innings: [],
+          scheduled_at: "2026-08-10T14:00:00",
+        })}
+        canScore
+      />,
+    );
+    expect(screen.getByText("14:00")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /score/i })).toBeInTheDocument();
   });
 
   it("renders both team names and the running score", () => {
@@ -105,6 +126,7 @@ describe("MatchCard live updates", () => {
     innings_number: 1,
     total_runs: runs,
     total_wickets: 3,
+    total_balls: 63,
     total_overs: 10.3,
     version,
   });

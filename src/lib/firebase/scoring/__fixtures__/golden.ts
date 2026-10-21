@@ -170,14 +170,16 @@ export async function legacySnapshot(
       if (VOLATILE.has(k)) continue;
       if (table === "ball_by_ball" && k === "id") continue;
       // live_state's doc-only fields (change signals, name cache, the
-      // last scorer: who and when, not part of the scoreboard row).
+      // last scorer: who and when, not part of the scoreboard row), and
+      // this_over_runs, added after the recording (legacy.ts checks it).
       if (
         k === "version" ||
         k === "refs" ||
         k === "overs_changed" ||
         k === "innings_changed" ||
         k === "match_rev" ||
-        (table === "live_state" && k === "last_change")
+        (table === "live_state" &&
+          (k === "last_change" || k === "this_over_runs"))
       )
         continue;
       // Stage 3 derived match fields (search keys, the innings summary,

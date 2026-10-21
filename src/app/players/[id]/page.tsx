@@ -15,13 +15,14 @@ import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
 } from "~/lib/firebase/team-snapshot";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { StatTile } from "~/components/ui/stat-tile";
-import { Initials } from "~/components/ui/initials";
 import { Button } from "~/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { TeamLogo } from "~/components/teams/team-logo";
-import { formatPlayerRole } from "~/lib/cricket";
+import { PlayerHeader } from "~/components/ds/player-header";
+import {
+  CareerCards,
+  ProfileHighlights,
+  ProfileTeams,
+} from "~/components/players/player-profile";
 import {
   PlayerActivityTabs,
   type PlayerTeamMembership,
@@ -31,6 +32,7 @@ import {
 } from "~/components/players/player-activity-tabs";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
+import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
 import { liveScorecardInnings } from "~/lib/firebase/live-innings";
@@ -41,10 +43,6 @@ export const dynamic = "force-dynamic";
 
 /** Live matches checked for in-progress figures (1 read each). */
 const MAX_LIVE_MATCHES = 3;
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return <StatTile label={label} value={value} className="bg-muted/30" />;
-}
 
 /** The player id or @handle in the URL, normalised; null when invalid. */
 function playerParam(rawId: string): { value: string; isUuid: boolean } | null {
@@ -372,8 +370,15 @@ export default async function PlayerPage({
 
   return (
     <PageContainer stack={false}>
+      {/* Phones: the screen's own bar instead of the header. */}
+      <ScreenBar
+        className="mb-5 md:hidden"
+        title="Player"
+        backHref={backHref}
+        backLabel={backLabel}
+      />
       {/* Contextual Breadcrumbs and Back Navigation */}
-      <div className="mb-6 flex flex-col gap-2.5">
+      <div className="mb-6 flex flex-col gap-2.5 max-md:hidden">
         <nav
           aria-label="Breadcrumb"
           className="flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -475,135 +480,27 @@ export default async function PlayerPage({
         </Button>
       </div>
 
-      {/* Profile Header */}
-      <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <Initials
-            name={user.full_name}
-            letters={2}
-            className="h-12 w-12 text-lg sm:h-16 sm:w-16 sm:text-xl"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight">
-                {user.full_name}
-              </h1>
-              {user.username && (
-                <span className="font-mono text-sm text-muted-foreground">
-                  @{user.username}
-                </span>
-              )}
-              {isSelf && (
+      <div className="space-y-4">
+        <PlayerHeader
+          name={user.full_name}
+          detail={[user.username ? `@${user.username}` : null, ownEmail]
+            .filter(Boolean)
+            .join(" · ")}
+          photoUrl={user.avatar_url}
+          actions={
+            isSelf ? (
+              <>
                 <EditUsernameDialog currentUsername={user.username ?? ""} />
-              )}
-            </div>
-            {ownEmail && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
-                {ownEmail}
-              </p>
-            )}
-            {isSelf && (
-              <div className="mt-2.5">
                 <InviteDialog />
-              </div>
-            )}
-
-            {/* Quick Affiliations / Teams */}
-            {teams.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                {teams.map((tm) => (
-                  <Link
-                    key={tm.id}
-                    href={`/teams/${tm.team.id}${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`}
-                    className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs font-medium transition-colors hover:border-primary/50 hover:bg-muted"
-                  >
-                    <TeamLogo
-                      name={tm.team.name}
-                      shortName={tm.team.short_name}
-                      logoUrl={tm.team.logo_url}
-                      className="h-4 w-4 shrink-0 text-2xs"
-                    />
-                    <span>{tm.team.name}</span>
-                    {tm.jersey_number !== undefined &&
-                      tm.jersey_number !== null && (
-                        <span className="font-mono text-muted-foreground">
-                          #{tm.jersey_number}
-                        </span>
-                      )}
-                    {tm.role_in_team && (
-                      <span className="text-muted-foreground">
-                        ({formatPlayerRole(tm.role_in_team)})
-                      </span>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick Highlights Pill */}
-        <div className="grid grid-cols-3 gap-6 border-t pt-4 sm:flex sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-          <StatTile bordered={false} label="Matches" value={totalMatches} />
-          <StatTile bordered={false} label="Runs" value={totalRuns} />
-          <StatTile bordered={false} label="Wickets" value={totalWickets} />
-        </div>
+              </>
+            ) : undefined
+          }
+        />
+        <ProfileTeams teams={teams} tournamentId={tournamentId} />
       </div>
 
-      {livePerformances.length > 0 && (
-        <div className="mt-6 sm:mt-8">
-          <LivePerformanceCard performances={livePerformances} />
-        </div>
-      )}
-
-      {/* Career Overview Stats Cards */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:mt-8 sm:grid-cols-2 sm:gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Batting
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <Stat label="Matches" value={totalMatches} />
-            <Stat label="Runs" value={totalRuns} />
-            <Stat label="Avg" value={stats?.batting_average ?? "—"} />
-            <Stat label="SR" value={stats?.strike_rate ?? "—"} />
-            <Stat label="50s" value={stats?.half_centuries ?? 0} />
-            <Stat label="100s" value={stats?.centuries ?? 0} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Bowling
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <Stat label="Wkts" value={totalWickets} />
-            <Stat label="Avg" value={stats?.bowling_average ?? "—"} />
-            <Stat label="Econ" value={stats?.economy_rate ?? "—"} />
-            <Stat label="5w" value={stats?.five_wicket_hauls ?? 0} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Fielding
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-3 gap-3">
-            <Stat label="Catches" value={stats?.total_catches ?? 0} />
-            <Stat label="Stumpings" value={stats?.total_stumpings ?? 0} />
-            <Stat label="Run outs" value={stats?.total_run_outs ?? 0} />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Activity Area: Batting, Bowling, Matches, Teams */}
-      <div className="mt-8">
+      {/* Career figures first, then the innings, matches and teams. */}
+      <ContentSheet className="mt-8">
         <PlayerActivityTabs
           userId={id}
           teams={teams}
@@ -613,8 +510,42 @@ export default async function PlayerPage({
           tournamentId={tournamentId}
           teamId={teamId}
           initialTab={tab}
+          statistics={
+            <>
+              <ProfileHighlights
+                matches={totalMatches}
+                runs={totalRuns}
+                wickets={totalWickets}
+                catches={stats?.total_catches ?? 0}
+              />
+              {livePerformances.length > 0 && (
+                <LivePerformanceCard performances={livePerformances} />
+              )}
+              <CareerCards
+                batting={[
+                  ["Matches", totalMatches],
+                  ["Runs", totalRuns],
+                  ["Average", stats?.batting_average ?? "–"],
+                  ["Strike rate", stats?.strike_rate ?? "–"],
+                  ["50s", stats?.half_centuries ?? 0],
+                  ["100s", stats?.centuries ?? 0],
+                ]}
+                bowling={[
+                  ["Wickets", totalWickets],
+                  ["Average", stats?.bowling_average ?? "–"],
+                  ["Economy", stats?.economy_rate ?? "–"],
+                  ["5 wickets", stats?.five_wicket_hauls ?? 0],
+                ]}
+                fielding={[
+                  ["Catches", stats?.total_catches ?? 0],
+                  ["Stumpings", stats?.total_stumpings ?? 0],
+                  ["Run outs", stats?.total_run_outs ?? 0],
+                ]}
+              />
+            </>
+          }
         />
-      </div>
+      </ContentSheet>
     </PageContainer>
   );
 }

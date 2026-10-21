@@ -65,13 +65,14 @@ describe("MatchPartnerships", () => {
     render(<MatchPartnerships match={match} />);
 
     expect(screen.getByText("Partnerships")).toBeInTheDocument();
-    expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
-    expect(screen.getByText("Faf du Plessis")).toBeInTheDocument();
+    expect(screen.getByText("Virat Kohli & Faf du Plessis")).toBeInTheDocument();
     expect(screen.getByText("75")).toBeInTheDocument();
-    expect(screen.getByText(/45b/)).toBeInTheDocument();
+    expect(screen.getByText("(45)")).toBeInTheDocument();
     // No share stored for this stand: the total only, said plainly.
     expect(
-      screen.getByText("Each batter's share is not recorded for this stand."),
+      screen.getByText(
+        "Each batter's runs and balls are not recorded for these stands.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -110,8 +111,11 @@ describe("MatchPartnerships", () => {
       ],
     });
     render(<MatchPartnerships match={match} />);
-    expect(screen.getByText(/48 \(\d+%\) · 27b/)).toBeInTheDocument();
-    expect(screen.getByText(/22 \(\d+%\) · 18b/)).toBeInTheDocument();
+    // Each batter's runs and balls faced, "48 (27)".
+    const kohli = screen.getAllByText("Virat Kohli").at(-1)!.parentElement!;
+    expect(kohli).toHaveTextContent("Virat Kohli48(27)");
+    const faf = screen.getAllByText("Faf du Plessis").at(-1)!.parentElement!;
+    expect(faf).toHaveTextContent("Faf du Plessis22(18)");
     expect(screen.getByText("+ 5 extras")).toBeInTheDocument();
   });
 });

@@ -10,8 +10,6 @@ import { MatchWormChart } from "./match-worm-chart";
 import { MatchManhattan } from "./match-manhattan";
 import { Activity, BarChart3, CircleDot, PieChart, TrendingUp } from "lucide-react";
 import {
-  CHART_TEAM1,
-  CHART_TEAM2,
   bestOver,
   boundaryPct,
   buildOverTable,
@@ -50,9 +48,9 @@ export function MatchStats({ match }: MatchStatsProps) {
   return (
     <div className="w-full space-y-6">
       {/* Broadcast Quick Jump Bar */}
-      <div className="sticky top-[7.25rem] z-10 flex flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card p-1.5 shadow-sm">
-        <span className="hidden px-2 text-xs font-medium text-muted-foreground sm:inline-block">
-          Jump:
+      <div className="sticky top-[7.25rem] z-10 flex flex-wrap items-center gap-1 rounded-full bg-card/90 p-1 shadow-soft ring-1 ring-border/40 backdrop-blur">
+        <span className="hidden px-2.5 text-xs text-muted-foreground sm:inline-block">
+          Jump to
         </span>
         <button
           type="button"
@@ -61,9 +59,9 @@ export function MatchStats({ match }: MatchStatsProps) {
               .getElementById("stats-wagon-wheel")
               ?.scrollIntoView({ behavior: "smooth" })
           }
-          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
         >
-          <CircleDot className="h-3.5 w-3.5 text-primary" />
+          <CircleDot className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           Field
         </button>
         <button
@@ -73,9 +71,9 @@ export function MatchStats({ match }: MatchStatsProps) {
               .getElementById("stats-worm")
               ?.scrollIntoView({ behavior: "smooth" })
           }
-          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
         >
-          <TrendingUp className="h-3.5 w-3.5 text-sky-500" />
+          <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           Worm
         </button>
         <button
@@ -85,9 +83,9 @@ export function MatchStats({ match }: MatchStatsProps) {
               .getElementById("stats-manhattan")
               ?.scrollIntoView({ behavior: "smooth" })
           }
-          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
         >
-          <BarChart3 className="h-3.5 w-3.5 text-amber-500" />
+          <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           Runs / over
         </button>
         <button
@@ -97,9 +95,9 @@ export function MatchStats({ match }: MatchStatsProps) {
               .getElementById("stats-breakdown")
               ?.scrollIntoView({ behavior: "smooth" })
           }
-          className="inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
         >
-          <PieChart className="h-3.5 w-3.5 text-purple-500" />
+          <PieChart className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
           Deliveries
         </button>
         {sortedInnings.length > 0 && (
@@ -110,9 +108,9 @@ export function MatchStats({ match }: MatchStatsProps) {
                 .getElementById("stats-phases")
                 ?.scrollIntoView({ behavior: "smooth" })
             }
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+            className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:inline-flex"
           >
-            <Activity className="h-3.5 w-3.5 text-emerald-500" />
+            <Activity className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
             Phases
           </button>
         )}
@@ -145,16 +143,14 @@ export function MatchStats({ match }: MatchStatsProps) {
               match.overs_per_innings,
             );
             return (
-              <Card key={innings.id} className="overflow-hidden border-border bg-card">
-                <div
-                  className="h-1 w-full"
-                  style={{
-                    background: ii === 0 ? CHART_TEAM1 : CHART_TEAM2,
-                  }}
-                />
+              <Card key={innings.id} className="overflow-hidden">
                 <CardContent className="space-y-3.5 py-4">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
+                      <span
+                        aria-hidden="true"
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${ii === 0 ? "bg-series-1" : "bg-series-2"}`}
+                      />
                       {teamName(match, innings.team_id)} ·{" "}
                       <span className="font-score font-bold tabular-nums">
                         {innings.total_runs}/{innings.total_wickets}
@@ -165,25 +161,25 @@ export function MatchStats({ match }: MatchStatsProps) {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                    <div className="rounded-xl bg-muted p-2.5">
                       <span className="text-muted-foreground block text-2xs">Best over</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {best ? `Over ${best.over} (${best.runs} runs)` : "—"}
                       </span>
                     </div>
-                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                    <div className="rounded-xl bg-muted p-2.5">
                       <span className="text-muted-foreground block text-2xs">Run rate</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {runRate(innings.total_runs, inningsBallCount(innings))}
                       </span>
                     </div>
-                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                    <div className="rounded-xl bg-muted p-2.5">
                       <span className="text-muted-foreground block text-2xs">Last 5 ov</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {last5.runs}/{last5.wickets}
                       </span>
                     </div>
-                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                    <div className="rounded-xl bg-muted p-2.5">
                       <span className="text-muted-foreground block text-2xs">Extras</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {extrasSplit(innings).total}
@@ -209,12 +205,8 @@ export function MatchStats({ match }: MatchStatsProps) {
                           </span>
                           <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                             <div
-                              className="h-full rounded-full transition-[width] duration-700 ease-out"
-                              style={{
-                                width: `${(p.runs / maxPhase) * 100}%`,
-                                background:
-                                  ii === 0 ? CHART_TEAM1 : CHART_TEAM2,
-                              }}
+                              className={`h-full rounded-full ${ii === 0 ? "bg-series-1" : "bg-series-2"}`}
+                              style={{ width: `${(p.runs / maxPhase) * 100}%` }}
                             />
                           </div>
                           <span className="w-24 shrink-0 text-right tabular-nums text-muted-foreground font-medium">
@@ -232,8 +224,8 @@ export function MatchStats({ match }: MatchStatsProps) {
       )}
 
       {/* 6. Delivery breakdown */}
-      <Card id="stats-breakdown" className="scroll-mt-16 border-border">
-        <CardHeader className="border-b border-border/50 pb-3">
+      <Card id="stats-breakdown" className="scroll-mt-16">
+        <CardHeader className="pb-3">
           <CardTitle className="text-balance text-base sm:text-lg">Delivery breakdown</CardTitle>
         </CardHeader>
         <CardContent>
@@ -266,18 +258,20 @@ export function MatchStats({ match }: MatchStatsProps) {
               const dotPct = (dots / total) * 100;
               const ex = extrasSplit(innings);
 
+                // Runs 0-3 as a grey ramp; boundaries, extras and wickets
+                // in their delivery colours (the tiles below are the key).
                 const segs = [
-                  { label: "Dots", count: dots, cls: "bg-slate-400" },
-                  { label: "1s", count: ones, cls: "bg-sky-400" },
-                  { label: "2s", count: twos, cls: "bg-blue-500" },
-                  { label: "3s", count: threes, cls: "bg-violet-500" },
-                  { label: "4s", count: fours, cls: "bg-yellow-400" },
+                  { label: "Dots", count: dots, cls: "bg-muted-foreground/25" },
+                  { label: "1s", count: ones, cls: "bg-muted-foreground/45" },
+                  { label: "2s", count: twos, cls: "bg-muted-foreground/70" },
+                  { label: "3s", count: threes, cls: "bg-muted-foreground" },
+                  { label: "4s", count: fours, cls: "bg-four" },
                   ...(fives > 0
-                    ? [{ label: "5s", count: fives, cls: "bg-amber-500" }]
+                    ? [{ label: "5s", count: fives, cls: "bg-four/60" }]
                     : []),
-                  { label: "6s", count: sixes, cls: "bg-orange-500" },
-                  { label: "Ex", count: extras, cls: "bg-rose-400" },
-                  { label: "Wk", count: wickets, cls: "bg-red-500" },
+                  { label: "6s", count: sixes, cls: "bg-six" },
+                  { label: "Ex", count: extras, cls: "bg-extra" },
+                  { label: "Wk", count: wickets, cls: "bg-wicket" },
                 ];
 
               return (
@@ -290,50 +284,32 @@ export function MatchStats({ match }: MatchStatsProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-4 gap-2">
-                      <div className="rounded-lg bg-muted p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold">{dots}</p>
-                        <p className="text-xs text-muted-foreground">Dots</p>
-                      </div>
-                      <div className="rounded-lg bg-muted p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold">{ones}</p>
-                        <p className="text-xs text-muted-foreground">Singles</p>
-                      </div>
-                      <div className="rounded-lg bg-muted p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold">{twos}</p>
-                        <p className="text-xs text-muted-foreground">Doubles</p>
-                      </div>
-                      <div className="rounded-lg bg-muted p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold">{threes}</p>
-                        <p className="text-xs text-muted-foreground">Threes</p>
-                      </div>
-                      <div className="rounded-lg bg-yellow-500/15 p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                          {fours}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Fours</p>
-                      </div>
-                      <div className="rounded-lg bg-orange-500/15 p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold text-orange-600 dark:text-orange-400">
-                          {sixes}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Sixes</p>
-                      </div>
-                      <div className="rounded-lg bg-rose-500/10 p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold text-rose-500">
-                          {extras}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Extras</p>
-                      </div>
-                      <div className="rounded-lg bg-red-500/10 p-3 text-center">
-                        <p className="tabular-nums text-2xl font-bold text-red-500">
-                          {wickets}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Wickets</p>
-                      </div>
+                      {(
+                        [
+                          ["Dots", dots, "bg-muted-foreground/25", ""],
+                          ["Singles", ones, "bg-muted-foreground/45", ""],
+                          ["Doubles", twos, "bg-muted-foreground/70", ""],
+                          ["Threes", threes, "bg-muted-foreground", ""],
+                          ["Fours", fours, "bg-four", "text-four"],
+                          ["Sixes", sixes, "bg-six", "text-six"],
+                          ["Extras", extras, "bg-extra", "text-extra"],
+                          ["Wickets", wickets, "bg-wicket", "text-wicket"],
+                        ] as const
+                      ).map(([label, count, swatch, tone]) => (
+                        <div key={label} className="rounded-xl bg-muted p-3 text-center">
+                          <p className={`font-score text-2xl font-semibold tabular-nums ${tone}`}>
+                            {count}
+                          </p>
+                          <p className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${swatch}`} />
+                            {label}
+                          </p>
+                        </div>
+                      ))}
                     </div>
 
                     <div
-                      className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                      className="mt-4 flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full"
                       role="img"
                       aria-label={`Ball composition for ${teamName(match, innings.team_id)}`}
                     >
@@ -359,7 +335,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full bg-amber-500"
+                            className="h-full rounded-full bg-primary"
                             style={{ width: `${bpct}%` }}
                           />
                         </div>
@@ -373,7 +349,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-muted">
                           <div
-                            className="h-full bg-slate-400 transition-[width] duration-700 ease-out"
+                            className="h-full rounded-full bg-muted-foreground/60"
                             style={{ width: `${dotPct}%` }}
                           />
                         </div>

@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import {
   CANVAS,
   COLORS,
+  FONT,
+  paintWash,
   generateQRImage,
   createCanvas,
   slugify,
@@ -51,23 +53,22 @@ function drawPointsTable(
   qrImage: HTMLImageElement | null,
 ) {
   // 1. Background
-  ctx.fillStyle = "#0c1411";
-  ctx.fillRect(0, 0, W, H);
+  paintWash(ctx, W, H);
 
   ctx.textBaseline = "top";
 
   // 2. Header
   // Badge
-  ctx.fillStyle = "rgba(34, 197, 94, 0.15)";
+  ctx.fillStyle = COLORS.soft;
   roundRect(ctx, 60, 48, 160, 32, 6);
   ctx.fill();
-  ctx.fillStyle = COLORS.accent;
-  ctx.font = "bold 13px Arial, sans-serif";
-  ctx.fillText("POINTS TABLE", 82, 57);
+  ctx.fillStyle = COLORS.primary;
+  ctx.font = `bold 13px ${FONT.sans}`;
+  ctx.fillText("Points table", 82, 57);
 
   // Tournament Name
   ctx.fillStyle = COLORS.text;
-  ctx.font = "bold 34px Arial, sans-serif";
+  ctx.font = `bold 34px ${FONT.sans}`;
   const nameText =
     tournamentName.length > 38
       ? `${tournamentName.slice(0, 38)}…`
@@ -76,7 +77,7 @@ function drawPointsTable(
 
   // Format & Date subtitle
   ctx.fillStyle = COLORS.dim;
-  ctx.font = "16px Arial, sans-serif";
+  ctx.font = `16px ${FONT.sans}`;
   ctx.fillText(`${format} Tournament · Live Standings`, 60, 136);
 
   // QR Code + Brand
@@ -87,14 +88,14 @@ function drawPointsTable(
     ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
     ctx.fillStyle = COLORS.faint;
-    ctx.font = "11px Arial, sans-serif";
+    ctx.font = `11px ${FONT.sans}`;
     ctx.textAlign = "center";
-    ctx.fillText("SCAN TO VIEW", qrX + qrSize / 2, qrY + qrSize + 8);
+    ctx.fillText("Scan to view", qrX + qrSize / 2, qrY + qrSize + 8);
     ctx.textAlign = "left";
   }
 
   // Top divider line
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.strokeStyle = COLORS.border;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(60, 175);
@@ -103,21 +104,21 @@ function drawPointsTable(
 
   // 3. Table Header
   const thY = 190;
-  ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+  ctx.fillStyle = COLORS.muted;
   roundRect(ctx, 60, thY, W - 120, 36, 6);
   ctx.fill();
 
   ctx.fillStyle = COLORS.faint;
-  ctx.font = "bold 12px Arial, sans-serif";
-  ctx.fillText("POS", 80, thY + 11);
-  ctx.fillText("TEAM", 150, thY + 11);
+  ctx.font = `bold 12px ${FONT.sans}`;
+  ctx.fillText("Pos", 80, thY + 11);
+  ctx.fillText("Team", 150, thY + 11);
   ctx.textAlign = "center";
   ctx.fillText("P", 680, thY + 11);
   ctx.fillText("W", 760, thY + 11);
   ctx.fillText("L", 840, thY + 11);
   ctx.fillText("T", 920, thY + 11);
   ctx.fillText("NRR", 1000, thY + 11);
-  ctx.fillText("PTS", 1080, thY + 11);
+  ctx.fillText("Pts", 1080, thY + 11);
   ctx.textAlign = "left";
 
   // 4. Table Rows (up to 8 rows fit comfortably)
@@ -132,9 +133,9 @@ function drawPointsTable(
 
     // Row background
     if (isTop) {
-      ctx.fillStyle = "rgba(34, 197, 94, 0.08)";
+      ctx.fillStyle = COLORS.soft;
     } else if (i % 2 === 0) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.02)";
+      ctx.fillStyle = COLORS.card;
     } else {
       ctx.fillStyle = "transparent";
     }
@@ -142,20 +143,20 @@ function drawPointsTable(
     ctx.fill();
 
     // Position
-    ctx.fillStyle = isTop ? COLORS.accent : COLORS.dim;
-    ctx.font = "bold 16px Arial, sans-serif";
+    ctx.fillStyle = isTop ? COLORS.primary : COLORS.dim;
+    ctx.font = `bold 16px ${FONT.sans}`;
     ctx.fillText(`${row.pos}`, 88, rowY + 15);
 
     // Team Name & Short Name
     ctx.fillStyle = COLORS.text;
-    ctx.font = "bold 17px Arial, sans-serif";
+    ctx.font = `bold 17px ${FONT.sans}`;
     const tName =
       row.teamName.length > 26 ? `${row.teamName.slice(0, 26)}…` : row.teamName;
     ctx.fillText(tName, 150, rowY + 14);
 
     if (row.shortName) {
       ctx.fillStyle = COLORS.faint;
-      ctx.font = "12px Arial, sans-serif";
+      ctx.font = `12px ${FONT.sans}`;
       ctx.fillText(
         `(${row.shortName})`,
         150 + ctx.measureText(tName).width + 8,
@@ -165,7 +166,7 @@ function drawPointsTable(
 
     // Stats columns
     ctx.textAlign = "center";
-    ctx.font = "15px Arial, sans-serif";
+    ctx.font = `15px ${FONT.sans}`;
     ctx.fillStyle = COLORS.dim;
     ctx.fillText(`${row.p}`, 680, rowY + 15);
     ctx.fillText(`${row.w}`, 760, rowY + 15);
@@ -173,12 +174,12 @@ function drawPointsTable(
     ctx.fillText(`${row.t}`, 920, rowY + 15);
 
     // NRR
-    ctx.fillStyle = row.nrr.startsWith("-") ? "#f87171" : COLORS.accent;
+    ctx.fillStyle = row.nrr.startsWith("-") ? COLORS.wicket : COLORS.success;
     ctx.fillText(row.nrr, 1000, rowY + 15);
 
     // PTS (Highlighted)
-    ctx.fillStyle = isTop ? COLORS.accent : COLORS.text;
-    ctx.font = "bold 18px Arial, sans-serif";
+    ctx.fillStyle = isTop ? COLORS.primary : COLORS.text;
+    ctx.font = `bold 18px ${FONT.sans}`;
     ctx.fillText(`${row.pts}`, 1080, rowY + 14);
     ctx.textAlign = "left";
 
@@ -187,14 +188,14 @@ function drawPointsTable(
 
   // 5. Footer branding
   const footerY = H - 54;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.strokeStyle = COLORS.border;
   ctx.beginPath();
   ctx.moveTo(60, footerY);
   ctx.lineTo(W - 60, footerY);
   ctx.stroke();
 
   ctx.fillStyle = COLORS.faint;
-  ctx.font = "13px Arial, sans-serif";
+  ctx.font = `13px ${FONT.sans}`;
   ctx.fillText(
     "C R I C S C O R E   O V E R L A Y   &   A N A L Y T I C S",
     60,
@@ -202,9 +203,9 @@ function drawPointsTable(
   );
 
   ctx.textAlign = "right";
-  ctx.fillStyle = COLORS.accent;
-  ctx.font = "bold 13px Arial, sans-serif";
-  ctx.fillText("LIVE TOURNAMENT STANDINGS", W - 60, footerY + 18);
+  ctx.fillStyle = COLORS.primary;
+  ctx.font = `bold 13px ${FONT.sans}`;
+  ctx.fillText("Live tournament standings", W - 60, footerY + 18);
   ctx.textAlign = "left";
 }
 
@@ -324,7 +325,7 @@ export function PointsTableShare({
             className="gap-1.5"
           >
             {copied ? (
-              <Check className="h-4 w-4 text-emerald-500" />
+              <Check className="h-4 w-4 text-success" />
             ) : (
               <Copy className="h-4 w-4" />
             )}

@@ -623,6 +623,8 @@ export interface LiveMatchStateRow {
   partnership_runs: number | null;
   partnership_balls: number | null;
   this_over_balls: string | null;
+  /** Runs off the deliveries in this_over_balls. */
+  this_over_runs: number | null;
   current_run_rate: number | null;
   runs_needed: number | null;
   balls_remaining: number | null;

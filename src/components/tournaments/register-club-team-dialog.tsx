@@ -111,7 +111,7 @@ export function RegisterClubTeamDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <Shield className="h-4 w-4 text-primary" />
             Enrol squad in tournament
           </DialogTitle>

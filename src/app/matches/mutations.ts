@@ -1551,6 +1551,54 @@ export async function reassignCurrentOverBowler(
   }
 }
 
+/**
+ * The wrong player was recorded as batting: everything the current
+ * innings' ball log has for `fromId` goes to `toId` (see `replace_batter`).
+ */
+export async function replaceBatter(
+  matchId: string,
+  fromId: string,
+  toId: string,
+  clientActionId?: string | null,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await db.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to change a batter" };
+    }
+    const isMatchAdmin = await checkMatchAdminAuth(db, matchId, user.id);
+    if (!isMatchAdmin) {
+      return {
+        success: false,
+        error: "Only match administrators or designated scorers can change a batter",
+      };
+    }
+    const { error } = await db.rpc("replace_batter", {
+      p_match_id: matchId,
+      p_from_id: fromId,
+      p_to_id: toId,
+      p_client_action_id: clientActionId ?? null,
+    });
+    if (error) return { success: false, error: friendlyError(error.message) };
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in replaceBatter:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to change the batter",
+      ),
+    };
+  }
+}
+
 export interface MatchScorerUser {
   id: string;
   full_name: string;

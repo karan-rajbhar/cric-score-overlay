@@ -72,8 +72,8 @@ describe("LeaderboardView Component", () => {
     render(<LeaderboardView data={mockData} title="Tournament Leaderboard" />);
 
     expect(screen.getByText("Tournament Leaderboard")).toBeInTheDocument();
-    expect(screen.getByText("Orange Cap")).toBeInTheDocument();
-    expect(screen.getByText("Purple Cap")).toBeInTheDocument();
+    expect(screen.getByText("Orange cap")).toBeInTheDocument();
+    expect(screen.getByText("Purple cap")).toBeInTheDocument();
     expect(screen.getByText("MVP leader")).toBeInTheDocument();
 
     // Check top run scorer in highlight card

@@ -137,7 +137,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
               name={club.name}
               shortName={club.short_name}
               logoUrl={club.logo_url}
-              className="h-9 w-9 rounded-lg text-xs"
+              className="h-9 w-9 text-xs"
             />
             <div>
               <p className="text-xs font-semibold">Club emblem & banner</p>

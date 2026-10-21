@@ -1,430 +1,186 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import type * as React from "react";
+import { Avatar, TeamCrest } from "~/components/ds/avatar";
+import { Card, CardHeader } from "~/components/ds/card";
+import { ListCard } from "~/components/ds/list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
-import {
-  Calendar,
-  MapPin,
-  Trophy,
-  Users,
-  Hash,
-  Clock,
-  CircleDot,
-  Layers,
-  CloudSun,
-  Landmark,
-} from "lucide-react";
-import type { Match } from "~/lib/match-types";
+import type { Match, MatchTeam } from "~/lib/match-types";
 import { formatPlayerRole } from "~/lib/cricket";
+import { teamRef } from "./match-hero";
 
 interface MatchInfoProps {
   match: Match;
 }
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatTime(dateStr: string) {
+  return new Date(dateStr).toLocaleTimeString("en-GB", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+type Fact = [label: string, value: React.ReactNode];
+
+/** The facts that apply (a falsy entry is left out). */
+const rows = (...entries: (Fact | false | null | undefined | "")[]) =>
+  entries.filter((e): e is Fact => Boolean(e));
+
+/** Label on the left, value on the right; the rows split by hairlines. */
+function Facts({ facts }: { facts: Fact[] }) {
+  return (
+    <dl className="divide-y divide-border px-4 pb-2 sm:px-5">
+      {facts.map(([label, value]) => (
+        <div
+          key={label}
+          className="flex items-baseline justify-between gap-4 py-2.5"
+        >
+          <dt className="shrink-0 text-sm text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 text-right text-sm font-medium text-foreground">
+            {value}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A side's squad in batting order: picture, name, role, shirt number. */
+function Squad({ team }: { team: MatchTeam }) {
+  const players = [...(team.team_players ?? [])].sort(
+    (a, b) => (a.batting_order || 99) - (b.batting_order || 99),
+  );
+  return (
+    <section aria-label={`${team.name} squad`} className="space-y-2">
+      <div className="flex items-center gap-2.5 px-1">
+        <TeamCrest {...teamRef(team)} size="sm" />
+        <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+          {team.name}
+        </h3>
+        {players.length > 0 && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {players.length} players
+          </span>
+        )}
+      </div>
+      {players.length === 0 ? (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          Squad not announced yet
+        </Card>
+      ) : (
+        <ListCard>
+          {players.map((tp) => (
+            <div
+              key={tp.id}
+              className="flex min-h-12 items-center gap-3 px-4 py-2"
+            >
+              <Avatar
+                name={tp.user?.full_name ?? "Player"}
+                src={tp.user?.avatar_url}
+                size="sm"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {tp.user?.full_name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {formatPlayerRole(tp.role_in_team)}
+                </span>
+              </span>
+              {tp.jersey_number != null && (
+                <span className="shrink-0 font-score text-sm tabular-nums text-muted-foreground">
+                  #{tp.jersey_number}
+                </span>
+              )}
+            </div>
+          ))}
+        </ListCard>
+      )}
+    </section>
+  );
+}
+
+/** Info: the match's details and conditions, and both squads. */
 export function MatchInfo({ match }: MatchInfoProps) {
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
+  const tossWinner =
+    match.toss_winner_team_id === match.team1_id
+      ? match.team1.name
+      : match.toss_winner_team_id === match.team2_id
+        ? match.team2.name
+        : null;
 
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getTossWinnerName = () => {
-    if (match.toss_winner_team_id === match.team1_id) return match.team1.name;
-    if (match.toss_winner_team_id === match.team2_id) return match.team2.name;
-    return "Not decided";
-  };
-
-  const getPlayerRole = (role?: string | null) => formatPlayerRole(role);
+  const details = rows(
+    ["Format", match.match_format],
+    ["Overs", `${match.overs_per_innings} overs per innings`],
+    match.ball_type && [
+      "Ball",
+      <span key="b" className="capitalize">
+        {match.ball_type}
+      </span>,
+    ],
+    ["Venue", match.venue || "Not specified"],
+    match.scheduled_at && [
+      "Date and time",
+      `${formatDate(match.scheduled_at)}, ${formatTime(match.scheduled_at)}`,
+    ],
+    match.actual_start_time && ["Started", formatTime(match.actual_start_time)],
+    match.tournament && ["Tournament", match.tournament.name],
+    match.club && ["Club", match.club.name],
+  );
+  const conditions = rows(
+    [
+      "Toss",
+      tossWinner
+        ? `${tossWinner} won the toss and elected to ${match.toss_decision === "bowl" ? "bowl" : "bat"}`
+        : "Not done yet",
+    ],
+    match.weather_conditions && ["Weather", match.weather_conditions],
+    match.pitch_conditions && ["Pitch", match.pitch_conditions],
+    (match.umpire1_name || match.umpire2_name) && [
+      "Umpires",
+      [match.umpire1_name, match.umpire2_name].filter(Boolean).join(", "),
+    ],
+    [
+      "Match ID",
+      <span key="id" className="break-all font-mono text-xs">
+        {match.id}
+      </span>,
+    ],
+  );
 
   return (
     <Tabs defaultValue="match-info" className="w-full">
-      <TabsList className="mb-4 grid h-auto w-full grid-cols-2">
-        <TabsTrigger
-          value="match-info"
-          className="px-1.5 sm:px-3"
-        >
-          <Hash className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-          <span className="truncate">Match info</span>
-        </TabsTrigger>
-        <TabsTrigger
-          value="squads"
-          className="px-1.5 sm:px-3"
-        >
-          <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-          <span className="truncate">Squads</span>
-        </TabsTrigger>
+      <TabsList aria-label="Info sections" className="mb-4">
+        <TabsTrigger value="match-info">Match info</TabsTrigger>
+        <TabsTrigger value="squads">Squads</TabsTrigger>
       </TabsList>
 
-      {/* Match Info Tab */}
       <TabsContent value="match-info">
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Basic Info */}
-          <Card className="overflow-hidden border-border bg-card">
-            <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Match details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                  <Layers className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Format
-                  </p>
-                  <p className="font-semibold text-foreground text-sm sm:text-base">
-                    {match.match_format}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                  <CircleDot className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Overs
-                  </p>
-                  <p className="font-semibold text-foreground text-sm sm:text-base">
-                    {match.overs_per_innings} overs per innings
-                  </p>
-                </div>
-              </div>
-
-              {match.ball_type && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <CircleDot className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Ball type
-                    </p>
-                    <p className="font-semibold capitalize text-foreground text-sm sm:text-base">
-                      {match.ball_type}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                  <MapPin className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Venue
-                  </p>
-                  <p className="font-semibold text-foreground text-sm sm:text-base">
-                    {match.venue || "Not specified"}
-                  </p>
-                </div>
-              </div>
-
-              {match.scheduled_at && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Date & time
-                    </p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {formatDate(match.scheduled_at)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatTime(match.scheduled_at)}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {match.actual_start_time && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <Clock className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Actual start
-                    </p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {formatTime(match.actual_start_time)}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
+          <Card>
+            <CardHeader title="Match details" className="pb-1" />
+            <Facts facts={details} />
           </Card>
-
-          {/* Toss & Conditions */}
-          <Card className="overflow-hidden border-border bg-card">
-            <CardHeader className="border-b border-border/50 py-3.5">
-              <CardTitle className="text-base sm:text-lg">Toss & conditions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  <Trophy className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    Toss
-                  </p>
-                  <p className="font-semibold text-foreground text-sm sm:text-base">
-                    {match.toss_winner_team_id ? (
-                      <>
-                        {getTossWinnerName()} won the toss and elected to{" "}
-                        <span className="font-semibold">
-                          {match.toss_decision === "bowl" ? "bowl" : "bat"}
-                        </span>
-                      </>
-                    ) : (
-                      "Toss not conducted yet"
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {match.weather_conditions && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <CloudSun className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Weather
-                    </p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {match.weather_conditions}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {match.pitch_conditions && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <Landmark className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Pitch
-                    </p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {match.pitch_conditions}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {(match.umpire1_name || match.umpire2_name) && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Umpires
-                    </p>
-                    <p className="font-semibold text-foreground text-sm sm:text-base">
-                      {[match.umpire1_name, match.umpire2_name]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Match ID & Meta */}
-          <Card className="md:col-span-2 overflow-hidden border-border bg-card">
-            <CardHeader className="border-b border-border/50 py-3">
-              <CardTitle className="text-base">Additional info</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-3">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
-                  <p className="text-xs font-medium text-muted-foreground">Match ID</p>
-                  <p className="font-mono text-xs break-all font-semibold text-foreground mt-0.5">
-                    {match.id}
-                  </p>
-                </div>
-                {match.tournament && (
-                  <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
-                    <p className="text-xs font-medium text-muted-foreground">Tournament</p>
-                    <p className="font-semibold text-sm text-foreground mt-0.5">
-                      {match.tournament.name}
-                    </p>
-                  </div>
-                )}
-                {match.club && (
-                  <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5">
-                    <p className="text-xs font-medium text-muted-foreground">Club</p>
-                    <p className="font-semibold text-sm text-foreground mt-0.5">
-                      {match.club.name}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
+          <Card>
+            <CardHeader title="Toss and conditions" className="pb-1" />
+            <Facts facts={conditions} />
           </Card>
         </div>
       </TabsContent>
 
-      {/* Squads Tab */}
       <TabsContent value="squads">
-        <div className="grid gap-4 md:grid-cols-2">
-          {/* Team 1 Squad */}
-          <Card className="overflow-hidden border-border bg-card">
-            <CardHeader className="border-b border-border/50 py-3.5 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
-                    {match.team1.short_name?.slice(0, 2) ||
-                      match.team1.name.slice(0, 2)}
-                  </div>
-                  {match.team1.name}
-                </CardTitle>
-                {match.team1.team_players && (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {match.team1.team_players.length} players
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="w-[50px] text-center text-xs font-medium text-muted-foreground">
-                      #
-                    </TableHead>
-                    <TableHead className="text-xs font-medium text-muted-foreground">
-                      Player
-                    </TableHead>
-                    <TableHead className="text-xs font-medium text-muted-foreground text-right pr-4">
-                      Role
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(match.team1.team_players || [])
-                    .sort(
-                      (a, b) =>
-                        (a.batting_order || 99) - (b.batting_order || 99),
-                    )
-                    .map((tp, idx) => (
-                      <TableRow key={tp.id} className="transition-colors hover:bg-muted/30">
-                        <TableCell className="font-mono text-center text-xs font-semibold text-muted-foreground">
-                          {tp.jersey_number || idx + 1}
-                        </TableCell>
-                        <TableCell className="font-semibold text-sm text-foreground">
-                          {tp.user?.full_name}
-                        </TableCell>
-                        <TableCell className="text-right pr-4">
-                          <span className="inline-block rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            {getPlayerRole(tp.role_in_team)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-              {(!match.team1.team_players ||
-                match.team1.team_players.length === 0) && (
-                <div className="p-8 text-center text-sm text-muted-foreground">
-                  Squad not announced yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Team 2 Squad */}
-          <Card className="overflow-hidden border-border bg-card">
-            <CardHeader className="border-b border-border/50 py-3.5 px-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2.5 text-base sm:text-lg">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
-                    {match.team2.short_name?.slice(0, 2) ||
-                      match.team2.name.slice(0, 2)}
-                  </div>
-                  {match.team2.name}
-                </CardTitle>
-                {match.team2.team_players && (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {match.team2.team_players.length} players
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow>
-                    <TableHead className="w-[50px] text-center text-xs font-medium text-muted-foreground">
-                      #
-                    </TableHead>
-                    <TableHead className="text-xs font-medium text-muted-foreground">
-                      Player
-                    </TableHead>
-                    <TableHead className="text-xs font-medium text-muted-foreground text-right pr-4">
-                      Role
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(match.team2.team_players || [])
-                    .sort(
-                      (a, b) =>
-                        (a.batting_order || 99) - (b.batting_order || 99),
-                    )
-                    .map((tp, idx) => (
-                      <TableRow key={tp.id} className="transition-colors hover:bg-muted/30">
-                        <TableCell className="font-mono text-center text-xs font-semibold text-muted-foreground">
-                          {tp.jersey_number || idx + 1}
-                        </TableCell>
-                        <TableCell className="font-semibold text-sm text-foreground">
-                          {tp.user?.full_name}
-                        </TableCell>
-                        <TableCell className="text-right pr-4">
-                          <span className="inline-block rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            {getPlayerRole(tp.role_in_team)}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-              {(!match.team2.team_players ||
-                match.team2.team_players.length === 0) && (
-                <div className="p-8 text-center text-sm text-muted-foreground">
-                  Squad not announced yet
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Squad team={match.team1} />
+          <Squad team={match.team2} />
         </div>
       </TabsContent>
     </Tabs>

@@ -19,14 +19,14 @@ export function RoleBand({
       className={cn(
         "inline-flex w-fit items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-semibold",
         role === "batting"
-          ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-          : "border-sky-600/40 bg-sky-500/10 text-sky-900 dark:text-sky-100",
+          ? "border-success/40 bg-success/10 text-success"
+          : "border-primary/40 bg-primary/10 text-primary",
       )}
     >
       <span
         className={cn(
           "h-2 w-2 rounded-full",
-          role === "batting" ? "bg-emerald-600" : "bg-sky-600",
+          role === "batting" ? "bg-success" : "bg-primary",
         )}
         aria-hidden="true"
       />

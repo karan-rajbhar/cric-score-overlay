@@ -41,15 +41,13 @@ describe("MatchStats stacked layout", () => {
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
 
     // Wagon wheel on top
-    expect(
-      screen.getByText(/360° circular wagon wheel/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/where the runs went/i)).toBeInTheDocument();
 
     // Sections follow in order: worm → manhattan → breakdown
     const text = container.textContent ?? "";
-    const wagonIdx = text.indexOf("360");
-    const wormIdx = text.indexOf("Worm chart");
-    const manhattanIdx = text.indexOf("Manhattan");
+    const wagonIdx = text.indexOf("Where the runs went");
+    const wormIdx = text.indexOf("Run progression");
+    const manhattanIdx = text.indexOf("Runs per over");
     const breakdownIdx = text.indexOf("Delivery breakdown");
     expect(wagonIdx).toBeGreaterThanOrEqual(0);
     expect(wormIdx).toBeGreaterThan(wagonIdx);

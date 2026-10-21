@@ -24,7 +24,8 @@ type OptionalLiveFields =
   | "last_ball_dismissed_player"
   | "last_ball_fielder"
   | "last_ball_commentary"
-  | "last_ball_seq";
+  | "last_ball_seq"
+  | "this_over_runs";
 
 /**
  * The live scoreboard as overlays read it (`live_state/{matchId}`): the

@@ -28,23 +28,31 @@ function useIosInstallable(): boolean {
 }
 
 /**
- * "Install app" in the account menu: the browser's install dialog where it
- * offers one (Android, desktop Chrome / Edge), the Share hint on iOS Safari.
+ * Installing the app: the browser's install dialog where it offers one
+ * (Android, desktop Chrome / Edge), the Share hint on iOS Safari; null
+ * where neither applies.
  */
-export function InstallAppMenuItem() {
+export function useInstallApp(): (() => void) | null {
   const canInstall = useCanInstall();
   const ios = useIosInstallable();
   if (!canInstall && !ios) return null;
+  return () => {
+    if (canInstall) {
+      void promptInstall();
+    } else {
+      markIosHintSeen();
+      toast.info(IOS_INSTALL_HINT, { duration: 10_000, closeButton: true });
+    }
+  };
+}
+
+/** "Install app" in the account menu. */
+export function InstallAppMenuItem() {
+  const install = useInstallApp();
+  if (!install) return null;
   return (
     <DropdownMenuItem
-      onSelect={() => {
-        if (canInstall) {
-          void promptInstall();
-        } else {
-          markIosHintSeen();
-          toast.info(IOS_INSTALL_HINT, { duration: 10_000, closeButton: true });
-        }
-      }}
+      onSelect={install}
       className="flex cursor-pointer items-center gap-2 text-xs"
     >
       <Download className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

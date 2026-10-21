@@ -55,7 +55,7 @@ export function LivePerformanceCard({
                 <div key={`bat-${b.inningsId}`} className="flex gap-1.5">
                   <dt className="text-muted-foreground">Batting</dt>
                   <dd className="tabular-nums">
-                    <span className="font-bold">
+                    <span className="font-semibold">
                       {b.runs}
                       {b.isOut ? "" : "*"}
                     </span>{" "}
@@ -76,7 +76,7 @@ export function LivePerformanceCard({
                 <div key={`bowl-${b.inningsId}`} className="flex gap-1.5">
                   <dt className="text-muted-foreground">Bowling</dt>
                   <dd className="tabular-nums">
-                    <span className="font-bold">
+                    <span className="font-semibold">
                       {b.wickets}/{b.runs}
                     </span>{" "}
                     <span className="text-muted-foreground">

@@ -79,7 +79,7 @@ export function ClubMembershipButton({
         <Loader2 className="h-4 w-4 animate-spin" />
       ) : isMember ? (
         <>
-          <UserCheck className="h-4 w-4 text-emerald-500" />
+          <UserCheck className="h-4 w-4 text-success" />
           Member (leave)
         </>
       ) : (

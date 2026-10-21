@@ -2,16 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
+import { Avatar } from "~/components/ds/avatar";
+import { ListCard } from "~/components/ds/list";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
 import { MoreHorizontal, Trash2, Users } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -91,23 +84,6 @@ export function PlayerList({
     }
   };
 
-  const getRoleBadge = (role?: string) => {
-    switch (role) {
-      case "captain":
-        return <Badge variant="secondary">Captain (c)</Badge>;
-      case "vice_captain":
-        return <Badge variant="outline">Vice-captain (vc)</Badge>;
-      case "wicket_keeper":
-        return <Badge variant="outline">Wicket-keeper (wk)</Badge>;
-      default:
-        return (
-          <span className="text-sm text-muted-foreground">
-            {formatPlayerRole(role)}
-          </span>
-        );
-    }
-  };
-
   if (!players || players.length === 0) {
     return (
       <EmptyState
@@ -115,112 +91,113 @@ export function PlayerList({
         title="No players in this squad yet"
         description={
           allowEdit
-            ? "Build your team line-up by adding registered players, wicket-keepers, and appointing leadership roles."
-            : "No squad members have been added to this team roster yet."
+            ? "Add players, then choose the captain, vice-captain and keeper."
+            : "No players have been added to this squad yet."
         }
       />
     );
   }
+  const roleOf = (role?: string) =>
+    role === "captain"
+      ? "Captain (c)"
+      : role === "vice_captain"
+        ? "Vice-captain (vc)"
+        : role === "wicket_keeper"
+          ? "Wicket-keeper (wk)"
+          : formatPlayerRole(role);
+
   return (
-    <div className="data-table-container">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-8 px-2 sm:w-[50px] sm:px-4">#</TableHead>
-            <TableHead className="px-2 sm:px-4">Player</TableHead>
-            <TableHead className="px-2 sm:px-4">Role</TableHead>
-            {allowEdit && (
-              <TableHead className="w-10 px-2 sm:w-[50px] sm:px-4"></TableHead>
+    <ListCard aria-label="Squad">
+      {players.map((player) => {
+        const name = player.user?.full_name ?? "Player";
+        const lead =
+          player.role_in_team === "captain" ||
+          player.role_in_team === "vice_captain" ||
+          player.role_in_team === "wicket_keeper";
+        return (
+          <div
+            key={player.id}
+            className="flex min-h-14 items-center gap-3 px-4 py-2 [contain-intrinsic-size:auto_3.5rem] [content-visibility:auto]"
+          >
+            <Avatar name={name} src={player.user?.avatar_url} size="sm" />
+            <span className="min-w-0 flex-1">
+              <Link
+                href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
+                className="block truncate text-sm font-medium text-foreground hover:text-primary"
+              >
+                {name}
+              </Link>
+              <span
+                className={
+                  lead
+                    ? "block truncate text-xs font-medium text-primary"
+                    : "block truncate text-xs text-muted-foreground"
+                }
+              >
+                {roleOf(player.role_in_team)}
+              </span>
+            </span>
+            {player.jersey_number != null && (
+              <span className="shrink-0 font-score text-sm tabular-nums text-muted-foreground">
+                #{player.jersey_number}
+              </span>
             )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {players.map((player, idx) => (
-            <TableRow key={player.id} className="content-visibility-row">
-              <TableCell className="px-2 text-xs font-medium sm:px-4 sm:text-sm">
-                {idx + 1}
-              </TableCell>
-              <TableCell className="px-2 sm:px-4">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium sm:h-8 sm:w-8 sm:text-sm">
-                    {player.user?.full_name?.substring(0, 1)}
-                  </div>
-                  <div className="min-w-0">
-                    <Link
-                      href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
-                      className="block cursor-pointer truncate text-xs font-medium transition-colors hover:text-primary sm:text-sm"
-                    >
-                      {player.user?.full_name}
-                    </Link>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell className="px-2 sm:px-4">
-                {getRoleBadge(player.role_in_team)}
-              </TableCell>
-              {allowEdit && (
-                <TableCell className="px-2 sm:px-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Player actions for ${player.user?.full_name || "member"}`}
-                        disabled={updating === player.user_id}
-                      >
-                        {updating === player.user_id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <MoreHorizontal className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() =>
-                          handleRoleChange(player.user_id, "captain")
-                        }
-                      >
-                        Make captain
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          handleRoleChange(player.user_id, "vice_captain")
-                        }
-                      >
-                        Make vice-captain
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          handleRoleChange(player.user_id, "wicket_keeper")
-                        }
-                      >
-                        Make wicket-keeper
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() =>
-                          handleRoleChange(player.user_id, "player")
-                        }
-                      >
-                        Set as regular player
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-red-600 focus:text-red-600"
-                        onClick={() => handleRemove(player.user_id)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" /> Remove from team
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+            {allowEdit && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Player actions for ${name}`}
+                    disabled={updating === player.user_id}
+                  >
+                    {updating === player.user_id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MoreHorizontal className="h-4 w-4" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleRoleChange(player.user_id, "captain")}
+                  >
+                    Make captain
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      handleRoleChange(player.user_id, "vice_captain")
+                    }
+                  >
+                    Make vice-captain
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      handleRoleChange(player.user_id, "wicket_keeper")
+                    }
+                  >
+                    Make wicket-keeper
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleRoleChange(player.user_id, "player")}
+                  >
+                    Set as regular player
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => handleRemove(player.user_id)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Remove from team
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        );
+      })}
+    </ListCard>
   );
 }

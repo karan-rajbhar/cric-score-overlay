@@ -149,7 +149,7 @@ export function EditUsernameDialog({
                 Username handle
               </Label>
               <div className="relative flex items-center">
-                <span className="absolute left-3 font-mono text-sm font-bold text-muted-foreground select-none">
+                <span className="absolute left-3 font-mono text-sm font-semibold text-muted-foreground select-none">
                   @
                 </span>
                 <Input
@@ -172,7 +172,7 @@ export function EditUsernameDialog({
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                   {!isChecking && availability?.available && !isUnchanged && (
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-4 w-4 text-success" />
                   )}
                   {!isChecking && availability && !availability.available && (
                     <AlertCircle className="h-4 w-4 text-destructive" />
@@ -191,7 +191,7 @@ export function EditUsernameDialog({
                   </p>
                 )}
                 {!isChecking && availability?.available && !isUnchanged && (
-                  <p className="font-medium text-emerald-500">
+                  <p className="font-medium text-success">
                     ✓ @{cleaned} is available!
                   </p>
                 )}

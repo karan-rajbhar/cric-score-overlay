@@ -162,6 +162,7 @@ export async function legacyBuildLiveMatchState(
     partnership_runs: null,
     partnership_balls: null,
     this_over_balls: null,
+    this_over_runs: null,
     current_run_rate: null,
     runs_needed: null,
     balls_remaining: null,
@@ -270,6 +271,12 @@ export async function legacyBuildLiveMatchState(
     partnership_runs: partnership?.runs ?? null,
     partnership_balls: partnership?.balls ?? null,
     this_over_balls: thisOver.length ? thisOver.map(ballText).join(" ") : null,
+    this_over_runs: thisOver.length
+      ? thisOver.reduce(
+          (n, b) => n + (b.runs_scored ?? 0) + (b.extras ?? 0),
+          0,
+        )
+      : null,
     current_run_rate:
       totalBalls > 0 ? round2((totalRuns * bpo) / totalBalls) : null,
     runs_needed: runsNeeded,

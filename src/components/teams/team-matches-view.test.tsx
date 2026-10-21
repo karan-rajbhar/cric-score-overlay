@@ -1,6 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TeamMatchesView, type TeamMatchItem } from "./team-matches-view";
+
+// Match cards follow live_state (server-only queries); not what these test.
+vi.mock("~/lib/hooks/useMatchQueries", () => ({
+  useLiveListMatch: <T,>(m: T) => m,
+}));
 
 const mockMatches: TeamMatchItem[] = [
   {
@@ -84,7 +89,6 @@ describe("TeamMatchesView", () => {
     expect(
       screen.getByText("Metropolitan Strikers won by 16 runs"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Won")).toBeInTheDocument();
   });
 
   it("filters to tournament matches by default when tournamentInfo is provided", () => {

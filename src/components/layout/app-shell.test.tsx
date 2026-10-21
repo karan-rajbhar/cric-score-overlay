@@ -12,6 +12,10 @@ vi.mock("~/components/navigation-bar", () => ({
   NavigationBar: () => <nav data-testid="mock-nav-bar">Mock NavigationBar</nav>,
 }));
 
+vi.mock("~/components/layout/mobile-tab-bar", () => ({
+  MobileTabBar: () => <nav data-testid="mock-tab-bar">Mock MobileTabBar</nav>,
+}));
+
 vi.mock("~/components/layout/app-sidebar", () => ({
   AppSidebar: () => <aside data-testid="mock-sidebar">Mock AppSidebar</aside>,
 }));

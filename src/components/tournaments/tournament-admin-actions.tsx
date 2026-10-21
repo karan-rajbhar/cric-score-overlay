@@ -165,7 +165,7 @@ export function RegistrationApprovalActions({
         variant="outline"
         disabled={loading}
         onClick={() => handleAction("confirmed")}
-        className="h-7 border-emerald-500/40 px-2 text-xs text-emerald-600 hover:bg-emerald-500/10"
+        className="h-7 border-success/40 px-2 text-xs text-success hover:bg-success/10"
       >
         <Check className="mr-1 h-3.5 w-3.5" />
         Approve
@@ -175,7 +175,7 @@ export function RegistrationApprovalActions({
         variant="outline"
         disabled={loading}
         onClick={() => handleAction("rejected")}
-        className="h-7 border-red-500/40 px-2 text-xs text-red-600 hover:bg-red-500/10"
+        className="h-7 border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10"
       >
         <X className="mr-1 h-3.5 w-3.5" />
         Reject

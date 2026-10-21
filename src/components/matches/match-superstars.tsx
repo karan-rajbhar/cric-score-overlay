@@ -1,360 +1,272 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { Card, CardContent } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
+import { useMemo, useState } from "react";
+import { ChevronRight, Info } from "lucide-react";
+import { Avatar } from "~/components/ds/avatar";
+import { Card } from "~/components/ds/card";
+import { ListCard } from "~/components/ds/list";
+import { Segmented } from "~/components/ds/tabs";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "~/components/ui/dialog";
 import {
-  Layers,
-  List,
-  Info,
-  Activity,
-  Target,
-  Shield,
-} from "lucide-react";
-import type { Match } from "~/lib/match-types";
-import {
   calculateSuperstars,
+  formatDecimalOvers,
   type SuperstarPlayer,
   type SuperstarRole,
 } from "~/lib/cricket";
-import Image from "next/image";
-import { cn } from "~/lib/utils";
+import type { Match } from "~/lib/match-types";
 
 interface MatchSuperstarsProps {
   match: Match;
 }
 
-function RoleBadge({ role }: { role: SuperstarRole }) {
-  switch (role) {
-    case "WK":
-      return (
-        <Badge
-          variant="outline"
-          className="text-2xs font-medium text-muted-foreground"
-        >
-          WK
-        </Badge>
-      );
-    case "BAT":
-      return (
-        <Badge
-          variant="outline"
-          className="text-2xs font-medium text-muted-foreground"
-        >
-          BAT
-        </Badge>
-      );
-    case "AR":
-      return (
-        <Badge
-          variant="outline"
-          className="text-2xs font-medium text-muted-foreground"
-        >
-          AR
-        </Badge>
-      );
-    case "BOWL":
-      return (
-        <Badge
-          variant="outline"
-          className="text-2xs font-medium text-muted-foreground"
-        >
-          BOWL
-        </Badge>
-      );
+const ROLE: Record<SuperstarRole, string> = {
+  WK: "Keeper",
+  BAT: "Batter",
+  AR: "All-rounder",
+  BOWL: "Bowler",
+};
+
+/** Impact rating: the points over ten, as "12.6". */
+const ratingOf = (p: SuperstarPlayer) => (p.totalPoints / 10).toFixed(1);
+
+/** "52* (34) · 1/23 (2.0) · 1 ct": what they did in this match. */
+function figuresOf(p: SuperstarPlayer): string {
+  const s = p.stats;
+  const parts: string[] = [];
+  if (s.runs > 0 || s.balls > 0) {
+    parts.push(`${s.runs}${s.isOut ? "" : "*"} (${s.balls})`);
   }
+  if (s.wickets > 0 || s.overs > 0) {
+    parts.push(
+      `${s.wickets}/${s.runsConceded} (${formatDecimalOvers(s.overs)})`,
+    );
+  }
+  if (s.catches > 0) parts.push(`${s.catches} ct`);
+  if (s.stumpings > 0) parts.push(`${s.stumpings} st`);
+  if (s.runOuts > 0)
+    parts.push(`${s.runOuts} run out${s.runOuts > 1 ? "s" : ""}`);
+  return parts.join(" · ");
 }
 
-/**
- * Realistic Vector Cricket Jersey matching the reference Stumps screenshot
- */
-function CricketJerseySvg({
-  isTeam1 = true,
-  number = 1,
-}: {
-  isTeam1?: boolean;
-  number?: number;
-}) {
-  const bodyColor = isTeam1 ? "#b91c1c" : "#1d4ed8";
-  const trimColor = isTeam1 ? "#7f1d1d" : "#1e3a8a";
-
-  return (
-    <svg
-      viewBox="0 0 100 105"
-      className="h-14 w-14 sm:h-16 sm:w-16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Jersey Body & Sleeves */}
-      <path
-        d="M 28 16 L 8 36 L 22 46 L 28 38 L 28 98 L 72 98 L 72 38 L 78 46 L 92 36 L 72 16 L 58 16 C 56 26 44 26 42 16 Z"
-        fill={bodyColor}
-        stroke="rgba(255,255,255,0.25)"
-        strokeWidth="1.2"
-      />
-
-
-      {/* Sleeve Hem Left */}
-      <path
-        d="M 8 36 L 15 42 L 22 46 L 15 40 Z"
-        fill={trimColor}
-        opacity="0.8"
-      />
-      {/* Sleeve Hem Right */}
-      <path
-        d="M 92 36 L 85 42 L 78 46 L 85 40 Z"
-        fill={trimColor}
-        opacity="0.8"
-      />
-
-      {/* Collar Detail */}
-      <path
-        d="M 42 16 C 44 26 56 26 58 16 L 62 16 C 60 29 40 29 38 16 Z"
-        fill="#0f172a"
-        opacity="0.6"
-      />
-
-      {/* Jersey Number on Chest */}
-      <text
-        x="50"
-        y="66"
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill="#ffffff"
-        fontSize="24"
-        fontWeight="700"
-        letterSpacing="0.5"
-        className="font-sans select-none"
-      >
-        {number}
-      </text>
-    </svg>
-  );
-}
-
-/**
- * Player Pitch Card Node matching the Stumps Superstars reference screenshot
- */
-function SuperstarPlayerNode({
+/** The leader: their picture, figures and rating on the lavender panel. */
+function LeaderCard({
   player,
-  isTeam1,
-  jerseyNumber,
-  onClick,
+  onOpen,
 }: {
   player: SuperstarPlayer;
-  isTeam1: boolean;
-  jerseyNumber: number;
-  onClick: () => void;
+  onOpen: () => void;
 }) {
-  // Impact rating formatted to 1 decimal place (e.g. 12.6, 9.2, 4.0)
-  const rating = (player.totalPoints / 10).toFixed(1);
-  const isTopRanked = player.rank === 1;
-
-  // Milestone badge calculation (e.g. 50 runs, 100 runs, 3w wickets, 2c catches)
-  const milestone = useMemo(() => {
-    if (player.stats.runs >= 100) return "100";
-    if (player.stats.runs >= 50) return "50";
-    if (player.stats.wickets >= 3) return `${player.stats.wickets}w`;
-    if (player.stats.catches >= 2) return `${player.stats.catches}c`;
-    if (player.stats.runs >= 30) return `${player.stats.runs}`;
-    return null;
-  }, [player.stats]);
-
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="group relative flex flex-col items-center text-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-lg"
-      title={`Click to view ${player.playerName} points breakdown`}
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-2xl bg-primary-soft/70 p-4 text-left ring-1 ring-primary/10 transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {/* Jersey with floating badges */}
-      <div className="relative">
-        <CricketJerseySvg
-          isTeam1={isTeam1}
-          number={jerseyNumber}
-        />
-
-        {/* Top-Left Rating Pill (Green badge with gold star for #1) */}
-        <div className="absolute -left-3 -top-1 z-10 flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-2xs font-semibold tabular-nums text-white">
-          <span>{rating}</span>
-          {isTopRanked && <span className="sr-only">(top ranked)</span>}
-        </div>
-
-        {/* Top-Right Key Milestone Badge (e.g. 50 runs, 3w wickets) */}
-        {milestone && (
-          <div
-            title={`Milestone: ${milestone}`}
-            className="absolute -right-2 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-300 px-1 text-2xs font-semibold tabular-nums text-slate-900"
-          >
-            {milestone}
-          </div>
-        )}
-      </div>
-
-      {/* Player name tag */}
-      <div className="mt-1 flex max-w-[95px] items-center justify-center rounded-md bg-black/55 px-2 py-0.5 text-white sm:max-w-[115px]">
-        <span className="truncate text-2xs font-semibold tracking-tight sm:text-2xs">
+      <Avatar name={player.playerName} src={player.avatarUrl} size="lg" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-medium text-primary">
+          Most impact
+        </span>
+        <span className="block truncate text-lg font-semibold leading-snug text-foreground">
           {player.playerName}
         </span>
-      </div>
+        <span className="block truncate text-xs text-muted-foreground">
+          {player.teamName} · {ROLE[player.role]}
+        </span>
+        <span className="mt-1 block text-pretty font-score text-sm tabular-nums text-foreground">
+          {figuresOf(player)}
+        </span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block font-score text-3xl font-semibold tabular-nums leading-none text-foreground">
+          {ratingOf(player)}
+        </span>
+        <span className="mt-1 block text-xs text-muted-foreground">rating</span>
+      </span>
     </button>
   );
 }
 
-/**
- * Points Breakdown & Rules Modal
- */
-function SuperstarPointsDialog({
+function PlayerRow({
   player,
-  open,
+  onOpen,
+}: {
+  player: SuperstarPlayer;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+    >
+      <span className="w-5 shrink-0 text-right font-score text-sm tabular-nums text-muted-foreground">
+        {player.rank}
+      </span>
+      <Avatar name={player.playerName} src={player.avatarUrl} size="sm" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-foreground">
+          {player.playerName}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {player.teamName} · {figuresOf(player) || ROLE[player.role]}
+        </span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block font-score text-lg font-semibold tabular-nums leading-tight text-foreground">
+          {ratingOf(player)}
+        </span>
+        <span className="block font-score text-xs tabular-nums text-muted-foreground">
+          {player.totalPoints} pts
+        </span>
+      </span>
+      <ChevronRight
+        className="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+function BreakdownRow({
+  label,
+  detail,
+  points,
+}: {
+  label: string;
+  detail?: string;
+  points: number;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-t border-border py-2.5 first:border-t-0">
+      <dt className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">
+          {label}
+        </span>
+        {detail && (
+          <span className="block font-score text-xs tabular-nums text-muted-foreground">
+            {detail}
+          </span>
+        )}
+      </dt>
+      <dd className="shrink-0 font-score text-sm font-semibold tabular-nums text-foreground">
+        {points > 0 ? `+${points}` : points}
+      </dd>
+    </div>
+  );
+}
+
+/** One player's points, part by part. */
+function PointsDialog({
+  player,
   onOpenChange,
 }: {
   player: SuperstarPlayer | null;
-  open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   if (!player) return null;
-
+  const s = player.stats;
+  const fielding = [
+    s.catches ? `${s.catches} ct` : null,
+    s.stumpings ? `${s.stumpings} st` : null,
+    s.runOuts ? `${s.runOuts} run out${s.runOuts > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-2.5">
-            {player.avatarUrl ? (
-              <Image
-                src={player.avatarUrl}
-                alt={player.playerName}
-                width={44}
-                height={44}
-                className="h-11 w-11 rounded-full object-cover border-2 border-primary"
-              />
-            ) : (
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted font-semibold text-foreground">
-                {player.playerName.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-                <span>{player.playerName}</span>
-                <RoleBadge role={player.role} />
-                {player.isCaptain && (
-                  <span className="text-xs font-normal text-muted-foreground">
-                    (c) 2x
-                  </span>
-                )}
-                {player.isViceCaptain && (
-                  <span className="text-xs font-normal text-muted-foreground">
-                    (vc) 1.5x
-                  </span>
-                )}
+          <div className="flex items-center gap-3">
+            <Avatar name={player.playerName} src={player.avatarUrl} size="md" />
+            <div className="min-w-0 text-left">
+              <DialogTitle className="truncate">
+                {player.playerName}
               </DialogTitle>
-              <DialogDescription className="text-xs">
-                {player.teamName} • Rank #{player.rank} in Superstar 11
+              <DialogDescription>
+                {player.teamName} · {ROLE[player.role]} · ranked {player.rank}
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
-
-        <div className="space-y-4 pt-2">
-          {/* Points Highlight Banner */}
-          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 p-3.5">
-            <div className="flex items-center gap-2">
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Impact rating
-                </p>
-                <p className="text-xl font-bold tabular-nums text-foreground">
-                  {(player.totalPoints / 10).toFixed(1)}{" "}
-                  <span className="text-xs text-muted-foreground font-normal">
-                    ({player.totalPoints} pts)
-                  </span>
-                </p>
-              </div>
-            </div>
-            {player.isCaptain && (
-              <span className="text-xs font-medium text-muted-foreground">
-                Captain: 2x points
-              </span>
-            )}
-            {player.isViceCaptain && (
-              <span className="text-xs font-medium text-muted-foreground">
-                Vice-captain: 1.5x points
-              </span>
-            )}
-          </div>
-
-          {/* Breakdown Table */}
-          <div className="rounded-xl border border-border/80 bg-muted/20 p-3 space-y-2.5">
-            <h4 className="text-sm font-semibold text-foreground">
-              Performance breakdown
-            </h4>
-
-            <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-border/50">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Activity className="h-3.5 w-3.5 text-muted-foreground" /> Batting points
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">
-                    {player.stats.runs}r ({player.stats.balls}b) • {player.stats.fours}x4 • {player.stats.sixes}x6
-                  </span>
-                  <span className="font-bold tabular-nums text-primary">
-                    +{player.breakdown.batting} pts
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between py-1 border-b border-border/50">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Target className="h-3.5 w-3.5 text-muted-foreground" /> Bowling points
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">
-                    {player.stats.wickets}w • {player.stats.overs}ov ({player.stats.runsConceded}r)
-                  </span>
-                  <span className="font-bold tabular-nums text-primary">
-                    +{player.breakdown.bowling} pts
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between py-1">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> Fielding & dismissals
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">
-                    {player.stats.catches} catches • {player.stats.stumpings} stumpings • {player.stats.runOuts} run outs
-                  </span>
-                  <span className="font-bold tabular-nums text-primary">
-                    +{player.breakdown.fielding} pts
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-slate-100 p-3 text-2xs text-muted-foreground dark:bg-slate-900 border border-border/60">
-            Points are calculated from this match's ball-by-ball data.
-          </div>
+        <div className="flex items-end justify-between rounded-2xl bg-muted p-4">
+          <span>
+            <span className="block text-xs text-muted-foreground">
+              Impact rating
+            </span>
+            <span className="font-score text-3xl font-semibold tabular-nums text-foreground">
+              {ratingOf(player)}
+            </span>
+          </span>
+          <span className="font-score text-sm tabular-nums text-muted-foreground">
+            {player.totalPoints} points
+          </span>
         </div>
+        <dl>
+          <BreakdownRow
+            label="Batting"
+            detail={
+              s.balls > 0 || s.runs > 0
+                ? `${s.runs}${s.isOut ? "" : "*"} (${s.balls}) · ${s.fours} fours · ${s.sixes} sixes`
+                : "Did not bat"
+            }
+            points={player.breakdown.batting}
+          />
+          <BreakdownRow
+            label="Bowling"
+            detail={
+              s.overs > 0
+                ? `${s.wickets}/${s.runsConceded} (${formatDecimalOvers(s.overs)} ov)`
+                : "Did not bowl"
+            }
+            points={player.breakdown.bowling}
+          />
+          <BreakdownRow
+            label="Fielding"
+            detail={fielding.length ? fielding.join(" · ") : undefined}
+            points={player.breakdown.fielding}
+          />
+          {player.breakdown.winBonus > 0 && (
+            <BreakdownRow
+              label="Winning side"
+              detail="15% of the above, plus 5"
+              points={player.breakdown.winBonus}
+            />
+          )}
+        </dl>
       </DialogContent>
     </Dialog>
   );
 }
 
-/**
- * Scoring Rules Info Dialog
- */
-function SuperstarInfoDialog({
+const RULES: [title: string, rules: string[]][] = [
+  [
+    "Batting",
+    [
+      "1 point a run, plus 1 a four and 2 a six",
+      "30 runs: +5, 50: +15, 100: +30",
+      "Strike rate over 10 balls or more: 150 or more +6, 200 or more +12, under 80 −6",
+      "Not out with 20 or more: +5",
+    ],
+  ],
+  [
+    "Bowling",
+    [
+      "25 points a wicket, 12 a maiden",
+      "3 wickets: +15, 5 wickets: +30",
+      "Economy over 2 overs or more: under 5 +15, under 6.5 +8, over 10 −8",
+    ],
+  ],
+  ["Fielding", ["Catch 10, stumping 15, run out 15"]],
+  ["Winning side", ["15% of the player's points, plus 5"]],
+];
+
+function RulesDialog({
   open,
   onOpenChange,
 }: {
@@ -365,360 +277,124 @@ function SuperstarInfoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base sm:text-lg font-semibold">
-            How superstar 11 points work
-          </DialogTitle>
-          <DialogDescription className="text-xs">
-            How player impact ratings are calculated across both teams
+          <DialogTitle>How points work</DialogTitle>
+          <DialogDescription>
+            Each player's points come from this match's scorecard; the rating is
+            the points over ten.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="space-y-3 pt-2 text-xs text-muted-foreground">
-          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Activity className="h-4 w-4 text-muted-foreground" /> Batting points
-            </p>
-            <p>• 1 Point per Run scored</p>
-            <p>• +1 Bonus point per Boundary (4s)</p>
-            <p>• +2 Bonus points per Maximum (6s)</p>
-            <p>• +8 Bonus for 30+ runs, +16 for 50+ Half-Century, +32 for Century</p>
-          </div>
-
-          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Target className="h-4 w-4 text-muted-foreground" /> Bowling points
-            </p>
-            <p>• 25 Points per Wicket taken (excluding run-outs)</p>
-            <p>• 12 Points per Maiden Over</p>
-            <p>• +4 Bonus for 3-Wicket haul, +8 for 4-Wicket haul, +16 for 5-Wicket haul</p>
-            <p>• Economy rate bonus for disciplined spells</p>
-          </div>
-
-          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="flex items-center gap-1.5 font-bold text-foreground">
-              <Shield className="h-4 w-4 text-muted-foreground" /> Fielding points
-            </p>
-            <p>• 8 Points per Catch</p>
-            <p>• 12 Points per Stumping / Direct Hit Run-out</p>
-          </div>
-
-          <div className="rounded-xl border border-border/70 p-3 space-y-1.5">
-            <p className="flex items-center gap-1.5 font-bold text-foreground">
-              Multipliers
-            </p>
-            <p>• Captain (Top Performer): 2X Points</p>
-            <p>• Vice-Captain (2nd Top Performer): 1.5X Points</p>
-          </div>
+        <div className="space-y-4">
+          {RULES.map(([title, rules]) => (
+            <section key={title}>
+              <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+              <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                {rules.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
+type Filter = "all" | "team1" | "team2";
+
+/**
+ * Top performers: the match's eleven most influential players by impact
+ * points (batting, bowling, fielding, winning side), the leader on top, the
+ * rest ranked; a player opens their points breakdown.
+ */
 export function MatchSuperstars({ match }: MatchSuperstarsProps) {
-  const [viewMode, setViewMode] = useState<"pitch" | "list">("pitch");
-  const [selectedPlayer, setSelectedPlayer] = useState<SuperstarPlayer | null>(
-    null,
+  const [filter, setFilter] = useState<Filter>("all");
+  const [selected, setSelected] = useState<SuperstarPlayer | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const { superstars } = useMemo(() => calculateSuperstars(match), [match]);
+
+  const shown = useMemo(
+    () =>
+      filter === "all"
+        ? superstars
+        : superstars.filter(
+            (p) =>
+              p.teamId ===
+              (filter === "team1" ? match.team1_id : match.team2_id),
+          ),
+    [superstars, filter, match.team1_id, match.team2_id],
   );
-  const [isInfoOpen, setIsInfoOpen] = useState<boolean>(false);
-  const [teamFilter, setTeamFilter] = useState<"all" | "team1" | "team2">(
-    "all",
-  );
-
-  const superstarData = useMemo(() => {
-    return calculateSuperstars(match);
-  }, [match]);
-
-  const {
-    superstars,
-    totalPoints,
-  } = superstarData;
-
-  // Filtered superstars based on selected team filter
-  const displayedSuperstars = useMemo(() => {
-    if (teamFilter === "team1") {
-      return superstars.filter((p) => p.teamId === match.team1_id);
-    }
-    if (teamFilter === "team2") {
-      return superstars.filter((p) => p.teamId === match.team2_id);
-    }
-    return superstars;
-  }, [superstars, teamFilter, match.team1_id, match.team2_id]);
-
-  // Arrange players into standard visual cricket formations:
-  // Row 1: Wicketkeeper / Opener (1 player)
-  // Row 2: Top Batters (2 players)
-  // Row 3: Middle Order / All-rounders (3 players)
-  // Row 4: Bowlers (2-3 players)
-  // Row 5: Tailenders / Bowlers (remaining)
-  const formationRows = useMemo(() => {
-    const list = displayedSuperstars;
-    if (list.length === 0) return [];
-    if (list.length <= 4) {
-      return [list];
-    }
-    const r1 = list.slice(0, 1);
-    const r2 = list.slice(1, 3);
-    const r3 = list.slice(3, 6);
-    const r4 = list.slice(6, 8);
-    const r5 = list.slice(8, 11);
-    return [r1, r2, r3, r4, r5].filter((r) => r.length > 0);
-  }, [displayedSuperstars]);
 
   if (superstars.length === 0) {
     return (
-      <Card className="border-border/60">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <h3 className="text-lg font-semibold">Superstars XI</h3>
-          <p className="mt-1 max-w-md text-xs text-muted-foreground sm:text-sm">
-            Superstars XI will be automatically generated once match action
-            begins and player performances are recorded.
-          </p>
-        </CardContent>
+      <Card className="px-4 py-12 text-center">
+        <h3 className="text-base font-semibold text-foreground">
+          Top performers
+        </h3>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+          The match's most influential players appear here once runs, wickets
+          and catches are recorded.
+        </p>
       </Card>
     );
   }
 
+  const [leader, ...rest] = shown;
   return (
-    <div className="space-y-3">
-      {/* Top Header & Team Filter Bar matching Stumps screenshot */}
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        {/* Team Filter Pills */}
-        <div className="flex items-center overflow-hidden rounded-xl border border-border/80 bg-slate-900/90 p-1 shadow-sm w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setTeamFilter("all")}
-            className={cn(
-              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-center",
-              teamFilter === "all"
-                ? "bg-[#3e7250] text-white shadow-sm"
-                : "text-slate-300 hover:text-white",
-            )}
-          >
-            All players
-          </button>
-          <button
-            type="button"
-            onClick={() => setTeamFilter("team1")}
-            className={cn(
-              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 text-center",
-              teamFilter === "team1"
-                ? "bg-slate-800 text-white shadow-sm ring-1 ring-red-500/50"
-                : "text-slate-300 hover:text-white",
-            )}
-          >
-            <span className="w-1 h-3.5 bg-red-600 rounded-full inline-block shrink-0" />
-            <span className="truncate">{match.team1.name}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTeamFilter("team2")}
-            className={cn(
-              "flex-1 sm:flex-none px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 text-center",
-              teamFilter === "team2"
-                ? "bg-slate-800 text-white shadow-sm ring-1 ring-blue-500/50"
-                : "text-slate-300 hover:text-white",
-            )}
-          >
-            <span className="w-1 h-3.5 bg-blue-600 rounded-full inline-block shrink-0" />
-            <span className="truncate">{match.team2.name}</span>
-          </button>
-        </div>
-
-        {/* View Switcher & Title */}
-        <div className="flex items-center justify-between sm:justify-end gap-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-muted-foreground sm:inline hidden">
-              Superstar 11
-            </span>
-            <Badge variant="outline" className="text-2xs font-bold">
-              {superstars.length} / 11 Players
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-slate-900 p-1">
-            <Button
-              variant={viewMode === "pitch" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("pitch")}
-              className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
-            >
-              <Layers className="h-3.5 w-3.5 shrink-0" />
-              <span>Pitch</span>
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("list")}
-              className="h-7 gap-1 px-2.5 text-xs font-bold text-white hover:text-white"
-            >
-              <List className="h-3.5 w-3.5 shrink-0" />
-              <span>List</span>
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Segmented
+          label="Team"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: "all", label: "All players" },
+            {
+              value: "team1",
+              label: match.team1.short_name || match.team1.name,
+            },
+            {
+              value: "team2",
+              label: match.team2.short_name || match.team2.name,
+            },
+          ]}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setRulesOpen(true)}
+          className="text-muted-foreground"
+        >
+          <Info aria-hidden="true" />
+          How points work
+        </Button>
       </div>
 
-      {/* Pitch View: Stumps-style Cricket Ground Field */}
-      {viewMode === "pitch" ? (
-        <Card className="overflow-hidden border-border shadow-sm">
-          <div className="relative min-h-[640px] sm:min-h-[700px] w-full overflow-hidden bg-[#276749] p-4 sm:p-6">
-            {/* Info Icon Button (top-right of grass) */}
-            <button
-              type="button"
-              onClick={() => setIsInfoOpen(true)}
-              className="absolute right-4 top-4 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/30 text-white/80 transition-colors hover:bg-black/50 hover:text-white focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              title="Superstar 11 Points Rules"
-              aria-label="Superstar 11 Points Rules"
-            >
-              <Info className="h-4 w-4 shrink-0" />
-            </button>
-
-            {/* Stadium Curved Boundary Line */}
-            <div className="pointer-events-none absolute inset-3 sm:inset-5 rounded-[48px] sm:rounded-[64px] border-2 border-dashed border-white/25" />
-
-            {/* 30-Yard Inner Circle Line */}
-            <div className="pointer-events-none absolute inset-10 sm:inset-14 rounded-[50%] border border-white/15" />
-
-            {/* Center Beige Pitch Rectangle */}
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-16 -translate-x-1/2 -translate-y-1/2 rounded border border-amber-900/30 bg-[#c2ad82]/70">
-              {/* Bowling Crease Lines */}
-              <div className="absolute top-6 left-1 right-1 h-[1.5px] bg-white/80" />
-              <div className="absolute bottom-6 left-1 right-1 h-[1.5px] bg-white/80" />
-
-              {/* Stumps */}
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-0.5">
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-              </div>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-0.5">
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-                <div className="h-1.5 w-1 rounded-full bg-red-600" />
-              </div>
-            </div>
-
-            {/* Field Players Formations (5 Distinct Rows) */}
-            <div className="relative z-10 flex h-full flex-col justify-between space-y-6 sm:space-y-8 py-2">
-              {formationRows.map((rowPlayers, rowIndex) => (
-                <div
-                  key={`row-${rowIndex}`}
-                  className="flex items-center justify-center gap-4 sm:gap-10 flex-wrap"
-                >
-                  {rowPlayers.map((player) => {
-                    const isTeam1 = player.teamId === match.team1_id;
-                    // Realistic jersey number derived from batting position or rank
-                    const jerseyNum =
-                      player.rank * 7 + (isTeam1 ? 13 : 2) % 99 || player.rank;
-
-                    return (
-                      <SuperstarPlayerNode
-                        key={player.playerId}
-                        player={player}
-                        isTeam1={isTeam1}
-                        jerseyNumber={jerseyNum}
-                        onClick={() => setSelectedPlayer(player)}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
+      {leader ? (
+        <LeaderCard player={leader} onOpen={() => setSelected(leader)} />
       ) : (
-        /* List View (Detailed Superstar 11 Performance Table) */
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between border-b pb-2">
-            <span className="text-sm font-bold">
-              Superstars performance rankings
-            </span>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              Total points: {totalPoints}
-            </span>
-          </div>
-
-          <div className="grid gap-2">
-            {displayedSuperstars.map((player) => {
-              const isTeam1 = player.teamId === match.team1_id;
-              const rating = (player.totalPoints / 10).toFixed(1);
-
-              return (
-                <div
-                  key={player.playerId}
-                  onClick={() => setSelectedPlayer(player)}
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-xl border border-border/70 bg-card p-3 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-                    <span
-                      className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
-                        player.rank <= 3
-                          ? "bg-foreground text-background"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {player.rank}
-                    </span>
-
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          "h-2 w-2 rounded-full shrink-0",
-                          isTeam1 ? "bg-red-600" : "bg-blue-600",
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5 font-bold text-xs sm:text-sm">
-                          <span className="truncate">{player.playerName}</span>
-                          <RoleBadge role={player.role} />
-                          {player.isCaptain && (
-                            <span className="shrink-0 text-2xs font-normal text-muted-foreground">
-                              (c) 2x
-                            </span>
-                          )}
-                          {player.isViceCaptain && (
-                            <span className="shrink-0 text-2xs font-normal text-muted-foreground">
-                              (vc) 1.5x
-                            </span>
-                          )}
-                        </div>
-                        <p className="truncate text-2xs text-muted-foreground tabular-nums">
-                          {player.teamName} • {player.stats.runs} runs (
-                          {player.stats.balls}b) • {player.stats.wickets} wkts
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 text-right">
-                    <div className="font-score text-sm font-bold tabular-nums text-foreground">
-                      {rating}
-                    </div>
-                    <span className="text-2xs text-muted-foreground tabular-nums">
-                      {player.totalPoints} pts
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
+          No one from this side is in the top eleven.
+        </p>
       )}
 
-      {/* Player Points Breakdown Dialog */}
-      <SuperstarPointsDialog
-        player={selectedPlayer}
-        open={!!selectedPlayer}
-        onOpenChange={(open) => !open && setSelectedPlayer(null)}
-      />
+      {rest.length > 0 && (
+        <ListCard aria-label="Ranking">
+          {rest.map((p) => (
+            <PlayerRow
+              key={p.playerId}
+              player={p}
+              onOpen={() => setSelected(p)}
+            />
+          ))}
+        </ListCard>
+      )}
 
-      {/* Rules Info Dialog */}
-      <SuperstarInfoDialog
-        open={isInfoOpen}
-        onOpenChange={setIsInfoOpen}
+      <PointsDialog
+        player={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
       />
+      <RulesDialog open={rulesOpen} onOpenChange={setRulesOpen} />
     </div>
   );
 }

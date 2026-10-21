@@ -9,23 +9,23 @@ import {
   MATCH_TEAM_COLUMNS,
 } from "~/lib/firebase/team-snapshot";
 import { Card, CardContent } from "~/components/ui/card";
-import { StatTile } from "~/components/ui/stat-tile";
+import { StatGrid, StatTile } from "~/components/ds/stat-tile";
+import { Chip } from "~/components/ds/chip";
+import { Avatar, TeamCrest } from "~/components/ds/avatar";
+import { ListCard, ListRow } from "~/components/ds/list";
+import { ProfileHeader } from "~/components/ds/player-header";
+import { ClubContacts } from "~/components/clubs/club-contacts";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import {
   ChevronLeft,
-  MapPin,
   Calendar,
-  Mail,
-  Phone,
-  Globe,
   Users,
   Trophy,
   Shield,
   Plus,
   Award,
-  BarChart3,
 } from "lucide-react";
 import { ClubMembershipButton } from "~/components/clubs/club-membership-button";
 import {
@@ -62,6 +62,7 @@ import {
   loadScopeLeaderboard,
   type ScopeMatch,
 } from "~/lib/firebase/leaderboards";
+import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,7 @@ interface TeamRow {
   id: string;
   name: string;
   short_name: string | null;
+  logo_url?: string | null;
   team_type: string | null;
   captain?: { full_name: string } | null;
   team_players?: { count: number }[];
@@ -202,7 +204,7 @@ export default async function ClubPage({
       .select(
         // team_players(count) first: it is served from the roster, whose
         // player snapshots then answer the captain lookup (no reads).
-        "id, name, short_name, team_type, team_players(count), captain:users!teams_captain_id_fkey(full_name)",
+        "id, name, short_name, logo_url, team_type, team_players(count), captain:users!teams_captain_id_fkey(full_name)",
       )
       .eq("club_id", id)
       .order("name"),
@@ -362,160 +364,59 @@ export default async function ClubPage({
 
   return (
     <PageContainer stack={false}>
-      <Button variant="ghost" size="sm" asChild className="mb-4">
+      {/* Phones: the screen's own bar instead of the header. */}
+      <ScreenBar
+        className="mb-5 md:hidden"
+        title="Club"
+        backHref={"/clubs"}
+        backLabel={"All clubs"}
+      />
+      <Button variant="ghost" size="sm" asChild className="mb-4 max-md:hidden">
         <Link href="/clubs">
           <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
           All clubs
         </Link>
       </Button>
 
-      {/* Club Hero Banner */}
-      <div className="relative overflow-hidden rounded-xl border border-border bg-card p-4 sm:p-6 md:p-8">
-        {club.banner_url && (
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-25 dark:opacity-20 pointer-events-none"
-            style={{ backgroundImage: `url(${club.banner_url})` }}
+      <ProfileHeader
+        name={club.name}
+        bannerUrl={club.banner_url}
+        crest={
+          <ClubLogo
+            name={club.name}
+            shortName={club.short_name}
+            logoUrl={club.logo_url}
+            className="h-20 w-20 rounded-full text-xl shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
           />
-        )}
-        <div className="relative z-10 flex flex-col gap-4 sm:gap-6 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <ClubLogo
-              name={club.name}
-              shortName={club.short_name}
-              logoUrl={club.logo_url}
-              className="h-12 w-12 shrink-0 sm:h-16 sm:w-16 text-lg sm:text-2xl rounded-2xl"
-            />
-            <div>
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                {club.club_type && (
-                  <Badge variant="outline">
-                    {formatClubType(club.club_type)} Club
-                  </Badge>
+        }
+        labels={
+          <>
+            {club.club_type && (
+              <Chip tone="outline">{formatClubType(club.club_type)} club</Chip>
+            )}
+            {club.founded_year && <Chip>Est. {club.founded_year}</Chip>}
+            {typedSeasons.map((s) => (
+              <Chip key={s.id} tone={s.is_current ? "primary" : "outline"}>
+                <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
+                {s.name}
+                {s.is_current && (
+                  <span className="font-normal opacity-80">· Active</span>
                 )}
-                {club.founded_year && (
-                  <Badge variant="secondary">Est. {club.founded_year}</Badge>
+                {isAdmin && !s.is_current && (
+                  <DeleteSeasonButton
+                    clubId={club.id}
+                    seasonId={s.id}
+                    seasonName={s.name}
+                  />
                 )}
-                {club.short_name && (
-                  <Badge variant="secondary" className="font-bold">
-                    {club.short_name}
-                  </Badge>
-                )}
-                {typedSeasons.map((s) => (
-                  <Badge
-                    key={s.id}
-                    variant={s.is_current ? "default" : "outline"}
-                    className="gap-1 text-xs"
-                  >
-                    <Calendar className="h-3 w-3 shrink-0" />
-                    <span>{s.name}</span>
-                    {s.is_current && (
-                      <span className="text-2xs font-normal opacity-80">
-                        (Active)
-                      </span>
-                    )}
-                    {isAdmin && !s.is_current && (
-                      <DeleteSeasonButton
-                        clubId={club.id}
-                        seasonId={s.id}
-                        seasonName={s.name}
-                      />
-                    )}
-                  </Badge>
-                ))}
-              </div>
-
-              <h1 className="mt-2 text-balance text-2xl font-semibold tracking-tight">
-                {club.name}
-              </h1>
-
-              {club.description && (
-                <p className="mt-2 max-w-2xl text-xs text-muted-foreground sm:text-sm">
-                  {club.description}
-                </p>
-              )}
-
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground sm:gap-4">
-                {club.location && (
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />
-                    <span>{club.location}</span>
-                  </div>
-                )}
-                {club.contact_email && (
-                  <div className="flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5 shrink-0" />
-                    <span>{club.contact_email}</span>
-                  </div>
-                )}
-                {club.contact_phone && (
-                  <div className="flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 shrink-0" />
-                    <span>{club.contact_phone}</span>
-                  </div>
-                )}
-                {club.website_url && (
-                  <a
-                    href={
-                      club.website_url.startsWith("http")
-                        ? club.website_url
-                        : `https://${club.website_url}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-foreground"
-                  >
-                    <Globe className="h-3.5 w-3.5 shrink-0" />
-                    <span>Website</span>
-                  </a>
-                )}
-                {socialLinks.twitter && (
-                  <a
-                    href={
-                      socialLinks.twitter.startsWith("http")
-                        ? socialLinks.twitter
-                        : `https://x.com/${socialLinks.twitter}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-foreground"
-                  >
-                    <span>X / Twitter</span>
-                  </a>
-                )}
-                {socialLinks.instagram && (
-                  <a
-                    href={
-                      socialLinks.instagram.startsWith("http")
-                        ? socialLinks.instagram
-                        : `https://instagram.com/${socialLinks.instagram}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-pink-400 hover:text-pink-300"
-                  >
-                    <span>Instagram</span>
-                  </a>
-                )}
-                {socialLinks.youtube && (
-                  <a
-                    href={
-                      socialLinks.youtube.startsWith("http")
-                        ? socialLinks.youtube
-                        : `https://youtube.com/${socialLinks.youtube}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-red-400 hover:text-red-300"
-                  >
-                    <span>YouTube</span>
-                  </a>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Action Buttons */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              </Chip>
+            ))}
+          </>
+        }
+        description={club.description}
+        meta={<ClubContacts club={club} socialLinks={socialLinks} />}
+        actions={
+          <>
             {isAdmin && (
               <ClubMediaDialog
                 clubId={club.id}
@@ -535,17 +436,12 @@ export default async function ClubPage({
             />
             {isAdmin && (
               <>
-                <Button
-                  asChild
-                  size="sm"
-                  variant="outline"
-                  className="w-full gap-1.5 sm:w-auto"
-                >
+                <Button asChild size="sm" variant="outline" className="gap-1.5">
                   <Link href={`/tournaments/create?clubId=${club.id}`}>
                     New tournament
                   </Link>
                 </Button>
-                <Button asChild size="sm" className="w-full gap-1.5 sm:w-auto">
+                <Button asChild size="sm" className="gap-1.5">
                   <Link href={`/teams/create?clubId=${club.id}`}>
                     <Plus className="h-4 w-4 shrink-0" />
                     New team
@@ -553,67 +449,53 @@ export default async function ClubPage({
                 </Button>
               </>
             )}
-          </div>
-        </div>
+          </>
+        }
+      />
 
-        {/* Club Stats Counters */}
-        <div className="mt-6 grid grid-cols-2 gap-4 border-t border-border pt-4 sm:grid-cols-4">
-          <StatTile bordered={false} label="Teams" value={typedTeams.length} />
-          <StatTile
-            bordered={false}
-            label="Tournaments"
-            value={typedTournaments.length}
-          />
-          <StatTile
-            bordered={false}
-            label="Hall of fame"
-            value={typedHallOfFame.length}
-          />
-          <StatTile bordered={false} label="Members" value={typedMembers.length} />
-        </div>
-      </div>
+      <ContentSheet className="mt-6 sm:mt-8">
+      <StatGrid>
+        <StatTile icon={Shield} label="Teams" value={typedTeams.length} />
+        <StatTile icon={Trophy} label="Tournaments" value={typedTournaments.length} />
+        <StatTile icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
+        <StatTile icon={Users} label="Members" value={typedMembers.length} />
+      </StatGrid>
 
       {/* Club Tabs */}
       <Tabs
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
         className="mt-6 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:grid sm:grid-cols-6 sm:max-w-3xl sm:justify-stretch">
+        <TabsList className="flex h-auto w-full justify-start">
           <TabsTrigger
             value="teams"
           >
-            <Shield className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Teams ({typedTeams.length})
+            Teams
           </TabsTrigger>
           <TabsTrigger
             value="tournaments"
           >
-            <Trophy className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Tournaments ({typedTournaments.length})
+            Tournaments
           </TabsTrigger>
           <TabsTrigger
             value="matches"
           >
-            <Calendar className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Matches ({typedMatches.length})
+            Matches
           </TabsTrigger>
           <TabsTrigger
             value="stats"
           >
-            <BarChart3 className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
             Stats & records
           </TabsTrigger>
           <TabsTrigger
             value="hall-of-fame"
           >
-            <Award className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Hall of Fame ({typedHallOfFame.length})
+            Hall of fame
           </TabsTrigger>
           <TabsTrigger
             value="members"
           >
-            <Users className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-            Members ({typedMembers.length})
+            Members
           </TabsTrigger>
         </TabsList>
 
@@ -652,41 +534,35 @@ export default async function ClubPage({
               }
             />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {typedTeams.map((team) => (
-                <Link
-                  key={team.id}
-                  href={`/teams/${team.id}?clubId=${club.id}`}
-                  className="group"
-                >
-                  <Card className="transition-colors group-hover:border-primary/50">
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-semibold transition-colors group-hover:text-primary">
-                            {team.name}
-                          </h3>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Captain: {team.captain?.full_name ?? "Not assigned"}
-                          </p>
-                        </div>
-                        {team.short_name && (
-                          <span className="rounded bg-secondary px-2 py-0.5 text-xs font-bold text-secondary-foreground">
-                            {team.short_name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-3 text-xs text-muted-foreground">
-                        <span>{formatTeamType(team.team_type)}</span>
-                        <span>
-                          <span className="tabular-nums">{team.team_players?.[0]?.count ?? 0}</span> Players
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            <ListCard aria-label={`${club.name} teams`}>
+              {typedTeams.map((team) => {
+                const players = team.team_players?.[0]?.count ?? 0;
+                return (
+                  <ListRow
+                    key={team.id}
+                    href={`/teams/${team.id}?clubId=${club.id}`}
+                    leading={
+                      <TeamCrest
+                        name={team.name}
+                        shortName={team.short_name}
+                        logoUrl={team.logo_url}
+                        size="sm"
+                      />
+                    }
+                    title={team.name}
+                    subtitle={[
+                      `${players} ${players === 1 ? "player" : "players"}`,
+                      formatTeamType(team.team_type),
+                      team.captain?.full_name
+                        ? `${team.captain.full_name} (c)`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                );
+              })}
+            </ListCard>
           )}
         </TabsContent>
 
@@ -728,7 +604,7 @@ export default async function ClubPage({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg font-semibold">Hall of Fame</h2>
+                <h2 className="text-lg font-semibold">Hall of fame</h2>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 Honours, records and champions of {club.name}.
@@ -743,7 +619,7 @@ export default async function ClubPage({
             <Card className="border-dashed">
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
                 <h3 className="mb-1 text-base font-semibold text-foreground">
-                  No Hall of Fame entries yet
+                  No one in the hall of fame yet
                 </h3>
                 <p className="mx-auto mb-4 max-w-sm text-xs">
                   Admins can add players to recognise records, titles and long
@@ -760,69 +636,61 @@ export default async function ClubPage({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {typedHallOfFame.map((entry) => {
+                const category = entry.category.replace(/_/g, " ");
                 return (
-                  <Card key={entry.id}>
-                    <CardContent className="flex h-full flex-col justify-between space-y-4 p-5">
-                      <div>
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <Badge
-                            variant="outline"
-                            className="text-xs font-medium capitalize"
-                          >
-                            {entry.category.replace(/_/g, " ")}
-                          </Badge>
-                          <div className="flex items-center gap-1.5">
-                            {entry.season_or_year && (
-                              <span className="font-mono text-2xs text-muted-foreground">
-                                {entry.season_or_year}
-                              </span>
-                            )}
-                            {isAdmin && (
-                              <RemoveHallOfFameButton
-                                clubId={club.id}
-                                hallOfFameId={entry.id}
-                                playerName={
-                                  entry.player?.full_name ?? "Honored Member"
-                                }
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="mb-3 flex items-center gap-3">
-                          <Initials name={entry.player?.full_name} fallback="L" className="h-11 w-11 text-sm" />
-                          <div>
-                            <h3 className="text-base font-semibold leading-tight text-foreground">
-                              {entry.player?.full_name ?? "Honored Member"}
-                            </h3>
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {entry.title}
-                            </p>
-                          </div>
-                        </div>
-
-                        {entry.record_metric && (
-                          <div className="mb-3 inline-block rounded-md border border-border bg-muted px-3 py-1.5 font-mono text-xs font-semibold tabular-nums text-foreground">
-                            {entry.record_metric}
-                          </div>
-                        )}
-
-                        {entry.description && (
-                          <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                            {entry.description}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-border/40 pt-2 text-2xs text-muted-foreground">
-                        <span>Inducted</span>
-                        {entry.inducted_at && (
-                          <span>
-                            {new Date(entry.inducted_at).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
+                  <Card key={entry.id} className="flex flex-col gap-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar
+                        name={entry.player?.full_name ?? "Member"}
+                        src={entry.player?.avatar_url}
+                        size="md"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-base font-semibold text-foreground">
+                          {entry.player?.full_name ?? "Honoured member"}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {entry.title}
+                        </span>
+                      </span>
+                      {isAdmin && (
+                        <RemoveHallOfFameButton
+                          clubId={club.id}
+                          hallOfFameId={entry.id}
+                          playerName={entry.player?.full_name ?? "Honoured member"}
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip tone="primary" size="sm">
+                        {category.charAt(0).toUpperCase() + category.slice(1).toLowerCase()}
+                      </Chip>
+                      {entry.season_or_year && (
+                        <span className="font-score text-xs tabular-nums text-muted-foreground">
+                          {entry.season_or_year}
+                        </span>
+                      )}
+                    </div>
+                    {entry.record_metric && (
+                      <p className="font-score text-lg font-semibold tabular-nums text-foreground">
+                        {entry.record_metric}
+                      </p>
+                    )}
+                    {entry.description && (
+                      <p className="line-clamp-3 text-sm text-muted-foreground">
+                        {entry.description}
+                      </p>
+                    )}
+                    {entry.inducted_at && (
+                      <p className="mt-auto border-t border-border pt-2 text-xs text-muted-foreground">
+                        Inducted{" "}
+                        {new Date(entry.inducted_at).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    )}
                   </Card>
                 );
               })}
@@ -857,7 +725,7 @@ export default async function ClubPage({
               {typedMembers.length === 0 ? (
                 <EmptyState
                   icon={Users}
-                  title="No Members Registered"
+                  title="No members yet"
                   description="No players or club administrators are registered in this club directory yet."
                   className="border-0 bg-transparent py-12"
                 />
@@ -923,6 +791,7 @@ export default async function ClubPage({
           </Card>
         </TabsContent>
       </Tabs>
+      </ContentSheet>
     </PageContainer>
   );
 }

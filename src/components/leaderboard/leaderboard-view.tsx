@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { Initials } from "~/components/ui/initials";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -50,23 +49,23 @@ interface MetricConfig<T> {
 
 const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboardEntry>> = {
   runs: {
-    label: "Most Runs",
+    label: "Most runs",
     description:
-      "Ranked by Total Runs Scored. Displays overall tournament aggregate figures including innings, average, and strike rate.",
-    heroLabel: "Total Runs Scored",
-    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Tournament Runs" }),
+      "Ranked by total runs scored. Displays overall tournament aggregate figures including innings, average, and strike rate.",
+    heroLabel: "Total runs scored",
+    getHeroStat: (b) => ({ value: `${b.runs}`, label: "Tournament runs" }),
     getContextStats: (b) => [
       { label: "Innings", value: `${b.innings}` },
-      { label: "Batting Avg", value: b.averageDisplay },
-      { label: "Strike Rate", value: b.strikeRateDisplay },
+      { label: "Batting avg", value: b.averageDisplay },
+      { label: "Strike rate", value: b.strikeRateDisplay },
       { label: "50s / 100s", value: `${b.fifties} / ${b.centuries}` },
     ],
   },
   highestScore: {
-    label: "Highest Score",
+    label: "Highest score",
     description:
-      "Ranked by Highest Individual Score in a single knock. Every column in this view focuses strictly on that peak innings.",
-    heroLabel: "Peak Innings Knock",
+      "Ranked by highest individual score in a single knock. Every column in this view focuses strictly on that peak innings.",
+    heroLabel: "Peak innings knock",
     getHeroStat: (b) => ({
       value: b.highestScoreDisplay,
       label: b.highestScoreBalls
@@ -75,45 +74,45 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
     }),
     getContextStats: (b) => [
       {
-        label: "Balls in Knock",
+        label: "Balls in knock",
         value: b.highestScoreBalls ? `${b.highestScoreBalls}` : "—",
       },
       {
-        label: "Knock Strike Rate",
+        label: "Knock strike rate",
         value: b.highestScoreStrikeRateDisplay ?? "—",
       },
       {
-        label: "Knock Boundaries",
+        label: "Knock boundaries",
         value: `${b.highestScoreFours ?? 0}×4, ${b.highestScoreSixes ?? 0}×6`,
       },
-      { label: "Tournament Runs", value: `${b.runs} (${b.innings} inn)` },
+      { label: "Tournament runs", value: `${b.runs} (${b.innings} inn)` },
     ],
   },
   average: {
-    label: "Batting Avg",
+    label: "Batting avg",
     description:
-      "Ranked by Batting Average (Total Runs divided by Number of Times Dismissed). Demonstrates run consistency.",
-    heroLabel: "Batting Average",
-    getHeroStat: (b) => ({ value: b.averageDisplay, label: "Runs Per Dismissal" }),
+      "Ranked by batting average (total runs divided by number of times dismissed). Demonstrates run consistency.",
+    heroLabel: "Batting average",
+    getHeroStat: (b) => ({ value: b.averageDisplay, label: "Runs per dismissal" }),
     getContextStats: (b) => [
-      { label: "Tournament Runs", value: `${b.runs}` },
+      { label: "Tournament runs", value: `${b.runs}` },
       {
-        label: "Times Dismissed",
+        label: "Times dismissed",
         value: `${Math.max(0, b.innings - b.notOuts)}`,
       },
-      { label: "Innings (Not Outs)", value: `${b.innings} (${b.notOuts} NO)` },
-      { label: "Strike Rate", value: b.strikeRateDisplay },
+      { label: "Innings (not outs)", value: `${b.innings} (${b.notOuts} NO)` },
+      { label: "Strike rate", value: b.strikeRateDisplay },
     ],
   },
   strikeRate: {
-    label: "Strike Rate",
+    label: "Strike rate",
     description:
-      "Ranked by Batting Strike Rate. Measures scoring velocity in runs scored per 100 balls faced.",
-    heroLabel: "Batting Strike Rate",
-    getHeroStat: (b) => ({ value: b.strikeRateDisplay, label: "Runs / 100 Balls" }),
+      "Ranked by batting strike rate. Measures scoring velocity in runs scored per 100 balls faced.",
+    heroLabel: "Batting strike rate",
+    getHeroStat: (b) => ({ value: b.strikeRateDisplay, label: "Runs / 100 balls" }),
     getContextStats: (b) => [
-      { label: "Runs Scored", value: `${b.runs}` },
-      { label: "Balls Faced", value: `${b.balls}` },
+      { label: "Runs scored", value: `${b.runs}` },
+      { label: "Balls faced", value: `${b.balls}` },
       { label: "Boundary %", value: b.boundaryPercent },
       { label: "Boundaries", value: `${b.fours}×4, ${b.sixes}×6` },
     ],
@@ -121,17 +120,17 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
   centuries: {
     label: "100s",
     description:
-      "Ranked by Centuries (100+ run innings). Highlights match-defining individual centuries.",
-    heroLabel: "Centuries Scored",
+      "Ranked by centuries (100+ run innings). Highlights match-defining individual centuries.",
+    heroLabel: "Centuries scored",
     getHeroStat: (b) => ({
       value: `${b.centuries}`,
       label: b.centuries === 1 ? "Century" : "Centuries",
     }),
     getContextStats: (b) => [
       { label: "Half-Centuries (50s)", value: `${b.fifties}` },
-      { label: "Highest Score", value: b.highestScoreDisplay },
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings Batted", value: `${b.innings}` },
+      { label: "Highest score", value: b.highestScoreDisplay },
+      { label: "Total runs", value: `${b.runs}` },
+      { label: "Innings batted", value: `${b.innings}` },
     ],
   },
   fifties: {
@@ -145,53 +144,53 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
     }),
     getContextStats: (b) => [
       { label: "Centuries (100s)", value: `${b.centuries}` },
-      { label: "Highest Score", value: b.highestScoreDisplay },
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Innings Batted", value: `${b.innings}` },
+      { label: "Highest score", value: b.highestScoreDisplay },
+      { label: "Total runs", value: `${b.runs}` },
+      { label: "Innings batted", value: `${b.innings}` },
     ],
   },
   sixes: {
     label: "Most 6s",
     description:
-      "Ranked by Total Sixes struck across all fixtures. Quantifies maximum boundary power.",
-    heroLabel: "Sixes Struck",
+      "Ranked by total sixes struck across all fixtures. Quantifies maximum boundary power.",
+    heroLabel: "Sixes struck",
     getHeroStat: (b) => ({
       value: `${b.sixes}`,
       label: b.sixes === 1 ? "Six Hit" : "Sixes Hit",
     }),
     getContextStats: (b) => [
-      { label: "Runs from Sixes", value: `${b.sixes * 6}` },
-      { label: "Fours Hit", value: `${b.fours}` },
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Strike Rate", value: b.strikeRateDisplay },
+      { label: "Runs from sixes", value: `${b.sixes * 6}` },
+      { label: "Fours hit", value: `${b.fours}` },
+      { label: "Total runs", value: `${b.runs}` },
+      { label: "Strike rate", value: b.strikeRateDisplay },
     ],
   },
   fours: {
     label: "Most 4s",
     description:
-      "Ranked by Total Fours struck across all fixtures. Quantifies boundary accumulation.",
-    heroLabel: "Fours Struck",
+      "Ranked by total fours struck across all fixtures. Quantifies boundary accumulation.",
+    heroLabel: "Fours struck",
     getHeroStat: (b) => ({
       value: `${b.fours}`,
       label: b.fours === 1 ? "Four Hit" : "Fours Hit",
     }),
     getContextStats: (b) => [
-      { label: "Runs from Fours", value: `${b.fours * 4}` },
-      { label: "Sixes Hit", value: `${b.sixes}` },
-      { label: "Total Runs", value: `${b.runs}` },
-      { label: "Balls Faced", value: `${b.balls}` },
+      { label: "Runs from fours", value: `${b.fours * 4}` },
+      { label: "Sixes hit", value: `${b.sixes}` },
+      { label: "Total runs", value: `${b.runs}` },
+      { label: "Balls faced", value: `${b.balls}` },
     ],
   },
   balls: {
-    label: "Balls Faced",
+    label: "Balls faced",
     description:
-      "Ranked by Deliveries Faced at the crease. Quantifies occupation of the crease.",
-    heroLabel: "Deliveries Faced",
-    getHeroStat: (b) => ({ value: `${b.balls}`, label: "Balls Faced" }),
+      "Ranked by deliveries faced at the crease. Quantifies occupation of the crease.",
+    heroLabel: "Deliveries faced",
+    getHeroStat: (b) => ({ value: `${b.balls}`, label: "Balls faced" }),
     getContextStats: (b) => [
-      { label: "Overs Faced", value: `${(b.balls / 6).toFixed(1)}` },
-      { label: "Runs Scored", value: `${b.runs}` },
-      { label: "Strike Rate", value: b.strikeRateDisplay },
+      { label: "Overs faced", value: `${(b.balls / 6).toFixed(1)}` },
+      { label: "Runs scored", value: `${b.runs}` },
+      { label: "Strike rate", value: b.strikeRateDisplay },
       { label: "Innings", value: `${b.innings}` },
     ],
   },
@@ -199,26 +198,26 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
 
 const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboardEntry>> = {
   wickets: {
-    label: "Most Wickets",
+    label: "Most wickets",
     description:
-      "Ranked by Total Wickets Taken. Displays overall tournament aggregate bowling figures.",
-    heroLabel: "Wickets Taken",
+      "Ranked by total wickets taken. Displays overall tournament aggregate bowling figures.",
+    heroLabel: "Wickets taken",
     getHeroStat: (bw) => ({
       value: `${bw.wickets}`,
       label: bw.wickets === 1 ? "Wicket" : "Wickets Taken",
     }),
     getContextStats: (bw) => [
-      { label: "Overs Bowled", value: bw.overs },
-      { label: "Bowling Avg", value: bw.averageDisplay },
-      { label: "Economy Rate", value: bw.economyDisplay },
-      { label: "Best Match Spell", value: bw.bestBowling.display },
+      { label: "Overs bowled", value: bw.overs },
+      { label: "Bowling avg", value: bw.averageDisplay },
+      { label: "Economy rate", value: bw.economyDisplay },
+      { label: "Best match spell", value: bw.bestBowling.display },
     ],
   },
   bestBowling: {
-    label: "Best Bowling (BBI)",
+    label: "Best bowling (BBI)",
     description:
-      "Ranked by Best Bowling Figures in a single innings. Focuses strictly on that peak match spell.",
-    heroLabel: "Best Match Spell",
+      "Ranked by best bowling figures in a single innings. Focuses strictly on that peak match spell.",
+    heroLabel: "Best match spell",
     getHeroStat: (bw) => ({
       value: bw.bestBowling.display,
       label: bw.bestBowling.overs
@@ -227,234 +226,234 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
     }),
     getContextStats: (bw) => [
       {
-        label: "Overs in Spell",
+        label: "Overs in spell",
         value: bw.bestBowling.overs ? `${bw.bestBowling.overs}` : "—",
       },
       {
-        label: "Spell Economy",
+        label: "Spell economy",
         value: bw.bestBowling.economy ? `${bw.bestBowling.economy}` : "—",
       },
-      { label: "Tournament Wkts", value: `${bw.wickets}` },
-      { label: "Tournament Overs", value: bw.overs },
+      { label: "Tournament wkts", value: `${bw.wickets}` },
+      { label: "Tournament overs", value: bw.overs },
     ],
   },
   average: {
-    label: "Bowling Avg",
+    label: "Bowling avg",
     description:
-      "Ranked by Bowling Average (Runs Conceded divided by Wickets Taken). Demonstrates breakthrough efficiency.",
-    heroLabel: "Bowling Average",
-    getHeroStat: (bw) => ({ value: bw.averageDisplay, label: "Runs / Wicket" }),
+      "Ranked by bowling average (runs conceded divided by wickets taken). Demonstrates breakthrough efficiency.",
+    heroLabel: "Bowling average",
+    getHeroStat: (bw) => ({ value: bw.averageDisplay, label: "Runs / wicket" }),
     getContextStats: (bw) => [
-      { label: "Runs Conceded", value: `${bw.runsConceded}` },
-      { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Overs Bowled", value: bw.overs },
-      { label: "Economy Rate", value: bw.economyDisplay },
+      { label: "Runs conceded", value: `${bw.runsConceded}` },
+      { label: "Wickets taken", value: `${bw.wickets}` },
+      { label: "Overs bowled", value: bw.overs },
+      { label: "Economy rate", value: bw.economyDisplay },
     ],
   },
   economy: {
-    label: "Economy Rate",
+    label: "Economy rate",
     description:
-      "Ranked by Economy Rate (Runs Conceded per Over Bowled). Measures run containment.",
-    heroLabel: "Economy Rate",
-    getHeroStat: (bw) => ({ value: bw.economyDisplay, label: "Runs / Over (RPO)" }),
+      "Ranked by economy rate (runs conceded per over bowled). Measures run containment.",
+    heroLabel: "Economy rate",
+    getHeroStat: (bw) => ({ value: bw.economyDisplay, label: "Runs / over (RPO)" }),
     getContextStats: (bw) => [
-      { label: "Overs Bowled", value: bw.overs },
-      { label: "Runs Conceded", value: `${bw.runsConceded}` },
-      { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Maiden Overs", value: `${bw.maidens}` },
+      { label: "Overs bowled", value: bw.overs },
+      { label: "Runs conceded", value: `${bw.runsConceded}` },
+      { label: "Wickets taken", value: `${bw.wickets}` },
+      { label: "Maiden overs", value: `${bw.maidens}` },
     ],
   },
   maidens: {
     label: "Maidens",
     description:
-      "Ranked by Maiden Overs (overs with 0 runs conceded). Demonstrates sustained pressure.",
-    heroLabel: "Maiden Overs",
+      "Ranked by maiden overs (overs with 0 runs conceded). Demonstrates sustained pressure.",
+    heroLabel: "Maiden overs",
     getHeroStat: (bw) => ({
       value: `${bw.maidens}`,
       label: bw.maidens === 1 ? "Maiden Over" : "Maiden Overs",
     }),
     getContextStats: (bw) => [
-      { label: "Overs Bowled", value: bw.overs },
-      { label: "Economy Rate", value: bw.economyDisplay },
-      { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Runs Conceded", value: `${bw.runsConceded}` },
+      { label: "Overs bowled", value: bw.overs },
+      { label: "Economy rate", value: bw.economyDisplay },
+      { label: "Wickets taken", value: `${bw.wickets}` },
+      { label: "Runs conceded", value: `${bw.runsConceded}` },
     ],
   },
   threeWickets: {
-    label: "3-Wkt Hauls",
+    label: "3-Wkt hauls",
     description:
-      "Ranked by Most 3-Wicket Hauls in an innings. Shows multi-wicket match impact.",
-    heroLabel: "3-Wkt Hauls",
+      "Ranked by most 3-wicket hauls in an innings. Shows multi-wicket match impact.",
+    heroLabel: "3-Wkt hauls",
     getHeroStat: (bw) => ({
       value: `${bw.threeWickets}`,
       label: bw.threeWickets === 1 ? "3-Wkt Haul" : "3-Wkt Hauls",
     }),
     getContextStats: (bw) => [
-      { label: "5-Wkt Hauls", value: `${bw.fiveWickets}` },
-      { label: "Total Wickets", value: `${bw.wickets}` },
-      { label: "Best Match Spell", value: bw.bestBowling.display },
-      { label: "Innings Bowled", value: `${bw.innings}` },
+      { label: "5-Wkt hauls", value: `${bw.fiveWickets}` },
+      { label: "Total wickets", value: `${bw.wickets}` },
+      { label: "Best match spell", value: bw.bestBowling.display },
+      { label: "Innings bowled", value: `${bw.innings}` },
     ],
   },
   fiveWickets: {
-    label: "5-Wkt Hauls",
+    label: "5-Wkt hauls",
     description:
-      "Ranked by Most 5-Wicket Hauls in an innings. Celebrates dominant bowling performances.",
-    heroLabel: "5-Wkt Hauls",
+      "Ranked by most 5-wicket hauls in an innings. Celebrates dominant bowling performances.",
+    heroLabel: "5-Wkt hauls",
     getHeroStat: (bw) => ({
       value: `${bw.fiveWickets}`,
       label: bw.fiveWickets === 1 ? "5-Wkt Haul" : "5-Wkt Hauls",
     }),
     getContextStats: (bw) => [
-      { label: "3-Wkt Hauls", value: `${bw.threeWickets}` },
-      { label: "Total Wickets", value: `${bw.wickets}` },
-      { label: "Best Match Spell", value: bw.bestBowling.display },
-      { label: "Bowling Avg", value: bw.averageDisplay },
+      { label: "3-Wkt hauls", value: `${bw.threeWickets}` },
+      { label: "Total wickets", value: `${bw.wickets}` },
+      { label: "Best match spell", value: bw.bestBowling.display },
+      { label: "Bowling avg", value: bw.averageDisplay },
     ],
   },
   balls: {
-    label: "Balls Bowled",
+    label: "Balls bowled",
     description:
-      "Ranked by Legal Deliveries Bowled. Quantifies overall bowling workload.",
-    heroLabel: "Deliveries Bowled",
+      "Ranked by legal deliveries bowled. Quantifies overall bowling workload.",
+    heroLabel: "Deliveries bowled",
     getHeroStat: (bw) => ({
       value: `${bw.balls}`,
       label: `${bw.overs} Overs Bowled`,
     }),
     getContextStats: (bw) => [
-      { label: "Overs Bowled", value: bw.overs },
-      { label: "Runs Conceded", value: `${bw.runsConceded}` },
-      { label: "Wickets Taken", value: `${bw.wickets}` },
-      { label: "Economy Rate", value: bw.economyDisplay },
+      { label: "Overs bowled", value: bw.overs },
+      { label: "Runs conceded", value: `${bw.runsConceded}` },
+      { label: "Wickets taken", value: `${bw.wickets}` },
+      { label: "Economy rate", value: bw.economyDisplay },
     ],
   },
 };
 
 const FIELDING_CONFIGS: Record<FieldingSortOption, MetricConfig<FieldingLeaderboardEntry>> = {
   totalDismissals: {
-    label: "Total Dismissals",
+    label: "Total dismissals",
     description:
-      "Ranked by Combined Fielding Dismissals (Catches + Stumpings + Run Outs).",
-    heroLabel: "Total Dismissals",
+      "Ranked by combined fielding dismissals (catches + stumpings + run outs).",
+    heroLabel: "Total dismissals",
     getHeroStat: (f) => ({
       value: `${f.totalDismissals}`,
       label: f.totalDismissals === 1 ? "Dismissal" : "Total Dismissals",
     }),
     getContextStats: (f) => [
-      { label: "Catches (Ct)", value: `${f.catches}` },
-      { label: "Stumpings (St)", value: `${f.stumpings}` },
-      { label: "Run Outs (RO)", value: `${f.runOuts}` },
+      { label: "Catches (ct)", value: `${f.catches}` },
+      { label: "Stumpings (st)", value: `${f.stumpings}` },
+      { label: "Run outs (RO)", value: `${f.runOuts}` },
       { label: "Matches", value: `${f.matches}` },
     ],
   },
   catches: {
     label: "Catches",
     description:
-      "Ranked by Most Catches Taken in the outfield or behind the stumps.",
-    heroLabel: "Catches Taken",
+      "Ranked by most catches taken in the outfield or behind the stumps.",
+    heroLabel: "Catches taken",
     getHeroStat: (f) => ({
       value: `${f.catches}`,
       label: f.catches === 1 ? "Catch" : "Catches",
     }),
     getContextStats: (f) => [
-      { label: "Matches Played", value: `${f.matches}` },
-      { label: "Total Dismissals", value: `${f.totalDismissals}` },
+      { label: "Matches played", value: `${f.matches}` },
+      { label: "Total dismissals", value: `${f.totalDismissals}` },
       { label: "Stumpings", value: `${f.stumpings}` },
-      { label: "Run Outs", value: `${f.runOuts}` },
+      { label: "Run outs", value: `${f.runOuts}` },
     ],
   },
   stumpings: {
     label: "Stumpings",
-    description: "Ranked by Most Wicketkeeper Stumpings executed.",
-    heroLabel: "Stumpings Executed",
+    description: "Ranked by most wicketkeeper stumpings executed.",
+    heroLabel: "Stumpings executed",
     getHeroStat: (f) => ({
       value: `${f.stumpings}`,
       label: f.stumpings === 1 ? "Stumping" : "Stumpings",
     }),
     getContextStats: (f) => [
-      { label: "Matches Played", value: `${f.matches}` },
-      { label: "Catches Taken", value: `${f.catches}` },
-      { label: "Total Dismissals", value: `${f.totalDismissals}` },
+      { label: "Matches played", value: `${f.matches}` },
+      { label: "Catches taken", value: `${f.catches}` },
+      { label: "Total dismissals", value: `${f.totalDismissals}` },
     ],
   },
   runOuts: {
-    label: "Run Outs",
-    description: "Ranked by Direct Hit and Assisted Fielding Run Outs.",
-    heroLabel: "Run Outs Executed",
+    label: "Run outs",
+    description: "Ranked by direct hit and assisted fielding run outs.",
+    heroLabel: "Run outs executed",
     getHeroStat: (f) => ({
       value: `${f.runOuts}`,
       label: f.runOuts === 1 ? "Run Out" : "Run Outs",
     }),
     getContextStats: (f) => [
-      { label: "Matches Played", value: `${f.matches}` },
-      { label: "Catches Taken", value: `${f.catches}` },
-      { label: "Total Dismissals", value: `${f.totalDismissals}` },
+      { label: "Matches played", value: `${f.matches}` },
+      { label: "Catches taken", value: `${f.catches}` },
+      { label: "Total dismissals", value: `${f.totalDismissals}` },
     ],
   },
 };
 
 const MVP_CONFIGS: Record<MvpSortOption, MetricConfig<MvpLeaderboardEntry>> = {
   totalPoints: {
-    label: "Total MVP Points",
+    label: "Total MVP points",
     description:
-      "Ranked by Combined MVP Performance Points (Batting + Bowling + Fielding impact).",
-    heroLabel: "Total Points",
+      "Ranked by combined MVP performance points (batting + bowling + fielding impact).",
+    heroLabel: "Total points",
     getHeroStat: (m) => ({
       value: `${m.totalPoints}`,
-      label: "Total MVP Points",
+      label: "Total MVP points",
     }),
     getContextStats: (m) => [
-      { label: "Batting Pts", value: `${m.battingPoints}` },
-      { label: "Bowling Pts", value: `${m.bowlingPoints}` },
-      { label: "Fielding Pts", value: `${m.fieldingPoints}` },
-      { label: "Impact Summary", value: m.summary },
+      { label: "Batting pts", value: `${m.battingPoints}` },
+      { label: "Bowling pts", value: `${m.bowlingPoints}` },
+      { label: "Fielding pts", value: `${m.fieldingPoints}` },
+      { label: "Impact summary", value: m.summary },
     ],
   },
   battingPoints: {
-    label: "Batting Impact",
+    label: "Batting impact",
     description:
-      "Ranked by MVP Points earned through Batting performance and milestones.",
-    heroLabel: "Batting Points",
+      "Ranked by MVP points earned through batting performance and milestones.",
+    heroLabel: "Batting points",
     getHeroStat: (m) => ({
       value: `${m.battingPoints}`,
-      label: "Batting Impact Points",
+      label: "Batting impact points",
     }),
     getContextStats: (m) => [
-      { label: "Runs Scored", value: `${m.runs}` },
-      { label: "Total MVP Pts", value: `${m.totalPoints}` },
-      { label: "Bowling Pts", value: `${m.bowlingPoints}` },
+      { label: "Runs scored", value: `${m.runs}` },
+      { label: "Total MVP pts", value: `${m.totalPoints}` },
+      { label: "Bowling pts", value: `${m.bowlingPoints}` },
     ],
   },
   bowlingPoints: {
-    label: "Bowling Impact",
+    label: "Bowling impact",
     description:
-      "Ranked by MVP Points earned through Wickets, Economy, and Maidens.",
-    heroLabel: "Bowling Points",
+      "Ranked by MVP points earned through wickets, economy, and maidens.",
+    heroLabel: "Bowling points",
     getHeroStat: (m) => ({
       value: `${m.bowlingPoints}`,
-      label: "Bowling Impact Points",
+      label: "Bowling impact points",
     }),
     getContextStats: (m) => [
-      { label: "Wickets Taken", value: `${m.wickets}` },
-      { label: "Total MVP Pts", value: `${m.totalPoints}` },
-      { label: "Batting Pts", value: `${m.battingPoints}` },
+      { label: "Wickets taken", value: `${m.wickets}` },
+      { label: "Total MVP pts", value: `${m.totalPoints}` },
+      { label: "Batting pts", value: `${m.battingPoints}` },
     ],
   },
   fieldingPoints: {
-    label: "Fielding Impact",
+    label: "Fielding impact",
     description:
-      "Ranked by MVP Points earned through Catches, Stumpings, and Run Outs.",
-    heroLabel: "Fielding Points",
+      "Ranked by MVP points earned through catches, stumpings, and run outs.",
+    heroLabel: "Fielding points",
     getHeroStat: (m) => ({
       value: `${m.fieldingPoints}`,
-      label: "Fielding Impact Points",
+      label: "Fielding impact points",
     }),
     getContextStats: (m) => [
       {
         label: "Dismissals",
         value: `${m.catches + m.stumpings + m.runOuts}`,
       },
-      { label: "Total MVP Pts", value: `${m.totalPoints}` },
+      { label: "Total MVP pts", value: `${m.totalPoints}` },
       { label: "Catches", value: `${m.catches}` },
     ],
   },
@@ -505,7 +504,7 @@ function LeaderSpotlightBanner({
                   {leader.name}
                 </span>
                 <span
-                  className="text-sm font-bold tabular-nums text-foreground"
+                  className="text-sm font-semibold font-score tabular-nums text-foreground"
                 >
                   {heroValue}
                 </span>
@@ -517,7 +516,7 @@ function LeaderSpotlightBanner({
                 <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-muted-foreground border-t border-border/40 pt-1">
                   {contextStats.slice(0, 3).map((st) => (
                     <span key={st.label} className="truncate">
-                      <span className="font-semibold text-foreground tabular-nums">
+                      <span className="font-semibold text-foreground font-score tabular-nums">
                         {st.value}
                       </span>{" "}
                       {st.label}
@@ -562,7 +561,7 @@ function RankCard({
           </span>
           <Initials name={name} fallback={fallback} className="h-8 w-8" />
           <div className="min-w-0">
-            <div className="font-bold text-foreground text-sm truncate">
+            <div className="font-semibold text-foreground text-sm truncate">
               {name}
             </div>
             <div className="text-2xs text-muted-foreground truncate">
@@ -572,7 +571,7 @@ function RankCard({
         </div>
 
         <div className="text-right shrink-0">
-          <div className="text-base font-bold tabular-nums text-foreground">
+          <div className="text-base font-semibold font-score tabular-nums text-foreground">
             {hero.value}
           </div>
           <div className="text-2xs text-muted-foreground">{hero.label}</div>
@@ -583,7 +582,7 @@ function RankCard({
         {stats.map((st) => (
           <div key={st.label} className="flex justify-between">
             <span className="text-muted-foreground">{st.label}:</span>
-            <span className="font-semibold tabular-nums text-foreground">
+            <span className="font-semibold font-score tabular-nums text-foreground">
               {st.value}
             </span>
           </div>
@@ -701,12 +700,12 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
       {/* Highlight Cards Grid */}
       {showHighlights && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Orange Cap */}
+          {/* Orange cap */}
           <Card>
             <CardHeader className="p-4 pb-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">
-                  Orange Cap
+                  Orange cap
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Most runs
@@ -726,7 +725,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       {data.highlights.orangeCap.strikeRateDisplay}
                     </div>
                   </div>
-                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
                     {data.highlights.orangeCap.runs}
                   </div>
                 </div>
@@ -738,12 +737,12 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
             </CardContent>
           </Card>
 
-          {/* Purple Cap */}
+          {/* Purple cap */}
           <Card>
             <CardHeader className="p-4 pb-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-foreground">
-                  Purple Cap
+                  Purple cap
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Most wickets
@@ -763,7 +762,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       {data.highlights.purpleCap.economyDisplay}
                     </div>
                   </div>
-                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
                     {data.highlights.purpleCap.wickets}
                   </div>
                 </div>
@@ -798,7 +797,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       {data.highlights.mvpLeader.summary}
                     </div>
                   </div>
-                  <div className="text-2xl font-bold tabular-nums text-foreground">
+                  <div className="text-2xl font-semibold font-score tabular-nums text-foreground">
                     {data.highlights.mvpLeader.totalPoints}
                   </div>
                 </div>
@@ -815,14 +814,14 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-muted-foreground">
-                  Most sixes (max)
+                  Most sixes
                 </span>
               </div>
               <div className="mt-2 flex items-baseline justify-between">
                 <div className="truncate font-semibold text-foreground">
                   {data.highlights.mostSixes?.name ?? "—"}
                 </div>
-                <div className="text-xl font-bold tabular-nums text-foreground">
+                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
                   {data.highlights.mostSixes?.sixes ?? 0}
                 </div>
               </div>
@@ -846,7 +845,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                 <div className="truncate font-semibold text-foreground">
                   {data.highlights.highestScore?.name ?? "—"}
                 </div>
-                <div className="text-xl font-bold tabular-nums text-foreground">
+                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
                   {data.highlights.highestScore?.highestScoreDisplay ?? "—"}
                 </div>
               </div>
@@ -872,7 +871,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                 <div className="truncate font-semibold text-foreground">
                   {data.highlights.bestBowling?.name ?? "—"}
                 </div>
-                <div className="text-xl font-bold tabular-nums text-foreground">
+                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
                   {data.highlights.bestBowling?.bestBowling.display ?? "—"}
                 </div>
               </div>
@@ -896,7 +895,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                 <div className="truncate font-semibold text-foreground">
                   {data.highlights.topFielder?.name ?? "—"}
                 </div>
-                <div className="text-xl font-bold tabular-nums text-foreground">
+                <div className="text-xl font-semibold font-score tabular-nums text-foreground">
                   {data.highlights.topFielder?.totalDismissals ?? 0}
                 </div>
               </div>
@@ -940,7 +939,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                     className="flex items-center justify-between p-3"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
                         {idx + 1}
                       </span>
                       <Initials name={b.name} fallback="P" className="h-7 w-7" />
@@ -955,7 +954,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold tabular-nums text-foreground">
+                      <div className="text-sm font-semibold font-score tabular-nums text-foreground">
                         {b.runs}
                       </div>
                       <div className="text-2xs text-muted-foreground">
@@ -997,7 +996,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                     className="flex items-center justify-between p-3"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
                         {idx + 1}
                       </span>
                       <Initials name={bw.name} fallback="B" className="h-7 w-7" />
@@ -1012,7 +1011,7 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold tabular-nums text-foreground">
+                      <div className="text-sm font-semibold font-score tabular-nums text-foreground">
                         {bw.wickets}
                       </div>
                       <div className="text-2xs text-muted-foreground">
@@ -1042,15 +1041,15 @@ function BattingTab({ view }: { view: LeaderboardState }) {
           </span>
           {(
             [
-              { id: "runs", label: "Most Runs" },
+              { id: "runs", label: "Most runs" },
               { id: "centuries", label: "100s" },
               { id: "fifties", label: "50s" },
-              { id: "highestScore", label: "Highest Score" },
-              { id: "average", label: "Batting Avg" },
-              { id: "strikeRate", label: "Strike Rate" },
+              { id: "highestScore", label: "Highest score" },
+              { id: "average", label: "Batting avg" },
+              { id: "strikeRate", label: "Strike rate" },
               { id: "sixes", label: "Most 6s" },
               { id: "fours", label: "Most 4s" },
-              { id: "balls", label: "Balls Faced" },
+              { id: "balls", label: "Balls faced" },
             ] as const
           ).map((chip) => (
             <Button
@@ -1160,7 +1159,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                     <th className="px-3 py-2.5 text-center">Knock 4s</th>
                     <th className="px-3 py-2.5 text-center">Knock 6s</th>
                     <th className="px-3 py-2.5 text-center">Innings</th>
-                    <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground">
                       Total tournament runs
                     </th>
                     <th className="px-3 py-2.5 text-right">Overall avg</th>
@@ -1172,7 +1171,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                       key={b.userId}
                       className="hover:bg-muted/40 transition-colors"
                     >
-                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                         {idx === 0 ? (
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                             1
@@ -1189,28 +1188,28 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums font-semibold text-sm bg-muted/60 text-foreground">
                         {b.highestScoreDisplay}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground font-medium">
                         {b.highestScoreBalls ? `${b.highestScoreBalls} balls` : "—"}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      <td className="px-3 py-2 text-right font-score tabular-nums font-medium">
                         {b.highestScoreStrikeRateDisplay ?? "—"}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {b.highestScoreFours ?? 0}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {b.highestScoreSixes ?? 0}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {b.innings}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                      <td className="px-3 py-2 text-right font-score tabular-nums font-semibold text-foreground">
                         {b.runs}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-right font-score tabular-nums text-muted-foreground">
                         {b.averageDisplay}
                       </td>
                     </tr>
@@ -1237,7 +1236,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                       className={`px-3 py-2.5 text-right transition-colors ${
                         battingSort === "runs"
                           ? "bg-muted text-foreground font-semibold"
-                          : "font-bold text-foreground"
+                          : "font-semibold text-foreground"
                       }`}
                     >
                       Runs
@@ -1332,7 +1331,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                         key={b.userId}
                         className="hover:bg-muted/40 transition-colors"
                       >
-                        <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                           {idx === 0 ? (
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                               1
@@ -1349,17 +1348,17 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                             </span>
                           </div>
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums text-muted-foreground">
                           {b.matches}
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums text-muted-foreground">
                           {b.innings}
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums text-muted-foreground">
                           {b.notOuts}
                         </td>
                         <td
-                          className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                          className={`px-3 py-2 text-right font-score tabular-nums font-semibold text-sm ${
                             battingSort === "runs"
                               ? "bg-muted/60 text-foreground"
                               : "text-foreground"
@@ -1368,7 +1367,7 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                           {b.runs}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                          className={`px-2.5 py-2 text-center font-score tabular-nums font-semibold ${
                             battingSort === "highestScore"
                               ? "bg-muted/60 text-foreground"
                               : ""
@@ -1377,63 +1376,63 @@ function BattingTab({ view }: { view: LeaderboardState }) {
                           {b.highestScoreDisplay}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-right tabular-nums ${
+                          className={`px-2.5 py-2 text-right font-score tabular-nums ${
                             battingSort === "average"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : ""
                           }`}
                         >
                           {b.averageDisplay}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-right tabular-nums ${
+                          className={`px-2.5 py-2 text-right font-score tabular-nums ${
                             battingSort === "balls"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "text-muted-foreground"
                           }`}
                         >
                           {b.balls}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-right tabular-nums ${
+                          className={`px-2.5 py-2 text-right font-score tabular-nums ${
                             battingSort === "strikeRate"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-medium"
                           }`}
                         >
                           {b.strikeRateDisplay}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             battingSort === "centuries"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-semibold text-foreground"
                           }`}
                         >
                           {b.centuries}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             battingSort === "fifties"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-semibold text-foreground"
                           }`}
                         >
                           {b.fifties}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             battingSort === "fours"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "text-muted-foreground"
                           }`}
                         >
                           {b.fours}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             battingSort === "sixes"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "text-muted-foreground"
                           }`}
                         >
@@ -1464,14 +1463,14 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
           </span>
           {(
             [
-              { id: "wickets", label: "Most Wickets" },
-              { id: "bestBowling", label: "Best Bowling (BBI)" },
-              { id: "average", label: "Bowling Avg" },
-              { id: "economy", label: "Economy Rate" },
+              { id: "wickets", label: "Most wickets" },
+              { id: "bestBowling", label: "Best bowling (BBI)" },
+              { id: "average", label: "Bowling avg" },
+              { id: "economy", label: "Economy rate" },
               { id: "maidens", label: "Maidens" },
-              { id: "threeWickets", label: "3-Wkt Hauls" },
-              { id: "fiveWickets", label: "5-Wkt Hauls" },
-              { id: "balls", label: "Balls Bowled" },
+              { id: "threeWickets", label: "3-Wkt hauls" },
+              { id: "fiveWickets", label: "5-Wkt hauls" },
+              { id: "balls", label: "Balls bowled" },
             ] as const
           ).map((chip) => (
             <Button
@@ -1578,7 +1577,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                     </th>
                     <th className="px-3 py-2.5 text-center">Overs in spell</th>
                     <th className="px-3 py-2.5 text-right">Spell economy</th>
-                    <th className="px-3 py-2.5 text-right font-bold text-foreground">
+                    <th className="px-3 py-2.5 text-right font-semibold text-foreground">
                       Total tournament wkts
                     </th>
                     <th className="px-3 py-2.5 text-center">Total overs</th>
@@ -1592,7 +1591,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                       key={bw.userId}
                       className="hover:bg-muted/40 transition-colors"
                     >
-                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                         {idx === 0 ? (
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                             1
@@ -1609,25 +1608,25 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums font-bold text-sm bg-muted/60 text-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums font-semibold text-sm bg-muted/60 text-foreground">
                         {bw.bestBowling.display}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground font-medium">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground font-medium">
                         {bw.bestBowling.overs ? `${bw.bestBowling.overs} ov` : "—"}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      <td className="px-3 py-2 text-right font-score tabular-nums font-medium">
                         {bw.bestBowling.economy ?? "—"}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums font-bold text-foreground">
+                      <td className="px-3 py-2 text-right font-score tabular-nums font-semibold text-foreground">
                         {bw.wickets}
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {bw.overs}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-right font-score tabular-nums text-muted-foreground">
                         {bw.economyDisplay}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-right font-score tabular-nums text-muted-foreground">
                         {bw.averageDisplay}
                       </td>
                     </tr>
@@ -1673,7 +1672,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                       className={`px-3 py-2.5 text-right transition-colors ${
                         bowlingSort === "wickets"
                           ? "bg-muted text-foreground font-semibold"
-                          : "font-bold text-foreground"
+                          : "font-semibold text-foreground"
                       }`}
                     >
                       Wkts
@@ -1741,7 +1740,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                         key={bw.userId}
                         className="hover:bg-muted/40 transition-colors"
                       >
-                        <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                        <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                           {idx === 0 ? (
                             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                               1
@@ -1758,38 +1757,38 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                             </span>
                           </div>
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums text-muted-foreground">
                           {bw.matches}
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums text-muted-foreground">
                           {bw.innings}
                         </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums font-medium">
+                        <td className="px-2.5 py-2 text-center font-score tabular-nums font-medium">
                           {bw.overs}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-center tabular-nums ${
+                          className={`px-2.5 py-2 text-center font-score tabular-nums ${
                             bowlingSort === "balls"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "text-muted-foreground"
                           }`}
                         >
                           {bw.balls}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-center tabular-nums ${
+                          className={`px-2.5 py-2 text-center font-score tabular-nums ${
                             bowlingSort === "maidens"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "text-muted-foreground"
                           }`}
                         >
                           {bw.maidens}
                         </td>
-                        <td className="px-2.5 py-2 text-right tabular-nums text-muted-foreground">
+                        <td className="px-2.5 py-2 text-right font-score tabular-nums text-muted-foreground">
                           {bw.runsConceded}
                         </td>
                         <td
-                          className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                          className={`px-3 py-2 text-right font-score tabular-nums font-semibold text-sm ${
                             bowlingSort === "wickets"
                               ? "bg-muted/60 text-foreground"
                               : "text-foreground"
@@ -1798,7 +1797,7 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                           {bw.wickets}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-center tabular-nums font-semibold ${
+                          className={`px-2.5 py-2 text-center font-score tabular-nums font-semibold ${
                             bowlingSort === "bestBowling"
                               ? "bg-muted/60 text-foreground"
                               : "text-foreground"
@@ -1807,36 +1806,36 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
                           {bw.bestBowling.display}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-right tabular-nums ${
+                          className={`px-2.5 py-2 text-right font-score tabular-nums ${
                             bowlingSort === "average"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : ""
                           }`}
                         >
                           {bw.averageDisplay}
                         </td>
                         <td
-                          className={`px-2.5 py-2 text-right tabular-nums ${
+                          className={`px-2.5 py-2 text-right font-score tabular-nums ${
                             bowlingSort === "economy"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-medium"
                           }`}
                         >
                           {bw.economyDisplay}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             bowlingSort === "threeWickets"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-semibold text-muted-foreground"
                           }`}
                         >
                           {bw.threeWickets}
                         </td>
                         <td
-                          className={`px-2 py-2 text-center tabular-nums ${
+                          className={`px-2 py-2 text-center font-score tabular-nums ${
                             bowlingSort === "fiveWickets"
-                              ? "bg-muted/60 font-bold text-foreground"
+                              ? "bg-muted/60 font-semibold text-foreground"
                               : "font-semibold text-foreground"
                           }`}
                         >
@@ -1866,10 +1865,10 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
         </span>
         {(
           [
-            { id: "totalDismissals", label: "Total Dismissals" },
+            { id: "totalDismissals", label: "Total dismissals" },
             { id: "catches", label: "Catches" },
             { id: "stumpings", label: "Stumpings" },
-            { id: "runOuts", label: "Run Outs" },
+            { id: "runOuts", label: "Run outs" },
           ] as const
         ).map((chip) => (
           <Button
@@ -1945,7 +1944,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                     className={`px-3 py-2.5 text-right transition-colors ${
                       fieldingSort === "totalDismissals"
                         ? "bg-muted text-foreground font-semibold"
-                        : "font-bold text-foreground"
+                        : "font-semibold text-foreground"
                     }`}
                   >
                     Total dismissals
@@ -1995,7 +1994,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                       key={f.userId}
                       className="hover:bg-muted/40 transition-colors"
                     >
-                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                         {idx === 0 ? (
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                             1
@@ -2012,11 +2011,11 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {f.matches}
                       </td>
                       <td
-                        className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                        className={`px-3 py-2 text-right font-score tabular-nums font-semibold text-sm ${
                           fieldingSort === "totalDismissals"
                             ? "bg-muted/60 text-foreground"
                             : "text-foreground"
@@ -2025,7 +2024,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                         {f.totalDismissals}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                        className={`px-3 py-2 text-center font-score tabular-nums font-semibold ${
                           fieldingSort === "catches"
                             ? "bg-muted/60 text-foreground"
                             : ""
@@ -2034,7 +2033,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                         {f.catches}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                        className={`px-3 py-2 text-center font-score tabular-nums font-semibold ${
                           fieldingSort === "stumpings"
                             ? "bg-muted/60 text-foreground"
                             : "text-foreground"
@@ -2043,7 +2042,7 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
                         {f.stumpings}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums font-semibold ${
+                        className={`px-3 py-2 text-center font-score tabular-nums font-semibold ${
                           fieldingSort === "runOuts"
                             ? "bg-muted/60 text-foreground"
                             : "text-foreground"
@@ -2074,10 +2073,10 @@ function MvpTab({ view }: { view: LeaderboardState }) {
         </span>
         {(
           [
-            { id: "totalPoints", label: "Total MVP Points" },
-            { id: "battingPoints", label: "Batting Impact" },
-            { id: "bowlingPoints", label: "Bowling Impact" },
-            { id: "fieldingPoints", label: "Fielding Impact" },
+            { id: "totalPoints", label: "Total MVP points" },
+            { id: "battingPoints", label: "Batting impact" },
+            { id: "bowlingPoints", label: "Bowling impact" },
+            { id: "fieldingPoints", label: "Fielding impact" },
           ] as const
         ).map((chip) => (
           <Button
@@ -2153,7 +2152,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                     className={`px-3 py-2.5 text-right transition-colors ${
                       mvpSort === "totalPoints"
                         ? "bg-muted text-foreground font-semibold"
-                        : "font-bold text-foreground"
+                        : "font-semibold text-foreground"
                     }`}
                   >
                     Total points
@@ -2204,7 +2203,7 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                       key={m.userId}
                       className="hover:bg-muted/40 transition-colors"
                     >
-                      <td className="px-3 py-2 text-center font-bold text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-semibold text-muted-foreground">
                         {idx === 0 ? (
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-foreground font-semibold">
                             1
@@ -2221,11 +2220,11 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center tabular-nums text-muted-foreground">
+                      <td className="px-3 py-2 text-center font-score tabular-nums text-muted-foreground">
                         {m.matches}
                       </td>
                       <td
-                        className={`px-3 py-2 text-right tabular-nums font-bold text-sm ${
+                        className={`px-3 py-2 text-right font-score tabular-nums font-semibold text-sm ${
                           mvpSort === "totalPoints"
                             ? "bg-muted/60 text-foreground"
                             : "text-foreground"
@@ -2234,27 +2233,27 @@ function MvpTab({ view }: { view: LeaderboardState }) {
                         {m.totalPoints}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums ${
+                        className={`px-3 py-2 text-center font-score tabular-nums ${
                           mvpSort === "battingPoints"
-                            ? "bg-muted/60 font-bold text-foreground"
+                            ? "bg-muted/60 font-semibold text-foreground"
                             : "font-medium text-foreground"
                         }`}
                       >
                         {m.battingPoints}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums ${
+                        className={`px-3 py-2 text-center font-score tabular-nums ${
                           mvpSort === "bowlingPoints"
-                            ? "bg-muted/60 font-bold text-foreground"
+                            ? "bg-muted/60 font-semibold text-foreground"
                             : "font-medium text-foreground"
                         }`}
                       >
                         {m.bowlingPoints}
                       </td>
                       <td
-                        className={`px-3 py-2 text-center tabular-nums ${
+                        className={`px-3 py-2 text-center font-score tabular-nums ${
                           mvpSort === "fieldingPoints"
-                            ? "bg-muted/60 font-bold text-foreground"
+                            ? "bg-muted/60 font-semibold text-foreground"
                             : "font-medium text-foreground"
                         }`}
                       >
@@ -2330,20 +2329,11 @@ export function LeaderboardView({
         onValueChange={(v) => setActiveTab(v as typeof activeTab)}
         className="space-y-6"
       >
-        <div className="overflow-x-auto pb-1 no-scrollbar">
-          <TabsList className="inline-flex h-10 w-full min-w-max justify-start gap-1 rounded-xl bg-muted/80 p-1 text-muted-foreground sm:w-auto">
+        <div>
+          <TabsList className="flex w-full justify-start">
             {LEADERBOARD_TABS.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="min-h-[36px] gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all data-[state=active]:bg-card data-[state=active]:shadow-xs"
-              >
+              <TabsTrigger key={tab.id} value={tab.id}>
                 {tab.label}
-                {tab.id !== "overview" && (
-                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-2xs">
-                    {data[tab.id].length}
-                  </Badge>
-                )}
               </TabsTrigger>
             ))}
           </TabsList>

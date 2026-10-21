@@ -1,78 +1,57 @@
-"use client";
-
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Users, Trophy } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { TeamCrest } from "~/components/ds/avatar";
+import { cardSurface } from "~/components/ds/card";
 import { formatTeamType } from "~/lib/cricket";
+import { cn } from "~/lib/utils";
 
 interface TeamCardProps {
   team: {
     id: string;
     name: string;
     short_name?: string;
+    logo_url?: string | null;
     description?: string;
     player_count?: number;
     team_type?: string;
   };
 }
 
+/** A team in a list: crest, name, squad size and type; the card is the link. */
 export function TeamCard({ team }: TeamCardProps) {
+  const players = team.player_count ?? 0;
   return (
-    <Card className="flex h-full flex-col transition-colors hover:border-primary/40">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-foreground">
-              {team.short_name?.substring(0, 2) ||
-                team.name.substring(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <CardTitle className="text-lg">{team.name}</CardTitle>
-              {team.short_name && (
-                <p className="text-sm text-muted-foreground">
-                  {team.short_name}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 py-4">
-        <p className="line-clamp-2 min-h-[40px] text-sm text-muted-foreground">
-          {team.description || "No description provided."}
-        </p>
-
-        <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Users className="h-3.5 w-3.5 shrink-0" />
-            <span className="tabular-nums">
-              {team.player_count || 0}{" "}
-              {team.player_count === 1 ? "player" : "players"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Trophy className="h-3.5 w-3.5 shrink-0" />
-            <span>{formatTeamType(team.team_type)}</span>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="pt-0">
-        <Button
-          asChild
-          className="w-full"
-          variant="outline"
-          size="sm"
-        >
-          <Link href={`/teams/${team.id}`}>Manage squad</Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    <Link
+      href={`/teams/${team.id}`}
+      className={cn(
+        cardSurface,
+        "flex h-full items-center gap-3 p-4 transition-colors hover:bg-accent/40",
+      )}
+    >
+      <TeamCrest
+        name={team.name}
+        shortName={team.short_name}
+        logoUrl={team.logo_url}
+        size="lg"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold text-foreground">
+          {team.name}
+        </span>
+        <span className="block truncate text-sm text-muted-foreground">
+          {players} {players === 1 ? "player" : "players"} ·{" "}
+          {formatTeamType(team.team_type)}
+        </span>
+        {team.description && (
+          <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+            {team.description}
+          </span>
+        )}
+      </span>
+      <ChevronRight
+        className="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }

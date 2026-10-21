@@ -88,6 +88,14 @@ function overText(balls: BallByBallRow[]): string | null {
   return shown.length ? shown.map(ballText).join(" ") : null;
 }
 
+/** The runs off those deliveries (extras included). */
+function overRuns(balls: BallByBallRow[]): number | null {
+  const shown = balls.filter((b) => !b.penalty_team_id);
+  return shown.length
+    ? shown.reduce((n, b) => n + (b.runs_scored ?? 0) + (b.extras ?? 0), 0)
+    : null;
+}
+
 export interface LiveStateTeam {
   name: string | null;
   short_name: string | null;
@@ -194,6 +202,7 @@ const NO_INNINGS_FIELDS = {
   partnership_runs: null,
   partnership_balls: null,
   this_over_balls: null,
+  this_over_runs: null,
   current_run_rate: null,
   runs_needed: null,
   balls_remaining: null,
@@ -321,6 +330,7 @@ export function composeLiveMatchState(
     ...inningsFields(parts, ci),
     ...creaseFields(parts),
     this_over_balls: overText(parts.thisOver),
+    this_over_runs: overRuns(parts.thisOver),
     ...rateFields(parts, ci),
     ...lastBallFields(parts),
   };

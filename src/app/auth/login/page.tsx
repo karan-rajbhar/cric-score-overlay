@@ -13,6 +13,7 @@ import {
 } from "~/components/ui/card";
 import { Alert, AlertDescription } from "~/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { BrandMark, BrandWordmark } from "~/components/brand";
 
 function LoginPageInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -87,6 +88,15 @@ function LoginPageInner() {
       <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">
+          {/* Phones have no header: the brand opens the page. */}
+          <Link
+            href="/"
+            aria-label="CricScore home"
+            className="mb-4 inline-flex items-center gap-2 md:hidden"
+          >
+            <BrandMark className="h-10 w-10" />
+            <BrandWordmark />
+          </Link>
           <h1 className="text-balance text-2xl font-semibold tracking-tight">
             Sign in to CricScore
           </h1>

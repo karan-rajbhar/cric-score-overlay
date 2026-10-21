@@ -18,7 +18,7 @@ export default {
           "system-ui",
           "sans-serif",
         ],
-        score: ["var(--font-score)", "Barlow Condensed", "Inter", "sans-serif"],
+        score: ["var(--font-score)", "Outfit", "ui-sans-serif", "sans-serif"],
         mono: [
           "ui-monospace",
           "SFMono-Regular",
@@ -42,6 +42,8 @@ export default {
           foreground: "hsl(var(--board-foreground))",
           muted: "hsl(var(--board-muted))",
           line: "hsl(var(--board-line))",
+          good: "hsl(var(--board-good))",
+          warn: "hsl(var(--board-warn))",
         },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -56,6 +58,48 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          soft: "hsl(var(--primary-soft))",
+          "soft-foreground": "hsl(var(--primary-soft-foreground))",
+        },
+        // Design system tokens (globals.css; /design shows them).
+        hero: {
+          DEFAULT: "hsl(var(--hero))",
+          foreground: "hsl(var(--hero-foreground))",
+        },
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+        },
+        live: {
+          DEFAULT: "hsl(var(--live))",
+          foreground: "hsl(var(--live-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        // Chart series: the two teams (globals.css --series-1 / --series-2).
+        "series-1": "hsl(var(--series-1))",
+        "series-2": "hsl(var(--series-2))",
+        four: {
+          DEFAULT: "hsl(var(--four))",
+          foreground: "hsl(var(--four-foreground))",
+        },
+        six: {
+          DEFAULT: "hsl(var(--six))",
+          foreground: "hsl(var(--six-foreground))",
+        },
+        wicket: {
+          DEFAULT: "hsl(var(--wicket))",
+          foreground: "hsl(var(--wicket-foreground))",
+        },
+        extra: {
+          DEFAULT: "hsl(var(--extra))",
+          foreground: "hsl(var(--extra-foreground))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -82,6 +126,17 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        // Match header card, dialogs, phone-frame panels.
+        panel: "calc(var(--radius) + 10px)",
+      },
+      // Elevation and the top-of-screen wash (tokens in globals.css).
+      boxShadow: {
+        soft: "var(--shadow-soft)",
+        float: "var(--shadow-float)",
+        primary: "var(--shadow-primary)",
+      },
+      backgroundImage: {
+        wash: "linear-gradient(120deg, hsl(var(--wash-1)) 0%, hsl(var(--wash-2)) 52%, hsl(var(--wash-3)) 100%)",
       },
     },
   },

@@ -120,6 +120,6 @@ describe("ClubTournamentsTab Component", () => {
       />,
     );
 
-    expect(screen.getByText(/no tournaments hosted yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no tournaments yet/i)).toBeInTheDocument();
   });
 });

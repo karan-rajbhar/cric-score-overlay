@@ -63,7 +63,7 @@ export function CurrentBowler({
                   : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-3 py-1.5 text-xs font-bold text-foreground transition-transform hover:bg-muted"
               }
             >
-              <Repeat className="h-3.5 w-3.5 text-sky-600" />
+              <Repeat className="h-3.5 w-3.5 text-primary" />
               Change bowler
             </button>
           )}
@@ -93,7 +93,7 @@ export function CurrentBowler({
                 className={
                   sunlightMode
                     ? "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border-2 border-black bg-black px-3.5 py-1.5 text-xs font-bold text-white"
-                    : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3.5 py-1.5 text-xs font-bold text-sky-700 transition-colors hover:bg-sky-500/20 dark:text-sky-300"
+                    : "inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/20"
                 }
               >
                 Select bowler
@@ -129,7 +129,7 @@ export function CurrentBowler({
                   className={
                     sunlightMode
                       ? "font-bold text-black"
-                      : "font-semibold text-sky-700 dark:text-sky-300"
+                      : "font-semibold text-primary"
                   }
                 >
                   Econ {economyRate(bowler.runs, ballsFromOvers(bowler.overs))}
@@ -151,8 +151,8 @@ export function CurrentBowler({
                 className={
                   bowler.wickets > 0
                     ? sunlightMode
-                      ? "text-red-700 font-bold"
-                      : "text-red-600 dark:text-red-400"
+                      ? "text-destructive font-bold"
+                      : "text-destructive"
                     : ""
                 }
               >

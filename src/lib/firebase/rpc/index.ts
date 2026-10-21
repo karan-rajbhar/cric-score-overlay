@@ -28,6 +28,7 @@ import {
   awardPenaltyRuns,
   endInnings,
   reassignOverBowler,
+  replaceBatter,
   recomputeInningsRpc,
   recordBall,
   retireBatter,
@@ -137,6 +138,12 @@ export async function callRpc(
       return reassignOverBowler(scoring, {
         p_match_id: str(args, "p_match_id"),
         p_bowler_id: str(args, "p_bowler_id"),
+      });
+    case "replace_batter":
+      return replaceBatter(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_from_id: str(args, "p_from_id"),
+        p_to_id: str(args, "p_to_id"),
       });
     case "set_current_batsmen":
       return setCurrentBatsmen(

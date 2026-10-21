@@ -113,6 +113,7 @@ describe("billed reads per page on the seed data", () => {
     results.matches = await cost(() => getMatches({}));
     results.dashboard = await cost(async () => {
       await getMatches({ status: "live" });
+      await getMatches({ status: "scheduled", limit: 6 });
       await getMatches({ status: "completed", limit: 6 });
     });
     results.matchPage = await cost(async () => {
@@ -244,7 +245,8 @@ describe("billed reads per page on the seed data", () => {
     const bounds: Record<string, number> = {
       home: 2,
       matches: 8,
-      dashboard: 6,
+      // 6 before the upcoming fixtures (scheduled matches, limit 6).
+      dashboard: 8,
       matchPageWarm: 8,
       scoringState: 7,
       // 12 when the screen re-read its state after every ball.

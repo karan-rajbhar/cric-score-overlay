@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import {
   CANVAS,
   COLORS,
+  FONT,
+  paintCard,
+  paintWash,
   generateQRImage,
   createCanvas,
   downloadCanvas,
@@ -36,45 +39,42 @@ function drawSquadCanvas(
   qrImage: HTMLImageElement | null,
 ) {
   // Background
-  ctx.fillStyle = COLORS.bgTop;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = COLORS.accent;
-  ctx.fillRect(0, 0, W, 5);
+  paintWash(ctx, W, H);
 
   ctx.textBaseline = "top";
 
   // Header
   ctx.fillStyle = COLORS.dim;
-  ctx.font = "600 18px Arial, sans-serif";
-  ctx.fillText("TEAM SQUAD", 48, 40);
+  ctx.font = `600 18px ${FONT.sans}`;
+  ctx.fillText("Team squad", 48, 40);
 
-  ctx.fillStyle = COLORS.accent;
-  ctx.font = "600 13px Arial, sans-serif";
+  ctx.fillStyle = COLORS.primary;
+  ctx.font = `700 18px ${FONT.sans}`;
   ctx.textAlign = "right";
-  ctx.fillText("C R I C S C O R E", W - 48, 44);
+  ctx.fillText("CricScore", W - 48, 40);
   ctx.textAlign = "left";
 
   ctx.fillStyle = COLORS.text;
-  ctx.font = "bold 32px Arial, sans-serif";
+  ctx.font = `bold 32px ${FONT.sans}`;
   const title = teamName.length > 34 ? `${teamName.slice(0, 34)}…` : teamName;
   ctx.fillText(title, 48, 72);
 
   ctx.fillStyle = COLORS.dim;
-  ctx.font = "15px Arial, sans-serif";
+  ctx.font = `15px ${FONT.sans}`;
   ctx.fillText(`${players.length} players`, 48, 112);
 
-  // Player list header
+  // Player list, on a white card
+  paintCard(ctx, 32, 144, W - 64, H - 110 - 144 - 16, 22);
   let y = 160;
   ctx.fillStyle = COLORS.faint;
-  ctx.font = "600 12px Arial, sans-serif";
+  ctx.font = `600 12px ${FONT.sans}`;
   ctx.fillText("#", 48, y);
-  ctx.fillText("PLAYER", 100, y);
+  ctx.fillText("Player", 100, y);
   ctx.textAlign = "right";
-  ctx.fillText("ROLE", W - 48, y);
+  ctx.fillText("Role", W - 48, y);
   ctx.textAlign = "left";
 
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.strokeStyle = COLORS.border;
   ctx.beginPath();
   ctx.moveTo(48, y + 18);
   ctx.lineTo(W - 48, y + 18);
@@ -83,11 +83,11 @@ function drawSquadCanvas(
   y += 28;
 
   // Rows
-  ctx.font = "15px Arial, sans-serif";
+  ctx.font = `15px ${FONT.sans}`;
   for (let i = 0; i < Math.min(players.length, 18); i++) {
     const p = players[i]!;
     if (i % 2 === 0) {
-      ctx.fillStyle = COLORS.panel;
+      ctx.fillStyle = COLORS.row;
       ctx.fillRect(40, y - 4, W - 80, 32);
     }
 
@@ -102,42 +102,42 @@ function drawSquadCanvas(
     const role = (p.role_in_team ?? "player").replace(/_/g, " ");
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.dim;
-    ctx.font = "13px Arial, sans-serif";
+    ctx.font = `13px ${FONT.sans}`;
     ctx.fillText(role, W - 48, y + 7);
     ctx.textAlign = "left";
-    ctx.font = "15px Arial, sans-serif";
+    ctx.font = `15px ${FONT.sans}`;
 
     y += 32;
   }
 
   if (players.length > 18) {
     ctx.fillStyle = COLORS.faint;
-    ctx.font = "13px Arial, sans-serif";
+    ctx.font = `13px ${FONT.sans}`;
     ctx.fillText(`+ ${players.length - 18} more`, 48, y + 8);
     y += 28;
   }
 
   // Footer with QR + URL
   const footerY = H - 110;
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.strokeStyle = COLORS.border;
   ctx.beginPath();
   ctx.moveTo(48, footerY);
   ctx.lineTo(W - 48, footerY);
   ctx.stroke();
 
   ctx.fillStyle = COLORS.faint;
-  ctx.font = "13px Arial, sans-serif";
+  ctx.font = `13px ${FONT.sans}`;
   ctx.fillText(teamUrl, 48, footerY + 18);
   ctx.fillStyle = COLORS.dim;
-  ctx.font = "600 12px Arial, sans-serif";
+  ctx.font = `600 12px ${FONT.sans}`;
   ctx.fillText("View team on CricScore", 48, footerY + 38);
 
   if (qrImage) {
     ctx.drawImage(qrImage, W - 128, footerY + 12, 80, 80);
     ctx.fillStyle = COLORS.faint;
-    ctx.font = "10px Arial, sans-serif";
+    ctx.font = `10px ${FONT.sans}`;
     ctx.textAlign = "right";
-    ctx.fillText("SCAN", W - 88, footerY + 98);
+    ctx.fillText("Scan", W - 88, footerY + 98);
     ctx.textAlign = "left";
   }
 }

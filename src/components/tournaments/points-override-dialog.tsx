@@ -137,7 +137,7 @@ export function PointsOverrideDialog({
               }
             >
               <SelectTrigger id="status">
-                <SelectValue placeholder="Select Status" />
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="in_contention">

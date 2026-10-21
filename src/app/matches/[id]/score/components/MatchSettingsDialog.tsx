@@ -128,7 +128,7 @@ function MatchSettingsForm({
       <div className="space-y-4 py-4">
         {/* Match Title */}
         <div className="space-y-1.5">
-          <Label htmlFor="match-title" className="text-xs font-bold">
+          <Label htmlFor="match-title" className="text-xs font-semibold">
             Match title
           </Label>
           <Input
@@ -142,12 +142,12 @@ function MatchSettingsForm({
 
         {/* Match Format */}
         <div className="space-y-1.5">
-          <Label htmlFor="match-format" className="text-xs font-bold">
+          <Label htmlFor="match-format" className="text-xs font-semibold">
             Match format
           </Label>
           <Select value={matchFormat} onValueChange={setMatchFormat}>
             <SelectTrigger id="match-format" className="h-9 text-xs">
-              <SelectValue placeholder="Select Format" />
+              <SelectValue placeholder="Format" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="T20">Twenty20 (T20)</SelectItem>
@@ -165,7 +165,7 @@ function MatchSettingsForm({
           <div className="flex items-center justify-between">
             <Label
               htmlFor="overs-per-innings"
-              className="text-xs font-bold"
+              className="text-xs font-semibold"
             >
               Overs per innings
             </Label>
@@ -181,7 +181,7 @@ function MatchSettingsForm({
               max={100}
               value={oversPerInnings}
               onChange={(e) => setOversPerInnings(Number(e.target.value))}
-              className="h-9 w-24 text-xs font-bold"
+              className="h-9 w-24 text-xs font-semibold"
               required
             />
             <div className="flex flex-wrap gap-1">
@@ -204,7 +204,7 @@ function MatchSettingsForm({
         {/* Balls Per Over */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="balls-per-over" className="text-xs font-bold">
+            <Label htmlFor="balls-per-over" className="text-xs font-semibold">
               Balls per over
             </Label>
             <span className="text-2xs text-muted-foreground">
@@ -219,7 +219,7 @@ function MatchSettingsForm({
               max={12}
               value={ballsPerOver}
               onChange={(e) => setBallsPerOver(Number(e.target.value))}
-              className="h-9 w-20 text-xs font-bold"
+              className="h-9 w-20 text-xs font-semibold"
               required
             />
             <div className="flex flex-wrap gap-1">
@@ -241,7 +241,7 @@ function MatchSettingsForm({
 
         {/* Max Balls Per Over (with Extras) */}
         <div className="space-y-1.5">
-          <Label htmlFor="max-balls-per-over" className="text-xs font-bold">
+          <Label htmlFor="max-balls-per-over" className="text-xs font-semibold">
             Max balls per over (inclusive of extras)
           </Label>
           <Select
@@ -267,7 +267,7 @@ function MatchSettingsForm({
         {/* Target Runs (if 2nd innings or revised target) */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="target-runs" className="text-xs font-bold">
+            <Label htmlFor="target-runs" className="text-xs font-semibold">
               Target runs
             </Label>
             <span className="text-2xs text-muted-foreground">
@@ -287,7 +287,7 @@ function MatchSettingsForm({
 
         {/* Wickets Per Innings */}
         <div className="space-y-1.5">
-          <Label htmlFor="wickets-per-innings" className="text-xs font-bold">
+          <Label htmlFor="wickets-per-innings" className="text-xs font-semibold">
             Wickets per innings
           </Label>
           <Input
@@ -297,7 +297,7 @@ function MatchSettingsForm({
             max={11}
             value={wicketsPerInnings}
             onChange={(e) => setWicketsPerInnings(Number(e.target.value))}
-            className="h-9 text-xs font-bold"
+            className="h-9 text-xs font-semibold"
           />
           <p className="text-2xs text-muted-foreground">
             Standard is 10 wickets. Set fewer for box/corporate cricket.
@@ -314,7 +314,7 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="wide-balls-faced"
-                className="cursor-pointer text-xs font-bold"
+                className="cursor-pointer text-xs font-semibold"
               >
                 Add wide balls to batsman
               </Label>
@@ -327,7 +327,7 @@ function MatchSettingsForm({
               type="checkbox"
               checked={wideCountsAsBallFaced}
               onChange={(e) => setWideCountsAsBallFaced(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
 
@@ -335,7 +335,7 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="wide-runs-batsman"
-                className="cursor-pointer text-xs font-bold"
+                className="cursor-pointer text-xs font-semibold"
               >
                 Add wide runs to batsman
               </Label>
@@ -348,7 +348,7 @@ function MatchSettingsForm({
               type="checkbox"
               checked={wideRunsToBatsman}
               onChange={(e) => setWideRunsToBatsman(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
 
@@ -356,7 +356,7 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="noball-extras-batsman"
-                className="cursor-pointer text-xs font-bold"
+                className="cursor-pointer text-xs font-semibold"
               >
                 Add no ball extras to batsman
               </Label>
@@ -369,7 +369,7 @@ function MatchSettingsForm({
               type="checkbox"
               checked={noballExtrasToBatsman}
               onChange={(e) => setNoballExtrasToBatsman(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
         </div>
@@ -384,7 +384,7 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="last-man-stands"
-                className="cursor-pointer text-xs font-bold"
+                className="cursor-pointer text-xs font-semibold"
               >
                 Last man stands
               </Label>
@@ -397,7 +397,7 @@ function MatchSettingsForm({
               type="checkbox"
               checked={lastManStands}
               onChange={(e) => setLastManStands(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
 
@@ -405,7 +405,7 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="golden-ball"
-                className="cursor-pointer text-xs font-bold"
+                className="cursor-pointer text-xs font-semibold"
               >
                 Golden ball
               </Label>
@@ -418,7 +418,7 @@ function MatchSettingsForm({
               type="checkbox"
               checked={goldenBall}
               onChange={(e) => setGoldenBall(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
         </div>
@@ -428,7 +428,7 @@ function MatchSettingsForm({
           <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3.5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-destructive">
+                <p className="text-xs font-semibold text-destructive">
                   Abandon match
                 </p>
                 <p className="text-2xs text-muted-foreground">
@@ -439,7 +439,7 @@ function MatchSettingsForm({
                 type="button"
                 variant="destructive"
                 size="sm"
-                className="h-8 text-xs font-bold"
+                className="h-8 text-xs font-semibold"
                 onClick={() => {
                   onCancel();
                   onOpenAbandon();
@@ -452,8 +452,8 @@ function MatchSettingsForm({
         )}
 
         {/* Rain Warning Notice */}
-        <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-900 dark:text-amber-200">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+        <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <span>
             Changes take effect immediately across all match overlays,
             projected score counters, and live viewer tabs.
@@ -475,7 +475,7 @@ function MatchSettingsForm({
           type="submit"
           size="sm"
           disabled={isProcessing}
-          className="font-bold"
+          className="font-semibold"
         >
           {isProcessing ? "Saving..." : "Save Changes"}
         </Button>

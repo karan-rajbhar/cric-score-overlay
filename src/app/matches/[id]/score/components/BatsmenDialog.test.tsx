@@ -449,4 +449,63 @@ describe("BatsmenDialog changing one batter", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Confirm/ }));
     expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
   });
+
+  it("corrects a wrong pick after balls: the runs and balls go to the right player", async () => {
+    const players: TeamPlayer[] = ["a", "b", "c", "d"].map((id) => ({
+      id: `t-${id}`,
+      team_id: "team-1",
+      user_id: id,
+      user: { id, full_name: id.toUpperCase() },
+    }));
+    const row = (user_id: string, runs: number, balls: number) => ({
+      id: `i1_${user_id}`,
+      match_id: "m1",
+      innings_id: "i1",
+      user_id,
+      runs_scored: runs,
+      balls_faced: balls,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+    });
+    const onReplace = vi.fn().mockResolvedValue({ error: null });
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        // D is out of the innings already; C has not batted.
+        battingPerformances={[
+          row("a", 12, 8),
+          row("b", 3, 4),
+          { ...row("d", 5, 6), is_out: true },
+        ]}
+        strikerId="a"
+        nonStrikerId="b"
+        focusEnd="striker"
+        onConfirm={vi.fn()}
+        onRetire={vi.fn()}
+        onReplace={onReplace}
+        isProcessing={false}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wrong player: replace A" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "A's 12 runs off 8 balls in this innings",
+    );
+    // Only who can have been batting instead: not at the crease, not batted.
+    expect(screen.getByRole("radio", { name: /^C/ })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /^B/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /^D/ })).toBeNull();
+    // Nobody is picked for the scorer.
+    const confirm = screen.getByRole("button", {
+      name: "Choose who was batting",
+    });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /^C/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace with C" }));
+    expect(onReplace).toHaveBeenCalledWith("a", "c");
+  });
 });

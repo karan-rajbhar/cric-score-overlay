@@ -72,8 +72,8 @@ export function ClubStatsTab({
     return (
       <EmptyState
         icon={Activity}
-        title="No Club Statistics Recorded"
-        description={`Play matches under ${clubName} to accumulate run tallies, wicket leaderboards, and historical milestones.`}
+        title="No statistics yet"
+        description={`Runs, wickets and records appear once ${clubName} plays matches.`}
       />
     );
   }
@@ -81,12 +81,11 @@ export function ClubStatsTab({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-bold sm:text-lg">
-          Club statistics & records
+        <h2 className="text-lg font-semibold text-foreground">
+          Statistics and records
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Aggregated performances, milestones, and leaderboards across matches
-          hosted by {clubName}.
+        <p className="text-sm text-muted-foreground">
+          Across every match {clubName} has hosted.
         </p>
       </div>
 
@@ -121,8 +120,8 @@ export function ClubStatsTab({
       {/* Leaderboards */}
       {leaderboardData ? (
         <LeaderboardView
-          title="Club Player Leaderboards"
-          subtitle={`All-time batting, bowling, fielding, and MVP statistics for ${clubName}`}
+          title="Leaderboard"
+          subtitle={`The leading players across every ${clubName} match.`}
           data={leaderboardData}
           showHighlights={true}
         />
@@ -150,7 +149,7 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
                           {idx + 1}
                         </span>
                         <Initials name={b.name} fallback="P" className="h-8 w-8" />
@@ -166,7 +165,7 @@ export function ClubStatsTab({
                       </div>
 
                       <div className="text-right">
-                        <div className="font-bold text-sm tabular-nums text-foreground">
+                        <div className="font-semibold text-sm font-score tabular-nums text-foreground">
                           {b.runs}
                         </div>
                         <div className="text-2xs text-muted-foreground">
@@ -202,7 +201,7 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-bold text-2xs text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
                           {idx + 1}
                         </span>
                         <Initials name={bw.name} fallback="B" className="h-8 w-8" />
@@ -217,7 +216,7 @@ export function ClubStatsTab({
                       </div>
 
                       <div className="text-right">
-                        <div className="font-bold text-sm tabular-nums text-foreground">
+                        <div className="font-semibold text-sm font-score tabular-nums text-foreground">
                           {bw.wickets}{" "}
                           <span className="text-xs font-normal">wkts</span>
                         </div>

@@ -12,13 +12,13 @@ describe("MatchSuperstars", () => {
 
     render(<MatchSuperstars match={match} />);
 
-    expect(screen.getByText("Superstars XI")).toBeInTheDocument();
+    expect(screen.getByText("Top performers")).toBeInTheDocument();
     expect(
-      screen.getByText(/Superstars XI will be automatically generated/i),
+      screen.getByText(/appear here once runs, wickets and catches/i),
     ).toBeInTheDocument();
   });
 
-  it("renders the Top 11 superstars with team filter bar, ratings, and milestone badges", () => {
+  it("ranks the players, the leader on top, with a team filter", () => {
     const match = makeMatch({
       team1_id: "t1",
       team2_id: "t2",
@@ -99,23 +99,22 @@ describe("MatchSuperstars", () => {
 
     render(<MatchSuperstars match={match} />);
 
-    // Header title and team tags
-    expect(screen.getByText("Superstar 11")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /all players/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /mumbai titans/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /delhi warriors/i })).toBeInTheDocument();
+    // The team filter (short codes) and the leader
+    const filter = screen.getByRole("group", { name: "Team" });
+    expect(filter).toHaveTextContent("All players");
+    expect(screen.getByText("Most impact")).toBeInTheDocument();
 
     // Top performers names
     expect(screen.getAllByText(/Virat Kohli/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Jasprit Bumrah/i).length).toBeGreaterThanOrEqual(1);
 
     // Filter by team
-    const team1Filter = screen.getByRole("button", { name: /mumbai titans/i });
-    fireEvent.click(team1Filter);
+    fireEvent.click(screen.getByRole("button", { name: "MT" }));
     expect(screen.getAllByText(/Virat Kohli/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/Jasprit Bumrah/i)).not.toBeInTheDocument();
   });
 
-  it("toggles between Pitch View and List View", () => {
+  it("opens a player's points and the rules", () => {
     const match = makeMatch({
       team1_id: "t1",
       team2_id: "t2",
@@ -158,20 +157,16 @@ describe("MatchSuperstars", () => {
 
     render(<MatchSuperstars match={match} />);
 
-    // Default view has pitch or toggle buttons
-    const listBtn = screen.getByRole("button", { name: /List/i });
-    const pitchBtn = screen.getByRole("button", { name: /Pitch|Field/i });
+    // A player opens their points, part by part.
+    fireEvent.click(screen.getByRole("button", { name: /Surya Yadav/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Impact rating");
+    expect(dialog).toHaveTextContent("60* (35) · 6 fours · 3 sixes");
+    fireEvent.keyDown(dialog, { key: "Escape" });
 
-    expect(listBtn).toBeInTheDocument();
-    expect(pitchBtn).toBeInTheDocument();
-
-    // Switch to List view
-    fireEvent.click(listBtn);
-    expect(screen.getByText("Superstars performance rankings")).toBeInTheDocument();
-    expect(screen.getAllByText(/Surya Yadav/i).length).toBeGreaterThanOrEqual(1);
-
-    // Switch back to Pitch view
-    fireEvent.click(pitchBtn);
-    expect(screen.getAllByText(/Surya Yadav/i).length).toBeGreaterThanOrEqual(1);
+    // The rules match the formula (no captain multipliers).
+    fireEvent.click(screen.getByRole("button", { name: /how points work/i }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("25 points a wicket");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(/2x|captain/i);
   });
 });

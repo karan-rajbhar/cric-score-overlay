@@ -8,76 +8,79 @@ export interface SectorInfo {
 }
 
 /**
- * 8 standard cricket scoring sectors dividing the 360° field into 45° sectors.
- * 0° is North (straight down the ground / towards bowler).
- * For a right-handed batsman:
- * - Off side: 180° to 360° (left / west half of ground: Third Man, Point, Cover, Long Off)
- * - Leg side: 0° to 180° (right / east half of ground: Long On, Mid Wicket, Square Leg, Fine Leg)
+ * 8 standard cricket scoring sectors dividing the 360° field into 45° sectors,
+ * drawn as seen from behind the striker: the striker at the bottom end of the
+ * pitch, the bowler's end at the top. 0° is 12 o'clock (straight down the
+ * ground), clockwise. For a right-handed batter, whose off side is on their
+ * right as they face the bowler:
+ * - Off side: 0° to 180° (right half: Long Off, Cover, Point, Third Man)
+ * - Leg side: 180° to 360° (left half: Fine Leg, Square Leg, Mid Wicket, Long On)
+ * Shots are stored by sector id, so the angles only affect drawing.
  */
 export const SECTORS: SectorInfo[] = [
   {
     id: "long_off",
-    label: "Long Off",
-    angleStart: 315,
-    angleEnd: 360,
-    midAngle: 337.5,
-    side: "off",
-  },
-  {
-    id: "long_on",
-    label: "Long On",
+    label: "Long off",
     angleStart: 0,
     angleEnd: 45,
     midAngle: 22.5,
-    side: "leg",
-  },
-  {
-    id: "mid_wicket",
-    label: "Mid Wicket",
-    angleStart: 45,
-    angleEnd: 90,
-    midAngle: 67.5,
-    side: "leg",
-  },
-  {
-    id: "square_leg",
-    label: "Square Leg",
-    angleStart: 90,
-    angleEnd: 135,
-    midAngle: 112.5,
-    side: "leg",
-  },
-  {
-    id: "fine_leg",
-    label: "Fine Leg",
-    angleStart: 135,
-    angleEnd: 180,
-    midAngle: 157.5,
-    side: "leg",
-  },
-  {
-    id: "third_man",
-    label: "Third Man",
-    angleStart: 180,
-    angleEnd: 225,
-    midAngle: 202.5,
-    side: "off",
-  },
-  {
-    id: "point",
-    label: "Point",
-    angleStart: 225,
-    angleEnd: 270,
-    midAngle: 247.5,
     side: "off",
   },
   {
     id: "cover",
     label: "Cover",
+    angleStart: 45,
+    angleEnd: 90,
+    midAngle: 67.5,
+    side: "off",
+  },
+  {
+    id: "point",
+    label: "Point",
+    angleStart: 90,
+    angleEnd: 135,
+    midAngle: 112.5,
+    side: "off",
+  },
+  {
+    id: "third_man",
+    label: "Third man",
+    angleStart: 135,
+    angleEnd: 180,
+    midAngle: 157.5,
+    side: "off",
+  },
+  {
+    id: "fine_leg",
+    label: "Fine leg",
+    angleStart: 180,
+    angleEnd: 225,
+    midAngle: 202.5,
+    side: "leg",
+  },
+  {
+    id: "square_leg",
+    label: "Square leg",
+    angleStart: 225,
+    angleEnd: 270,
+    midAngle: 247.5,
+    side: "leg",
+  },
+  {
+    id: "mid_wicket",
+    label: "Mid-wicket",
     angleStart: 270,
     angleEnd: 315,
     midAngle: 292.5,
-    side: "off",
+    side: "leg",
+  },
+  {
+    id: "long_on",
+    label: "Long on",
+    angleStart: 315,
+    angleEnd: 360,
+    midAngle: 337.5,
+    side: "leg",
   },
 ];
 

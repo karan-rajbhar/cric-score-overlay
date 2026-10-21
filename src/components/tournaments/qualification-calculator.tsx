@@ -143,15 +143,15 @@ export function QualificationCalculator({
                 key={team.teamId}
                 className={`rounded-lg border p-3.5 transition-all ${
                   isQ
-                    ? "border-emerald-500/50 bg-emerald-500/5"
+                    ? "border-success/50 bg-success/5"
                     : isE
-                      ? "border-red-500/40 bg-red-500/5 opacity-75"
+                      ? "border-destructive/40 bg-destructive/5 opacity-75"
                       : "border-border bg-card"
                 }`}
               >
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="w-4 text-center text-xs font-bold text-muted-foreground">
+                    <span className="w-4 text-center text-xs font-semibold text-muted-foreground">
                       {idx + 1}
                     </span>
                     <span className="truncate text-sm font-semibold">
@@ -160,14 +160,14 @@ export function QualificationCalculator({
                   </div>
                   <div>
                     {isQ && (
-                      <Badge className="border-emerald-500/40 bg-emerald-500/20 text-2xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <Badge className="border-success/40 bg-success/20 text-2xs font-semibold text-success">
                         <CheckCircle2 className="mr-1 h-3 w-3" /> Qualified (Q)
                       </Badge>
                     )}
                     {isE && (
                       <Badge
                         variant="destructive"
-                        className="text-2xs font-bold"
+                        className="text-2xs font-semibold"
                       >
                         <XCircle className="mr-1 h-3 w-3" /> Eliminated (E)
                       </Badge>
@@ -175,7 +175,7 @@ export function QualificationCalculator({
                     {!isQ && !isE && (
                       <Badge
                         variant="secondary"
-                        className="text-2xs font-bold"
+                        className="text-2xs font-semibold"
                       >
                         <HelpCircle className="mr-1 h-3 w-3" /> In contention
                       </Badge>
@@ -186,20 +186,20 @@ export function QualificationCalculator({
                 <div className="my-2 grid grid-cols-3 gap-2 rounded bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground">
                   <div>
                     Current:{" "}
-                    <span className="font-bold text-foreground">
+                    <span className="font-semibold text-foreground">
                       {team.points} pts
                     </span>{" "}
                     ({team.matchesPlayed} pl)
                   </div>
                   <div>
                     Remaining:{" "}
-                    <span className="font-bold text-foreground">
+                    <span className="font-semibold text-foreground">
                       {team.remainingMatches} gms
                     </span>
                   </div>
                   <div>
                     Max Possible:{" "}
-                    <span className="font-bold text-primary">
+                    <span className="font-semibold text-primary">
                       {team.maxPoints} pts
                     </span>
                   </div>

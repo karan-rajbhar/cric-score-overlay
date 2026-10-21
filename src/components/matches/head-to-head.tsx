@@ -1,17 +1,14 @@
 "use client";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
-import { Trophy, Calendar, MapPin, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Loader2 } from "lucide-react";
+import { TeamCrest } from "~/components/ds/avatar";
+import { Card, CardHeader } from "~/components/ds/card";
+import { ListCard } from "~/components/ds/list";
 import { useHeadToHeadQuery } from "~/lib/hooks/useMatchQueries";
 import type { MatchTeam } from "~/lib/match-types";
-import Link from "next/link";
+import { formatDecimalOvers } from "~/lib/cricket";
+import { teamRef } from "./match-hero";
 
 interface HeadToHeadProps {
   team1: MatchTeam;
@@ -37,6 +34,40 @@ interface HistoricalMatch {
   }>;
 }
 
+function Side({
+  team,
+  wins,
+  align,
+}: {
+  team: MatchTeam;
+  wins: number;
+  align: "start" | "end";
+}) {
+  return (
+    <div
+      className={
+        align === "start"
+          ? "flex min-w-0 items-center gap-3"
+          : "flex min-w-0 flex-row-reverse items-center gap-3 text-right"
+      }
+    >
+      <TeamCrest {...teamRef(team)} size="md" />
+      <span className="min-w-0">
+        <span className="block font-score text-3xl font-semibold tabular-nums leading-none text-foreground">
+          {wins}
+        </span>
+        <span className="mt-1 block truncate text-xs text-muted-foreground">
+          {team.short_name || team.name}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The two sides' record against each other (wins either side, ties and no
+ * results in the middle) and their past meetings, the latest first.
+ */
 export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
   const { data, isLoading: loading } = useHeadToHeadQuery(
     team1.id,
@@ -52,187 +83,117 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
   const team2Wins = matches.filter(
     (m) => m.winning_team_id === team2.id,
   ).length;
-  const tiesOrNr = matches.filter(
-    (m) =>
-      !m.winning_team_id ||
-      m.result_type === "tie" ||
-      m.result_type === "no_result",
-  ).length;
-
-  const team1Pct = total > 0 ? Math.round((team1Wins / total) * 100) : 0;
-  const team2Pct = total > 0 ? Math.round((team2Wins / total) * 100) : 0;
+  const others = total - team1Wins - team2Wins;
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12 text-muted-foreground">
-        <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-        <span>Loading head-to-head records...</span>
-      </div>
+      <Card className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+        Loading head-to-head records…
+      </Card>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      {/* Overview Card */}
-      <Card className="border-border">
-        <CardHeader className="pb-2 text-center">
-          <CardTitle className="text-lg font-semibold">Head-to-head record</CardTitle>
-          <CardDescription>
-            All matches between {team1.name} and {team2.name}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Score comparison pill */}
-          <div className="mx-auto grid max-w-lg grid-cols-3 items-center rounded-xl border border-border bg-background/80 p-4 text-center">
-            <div>
-              <p className="text-3xl font-bold text-primary tabular-nums">
-                {team1Wins}
-              </p>
-              <p className="mt-1 truncate text-xs font-medium text-muted-foreground">
-                {team1.short_name || team1.name}
-              </p>
-            </div>
-            <div className="border-x border-border/60 px-3">
-              <p className="text-xl font-bold text-muted-foreground tabular-nums">{total}</p>
-              <p className="text-2xs text-muted-foreground">
-                {total === 1 ? "Match" : "Matches"}
-              </p>
-              {tiesOrNr > 0 && (
-                <p className="mt-0.5 text-2xs text-muted-foreground/70 tabular-nums">
-                  {tiesOrNr} Tied/NR
-                </p>
-              )}
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-sky-500 tabular-nums">
-                {team2Wins}
-              </p>
-              <p className="mt-1 truncate text-xs font-medium text-muted-foreground">
-                {team2.short_name || team2.name}
-              </p>
-            </div>
-          </div>
+  const score = (m: HistoricalMatch, teamId: string) => {
+    const inn = m.innings?.find((i) => i.team_id === teamId);
+    return inn
+      ? `${inn.total_runs}/${inn.total_wickets} (${formatDecimalOvers(inn.total_overs)})`
+      : "–";
+  };
 
-          {/* Win percentage bar */}
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Head-to-head record"
+          description={`Every completed match between ${team1.name} and ${team2.name}.`}
+        />
+        <div className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+            <Side team={team1} wins={team1Wins} align="start" />
+            <div className="text-center">
+              <span className="block font-score text-lg font-semibold tabular-nums text-muted-foreground">
+                {total}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {total === 1 ? "match" : "matches"}
+                {others > 0 && `, ${others} tied or no result`}
+              </span>
+            </div>
+            <Side team={team2} wins={team2Wins} align="end" />
+          </div>
           {total > 0 && (
-            <div className="mx-auto max-w-lg space-y-2">
-              <div className="flex justify-between text-xs font-medium text-muted-foreground">
-                <span>
-                  {team1.short_name || team1.name} ({team1Pct}%)
-                </span>
-                <span>
-                  {team2.short_name || team2.name} ({team2Pct}%)
-                </span>
-              </div>
-              <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="bg-primary transition-all"
-                  style={{ width: `${team1Pct}%` }}
-                />
-                <div
-                  className="bg-amber-400 transition-all"
-                  style={{ width: `${100 - team1Pct - team2Pct}%` }}
-                />
-                <div
-                  className="bg-sky-500 transition-all"
-                  style={{ width: `${team2Pct}%` }}
-                />
-              </div>
+            <div
+              className="flex h-2.5 gap-[2px] overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`${team1.name} ${team1Wins} wins, ${team2.name} ${team2Wins} wins${others ? `, ${others} tied or no result` : ""}`}
+            >
+              <div
+                className="bg-series-1"
+                style={{ width: `${pct(team1Wins)}%` }}
+              />
+              <div
+                className="bg-muted-foreground/25"
+                style={{ width: `${pct(others)}%` }}
+              />
+              <div
+                className="bg-series-2"
+                style={{ width: `${pct(team2Wins)}%` }}
+              />
             </div>
           )}
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Previous Matches Feed */}
-      <div className="space-y-3">
-        <h3 className="flex items-center gap-2 text-lg font-semibold">
-          <Trophy className="h-5 w-5 text-amber-500 shrink-0" />
-          Past Encounters ({matches.length})
+      <section aria-labelledby="past-meetings" className="space-y-2">
+        <h3
+          id="past-meetings"
+          className="px-1 text-base font-semibold text-foreground"
+        >
+          Past meetings
         </h3>
-
         {matches.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <p className="text-sm">
-                No previous completed encounters recorded between these two
-                sides.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground/70">
-                This is their first meeting.
-              </p>
-            </CardContent>
+          <Card className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No previous completed encounters between these two sides: this is
+            their first meeting.
           </Card>
         ) : (
-          matches.map((m) => {
-            const isTeam1Winner = m.winning_team_id === team1.id;
-            const isTeam2Winner = m.winning_team_id === team2.id;
-            const inn1 = m.innings?.find((i) => i.team_id === team1.id);
-            const inn2 = m.innings?.find((i) => i.team_id === team2.id);
-
-            return (
-              <Link key={m.id} href={`/matches/${m.id}`}>
-                <Card className="cursor-pointer transition-all hover:border-primary/50">
-                  <CardContent className="flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        <span
-                          className={`text-sm font-semibold ${isTeam1Winner ? "font-bold text-primary" : ""}`}
-                        >
-                          {team1.name}
-                        </span>
-                        {inn1 && (
-                          <Badge
-                            variant="secondary"
-                            className="tabular-nums text-xs"
-                          >
-                            {inn1.total_runs}/{inn1.total_wickets} (
-                            {inn1.total_overs} ov)
-                          </Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          vs
-                        </span>
-                        <span
-                          className={`text-sm font-semibold ${isTeam2Winner ? "font-bold text-sky-500" : ""}`}
-                        >
-                          {team2.name}
-                        </span>
-                        {inn2 && (
-                          <Badge
-                            variant="secondary"
-                            className="tabular-nums text-xs"
-                          >
-                            {inn2.total_runs}/{inn2.total_wickets} (
-                            {inn2.total_overs} ov)
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {m.result_description || "Match concluded"}
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                      {m.venue && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {m.venue}
-                        </span>
-                      )}
-                      {m.scheduled_at && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          {new Date(m.scheduled_at).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+          <ListCard>
+            {matches.map((m) => (
+              <Link
+                key={m.id}
+                href={`/matches/${m.id}`}
+                className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-foreground">
+                    {m.result_description || "Match completed"}
+                  </span>
+                  <span className="block font-score text-xs tabular-nums text-muted-foreground">
+                    {team1.short_name || team1.name} {score(m, team1.id)} ·{" "}
+                    {team2.short_name || team2.name} {score(m, team2.id)}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {m.venue && <span>{m.venue}</span>}
+                    {m.venue && m.scheduled_at && " · "}
+                    {m.scheduled_at &&
+                      new Date(m.scheduled_at).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
               </Link>
-            );
-          })
+            ))}
+          </ListCard>
         )}
-      </div>
+      </section>
     </div>
   );
 }

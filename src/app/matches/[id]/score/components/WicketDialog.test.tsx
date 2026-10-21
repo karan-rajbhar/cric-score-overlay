@@ -82,7 +82,7 @@ describe("WicketDialog", () => {
 
     expect(screen.getByText(/Under MCC Law 21.18/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bowled" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run Out" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run out" })).toBeInTheDocument();
   });
 
   it("picks a fielder from the list, keeper first for a stumping", () => {

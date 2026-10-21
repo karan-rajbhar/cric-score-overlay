@@ -98,14 +98,15 @@ describe("MatchScorecard", () => {
 
     render(<MatchScorecard match={match} />);
 
-    // Innings tab header and title
-    expect(screen.getAllByText(/Royal Tigers/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText("165/4")[0]).toBeInTheDocument();
+    // The side's tab carries its score
+    expect(screen.getByRole("tab")).toHaveTextContent("Royal Tigers");
+    expect(screen.getByRole("tab")).toHaveTextContent("165/4 (20.0 ov)");
 
     // Batters
     expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
     expect(screen.getByText("not out")).toBeInTheDocument();
-    expect(screen.getByText("Rohit Sharma")).toBeInTheDocument();
+    // (also in the fall of wickets)
+    expect(screen.getAllByText("Rohit Sharma")[0]).toBeInTheDocument();
     expect(screen.getByText("b Jasprit Bumrah")).toBeInTheDocument();
 
     // Bowlers
@@ -113,14 +114,16 @@ describe("MatchScorecard", () => {
 
     // Fall of wickets, as on a printed scorecard
     expect(screen.getByText(/fall of wickets/i)).toBeInTheDocument();
-    expect(screen.getByText("1-45")).toBeInTheDocument();
-    expect(screen.getByText(/\(Rohit Sharma, 5\.2 ov\)/)).toBeInTheDocument();
+    expect(screen.getByText("1-45").closest("li")).toHaveTextContent(
+      "1-45Rohit Sharma5.2 ov",
+    );
 
     // Extras with their breakdown, and the total with overs and run rate
-    expect(screen.getByText("(b 2, lb 1, w 5, nb 2)")).toBeInTheDocument();
+    expect(screen.getByText("(b 2, lb 1, wd 5, nb 2)")).toBeInTheDocument();
     expect(screen.getByText("10")).toBeInTheDocument();
-    expect(screen.getByText(/\(20\.0 ov, RR\s+8\.25\)/)).toBeInTheDocument();
-    expect(screen.getByTestId("innings-total")).toHaveTextContent("165/4");
+    expect(
+      screen.getByRole("rowheader", { name: "Total" }).closest("tr"),
+    ).toHaveTextContent("165/4 (20.0 ov)RR 8.25");
   });
 
   const inningsOf = (over: Partial<Innings>): Innings => ({
@@ -219,14 +222,16 @@ describe("MatchScorecard", () => {
     const list = screen.getByRole("list", { name: "Partnerships" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent("1st wkt");
-    expect(items[0]).toHaveTextContent("Virat Kohli30 (20)");
-    expect(items[0]).toHaveTextContent("Rohit Sharma12 (6)");
-    expect(items[0]).toHaveTextContent("3 extras · 45 (26)");
-    expect(items[0]).not.toHaveTextContent("unbroken");
-    expect(items[1]).toHaveTextContent("2nd wkt");
+    expect(items[0]).toHaveTextContent("1st wicket");
+    expect(items[0]).toHaveTextContent("45 (26)");
+    expect(items[0]).toHaveTextContent("Virat Kohli30(20)");
+    expect(items[0]).toHaveTextContent("Rohit Sharma12(6)");
+    expect(items[0]).toHaveTextContent("+ 3 extras");
+    expect(items[0]).not.toHaveTextContent("Unbroken");
+    expect(items[1]).toHaveTextContent("2nd wicket");
     expect(items[1]).toHaveTextContent("Rohit Sharma & Shubman Gill");
-    expect(items[1]).toHaveTextContent("unbroken");
+    // The stand in progress is live.
+    expect(items[1]).toHaveTextContent("Live");
   });
 
   it("names both stands around a retirement after the same wicket", () => {
@@ -259,12 +264,13 @@ describe("MatchScorecard", () => {
     const items = within(
       screen.getByRole("list", { name: "Partnerships" }),
     ).getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("1st wkt · retired hurt");
-    expect(items[1]).toHaveTextContent("1st wkt");
-    expect(items[1]).not.toHaveTextContent("retired");
+    expect(items[0]).toHaveTextContent("1st wicket");
+    expect(items[0]).toHaveTextContent("Retired hurt");
+    expect(items[1]).toHaveTextContent("1st wicket");
+    expect(items[1]).not.toHaveTextContent("Retired");
   });
 
-  it("marks the selected side's tab and gives the innings its run rate and target", () => {
+  it("marks the selected side's tab and gives the innings its run rate", () => {
     const match = makeMatch({
       current_innings: 2,
       innings: [
@@ -289,11 +295,12 @@ describe("MatchScorecard", () => {
     expect(tabs[1]).toHaveAttribute("aria-selected", "true");
     // Filled in the primary colour when selected.
     expect(tabs[1]!.className).toContain("data-[state=active]:bg-primary");
-    expect(screen.getByText("Target 61")).toBeInTheDocument();
-    expect(screen.getByText(/4\.0 ov · RR 7\.50/)).toBeInTheDocument();
+    // The tab carries the score; the innings repeats only its run rate.
+    expect(screen.queryByText("Target 61")).not.toBeInTheDocument();
+    expect(screen.getByText("RR 7.50")).toBeInTheDocument();
   });
 
-  it("colours the batting and bowling table headers apart", () => {
+  it("shows the batting card, then the bowling card", () => {
     const match = makeMatch({
       innings: [
         inningsOf({
@@ -319,14 +326,11 @@ describe("MatchScorecard", () => {
     render(<MatchScorecard match={match} />);
     const [batting, bowling] = screen.getAllByRole("table");
     expect(
-      within(batting!)
-        .getByRole("columnheader", { name: "Batter" })
-        .closest("thead")!.className,
-    ).toContain("emerald");
+      within(batting!).getByRole("columnheader", { name: "Batter" }),
+    ).toBeInTheDocument();
     expect(
-      within(bowling!)
-        .getByRole("columnheader", { name: "Bowler" })
-        .closest("thead")!.className,
-    ).toContain("sky");
+      within(bowling!).getByRole("columnheader", { name: "Bowler" }),
+    ).toBeInTheDocument();
+    expect(within(bowling!).getByText("Jasprit Bumrah")).toBeInTheDocument();
   });
 });

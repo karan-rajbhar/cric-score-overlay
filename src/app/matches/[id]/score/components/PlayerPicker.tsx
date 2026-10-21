@@ -176,7 +176,7 @@ export function PlayerPicker({
             {addPlayer && q && (
               <div className="space-y-1">
                 {exactMatch && (
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                  <p className="text-xs text-warning">
                     {exactMatch.name} is already in {addPlayer.teamName}. Add
                     another player only if this is a different person.
                   </p>
@@ -265,7 +265,7 @@ export function PlayerPicker({
                 </span>
               )}
               {row.note && (
-                <span className="shrink-0 text-xs text-amber-700 dark:text-amber-400">
+                <span className="shrink-0 text-xs text-warning">
                   {row.note}
                 </span>
               )}

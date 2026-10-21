@@ -79,6 +79,7 @@ export const replayPayloadSchemasV1 = {
     type: z.enum(["penalty", "bonus"]),
   }),
   reassignOverBowler: z.object({ bowlerId: id }),
+  replaceBatter: z.object({ fromId: id, toId: id }),
   updateBall: z.object({
     ballId: id,
     runsScored: runs,

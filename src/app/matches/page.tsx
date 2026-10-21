@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
+import { Card } from "~/components/ds/card";
+import { Segmented } from "~/components/ds/tabs";
 import { Input } from "~/components/ui/input";
 import { MatchCard } from "~/components/matches/match-card";
 import {
@@ -19,7 +20,6 @@ import {
 } from "~/components/layout/page";
 import { Plus, Search, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "~/lib/auth";
-import { cn } from "~/lib/utils";
 import type { Match } from "~/lib/match-types";
 
 const statusOptions = [
@@ -31,7 +31,8 @@ const statusOptions = [
 
 export default function MatchesPage() {
   const { user, loading: authLoading } = useAuth();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] =
+    useState<(typeof statusOptions)[number]["value"]>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
@@ -133,28 +134,12 @@ export default function MatchesPage() {
           />
         </div>
 
-        <div
-          role="group"
-          aria-label="Filter by status"
-          className="no-scrollbar flex w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1 sm:w-auto"
-        >
-          {statusOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={statusFilter === option.value}
-              onClick={() => setStatusFilter(option.value)}
-              className={cn(
-                "min-h-9 flex-1 shrink-0 whitespace-nowrap rounded-md px-3 text-center text-sm font-medium transition-colors sm:min-h-8 sm:flex-none",
-                statusFilter === option.value
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground",
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="Filter by status"
+          options={statusOptions}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
       </div>
 
       {/* Matches List / Skeletons / Empty state */}
@@ -169,8 +154,8 @@ export default function MatchesPage() {
             <MatchCardSkeleton />
           </div>
         ) : error ? (
-          <Card className="mx-auto max-w-md border-destructive/30">
-            <CardContent className="space-y-4 p-6 text-center">
+          <Card className="mx-auto max-w-md space-y-4 p-6 text-center">
+            <div className="space-y-4">
               <p className="text-sm font-medium text-destructive">{error}</p>
               <Button
                 size="sm"
@@ -180,7 +165,7 @@ export default function MatchesPage() {
                 <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                 Try again
               </Button>
-            </CardContent>
+            </div>
           </Card>
         ) : filteredMatches.length === 0 ? (
           <EmptyState

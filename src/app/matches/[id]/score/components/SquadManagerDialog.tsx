@@ -188,7 +188,7 @@ function SquadPanel({
           </span>
         )}
         {out && (
-          <span className="shrink-0 pr-2 text-xs text-rose-600 dark:text-rose-400">
+          <span className="shrink-0 pr-2 text-xs text-destructive">
             Out
           </span>
         )}
@@ -246,7 +246,7 @@ function SquadPanel({
       {q && (
         <div className="space-y-1">
           {duplicate && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+            <p className="text-xs text-warning">
               {duplicate.user?.full_name} is already in {team.name}. Add another
               player only if this is a different person.
             </p>
@@ -332,7 +332,7 @@ function SquadPanel({
                   Yet to play ({yetToPlay.length})
                 </p>
                 {!q && team.players.length < 11 && (
-                  <span className="text-xs text-amber-700 dark:text-amber-400">
+                  <span className="text-xs text-warning">
                     {11 - team.players.length} short of XI
                   </span>
                 )}

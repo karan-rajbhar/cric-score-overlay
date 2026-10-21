@@ -139,7 +139,7 @@ export default function CreateClubPage() {
                 </div>
               )}
 
-              <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full text-sm font-bold">
+              <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full">
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />

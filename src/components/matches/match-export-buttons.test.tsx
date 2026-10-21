@@ -29,8 +29,8 @@ describe("MatchExportButtons and drawSummary", () => {
       shortName: "RTG",
       scoreLine: "178/5 (20.0)",
       batters: [
-        { name: "Virat Kohli", runs: 82, balls: 53, sr: "154.7" },
-        { name: "Rohit Sharma", runs: 45, balls: 28, sr: "160.7" },
+        { name: "Virat Kohli", runs: 82, balls: 53, notOut: true, sr: "154.7" },
+        { name: "Rohit Sharma", runs: 45, balls: 28, notOut: false, sr: "160.7" },
       ],
       bowlers: [
         { name: "Mohammed Shami", overs: "4.0", runs: 28, wickets: 2, econ: "7.00" },
@@ -41,7 +41,7 @@ describe("MatchExportButtons and drawSummary", () => {
       shortName: "CKS",
       scoreLine: "160/9 (20.0)",
       batters: [
-        { name: "Steve Smith", runs: 52, balls: 41, sr: "126.8" },
+        { name: "Steve Smith", runs: 52, balls: 41, notOut: false, sr: "126.8" },
       ],
       bowlers: [
         { name: "Rashid Khan", overs: "4.0", runs: 24, wickets: 3, econ: "6.00" },

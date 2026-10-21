@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { updateTeamLogo, removeTeamLogo } from "~/app/teams/actions";
 import { toast } from "sonner";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Trash2, Upload } from "lucide-react";
 
 interface TeamLogoEditorProps {
   teamId: string;
@@ -49,16 +49,16 @@ export function TeamLogoEditor({
   };
 
   return (
-    <div className="flex flex-col items-start gap-3">
+    <div className="flex flex-col items-center gap-2">
       <div className="relative">
         <TeamLogo
           name={teamName}
           shortName={shortName}
           logoUrl={current}
-          className="h-16 w-16 rounded-lg text-lg"
+          className="h-20 w-20 rounded-full text-xl shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
         />
         {saving && (
-          <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/70">
+          <span className="absolute inset-0 flex items-center justify-center rounded-full bg-background/70">
             <Loader2 className="h-5 w-5 animate-spin" />
           </span>
         )}
@@ -74,33 +74,33 @@ export function TeamLogoEditor({
           e.target.value = "";
         }}
       />
-      <div className="flex gap-2">
+      <div className="flex gap-1">
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="icon"
+          className="h-8 w-8"
           onClick={() => inputRef.current?.click()}
           disabled={saving}
+          aria-label={current ? "Change logo" : "Upload logo"}
+          title="PNG, JPG, WebP or SVG, up to 2 MB"
         >
-          <Upload className="mr-1.5 h-3.5 w-3.5" />
-          {current ? "Change logo" : "Upload logo"}
+          <Upload className="h-3.5 w-3.5" />
         </Button>
         {current && (
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            size="icon"
+            className="h-8 w-8"
             onClick={() => void handleRemove()}
             disabled={saving}
+            aria-label="Remove logo"
           >
-            Remove
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        PNG, JPG, WebP or SVG · max 2 MB. Without a logo, initials are generated
-        automatically.
-      </p>
     </div>
   );
 }
