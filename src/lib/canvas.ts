@@ -11,15 +11,66 @@ export const CANVAS = {
   QR: { WIDTH: 184, MARGIN: 0 },
 } as const;
 
+/** The design system's palette for share images (globals.css tokens as hex). */
 export const COLORS = {
-  bgTop: "#0c1210",
-  bgBottom: "#1a3328",
-  panel: "rgba(255,255,255,0.04)",
-  accent: "#22c55e",
-  text: "#f2f5f3",
-  dim: "#8fa89b",
-  faint: "#6b8579",
+  wash: ["#fce8ee", "#eceafd", "#e4e9fe"],
+  bg: "#fafafd",
+  card: "#ffffff",
+  border: "#e2e4ee",
+  muted: "#f1f3f8",
+  row: "rgba(36, 34, 103, 0.04)",
+  primary: "#242267",
+  board: "#181745",
+  soft: "#e7e8fd",
+  text: "#11132c",
+  dim: "#63667e",
+  faint: "#9b9db3",
+  success: "#15803d",
+  wicket: "#dc2828",
+  shadow: "rgba(36, 34, 103, 0.14)",
 } as const;
+
+/** The app's faces (loaded by the root layout under these names). */
+export const FONT = {
+  sans: "Urbanist, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  fig: "Outfit, -apple-system, 'Segoe UI', Roboto, sans-serif",
+} as const;
+
+/** The pink-to-lavender wash over the top of the image, fading into the page. */
+export function paintWash(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, w, h);
+  const wash = ctx.createLinearGradient(0, 0, w, h * 0.7);
+  wash.addColorStop(0, COLORS.wash[0]);
+  wash.addColorStop(0.52, COLORS.wash[1]);
+  wash.addColorStop(1, COLORS.wash[2]);
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, w, h * 0.62);
+  const fade = ctx.createLinearGradient(0, h * 0.42, 0, h * 0.62);
+  fade.addColorStop(0, "rgba(250, 250, 253, 0)");
+  fade.addColorStop(1, COLORS.bg);
+  ctx.fillStyle = fade;
+  ctx.fillRect(0, h * 0.42, w, h * 0.2 + 1);
+}
+
+/** A white card with the design's soft shadow. */
+export function paintCard(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  ctx.save();
+  ctx.shadowColor = COLORS.shadow;
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetY = 10;
+  ctx.fillStyle = COLORS.card;
+  roundRect(ctx, x, y, w, h, r);
+  ctx.fill();
+  ctx.restore();
+}
 
 /** Generate a QR data URL for the given text. */
 async function generateQRDataUrl(
@@ -29,7 +80,7 @@ async function generateQRDataUrl(
   return QRCode.toDataURL(text, {
     margin: CANVAS.QR.MARGIN,
     width,
-    color: { dark: COLORS.bgTop, light: COLORS.text },
+    color: { dark: COLORS.board, light: COLORS.card },
   });
 }
 

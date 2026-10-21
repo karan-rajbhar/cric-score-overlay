@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import { isMatchReportPath } from "./report-route";
 import {
   createContext,
   useContext,
@@ -42,6 +44,8 @@ export function ThemeProvider({
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("light");
+  // The match report is a printed document: always light.
+  const forceLight = isMatchReportPath(usePathname());
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -51,7 +55,9 @@ export function ThemeProvider({
       root.classList.remove("light", "dark");
 
       let effectiveTheme: "dark" | "light";
-      if (currentTheme === "system") {
+      if (forceLight) {
+        effectiveTheme = "light";
+      } else if (currentTheme === "system") {
         effectiveTheme = mediaQuery.matches ? "dark" : "light";
       } else {
         effectiveTheme = currentTheme;
@@ -71,7 +77,7 @@ export function ThemeProvider({
 
     mediaQuery.addEventListener("change", handleSystemChange);
     return () => mediaQuery.removeEventListener("change", handleSystemChange);
-  }, [theme]);
+  }, [theme, forceLight]);
 
   const setTheme = (newTheme: Theme) => {
     localStorage.setItem(storageKey, newTheme);

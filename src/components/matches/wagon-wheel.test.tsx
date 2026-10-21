@@ -204,7 +204,7 @@ describe("WagonWheel Component (Stumps App Design)", () => {
 
     expect(screen.getByText("Wagon wheel")).toBeInTheDocument();
     expect(
-      screen.getByText(/visual shot direction analysis/i),
+      screen.getByText(/where the runs went/i),
     ).toBeInTheDocument();
 
     const svg = screen.getByRole("img", {
@@ -220,8 +220,8 @@ describe("WagonWheel Component (Stumps App Design)", () => {
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("Balls")).toBeInTheDocument();
     expect(screen.getByText("SR")).toBeInTheDocument();
-    expect(screen.getByText("Off-S")).toBeInTheDocument();
-    expect(screen.getByText("Leg-S")).toBeInTheDocument();
+    expect(screen.getByText("Off side")).toBeInTheDocument();
+    expect(screen.getByText("Leg side")).toBeInTheDocument();
 
     expect(screen.getByText("27")).toBeInTheDocument(); // Runs
     expect(screen.getByText("8")).toBeInTheDocument(); // Balls
@@ -233,17 +233,17 @@ describe("WagonWheel Component (Stumps App Design)", () => {
   it("displays delivery counts in the run breakdown pill (1s, 2s, 3s, 4s, 6s)", () => {
     render(<WagonWheel match={dummyMatch} />);
 
-    expect(screen.getByRole("button", { name: /filter 1s/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /filter 2s/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /filter 3s/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /filter 4s/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /filter 6s/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 1s only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 2s only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 3s only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 4s only/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 6s only/i })).toBeInTheDocument();
   });
 
   it("toggles run filter when a run pill is clicked", () => {
     render(<WagonWheel match={dummyMatch} />);
 
-    const sixPill = screen.getByRole("button", { name: /filter 6s/i });
+    const sixPill = screen.getByRole("button", { name: /show 6s only/i });
     expect(sixPill).toHaveAttribute("aria-pressed", "false");
 
     // Click to filter by 6s
@@ -271,7 +271,7 @@ describe("WagonWheel Component (Stumps App Design)", () => {
     // Click to expand
     fireEvent.click(toggleBtn);
     expect(screen.getByText("Cover")).toBeInTheDocument();
-    expect(screen.getByText("Mid Wicket")).toBeInTheDocument();
-    expect(screen.getByText("Square Leg")).toBeInTheDocument();
+    expect(screen.getByText("Mid-wicket")).toBeInTheDocument();
+    expect(screen.getByText("Square leg")).toBeInTheDocument();
   });
 });

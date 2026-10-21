@@ -3,13 +3,14 @@ import { cn } from "~/lib/utils";
 
 const TONE = {
   default: "text-foreground",
-  positive: "text-emerald-700 dark:text-emerald-400",
-  negative: "text-rose-700 dark:text-rose-400",
+  positive: "text-success",
+  negative: "text-destructive",
 } as const;
 
 /**
- * A single labelled figure (matches played, runs, wins...). `bordered`
- * draws it as its own small card; leave it off inside an existing card.
+ * A single labelled figure (matches played, runs, wins...) on a muted tile.
+ * `bordered` (the default) draws the tile; leave it off inside an existing
+ * card to show the bare figure.
  */
 export function StatTile({
   label,
@@ -30,14 +31,14 @@ export function StatTile({
     <div
       className={cn(
         "min-w-0",
-        bordered && "rounded-lg border border-border bg-card p-3 sm:p-4",
+        bordered && "rounded-xl bg-muted p-3.5 sm:p-4",
         className,
       )}
     >
       <div className="truncate text-xs text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-1 text-xl font-bold tabular-nums leading-tight sm:text-2xl",
+          "mt-1.5 font-score text-xl font-semibold tabular-nums leading-tight sm:text-2xl",
           TONE[tone],
         )}
       >

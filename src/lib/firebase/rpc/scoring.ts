@@ -1838,6 +1838,93 @@ export async function reassignOverBowler(
   );
 }
 
+/**
+ * The wrong player was recorded as batting: credit everything the log has
+ * for `from` in the current innings (balls faced, runs, the crease, a
+ * retirement) to `to`, who takes their place in the batting order. Not a
+ * substitution: `from` never batted, so their row goes. `to` must be in the
+ * batting side and not have batted in this innings.
+ */
+export async function replaceBatter(
+  ctx: ScoringContext,
+  args: { p_match_id: string; p_from_id: string; p_to_id: string },
+): Promise<null> {
+  const { p_match_id: matchId, p_from_id: from, p_to_id: to } = args;
+  if (!from || !to || from === to)
+    throw new DbQueryError("invalid_input", "22000");
+  const now = new Date().toISOString();
+  const tracked = await runOnce(ctx, async (t) => {
+    const match = await t.doc<MatchesRow>("matches", matchId);
+    await requireAdminOf(ctx, matchId, match);
+    if (!match) throw new DbQueryError("match_not_found", "22000");
+    const innings = (await loadCurrentInnings(
+      t,
+      match,
+    )) as WithId<InningsRow> | null;
+    await guardClientAction(t, ctx, match, innings);
+    if (!innings) throw new DbQueryError("no_open_innings", "22000");
+    if (match.status === "completed" || match.status === "abandoned")
+      throw new DbQueryError("match_not_live", "22000");
+    if (innings.is_completed)
+      throw new DbQueryError("innings_already_completed", "22000");
+    requireScorecard(innings);
+    const [bundle, roster] = await Promise.all([
+      loadInningsBundle(t, match, innings),
+      t.where<TeamPlayersRow>("team_players", [
+        ["team_id", "==", innings.team_id],
+        ["user_id", "==", to],
+      ]),
+    ]);
+    if (roster.length === 0)
+      throw new DbQueryError("player_not_in_batting_team", "22000");
+
+    const names = (b: BallByBallRow, id: string) =>
+      b.batsman_id === id ||
+      b.non_striker_id === id ||
+      b.dismissed_player_id === id;
+    // Nothing logged for them yet: an ordinary change of batter.
+    if (!bundle.balls.some((b) => names(b, from)))
+      throw new DbQueryError("player_not_batted", "22000");
+    const toRow = bundle.batting.find((b) => b.user_id === to);
+    if (
+      bundle.balls.some((b) => names(b, to)) ||
+      (toRow &&
+        (toRow.is_out ||
+          toRow.dismissal_type ||
+          (toRow.balls_faced ?? 0) > 0 ||
+          (toRow.runs_scored ?? 0) > 0))
+    )
+      throw new DbQueryError("player_already_batted", "22000");
+
+    const swap = (id: string | null | undefined) => (id === from ? to : id);
+    const balls = bundle.balls.map((b) =>
+      names(b, from)
+        ? {
+            ...b,
+            batsman_id: swap(b.batsman_id) ?? b.batsman_id,
+            non_striker_id: swap(b.non_striker_id) ?? null,
+            dismissed_player_id: swap(b.dismissed_player_id) ?? null,
+          }
+        : b,
+    );
+    // `to` takes `from`'s row (batting position, crease flags).
+    const batting = bundle.batting
+      .filter((b) => b.user_id !== to)
+      .map((b) =>
+        b.user_id === from
+          ? { ...b, id: `${innings.id}_${to}`, user_id: to }
+          : b,
+      );
+    const edited = { ...bundle, batting };
+    const out = runRecompute(edited, balls, now);
+    const after = writeRecompute(t, edited, out, balls, now);
+    await syncIfCompleted(t, match, innings, after, now);
+    return match;
+  });
+  if (tracked) await finishQuietly(ctx, matchId, tracked[0], tracked[1]);
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // set_current_batsmen
 // ---------------------------------------------------------------------------

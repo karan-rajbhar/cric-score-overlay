@@ -106,7 +106,7 @@ export function SectionHeader({
         <div className="flex items-center gap-2">
           {live && (
             <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-600 motion-safe:animate-pulse dark:bg-red-500"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-live motion-safe:animate-pulse"
               aria-hidden="true"
             />
           )}

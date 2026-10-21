@@ -56,6 +56,15 @@ interface BatsmenDialogProps {
    * one who has batted, whom Change cannot take off.
    */
   onRetire?: (playerId: string) => void;
+  /**
+   * Corrects a wrong pick after balls: everything `fromId` has in this
+   * innings (runs, balls, their place) goes to `toId`. Resolves with the
+   * server's error, if any.
+   */
+  onReplace?: (
+    fromId: string,
+    toId: string,
+  ) => Promise<{ error: string | null }>;
 }
 
 /**
@@ -101,6 +110,7 @@ export function BatsmenDialog({
   addPlayerDisabledReason,
   onEndInnings,
   onRetire,
+  onReplace,
 }: BatsmenDialogProps) {
   /** The not-out batter after a wicket (their end is not to be replaced). */
   const survivor =
@@ -115,6 +125,9 @@ export function BatsmenDialog({
   const firstEmpty = (d: typeof draft): Slot =>
     !d.striker ? "striker" : !d.nonStriker ? "nonStriker" : "striker";
   const [activeSlot, setActiveSlot] = useState<Slot>(firstEmpty(draft));
+  /** Correcting a wrong pick: who was really batting (null: not chosen). */
+  const [correcting, setCorrecting] = useState(false);
+  const [rightId, setRightId] = useState<string | null>(null);
   const { rows } = useMemo(
     () =>
       buildBatterRows({
@@ -150,6 +163,8 @@ export function BatsmenDialog({
       const empty = firstEmpty(fresh);
       setDraft(fresh);
       setActiveSlot(strikerId && nonStrikerId && focusEnd ? focusEnd : empty);
+      setCorrecting(false);
+      setRightId(null);
     }
   }
 
@@ -267,6 +282,16 @@ export function BatsmenDialog({
       : null;
   const battedOccupant =
     occupant && hasBatted(perfOf(occupant)) ? occupant : null;
+  const fixing = Boolean(battedOccupant && correcting && onReplace);
+  // Who can have been batting instead: not at the crease, not batted yet.
+  const correctionRows = rows.filter(
+    (r) => !r.disabledReason && !r.tag && !hasBatted(perfOf(r.id)),
+  );
+  const canReplace = fixing && Boolean(rightId) && !isProcessing;
+  const replace = () => {
+    if (!canReplace || !battedOccupant || !rightId || !onReplace) return;
+    void onReplace(battedOccupant, rightId);
+  };
   // The task, in the title; the action, on the button.
   const title = survivor
     ? "Choose the new batter"
@@ -275,13 +300,17 @@ export function BatsmenDialog({
       : changing
         ? `Change ${nameOf(focusEnd === "striker" ? strikerId : nonStrikerId) ?? "batter"}`
         : "Batters at the crease";
-  const confirmLabel = survivor
-    ? "Confirm new batter"
-    : !strikerId && !nonStrikerId
-      ? "Confirm openers"
-      : changing
-        ? "Confirm change"
-        : "Confirm batters";
+  const confirmLabel = fixing
+    ? rightId
+      ? `Replace with ${nameOf(rightId)}`
+      : "Choose who was batting"
+    : survivor
+      ? "Confirm new batter"
+      : !strikerId && !nonStrikerId
+        ? "Confirm openers"
+        : changing
+          ? "Confirm change"
+          : "Confirm batters";
   // Only who can be picked: those out never are; after a wicket, the pair
   // at the crease is not being chosen either.
   const pickable = rows.filter(
@@ -304,13 +333,15 @@ export function BatsmenDialog({
               ? newBatterSlot === "striker"
                 ? `The new batter faces the next ball, with ${nameOf(survivor) ?? "the not-out batter"} at the other end. Swap ends if ${nameOf(survivor) ?? "the not-out batter"} faces it instead.`
                 : `${nameOf(survivor) ?? "The not-out batter"} faces the next ball. Swap ends if the new batter faces it instead.`
-              : battedOccupant
-                ? "Swap ends, or retire them to bring in another batter."
-                : changing
-                  ? "Tap who replaces them. The other batter stays."
-                  : !strikerId && !nonStrikerId
-                    ? "Tap the striker, then the non-striker."
-                    : "Tap a player to fill the highlighted end."}
+              : fixing
+                ? `Pick who was batting instead of ${nameOf(battedOccupant)}.`
+                : battedOccupant
+                  ? "Swap ends, correct a wrong pick, or retire them."
+                  : changing
+                    ? "Tap who replaces them. The other batter stays."
+                    : !strikerId && !nonStrikerId
+                      ? "Tap the striker, then the non-striker."
+                      : "Tap a player to fill the highlighted end."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -354,7 +385,48 @@ export function BatsmenDialog({
             </div>
           )}
 
-          {battedOccupant ? (
+          {fixing && battedOccupant ? (
+            <>
+              <p
+                role="status"
+                className="rounded-lg border border-border bg-muted/50 p-3 text-sm"
+              >
+                {nameOf(battedOccupant)}&apos;s{" "}
+                {perfOf(battedOccupant)?.runs_scored ?? 0} runs off{" "}
+                {perfOf(battedOccupant)?.balls_faced ?? 0} balls in this
+                innings, and their place in the order, go to the player you
+                pick. {nameOf(battedOccupant)} is left as not batted.
+              </p>
+              <PlayerPicker
+                label="Who was batting"
+                rows={correctionRows}
+                selectedId={rightId}
+                onSelect={setRightId}
+                addPlayer={
+                  onCreatePlayer
+                    ? {
+                        teamName: battingTeamName ?? "the batting side",
+                        onAdd: onCreatePlayer,
+                        disabledReason: addPlayerDisabledReason,
+                      }
+                    : undefined
+                }
+                emptyMessage="Everyone else in the squad has batted."
+                noun="batter"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setCorrecting(false);
+                  setRightId(null);
+                }}
+              >
+                Back
+              </Button>
+            </>
+          ) : battedOccupant ? (
             <div
               role="status"
               className="space-y-3 rounded-lg border border-border bg-muted/50 p-3 text-sm"
@@ -362,10 +434,19 @@ export function BatsmenDialog({
               <p>
                 {nameOf(battedOccupant)} has batted (
                 {perfOf(battedOccupant)?.runs_scored ?? 0} off{" "}
-                {perfOf(battedOccupant)?.balls_faced ?? 0}), so another player
-                cannot take their place. Change is for a wrong pick before a
-                batter&apos;s first ball.
+                {perfOf(battedOccupant)?.balls_faced ?? 0}).
               </p>
+              {onReplace && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full font-semibold"
+                  onClick={() => setCorrecting(true)}
+                  disabled={isProcessing}
+                >
+                  Wrong player: replace {nameOf(battedOccupant)}
+                </Button>
+              )}
               {onRetire && (
                 <Button
                   type="button"
@@ -378,8 +459,9 @@ export function BatsmenDialog({
                 </Button>
               )}
               <p className="text-xs text-muted-foreground">
-                Leaving the field: retire them (hurt, not out; or out). Wrong
-                player recorded: undo, or edit the balls they faced.
+                Wrong player recorded: replace them, and their runs and balls go
+                to the right player. Leaving the field: retire them (hurt, not
+                out; or out).
               </p>
             </div>
           ) : (
@@ -418,8 +500,8 @@ export function BatsmenDialog({
           <div className="max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:border-t max-sm:border-border/70 max-sm:bg-card max-sm:px-4 max-sm:pb-4 max-sm:pt-3">
             <Button
               className="h-11 w-full text-sm font-semibold"
-              onClick={confirm}
-              disabled={!canConfirm}
+              onClick={fixing ? replace : confirm}
+              disabled={fixing ? !canReplace : !canConfirm}
             >
               {confirmLabel}
             </Button>

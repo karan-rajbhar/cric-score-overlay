@@ -2,6 +2,11 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
 import { ClubMatchesTab } from "./club-matches-tab";
 
+// Match cards follow live_state (server-only queries); not what these test.
+vi.mock("~/lib/hooks/useMatchQueries", () => ({
+  useLiveListMatch: <T,>(m: T) => m,
+}));
+
 beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
   window.HTMLElement.prototype.hasPointerCapture = vi.fn();
@@ -71,7 +76,8 @@ describe("ClubMatchesTab Component", () => {
     expect(screen.getByText("Metro Eagles")).toBeInTheDocument();
     expect(screen.getByText("City Lions")).toBeInTheDocument();
     expect(screen.getByText("Live")).toBeInTheDocument();
-    expect(screen.getByText("Completed")).toBeInTheDocument();
+    // A finished match's chip reads "Result".
+    expect(screen.getByText("Result")).toBeInTheDocument();
   });
 
   it("filters matches by search query", () => {
@@ -101,6 +107,6 @@ describe("ClubMatchesTab Component", () => {
       />,
     );
 
-    expect(screen.getByText(/no matches scheduled/i)).toBeInTheDocument();
+    expect(screen.getByText(/no matches yet/i)).toBeInTheDocument();
   });
 });

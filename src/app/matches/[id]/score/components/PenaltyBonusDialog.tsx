@@ -87,7 +87,7 @@ export function PenaltyBonusDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                 {awardType === "penalty" ? (
                   <ShieldAlert className="h-4 w-4" />
                 ) : (
@@ -106,7 +106,7 @@ export function PenaltyBonusDialog({
           <div className="space-y-4 py-4">
             {/* Type selector */}
             <div className="space-y-1.5">
-              <Label id="award-type-label" className="text-xs font-bold">
+              <Label id="award-type-label" className="text-xs font-semibold">
                 Award type
               </Label>
               <div
@@ -118,7 +118,7 @@ export function PenaltyBonusDialog({
                   type="button"
                   variant={awardType === "penalty" ? "default" : "outline"}
                   size="sm"
-                  className="h-9 font-bold"
+                  className="h-9 font-semibold"
                   onClick={() => {
                     setAwardType("penalty");
                     setRuns(5);
@@ -130,7 +130,7 @@ export function PenaltyBonusDialog({
                   type="button"
                   variant={awardType === "bonus" ? "default" : "outline"}
                   size="sm"
-                  className="h-9 font-bold"
+                  className="h-9 font-semibold"
                   onClick={() => {
                     setAwardType("bonus");
                     setRuns(1);
@@ -143,14 +143,14 @@ export function PenaltyBonusDialog({
 
             {/* Recipient Team */}
             <div className="space-y-1.5">
-              <Label htmlFor="recipient-team" className="text-xs font-bold">
+              <Label htmlFor="recipient-team" className="text-xs font-semibold">
                 Award runs to
               </Label>
               <Select
                 value={targetTeamId || battingTeam?.id || ""}
                 onValueChange={setTargetTeamId}
               >
-                <SelectTrigger id="recipient-team" className="h-9 text-xs font-bold">
+                <SelectTrigger id="recipient-team" className="h-9 text-xs font-semibold">
                   <SelectValue placeholder="Select team" />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,7 +174,7 @@ export function PenaltyBonusDialog({
             {/* Run Presets & Input */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label htmlFor="penalty-runs" className="text-xs font-bold">
+                <Label htmlFor="penalty-runs" className="text-xs font-semibold">
                   Number of runs
                 </Label>
                 <span className="text-2xs text-muted-foreground">
@@ -189,7 +189,7 @@ export function PenaltyBonusDialog({
                   max={50}
                   value={runs}
                   onChange={(e) => setRuns(Number(e.target.value))}
-                  className="h-9 w-20 text-xs font-bold"
+                  className="h-9 w-20 text-xs font-semibold"
                   required
                 />
                 <div className="flex flex-wrap gap-1">
@@ -200,7 +200,7 @@ export function PenaltyBonusDialog({
                       variant={runs === r ? "default" : "outline"}
                       size="sm"
                       onClick={() => setRuns(r)}
-                      className="h-8 px-2 text-xs font-bold"
+                      className="h-8 px-2 text-xs font-semibold"
                     >
                       +{r}
                     </Button>
@@ -211,7 +211,7 @@ export function PenaltyBonusDialog({
 
             {/* Reason */}
             <div className="space-y-1.5">
-              <Label htmlFor="penalty-reason" className="text-xs font-bold">
+              <Label htmlFor="penalty-reason" className="text-xs font-semibold">
                 Reason / violation
               </Label>
               <Select value={reason} onValueChange={setReason}>
@@ -230,7 +230,7 @@ export function PenaltyBonusDialog({
 
             {reason === "Other infraction" && (
               <div className="space-y-1.5">
-                <Label htmlFor="custom-reason" className="text-xs font-bold">
+                <Label htmlFor="custom-reason" className="text-xs font-semibold">
                   Specify reason
                 </Label>
                 <Input
@@ -259,7 +259,7 @@ export function PenaltyBonusDialog({
               type="submit"
               size="sm"
               disabled={isProcessing || !runs}
-              className="bg-rose-600 font-bold text-white hover:bg-rose-700"
+              className="bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
             >
               {isProcessing ? "Awarding..." : `Award +${runs} Runs`}
             </Button>

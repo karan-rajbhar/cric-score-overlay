@@ -143,9 +143,9 @@ export function PotmDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-1.5 text-amber-500">
+          <div className="mb-1 flex items-center gap-1.5 text-warning">
             <Award className="h-4 w-4" />
-            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+            <span className="text-xs font-semibold text-warning">
               Match honors
             </span>
           </div>
@@ -174,7 +174,7 @@ export function PotmDialog({
                   onClick={() => setOverridePlayerId(p.id)}
                   className={`flex w-full items-center justify-between rounded-lg border p-3 text-left transition-all ${
                     isSelected
-                      ? "border-amber-500/80 bg-amber-500/10 text-foreground ring-1 ring-amber-500/50"
+                      ? "border-warning/80 bg-warning/10 text-foreground ring-1 ring-warning/50"
                       : "border-border text-foreground hover:bg-muted/50"
                   }`}
                 >
@@ -205,7 +205,7 @@ export function PotmDialog({
                         {p.stats && (
                           <>
                             <span>•</span>
-                            <span className="text-foreground/80 font-mono">
+                            <span className="font-score tabular-nums text-foreground/80">
                               {p.stats}
                             </span>
                           </>
@@ -215,12 +215,12 @@ export function PotmDialog({
                   </div>
                   <div className="flex items-center gap-2">
                     {p.impactPoints != null && p.impactPoints > 0 && (
-                      <span className="text-xs font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                      <span className="text-xs font-semibold tabular-nums text-warning">
                         {p.impactPoints} pts
                       </span>
                     )}
                     {isSelected && (
-                      <Check className="h-5 w-5 flex-shrink-0 text-amber-500" />
+                      <Check className="h-5 w-5 flex-shrink-0 text-warning" />
                     )}
                   </div>
                 </button>
@@ -249,7 +249,7 @@ export function PotmDialog({
             <Button
               onClick={handleSave}
               disabled={!selectedPlayerId || isSaving}
-              className="bg-amber-600 text-white hover:bg-amber-500"
+              className="bg-warning text-warning-foreground hover:bg-warning"
             >
               {isSaving ? "Awarding..." : "Confirm Award"}
             </Button>

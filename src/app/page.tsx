@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
-import { MatchCard } from "~/components/matches/match-card";
+import { LiveHeroCard } from "~/components/matches/live-hero-card";
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
+import { Carousel } from "~/components/ds/carousel";
+import { BrandMark, BrandWordmark } from "~/components/brand";
+import { cardSurface } from "~/components/ds/card";
 import { useMatchesQuery } from "~/lib/hooks/useMatchQueries";
 import { PageContainer, SectionHeader } from "~/components/layout/page";
 
@@ -37,7 +40,12 @@ export default function HomePage() {
   return (
     <PageContainer className="space-y-10 pb-8 sm:space-y-12">
       <section className="max-w-2xl pt-2 sm:pt-6">
-        <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
+        {/* Phones have no header: the brand opens the page. */}
+        <span className="mb-6 flex items-center gap-2 md:hidden">
+          <BrandMark className="h-9 w-9" />
+          <BrandWordmark />
+        </span>
+        <h1 className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           Cricket scoring for clubs and leagues
         </h1>
         <p className="mt-3 text-pretty text-sm text-muted-foreground sm:text-base">
@@ -88,13 +96,16 @@ export default function HomePage() {
             <MatchCardSkeleton />
           </div>
         ) : liveMatches.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          // Phones: swipe through the live matches; tablets up: a grid.
+          <Carousel label="Live matches" gridFromMd>
             {liveMatches.map((match) => (
-              <MatchCard key={match.id} match={match} showActions={false} />
+              <LiveHeroCard key={match.id} match={match} />
             ))}
-          </div>
+          </Carousel>
         ) : (
-          <p className="rounded-xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+          <p
+            className={`${cardSurface} px-4 py-6 text-sm text-muted-foreground`}
+          >
             No matches are being scored right now.{" "}
             <Link
               href="/matches"
@@ -110,10 +121,7 @@ export default function HomePage() {
         <SectionHeader id="features-heading" title="What it does" />
         <div className="grid gap-4 md:grid-cols-3">
           {FEATURES.map(({ title, description }) => (
-            <div
-              key={title}
-              className="rounded-xl border border-border bg-card p-5"
-            >
+            <div key={title} className={`${cardSurface} p-5`}>
               <h3 className="text-base font-semibold text-foreground">
                 {title}
               </h3>

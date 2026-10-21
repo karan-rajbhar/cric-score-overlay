@@ -29,7 +29,7 @@ describe("WagonWheelSelector", () => {
 
     expect(
       screen.getByRole("region", {
-        name: /interactive wagon wheel shot direction selector/i,
+        name: /where the ball went/i,
       }),
     ).toBeInTheDocument();
 
@@ -37,7 +37,7 @@ describe("WagonWheelSelector", () => {
     const coverButton = screen.getByRole("button", { name: /cover/i });
     expect(coverButton).toBeInTheDocument();
 
-    const midWicketButton = screen.getByRole("button", { name: /mid wicket/i });
+    const midWicketButton = screen.getByRole("button", { name: /mid-wicket/i });
     expect(midWicketButton).toBeInTheDocument();
   });
 
@@ -64,7 +64,7 @@ describe("WagonWheelSelector", () => {
       />,
     );
 
-    const midWicketBtn = screen.getByRole("button", { name: /mid wicket/i });
+    const midWicketBtn = screen.getByRole("button", { name: /mid-wicket/i });
     // Inside the button, there are two paths: the inner turf wedge and the outer donut segment
     const paths = midWicketBtn.querySelectorAll("path");
     expect(paths.length).toBe(2);
@@ -89,7 +89,7 @@ describe("WagonWheelSelector", () => {
       />,
     );
 
-    const midWicketButton = screen.getByRole("button", { name: /mid wicket/i });
+    const midWicketButton = screen.getByRole("button", { name: /mid-wicket/i });
     expect(midWicketButton).toHaveAttribute("aria-pressed", "true");
 
     const coverButton = screen.getByRole("button", { name: /cover/i });

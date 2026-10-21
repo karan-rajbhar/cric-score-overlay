@@ -123,8 +123,8 @@ function ReviseTargetForm({
           </p>
         </div>
 
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-200">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p>
             Updating the target will instantly recompute the required run rate and equation for all viewers, scoreboards, and broadcast overlays.
           </p>

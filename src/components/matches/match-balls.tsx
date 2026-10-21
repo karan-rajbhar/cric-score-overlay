@@ -1,24 +1,144 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Badge } from "~/components/ui/badge";
-import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
-import { cn } from "~/lib/utils";
 import { Loader2 } from "lucide-react";
+import { BallChip } from "~/components/ds/ball";
+import { Card } from "~/components/ds/card";
+import { Chip } from "~/components/ds/chip";
+import { Segmented } from "~/components/ds/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
-import { teamName, formatDismissalType, formatExtraType } from "~/lib/cricket";
+import {
+  deliveryKind,
+  deliveryLabel,
+  formatDismissalType,
+  formatExtraType,
+  teamName,
+} from "~/lib/cricket";
+import { cn } from "~/lib/utils";
 
 type Ball = BallEvent;
+type Filter = "all" | "boundaries" | "wickets";
 
 interface MatchBallsProps {
   match: Match;
 }
 
+const FILTERS: readonly { value: Filter; label: string }[] = [
+  { value: "all", label: "All deliveries" },
+  { value: "boundaries", label: "Boundaries" },
+  { value: "wickets", label: "Wickets" },
+];
+
+function filterBalls(balls: Ball[], filter: Filter): Ball[] {
+  if (filter === "boundaries")
+    return balls.filter((b) => b.runs_scored >= 4 && !b.extra_type);
+  if (filter === "wickets") return balls.filter((b) => b.is_wicket);
+  return balls;
+}
+
+const runsOf = (b: Ball) => b.runs_scored + (b.extras || 0);
+
+/** "Four", "2 runs", "Wicket (caught)": what happened, in words. */
+function outcomeOf(b: Ball): string {
+  if (b.is_wicket)
+    return `Out, ${formatDismissalType(b.dismissal_type).toLowerCase()}`;
+  if (!b.extra_type && b.runs_scored === 4) return "Four";
+  if (!b.extra_type && b.runs_scored === 6) return "Six";
+  const runs = runsOf(b);
+  const words = runs === 0 ? "No run" : `${runs} run${runs === 1 ? "" : "s"}`;
+  return b.extra_type
+    ? `${words}, ${formatExtraType(b.extra_type).toLowerCase()}`
+    : words;
+}
+
+const OUTCOME_TONE: Partial<Record<ReturnType<typeof deliveryKind>, string>> = {
+  wicket: "text-wicket",
+  four: "text-four",
+  six: "text-six",
+};
+
+/** One over: its deliveries as chips, then each ball in words. */
+function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
+  const sorted = [...balls].sort((a, b) => a.ball_number - b.ball_number);
+  const runs = sorted.reduce((n, b) => n + runsOf(b), 0);
+  const wickets = sorted.filter((b) => b.is_wicket).length;
+  const bowler = sorted.find((b) => b.bowler?.full_name)?.bowler?.full_name;
+  return (
+    <Card className="[contain-intrinsic-size:auto_16rem] [content-visibility:auto]">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-foreground">
+            Over {over + 1}
+          </span>
+          {bowler && (
+            <span className="block truncate text-xs text-muted-foreground">
+              {bowler}
+            </span>
+          )}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {wickets > 0 && (
+            <Chip tone="danger" size="sm">
+              {wickets} {wickets === 1 ? "wicket" : "wickets"}
+            </Chip>
+          )}
+          <span className="font-score text-sm font-semibold tabular-nums text-foreground">
+            {runs} {runs === 1 ? "run" : "runs"}
+          </span>
+        </span>
+      </header>
+      <div className="px-4 py-3">
+        <ol
+          className="flex flex-wrap gap-1.5"
+          aria-label={`Over ${over + 1} deliveries`}
+        >
+          {sorted.map((b) => (
+            <li key={b.id}>
+              <BallChip kind={deliveryKind(b)} label={deliveryLabel(b)} />
+            </li>
+          ))}
+        </ol>
+        <ul className="mt-3 divide-y divide-border border-t border-border">
+          {sorted.map((b) => (
+            <li key={b.id} className="flex gap-3 py-2 text-sm">
+              <span className="w-8 shrink-0 font-score text-xs tabular-nums leading-5 text-muted-foreground">
+                {over}.{b.ball_number}
+              </span>
+              <span className="min-w-0">
+                <span className="text-muted-foreground">
+                  {b.bowler?.full_name ?? "Bowler"} to{" "}
+                </span>
+                <span className="font-medium text-foreground">
+                  {b.batsman?.full_name ?? "Batter"}
+                </span>
+                <span className="text-muted-foreground">, </span>
+                <span
+                  className={cn(
+                    "font-medium text-foreground",
+                    OUTCOME_TONE[deliveryKind(b)],
+                  )}
+                >
+                  {outcomeOf(b)}
+                </span>
+                {b.commentary && (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {b.commentary}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Card>
+  );
+}
+
+/** Ball by ball: each innings' overs, the latest first. */
 export function MatchBalls({ match }: MatchBallsProps) {
-  const [filter, setFilter] = useState<"all" | "boundaries" | "wickets">("all");
+  const [filter, setFilter] = useState<Filter>("all");
   const { data, error } = useMatchBallLogQuery(match.id);
   const ballLog = (data ?? null) as Ball[] | null;
   const logError = error
@@ -27,286 +147,86 @@ export function MatchBalls({ match }: MatchBallsProps) {
       : String(error)
     : null;
 
-  const getBallDisplay = (ball: Ball) => {
-    if (ball.is_wicket) return "W";
-    if (ball.extra_type === "wide") return `${ball.extras}wd`;
-    if (ball.extra_type === "no_ball") return `${ball.runs_scored}nb`;
-    if (ball.extra_type === "bye") return `${ball.extras}b`;
-    if (ball.extra_type === "leg_bye") return `${ball.extras}lb`;
-    if (ball.extra_type === "penalty") return `${ball.extras}P`;
-    if (ball.extra_type === "bonus") return `${ball.extras}B`;
-    return ball.runs_scored.toString();
-  };
-
-  const getBallClass = (ball: Ball) => {
-    if (ball.is_wicket)
-      return "bg-red-600 text-white font-bold";
-    if (ball.runs_scored === 6)
-      return "bg-purple-600 text-white font-bold";
-    if (ball.runs_scored === 4)
-      return "bg-emerald-600 text-white font-bold";
-    if (ball.extra_type)
-      return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border border-amber-500/40 font-bold";
-    if (ball.runs_scored > 0)
-      return "border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold";
-    return "border border-border/80 bg-muted/60 text-muted-foreground font-medium";
-  };
-
-  const groupBallsByOver = (balls: Ball[]) => {
-    const overs: { [key: number]: Ball[] } = {};
-    balls.forEach((ball) => {
-      if (!overs[ball.over_number]) {
-        overs[ball.over_number] = [];
-      }
-      overs[ball.over_number]!.push(ball);
-    });
-    return overs;
-  };
-
-  const filterBalls = (balls: Ball[]) => {
-    switch (filter) {
-      case "boundaries":
-        return balls.filter((b) => b.runs_scored >= 4 && !b.extra_type);
-      case "wickets":
-        return balls.filter((b) => b.is_wicket);
-      default:
-        return balls;
-    }
-  };
-
-  const getOverRuns = (balls: Ball[]) => {
-    return balls.reduce(
-      (sum, ball) => sum + ball.runs_scored + (ball.extras || 0),
-      0,
-    );
-  };
-
   const sortedInnings = [...(match.innings || [])].sort(
     (a, b) => a.innings_number - b.innings_number,
   );
 
-  if (ballLog === null) {
+  if (ballLog === null && !logError) {
     return (
-      <Card>
-        <CardContent className="flex justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </CardContent>
+      <Card className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </Card>
     );
   }
 
-  if (sortedInnings.length === 0 || logError) {
+  if (sortedInnings.length === 0 || logError || !ballLog) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          {logError ?? "No ball-by-ball data available yet"}
-        </CardContent>
+      <Card className="py-12 text-center text-sm text-muted-foreground">
+        {logError ?? "No ball-by-ball data available yet"}
       </Card>
     );
   }
+
+  const current = sortedInnings.some(
+    (inn) => inn.innings_number === match.current_innings,
+  )
+    ? match.current_innings
+    : sortedInnings.at(-1)?.innings_number;
 
   return (
     <div className="space-y-4">
-      {/* Filter Buttons */}
-      <div role="group" aria-label="Filter deliveries" className={segmentedTrack}>
-        {(
-          [
-            ["all", "All deliveries"],
-            ["boundaries", "Boundaries (4s & 6s)"],
-            ["wickets", "Wickets"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={filter === value}
-            onClick={() => setFilter(value)}
-            className={segmentedItem(filter === value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Filter deliveries"
+        options={FILTERS}
+        value={filter}
+        onChange={setFilter}
+      />
 
-      <Tabs
-        defaultValue={
-          sortedInnings.some((inn) => inn.innings_number === match.current_innings)
-            ? `innings-${match.current_innings}`
-            : `innings-${sortedInnings[sortedInnings.length - 1]?.innings_number ?? 1}`
-        }
-        className="w-full"
-      >
-        <TabsList className="mb-4 grid h-auto w-full max-w-xs grid-cols-2">
+      <Tabs defaultValue={`innings-${current ?? 1}`} className="w-full">
+        <TabsList aria-label="Innings" className="mb-4">
           {sortedInnings.map((innings) => (
             <TabsTrigger
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="px-2 sm:px-4"
             >
-              {innings.innings_number === 1 ? "1st" : "2nd"} Innings
+              {innings.innings_number > 2
+                ? "Super over"
+                : teamName(match, innings.team_id)}
             </TabsTrigger>
           ))}
         </TabsList>
 
         {sortedInnings.map((innings) => {
           const balls = ballLog.filter((b) => b.innings_id === innings.id);
-          const filteredBalls = filterBalls(balls);
-          const overGroups = groupBallsByOver(filteredBalls);
-          const overNumbers = Object.keys(overGroups)
-            .map(Number)
-            .sort((a, b) => b - a); // Most recent first
-
+          const shown = filterBalls(balls, filter);
+          const byOver = new Map<number, Ball[]>();
+          for (const b of shown) {
+            byOver.set(b.over_number, [
+              ...(byOver.get(b.over_number) ?? []),
+              b,
+            ]);
+          }
+          const overs = [...byOver.keys()].sort((a, b) => b - a);
           return (
             <TabsContent
               key={innings.id}
               value={`innings-${innings.innings_number}`}
+              className="space-y-4"
             >
               {balls.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    No ball-by-ball data for this innings
-                  </CardContent>
+                <Card className="py-12 text-center text-sm text-muted-foreground">
+                  No ball-by-ball data for this innings
+                </Card>
+              ) : overs.length === 0 ? (
+                <Card className="py-12 text-center text-sm text-muted-foreground">
+                  {filter === "wickets"
+                    ? "No wickets in this innings yet"
+                    : "No boundaries in this innings yet"}
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {/* Innings Header */}
-                  <Card className="overflow-hidden border-border bg-card">
-                    <CardContent className="py-3 px-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-foreground">
-                            {teamName(match, innings.team_id).slice(0, 2)}
-                          </div>
-                          <span className="font-semibold text-foreground text-sm sm:text-base">
-                            {teamName(match, innings.team_id)}
-                          </span>
-                        </div>
-                        <span className="text-base sm:text-lg font-bold tabular-nums font-score text-foreground">
-                          {innings.total_runs}/{innings.total_wickets}{" "}
-                          <span className="text-xs font-normal text-muted-foreground font-sans">
-                            ({innings.total_overs} ov)
-                          </span>
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Overs */}
-                  {overNumbers.map((overNum) => {
-                    const overBalls = overGroups[overNum] || [];
-                    const overRuns = getOverRuns(overBalls);
-                    const wicketsInOver = overBalls.filter(
-                      (b) => b.is_wicket,
-                    ).length;
-
-                    return (
-                      <Card key={overNum} className="[content-visibility:auto] [contain-intrinsic-size:auto_18rem] overflow-hidden border-border bg-card">
-                        <CardHeader className="border-b border-border/50 py-3 px-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-bold">
-                              <span>Over {overNum + 1}</span>
-                              {overBalls[0]?.bowler && (
-                                <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                  {overBalls[0].bowler.full_name}
-                                </span>
-                              )}
-                            </CardTitle>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="tabular-nums font-semibold text-xs">
-                                {overRuns} {overRuns === 1 ? "run" : "runs"}
-                              </Badge>
-                              {wicketsInOver > 0 && (
-                                <Badge variant="destructive" className="tabular-nums font-bold text-xs">
-                                  {wicketsInOver} {wicketsInOver === 1 ? "wicket" : "wickets"}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-4">
-                          <div className="flex flex-wrap gap-2">
-                            {overBalls
-                              .sort((a, b) => a.ball_number - b.ball_number)
-                              .map((ball) => (
-                                <div
-                                  key={ball.id}
-                                  className={cn(
-                                    "flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full text-xs sm:text-sm font-bold tabular-nums shrink-0",
-                                    getBallClass(ball),
-                                  )}
-                                  title={`${ball.batsman?.full_name} vs ${ball.bowler?.full_name}${
-                                    ball.commentary
-                                      ? `: ${ball.commentary}`
-                                      : ""
-                                  }`}
-                                >
-                                  {getBallDisplay(ball)}
-                                </div>
-                              ))}
-                          </div>
-
-                          {/* Ball Commentary */}
-                          <div className="mt-3.5 space-y-1.5 border-t border-border/50 pt-3">
-                            {overBalls
-                              .sort((a, b) => a.ball_number - b.ball_number)
-                              .map((ball) => (
-                                <div
-                                  key={ball.id}
-                                  className="rounded-lg p-2 text-xs sm:text-sm transition-colors hover:bg-muted/30"
-                                >
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                      {overNum}.{ball.ball_number}
-                                    </span>
-                                    <span className="text-muted-foreground text-xs sm:text-sm">
-                                      {ball.bowler?.full_name} to{" "}
-                                      <strong className="text-foreground font-semibold">
-                                        {ball.batsman?.full_name}
-                                      </strong>
-                                    </span>
-                                    <span
-                                      className={cn(
-                                        "font-bold text-xs sm:text-sm",
-                                        ball.is_wicket &&
-                                          "font-bold text-red-600 dark:text-red-400",
-                                        ball.runs_scored === 6 &&
-                                          "font-bold text-purple-600 dark:text-purple-400",
-                                        ball.runs_scored === 4 &&
-                                          "font-bold text-emerald-600 dark:text-emerald-400",
-                                      )}
-                                    >
-                                      {ball.is_wicket
-                                        ? `Wicket (${formatDismissalType(ball.dismissal_type)})`
-                                        : `${ball.runs_scored + (ball.extras || 0)} run${
-                                            ball.runs_scored +
-                                              (ball.extras || 0) !==
-                                            1
-                                              ? "s"
-                                              : ""
-                                          }`}
-                                    </span>
-                                    {ball.extra_type && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-2xs px-1.5 py-0 uppercase"
-                                      >
-                                        {formatExtraType(ball.extra_type)}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  {ball.commentary && (
-                                    <p className="mt-1 pl-6 text-xs text-muted-foreground italic">
-                                      {ball.commentary}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                overs.map((over) => (
+                  <OverCard key={over} over={over} balls={byOver.get(over)!} />
+                ))
               )}
             </TabsContent>
           );

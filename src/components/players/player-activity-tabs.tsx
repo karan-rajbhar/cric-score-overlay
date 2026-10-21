@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type * as React from "react";
 import Link from "next/link";
 import {
   Table,
@@ -10,9 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TeamCrest } from "~/components/ds/avatar";
+import { ListCard, ListRow } from "~/components/ds/list";
+import { MatchCard } from "~/components/matches/match-card";
+import type { Match } from "~/lib/match-types";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import { TeamLogo } from "~/components/teams/team-logo";
@@ -20,20 +24,11 @@ import { EmptyState } from "~/components/ui/empty-state";
 import {
   formatHowOut,
   formatPlayerRole,
-  formatTeamType,
   strikeRate,
   economyRate,
   ballsFromOvers,
 } from "~/lib/cricket";
-import {
-  CalendarDays,
-  MapPin,
-  ArrowRight,
-  Swords,
-  Users,
-  Trophy,
-  Activity,
-} from "lucide-react";
+import { ArrowRight, Swords, Users, Activity } from "lucide-react";
 
 export interface PlayerTeamMembership {
   id: string;
@@ -158,6 +153,8 @@ interface PlayerActivityTabsProps {
   tournamentId?: string;
   teamId?: string;
   initialTab?: string;
+  /** The career figures: the first tab, open by default. */
+  statistics?: React.ReactNode;
 }
 
 function formatDate(dateStr?: string | null) {
@@ -232,7 +229,7 @@ function MatchResultCells({
           <Button asChild variant="ghost" size="sm" className="h-7 w-7 p-0">
             <Link
               href={`/matches/${match.id}?playerId=${userId}`}
-              title="View Match Scorecard"
+              title="View the scorecard"
             >
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -251,11 +248,14 @@ export function PlayerActivityTabs({
   matches,
   tournamentId,
   initialTab,
+  statistics,
 }: PlayerActivityTabsProps) {
   // Determine default active tab
   const defaultTab =
     initialTab ??
-    (batting.length > 0
+    (statistics
+      ? "statistics"
+      : batting.length > 0
       ? "batting"
       : bowling.length > 0
         ? "bowling"
@@ -276,73 +276,27 @@ export function PlayerActivityTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-      <div className="border-b border-border/70 pb-4">
-        <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar p-1 sm:inline-flex sm:w-auto">
-          <TabsTrigger
-            value="batting"
-          >
-            <span>Batting</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 h-5 px-1.5 text-xs font-semibold"
-            >
-              {batting.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="bowling"
-          >
-            <span>Bowling</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 h-5 px-1.5 text-xs font-semibold"
-            >
-              {bowling.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="matches"
-          >
-            <span>Matches</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 h-5 px-1.5 text-xs font-semibold"
-            >
-              {matches.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="teams"
-          >
-            <span>Teams</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 h-5 px-1.5 text-xs font-semibold"
-            >
-              {teams.length}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
-      </div>
+      <TabsList aria-label="Player sections">
+        {statistics && (
+          <TabsTrigger value="statistics">Statistics</TabsTrigger>
+        )}
+        <TabsTrigger value="batting">Batting</TabsTrigger>
+        <TabsTrigger value="bowling">Bowling</TabsTrigger>
+        <TabsTrigger value="matches">Matches</TabsTrigger>
+        <TabsTrigger value="teams">Teams</TabsTrigger>
+      </TabsList>
+
+      {statistics && (
+        <TabsContent value="statistics" className="mt-6 space-y-6">
+          {statistics}
+        </TabsContent>
+      )}
 
       {/* =================== BATTING INNINGS TAB =================== */}
       <TabsContent value="batting" className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              Recent batting innings
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Detailed performance history including balls faced, boundaries,
-              dismissals, and match results
-            </p>
-          </div>
-          {batting.length > 0 && (
-            <Badge variant="outline" className="text-xs">
-              {batting.length} Innings recorded
-            </Badge>
-          )}
-        </div>
+        <h3 className="text-base font-semibold text-foreground">
+          Batting innings
+        </h3>
 
         {batting.length === 0 ? (
           <EmptyState
@@ -359,7 +313,7 @@ export function PlayerActivityTabs({
                     <TableHead className="min-w-[180px]">
                       Match / opponent
                     </TableHead>
-                    <TableHead className="text-center font-bold">
+                    <TableHead className="text-center font-semibold">
                       Runs
                     </TableHead>
                     <TableHead className="text-center">Balls</TableHead>
@@ -393,9 +347,9 @@ export function PlayerActivityTabs({
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <span
-                              className={`tabular-nums text-base font-bold ${
+                              className={`tabular-nums text-base font-semibold ${
                                 bp.runs_scored >= 50
-                                  ? "text-amber-600 dark:text-amber-400"
+                                  ? "text-warning dark:text-warning"
                                   : "text-foreground"
                               }`}
                             >
@@ -405,7 +359,7 @@ export function PlayerActivityTabs({
                             {!bp.is_out && (
                               <Badge
                                 variant="outline"
-                                className="border-emerald-500/40 bg-emerald-500/10 px-1 py-0 text-2xs text-emerald-600 dark:text-emerald-400"
+                                className="border-success/40 bg-success/10 px-1 py-0 text-2xs text-success"
                               >
                                 not out
                               </Badge>
@@ -438,7 +392,7 @@ export function PlayerActivityTabs({
                           <span
                             className={`text-xs ${
                               !bp.is_out
-                                ? "font-semibold text-emerald-600 dark:text-emerald-400"
+                                ? "font-semibold text-success dark:text-success"
                                 : "text-muted-foreground"
                             }`}
                           >
@@ -459,27 +413,14 @@ export function PlayerActivityTabs({
 
       {/* =================== BOWLING SPELLS TAB =================== */}
       <TabsContent value="bowling" className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              Recent bowling spells
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Overs, wickets, runs conceded, maidens, economy rates, and match
-              context
-            </p>
-          </div>
-          {bowling.length > 0 && (
-            <Badge variant="outline" className="text-xs">
-              {bowling.length} Spells recorded
-            </Badge>
-          )}
-        </div>
+        <h3 className="text-base font-semibold text-foreground">
+          Bowling spells
+        </h3>
 
         {bowling.length === 0 ? (
           <EmptyState
             icon={Activity}
-            title="No Bowling Figures Recorded"
+            title="No bowling yet"
             description="Bowling spells and wickets from matches will appear here as the player bowls."
           />
         ) : (
@@ -491,7 +432,7 @@ export function PlayerActivityTabs({
                     <TableHead className="min-w-[180px]">
                       Match / opponent
                     </TableHead>
-                    <TableHead className="text-center font-bold">
+                    <TableHead className="text-center font-semibold">
                       Figures (W/R)
                     </TableHead>
                     <TableHead className="text-center">Overs</TableHead>
@@ -521,7 +462,7 @@ export function PlayerActivityTabs({
                         {/* Figures */}
                         <TableCell className="text-center">
                           <span
-                            className={`tabular-nums text-base font-bold ${
+                            className={`tabular-nums text-base font-semibold ${
                               bp.wickets_taken >= 3
                                 ? "text-primary"
                                 : "text-foreground"
@@ -547,7 +488,7 @@ export function PlayerActivityTabs({
                         </TableCell>
 
                         {/* Wickets */}
-                        <TableCell className="tabular-nums text-center font-bold text-foreground">
+                        <TableCell className="tabular-nums text-center font-semibold text-foreground">
                           {bp.wickets_taken}
                         </TableCell>
 
@@ -578,181 +519,39 @@ export function PlayerActivityTabs({
 
       {/* =================== MATCHES TAB =================== */}
       <TabsContent value="matches" className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              Match appearances
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Matches involving the player and their teams with personal
-              performance records
-            </p>
-          </div>
-          {matches.length > 0 && (
-            <Badge variant="outline" className="text-xs">
-              {matches.length} Matches
-            </Badge>
-          )}
-        </div>
+        <h3 className="text-base font-semibold text-foreground">
+          Matches
+        </h3>
 
         {matches.length === 0 ? (
           <EmptyState
             icon={Swords}
-            title="No Matches Found"
+            title="No matches yet"
             description="Matches scheduled or played by this player and their teams will appear here."
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {matches.map((m) => {
-              const inn1 = m.innings?.find((i) => i.team_id === m.team1.id);
-              const inn2 = m.innings?.find((i) => i.team_id === m.team2.id);
-
+              const figures = [
+                m.playerBatting &&
+                  `Batting ${m.playerBatting.runs_scored}${m.playerBatting.is_out ? "" : "*"} (${m.playerBatting.balls_faced})`,
+                m.playerBowling &&
+                  `Bowling ${m.playerBowling.wickets_taken}/${m.playerBowling.runs_conceded} (${Number(m.playerBowling.overs_bowled).toFixed(1)})`,
+              ].filter(Boolean);
               return (
-                <Card
+                <MatchCard
                   key={m.id}
-                  className="overflow-hidden transition-all hover:border-primary/50 hover:shadow-sm"
-                >
-                  <CardContent className="p-0">
-                    {/* Header Strip */}
-                    <div className="flex items-center justify-between border-b px-4 py-2.5 text-xs">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={m.status} />
-                        {m.tournament && (
-                          <span className="flex max-w-[130px] items-center gap-1 truncate font-medium text-muted-foreground">
-                            <Trophy className="h-3 w-3 shrink-0" />
-                            {m.tournament.name}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {m.match_format} · {m.overs_per_innings} ov
-                      </span>
-                    </div>
-
-                    {/* Teams & Scores */}
-                    <div className="space-y-2.5 p-4">
-                      {/* Team 1 */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <TeamLogo
-                            name={m.team1.name}
-                            shortName={m.team1.short_name}
-                            logoUrl={m.team1.logo_url}
-                            className="h-6 w-6 shrink-0 text-xs"
-                          />
-                          <span className="truncate text-sm font-medium">
-                            {m.team1.name}
-                          </span>
-                        </div>
-                        {inn1 ? (
-                          <div className="tabular-nums text-right text-xs font-bold">
-                            {inn1.total_runs}/{inn1.total_wickets}
-                            <span className="ml-1 text-2xs font-normal text-muted-foreground">
-                              ({inn1.total_overs.toFixed(1)})
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Team 2 */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <TeamLogo
-                            name={m.team2.name}
-                            shortName={m.team2.short_name}
-                            logoUrl={m.team2.logo_url}
-                            className="h-6 w-6 shrink-0 text-xs"
-                          />
-                          <span className="truncate text-sm font-medium">
-                            {m.team2.name}
-                          </span>
-                        </div>
-                        {inn2 ? (
-                          <div className="tabular-nums text-right text-xs font-bold">
-                            {inn2.total_runs}/{inn2.total_wickets}
-                            <span className="ml-1 text-2xs font-normal text-muted-foreground">
-                              ({inn2.total_overs.toFixed(1)})
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            —
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Player's Performance in this match (if played) */}
-                    {(m.playerBatting || m.playerBowling) && (
-                      <div className="flex flex-wrap items-center gap-2 border-t bg-primary/5 px-4 py-2 text-xs">
-                        <span className="font-semibold text-primary">
-                          Player:
-                        </span>
-                        {m.playerBatting && (
-                          <Badge
-                            variant="outline"
-                            className="border-primary/20 bg-background text-2xs font-medium"
-                          >
-                            Bat: {m.playerBatting.runs_scored}
-                            {!m.playerBatting.is_out && "*"} (
-                            {m.playerBatting.balls_faced}b)
-                          </Badge>
-                        )}
-                        {m.playerBowling && (
-                          <Badge
-                            variant="outline"
-                            className="border-primary/20 bg-background text-2xs font-medium"
-                          >
-                            Bowl: {m.playerBowling.wickets_taken}/
-                            {m.playerBowling.runs_conceded} (
-                            {Number(m.playerBowling.overs_bowled).toFixed(1)}ov)
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Result or Timing */}
-                    <div className="border-t bg-muted/20 px-4 py-2">
-                      {m.result_description ? (
-                        <p className="truncate text-xs font-medium text-primary">
-                          {m.result_description}
-                        </p>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          {m.venue && (
-                            <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3 w-3 shrink-0" />
-                              {m.venue}
-                            </span>
-                          )}
-                          <span className="tabular-nums inline-flex items-center gap-1">
-                            <CalendarDays className="h-3 w-3 shrink-0" />
-                            {formatDate(m.scheduled_at)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Footer Action */}
-                    <div className="border-t px-4 py-2">
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-full justify-between text-xs font-medium hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Link href={`/matches/${m.id}?playerId=${userId}`}>
-                          <span>View scorecard</span>
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  match={m as unknown as Match}
+                  contextQuery={`playerId=${userId}`}
+                  showActions={false}
+                  detail={
+                    figures.length > 0 ? (
+                      <p className="mt-1 font-score text-xs tabular-nums text-muted-foreground">
+                        {figures.join(" · ")}
+                      </p>
+                    ) : undefined
+                  }
+                />
               );
             })}
           </div>
@@ -761,130 +560,51 @@ export function PlayerActivityTabs({
 
       {/* =================== TEAMS TAB =================== */}
       <TabsContent value="teams" className="mt-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              Teams & squads
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Teams and clubs this player is affiliated with, including
-              leadership roles and jersey numbers
-            </p>
-          </div>
-          {teams.length > 0 && (
-            <Badge variant="outline" className="text-xs">
-              {teams.length} Teams
-            </Badge>
-          )}
-        </div>
+        <h3 className="text-base font-semibold text-foreground">
+          Teams
+        </h3>
 
         {teams.length === 0 ? (
           <EmptyState
             icon={Users}
-            title="No Team Memberships Found"
-            description="When this player is added to squad rosters by team managers, they will be shown here."
+            title="Not in a team yet"
+            description="Teams appear here once a team adds this player to its squad."
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <ListCard aria-label="Teams">
             {teams.map((tm) => {
-              const teamUrl = `/teams/${tm.team.id}${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`;
-
+              const role =
+                tm.role_in_team === "captain"
+                  ? "Captain (c)"
+                  : tm.role_in_team === "vice_captain"
+                    ? "Vice-captain (vc)"
+                    : tm.role_in_team === "wicket_keeper"
+                      ? "Wicket-keeper (wk)"
+                      : formatPlayerRole(tm.role_in_team);
               return (
-                <Card
+                <ListRow
                   key={tm.id}
-                  className="transition-all hover:border-primary/50 hover:shadow-sm"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <TeamLogo
-                          name={tm.team.name}
-                          shortName={tm.team.short_name}
-                          logoUrl={tm.team.logo_url}
-                          className="h-12 w-12 shrink-0 text-sm"
-                        />
-                        <div>
-                          <CardTitle className="text-base font-bold leading-tight">
-                            <Link
-                              href={teamUrl}
-                              className="transition-colors hover:text-primary"
-                            >
-                              {tm.team.name}
-                            </Link>
-                          </CardTitle>
-                          {tm.team.club && (
-                            <p className="text-xs text-muted-foreground">
-                              {tm.team.club.name}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {tm.jersey_number !== undefined &&
-                        tm.jersey_number !== null && (
-                          <Badge
-                            variant="secondary"
-                            className="font-mono text-xs font-bold"
-                            title="Jersey Number"
-                          >
-                            #{tm.jersey_number}
-                          </Badge>
-                        )}
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="space-y-3 pt-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {tm.role_in_team === "captain" && (
-                        <Badge className="border-yellow-200 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
-                          Captain
-                        </Badge>
-                      )}
-                      {tm.role_in_team === "vice_captain" && (
-                        <Badge className="border-blue-200 bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                          Vice captain
-                        </Badge>
-                      )}
-                      {tm.role_in_team === "wicket_keeper" && (
-                        <Badge variant="outline">Wicket keeper</Badge>
-                      )}
-                      {(!tm.role_in_team ||
-                        !["captain", "vice_captain", "wicket_keeper"].includes(
-                          tm.role_in_team,
-                        )) && (
-                        <Badge variant="outline">
-                          {formatPlayerRole(tm.role_in_team)}
-                        </Badge>
-                      )}
-                      <Badge variant="secondary">
-                        {formatTeamType(tm.team.team_type)}
-                      </Badge>
-                    </div>
-
-                    {tm.team.description && (
-                      <p className="line-clamp-2 text-xs text-muted-foreground">
-                        {tm.team.description}
-                      </p>
-                    )}
-
-                    <div className="border-t pt-3">
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-full justify-between text-xs font-medium hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Link href={teamUrl}>
-                          <span>View team & squad</span>
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                  href={`/teams/${tm.team.id}${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`}
+                  leading={
+                    <TeamCrest
+                      name={tm.team.name}
+                      shortName={tm.team.short_name}
+                      logoUrl={tm.team.logo_url}
+                      size="sm"
+                    />
+                  }
+                  title={tm.team.name}
+                  subtitle={[
+                    role,
+                    tm.jersey_number != null ? `#${tm.jersey_number}` : null,
+                    tm.team.club?.name,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
               );
             })}
-          </div>
+          </ListCard>
         )}
       </TabsContent>
     </Tabs>

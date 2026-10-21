@@ -15,7 +15,6 @@ import {
   Trophy,
   Users,
   Shield,
-  Menu,
   User as UserIcon,
   UserPlus,
 } from "lucide-react";
@@ -25,7 +24,6 @@ import {
   useIosInstallHint,
 } from "~/components/pwa/install-app";
 import { BrandMark, BrandWordmark } from "~/components/brand";
-import { createClient } from "~/lib/firebase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,58 +33,17 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
-import { getTotalPendingCount } from "~/lib/offline-queue";
+import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
 
 export function NavigationBar() {
-  const { user, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
-  const [signOutLoading, setSignOutLoading] = useState(false);
+  const { signOut: handleSignOut, pending: signOutLoading } = useSignOut();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [fetchedUsername, setFetchedUsername] = useState<string | null>(null);
-  const username =
-    !user ? null : (fetchedUsername ?? (user.user_metadata?.username as string) ?? null);
-  const { toggleCollapsed, toggleMobile } = useSidebarStore();
+  const username = useUsername();
+  const { toggleCollapsed } = useSidebarStore();
   useIosInstallHint(Boolean(user));
-
-  useEffect(() => {
-    if (!user?.id) return;
-    let isMounted = true;
-    const db = createClient();
-    void db
-      .from("users")
-      .select("username")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (isMounted && data?.username) {
-          setFetchedUsername(data.username);
-        }
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, [user?.id]);
-
-  const handleSignOut = async () => {
-    if (signOutLoading) return;
-    const unsent = getTotalPendingCount();
-    if (
-      unsent > 0 &&
-      !window.confirm(
-        `${unsent} scoring ${unsent === 1 ? "change has" : "changes have"} not reached the server yet. Reconnect and open the match to send ${unsent === 1 ? "it" : "them"} first. Sign out anyway? ${unsent === 1 ? "It stays" : "They stay"} on this device.`,
-      )
-    ) {
-      return;
-    }
-    try {
-      setSignOutLoading(true);
-      await signOut();
-    } catch (error) {
-      console.error("Failed to sign out:", error);
-      window.location.reload();
-    }
-  };
 
   // Keyboard shortcut ⌘K / Ctrl+K for search
   useEffect(() => {
@@ -102,21 +59,10 @@ export function NavigationBar() {
   }, []);
 
   return (
-    <nav className="sticky top-0 z-40 h-14 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+    <nav className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
       <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-5">
         {/* Left: Sidebar toggle + Brand */}
         <div className="flex items-center gap-1.5 sm:gap-2.5">
-          {/* Mobile menu trigger */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="touch-manipulation text-muted-foreground hover:text-foreground md:hidden"
-            onClick={toggleMobile}
-            aria-label="Open navigation drawer"
-          >
-            <Menu className="h-5 w-5 shrink-0" />
-          </Button>
-
           {/* Desktop sidebar collapse trigger */}
           <Button
             variant="ghost"
@@ -153,7 +99,7 @@ export function NavigationBar() {
             className="relative w-full"
           >
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 shrink-0 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <input
@@ -167,9 +113,9 @@ export function NavigationBar() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search matches, tournaments, players"
-              className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-12 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-10 w-full rounded-full border border-border bg-card pl-10 pr-14 text-sm transition-colors placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
             />
-            <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none rounded-full border border-border bg-muted px-2 py-0.5 font-sans text-2xs font-medium text-muted-foreground sm:inline-block">
               Ctrl K
             </kbd>
           </form>

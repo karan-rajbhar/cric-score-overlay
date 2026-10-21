@@ -59,6 +59,7 @@ export type QueuedActionType =
   | "retireBatter"
   | "awardPenalty"
   | "reassignOverBowler"
+  | "replaceBatter"
   | "updateBall";
 
 export interface QueuedActionBase {
@@ -135,6 +136,17 @@ export interface QueuedReassignOverBowler extends QueuedActionBase {
   payload: { bowlerId: string };
 }
 
+/** The wrong player was recorded as batting: credit their innings to another. */
+export interface ReplaceBatterPayload {
+  fromId: string;
+  toId: string;
+}
+
+export interface QueuedReplaceBatter extends QueuedActionBase {
+  type: "replaceBatter";
+  payload: ReplaceBatterPayload;
+}
+
 /** An edit of a delivery the server already has (never an offline-queued one). */
 export interface UpdateBallPayload {
   ballId: string;
@@ -162,6 +174,7 @@ export type QueuedAction =
   | QueuedRetireBatter
   | QueuedAwardPenalty
   | QueuedReassignOverBowler
+  | QueuedReplaceBatter
   | QueuedUpdateBall;
 
 // ---------------------------------------------------------------------------

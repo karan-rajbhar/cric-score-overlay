@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { cn } from "~/lib/utils";
+import { FIELD } from "./wagon-wheel-field";
 import {
   SECTORS,
   type SectorInfo,
@@ -41,6 +42,8 @@ export function WagonWheelSelector({
   const R_30YD = 94;
   const R_INNER_GUIDE = 50;
   const R_TEXT = (R_OUTER + R_GRASS) / 2;
+  // The striker's crease, at the bottom end of the pitch: the field is seen
+  // from behind the striker (see SECTORS), so shots start here.
   const BATTER_CONTACT_Y = CY + 14;
 
   const handleSectorClick = (
@@ -117,7 +120,7 @@ export function WagonWheelSelector({
   return (
     <div
       role="region"
-      aria-label="Interactive Wagon Wheel Shot Direction Selector"
+      aria-label="Where the ball went"
       className={cn("flex select-none flex-col items-center", className)}
     >
       {/* Visual Cricket Ground SVG */}
@@ -130,26 +133,13 @@ export function WagonWheelSelector({
           aria-label="Cricket ground wagon wheel shot direction map"
           onClick={handleSvgClick}
         >
-          <defs>
-            <radialGradient id="turfSelectorGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#3ca752" />
-              <stop offset="70%" stopColor="#2e8b42" />
-              <stop offset="100%" stopColor="#246e34" />
-            </radialGradient>
-            <radialGradient id="circleSelectorGrad" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#48bb60" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#246e34" stopOpacity="0.05" />
-            </radialGradient>
-          </defs>
-
           {/* 1. Base Green Cricket Turf Ground Circle (Inside Boundary) */}
           <circle
             cx={CX}
             cy={CY}
             r={R_GRASS}
-            fill="url(#turfSelectorGrad)"
-            stroke="#1e293b"
-            strokeWidth="2"
+            strokeWidth="1"
+            className={FIELD.grass}
           />
 
           {/* 30-yard Inner Circle Guide */}
@@ -157,12 +147,9 @@ export function WagonWheelSelector({
             cx={CX}
             cy={CY}
             r={R_30YD}
-            fill="url(#circleSelectorGrad)"
-            stroke="#ffffff"
             strokeWidth="1.2"
             strokeDasharray="4 4"
-            strokeOpacity="0.5"
-            className="pointer-events-none"
+            className={cn("pointer-events-none", FIELD.ring30)}
           />
 
           {/* Infield Inner Guide Circle */}
@@ -170,12 +157,9 @@ export function WagonWheelSelector({
             cx={CX}
             cy={CY}
             r={R_INNER_GUIDE}
-            fill="none"
-            stroke="#ffffff"
             strokeWidth="0.8"
             strokeDasharray="3 3"
-            strokeOpacity="0.25"
-            className="pointer-events-none"
+            className={cn("pointer-events-none", FIELD.guide)}
           />
 
           {/* 2. Interactive Sector Buttons (Spans BOTH Inside Boundary & At Boundary) */}
@@ -225,27 +209,28 @@ export function WagonWheelSelector({
                 {/* Sector wedge on turf (inside the boundary) */}
                 <path
                   d={turfWedgeD}
-                  fill={
+                  className={cn(
+                    "transition-colors duration-150",
                     isSelected
-                      ? "rgba(16, 185, 129, 0.4)"
+                      ? "fill-primary/15"
                       : isHovered
-                        ? "rgba(16, 185, 129, 0.2)"
-                        : "transparent"
-                  }
-                  stroke={isSelected ? "#10b981" : "transparent"}
-                  strokeWidth={isSelected ? "1.5" : "0"}
-                  className="transition-colors duration-150"
+                        ? "fill-primary/5"
+                        : "fill-transparent",
+                  )}
                 />
 
                 {/* Outer dark segment (at the boundary) */}
                 <path
                   d={donutD}
-                  fill={
-                    isSelected ? "#047857" : isHovered ? "#334155" : "#1e293b"
-                  }
-                  stroke={isSelected ? "#10b981" : "#0f172a"}
-                  strokeWidth={isSelected ? "2" : "1.2"}
-                  className="transition-colors duration-150"
+                  strokeWidth="2"
+                  className={cn(
+                    "transition-colors duration-150",
+                    isSelected
+                      ? "fill-primary stroke-card"
+                      : isHovered
+                        ? "fill-accent stroke-card"
+                        : FIELD.ring,
+                  )}
                 />
               </g>
             );
@@ -263,10 +248,9 @@ export function WagonWheelSelector({
                   y1={CY}
                   x2={innerPt.x}
                   y2={innerPt.y}
-                  stroke="#ffffff"
-                  strokeOpacity="0.22"
                   strokeWidth="0.8"
                   strokeDasharray="3 3"
+                  className={FIELD.radial}
                 />
                 {/* Line across outer ring */}
                 <line
@@ -274,9 +258,8 @@ export function WagonWheelSelector({
                   y1={innerPt.y}
                   x2={outerPt.x}
                   y2={outerPt.y}
-                  stroke="#ffffff"
-                  strokeOpacity="0.35"
-                  strokeWidth="1.2"
+                  strokeWidth="2"
+                  className={FIELD.divider}
                 />
               </g>
             );
@@ -294,66 +277,66 @@ export function WagonWheelSelector({
                   key={`label-${s.id}`}
                   x={txtPos.x}
                   y={txtPos.y}
-                  fill={
-                    isSelected ? "#a7f3d0" : isHovered ? "#38bdf8" : "#f8fafc"
-                  }
-                  fontSize="8.5"
-                  fontWeight={isSelected || isHovered ? "800" : "600"}
+                  fontSize="9"
+                  fontWeight={isSelected || isHovered ? "700" : "600"}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  className="pointer-events-none select-none font-sans"
+                  className={cn(
+                    "pointer-events-none select-none font-sans",
+                    isSelected
+                      ? "fill-primary-foreground"
+                      : isHovered
+                        ? FIELD.labelSelected
+                        : FIELD.label,
+                  )}
                 >
                   {s.label}
                 </text>
               );
             })}
 
-          {/* Central Pitch (Creases & Stumps) */}
-          <rect
-            x={CX - 7}
-            y={CY - 22}
-            width={14}
-            height={44}
-            fill="#f5ebd7"
-            rx={2}
-            stroke="#d4af37"
-            strokeWidth="1.2"
-            className="pointer-events-none"
-          />
-          {/* Striker Batting Crease */}
-          <line
-            x1={CX - 8}
-            y1={BATTER_CONTACT_Y}
-            x2={CX + 8}
-            y2={BATTER_CONTACT_Y}
-            stroke="#b4833e"
-            strokeWidth="1.2"
-            className="pointer-events-none"
-          />
-          {/* Stumps */}
-          <circle
-            cx={CX}
-            cy={CY - 17}
-            r={1.6}
-            fill="#ef4444"
-            className="pointer-events-none"
-          />
-          <circle
-            cx={CX}
-            cy={CY + 17}
-            r={1.6}
-            fill="#ef4444"
-            className="pointer-events-none"
-          />
-
-          {/* Striker Batting Crease Spot */}
-          <circle
-            cx={CX}
-            cy={BATTER_CONTACT_Y}
-            r={3.2}
-            fill="#f59e0b"
-            className="pointer-events-none"
-          />
+          {/* Pitch: the bowler's end at the top, the striker's crease and
+              stumps at the bottom, where every shot starts */}
+          <g className="pointer-events-none">
+            <rect
+              x={CX - 7}
+              y={CY - 22}
+              width={14}
+              height={44}
+              rx={2}
+              strokeWidth="1"
+              className={FIELD.pitch}
+            />
+            <line
+              x1={CX - 8}
+              y1={CY - 14}
+              x2={CX + 8}
+              y2={CY - 14}
+              strokeWidth="1"
+              className={FIELD.crease}
+            />
+            <line
+              x1={CX - 8}
+              y1={BATTER_CONTACT_Y}
+              x2={CX + 8}
+              y2={BATTER_CONTACT_Y}
+              strokeWidth="1.2"
+              className={FIELD.crease}
+            />
+            <circle cx={CX} cy={CY - 17} r={1.4} className={FIELD.farStumps} />
+            <g className={FIELD.stumps}>
+              <rect x={CX - 4.5} y={CY + 16} width={1.6} height={5} rx={0.5} />
+              <rect x={CX - 0.8} y={CY + 16} width={1.6} height={5} rx={0.5} />
+              <rect x={CX + 2.9} y={CY + 16} width={1.6} height={5} rx={0.5} />
+            </g>
+            <circle
+              cx={CX}
+              cy={BATTER_CONTACT_Y}
+              r={3.2}
+              strokeWidth="1.5"
+              className={FIELD.batter}
+            />
+          </g>
 
           {/* Active Shot Trajectory Vector (when selected or hovered) */}
           {activeSector && (
@@ -372,17 +355,16 @@ export function WagonWheelSelector({
                       y1={BATTER_CONTACT_Y}
                       x2={endPt.x}
                       y2={endPt.y}
-                      stroke="#facc15"
                       strokeWidth="2.5"
                       strokeLinecap="round"
+                      className={FIELD.aim}
                     />
                     <circle
                       cx={endPt.x}
                       cy={endPt.y}
                       r={5}
-                      fill="#facc15"
-                      stroke="#ffffff"
                       strokeWidth="1.8"
+                      className={FIELD.aimEnd}
                     />
                   </>
                 );
@@ -393,7 +375,8 @@ export function WagonWheelSelector({
       </div>
 
       <p className="mt-1.5 text-2xs font-medium text-muted-foreground">
-        Tap anywhere inside the boundary or at the boundary to select shot
+        Seen from behind the batter, who is at the bottom end. Tap where the
+        ball went.
       </p>
     </div>
   );

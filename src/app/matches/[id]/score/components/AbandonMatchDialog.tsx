@@ -91,7 +91,7 @@ export function AbandonMatchDialog({
 
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="abandon-reason" className="text-xs font-bold">
+              <Label htmlFor="abandon-reason" className="text-xs font-semibold">
                 Reason for abandonment
               </Label>
               <Select value={reason} onValueChange={setReason}>
@@ -109,7 +109,7 @@ export function AbandonMatchDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="abandon-result" className="text-xs font-bold">
+              <Label htmlFor="abandon-result" className="text-xs font-semibold">
                 Official result type
               </Label>
               <Select
@@ -118,7 +118,7 @@ export function AbandonMatchDialog({
                   setResultType(v as "abandoned" | "no_result" | "win")
                 }
               >
-                <SelectTrigger id="abandon-result" className="h-9 text-xs font-bold">
+                <SelectTrigger id="abandon-result" className="h-9 text-xs font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -137,7 +137,7 @@ export function AbandonMatchDialog({
 
             {resultType === "win" && (
               <div className="space-y-1.5">
-                <Label htmlFor="winning-team" className="text-xs font-bold">
+                <Label htmlFor="winning-team" className="text-xs font-semibold">
                   Award win to
                 </Label>
                 <Select
@@ -145,7 +145,7 @@ export function AbandonMatchDialog({
                   onValueChange={setWinningTeamId}
                   required
                 >
-                  <SelectTrigger id="winning-team" className="h-9 text-xs font-bold">
+                  <SelectTrigger id="winning-team" className="h-9 text-xs font-semibold">
                     <SelectValue placeholder="Select winning team" />
                   </SelectTrigger>
                   <SelectContent>
@@ -157,7 +157,7 @@ export function AbandonMatchDialog({
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="abandon-notes" className="text-xs font-bold">
+              <Label htmlFor="abandon-notes" className="text-xs font-semibold">
                 Additional notes / umpire statement (optional)
               </Label>
               <Textarea
@@ -191,7 +191,7 @@ export function AbandonMatchDialog({
               variant="destructive"
               size="sm"
               disabled={isProcessing || (resultType === "win" && !winningTeamId)}
-              className="font-bold"
+              className="font-semibold"
             >
               {isProcessing ? "Abandoning..." : "Confirm Abandon Match"}
             </Button>

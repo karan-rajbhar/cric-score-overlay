@@ -20,6 +20,10 @@ import {
   downloadCanvas,
   slugify,
   roundRect,
+  COLORS,
+  FONT,
+  paintCard,
+  paintWash,
 } from "~/lib/canvas";
 
 export type {
@@ -31,116 +35,57 @@ export type {
 
 const { W, H } = CANVAS.MATCH_SUMMARY;
 
-function drawZapIcon(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-  color: string,
-) {
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.translate(x, y);
-  const s = size / 24;
-  ctx.beginPath();
-  ctx.moveTo(13 * s, 2 * s);
-  ctx.lineTo(4 * s, 13 * s);
-  ctx.lineTo(11 * s, 13 * s);
-  ctx.lineTo(10 * s, 22 * s);
-  ctx.lineTo(20 * s, 9 * s);
-  ctx.lineTo(13 * s, 9 * s);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+const C = COLORS;
+const SANS = FONT.sans;
+const FIG = FONT.fig;
+
+/** Shorten text to fit a width, with an ellipsis. */
+function fit(ctx: CanvasRenderingContext2D, text: string, max: number) {
+  if (ctx.measureText(text).width <= max) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > max) {
+    t = t.slice(0, -1);
+  }
+  return `${t.trimEnd()}…`;
 }
 
-function drawTrophyIcon(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-  color: string,
-) {
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = Math.max(1.5, size / 14);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.translate(x, y);
-  const s = size / 24;
+const card = paintCard;
 
-  ctx.beginPath();
-  ctx.moveTo(6 * s, 4 * s);
-  ctx.lineTo(18 * s, 4 * s);
-  ctx.lineTo(18 * s, 11 * s);
-  ctx.bezierCurveTo(18 * s, 16 * s, 15 * s, 17.5 * s, 12 * s, 17.5 * s);
-  ctx.bezierCurveTo(9 * s, 17.5 * s, 6 * s, 16 * s, 6 * s, 11 * s);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillRect(10.5 * s, 17.5 * s, 3 * s, 2.5 * s);
-  ctx.fillRect(7 * s, 20 * s, 10 * s, 2 * s);
-
-  ctx.beginPath();
-  ctx.arc(6 * s, 8 * s, 3.5 * s, Math.PI * 0.5, Math.PI * 1.5);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.arc(18 * s, 8 * s, 3.5 * s, -Math.PI * 0.5, Math.PI * 0.5);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
-function drawStarIcon(
+/** A round lavender crest with the team's short code. */
+function crest(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   r: number,
-  color: string,
+  code: string,
 ) {
-  ctx.save();
-  ctx.fillStyle = color;
+  ctx.fillStyle = C.soft;
   ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    ctx.lineTo(
-      Math.cos(((18 + i * 72) * Math.PI) / 180) * r + cx,
-      -Math.sin(((18 + i * 72) * Math.PI) / 180) * r + cy,
-    );
-    ctx.lineTo(
-      Math.cos(((54 + i * 72) * Math.PI) / 180) * (r * 0.45) + cx,
-      -Math.sin(((54 + i * 72) * Math.PI) / 180) * (r * 0.45) + cy,
-    );
-  }
-  ctx.closePath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
+  ctx.fillStyle = C.primary;
+  ctx.font = `600 ${Math.round(r * 0.62)}px ${SANS}`;
+  ctx.textAlign = "center";
+  ctx.fillText(code.slice(0, 3).toUpperCase(), cx, cy - r * 0.36);
+  ctx.textAlign = "left";
 }
 
 function drawMapPinIcon(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  size: number,
+  s: number,
   color: string,
 ) {
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = 1.75;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const s = size / 24;
   ctx.translate(x, y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.arc(12 * s, 9 * s, 5.5 * s, Math.PI * 0.8, Math.PI * 0.2);
-  ctx.lineTo(12 * s, 21 * s);
+  ctx.arc(s / 2, s * 0.4, s * 0.3, Math.PI, 0);
+  ctx.lineTo(s / 2, s);
   ctx.closePath();
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(12 * s, 9 * s, 2 * s, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
 }
 
@@ -148,22 +93,18 @@ function drawCalendarIcon(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  size: number,
+  s: number,
   color: string,
 ) {
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = 1.75;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const s = size / 24;
-  ctx.translate(x, y);
-  roundRect(ctx, 4 * s, 5 * s, 16 * s, 15 * s, 2.5 * s);
+  ctx.lineWidth = 1.6;
+  roundRect(ctx, x + 1, y + 2, s - 2, s - 3, 2);
   ctx.stroke();
-  ctx.fillRect(4 * s, 5 * s, 16 * s, 4 * s);
-  ctx.fillRect(7.5 * s, 2 * s, 2 * s, 3.5 * s);
-  ctx.fillRect(14.5 * s, 2 * s, 2 * s, 3.5 * s);
+  ctx.beginPath();
+  ctx.moveTo(x + 1, y + s * 0.42);
+  ctx.lineTo(x + s - 1, y + s * 0.42);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -171,406 +112,264 @@ function drawLinkIcon(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  size: number,
+  s: number,
   color: string,
 ) {
   ctx.save();
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.75;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const s = size / 24;
-  ctx.translate(x, y);
+  ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.arc(9 * s, 15 * s, 3.5 * s, Math.PI * 0.25, Math.PI * 1.25);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(15 * s, 9 * s, 3.5 * s, -Math.PI * 0.75, Math.PI * 0.25);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(10.5 * s, 13.5 * s);
-  ctx.lineTo(13.5 * s, 10.5 * s);
+  ctx.arc(x + s * 0.35, y + s * 0.6, s * 0.24, 0, Math.PI * 2);
+  ctx.moveTo(x + s * 0.89, y + s * 0.4);
+  ctx.arc(x + s * 0.65, y + s * 0.4, s * 0.24, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 }
 
+/** One side of the header card: crest, name, score and overs. */
+function heroSide(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  y: number,
+  t: ExportTeamStats,
+  dim: boolean,
+) {
+  crest(ctx, cx, y + 36, 34, t.shortName);
+  ctx.textAlign = "center";
+  ctx.fillStyle = dim ? C.dim : C.text;
+  ctx.font = `600 20px ${SANS}`;
+  ctx.fillText(fit(ctx, t.name, 300), cx, y + 82);
+  const [score = t.scoreLine, overs] = t.scoreLine.split(" (");
+  ctx.fillStyle = dim ? C.dim : C.text;
+  ctx.font = `600 44px ${FIG}`;
+  ctx.fillText(score, cx, y + 110);
+  if (overs) {
+    ctx.fillStyle = C.dim;
+    ctx.font = `500 15px ${FIG}`;
+    ctx.fillText(`(${overs}`, cx, y + 160);
+  }
+  ctx.textAlign = "left";
+}
+
+/** A team's card: its top batters and bowlers in two short tables. */
+function teamCard(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  t: ExportTeamStats,
+) {
+  card(ctx, x, y, w, h, 20);
+  crest(ctx, x + 34, y + 34, 16, t.shortName);
+  ctx.fillStyle = C.text;
+  ctx.font = `600 18px ${SANS}`;
+  ctx.fillText(fit(ctx, t.name, w - 220), x + 60, y + 23);
+  ctx.textAlign = "right";
+  ctx.font = `600 20px ${FIG}`;
+  ctx.fillText(t.scoreLine, x + w - 20, y + 22);
+  ctx.textAlign = "left";
+
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y + 62);
+  ctx.lineTo(x + w - 20, y + 62);
+  ctx.stroke();
+
+  const colW = (w - 60) / 2;
+  const cols = [
+    {
+      x: x + 20,
+      head: "Top batters",
+      rows: t.batters.slice(0, 3).map((b) => ({
+        name: b.name,
+        fig: `${b.runs}${b.notOut ? "*" : ""}`,
+        sub: `(${b.balls})`,
+        strong: b.runs >= 50,
+      })),
+    },
+    {
+      x: x + 40 + colW,
+      head: "Top bowlers",
+      rows: t.bowlers.slice(0, 3).map((b) => ({
+        name: b.name,
+        fig: `${b.wickets}/${b.runs}`,
+        sub: `(${b.overs})`,
+        strong: b.wickets >= 3,
+      })),
+    },
+  ];
+  for (const col of cols) {
+    ctx.fillStyle = C.dim;
+    ctx.font = `500 13px ${SANS}`;
+    ctx.fillText(col.head, col.x, y + 76);
+    col.rows.forEach((r, i) => {
+      const ry = y + 104 + i * 30;
+      ctx.fillStyle = C.text;
+      ctx.font = `500 15px ${SANS}`;
+      ctx.fillText(fit(ctx, r.name, colW - 96), col.x, ry);
+      ctx.textAlign = "right";
+      ctx.fillStyle = C.dim;
+      ctx.font = `400 13px ${FIG}`;
+      const subW = ctx.measureText(r.sub).width;
+      ctx.fillText(r.sub, col.x + colW, ry + 1);
+      ctx.fillStyle = r.strong ? C.primary : C.text;
+      ctx.font = `600 16px ${FIG}`;
+      ctx.fillText(r.fig, col.x + colW - subW - 6, ry);
+      ctx.textAlign = "left";
+    });
+  }
+}
+
+function drawBackground(ctx: CanvasRenderingContext2D) {
+  paintWash(ctx, W, H);
+}
+
+function drawHeader(
+  ctx: CanvasRenderingContext2D,
+  s: MatchExportSummary,
+  pad: number,
+) {
+  // Header: brand, title; format on the right.
+  ctx.fillStyle = C.primary;
+  roundRect(ctx, pad, 32, 30, 30, 8);
+  ctx.fill();
+  ctx.fillStyle = C.card;
+  for (let i = 0; i < 3; i++) ctx.fillRect(pad + 8 + i * 5.5, 41, 3, 14);
+  ctx.fillStyle = C.primary;
+  ctx.font = `700 20px ${SANS}`;
+  ctx.fillText("CricScore", pad + 40, 36);
+
+  ctx.fillStyle = C.text;
+  ctx.font = `600 26px ${SANS}`;
+  ctx.fillText(fit(ctx, s.title, W - pad * 2 - 260), pad, 74);
+
+  ctx.textAlign = "right";
+  ctx.font = `500 14px ${SANS}`;
+  const fmt = s.format;
+  const fmtW = ctx.measureText(fmt).width + 32;
+  ctx.fillStyle = C.card;
+  roundRect(ctx, W - pad - fmtW, 34, fmtW, 28, 14);
+  ctx.fill();
+  ctx.strokeStyle = C.border;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = C.dim;
+  ctx.fillText(fmt, W - pad - 16, 41);
+  ctx.fillText("Match summary", W - pad, 80);
+  ctx.textAlign = "left";
+
+}
+
+function drawHeroCard(
+  ctx: CanvasRenderingContext2D,
+  s: MatchExportSummary,
+  pad: number,
+  heroY: number,
+  heroH: number,
+) {
+  // Header card: the two sides, the result and player of the match.
+  card(ctx, pad, heroY, W - pad * 2, heroH, 26);
+  const winner = s.result.toLowerCase();
+  const dim1 = !winner.startsWith(s.team1.name.toLowerCase());
+  const dim2 = !winner.startsWith(s.team2.name.toLowerCase());
+  const bothDim = dim1 && dim2;
+  heroSide(ctx, pad + 210, heroY + 14, s.team1, dim1 && !bothDim);
+  heroSide(ctx, W - pad - 210, heroY + 14, s.team2, dim2 && !bothDim);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = C.muted;
+  roundRect(ctx, W / 2 - 34, heroY + 40, 68, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = C.dim;
+  ctx.font = `500 13px ${SANS}`;
+  ctx.fillText("Result", W / 2, heroY + 46);
+  ctx.fillStyle = C.success;
+  ctx.font = `700 19px ${SANS}`;
+  ctx.fillText(fit(ctx, s.result, 340), W / 2, heroY + 84);
+  if (s.playerOfTheMatch) {
+    ctx.fillStyle = C.dim;
+    ctx.font = `500 14px ${SANS}`;
+    ctx.fillText("Player of the match", W / 2, heroY + 122);
+    ctx.fillStyle = C.text;
+    ctx.font = `600 17px ${SANS}`;
+    ctx.fillText(fit(ctx, s.playerOfTheMatch, 320), W / 2, heroY + 142);
+  }
+  ctx.textAlign = "left";
+
+}
+
+function drawFooter(
+  ctx: CanvasRenderingContext2D,
+  s: MatchExportSummary,
+  qrImage: HTMLImageElement | null,
+  pad: number,
+  footY: number,
+) {
+  // Footer: where and when, the link, and the QR code.
+  let line = footY + 2;
+  if (s.venue) {
+    drawMapPinIcon(ctx, pad, line, 14, C.dim);
+    ctx.fillStyle = C.text;
+    ctx.font = `500 15px ${SANS}`;
+    ctx.fillText(fit(ctx, s.venue, 640), pad + 22, line - 1);
+    line += 26;
+  }
+  if (s.playedAt) {
+    drawCalendarIcon(ctx, pad, line, 14, C.dim);
+    ctx.fillStyle = C.dim;
+    ctx.font = `400 14px ${SANS}`;
+    ctx.fillText(s.playedAt, pad + 22, line - 1);
+    line += 26;
+  }
+  drawLinkIcon(ctx, pad, line, 14, C.primary);
+  ctx.fillStyle = C.primary;
+  ctx.font = `600 14px ${SANS}`;
+  ctx.fillText(fit(ctx, s.matchUrl, 640), pad + 22, line - 1);
+
+  if (qrImage) {
+    const box = 92;
+    const qx = W - pad - box;
+    const qy = H - pad - box + 16;
+    card(ctx, qx, qy, box, box, 14);
+    ctx.drawImage(qrImage, qx + 6, qy + 6, box - 12, box - 12);
+    ctx.textAlign = "right";
+    ctx.fillStyle = C.text;
+    ctx.font = `600 14px ${SANS}`;
+    ctx.fillText("Scan for the full scorecard", qx - 16, qy + 22);
+    ctx.fillStyle = C.dim;
+    ctx.font = `400 13px ${SANS}`;
+    ctx.fillText("Ball by ball, charts and stats", qx - 16, qy + 44);
+    ctx.textAlign = "left";
+  }
+}
+
+/**
+ * The shareable match summary (1200x675), in the app's design: the wash,
+ * a white header card with both sides and the result, the top performers
+ * of each side, and the link with its QR code.
+ */
 export function drawSummary(
   ctx: CanvasRenderingContext2D,
   s: MatchExportSummary,
   qrImage: HTMLImageElement | null,
 ) {
-  const fontSans =
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-  const fontScore =
-    "'Barlow Condensed', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-  // 1. Stadium Nocturnal Background & Atmospheric Floodlights
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#070c09");
-  bg.addColorStop(0.45, "#0d1712");
-  bg.addColorStop(1, "#070c0a");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Top-center stadium floodlight cone
-  const floodlight = ctx.createRadialGradient(W / 2, -20, 20, W / 2, 0, 640);
-  floodlight.addColorStop(0, "rgba(16, 185, 129, 0.18)");
-  floodlight.addColorStop(0.5, "rgba(14, 165, 233, 0.05)");
-  floodlight.addColorStop(1, "transparent");
-  ctx.fillStyle = floodlight;
-  ctx.fillRect(0, 0, W, H);
-
-  // Top-right subtle golden aura
-  const goldAura = ctx.createRadialGradient(W - 80, 80, 10, W - 80, 80, 420);
-  goldAura.addColorStop(0, "rgba(234, 179, 8, 0.08)");
-  goldAura.addColorStop(1, "transparent");
-  ctx.fillStyle = goldAura;
-  ctx.fillRect(0, 0, W, H);
-
-  // Subtle geometric angled stadium slash lines
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.025)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(W * 0.15, 0);
-  ctx.lineTo(W * 0.05, H);
-  ctx.moveTo(W * 0.88, 0);
-  ctx.lineTo(W * 0.78, H);
-  ctx.stroke();
-
-  // Top broadcast accent strip (Emerald -> Sky -> Gold)
-  const topStripe = ctx.createLinearGradient(0, 0, W, 0);
-  topStripe.addColorStop(0, "#10b981");
-  topStripe.addColorStop(0.5, "#38bdf8");
-  topStripe.addColorStop(1, "#f59e0b");
-  ctx.fillStyle = topStripe;
-  ctx.fillRect(0, 0, W, 4);
-
-  // Outer frame stroke
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(1, 1, W - 2, H - 2);
-
+  const pad = 48;
+  const heroY = 122;
+  const heroH = 200;
+  drawBackground(ctx);
   ctx.textBaseline = "top";
+  drawHeader(ctx, s, pad);
+  drawHeroCard(ctx, s, pad, heroY, heroH);
 
-  // 2. Header Bar (y: 24 to 82)
-  // Left: Brand Badge
-  ctx.fillStyle = "rgba(16, 185, 129, 0.15)";
-  roundRect(ctx, 56, 24, 130, 26, 6);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  // Top performers, one card per side.
+  const cardsY = heroY + heroH + 18;
+  const cardW = (W - pad * 2 - 20) / 2;
+  teamCard(ctx, pad, cardsY, cardW, 196, s.team1);
+  teamCard(ctx, pad + cardW + 20, cardsY, cardW, 196, s.team2);
 
-  drawZapIcon(ctx, 66, 30, 14, "#34d399");
-  ctx.fillStyle = "#34d399";
-  ctx.font = `bold 11px ${fontSans}`;
-  ctx.fillText("CRIC PLATFORM", 84, 30);
-
-  // Match Title
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold 24px ${fontScore}`;
-  const titleText =
-    s.title.length > 44 ? `${s.title.slice(0, 44)}…` : s.title;
-  ctx.fillText(titleText, 56, 56);
-
-  // Right: Match Format & Broadcast Badge
-  ctx.textAlign = "right";
-  // Format Pill
-  ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-  roundRect(ctx, W - 56 - 150, 24, 150, 26, 6);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = `bold 11px ${fontSans}`;
-  ctx.fillText(s.format.toUpperCase(), W - 66, 30);
-
-  // Broadcast Label
-  ctx.fillStyle = "#34d399";
-  ctx.font = `800 13px ${fontSans}`;
-  ctx.fillText("OFFICIAL MATCH SUMMARY", W - 56, 58);
-  ctx.textAlign = "left";
-
-  // 3. Team Cards (Hero Surfaces)
-  const cardX = 56;
-  const cardW = W - 112; // 1088
-  const cardH = 180;
-
-  const drawTeamCard = (
-    y: number,
-    t: ExportTeamStats,
-    accentColor: string,
-  ) => {
-    // Glass panel surface
-    ctx.fillStyle = "rgba(18, 27, 22, 0.88)";
-    roundRect(ctx, cardX, y, cardW, cardH, 14);
-    ctx.fill();
-
-    // 1px Border
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Specular top highlight line
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.14)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cardX + 16, y + 1);
-    ctx.lineTo(cardX + cardW - 16, y + 1);
-    ctx.stroke();
-
-    // Team Accent left bar
-    ctx.fillStyle = accentColor;
-    roundRect(ctx, cardX, y + 12, 4, 32, 2);
-    ctx.fill();
-
-    // Short Name Pill
-    ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
-    roundRect(ctx, cardX + 16, y + 12, 46, 26, 6);
-    ctx.fill();
-    ctx.strokeStyle = accentColor;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = accentColor;
-    ctx.font = `bold 12px ${fontSans}`;
-    ctx.textAlign = "center";
-    ctx.fillText(t.shortName, cardX + 39, y + 18);
-    ctx.textAlign = "left";
-
-    // Full Team Name
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `bold 22px ${fontScore}`;
-    const nameText =
-      t.name.length > 28 ? `${t.name.slice(0, 28)}…` : t.name;
-    ctx.fillText(nameText, cardX + 72, y + 14);
-
-    // Hero Score Display (Right)
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `900 30px ${fontScore}`;
-    ctx.fillText(t.scoreLine, cardX + cardW - 18, y + 10);
-    ctx.textAlign = "left";
-
-    // Subtle horizontal divider between header and stats
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(cardX + 16, y + 46);
-    ctx.lineTo(cardX + cardW - 16, y + 46);
-    ctx.stroke();
-
-    // Section Headers
-    const headY = y + 54;
-    ctx.fillStyle = "#64748b";
-    ctx.font = `bold 10px ${fontSans}`;
-    ctx.fillText("TOP BATTERS", cardX + 18, headY);
-    ctx.textAlign = "right";
-    ctx.fillText("R", cardX + 370, headY);
-    ctx.fillText("(B)", cardX + 425, headY);
-    ctx.fillText("SR", cardX + 490, headY);
-    ctx.textAlign = "left";
-
-    // Vertical Divider
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-    ctx.beginPath();
-    ctx.moveTo(cardX + 520, headY - 2);
-    ctx.lineTo(cardX + 520, y + cardH - 12);
-    ctx.stroke();
-
-    ctx.fillStyle = "#64748b";
-    ctx.fillText("KEY BOWLERS", cardX + 540, headY);
-    ctx.textAlign = "right";
-    ctx.fillText("O", cardX + 860, headY);
-    ctx.fillText("R", cardX + 915, headY);
-    ctx.fillText("W", cardX + 970, headY);
-    ctx.fillText("ECON", cardX + 1045, headY);
-    ctx.textAlign = "left";
-
-    // Player Rows (up to 3)
-    const rows = Math.min(Math.max(t.batters.length, t.bowlers.length, 1), 3);
-    for (let i = 0; i < rows; i++) {
-      const ry = y + 74 + i * 32;
-
-      // Alternating subtle row wash
-      if (i % 2 === 0) {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.02)";
-        ctx.fillRect(cardX + 14, ry - 4, cardW - 28, 28);
-      }
-
-      // Batter
-      const b = t.batters[i];
-      if (b) {
-        ctx.fillStyle = "#f8fafc";
-        ctx.font = `bold 13px ${fontSans}`;
-        const bName =
-          b.name.length > 22 ? `${b.name.slice(0, 22)}…` : b.name;
-        ctx.fillText(bName, cardX + 18, ry);
-
-        ctx.textAlign = "right";
-        // Runs: highlight milestones
-        const isMilestone = b.runs >= 50;
-        ctx.fillStyle = isMilestone ? "#fbbf24" : "#ffffff";
-        ctx.font = `800 14px ${fontScore}`;
-        ctx.fillText(String(b.runs), cardX + 370, ry - 1);
-        if (isMilestone) {
-          const runW = ctx.measureText(String(b.runs)).width;
-          drawStarIcon(ctx, cardX + 370 - runW - 7, ry + 7, 4.5, "#fbbf24");
-        }
-
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = `12px ${fontSans}`;
-        ctx.fillText(`(${b.balls})`, cardX + 425, ry);
-
-        ctx.fillStyle = "#38bdf8";
-        ctx.font = `12px ${fontSans}`;
-        ctx.fillText(b.sr, cardX + 490, ry);
-        ctx.textAlign = "left";
-      }
-
-      // Bowler
-      const bo = t.bowlers[i];
-      if (bo) {
-        ctx.fillStyle = "#f8fafc";
-        ctx.font = `bold 13px ${fontSans}`;
-        const boName =
-          bo.name.length > 22 ? `${bo.name.slice(0, 22)}…` : bo.name;
-        ctx.fillText(boName, cardX + 540, ry);
-
-        ctx.textAlign = "right";
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = `12px ${fontSans}`;
-        ctx.fillText(bo.overs, cardX + 860, ry);
-        ctx.fillText(String(bo.runs), cardX + 915, ry);
-
-        // Wickets highlight
-        ctx.fillStyle = bo.wickets > 0 ? "#f87171" : "#94a3b8";
-        ctx.font = bo.wickets > 0 ? `800 14px ${fontScore}` : `12px ${fontSans}`;
-        ctx.fillText(String(bo.wickets), cardX + 970, ry - 1);
-
-        ctx.fillStyle = "#cbd5e1";
-        ctx.font = `12px ${fontSans}`;
-        ctx.fillText(bo.econ, cardX + 1045, ry);
-        ctx.textAlign = "left";
-      }
-    }
-  };
-
-  drawTeamCard(92, s.team1, "#10b981");
-  drawTeamCard(284, s.team2, "#38bdf8");
-
-  // 4. Result & Player of the Match Banner (y: 476, h: 48)
-  const bannerY = 476;
-  const bannerH = 48;
-
-  const resultGradient = ctx.createLinearGradient(
-    cardX,
-    bannerY,
-    cardX + cardW,
-    bannerY,
-  );
-  resultGradient.addColorStop(0, "rgba(16, 185, 129, 0.25)");
-  resultGradient.addColorStop(0.5, "rgba(6, 78, 59, 0.4)");
-  resultGradient.addColorStop(1, "rgba(16, 185, 129, 0.2)");
-  ctx.fillStyle = resultGradient;
-  roundRect(ctx, cardX, bannerY, cardW, bannerH, 10);
-  ctx.fill();
-
-  ctx.strokeStyle = "rgba(52, 211, 153, 0.45)";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Top specular line on banner
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(cardX + 12, bannerY + 1);
-  ctx.lineTo(cardX + cardW - 12, bannerY + 1);
-  ctx.stroke();
-
-  // Winner Announcement
-  drawTrophyIcon(ctx, cardX + 16, bannerY + 14, 20, "#34d399");
-  ctx.fillStyle = "#ecfdf5";
-  ctx.font = `800 16px ${fontScore}`;
-  ctx.fillText(s.result.toUpperCase(), cardX + 44, bannerY + 15);
-
-  // Player of the Match Jewel Pill (Right)
-  if (s.playerOfTheMatch) {
-    ctx.font = `bold 12px ${fontSans}`;
-    const potmLabel = `POTM: ${s.playerOfTheMatch}`;
-    const potmW = ctx.measureText(potmLabel).width + 36;
-    const pillX = cardX + cardW - potmW - 12;
-
-    ctx.fillStyle = "rgba(234, 179, 8, 0.18)";
-    roundRect(ctx, pillX, bannerY + 9, potmW, 30, 6);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(234, 179, 8, 0.45)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    drawStarIcon(ctx, pillX + 14, bannerY + 24, 5, "#fbbf24");
-
-    ctx.fillStyle = "#fef08a";
-    ctx.fillText(potmLabel, pillX + 24, bannerY + 16);
-  }
-
-  // 5. Footer: Match Metadata & Optical QR Card (y: 536 to 650)
-  const footY = 538;
-
-  // Venue Strip
-  if (s.venue) {
-    drawMapPinIcon(ctx, cardX, footY + 1, 14, "#94a3b8");
-    ctx.fillStyle = "#cbd5e1";
-    ctx.font = `bold 13px ${fontSans}`;
-    ctx.fillText(s.venue, cardX + 20, footY);
-  }
-
-  // Scheduled / Played At
-  if (s.playedAt) {
-    drawCalendarIcon(ctx, cardX, footY + 23, 14, "#94a3b8");
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = `12px ${fontSans}`;
-    ctx.fillText(s.playedAt, cardX + 20, footY + 22);
-  }
-
-  // URL
-  drawLinkIcon(ctx, cardX, footY + 45, 14, "#34d399");
-  ctx.fillStyle = "#34d399";
-  ctx.font = `bold 12px ${fontSans}`;
-  ctx.fillText(s.matchUrl, cardX + 20, footY + 44);
-
-  // Optical White QR Card (Right side)
-  if (qrImage) {
-    const qrBoxSize = 92;
-    const qrBoxX = W - cardX - qrBoxSize;
-    const qrBoxY = 536;
-
-    // High contrast white rounded card for phone camera readability
-    ctx.fillStyle = "#ffffff";
-    roundRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 10);
-    ctx.fill();
-
-    const qrInner = 82;
-    const qrOffset = (qrBoxSize - qrInner) / 2;
-    ctx.drawImage(qrImage, qrBoxX + qrOffset, qrBoxY + qrOffset, qrInner, qrInner);
-
-    // Callout text to the left of QR
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#ffffff";
-    ctx.font = `800 11px ${fontSans}`;
-    ctx.fillText("SCAN FOR FULL SCORECARD", qrBoxX - 16, qrBoxY + 18);
-
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = `11px ${fontSans}`;
-    ctx.fillText("Ball-by-ball, Worm & Wagon Wheel", qrBoxX - 16, qrBoxY + 36);
-
-    ctx.fillStyle = "#34d399";
-    ctx.font = `bold 10px ${fontSans}`;
-    ctx.fillText("Official Match Center", qrBoxX - 16, qrBoxY + 54);
-    ctx.textAlign = "left";
-  }
+  drawFooter(ctx, s, qrImage, pad, cardsY + 214);
 }
 
 export function MatchExportButtons({ match }: { match: Match }) {
@@ -581,6 +380,12 @@ export function MatchExportButtons({ match }: { match: Match }) {
     const matchUrl = `${origin}/matches/${match.id}`;
     const summary = buildExportSummary(match, matchUrl);
     const { canvas, ctx } = createCanvas(W, H);
+    // The canvas draws in Urbanist / Outfit: make sure both are loaded.
+    await Promise.all(
+      ["600 20px Urbanist", "600 20px Outfit"].map((f) =>
+        document.fonts?.load(f).catch(() => undefined),
+      ),
+    );
     const qrImage = await generateQRImage(summary.matchUrl, 184);
     drawSummary(ctx, summary, qrImage);
     await downloadCanvas(canvas, slugify(summary.title));

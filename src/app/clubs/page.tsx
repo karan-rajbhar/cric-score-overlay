@@ -39,7 +39,7 @@ function ClubCard({ club }: { club: ClubRow }) {
               name={club.name}
               shortName={club.short_name}
               logoUrl={club.logo_url}
-              className="h-10 w-10 shrink-0 rounded-lg text-sm"
+              className="h-10 w-10 shrink-0 text-sm"
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">

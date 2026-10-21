@@ -7,6 +7,11 @@ import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 import { useAuth } from "~/lib/auth";
 import { cn } from "~/lib/utils";
 import {
+  DrawerAccount,
+  DrawerActions,
+  DrawerFooter,
+} from "~/components/layout/drawer-account";
+import {
   LayoutDashboard,
   Radio,
   Trophy,
@@ -86,33 +91,29 @@ export function AppSidebar() {
     <div className="flex h-full select-none flex-col justify-between p-3">
       <div className="space-y-6">
         {isMobile && (
-          <div className="space-y-2.5 border-b border-border/70 px-1 pb-3">
+          <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <span className="text-sm font-semibold text-foreground">
-                Navigation
+                Menu
               </span>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Close menu"
               >
                 <X className="h-5 w-5 shrink-0" />
               </button>
             </div>
-            <Link
-              href="/search"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Search className="h-3.5 w-3.5 shrink-0" />
-              <span>Search matches, clubs, players…</span>
-            </Link>
+            <DrawerAccount onNavigate={() => setMobileOpen(false)} />
           </div>
         )}
 
         {NAV_SECTIONS.map((section, sIdx) => {
+          // On phones "New match" sits under Create with the others.
           const visibleItems = section.items.filter(
-            (item) => !item.authOnly || !!user,
+            (item) =>
+              (!item.authOnly || !!user) &&
+              !(isMobile && item.href === "/matches/create"),
           );
           if (visibleItems.length === 0) return null;
 
@@ -137,18 +138,18 @@ export function AppSidebar() {
                     onClick={() => isMobile && setMobileOpen(false)}
                     title={collapsed && !isMobile ? item.label : undefined}
                     className={cn(
-                      "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150",
+                      "group flex min-h-10 items-center gap-3 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-150",
                       isMobile && "min-h-[44px]",
                       active
-                        ? "bg-muted font-semibold text-foreground"
-                        : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                        ? "bg-primary-soft font-semibold text-primary-soft-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
-                        "h-4 w-4 shrink-0 transition-colors",
+                        "h-[1.125rem] w-[1.125rem] shrink-0 transition-colors",
                         active
-                          ? "text-foreground"
+                          ? "text-primary-soft-foreground"
                           : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
@@ -166,14 +167,21 @@ export function AppSidebar() {
             </div>
           );
         })}
+        {isMobile && <DrawerActions onNavigate={() => setMobileOpen(false)} />}
       </div>
+
+      {isMobile && (
+        <div className="pt-6">
+          <DrawerFooter />
+        </div>
+      )}
 
       {/* Collapse/Expand Toggle (Desktop only) */}
       {!isMobile && (
         <div className="border-t border-border/60 pt-3">
           <button
             onClick={toggleCollapsed}
-            className="flex w-full items-center justify-center gap-2 rounded-lg p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+            className="flex w-full items-center justify-center gap-2 rounded-full p-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -196,7 +204,7 @@ export function AppSidebar() {
       {/* Desktop Sidebar (Fixed Left) */}
       <aside
         className={cn(
-          "fixed bottom-0 left-0 top-[58px] z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/70 bg-card transition-all duration-300 ease-in-out md:block",
+          "fixed bottom-0 left-0 top-14 z-30 hidden overflow-y-auto overflow-x-hidden border-r border-border/60 bg-card transition-all duration-300 ease-in-out md:block",
           collapsed ? "w-[72px]" : "w-[260px]",
         )}
       >
@@ -213,7 +221,7 @@ export function AppSidebar() {
           />
 
           {/* Drawer Panel */}
-          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r border-border bg-card shadow-lg">
+          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto overscroll-contain rounded-r-[1.75rem] bg-card pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-float">
             {renderContent(true)}
           </div>
         </div>

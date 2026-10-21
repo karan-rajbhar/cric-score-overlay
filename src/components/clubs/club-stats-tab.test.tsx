@@ -126,6 +126,6 @@ describe("ClubStatsTab Component", () => {
       />,
     );
 
-    expect(screen.getByText("Club Player Leaderboards")).toBeInTheDocument();
+    expect(screen.getByText("Leaderboard")).toBeInTheDocument();
   });
 });

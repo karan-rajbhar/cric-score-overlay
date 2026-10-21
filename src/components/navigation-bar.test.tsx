@@ -98,7 +98,7 @@ describe("NavigationBar Component", () => {
     expect(mockPush).toHaveBeenCalledWith("/search?q=Ashes%20Cup");
   });
 
-  it("calls sidebar toggles when desktop and mobile menu triggers are clicked", () => {
+  it("calls the sidebar toggle from the desktop trigger (phones use the tab bar's More)", () => {
     mockUseAuth.mockReturnValue({
       user: null,
       loading: false,
@@ -107,16 +107,15 @@ describe("NavigationBar Component", () => {
 
     render(<NavigationBar />);
 
-    const mobileMenuBtn = screen.getByRole("button", {
-      name: /open navigation drawer/i,
-    });
-    fireEvent.click(mobileMenuBtn);
-    expect(mockToggleMobile).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("button", { name: /open navigation drawer/i }),
+    ).not.toBeInTheDocument();
 
     const desktopCollapseBtn = screen.getByRole("button", {
       name: /toggle sidebar/i,
     });
     fireEvent.click(desktopCollapseBtn);
     expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
+    expect(mockToggleMobile).not.toHaveBeenCalled();
   });
 });

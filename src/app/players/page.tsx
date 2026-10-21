@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
-import { Card, CardContent } from "~/components/ui/card";
+import { Avatar } from "~/components/ds/avatar";
+import { ListCard, ListRow } from "~/components/ds/list";
 import { Input } from "~/components/ui/input";
 import { Search, UserX } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Initials } from "~/components/ui/initials";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 
 export const metadata = { title: "Players" };
@@ -91,58 +91,39 @@ export default async function PlayersPage({
         />
       </form>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {players.map((p) => (
-          <Link
-            key={p.id}
-            href={`/players/${p.username ? `@${p.username}` : p.id}`}
-          >
-            <Card className="h-full transition-colors hover:border-primary/40">
-              <CardContent className="flex items-center gap-3 p-4">
-                <Initials
-                  name={p.full_name}
-                  letters={2}
-                  className="h-10 w-10 text-sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-foreground">
-                    {p.full_name}
-                  </p>
-                  {p.username ? (
-                    <p className="truncate font-mono text-xs text-muted-foreground">
-                      @{p.username}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Player profile
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {players.length === 0 && (
-          <EmptyState
-            icon={UserX}
-            title="No players found"
-            description={
-              q
-                ? `No registered cricketers match "${q}". Try another query.`
-                : "No registered players are currently active on the platform."
-            }
-            primaryAction={
-              q
-                ? {
-                    label: "Clear search",
-                    href: "/players",
-                  }
-                : undefined
-            }
-            className="col-span-full"
-          />
-        )}
-      </div>
+      {players.length > 0 && (
+        <ListCard>
+          {players.map((p) => (
+            <ListRow
+              key={p.id}
+              href={`/players/${p.username ? `@${p.username}` : p.id}`}
+              leading={<Avatar name={p.full_name} src={p.avatar_url} />}
+              title={p.full_name}
+              subtitle={p.username ? `@${p.username}` : "Player profile"}
+            />
+          ))}
+        </ListCard>
+      )}
+      {players.length === 0 && (
+        <EmptyState
+          icon={UserX}
+          title="No players found"
+          description={
+            q
+              ? `No registered cricketers match "${q}". Try another query.`
+              : "No registered players are currently active on the platform."
+          }
+          primaryAction={
+            q
+              ? {
+                  label: "Clear search",
+                  href: "/players",
+                }
+              : undefined
+          }
+          className="col-span-full"
+        />
+      )}
 
       {(after || nextCursor) && (
         <nav aria-label="Players pages" className="flex justify-between gap-3">

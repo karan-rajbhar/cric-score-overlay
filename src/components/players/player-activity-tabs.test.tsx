@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   PlayerActivityTabs,
   type PlayerTeamMembership,
@@ -7,6 +7,11 @@ import {
   type PlayerBowlingPerformance,
   type PlayerMatchItem,
 } from "./player-activity-tabs";
+
+// Match cards follow live_state (server-only queries); not what these test.
+vi.mock("~/lib/hooks/useMatchQueries", () => ({
+  useLiveListMatch: <T,>(m: T) => m,
+}));
 
 const mockTeams: PlayerTeamMembership[] = [
   {
@@ -220,9 +225,10 @@ describe("PlayerActivityTabs", () => {
     );
 
     expect(screen.getByText("Metropolitan Strikers")).toBeInTheDocument();
-    expect(screen.getByText("Metropolitan Cricket Club")).toBeInTheDocument();
-    expect(screen.getByText("#18")).toBeInTheDocument();
-    expect(screen.getByText("Captain")).toBeInTheDocument();
+    // Role, shirt number and club on one line.
+    expect(
+      screen.getByText("Captain (c) · #18 · Metropolitan Cricket Club"),
+    ).toBeInTheDocument();
   });
 
   it("renders match appearances with player contributions", () => {
@@ -237,8 +243,8 @@ describe("PlayerActivityTabs", () => {
       />,
     );
 
-    expect(screen.getByText(/Bat:\s*54/)).toBeInTheDocument();
-    expect(screen.getByText(/Bowl:\s*2\/24/)).toBeInTheDocument();
+    expect(screen.getByText(/Batting 54/)).toBeInTheDocument();
+    expect(screen.getByText(/Bowling 2\/24/)).toBeInTheDocument();
   });
 
   it("renders status badge without DOM nesting error when result_description is null", () => {

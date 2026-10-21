@@ -1,24 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "~/components/ui/card";
-import { StatTile } from "~/components/ui/stat-tile";
+import { StatGrid, StatTile } from "~/components/ds/stat-tile";
+import { Chip } from "~/components/ds/chip";
+import { TeamCrest } from "~/components/ds/avatar";
+import { MetaItem } from "~/components/ds/list";
+import { ProfileHeader } from "~/components/ds/player-header";
 import {
   ChevronLeft,
   ChevronRight,
-  Edit,
   Users,
   Trophy,
   Calendar,
   AlertCircle,
   Swords,
+  Percent,
+  UserRound,
+  X,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { cache } from "react";
@@ -36,33 +34,14 @@ import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
 import { TeamLogoEditor } from "~/components/teams/team-logo-editor";
-import { TeamLogo } from "~/components/teams/team-logo";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import {
   TeamMatchesView,
   type TeamMatchItem,
 } from "~/components/teams/team-matches-view";
+import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
-
-function TeamLogoStatic({
-  name,
-  shortName,
-  logoUrl,
-}: {
-  name: string;
-  shortName?: string | null;
-  logoUrl?: string | null;
-}) {
-  return (
-    <TeamLogo
-      name={name}
-      shortName={shortName}
-      logoUrl={logoUrl}
-      className="h-16 w-16 rounded-lg text-lg"
-    />
-  );
-}
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -174,7 +153,7 @@ export default async function TeamDetailsPage({
       <div className="container mx-auto max-w-lg px-4 py-16">
         <EmptyState
           icon={AlertCircle}
-          title="Error Loading Team"
+          title="Could not load the team"
           description={error || "Failed to retrieve team details."}
           primaryAction={{
             label: backLabel,
@@ -247,8 +226,15 @@ export default async function TeamDetailsPage({
 
   return (
     <PageContainer stack={false}>
+      {/* Phones: the screen's own bar instead of the header. */}
+      <ScreenBar
+        className="mb-5 md:hidden"
+        title="Team"
+        backHref={backHref}
+        backLabel={backLabel}
+      />
       {/* Contextual Breadcrumbs and Back Navigation */}
-      <div className="mb-6 flex flex-col gap-2.5">
+      <div className="mb-6 flex flex-col gap-2.5 max-md:hidden">
         <nav
           aria-label="Breadcrumb"
           className="flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -336,160 +322,82 @@ export default async function TeamDetailsPage({
         </Button>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Team Info Sidebar */}
-        <div className="space-y-6 lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                {canEditLogo ? (
-                  <TeamLogoEditor
-                    teamId={team.id}
-                    teamName={team.name}
-                    shortName={team.short_name}
-                    logoUrl={team.logo_url}
-                  />
-                ) : (
-                  <TeamLogoStatic
-                    name={team.name}
-                    shortName={team.short_name}
-                    logoUrl={team.logo_url}
-                  />
-                )}
-                {canManageTeam && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    title="Edit Team"
-                    aria-label="Edit Team"
-                  >
-                    <Edit className="h-4 w-4 shrink-0" />
-                  </Button>
-                )}
-              </div>
-              <CardTitle className="text-2xl">{team.name}</CardTitle>
-              {team.short_name && (
-                <CardDescription className="text-lg font-medium">
-                  {team.short_name}
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                {team.description || "No description provided."}
-              </p>
+      <ProfileHeader
+        name={team.name}
+        crest={
+          canEditLogo ? (
+            <TeamLogoEditor
+              teamId={team.id}
+              teamName={team.name}
+              shortName={team.short_name}
+              logoUrl={team.logo_url}
+            />
+          ) : (
+            <TeamCrest
+              name={team.name}
+              shortName={team.short_name}
+              logoUrl={team.logo_url}
+              size="xl"
+              className="shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
+            />
+          )
+        }
+        labels={
+          <>
+            {team.short_name && <Chip tone="outline">{team.short_name}</Chip>}
+            <Chip>{formatTeamType(team.team_type)}</Chip>
+          </>
+        }
+        description={team.description}
+        meta={
+          <>
+            <MetaItem icon={Users}>
+              {players.length} {players.length === 1 ? "player" : "players"}
+            </MetaItem>
+            {team.captain && (
+              <MetaItem icon={UserRound}>
+                {team.captain.full_name} (c)
+                {team.vice_captain && ` · ${team.vice_captain.full_name} (vc)`}
+              </MetaItem>
+            )}
+            <MetaItem icon={Calendar}>
+              Since {new Date(team.created_at).getFullYear()}
+            </MetaItem>
+          </>
+        }
+      />
 
-              <div className="space-y-3 border-t pt-4">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center text-muted-foreground">
-                    <Users className="mr-2 h-4 w-4 shrink-0" />
-                    Squad size
-                  </div>
-                  <span className="font-medium tabular-nums">{players.length}</span>
-                </div>
+      <ContentSheet className="mt-6 sm:mt-8">
+      <StatGrid>
+        <StatTile icon={Swords} label="Played" value={totalMatches} />
+        <StatTile icon={Trophy} label="Won" value={wonMatches} />
+        <StatTile icon={X} label="Lost" value={lostMatches} />
+        <StatTile
+          icon={Percent}
+          label="Win rate"
+          value={winRate !== null ? `${winRate}%` : "–"}
+          hint={tiedMatches > 0 ? `${tiedMatches} tied or no result` : undefined}
+        />
+      </StatGrid>
 
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center text-muted-foreground">
-                    <Trophy className="mr-2 h-4 w-4 shrink-0" />
-                    Type
-                  </div>
-                  <Badge variant="secondary">
-                    {formatTeamType(team.team_type)}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center text-muted-foreground">
-                    <Calendar className="mr-2 h-4 w-4 shrink-0" />
-                    Created
-                  </div>
-                  <span className="font-medium">
-                    {new Date(team.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-
-              {team.captain && (
-                <div className="border-t pt-4">
-                  <p className="mb-2 text-sm font-medium">Leadership</p>
-                  <div className="mb-1 flex items-center gap-2">
-                    <Badge className="border-yellow-200 bg-yellow-500/10 text-yellow-600">
-                      C
-                    </Badge>
-                    <span className="text-sm">{team.captain.full_name}</span>
-                  </div>
-                  {team.vice_captain && (
-                    <div className="flex items-center gap-2">
-                      <Badge className="border-blue-200 bg-blue-500/10 text-blue-600">
-                        VC
-                      </Badge>
-                      <span className="text-sm">
-                        {team.vice_captain.full_name}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Match Record Card in Sidebar */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">
-                Match record
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <StatTile label="Played" value={totalMatches} />
-                <StatTile label="Won" value={wonMatches} tone="positive" />
-                <StatTile label="Lost" value={lostMatches} tone="negative" />
-                <StatTile label="Tied/NR" value={tiedMatches} />
-              </div>
-              {winRate !== null && (
-                <div className="flex items-center justify-between border-t pt-2 text-xs">
-                  <span className="text-muted-foreground">Win rate</span>
-                  <span className="tabular-nums font-semibold text-foreground">
-                    {winRate}%
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Area: Tabs for Matches & Squad */}
-        <div className="space-y-6 lg:col-span-2">
+      <div className="mt-6 space-y-6 sm:mt-8">
+        {/* Matches and squad */}
+        <div>
           <Tabs
             defaultValue={tournamentId ? "matches" : "matches"}
             className="w-full"
           >
-            <div className="flex items-center justify-between border-b pb-4">
+            <div className="flex items-center justify-between">
               <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
                 <TabsTrigger
                   value="matches"
                 >
-                  <Swords className="h-4 w-4 shrink-0" />
                   Matches
-                  <Badge
-                    variant="secondary"
-                    className="tabular-nums ml-1 h-5 px-1.5 text-xs font-semibold"
-                  >
-                    {teamMatches.length}
-                  </Badge>
                 </TabsTrigger>
                 <TabsTrigger
                   value="squad"
                 >
-                  <Users className="h-4 w-4 shrink-0" />
                   Squad
-                  <Badge
-                    variant="secondary"
-                    className="tabular-nums ml-1 h-5 px-1.5 text-xs font-semibold"
-                  >
-                    {players.length}
-                  </Badge>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -533,6 +441,7 @@ export default async function TeamDetailsPage({
           </Tabs>
         </div>
       </div>
+      </ContentSheet>
     </PageContainer>
   );
 }

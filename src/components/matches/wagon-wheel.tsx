@@ -19,8 +19,9 @@ import {
 import type { BallEvent, Match } from "~/lib/match-types";
 import { teamName } from "~/lib/cricket";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
-import { ChevronDown, ChevronUp, RotateCcw, Target, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Users } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { FIELD, SHOT_FILL, shotStyle } from "./wagon-wheel-field";
 
 import {
   SECTORS,
@@ -281,35 +282,24 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
   const R_30YD = 116; // 30-yard inner circle
   const R_INNER_GUIDE = 62; // Inner field guide circle
   const R_TEXT = (R_OUTER + R_GRASS) / 2; // Radius for sector run labels (~204)
-  const BATTER_CONTACT_Y = CY + 16; // Batter striking crease y-coordinate
+  // The striker's crease, at the bottom end of the pitch: the field is seen
+  // from behind the striker (see SECTORS), so shots start here.
+  const BATTER_CONTACT_Y = CY + 16;
 
   // Selected sector name for label display
   const activeSectorInfo = SECTORS.find((s) => s.id === selectedSectorId);
 
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
-      {/* Top Header matching Match Centre Stumps aesthetic */}
-      <CardHeader className="bg-slate-900 px-4 py-3 sm:px-6 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-emerald-400" />
-            <CardTitle className="text-base sm:text-lg font-bold tracking-tight text-white">
-              Wagon wheel
-            </CardTitle>
-          </div>
-          <Badge
-            variant="outline"
-            className="border-slate-600 bg-slate-800/80 text-2xs font-semibold text-slate-200"
-          >
-            360° Circular Wagon Wheel
-          </Badge>
-        </div>
-        <CardDescription className="text-xs text-slate-300">
-          Visual shot direction analysis & scoring zone distribution
+    <Card className="overflow-hidden">
+      <CardHeader className="px-4 pb-2 pt-4 sm:px-5">
+        <CardTitle className="text-base font-semibold">Wagon wheel</CardTitle>
+        <CardDescription className="text-sm">
+          Where the runs went, seen from behind the batter. Tap a zone or a
+          run value to filter.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-3 sm:p-5 space-y-4">
+      <CardContent className="space-y-4 p-4 pt-2 sm:p-5 sm:pt-2">
         {/* Wagon Wheel SVG Canvas */}
         <div className="flex flex-col items-center justify-center">
           <div className="relative aspect-square w-full max-w-[390px] sm:max-w-[440px]">
@@ -320,19 +310,6 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               className="h-full w-full select-none"
             >
               <title>Cricket wagon wheel shot distribution map</title>
-              <defs>
-                {/* Lawn Turf Radial Gradients */}
-                <radialGradient id="turfLawn" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#3ca752" />
-                  <stop offset="68%" stopColor="#2e8b42" />
-                  <stop offset="100%" stopColor="#246e34" />
-                </radialGradient>
-                {/* 30-Yard Inner Circle Fill */}
-                <radialGradient id="innerLawn" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#48bb60" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#246e34" stopOpacity="0.05" />
-                </radialGradient>
-              </defs>
 
               {/* 1. Outer Dark Segmented Donut Ring (8 Sectors) */}
               {SECTORS.map((s) => {
@@ -350,10 +327,11 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                   <path
                     key={`donut-${s.id}`}
                     d={pathD}
-                    fill={isSelected ? "#334155" : "#1e293b"}
-                    stroke="#0f172a"
-                    strokeWidth="1.5"
-                    className="cursor-pointer transition-colors duration-150 hover:fill-slate-700"
+                    strokeWidth="2"
+                    className={cn(
+                      "cursor-pointer transition-colors duration-150",
+                      isSelected ? FIELD.ringSelected : cn(FIELD.ring, FIELD.ringHover),
+                    )}
                     onClick={() => handleSectorClick(s.id)}
                   >
                     <title>
@@ -369,8 +347,8 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 cy={CY}
                 r={R_OUTER}
                 fill="none"
-                stroke="#334155"
-                strokeWidth="1.5"
+                strokeWidth="1"
+                className={FIELD.rim}
               />
 
               {/* 2. Thin Divider Lines separating the 8 outer sectors */}
@@ -384,9 +362,8 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     y1={innerPt.y}
                     x2={outerPt.x}
                     y2={outerPt.y}
-                    stroke="#ffffff"
-                    strokeOpacity="0.35"
-                    strokeWidth="1.2"
+                    strokeWidth="2"
+                    className={FIELD.divider}
                   />
                 );
               })}
@@ -402,12 +379,14 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     key={`text-${s.id}`}
                     x={txtPos.x}
                     y={txtPos.y}
-                    fill={isSelected ? "#38bdf8" : "#ffffff"}
                     fontSize="18"
-                    fontWeight="800"
+                    fontWeight="600"
                     textAnchor="middle"
                     dominantBaseline="central"
-                    className="pointer-events-none select-none font-sans"
+                    className={cn(
+                      "pointer-events-none select-none font-score tabular-nums",
+                      isSelected ? FIELD.labelSelected : FIELD.label,
+                    )}
                   >
                     {runsInSector}
                   </text>
@@ -419,9 +398,8 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 cx={CX}
                 cy={CY}
                 r={R_GRASS}
-                fill="url(#turfLawn)"
-                stroke="#1e293b"
-                strokeWidth="2"
+                strokeWidth="1"
+                className={FIELD.grass}
               />
 
               {/* Interactive Turf Wedges Inside Boundary */}
@@ -439,12 +417,10 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                   <path
                     key={`turf-wedge-${s.id}`}
                     d={turfWedgeD}
-                    fill={
-                      isSelected
-                        ? "rgba(16, 185, 129, 0.35)"
-                        : "transparent"
-                    }
-                    className="cursor-pointer transition-colors duration-150 hover:fill-white/10"
+                    className={cn(
+                      "cursor-pointer transition-colors duration-150",
+                      isSelected ? FIELD.wedgeSelected : FIELD.wedge,
+                    )}
                     onClick={() => handleSectorClick(s.id)}
                   >
                     <title>
@@ -460,22 +436,18 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 cx={CX}
                 cy={CY}
                 r={R_30YD}
-                fill="url(#innerLawn)"
-                stroke="#ffffff"
                 strokeWidth="1.2"
                 strokeDasharray="4 4"
-                strokeOpacity="0.45"
+                className={FIELD.ring30}
               />
               {/* Inner Guide Circle */}
               <circle
                 cx={CX}
                 cy={CY}
                 r={R_INNER_GUIDE}
-                fill="none"
-                stroke="#ffffff"
                 strokeWidth="1"
                 strokeDasharray="3 3"
-                strokeOpacity="0.25"
+                className={FIELD.guide}
               />
 
               {/* Radial divider lines across grass connecting center to outer sectors */}
@@ -488,10 +460,9 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     y1={CY}
                     x2={outerPt.x}
                     y2={outerPt.y}
-                    stroke="#ffffff"
-                    strokeOpacity="0.18"
                     strokeWidth="0.8"
                     strokeDasharray="3 3"
+                    className={FIELD.radial}
                   />
                 );
               })}
@@ -502,42 +473,44 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 y={CY - 26}
                 width={16}
                 height={52}
-                fill="#f5ebd7"
                 rx={2.5}
-                stroke="#d4af37"
-                strokeWidth="1.2"
+                strokeWidth="1"
+                className={FIELD.pitch}
               />
-              {/* Bowling Crease (Top / North) */}
+              {/* Bowling crease (top, the bowler's end) */}
               <line
                 x1={CX - 8}
                 y1={CY - 16}
                 x2={CX + 8}
                 y2={CY - 16}
-                stroke="#b4833e"
                 strokeWidth="1.2"
+                className={FIELD.crease}
               />
-              {/* Batting Crease (Bottom / Striker end) */}
+              {/* Batting crease (bottom, the striker's end) */}
               <line
                 x1={CX - 8}
                 y1={BATTER_CONTACT_Y}
                 x2={CX + 8}
                 y2={BATTER_CONTACT_Y}
-                stroke="#b4833e"
                 strokeWidth="1.2"
+                className={FIELD.crease}
               />
-              {/* Stumps */}
-              <circle cx={CX} cy={CY - 20} r={1.8} fill="#ef4444" />
-              <circle cx={CX} cy={CY + 20} r={1.8} fill="#ef4444" />
+              {/* Stumps: the striker's at the bottom, the bowler's end at the top */}
+              <circle cx={CX} cy={CY - 20} r={1.8} className={FIELD.farStumps} />
+              <g className={FIELD.stumps}>
+                <rect x={CX - 5} y={CY + 19} width={1.8} height={6} rx={0.6} />
+                <rect x={CX - 0.9} y={CY + 19} width={1.8} height={6} rx={0.6} />
+                <rect x={CX + 3.2} y={CY + 19} width={1.8} height={6} rx={0.6} />
+              </g>
 
               {/* Striker Batting Crease Spot */}
               <circle
                 cx={CX}
                 cy={BATTER_CONTACT_Y}
                 r={4}
-                fill="#f59e0b"
-                fillOpacity="0.85"
+                strokeWidth="1.5"
+                className={FIELD.batter}
               />
-              <circle cx={CX} cy={BATTER_CONTACT_Y} r={1.8} fill="#ffffff" />
 
               {/* 7. Shot Trajectory Rays */}
               {mappedShots.map((shot, idx) => {
@@ -553,32 +526,10 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 const length = R_GRASS * shot.distPercent;
                 const endPt = polarToCartesian(CX, CY, length, shot.angle);
 
-                // Trajectory Ray Color coding matching the Stumps reference screenshot
-                let strokeColor = "#ffffff"; // 1s: White
-                let strokeWidth = 1.4;
-
-                if (shot.runs_scored === 6) {
-                  strokeColor = "#f97316"; // 6s: Vibrant Orange/Red
-                  strokeWidth = 2.4;
-                } else if (shot.runs_scored === 4) {
-                  strokeColor = "#facc15"; // 4s: Vibrant Yellow
-                  strokeWidth = 2.0;
-                } else if (shot.runs_scored === 3) {
-                  strokeColor = "#a855f7"; // 3s: Vibrant Purple
-                  strokeWidth = 1.8;
-                } else if (shot.runs_scored === 2) {
-                  strokeColor = "#3b82f6"; // 2s: Vibrant Blue
-                  strokeWidth = 1.6;
-                } else if (shot.runs_scored === 1) {
-                  strokeColor = "#f8fafc"; // 1s: Clean White
-                  strokeWidth = 1.3;
-                } else if (shot.is_wicket) {
-                  strokeColor = "#ef4444"; // Wicket
-                  strokeWidth = 2.0;
-                } else {
-                  strokeColor = "#94a3b8"; // Dot ball
-                  strokeWidth = 1.0;
-                }
+                const { cls: strokeClass, width: strokeWidth } = shotStyle(
+                  shot.runs_scored ?? 0,
+                  Boolean(shot.is_wicket),
+                );
 
                 // Opacity handling
                 const opacity = isVisible
@@ -594,10 +545,10 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                       y1={BATTER_CONTACT_Y}
                       x2={endPt.x}
                       y2={endPt.y}
-                      stroke={strokeColor}
                       strokeWidth={strokeWidth}
                       strokeOpacity={opacity}
                       strokeLinecap="round"
+                      className={strokeClass}
                     />
                     {/* Small round marker at the end of boundaries */}
                     {shot.runs_scored &&
@@ -607,10 +558,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                           cx={endPt.x}
                           cy={endPt.y}
                           r={shot.runs_scored === 6 ? 3.5 : 2.8}
-                          fill={strokeColor}
-                          stroke="#ffffff"
                           strokeWidth="1"
                           fillOpacity={opacity}
+                          className={cn(
+                            shot.runs_scored >= 6 ? "fill-six" : "fill-four",
+                            "stroke-card",
+                          )}
                         />
                       )}
                   </g>
@@ -624,13 +577,13 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             <div className="mt-2 flex items-center gap-2">
               <Badge
                 variant="secondary"
-                className="gap-1.5 px-2.5 py-1 text-xs font-semibold bg-slate-800 text-white"
+                className="gap-1.5 px-2.5 py-1 text-xs font-medium"
               >
                 Sector: {activeSectorInfo.label} ({sectorStats.get(selectedSectorId)?.runs ?? 0} runs)
                 <button
                   type="button"
                   onClick={() => setSelectedSectorId(null)}
-                  className="ml-1 rounded-full p-0.5 hover:bg-slate-700"
+                  className="ml-1 rounded-full p-0.5 hover:bg-accent"
                   aria-label="Clear sector filter"
                 >
                   <RotateCcw className="h-3 w-3" />
@@ -640,8 +593,8 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           )}
         </div>
 
-        {/* Metrics Bar: Runs, Balls, SR | Off-S, Leg-S (matching Stumps screenshot) */}
-        <div className="rounded-2xl border border-border bg-card p-3 sm:p-4">
+        {/* Metrics: runs, balls, strike rate | off side, leg side runs */}
+        <div className="rounded-2xl bg-muted p-3 sm:p-4">
           <div className="grid grid-cols-2 divide-x divide-border/60">
             {/* Left Section: Runs, Balls, SR */}
             <div className="grid grid-cols-3 text-center px-1 sm:px-2">
@@ -649,7 +602,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 <div className="text-2xs font-medium text-muted-foreground">
                   Runs
                 </div>
-                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
+                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? totalRuns
                     : overallTotals.runs}
@@ -659,7 +612,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 <div className="text-2xs font-medium text-muted-foreground">
                   Balls
                 </div>
-                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
+                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? totalBalls
                     : overallTotals.balls}
@@ -669,7 +622,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 <div className="text-2xs font-medium text-muted-foreground">
                   SR
                 </div>
-                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
+                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? strikeRate
                     : overallTotals.sr}
@@ -681,9 +634,9 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             <div className="grid grid-cols-2 text-center px-1 sm:px-2">
               <div>
                 <div className="text-2xs font-medium text-muted-foreground">
-                  Off-S
+                  Off side
                 </div>
-                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
+                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? offSideRuns
                     : overallTotals.off}
@@ -691,9 +644,9 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               </div>
               <div>
                 <div className="text-2xs font-medium text-muted-foreground">
-                  Leg-S
+                  Leg side
                 </div>
-                <div className="text-lg sm:text-2xl font-bold tabular-nums text-foreground">
+                <div className="font-score text-lg font-semibold tabular-nums text-foreground sm:text-2xl">
                   {activeRunFilter !== null || selectedSectorId !== null
                     ? legSideRuns
                     : overallTotals.leg}
@@ -703,117 +656,44 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
           </div>
         </div>
 
-        {/* Legend Filter Pill: 1, 2, 3, 4, 6 with counts (matching Stumps screenshot) */}
-        <div className="rounded-2xl bg-slate-900 dark:bg-slate-950 p-2.5 sm:p-3.5 text-white">
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2 text-center">
-            {/* 1s */}
-            <button
-              type="button"
-              onClick={() => handleToggleRunFilter(1)}
-              className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                activeRunFilter === 1
-                  ? "bg-white/15 ring-2 ring-white scale-105"
-                  : "hover:bg-white/10 active:scale-95",
-              )}
-              aria-pressed={activeRunFilter === 1}
-              aria-label="Filter 1s"
-            >
-              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-200 text-slate-900 font-bold text-sm flex items-center justify-center shadow-sm">
-                1
-              </span>
-              <span className="mt-1 text-xs sm:text-sm font-bold tabular-nums text-white">
-                {runCounts[1]}
-              </span>
-            </button>
-
-            {/* 2s */}
-            <button
-              type="button"
-              onClick={() => handleToggleRunFilter(2)}
-              className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                activeRunFilter === 2
-                  ? "bg-white/15 ring-2 ring-blue-400 scale-105"
-                  : "hover:bg-white/10 active:scale-95",
-              )}
-              aria-pressed={activeRunFilter === 2}
-              aria-label="Filter 2s"
-            >
-              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-blue-600 text-white font-bold text-sm flex items-center justify-center shadow-sm">
-                2
-              </span>
-              <span className="mt-1 text-xs sm:text-sm font-bold tabular-nums text-white">
-                {runCounts[2]}
-              </span>
-            </button>
-
-            {/* 3s */}
-            <button
-              type="button"
-              onClick={() => handleToggleRunFilter(3)}
-              className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                activeRunFilter === 3
-                  ? "bg-white/15 ring-2 ring-purple-400 scale-105"
-                  : "hover:bg-white/10 active:scale-95",
-              )}
-              aria-pressed={activeRunFilter === 3}
-              aria-label="Filter 3s"
-            >
-              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-purple-600 text-white font-bold text-sm flex items-center justify-center shadow-sm">
-                3
-              </span>
-              <span className="mt-1 text-xs sm:text-sm font-bold tabular-nums text-white">
-                {runCounts[3]}
-              </span>
-            </button>
-
-            {/* 4s */}
-            <button
-              type="button"
-              onClick={() => handleToggleRunFilter(4)}
-              className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                activeRunFilter === 4
-                  ? "bg-white/15 ring-2 ring-yellow-400 scale-105"
-                  : "hover:bg-white/10 active:scale-95",
-              )}
-              aria-pressed={activeRunFilter === 4}
-              aria-label="Filter 4s"
-            >
-              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-yellow-400 text-slate-950 font-bold text-sm flex items-center justify-center shadow-sm">
-                4
-              </span>
-              <span className="mt-1 text-xs sm:text-sm font-bold tabular-nums text-white">
-                {runCounts[4]}
-              </span>
-            </button>
-
-            {/* 6s */}
-            <button
-              type="button"
-              onClick={() => handleToggleRunFilter(6)}
-              className={cn(
-                "flex flex-col items-center justify-center p-1 rounded-xl transition-all focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                activeRunFilter === 6
-                  ? "bg-white/15 ring-2 ring-orange-400 scale-105"
-                  : "hover:bg-white/10 active:scale-95",
-              )}
-              aria-pressed={activeRunFilter === 6}
-              aria-label="Filter 6s"
-            >
-              <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-orange-500 text-white font-bold text-sm flex items-center justify-center shadow-sm">
-                6
-              </span>
-              <span className="mt-1 text-xs sm:text-sm font-bold tabular-nums text-white">
-                {runCounts[6]}
-              </span>
-            </button>
-          </div>
+        {/* Run filter: tap a value to show only those shots. */}
+        <div
+          role="group"
+          aria-label="Filter shots by runs"
+          className="grid grid-cols-5 gap-1.5 sm:gap-2"
+        >
+          {([1, 2, 3, 4, 6] as const).map((r) => {
+            const active = activeRunFilter === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => handleToggleRunFilter(r)}
+                aria-pressed={active}
+                aria-label={`Show ${r}s only (${runCounts[r]})`}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  active
+                    ? "bg-primary-soft ring-1 ring-primary/40"
+                    : "bg-muted hover:bg-accent",
+                )}
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    aria-hidden="true"
+                    className={cn("h-2 w-2 rounded-full", SHOT_FILL[String(r)])}
+                  />
+                  {r}s
+                </span>
+                <span className="font-score text-base font-semibold tabular-nums text-foreground">
+                  {runCounts[r]}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Dropdown Filters: Team & Batsman (matching Stumps screenshot) */}
+        {/* Filters: innings and batter */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-1 block">
@@ -827,7 +707,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               }}
             >
               <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
-                <SelectValue placeholder="Select Team" />
+                <SelectValue placeholder="Team" />
               </SelectTrigger>
               <SelectContent>
                 {inningsList.map((inn) => (
@@ -853,7 +733,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             >
               <SelectTrigger className="h-10 w-full bg-background text-xs sm:text-sm">
                 <Users className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <SelectValue placeholder="All Players" />
+                <SelectValue placeholder="All players" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-xs sm:text-sm font-medium">
@@ -912,7 +792,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                     className={cn(
                       "cursor-pointer rounded-xl border p-2.5 transition-all select-none",
                       isSelected
-                        ? "border-emerald-500 bg-emerald-500/10 text-foreground ring-1 ring-emerald-500"
+                        ? "border-primary/40 bg-primary-soft text-foreground"
                         : "border-border/60 bg-card hover:bg-muted/40",
                     )}
                   >
@@ -922,13 +802,13 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                           className={cn(
                             "inline-block h-2 w-2 rounded-full",
                             s.side === "off"
-                              ? "bg-blue-500"
-                              : "bg-emerald-500",
+                              ? "bg-series-1"
+                              : "bg-series-2",
                           )}
                         />
                         {s.label}
                       </span>
-                      <span className="font-bold tabular-nums">
+                      <span className="font-score font-semibold tabular-nums">
                         {st.runs} runs{" "}
                         <span className="text-2xs text-muted-foreground font-normal">
                           ({pct}%)
@@ -939,12 +819,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                       <span>{st.balls} balls</span>
                       <span className="flex items-center gap-2">
                         {st.fours > 0 && (
-                          <span className="font-medium text-yellow-500">
+                          <span className="font-medium text-four">
                             {st.fours}×4s
                           </span>
                         )}
                         {st.sixes > 0 && (
-                          <span className="font-medium text-orange-500">
+                          <span className="font-medium text-six">
                             {st.sixes}×6s
                           </span>
                         )}

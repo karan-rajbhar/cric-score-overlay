@@ -1,18 +1,18 @@
 "use client";
 
+import type * as React from "react";
 import Link from "next/link";
-import { Card, CardContent } from "~/components/ui/card";
-import { StatusBadge } from "~/components/ui/status-badge";
+import { PlayCircle } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { TeamLogo } from "~/components/teams/team-logo";
-import { MapPin, CalendarDays, PlayCircle } from "lucide-react";
-import type { Team, Innings, Match } from "~/lib/match-types";
 import {
-  formatMatchResult,
-  formatStatus,
-  sidesInBattingOrder,
-} from "~/lib/cricket";
+  FixtureCard,
+  MatchCard as MatchCardView,
+} from "~/components/ds/match-card";
+import { MatchNote } from "~/components/ds/score";
+import { formatMatchResult, sidesInBattingOrder } from "~/lib/cricket";
 import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
+import type { Match } from "~/lib/match-types";
+import { liveLine, ref, teamRef } from "./match-hero";
 
 interface MatchCardProps {
   match: Match;
@@ -21,168 +21,123 @@ interface MatchCardProps {
   canScore?: boolean;
   /** Optional context query params (e.g. from=matches or clubId=xxx) */
   contextQuery?: string;
+  /** A line under the result: a player's figures in this match. */
+  detail?: React.ReactNode;
 }
 
-function TeamRow({
-  team,
-  innings,
-  leading,
-}: {
-  team: Team;
-  innings?: Innings;
-  leading: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <TeamLogo
-          name={team.name}
-          shortName={team.short_name}
-          logoUrl={team.logo_url}
-          className={leading ? "ring-1 ring-primary/60" : undefined}
-        />
-        <div className="min-w-0">
-          <p className="truncate font-medium">{team.name}</p>
-          {innings ? (
-            <p className="text-xs text-muted-foreground">
-              {innings.is_completed ? "Innings closed" : "Innings in progress"}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">Yet to bat</p>
-          )}
-        </div>
-      </div>
-      {innings && (
-        <div className="shrink-0 text-right">
-          <p className="score-display tabular-nums text-2xl font-bold leading-none">
-            {innings.total_runs}/{innings.total_wickets}
-          </p>
-          <p className="tabular-nums mt-0.5 text-xs font-medium text-muted-foreground">
-            {innings.total_overs.toFixed(1)} ov
-          </p>
-        </div>
-      )}
-    </div>
-  );
+/** "Sat 25 Oct" and "14:00" for a fixture's start. */
+export function matchStart(iso?: string | null) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }),
+    time: d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" }),
+  };
 }
 
+/**
+ * A match in a list (match centre, home, dashboard): an upcoming one as a
+ * fixture (crests either side of the start time), a live or finished one
+ * with both sides' scores in batting order and the chase or the result.
+ * The card opens the match; a scorer also gets "Score" under it.
+ */
 export function MatchCard({
   match: fetched,
   showActions = true,
   canScore = false,
   contextQuery,
+  detail,
 }: MatchCardProps) {
   // A live match follows its live_state doc (no refresh needed).
   const match = useLiveListMatch(fetched);
+  const href = `/matches/${match.id}${contextQuery ? `?${contextQuery}` : ""}`;
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  const format = `${match.match_format} · ${match.overs_per_innings} overs`;
+  const competition = match.tournament?.name ?? match.club?.name;
+
+  const action = showActions &&
+    canScore &&
+    ["scheduled", "live", "innings_break"].includes(match.status) && (
+      <Button asChild size="sm" variant="secondary" className="flex-1">
+        <Link href={`/matches/${match.id}/score`}>
+          <PlayCircle aria-hidden="true" />
+          Score
+        </Link>
+      </Button>
+    );
+
+  if (match.status === "scheduled") {
+    const start = matchStart(match.scheduled_at);
+    return (
+      <FixtureCard
+        href={href}
+        date={[start?.date ?? "Date to be confirmed", competition]
+          .filter(Boolean)
+          .join(" · ")}
+        time={start?.time ?? "TBC"}
+        home={teamRef(match.team1)}
+        away={teamRef(match.team2)}
+        venue={match.venue}
+        action={action}
+        className="h-full"
+      />
+    );
+  }
+
   // Batting order, as on a scorecard: the side that batted first on top.
-  const [first, second] = sidesInBattingOrder({
+  const sides = sidesInBattingOrder({
     ...match,
     team1_id: match.team1_id ?? match.team1.id,
     team2_id: match.team2_id ?? match.team2.id,
   });
-
-  // The winner gets the accent; until the result, the side ahead (none
-  // after a tie or before anyone has scored).
+  const batting = sides.find((s) => s.innings && !s.innings.is_completed);
   const winnerId =
     match.status === "completed" ? (match.winning_team_id ?? null) : null;
-  const firstRuns = first.innings?.total_runs ?? 0;
-  const secondRuns = second.innings?.total_runs ?? 0;
-  const firstLeading =
-    match.status === "completed"
-      ? winnerId === first.team.id
-      : firstRuns > secondRuns;
-  const secondLeading =
-    match.status === "completed"
-      ? winnerId === second.team.id
-      : secondRuns > firstRuns;
+  // Quieter: the losing side once finished, the fielding side while live.
+  const dim = (teamId: string) =>
+    winnerId ? teamId !== winnerId : !!batting && batting.team.id !== teamId;
+  const side = (s: (typeof sides)[number]) => ({
+    team: teamRef(s.team),
+    innings: s.innings ? ref(s.innings, bpo) : undefined,
+    dim: dim(s.team.id),
+  });
 
-  const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return "TBD";
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const result = match.result_description ? formatMatchResult(match) : null;
+  const chase = batting ? liveLine(match, batting, bpo) : null;
+  const note = result ? (
+    <MatchNote tone="result">{result}</MatchNote>
+  ) : chase ? (
+    <MatchNote tone="live">{chase}</MatchNote>
+  ) : match.status === "innings_break" ? (
+    <MatchNote>Innings break</MatchNote>
+  ) : match.venue ? (
+    <MatchNote className="truncate">{match.venue}</MatchNote>
+  ) : null;
 
   return (
-    <Link
-      href={`/matches/${match.id}${contextQuery ? `?${contextQuery}` : ""}`}
-      className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      aria-label={`${match.team1.name} versus ${match.team2.name}, ${formatStatus(match.status)}`}
-    >
-      <Card className="h-full overflow-hidden transition-colors group-hover:border-primary/40">
-        <CardContent className="p-0">
-          {/* Meta strip */}
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-            <StatusBadge status={match.status} />
-            <span className="text-xs font-medium text-muted-foreground">
-              {match.match_format}, {match.overs_per_innings} overs
-            </span>
-          </div>
-
-          {/* Teams */}
-          <div className="space-y-4 px-4 py-4">
-            <TeamRow
-              team={first.team}
-              innings={first.innings}
-              leading={firstLeading}
-            />
-            <TeamRow
-              team={second.team}
-              innings={second.innings}
-              leading={secondLeading}
-            />
-          </div>
-
-          {/* Result / timing */}
-          <div className="border-t border-border px-4 py-2.5">
-            {match.result_description ? (
-              <p className="truncate text-sm font-semibold text-primary">
-                {formatMatchResult(match)}
-              </p>
-            ) : (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                {match.venue && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                    <span className="truncate max-w-[200px]">{match.venue}</span>
-                  </span>
-                )}
-                <span className="tabular-nums inline-flex items-center gap-1.5">
-                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                  <span>{formatDate(match.scheduled_at)}</span>
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          {showActions && (
-            <div className="flex gap-2 border-t border-border px-4 py-3">
-              <Button asChild size="sm" variant="outline" className="flex-1">
-                <span>Scorecard</span>
-              </Button>
-              {canScore &&
-                (match.status === "scheduled" || match.status === "live") && (
-                  <Button
-                    asChild
-                    size="sm"
-                    variant="secondary"
-                    className="flex-1 gap-1.5"
-                  >
-                    <span>
-                      <PlayCircle className="h-3.5 w-3.5 shrink-0" />
-                      Score
-                    </span>
-                  </Button>
-                )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </Link>
+    <MatchCardView
+      href={href}
+      competition={competition ? `${competition} · ${format}` : format}
+      status={match.status}
+      first={side(sides[0])}
+      second={side(sides[1])}
+      note={
+        detail ? (
+          <>
+            {note}
+            {detail}
+          </>
+        ) : (
+          note
+        )
+      }
+      action={action}
+      className="h-full"
+    />
   );
 }

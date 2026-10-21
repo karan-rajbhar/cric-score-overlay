@@ -315,6 +315,7 @@ function useScoringScreen() {
     handleRetireBatter,
     handleAwardPenalty,
     handleReassignOverBowler,
+    handleReplaceBatter,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,
@@ -1015,6 +1016,7 @@ function useScoringScreen() {
     handleEndInnings,
     handleReassignOverBowler,
     handleRedo,
+    handleReplaceBatter,
     handleRetirePlayerConfirm,
     handleReviseTargetConfirm,
     handleSkipHeadAction,
@@ -1150,7 +1152,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
             type="button"
             onClick={() => void flushOfflineQueue()}
             title="Some changes have not reached the server yet. Tap to retry."
-            className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[0.625rem] font-semibold text-amber-800 dark:text-amber-300"
+            className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-semibold text-warning"
           >
             <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span>Not saved</span>
@@ -1185,7 +1187,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
         <span
           role="status"
           title="Working offline — changes saved locally"
-          className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[0.625rem] font-bold text-amber-800 dark:text-amber-300"
+          className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-bold text-warning"
         >
           <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="hidden sm:inline">Offline</span>
@@ -1467,7 +1469,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
           "sticky top-0 z-30 border-b bg-card/95 backdrop-blur-md",
           sunlightMode
             ? "border-b-2 border-black bg-white"
-            : "border-border/80 dark:border-[#242f29] dark:bg-[#0d1210]/95",
+            : "border-border/80 dark:border-border dark:bg-background/95",
         )}
       >
         <div className="container mx-auto flex h-11 w-full max-w-full items-center justify-between px-2.5 sm:h-12 sm:px-4">
@@ -1582,15 +1584,15 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
           className={cn(
             "flex flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5 text-xs font-medium sm:px-6",
             isOffline
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
-              : "border-sky-500/40 bg-sky-500/10 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200",
+              ? "border-warning/40 bg-warning/10 text-warning dark:bg-warning/20"
+              : "border-primary/40 bg-primary/10 text-primary dark:bg-primary/20",
           )}
         >
           <div className="flex items-center gap-2">
             <span
               className={cn(
                 "h-2 w-2 shrink-0 rounded-full",
-                isOffline ? "bg-amber-500" : "bg-sky-500",
+                isOffline ? "bg-warning" : "bg-primary",
               )}
               aria-hidden="true"
             />
@@ -1872,7 +1874,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
     <>
       {/* Innings Complete Banner */}
       {isInningsComplete && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4">
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
               Innings complete
@@ -1898,7 +1900,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
 
       {/* Over Complete — Select Bowler Banner */}
       {isOverComplete && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/40 bg-sky-500/10 p-3 text-sky-950 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-200 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-primary dark:bg-primary/20 sm:p-4">
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
               Over {match.current_over} complete
@@ -1925,7 +1927,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
       {match.status === "live" &&
         (!strikerId || !nonStrikerId) &&
         !isInningsComplete && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4">
             <div className="space-y-0.5">
               <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
                 Select batters to continue
@@ -2032,11 +2034,11 @@ function Console({ s }: { s: LoadedScreen }) {
                           className={cn(
                             "flex items-center justify-between rounded-xl border p-2.5 text-xs transition-colors",
                             isWicket
-                              ? "border-rose-500/30 bg-rose-500/10 text-rose-950 dark:text-rose-100"
+                              ? "border-destructive/30 bg-destructive/10 text-destructive"
                               : isBoundary
                                 ? d.runs_scored === 6
-                                  ? "border-purple-500/30 bg-purple-500/10 text-purple-950 dark:text-purple-100"
-                                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
+                                  ? "border-six/30 bg-six/10 text-six"
+                                  : "border-success/30 bg-success/10 text-success"
                                 : "border-border/50 bg-muted/30 text-foreground",
                           )}
                         >
@@ -2051,19 +2053,19 @@ function Console({ s }: { s: LoadedScreen }) {
                               </p>
                               <div className="flex items-center gap-2 text-[0.625rem] text-muted-foreground">
                                 {d.extra_type ? (
-                                  <span className="font-medium capitalize text-amber-700 dark:text-amber-400">
+                                  <span className="font-medium capitalize text-warning">
                                     {d.extra_type.replace("_", " ")} ({d.extras}{" "}
                                     extra
                                     {d.extras === 1 ? "" : "s"})
                                   </span>
                                 ) : null}
                                 {d.shot_zone ? (
-                                  <span className="capitalize text-sky-600 dark:text-sky-400">
+                                  <span className="capitalize text-primary">
                                     Shot: {d.shot_zone.replace("_", " ")}
                                   </span>
                                 ) : null}
                                 {d.dismissal_type ? (
-                                  <span className="font-medium capitalize text-rose-600 dark:text-rose-400">
+                                  <span className="font-medium capitalize text-destructive">
                                     Out: {d.dismissal_type.replace("_", " ")}
                                   </span>
                                 ) : null}
@@ -2076,14 +2078,14 @@ function Console({ s }: { s: LoadedScreen }) {
                               className={cn(
                                 "inline-flex h-7 min-w-[28px] items-center justify-center rounded-lg px-2 font-score text-xs font-bold tabular-nums",
                                 isWicket
-                                  ? "bg-red-600 text-white"
+                                  ? "bg-wicket text-wicket-foreground"
                                   : d.runs_scored === 6
-                                    ? "bg-purple-600 text-white"
+                                    ? "bg-six text-six-foreground"
                                     : d.runs_scored === 4
-                                      ? "bg-emerald-600 text-white"
+                                      ? "bg-four text-four-foreground"
                                       : d.runs_scored === 0 && !d.extra_type
                                         ? "bg-muted text-muted-foreground"
-                                        : "border border-amber-500/30 bg-amber-500/20 text-amber-900 dark:text-amber-200",
+                                        : "border border-extra/30 bg-extra/15 text-extra",
                               )}
                             >
                               {isWicket
@@ -2180,8 +2182,8 @@ function TieActions({ s }: { s: LoadedScreen }) {
       {match.status === "completed" &&
         match.result_description?.toLowerCase().includes("tie") &&
         isScorer && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-center">
-            <h4 className="text-base font-bold text-amber-800 dark:text-amber-200">
+          <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-center">
+            <h4 className="text-base font-bold text-warning">
               Match tied
             </h4>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -2327,11 +2329,11 @@ function BowlingAttackCard({ s }: { s: LoadedScreen }) {
                       )}
                     </span>
                   </div>
-                  <div className="shrink-0 space-x-1.5 text-right font-mono text-2xs font-bold tabular-nums text-foreground">
+                  <div className="shrink-0 space-x-1.5 text-right font-score text-2xs font-semibold tabular-nums text-foreground">
                     <span>{sp.overs}ov</span>
                     <span className="text-muted-foreground">{sp.maidens}m</span>
                     <span>{sp.runs}r</span>
-                    <span className="font-bold text-rose-600 dark:text-rose-400">
+                    <span className="font-bold text-destructive">
                       {sp.wickets}w
                     </span>
                     <span className="text-[0.625rem] text-muted-foreground">
@@ -2387,6 +2389,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     battingTeamPlayerIds,
     reassignOverDeliveries,
     handleReassignOverBowler,
+    handleReplaceBatter,
     handleConfirmBowler,
     showAddPlayerDialog,
     setShowAddPlayerDialog,
@@ -2485,6 +2488,28 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         isProcessing={isProcessing}
         onCreatePlayer={createPickedPlayer("batting")}
         addPlayerDisabledReason={addPlayerDisabledReason}
+        onReplace={
+          isScorer && match.status === "live"
+            ? async (fromId, toId) => {
+                const res = await handleReplaceBatter({ fromId, toId });
+                if (res.error) {
+                  toast.error(res.error);
+                } else {
+                  setShowSelectBatsmen(false);
+                  setBatsmenFocus(null);
+                  if (!res.queued) {
+                    const name = (id: string) =>
+                      battingTeamPlayers.find((p) => p.user_id === id)?.user
+                        ?.full_name ?? "the new batter";
+                    toast.success(
+                      `${name(fromId)}'s runs and balls now go to ${name(toId)}`,
+                    );
+                  }
+                }
+                return { error: res.error };
+              }
+            : undefined
+        }
         onRetire={
           isScorer && match.status === "live"
             ? (playerId) => {

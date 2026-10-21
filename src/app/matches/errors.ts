@@ -11,6 +11,9 @@ export const ERROR_MESSAGES: Record<string, string> = {
   bowler_in_batting_team: "Selected bowler belongs to the batting team.",
   batsman_is_current_bowler: "This player is currently bowling and cannot bat.",
   player_already_out: "That batsman is already dismissed.",
+  player_already_batted: "That player has already batted in this innings.",
+  player_not_batted:
+    "This batter has not faced a ball yet: change them instead of correcting.",
   too_many_batsmen: "All 11 batsmen have already batted.",
   match_not_live: "The match is not live.",
   no_open_innings: "No open innings found.",

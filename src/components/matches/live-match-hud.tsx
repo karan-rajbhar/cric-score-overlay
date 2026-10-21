@@ -245,9 +245,9 @@ export function LiveMatchHUD({
               ? "border-2 border-black bg-white text-black shadow-none"
               : isSecondInnings
                 ? isAheadOfRate
-                  ? "scoreboard border border-emerald-500/40 bg-[#0d281e] text-[#f2fbf6] dark:bg-[#061811]"
-                  : "scoreboard border border-amber-500/40 bg-[#1c2214] text-[#fcfbe8] dark:bg-[#14180d]"
-                : "scoreboard border border-[#1d4b38] bg-[#0c231b] text-[#f2fbf6] dark:bg-[#061711]",
+                  ? "scoreboard border border-board-good/40 bg-board text-board-foreground"
+                  : "scoreboard border border-board-warn/40 bg-board text-board-foreground"
+                : "scoreboard border border-board-line bg-board text-board-foreground",
           )}
         >
           <CardContent className="space-y-1.5 p-2.5 sm:space-y-3 sm:p-4">
@@ -259,7 +259,7 @@ export function LiveMatchHUD({
                       "truncate text-xs font-semibold sm:text-sm",
                       sunlightMode
                         ? "text-black"
-                        : "text-emerald-400 dark:text-emerald-300",
+                        : "text-board-muted",
                     )}
                   >
                     {battingTeamName ??
@@ -381,9 +381,9 @@ export function LiveMatchHUD({
                       ? "bg-black"
                       : isSecondInnings
                         ? isAheadOfRate
-                          ? "bg-emerald-400"
-                          : "bg-amber-400"
-                        : "bg-emerald-400",
+                          ? "bg-board-good"
+                          : "bg-board-warn"
+                        : "bg-board-foreground/80",
                   )}
                   style={{
                     width: `${Math.min(100, totalInningsBalls > 0 ? (ballsBowled / totalInningsBalls) * 100 : 0)}%`,
@@ -410,8 +410,8 @@ export function LiveMatchHUD({
                           sunlightMode
                             ? "text-black"
                             : isAheadOfRate
-                              ? "text-emerald-300"
-                              : "text-amber-300",
+                              ? "text-board-good"
+                              : "text-board-warn",
                         )}
                       >
                         {runsNeeded === 0 ? (
@@ -463,8 +463,8 @@ export function LiveMatchHUD({
                         sunlightMode
                           ? "border-2 border-black font-bold text-black"
                           : isAheadOfRate
-                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-300"
-                            : "border-amber-400/40 bg-amber-400/15 text-amber-300",
+                            ? "border-board-good/40 bg-board-good/15 text-board-good"
+                            : "border-board-warn/40 bg-board-warn/15 text-board-warn",
                       )}
                     >
                       {isAheadOfRate ? (
@@ -496,8 +496,8 @@ export function LiveMatchHUD({
                       sunlightMode
                         ? "text-black"
                         : isAheadOfRate
-                          ? "text-emerald-300"
-                          : "text-amber-300",
+                          ? "text-board-good"
+                          : "text-board-warn",
                     ],
                     ["Curr RR", crr, bright],
                     ["Remain", `${ballsRem}b`, bright],
@@ -515,7 +515,7 @@ export function LiveMatchHUD({
                       <p
                         className={cn(
                           "text-[0.625rem] font-medium",
-                          sunlightMode ? "text-neutral-600" : "text-white/60",
+                          sunlightMode ? "text-muted-foreground" : "text-board-muted",
                         )}
                       >
                         {label}
@@ -547,7 +547,7 @@ export function LiveMatchHUD({
                         <span
                           className={cn(
                             "font-bold tabular-nums",
-                            sunlightMode ? "text-black" : "text-emerald-300",
+                            sunlightMode ? "text-black" : "text-board-good",
                           )}
                         >
                           CRR: {crr}
@@ -701,7 +701,7 @@ export function LiveMatchHUD({
                         onStrike
                           ? sunlightMode
                             ? "border-2 border-black bg-neutral-100 font-bold"
-                            : "border-emerald-600/50 bg-emerald-500/10"
+                            : "border-primary/40 bg-primary-soft"
                           : sunlightMode
                             ? "border-black/40 bg-white"
                             : "border-border/60 bg-muted/25 enabled:hover:bg-muted/50",
@@ -712,7 +712,7 @@ export function LiveMatchHUD({
                           <span
                             className={cn(
                               "flex h-2 w-2 shrink-0 rounded-full",
-                              onStrike ? "bg-emerald-600" : "bg-muted-foreground/30",
+                              onStrike ? "bg-primary" : "bg-muted-foreground/30",
                             )}
                             aria-hidden="true"
                           />
@@ -728,7 +728,7 @@ export function LiveMatchHUD({
                             {onStrike ? " *" : ""}
                           </span>
                           {onStrike && (
-                            <span className="inline-flex shrink-0 items-center rounded-md border border-emerald-600/30 px-1.5 py-0.5 text-[0.625rem] font-medium text-emerald-800 dark:text-emerald-200">
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 px-1.5 py-0.5 text-[0.625rem] font-medium text-primary-soft-foreground">
                               On strike
                             </span>
                           )}
@@ -841,7 +841,7 @@ export function LiveMatchHUD({
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
                         isBowlerSpellFinished
-                          ? "bg-amber-500"
+                          ? "bg-warning"
                           : "bg-foreground/40",
                       )}
                       style={{
@@ -856,7 +856,7 @@ export function LiveMatchHUD({
                 </p>
               )}
               {isBowlerSpellFinished && (
-                <p className="mt-1 text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">
+                <p className="mt-1 text-[0.625rem] font-bold text-warning">
                   Max quota reached ({maxBowlerOvers} ov)
                 </p>
               )}

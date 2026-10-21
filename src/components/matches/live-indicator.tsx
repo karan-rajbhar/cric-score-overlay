@@ -11,12 +11,12 @@ export function LiveIndicator({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-500",
+        "inline-flex items-center gap-1.5 text-xs font-semibold text-live",
         className,
       )}
     >
       <span
-        className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-600 motion-safe:animate-pulse dark:bg-red-500"
+        className="h-1.5 w-1.5 shrink-0 rounded-full bg-live motion-safe:animate-pulse"
         aria-hidden="true"
       />
       {label}

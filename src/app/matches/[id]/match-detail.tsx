@@ -19,13 +19,11 @@ import {
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
 import {
-  inningsBalls,
-  oversFromBalls,
-  formatMatchResult,
   sidesInBattingOrder,
 } from "~/lib/cricket";
 import { useAuth } from "~/lib/auth";
-import { TeamLogo } from "~/components/teams/team-logo";
+import { MatchHero } from "~/components/matches/match-hero";
+import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { firebase } from "~/lib/firebase";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -34,13 +32,6 @@ const MatchExportButtons = dynamic(
   () =>
     import("~/components/matches/match-export-buttons").then(
       (m) => m.MatchExportButtons,
-    ),
-  { ssr: false },
-);
-const DlsCalculatorModal = dynamic(
-  () =>
-    import("~/components/matches/dls-calculator-modal").then(
-      (m) => m.DlsCalculatorModal,
     ),
   { ssr: false },
 );
@@ -76,22 +67,16 @@ const MatchScorersDialog = dynamic(
 import {
   ChevronLeft,
   ChevronRight,
-  Tv,
   Play,
-  FileText,
-  BarChart3,
-  CircleDot,
-  Info,
-  LayoutDashboard,
-  Award,
-  Swords,
   AlertCircle,
   Trophy,
   Shield,
-  MapPin,
 } from "lucide-react";
-import { LiveIndicator } from "~/components/matches/live-indicator";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
+
+/** The round white buttons of the phone screen bar. */
+const screenAction =
+  "h-11 w-11 rounded-full border-0 bg-card p-0 shadow-soft ring-1 ring-border/60 hover:bg-accent";
 
 /** The match page's tabs, in tab-bar order (swiping follows it). */
 const MATCH_TABS = [
@@ -101,7 +86,6 @@ const MATCH_TABS = [
   "stats",
   "balls",
   "info",
-  "h2h",
 ] as const;
 
 /** Tabs that show per-player figures (refetched per change unless live). */
@@ -285,7 +269,7 @@ function MatchDetailsPageContent() {
             icon: ChevronLeft,
           }}
           secondaryAction={{
-            label: "Try Again",
+            label: "Try again",
             onClick: () => refetchMatch(),
           }}
           className="w-full"
@@ -296,6 +280,8 @@ function MatchDetailsPageContent() {
 
   // Scoreboard in batting order: the side that batted first, then the chase.
   const [side1, side2] = sidesInBattingOrder(match);
+  // While live the first tab is the live view (crease, this over).
+  const inPlay = match.status === "live" || match.status === "innings_break";
   const isScorer =
     (!!user &&
       (match.created_by === user.id ||
@@ -432,17 +418,19 @@ function MatchDetailsPageContent() {
   return (
     // Full-bleed page: cancel the app shell's padding so the sticky header
     // and scoreboard bands sit flush under the navigation bar.
-    <div className="-mx-4 -mt-5 min-h-screen overflow-x-clip bg-background sm:-mx-6 sm:-mt-8 lg:-mx-8">
+    // The shell's wash shows through behind the header.
+    // Phones: the sheet runs to the bottom of the screen, under the tab bar.
+    <div className="-mx-4 -mt-5 min-h-screen overflow-x-clip sm:-mx-6 sm:-mt-8 lg:-mx-8 max-md:-mb-32 max-md:flex max-md:flex-col">
       {/* Header */}
-      <div className="sticky top-14 z-20 border-b border-border bg-card">
+      <div className="sticky top-14 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70 max-md:hidden">
         <div className="container mx-auto px-3 py-2.5 sm:px-4">
           <div className="flex items-center justify-between gap-2 sm:gap-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 asChild
-                className="shrink-0 pl-0 text-xs font-medium sm:text-sm"
+                className="shrink-0 pl-2.5 text-xs font-medium sm:text-sm"
               >
                 <Link href={matchBackHref} onClick={handleBackClick}>
                   <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
@@ -479,7 +467,7 @@ function MatchDetailsPageContent() {
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               {match.status === "live" && (
                 <span
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-muted/60 px-2 py-1 text-xs font-medium sm:px-2.5"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1 text-xs font-medium sm:px-2.5"
                   title={
                     isConnected ? "Realtime sync connected" : "Connecting..."
                   }
@@ -487,8 +475,8 @@ function MatchDetailsPageContent() {
                   <span
                     className={`h-2 w-2 rounded-full ${
                       isConnected
-                        ? "bg-emerald-500"
-                        : "bg-zinc-400"
+                        ? "bg-success"
+                        : "bg-muted-foreground/50"
                     }`}
                   />
                   <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
@@ -513,8 +501,8 @@ function MatchDetailsPageContent() {
               {match.tournament && !tournamentId && (
                 <Link
                   href={`/tournaments/${match.tournament.id}?tab=fixtures${clubId ? `&clubId=${clubId}` : ""}`}
-                  className="hidden items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
-                  title="View Tournament"
+                  className="hidden items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
+                  title="View tournament"
                 >
                   <Trophy className="h-3 w-3 shrink-0" />
                   <span className="max-w-[120px] truncate">
@@ -527,8 +515,8 @@ function MatchDetailsPageContent() {
               {match.club && !clubId && (
                 <Link
                   href={`/clubs/${match.club.id}?tab=matches`}
-                  className="hidden items-center gap-1 rounded-full border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
-                  title="View Club"
+                  className="hidden items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
+                  title="View club"
                 >
                   <Shield className="h-3 w-3 shrink-0" />
                   <span className="max-w-[120px] truncate">
@@ -536,265 +524,99 @@ function MatchDetailsPageContent() {
                   </span>
                 </Link>
               )}
-              {user && <MatchMoreMenu match={match} />}
+              <MatchMoreMenu
+                match={match}
+                dlsMatch={match}
+                canEditDls={isScorer}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stadium Scoreboard Marquee */}
-      <div className="scoreboard relative overflow-hidden border-b border-board-line shadow-sm">
-        <div className="container relative mx-auto px-3 py-5 sm:px-6 sm:py-7">
-          {/* Top metadata badge bar */}
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-board-muted">
-            <div className="flex flex-wrap items-center gap-2">
-              {match.tournament && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-board-line bg-board-line/30 px-2.5 py-0.5 font-medium text-board-foreground">
-                  <Trophy className="h-3.5 w-3.5 text-board-muted shrink-0" />
-                  <span className="truncate max-w-[140px] sm:max-w-none">{match.tournament.name}</span>
-                </span>
-              )}
-              {match.club && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-board-line bg-board-line/30 px-2.5 py-0.5 font-medium text-board-muted">
-                  <Shield className="h-3.5 w-3.5 text-board-muted shrink-0" />
-                  <span className="truncate max-w-[120px] sm:max-w-none">{match.club.name}</span>
-                </span>
-              )}
-              <span className="rounded-full border border-board-line px-2.5 py-0.5 font-medium text-2xs text-board-foreground/90">
-                {match.match_format} · {match.overs_per_innings} overs
-              </span>
-              {match.venue && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-board-muted">
-                  <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate max-w-[180px]">{match.venue}</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {match.status === "live" && (
-                <LiveIndicator className="text-red-400 dark:text-red-400" />
-              )}
-              {match.status === "completed" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-board-line px-2.5 py-0.5 text-xs font-medium text-board-foreground">
-                  Result
-                </span>
-              )}
-              {match.status === "scheduled" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-board-line bg-board-line/30 px-2.5 py-0.5 text-xs font-medium text-board-muted">
-                  Upcoming
-                </span>
-              )}
-            </div>
-          </div>
-
-          <h1 className="mb-4 text-center text-xs font-medium text-board-muted sm:text-sm">
+      {/* Match header on the wash, Scoreline style */}
+      <div className="container mx-auto px-4 pb-10 pt-3 sm:px-6 md:pb-4 md:pt-8">
+        <div className="mx-auto max-w-3xl">
+          {/* Phones: the screen's own bar instead of the header. */}
+          <ScreenBar
+            className="mb-5 md:hidden"
+            title="Match centre"
+            backHref={matchBackHref}
+            backLabel={matchBackLabel}
+            onBack={handleBackClick}
+            action={
+              <>
+                <ShareMatchButton
+                  matchId={match.id}
+                  title={`${match.team1?.name ?? "Team 1"} vs ${match.team2?.name ?? "Team 2"}`}
+                  className={screenAction}
+                />
+                <MatchMoreMenu
+                  match={match}
+                  dlsMatch={match}
+                  canEditDls={isScorer}
+                  className={screenAction}
+                />
+              </>
+            }
+          />
+          <h1 className="mb-5 text-balance text-center text-sm font-medium text-muted-foreground max-md:hidden">
             {match.title}
           </h1>
-
-          {/* Desktop Stadium Scoreboard */}
-          <div className="hidden sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-6 lg:gap-10">
-            {/* Side that batted first */}
-            <div className="flex items-center justify-end gap-4 rounded-xl p-3 text-right">
-              <div className="min-w-0">
-                <p className="truncate text-base font-bold text-board-foreground lg:text-lg">
-                  {side1.team.name}
-                </p>
-                {side1.innings ? (
-                  <div className="mt-0.5 flex items-baseline justify-end gap-2">
-                    <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
-                      {side1.innings.total_runs}/{side1.innings.total_wickets}
-                    </span>
-                    <span className="scoreboard-label text-sm lg:text-base font-semibold">
-                      ({oversFromBalls(inningsBalls(side1.innings))} ov)
-                    </span>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-xs text-board-muted">Yet to bat</p>
+          <MatchHero match={match} sides={[side1, side2]}>
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              {isScorer &&
+                (match.status === "scheduled" || match.status === "live") && (
+                  <Button asChild>
+                    <Link
+                      href={`/matches/${match.id}/score${
+                        searchParams.toString()
+                          ? `?${searchParams.toString()}`
+                          : ""
+                      }`}
+                    >
+                      <Play className="mr-1.5 h-4 w-4 shrink-0" />
+                      {match.status === "scheduled"
+                        ? "Start match"
+                        : "Continue scoring"}
+                    </Link>
+                  </Button>
                 )}
-              </div>
-              <TeamLogo
-                name={side1.team.name}
-                shortName={side1.team.short_name}
-                logoUrl={side1.team.logo_url}
-                className="h-14 w-14 shrink-0 text-base shadow-sm ring-1 ring-board-line"
-              />
-            </div>
-
-            {/* VS Pill */}
-            <div className="flex flex-col items-center justify-center">
-              <span className="text-xs font-medium text-board-muted">
-                vs
-              </span>
-            </div>
-
-            {/* Chasing side */}
-            <div className="flex items-center gap-4 rounded-xl p-3 text-left">
-              <TeamLogo
-                name={side2.team.name}
-                shortName={side2.team.short_name}
-                logoUrl={side2.team.logo_url}
-                className="h-14 w-14 shrink-0 text-base shadow-sm ring-1 ring-board-line"
-              />
-              <div className="min-w-0">
-                <p className="truncate text-base font-bold text-board-foreground lg:text-lg">
-                  {side2.team.name}
-                </p>
-                {side2.innings ? (
-                  <div className="mt-0.5 flex items-baseline gap-2">
-                    <span className="scoreboard-figure text-4xl lg:text-5xl font-bold tabular-nums text-board-foreground">
-                      {side2.innings.total_runs}/{side2.innings.total_wickets}
-                    </span>
-                    <span className="scoreboard-label text-sm lg:text-base font-semibold">
-                      ({oversFromBalls(inningsBalls(side2.innings))} ov)
-                    </span>
-                  </div>
-                ) : (
-                  <p className="mt-1 text-xs text-board-muted">Yet to bat</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Stadium Scoreboard (< sm) */}
-          <div className="space-y-2 sm:hidden">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-board-line bg-board-line/20 p-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <TeamLogo
-                  name={side1.team.name}
-                  shortName={side1.team.short_name}
-                  logoUrl={side1.team.logo_url}
-                  className="h-9 w-9 shrink-0 text-xs ring-1 ring-board-line"
+              {match.status === "completed" && (
+                <MatchExportButtons match={match} />
+              )}
+              {isScorer && (
+                <MatchScorersDialog
+                  matchId={match.id}
+                  isCreator={match.created_by === user?.id}
                 />
-                <p className="truncate text-sm font-bold text-board-foreground">
-                  {side1.team.name}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                {side1.innings ? (
-                  <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
-                    {side1.innings.total_runs}/{side1.innings.total_wickets}
-                    <span className="scoreboard-label ml-1 text-xs font-medium">
-                      ({oversFromBalls(inningsBalls(side1.innings))} ov)
-                    </span>
-                  </p>
-                ) : (
-                  <span className="text-xs text-board-muted">Yet to bat</span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-board-line bg-board-line/20 p-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <TeamLogo
-                  name={side2.team.name}
-                  shortName={side2.team.short_name}
-                  logoUrl={side2.team.logo_url}
-                  className="h-9 w-9 shrink-0 text-xs ring-1 ring-board-line"
-                />
-                <p className="truncate text-sm font-bold text-board-foreground">
-                  {side2.team.name}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                {side2.innings ? (
-                  <p className="scoreboard-figure text-xl font-bold tabular-nums text-board-foreground">
-                    {side2.innings.total_runs}/{side2.innings.total_wickets}
-                    <span className="scoreboard-label ml-1 text-xs font-medium">
-                      ({oversFromBalls(inningsBalls(side2.innings))} ov)
-                    </span>
-                  </p>
-                ) : (
-                  <span className="text-xs text-board-muted">Yet to bat</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Dynamic Match Result or Chase Status */}
-          {match.status === "completed" && match.result_description && (
-            <div className="mt-4 rounded-xl border border-board-line p-3 text-center">
-              <div className="flex items-center justify-center gap-2 text-sm sm:text-base font-semibold text-board-foreground">
-                <span>{formatMatchResult(match)}</span>
-              </div>
-              {match.player_of_the_match && (
-                <div className="mt-1.5 flex items-center justify-center gap-1.5 text-xs text-board-muted">
-                  <Award className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Player of the match:</span>
-                  <strong className="text-board-foreground font-semibold">{match.player_of_the_match.full_name}</strong>
-                </div>
               )}
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
-            {isScorer &&
-              (match.status === "scheduled" || match.status === "live") && (
-                <Button asChild size="sm" className="h-10 px-4 text-xs font-semibold sm:h-9 sm:text-sm">
-                  <Link
-                    href={`/matches/${match.id}/score${
-                      searchParams.toString()
-                        ? `?${searchParams.toString()}`
-                        : ""
-                    }`}
-                  >
-                    <Play className="mr-1.5 h-4 w-4 shrink-0" />
-                    {match.status === "scheduled"
-                      ? "Start match"
-                      : "Continue scoring"}
-                  </Link>
-                </Button>
-              )}
-            {match.status === "completed" && (
-              <MatchExportButtons match={match} />
-            )}
-            {match.status === "live" && (
-              <DlsCalculatorModal match={match} canEdit={isScorer} />
-            )}
-            {isScorer && (
-              <MatchScorersDialog
-                matchId={match.id}
-                isCreator={match.created_by === user?.id}
-              />
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="h-10 border-board-line bg-board-line/30 px-4 text-xs font-semibold text-board-foreground hover:bg-board-line/60 hover:text-board-foreground sm:h-9 sm:text-sm"
-            >
-              <Link href={`/overlay/${match.id}`} target="_blank">
-                <Tv className="mr-1.5 h-4 w-4 shrink-0" />
-                OBS overlay
-              </Link>
-            </Button>
-          </div>
+          </MatchHero>
         </div>
       </div>
 
-      {/* Tabs Content */}
-      <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6">
+      {/* Tabs Content: on phones a white sheet rising over the wash */}
+      <ContentSheet className="container mx-auto max-md:-mt-6 max-md:mx-0 max-md:mb-0 max-md:flex-1 sm:max-md:mx-0 md:px-4 md:py-6">
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
           className="space-y-6"
         >
-          <TabsList className="flex h-auto w-full justify-start overflow-x-auto no-scrollbar gap-1 sm:grid sm:grid-cols-7 sm:justify-stretch">
+          <TabsList className="flex h-auto w-full justify-start">
             <TabsTrigger
               value="summary"
               data-tab-value="summary"
               className="shrink-0 gap-1.5"
             >
-              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Summary
+              {inPlay ? "Live" : "Summary"}
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
               data-tab-value="scorecard"
               className="shrink-0 gap-1.5"
             >
-              <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Scorecard</span>
             </TabsTrigger>
             <TabsTrigger
@@ -802,7 +624,6 @@ function MatchDetailsPageContent() {
               data-tab-value="superstars"
               className="shrink-0 gap-1.5"
             >
-              <Award className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Top performers</span>
             </TabsTrigger>
             <TabsTrigger
@@ -810,7 +631,6 @@ function MatchDetailsPageContent() {
               data-tab-value="stats"
               className="shrink-0 gap-1.5"
             >
-              <BarChart3 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Stats
             </TabsTrigger>
             <TabsTrigger
@@ -818,7 +638,6 @@ function MatchDetailsPageContent() {
               data-tab-value="balls"
               className="shrink-0 gap-1.5"
             >
-              <CircleDot className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Balls</span>
             </TabsTrigger>
             <TabsTrigger
@@ -826,16 +645,7 @@ function MatchDetailsPageContent() {
               data-tab-value="info"
               className="shrink-0 gap-1.5"
             >
-              <Info className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Info
-            </TabsTrigger>
-            <TabsTrigger
-              value="h2h"
-              data-tab-value="h2h"
-              className="shrink-0 gap-1.5"
-            >
-              <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>Head to Head</span>
             </TabsTrigger>
           </TabsList>
 
@@ -867,11 +677,8 @@ function MatchDetailsPageContent() {
             <MatchBalls match={match} />
           </TabsContent>
 
-          <TabsContent value="info">
+          <TabsContent value="info" className="space-y-6">
             <MatchInfo match={match} />
-          </TabsContent>
-
-          <TabsContent value="h2h">
             <HeadToHead
               team1={match.team1}
               team2={match.team2}
@@ -880,7 +687,7 @@ function MatchDetailsPageContent() {
           </TabsContent>
           </div>
         </Tabs>
-      </div>
+      </ContentSheet>
     </div>
   );
 }

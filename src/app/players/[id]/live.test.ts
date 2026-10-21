@@ -49,10 +49,12 @@ function findLiveCard(node: ReactNode): LivePerformanceItem[] | null {
   if (!isValidElement(node)) return null;
   const props = node.props as {
     children?: ReactNode;
+    /** PlayerActivityTabs' first tab. */
+    statistics?: ReactNode;
     performances?: LivePerformanceItem[];
   };
   if (node.type === LivePerformanceCard) return props.performances ?? null;
-  return findLiveCard(props.children);
+  return findLiveCard(props.children) ?? findLiveCard(props.statistics);
 }
 
 async function render(userId: string) {

@@ -163,7 +163,7 @@ export function ClubMediaDialog({
                   name={clubName}
                   shortName={shortName}
                   logoUrl={logoUrl}
-                  className="h-16 w-16 text-xl rounded-2xl"
+                  className="h-16 w-16 text-xl"
                 />
                 {uploadingLogo && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/80">

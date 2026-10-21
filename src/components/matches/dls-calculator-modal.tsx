@@ -22,14 +22,25 @@ interface DlsCalculatorModalProps {
   match: Match;
   canEdit?: boolean;
   triggerButton?: React.ReactNode;
+  /** Opened from elsewhere (a menu): no trigger of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function DlsCalculatorModal({
   match,
   canEdit = false,
   triggerButton,
+  open: openProp,
+  onOpenChange,
 }: DlsCalculatorModalProps) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : ownOpen;
+  const setOpen = (next: boolean) => {
+    if (controlled) onOpenChange?.(next);
+    else setOwnOpen(next);
+  };
   const [isApplying, setIsApplying] = useState(false);
 
   // Pre-fill values from current match state
@@ -110,23 +121,25 @@ export function DlsCalculatorModal({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {triggerButton ?? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
-          >
-            <CloudRain className="h-4 w-4 shrink-0 text-sky-500" />
-            <span className="hidden sm:inline">DLS Rain Calc</span>
-            <span className="sm:hidden">DLS</span>
-          </Button>
-        )}
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          {triggerButton ?? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
+            >
+              <CloudRain className="h-4 w-4 shrink-0 text-primary" />
+              <span className="hidden sm:inline">DLS Rain Calc</span>
+              <span className="sm:hidden">DLS</span>
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-sky-500" />
+            <Calculator className="h-5 w-5 text-primary" />
             Duckworth-Lewis-Stern (DLS) Calculator
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -174,7 +187,7 @@ export function DlsCalculatorModal({
               <Label htmlFor="dls-t2-overs" className="text-xs font-semibold">
                 2nd Innings Revised Overs
               </Label>
-              <span className="text-xs font-medium text-sky-600 dark:text-sky-400">
+              <span className="text-xs font-medium text-primary">
                 {t2Overs} overs available
               </span>
             </div>
@@ -185,17 +198,17 @@ export function DlsCalculatorModal({
               max={t1Overs}
               value={t2Overs}
               onChange={(e) => setT2Overs(Number(e.target.value))}
-              className="w-full accent-sky-600"
+              className="w-full accent-primary"
             />
           </div>
 
           {/* Target Result Box */}
-          <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 text-center">
-            <p className="text-xs font-medium text-sky-700 dark:text-sky-300">
+          <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-center">
+            <p className="text-xs font-medium text-primary">
               Revised DLS target
             </p>
             <div className="mt-1 flex items-center justify-center gap-2">
-              <span className="text-4xl font-bold tabular-nums text-foreground">
+              <span className="text-4xl font-semibold tabular-nums text-foreground">
                 {calculation.targetRuns}
               </span>
               <span className="text-sm text-muted-foreground">
@@ -256,7 +269,7 @@ export function DlsCalculatorModal({
               <span className="text-muted-foreground">
                 DLS Par Score right now:
               </span>
-              <span className="text-sm font-bold text-foreground">
+              <span className="text-sm font-semibold text-foreground">
                 {parScore} runs
               </span>
             </div>

@@ -1,12 +1,11 @@
-import QRCode from "qrcode";
 import type { Match } from "./match-types";
+import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
   bowlerEconomy,
   byBattingOrder,
   dismissalText,
   formatBowlerOvers,
   formatDecimalOvers,
-  formatMatchResult,
   inningsBalls,
   oversFromBalls,
   scoreLine,
@@ -16,12 +15,6 @@ import {
   topBowlers,
 } from "./cricket";
 
-const esc = (t: unknown) =>
-  String(t ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
 // ---------------------------------------------------------------------------
 // Shareable summary image
 // ---------------------------------------------------------------------------
@@ -30,6 +23,7 @@ export interface ExportBatter {
   name: string;
   runs: number;
   balls: number;
+  notOut: boolean;
   sr: string;
 }
 
@@ -77,6 +71,7 @@ export function buildExportSummary(
       name: b.user?.full_name ?? "—",
       runs: b.runs_scored ?? 0,
       balls: b.balls_faced ?? 0,
+      notOut: !b.is_out,
       sr: strikeRate(b.runs_scored, b.balls_faced),
     })),
     bowlers: topBowlers(match, team.id).map((b) => ({
@@ -107,202 +102,6 @@ export function buildExportSummary(
   };
 }
 
-/**
- * "Share PDF" on the report page: the report is turned into a PDF file in
- * the browser (html2canvas renders each page in its desktop A4 layout,
- * jsPDF assembles them; both pinned on jsDelivr with integrity hashes) as
- * soon as the page has loaded, so a tap opens the phone's share sheet
- * (WhatsApp, Gmail, ...) at once: browsers allow sharing only right after
- * a tap. Where files cannot be shared (Firefox, Linux) it downloads. If
- * anything fails the button goes away; "Save as PDF / Print" remains.
- */
-const SHARE_PDF_SCRIPT = `<script>
-(function () {
-  var btn = document.getElementById("btn-share-pdf");
-  if (!btn) return;
-  var LIBS = [
-    ["https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-     "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"],
-    ["https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js",
-     "sha384-en/ztfPSRkGfME4KIm05joYXynqzUgbsG5nMrj/xEFAHXkeZfO3yMK8QQ+mP7p1/"]
-  ];
-  var A4_W = 210, A4_H = 297;
-  var fileName = btn.getAttribute("data-file-name") || "match-report.pdf";
-  var canShareFiles = (function () {
-    try {
-      return !!(navigator.canShare && navigator.canShare({
-        files: [new File(["x"], "x.pdf", { type: "application/pdf" })]
-      }));
-    } catch (e) { return false; }
-  })();
-  var file = null;
-
-  function load(src, integrity) {
-    return new Promise(function (resolve, reject) {
-      var s = document.createElement("script");
-      s.src = src; s.integrity = integrity; s.crossOrigin = "anonymous";
-      s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-  function each(list, fn) { return Array.prototype.map.call(list, fn); }
-
-  // Team logos live on another site, which a canvas may not read: they go
-  // in through this site's image optimizer, or show initials (as when a
-  // team has no logo) if that fails.
-  var logoVia = {};
-  function proxyLogos() {
-    return Promise.all(each(document.querySelectorAll("img[data-initials]"), function (img) {
-      var src = img.getAttribute("src") || "";
-      var url;
-      try { url = new URL(src, location.href); } catch (e) { return null; }
-      if (url.origin === location.origin || url.protocol === "data:") return null;
-      var via = location.origin + "/_next/image?url=" + encodeURIComponent(url.href) + "&w=256&q=75";
-      return new Promise(function (resolve) {
-        var probe = new Image();
-        probe.onload = function () { logoVia[src] = via; resolve(); };
-        probe.onerror = function () { resolve(); };
-        probe.src = via;
-      });
-    }));
-  }
-
-  // The copy html2canvas renders (desktop A4 layout): no toolbar, logos as
-  // cover backgrounds (it ignores object-fit), and where a sheet may end:
-  // not through a small block (a row, a card, a line of text), nor right
-  // after a heading.
-  var KEEP_WHOLE = 400, KEEP_WITH_NEXT = 60;
-  var cuts = [], blocks = [], box = null;
-  function prepare(doc, el) {
-    var bar = doc.getElementById("screen-toolbar");
-    if (bar) bar.remove();
-    each(doc.querySelectorAll("img[data-initials]"), function (img) {
-      var span = doc.createElement("span");
-      var via = logoVia[img.getAttribute("src") || ""];
-      if (via) {
-        span.style.cssText = "display:block;width:100%;height:100%;background:url(" +
-          JSON.stringify(via) + ") center / cover no-repeat";
-      } else {
-        span.textContent = img.getAttribute("data-initials");
-      }
-      img.replaceWith(span);
-    });
-    box = el.getBoundingClientRect();
-    cuts = []; blocks = [];
-    each(el.querySelectorAll("*"), function (n) {
-      var rect = n.getBoundingClientRect();
-      var t = rect.top - box.top, b = rect.bottom - box.top;
-      if (b - t <= 0) return;
-      cuts.push(t, b);
-      if (n.matches("h1, h2, h3, h4, [class*='title'], [class*='header']")) b += KEEP_WITH_NEXT;
-      if (b - t <= KEEP_WHOLE) blocks.push([t, b]);
-    });
-  }
-  function clean(y) {
-    return !blocks.some(function (k) { return k[0] < y - 0.5 && k[1] > y + 0.5; });
-  }
-
-  // Sheets of one page: [top, bottom] in CSS px, each at most an A4 high,
-  // ending at the lowest clean cut in its lower half (else a sheet high).
-  function sheets(pageWidth, height) {
-    var sheetH = pageWidth * A4_H / A4_W, out = [], y = 0;
-    while (height - y > 1) {
-      var end = Math.min(height, y + sheetH);
-      if (end < height) {
-        var from = y + sheetH / 2, limit = end;
-        var fit = cuts.filter(function (c) { return c > from && c <= limit && clean(c); });
-        if (fit.length) end = Math.max.apply(null, fit);
-      }
-      out.push([y, end]);
-      y = end;
-    }
-    return out;
-  }
-
-  function build() {
-    return Promise.all(LIBS.map(function (l) { return load(l[0], l[1]); }))
-      .then(function () { return document.fonts ? document.fonts.ready : null; })
-      .then(proxyLogos)
-      .then(function () {
-        var pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", compress: true });
-        var first = true;
-        var pages = document.querySelectorAll(".report-page");
-        return Array.prototype.reduce.call(pages, function (chain, el) {
-          return chain.then(function () {
-            return window.html2canvas(el, {
-              scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false,
-              windowWidth: 1024, windowHeight: 1400, scrollX: 0, scrollY: 0,
-              onclone: prepare
-            });
-          }).then(function (canvas) {
-            var k = canvas.width / box.width, px = canvas.width / A4_W;
-            sheets(box.width, canvas.height / k).forEach(function (sheet) {
-              var y = Math.round(sheet[0] * k);
-              var h = Math.min(canvas.height, Math.round(sheet[1] * k)) - y;
-              if (h <= 0) return;
-              var part = document.createElement("canvas");
-              part.width = canvas.width; part.height = h;
-              var ctx = part.getContext("2d");
-              ctx.fillStyle = "#ffffff";
-              ctx.fillRect(0, 0, part.width, h);
-              ctx.drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-              if (!first) pdf.addPage();
-              first = false;
-              pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, A4_W, h / px);
-            });
-          });
-        }, Promise.resolve()).then(function () {
-          return new File([pdf.output("blob")], fileName, { type: "application/pdf" });
-        });
-      });
-  }
-
-  function download(f) {
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(f); a.download = f.name;
-    document.body.appendChild(a); a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-  }
-
-  // Built ahead, once the page has loaded: the share sheet only opens
-  // straight from a tap, with no wait in between.
-  function start() {
-    var idle = window.requestIdleCallback || function (f) { setTimeout(f, 200); };
-    idle(function () {
-      build().then(function (f) {
-        file = f;
-        btn.disabled = false;
-        btn.textContent = canShareFiles ? "Share PDF" : "Download PDF";
-        btn.setAttribute("data-ready", "true");
-      }, function (err) {
-        console.error("Share PDF: could not build the file", err);
-        btn.hidden = true;
-      });
-    });
-  }
-  if (document.readyState === "complete") start();
-  else window.addEventListener("load", start);
-
-  btn.addEventListener("click", function () {
-    if (!file) return;
-    if (!canShareFiles) return download(file);
-    // The file alone: with text as well, some share targets (WhatsApp on
-    // iOS) drop the file. The link and QR code are in the PDF.
-    navigator.share({ files: [file] }).catch(function (e) {
-      // Cancelled: nothing to do. Refused (the tap expired): download.
-      if (e && e.name !== "AbortError") download(file);
-    });
-  });
-})();
-</script>`;
-
-/** The brand mark: src/app/icon.svg (stumps and bails on board green). */
-const BRAND_MARK = `<svg class="brand-tile" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#113227"/><g fill="#f3f5f0"><rect x="8" y="10" width="4" height="16" rx="0.5"/><rect x="14" y="10" width="4" height="16" rx="0.5"/><rect x="20" y="10" width="4" height="16" rx="0.5"/><rect x="8" y="6" width="7" height="2" rx="0.5"/><rect x="17" y="6" width="7" height="2" rx="0.5"/></g></svg>`;
-
-/** What a team's crest shows without a logo. */
-function crestText(team: { name: string; short_name?: string | null }) {
-  return team.short_name?.slice(0, 3) || team.name.slice(0, 2).toUpperCase();
-}
 
 function inningsFor(match: Match, teamId: string) {
   return match.innings?.find((i) => i.team_id === teamId);
@@ -322,9 +121,6 @@ function mainInningsInOrder(
   ];
 }
 
-// ---------------------------------------------------------------------------
-// Full match report (print-ready HTML -> PDF)
-// ---------------------------------------------------------------------------
 
 type InningsRow = NonNullable<Match["innings"]>[number];
 
@@ -341,146 +137,8 @@ function hasBatted(
   );
 }
 
-function battingRows(inn: InningsRow): string {
-  // The order they came in, as on a scorecard.
-  const batters = (inn.batting_performances ?? [])
-    .filter(hasBatted)
-    .sort(byBattingOrder);
 
-  if (!batters.length) {
-    return `<tr><td colspan="6" class="muted text-center py-3">No batting recorded</td></tr>`;
-  }
-
-  return batters
-    .map((b) => {
-      const runs = b.runs_scored ?? 0;
-      const isCentury = runs >= 100;
-      const isFifty = runs >= 50 && runs < 100;
-      const runBadge = isCentury
-        ? `<span class="milestone-badge century">${runs} <svg class="inline h-2.5 w-2.5 fill-current" viewBox="0 0 24 24" width="10" height="10" style="display:inline-block;vertical-align:-1px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
-        : isFifty
-          ? `<span class="milestone-badge fifty">${runs}</span>`
-          : `<span class="run-val font-bold">${runs}</span>`;
-
-      return `<tr>
-                <td class="name">
-                    <div class="player-name">${esc(b.user?.full_name ?? "—")}</div>
-                    <div class="howout">${esc(!b.is_out && b.dismissal_type === "retired_hurt" ? "retired hurt" : dismissalText(b, inn.fall_of_wickets ?? []))}</div>
-                </td>
-                <td class="num">${runBadge}</td>
-                <td class="num">${b.balls_faced ?? 0}</td>
-                <td class="num">${b.fours ?? 0}</td>
-                <td class="num">${b.sixes ?? 0}</td>
-                <td class="num font-mono">${strikeRate(b.runs_scored, b.balls_faced)}</td>
-            </tr>`;
-    })
-    .join("");
-}
-
-function didNotBat(
-  inn: InningsRow,
-  team: Match["team1"] | Match["team2"] | undefined,
-): string {
-  if (!team?.team_players || team.team_players.length === 0) return "";
-  const battedIds = new Set(
-    (inn.batting_performances ?? []).filter(hasBatted).map((b) => b.user_id),
-  );
-  const dnb = team.team_players
-    .filter((p) => p.user?.id && !battedIds.has(p.user.id))
-    .map((p) => p.user?.full_name)
-    .filter(Boolean);
-
-  if (dnb.length === 0) return "";
-  return `<div class="dnb-strip"><strong>Did not bat:</strong> ${dnb.map(esc).join(", ")}</div>`;
-}
-
-function extrasRow(inn: InningsRow): string {
-  const parts: string[] = [];
-  if (inn.extras_byes) parts.push(`b ${inn.extras_byes}`);
-  if (inn.extras_leg_byes) parts.push(`lb ${inn.extras_leg_byes}`);
-  if (inn.extras_wides) parts.push(`wd ${inn.extras_wides}`);
-  if (inn.extras_no_balls) parts.push(`nb ${inn.extras_no_balls}`);
-  if (inn.extras_penalties) parts.push(`p ${inn.extras_penalties}`);
-  const breakdown = parts.length
-    ? ` <span class="extras-detail">(${parts.join(" | ")})</span>`
-    : "";
-  return `<tr class="extras-row">
-        <td class="name">Extras ${breakdown}</td>
-        <td class="num font-bold font-mono">${inn.extras_total ?? 0}</td>
-        <td colspan="4" class="muted text-xs">Byes, Leg Byes, Wides, No Balls</td>
-    </tr>`;
-}
-
-function fowRow(inn: InningsRow): string {
-  const entries = [...(inn.fall_of_wickets ?? [])].sort(
-    (a, b) => a.wicket_number - b.wicket_number,
-  );
-  if (!entries.length) return "";
-  const items = entries
-    .map(
-      (f) =>
-        `<span class="fow-item"><strong>${f.wicket_number}-${f.runs_at_fall}</strong> <span class="fow-sub">(${esc(f.batsman?.full_name ?? "Batter")}, ${formatDecimalOvers(f.overs_at_fall)} ov)</span></span>`,
-    )
-    .join("");
-  return `<div class="fow"><div class="fow-label">Fall of Wickets:</div><div class="fow-list">${items}</div></div>`;
-}
-
-function bowlingRows(inn: InningsRow): string {
-  // In the order they came on (the stored order), as on a scorecard.
-  const bowlers = (inn.bowling_performances ?? []).filter(
-    (b) =>
-      (b.balls_bowled ?? 0) > 0 ||
-      (b.overs_bowled ?? 0) > 0 ||
-      (b.runs_conceded ?? 0) > 0,
-  );
-
-  if (!bowlers.length) {
-    return `<tr><td colspan="11" class="muted text-center py-3">No bowling recorded</td></tr>`;
-  }
-
-  const ballLog = inn.ball_by_ball ?? [];
-
-  return bowlers
-    .map((b) => {
-      const wkts = b.wickets_taken ?? 0;
-      const wktBadge =
-        wkts >= 5
-          ? `<span class="milestone-badge century">${wkts} <svg class="inline h-2.5 w-2.5 fill-current" viewBox="0 0 24 24" width="10" height="10" style="display:inline-block;vertical-align:-1px;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>`
-          : wkts >= 3
-            ? `<span class="milestone-badge three-wkt">${wkts}</span>`
-            : `<strong>${wkts}</strong>`;
-
-      let dotBalls = 0;
-      let fours = 0;
-      let sixes = 0;
-      if (ballLog.length > 0) {
-        for (const d of ballLog) {
-          if (d.bowler_id === b.user_id) {
-            if ((d.runs_scored ?? 0) === 0 && (d.extras ?? 0) === 0) dotBalls++;
-            if ((d.runs_scored ?? 0) === 4) fours++;
-            if ((d.runs_scored ?? 0) === 6) sixes++;
-          }
-        }
-      }
-
-      return `<tr>
-                <td class="name font-medium">${esc(b.user?.full_name ?? "—")}</td>
-                <td class="num font-mono">${formatBowlerOvers(b)}</td>
-                <td class="num font-mono">${b.maidens ?? 0}</td>
-                <td class="num font-mono">${b.runs_conceded ?? 0}</td>
-                <td class="num font-mono">${wktBadge}</td>
-                <td class="num font-mono">${bowlerEconomy(b)}</td>
-                <td class="num font-mono">${ballLog.length > 0 ? dotBalls : "—"}</td>
-                <td class="num font-mono">${ballLog.length > 0 ? fours : "—"}</td>
-                <td class="num font-mono">${ballLog.length > 0 ? sixes : "—"}</td>
-                <td class="num font-mono">${b.wides ?? 0}</td>
-                <td class="num font-mono">${b.no_balls ?? 0}</td>
-            </tr>`;
-    })
-    .join("");
-}
-
-interface Partnership {
+export interface Partnership {
   wicketNumber: number;
   runs: number;
   balls: number;
@@ -489,11 +147,6 @@ interface Partnership {
   isUnbroken?: boolean;
 }
 
-function getOrdinalSuffix(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0] || "th";
-}
 
 /**
  * The innings' partnerships from its ball log, in the order the balls were
@@ -591,157 +244,8 @@ function getInningsPartnerships(inn: InningsRow): Partnership[] {
   return partnerships;
 }
 
-function renderPartnerships(inn: InningsRow): string {
-  const parts = getInningsPartnerships(inn);
-  if (!parts.length) return "";
 
-  const items = parts
-    .map((p) => {
-      const totalPartRuns = Math.max(1, p.runs);
-      const b1Share = Math.min(
-        100,
-        Math.max(0, Math.round((p.batter1.runs / totalPartRuns) * 100)),
-      );
-      const b2Share = 100 - b1Share;
-      const badgeText = p.isUnbroken
-        ? `${p.wicketNumber}${getOrdinalSuffix(p.wicketNumber)} Wkt (Unbroken)`
-        : `${p.wicketNumber}${getOrdinalSuffix(p.wicketNumber)} Wkt`;
-
-      return `
-        <div class="partnership-card">
-            <div class="part-top-row">
-                <span class="part-wkt-badge">${badgeText}</span>
-                <span class="part-runs-score font-mono"><strong>${p.runs}</strong> runs ${p.balls > 0 ? `(${p.balls}b)` : ""}</span>
-            </div>
-            <div class="part-bar-track">
-                <div class="part-bar-seg seg-1" style="width: ${b1Share}%"></div>
-                <div class="part-bar-seg seg-2" style="width: ${b2Share}%"></div>
-            </div>
-            <div class="part-batters-row">
-                <div class="part-bat-col left">
-                    <span class="part-bat-name font-medium">${esc(p.batter1.name)}</span>
-                    <span class="part-bat-runs font-mono font-semibold">${p.batter1.runs}${p.batter1.balls > 0 ? ` (${p.batter1.balls}b)` : ""}</span>
-                </div>
-                <div class="part-bat-col right">
-                    <span class="part-bat-runs font-mono font-semibold">${p.batter2.runs}${p.batter2.balls > 0 ? ` (${p.batter2.balls}b)` : ""}</span>
-                    <span class="part-bat-name font-medium">${esc(p.batter2.name)}</span>
-                </div>
-            </div>
-        </div>`;
-    })
-    .join("");
-
-  return `
-    <div class="partnerships-wrap">
-        <div class="table-subheading">Key Partnerships</div>
-        <div class="partnerships-grid">${items}</div>
-    </div>`;
-}
-
-function inningsSection(
-  inn: InningsRow,
-  index: number,
-  team: Match["team1"] | Match["team2"],
-): string {
-  const balls = inningsBalls(inn);
-  const overs = oversFromBalls(balls);
-  const rr =
-    balls > 0 ? ((inn.total_runs ?? 0) / (balls / 6)).toFixed(2) : "0.00";
-  const total = `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`;
-
-  const totalFours = (inn.batting_performances ?? []).reduce(
-    (acc, b) => acc + (b.fours ?? 0),
-    0,
-  );
-  const totalSixes = (inn.batting_performances ?? []).reduce(
-    (acc, b) => acc + (b.sixes ?? 0),
-    0,
-  );
-  const boundaryRuns = totalFours * 4 + totalSixes * 6;
-  const boundaryPct =
-    (inn.total_runs ?? 0) > 0
-      ? ((boundaryRuns / (inn.total_runs ?? 1)) * 100).toFixed(1)
-      : "0.0";
-
-  return `
-    <div class="innings-scorecard-wrap">
-        <div class="section-badge-header">
-            <div class="section-title-wrap">
-                <h2 class="section-page-title">${index === 0 ? "1st Innings Scorecard" : index === 1 ? "2nd Innings Scorecard" : "Super Over Scorecard"}</h2>
-                <span class="innings-team-pill">${esc(team.name)}</span>
-            </div>
-            <div class="innings-score-pill">
-                <span class="score-main">${total}</span>
-                <span class="score-details">(${overs} ov &bull; RR: ${rr}${inn.target_runs && inn.innings_number % 2 === 0 ? ` &bull; Target ${inn.target_runs}` : ""}${inn.is_completed ? "" : ", in progress"})</span>
-            </div>
-        </div>
-
-        <section class="innings">
-            <div class="table-subheading">Batting Performance</div>
-            <div class="table-responsive">
-                <table class="score-table batting-table">
-                    <thead>
-                        <tr>
-                            <th class="name">Batter</th>
-                            <th class="num">R</th>
-                            <th class="num">B</th>
-                            <th class="num">4s</th>
-                            <th class="num">6s</th>
-                            <th class="num">SR</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${battingRows(inn)}
-                        ${extrasRow(inn)}
-                        <tr class="totals-row">
-                            <td class="name font-bold">TOTAL (${overs} Overs, RR: ${rr})</td>
-                            <td class="num font-bold font-mono">${total}</td>
-                            <td colspan="4" class="muted text-xs text-right">
-                                ${boundaryRuns > 0 ? `Boundaries: ${totalFours}x4, ${totalSixes}x6 (${boundaryRuns} runs, ${boundaryPct}%)` : ""}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            ${didNotBat(inn, team)}
-            ${fowRow(inn)}
-            ${renderPartnerships(inn)}
-
-            <div class="bowling-wrap">
-                <div class="table-subheading">Bowling Performance</div>
-                <div class="table-responsive">
-                    <table class="score-table bowling-table">
-                        <thead>
-                            <tr>
-                                <th class="name">Bowler</th>
-                                <th class="num">O</th>
-                                <th class="num">M</th>
-                                <th class="num">R</th>
-                                <th class="num">W</th>
-                                <th class="num">Eco</th>
-                                <th class="num">0s</th>
-                                <th class="num">4s</th>
-                                <th class="num">6s</th>
-                                <th class="num">Wd</th>
-                                <th class="num">Nb</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${bowlingRows(inn)}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Over Comparison (Page 4)
-// ---------------------------------------------------------------------------
-
-interface OverData {
+export interface OverData {
   overNumber: number;
   runs: number;
   wickets: number;
@@ -937,41 +441,6 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
   return result;
 }
 
-function renderOverCard(ov: OverData | undefined): string {
-  if (!ov) {
-    return `<div class="over-card empty"><div class="over-empty-text">—</div></div>`;
-  }
-
-  const ballBadges = ov.balls
-    .map((b) => `<span class="ball-pill ball-${b.type}">${esc(b.text)}</span>`)
-    .join("");
-
-  const batterRows = ov.batters
-    .slice(0, 2)
-    .map((b) => `<div class="over-crease-batter">${esc(b.name)} <span class="font-mono">${b.runs}(${b.balls})</span></div>`)
-    .join("");
-
-  return `
-    <div class="over-card">
-        <div class="over-balls-row">${ballBadges}</div>
-        <div class="over-details-row">
-            <div class="over-batters-col">${batterRows}</div>
-            <div class="over-bowler-col">
-                <div class="over-bowler-name">${esc(ov.bowlerName)}</div>
-                <div class="over-bowler-figs font-mono">${ov.bowlerOvers} ov &bull; ${ov.bowlerWickets}/${ov.bowlerRuns}${ov.bowlerMaidens > 0 ? ` (${ov.bowlerMaidens}M)` : ""}</div>
-            </div>
-        </div>
-        <div class="over-footer-row">
-            <span>Over ${ov.overNumber}</span>
-            <span>Runs ${ov.runs}</span>
-            <span class="over-running-score font-mono">Score ${ov.cumulativeRuns}/${ov.cumulativeWickets}</span>
-        </div>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Phase Analysis (Powerplay, Middle, Death)
-// ---------------------------------------------------------------------------
 
 interface PhaseStat {
   phaseName: string;
@@ -1009,18 +478,18 @@ function getPhaseStatsForInnings(
   const { ppEnd, midEnd } = bounds;
 
   const phasesDef = [
-    { name: "Powerplay", start: 1, end: ppEnd, label: `Ov 1-${ppEnd}` },
+    { name: "Powerplay", start: 1, end: ppEnd, label: `Overs 1-${ppEnd}` },
     {
-      name: "Middle Overs",
+      name: "Middle overs",
       start: ppEnd + 1,
       end: midEnd,
-      label: `Ov ${ppEnd + 1}-${midEnd}`,
+      label: `Overs ${ppEnd + 1}-${midEnd}`,
     },
     {
-      name: "Death Overs",
+      name: "Death overs",
       start: midEnd + 1,
       end: maxOvers,
-      label: `Ov ${midEnd + 1}-${maxOvers}`,
+      label: `Overs ${midEnd + 1}-${maxOvers}`,
     },
   ];
 
@@ -1058,83 +527,8 @@ function getPhaseStatsForInnings(
   return [];
 }
 
-function renderPhaseAnalysis(match: Match): string {
-  const [inn1, inn2] = mainInningsInOrder(match);
 
-  const maxOvers = match.overs_per_innings || 20;
-  const bpo = match.balls_per_over || 6;
-  const p1 = getPhaseStatsForInnings(inn1, maxOvers, bpo);
-  const p2 = getPhaseStatsForInnings(inn2, maxOvers, bpo);
-
-  if (p1.length === 0 && p2.length === 0) return "";
-  // The columns follow the innings: the side that batted first, then the
-  // chase (team 1 / team 2 only when team 1 batted first).
-  const [{ team: firstTeam }, { team: secondTeam }] = sidesInBattingOrder(match);
-  const tag = (t: typeof firstTeam) =>
-    t.short_name ?? t.name.slice(0, 3).toUpperCase();
-
-  const rows = p1
-    .map((stat1, idx) => {
-      const stat2 = p2[idx] ?? { runs: 0, wickets: 0, rr: "0.00", balls: 0 };
-      let advantage = "Even";
-      let advantageColor = "neutral";
-
-      if (stat1.runs > stat2.runs + 4) {
-        advantage = tag(firstTeam);
-        advantageColor = "team1";
-      } else if (stat2.runs > stat1.runs + 4) {
-        advantage = tag(secondTeam);
-        advantageColor = "team2";
-      }
-
-      return `
-      <tr>
-          <td class="phase-name text-left">
-              <span class="phase-title">${stat1.phaseName}</span>
-              <span class="phase-sub font-mono">${stat1.oversLabel}</span>
-          </td>
-          <td class="text-center">
-              <span class="phase-score font-mono font-bold">${stat1.runs}/${stat1.wickets}</span>
-              <span class="phase-rr font-mono">${stat1.rr} RR</span>
-          </td>
-          <td class="text-center">
-              <span class="phase-score font-mono font-bold">${stat2.runs}/${stat2.wickets}</span>
-              <span class="phase-rr font-mono">${stat2.rr} RR</span>
-          </td>
-          <td class="text-right">
-              <span class="adv-pill adv-${advantageColor}">${advantage}</span>
-          </td>
-      </tr>`;
-    })
-    .join("");
-
-  const t1Header = esc(firstTeam.short_name ?? firstTeam.name);
-  const t2Header = esc(secondTeam.short_name ?? secondTeam.name);
-
-  return `
-    <div class="phase-analysis-card">
-        <div class="section-title">Phase-by-Phase Match Comparison</div>
-        <div class="table-responsive">
-            <table class="phase-table">
-                <thead>
-                    <tr>
-                        <th class="text-left" style="width: 28%;">Game Phase</th>
-                        <th class="text-center" style="width: 24%;">${t1Header}</th>
-                        <th class="text-center" style="width: 24%;">${t2Header}</th>
-                        <th class="text-right" style="width: 24%;">Advantage</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Match Impact & MVP Index
-// ---------------------------------------------------------------------------
-
-interface ImpactLeader {
+export interface ImpactLeader {
   id: string;
   name: string;
   teamName: string;
@@ -1245,2321 +639,454 @@ function calculateMatchImpactLeaders(match: Match): ImpactLeader[] {
       teamTag: val.teamTag,
       points: Math.round(val.points),
       highlight:
-        val.highlightParts.join(" &bull; ") || "All-round contribution",
+        val.highlightParts.join(" · ") || "All-round contribution",
     }))
     .filter((p) => p.points > 0)
     .sort((a, b) => b.points - a.points)
     .slice(0, 5);
 }
 
-function renderImpactLeaderboard(match: Match): string {
-  const leaders = calculateMatchImpactLeaders(match);
-  if (!leaders.length) return "";
 
-  const items = leaders
-    .map((ldr, i) => {
-      const rankClass =
-        i === 0
-          ? "rank-gold"
-          : i === 1
-            ? "rank-silver"
-            : i === 2
-              ? "rank-bronze"
-              : "rank-default";
+// ---------------------------------------------------------------------------
+// Full match report: the data the report page (/matches/[id]/report) shows,
+// built from the match and its ball log. The page draws it with the design
+// system's components (~/components/report).
+// ---------------------------------------------------------------------------
 
-      return `
-      <div class="impact-item">
-          <div class="impact-rank ${rankClass}">#${i + 1}</div>
-          <div class="impact-details">
-              <div class="impact-top-line">
-                  <span class="impact-name font-medium">${esc(ldr.name)}</span>
-                  <span class="impact-tag font-mono">${esc(ldr.teamTag)}</span>
-              </div>
-              <div class="impact-highlight font-mono">${ldr.highlight}</div>
-          </div>
-          <div class="impact-pts">
-              <span class="impact-score font-mono font-bold">${ldr.points}</span>
-              <span class="impact-pts-label">pts</span>
-          </div>
-      </div>`;
-    })
-    .join("");
-
-  return `
-    <div class="impact-card">
-        <div class="section-title">Match Impact &amp; MVP Index</div>
-        <div class="impact-list">${items}</div>
-    </div>`;
+export interface ReportTeam {
+  name: string;
+  shortName: string | null;
+  logoUrl: string | null;
 }
 
-// ---------------------------------------------------------------------------
-// Pure Vector SVG Visual Analytics (Worm & Manhattan)
-// ---------------------------------------------------------------------------
+export interface ReportBatter {
+  name: string;
+  dismissal: string;
+  notOut: boolean;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
+  strikeRate: string;
+}
 
-function generateWormChartSvg(match: Match): string {
+export interface ReportBowler {
+  name: string;
+  overs: string;
+  maidens: number;
+  runs: number;
+  wickets: number;
+  economy: string;
+  /** From the ball log; null without one. */
+  dots: number | null;
+  fours: number | null;
+  sixes: number | null;
+  wides: number;
+  noBalls: number;
+}
+
+export interface ReportInnings {
+  id: string;
+  /** "1st innings", "2nd innings", "Super over". */
+  heading: string;
+  team: ReportTeam;
+  /** "178/5". */
+  score: string;
+  overs: string;
+  runRate: string;
+  /** The chase's target, on the second innings of a pair. */
+  target: number | null;
+  inProgress: boolean;
+  batters: ReportBatter[];
+  extras: { total: number; detail: string };
+  /** "12 fours and 3 sixes: 66 runs, 37% of the total". */
+  boundaries: string | null;
+  didNotBat: string[];
+  fallOfWickets: { score: string; name: string; over: string }[];
+  /** From the ball log: empty without one. */
+  partnerships: Partnership[];
+  bowlers: ReportBowler[];
+}
+
+export interface ReportPhaseRow {
+  name: string;
+  overs: string;
+  /** Each side's runs/wickets and run rate in the phase, batting order. */
+  sides: [{ score: string; runRate: string }, { score: string; runRate: string } | null];
+  /** The side that scored more than 4 runs more (index), else null. */
+  ahead: 0 | 1 | null;
+}
+
+export interface ReportChartSide {
+  key: string;
+  label: string;
+  score: string;
+  overs: { over: number; runs: number; wickets: number; total: number; totalWickets: number }[];
+}
+
+export interface MatchReportModel {
+  title: string;
+  /** "Strikers vs Thunder – match report.pdf". */
+  fileName: string;
+  matchUrl: string;
+  matchIdShort: string;
+  /** The day the report was made (YYYY-MM-DD). */
+  generated: string;
+  /** "17 Oct 2026, 18:30", when scheduled. */
+  date: string | null;
+  tournament: string | null;
+  club: string | null;
+  /** The two sides in batting order (the side that batted first first). */
+  teams: [ReportTeam, ReportTeam];
+  info: { label: string; value: string; wide?: boolean }[];
+  playerOfTheMatch: PlayerAward | null;
+  innings: ReportInnings[];
+  phases: { teams: [string, string]; rows: ReportPhaseRow[] } | null;
+  impact: ImpactLeader[];
+  charts: { maxOvers: number; sides: ReportChartSide[] } | null;
+  /** Over N of each innings side by side (null: that innings had none). */
+  overs: { teams: [string, string]; rows: [OverData | null, OverData | null][] } | null;
+  signoff: { role: string; name: string | null }[];
+}
+
+const teamRef = (t: Match["team1"]): ReportTeam => ({
+  name: t.name,
+  shortName: t.short_name ?? null,
+  logoUrl: t.logo_url ?? null,
+});
+
+const tagOf = (t: Match["team1"]) =>
+  t.short_name ?? t.name.slice(0, 3).toUpperCase();
+
+function reportBatters(inn: InningsRow): ReportBatter[] {
+  // The order they came in, as on a scorecard.
+  return (inn.batting_performances ?? [])
+    .filter(hasBatted)
+    .sort(byBattingOrder)
+    .map((b) => ({
+      name: b.user?.full_name ?? "—",
+      dismissal:
+        !b.is_out && b.dismissal_type === "retired_hurt"
+          ? "retired hurt"
+          : dismissalText(b, inn.fall_of_wickets ?? []),
+      notOut: !b.is_out && b.dismissal_type !== "retired_hurt",
+      runs: b.runs_scored ?? 0,
+      balls: b.balls_faced ?? 0,
+      fours: b.fours ?? 0,
+      sixes: b.sixes ?? 0,
+      strikeRate: strikeRate(b.runs_scored, b.balls_faced),
+    }));
+}
+
+function extrasOf(inn: InningsRow): ReportInnings["extras"] {
+  const parts = (
+    [
+      ["b", inn.extras_byes],
+      ["lb", inn.extras_leg_byes],
+      ["wd", inn.extras_wides],
+      ["nb", inn.extras_no_balls],
+      ["p", inn.extras_penalties],
+    ] as const
+  )
+    .filter(([, v]) => Boolean(v))
+    .map(([k, v]) => `${k} ${v}`);
+  return {
+    total: inn.extras_total ?? 0,
+    detail: parts.length ? `(${parts.join(", ")})` : "",
+  };
+}
+
+function boundariesOf(inn: InningsRow): string | null {
+  const bats = inn.batting_performances ?? [];
+  const fours = bats.reduce((n, b) => n + (b.fours ?? 0), 0);
+  const sixes = bats.reduce((n, b) => n + (b.sixes ?? 0), 0);
+  const runs = fours * 4 + sixes * 6;
+  const total = inn.total_runs ?? 0;
+  if (runs === 0 || total === 0) return null;
+  const count = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+  return `${count(fours, "four", "fours")} and ${count(sixes, "six", "sixes")}: ${runs} runs, ${Math.round((runs / total) * 100)}% of the total`;
+}
+
+function didNotBatOf(
+  inn: InningsRow,
+  team: Match["team1"] | Match["team2"] | undefined,
+): string[] {
+  if (!team?.team_players?.length) return [];
+  const batted = new Set(
+    (inn.batting_performances ?? []).filter(hasBatted).map((b) => b.user_id),
+  );
+  return team.team_players
+    .filter((p) => p.user?.id && !batted.has(p.user.id))
+    .map((p) => p.user?.full_name)
+    .filter((n): n is string => Boolean(n));
+}
+
+function fallOfWicketsOf(inn: InningsRow): ReportInnings["fallOfWickets"] {
+  return [...(inn.fall_of_wickets ?? [])]
+    .sort((a, b) => a.wicket_number - b.wicket_number)
+    .map((f) => ({
+      score: `${f.wicket_number}-${f.runs_at_fall}`,
+      name: f.batsman?.full_name ?? "Batter",
+      over: formatDecimalOvers(f.overs_at_fall),
+    }));
+}
+
+function reportBowlers(inn: InningsRow): ReportBowler[] {
+  // In the order they came on (the stored order), as on a scorecard.
+  const log = inn.ball_by_ball ?? [];
+  return (inn.bowling_performances ?? [])
+    .filter(
+      (b) =>
+        (b.balls_bowled ?? 0) > 0 ||
+        (b.overs_bowled ?? 0) > 0 ||
+        (b.runs_conceded ?? 0) > 0,
+    )
+    .map((b) => {
+      const mine = log.filter((d) => d.bowler_id === b.user_id);
+      const count = (pred: (d: (typeof log)[number]) => boolean) =>
+        log.length > 0 ? mine.filter(pred).length : null;
+      return {
+        name: b.user?.full_name ?? "—",
+        overs: formatBowlerOvers(b),
+        maidens: b.maidens ?? 0,
+        runs: b.runs_conceded ?? 0,
+        wickets: b.wickets_taken ?? 0,
+        economy: bowlerEconomy(b),
+        dots: count((d) => (d.runs_scored ?? 0) === 0 && (d.extras ?? 0) === 0),
+        fours: count((d) => (d.runs_scored ?? 0) === 4),
+        sixes: count((d) => (d.runs_scored ?? 0) === 6),
+        wides: b.wides ?? 0,
+        noBalls: b.no_balls ?? 0,
+      };
+    });
+}
+
+function reportInnings(
+  inn: InningsRow,
+  heading: string,
+  team: Match["team1"] | Match["team2"],
+): ReportInnings {
+  const balls = inningsBalls(inn);
+  return {
+    id: inn.id,
+    heading,
+    team: teamRef(team),
+    score: `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`,
+    overs: oversFromBalls(balls),
+    runRate:
+      balls > 0 ? ((inn.total_runs ?? 0) / (balls / 6)).toFixed(2) : "0.00",
+    target:
+      inn.target_runs && inn.innings_number % 2 === 0 ? inn.target_runs : null,
+    inProgress: !inn.is_completed,
+    batters: reportBatters(inn),
+    extras: extrasOf(inn),
+    boundaries: boundariesOf(inn),
+    didNotBat: didNotBatOf(inn, team),
+    fallOfWickets: fallOfWicketsOf(inn),
+    partnerships: getInningsPartnerships(inn),
+    bowlers: reportBowlers(inn),
+  };
+}
+
+/**
+ * Every innings in order (the match's two, then any super overs) as the
+ * report and the match page's Scorecard tab show them.
+ */
+export function allInnings(match: Match): ReportInnings[] {
+  const teamOf = (inn: InningsRow) =>
+    inn.team_id === match.team2_id ? match.team2 : match.team1;
+  return (match.innings ?? [])
+    .slice()
+    .sort((a, b) => a.innings_number - b.innings_number)
+    .map((inn, i) =>
+      reportInnings(
+        inn,
+        i === 0 ? "1st innings" : i === 1 ? "2nd innings" : "Super over",
+        teamOf(inn),
+      ),
+    );
+}
+
+function phasesOf(match: Match): MatchReportModel["phases"] {
   const [inn1, inn2] = mainInningsInOrder(match);
-
-  if (!inn1) return "";
-
-  const inn1Overs = getInningsOverComparison(inn1);
-  const inn2Overs = inn2 ? getInningsOverComparison(inn2) : [];
-
-  if (inn1Overs.length === 0 && inn2Overs.length === 0) return "";
-
-  // Series follow the innings: the side that batted first, then the chase.
-  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
-  const team1Name = firstSide.short_name ?? firstSide.name;
-  const team2Name = secondSide.short_name ?? secondSide.name;
-
-  const totalOversMax = Math.max(
-    match.overs_per_innings || 20,
-    inn1Overs.length,
-    inn2Overs.length,
-    1,
-  );
-  const maxRunsRaw = Math.max(
-    inn1?.total_runs ?? 0,
-    inn2?.total_runs ?? 0,
-    ...inn1Overs.map((o) => o.cumulativeRuns),
-    ...inn2Overs.map((o) => o.cumulativeRuns),
-    40,
-  );
-  const maxRuns = Math.ceil(maxRunsRaw / 25) * 25;
-
-  const w = 550;
-  const h = 210;
-  const ml = 45;
-  const mr = 20;
-  const mt = 32;
-  const mb = 28;
-  const pw = w - ml - mr;
-  const ph = h - mt - mb;
-
-  const getX = (ov: number) => ml + (ov / totalOversMax) * pw;
-  const getY = (r: number) => mt + ph - (r / maxRuns) * ph;
-
-  // Gridlines (4 horizontal steps)
-  const gridLines: string[] = [];
-  for (let step = 0; step <= 4; step++) {
-    const val = Math.round((maxRuns / 4) * step);
-    const gy = getY(val);
-    gridLines.push(`
-      <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
-    `);
-  }
-
-  // X-axis over ticks
-  const xTicks: string[] = [];
-  const tickStep = totalOversMax <= 10 ? 2 : totalOversMax <= 20 ? 5 : 10;
-  for (let ov = tickStep; ov <= totalOversMax; ov += tickStep) {
-    const gx = getX(ov);
-    xTicks.push(`
-      <text x="${gx}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">Ov ${ov}</text>
-    `);
-  }
-
-  // Points for Team 1
-  const p1Points = [
-    { over: 0, runs: 0, wickets: 0 },
-    ...inn1Overs.map((o) => ({
-      over: o.overNumber,
-      runs: o.cumulativeRuns,
-      wickets: o.wickets,
-    })),
-  ];
-  const d1 = p1Points
-    .map(
-      (p, idx) =>
-        `${idx === 0 ? "M" : "L"} ${getX(p.over).toFixed(1)} ${getY(p.runs).toFixed(1)}`,
-    )
-    .join(" ");
-
-  // Wicket circles for Team 1
-  const w1Circles = p1Points
-    .filter((p) => p.wickets > 0)
-    .map(
-      (p) =>
-        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#1c6949" stroke="#ffffff" stroke-width="1.5" />`,
-    )
-    .join("");
-
-  // Points for Team 2
-  const p2Points =
-    inn2Overs.length > 0
-      ? [
-          { over: 0, runs: 0, wickets: 0 },
-          ...inn2Overs.map((o) => ({
-            over: o.overNumber,
-            runs: o.cumulativeRuns,
-            wickets: o.wickets,
-          })),
-        ]
-      : [];
-  const d2 =
-    p2Points.length > 0
-      ? p2Points
-          .map(
-            (p, idx) =>
-              `${idx === 0 ? "M" : "L"} ${getX(p.over).toFixed(1)} ${getY(p.runs).toFixed(1)}`,
-          )
-          .join(" ")
-      : "";
-  const w2Circles = p2Points
-    .filter((p) => p.wickets > 0)
-    .map(
-      (p) =>
-        `<circle cx="${getX(p.over).toFixed(1)}" cy="${getY(p.runs).toFixed(1)}" r="4" fill="#d97706" stroke="#ffffff" stroke-width="1.5" />`,
-    )
-    .join("");
-
-  const inn1ScoreStr = inn1 ? `${inn1.total_runs}/${inn1.total_wickets}` : "";
-  const inn2ScoreStr = inn2 ? `${inn2.total_runs}/${inn2.total_wickets}` : "";
-
-  return `
-    <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
-        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team1Name)}: ${inn1ScoreStr}</text>
-
-        ${
-          inn2Overs.length > 0
-            ? `
-        <rect x="${ml + 180}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 195}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(team2Name)}: ${inn2ScoreStr}</text>
-        `
-            : ""
-        }
-
-        <circle cx="${ml + 350}" cy="15" r="3.5" fill="#64748b" />
-        <text x="${ml + 360}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
-
-        ${gridLines.join("")}
-        ${xTicks.join("")}
-
-        <path d="${d1}" fill="none" stroke="#1c6949" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        ${d2 ? `<path d="${d2}" fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />` : ""}
-
-        ${w1Circles}
-        ${w2Circles}
-    </svg>`;
-}
-
-function generateManhattanChartSvg(match: Match): string {
-  const [inn1, inn2] = mainInningsInOrder(match);
-  const [{ team: firstSide }, { team: secondSide }] = sidesInBattingOrder(match);
-
-  if (!inn1) return "";
-
-  const inn1Overs = getInningsOverComparison(inn1);
-  const inn2Overs = inn2 ? getInningsOverComparison(inn2) : [];
-
-  if (inn1Overs.length === 0 && inn2Overs.length === 0) return "";
-
-  const totalOversMax = Math.max(inn1Overs.length, inn2Overs.length, 1);
-  const maxOverRunsRaw = Math.max(
-    12,
-    ...inn1Overs.map((o) => o.runs),
-    ...inn2Overs.map((o) => o.runs),
-  );
-  const maxOverRuns = Math.ceil(maxOverRunsRaw / 6) * 6;
-
-  const w = 550;
-  const h = 210;
-  const ml = 35;
-  const mr = 15;
-  const mt = 32;
-  const mb = 28;
-  const pw = w - ml - mr;
-  const ph = h - mt - mb;
-
-  const getY = (r: number) => mt + ph - (r / maxOverRuns) * ph;
-
-  // Gridlines (3 horizontal steps)
-  const gridLines: string[] = [];
-  for (let step = 0; step <= 3; step++) {
-    const val = Math.round((maxOverRuns / 3) * step);
-    const gy = getY(val);
-    gridLines.push(`
-      <line x1="${ml}" y1="${gy}" x2="${ml + pw}" y2="${gy}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
-      <text x="${ml - 6}" y="${gy + 3}" text-anchor="end" font-family="'Barlow Condensed', sans-serif" font-size="8.5" fill="#94a3b8">${val}</text>
-    `);
-  }
-
-  const slotW = pw / totalOversMax;
-  const barW = Math.max(3, (slotW - 4) / 2);
-
-  const bars: string[] = [];
-  const xLabels: string[] = [];
-  const tickStep = totalOversMax <= 10 ? 1 : totalOversMax <= 20 ? 2 : 5;
-
-  for (let i = 0; i < totalOversMax; i++) {
-    const ovNum = i + 1;
-    const o1 = inn1Overs[i];
-    const o2 = inn2Overs[i];
-
-    const slotLeft = ml + i * slotW;
-
-    if (o1 && (o1.runs > 0 || o1.wickets > 0)) {
-      const bh = (o1.runs / maxOverRuns) * ph;
-      const by = mt + ph - bh;
-      if (o1.runs > 0) {
-        bars.push(
-          `<rect x="${(slotLeft + 1).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#1c6949" />`,
-        );
-      }
-      if (o1.wickets > 0) {
-        bars.push(
-          `<circle cx="${(slotLeft + 1 + barW / 2).toFixed(1)}" cy="${(o1.runs > 0 ? Math.max(mt + 4, by - 5) : mt + ph - 4).toFixed(1)}" r="3" fill="#e11d48" />`,
-        );
-      }
-    }
-
-    if (o2 && (o2.runs > 0 || o2.wickets > 0)) {
-      const bh = (o2.runs / maxOverRuns) * ph;
-      const by = mt + ph - bh;
-      if (o2.runs > 0) {
-        bars.push(
-          `<rect x="${(slotLeft + barW + 2).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="#d97706" />`,
-        );
-      }
-      if (o2.wickets > 0) {
-        bars.push(
-          `<circle cx="${(slotLeft + barW + 2 + barW / 2).toFixed(1)}" cy="${(o2.runs > 0 ? Math.max(mt + 4, by - 5) : mt + ph - 4).toFixed(1)}" r="3" fill="#e11d48" />`,
-        );
-      }
-    }
-
-    if (ovNum % tickStep === 0 || ovNum === 1) {
-      xLabels.push(
-        `<text x="${(slotLeft + slotW / 2).toFixed(1)}" y="${mt + ph + 14}" text-anchor="middle" font-family="'Barlow Condensed', sans-serif" font-size="8" fill="#94a3b8">${ovNum}</text>`,
-      );
-    }
-  }
-
-  return `
-    <svg viewBox="0 0 ${w} ${h}" class="chart-svg" xmlns="http://www.w3.org/2000/svg">
-        <rect x="${ml}" y="10" width="10" height="10" rx="2" fill="#1c6949" />
-        <text x="${ml + 15}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(firstSide.short_name ?? firstSide.name)}</text>
-
-        <rect x="${ml + 150}" y="10" width="10" height="10" rx="2" fill="#d97706" />
-        <text x="${ml + 165}" y="19" font-family="'Barlow', sans-serif" font-size="10" font-weight="700" fill="#090d16">${esc(secondSide.short_name ?? secondSide.name)}</text>
-
-        <circle cx="${ml + 300}" cy="15" r="3" fill="#e11d48" />
-        <text x="${ml + 308}" y="19" font-family="'Barlow', sans-serif" font-size="9" fill="#64748b">Wicket</text>
-
-        ${gridLines.join("")}
-        ${xLabels.join("")}
-
-        ${bars.join("")}
-    </svg>`;
-}
-
-// ---------------------------------------------------------------------------
-// Official Verification & Sign-off Block
-// ---------------------------------------------------------------------------
-
-function renderSignoffBlock(match: Match): string {
-  // Names only when the match holds them; otherwise a blank line to write
-  // the name on (never the role repeated as a name).
-  const team1Cap = match.team1.captain?.full_name ?? null;
-  const team2Cap = match.team2.captain?.full_name ?? null;
-  const leadUmpire = match.umpire1_name ?? null;
-  const scorerRef = match.scorer_name ?? null;
-  const nameLine = (name: string | null) =>
-    name
-      ? `<div class="signoff-name font-medium">${esc(name)}</div>`
-      : `<div class="signoff-name signoff-name-blank" aria-label="Name"></div>`;
-
-  const matchIdShort = match.id.slice(0, 8).toUpperCase();
-  const dateStr = new Date().toISOString().slice(0, 10);
-
-  const team1Role = match.team1.short_name
-    ? `${match.team1.short_name} Captain`
-    : `${match.team1.name} Captain`;
-  const team2Role = match.team2.short_name
-    ? `${match.team2.short_name} Captain`
-    : `${match.team2.name} Captain`;
-
-  return `
-    <div class="official-signoff-card">
-        <div class="signoff-top-bar">
-            <div class="signoff-brand-seal">
-                <span class="seal-icon"><svg class="inline" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;"><polyline points="20 6 9 17 4 12"/></svg></span>
-                <span class="seal-title">Official Verification &amp; Match Sign-off</span>
-            </div>
-            <div class="signoff-auth-stamp">Certified Official Scoresheet &bull; Laws of Cricket</div>
-        </div>
-
-        <div class="signoff-grid">
-            <div class="signoff-box">
-                <div class="signoff-meta">
-                    <div class="signoff-role">${esc(team1Role)}</div>
-                    ${nameLine(team1Cap)}
-                </div>
-                <div class="signoff-sig-area">
-                    <div class="signoff-sig-line"></div>
-                    <div class="signoff-sig-label">Signature &amp; Date</div>
-                </div>
-            </div>
-            <div class="signoff-box">
-                <div class="signoff-meta">
-                    <div class="signoff-role">${esc(team2Role)}</div>
-                    ${nameLine(team2Cap)}
-                </div>
-                <div class="signoff-sig-area">
-                    <div class="signoff-sig-line"></div>
-                    <div class="signoff-sig-label">Signature &amp; Date</div>
-                </div>
-            </div>
-            <div class="signoff-box">
-                <div class="signoff-meta">
-                    <div class="signoff-role">Lead Match Umpire</div>
-                    ${nameLine(leadUmpire)}
-                </div>
-                <div class="signoff-sig-area">
-                    <div class="signoff-sig-line"></div>
-                    <div class="signoff-sig-label">Signature &amp; Date</div>
-                </div>
-            </div>
-            <div class="signoff-box">
-                <div class="signoff-meta">
-                    <div class="signoff-role">Official Scorer / Referee</div>
-                    ${nameLine(scorerRef)}
-                </div>
-                <div class="signoff-sig-area">
-                    <div class="signoff-sig-line"></div>
-                    <div class="signoff-sig-label">Signature &amp; Date</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="signoff-footer">
-            <span>By signing above, both teams and officiating umpires ratify this scorecard as the binding and final record of the fixture.</span>
-            <span class="font-mono">Match ID: #${matchIdShort} &bull; Generated: ${dateStr}</span>
-        </div>
-    </div>`;
-}
-
-function buildOverComparisonSection(match: Match): string {
-  const inn1 = match.innings?.find((i) => i.innings_number === 1) ?? match.innings?.[0];
-  const inn2 = match.innings?.find((i) => i.innings_number === 2) ?? match.innings?.[1];
-
-  if (!inn1) return "";
-
-  const inn1Overs = getInningsOverComparison(inn1);
-  const inn2Overs = inn2 ? getInningsOverComparison(inn2) : [];
-
-  if (inn1Overs.length === 0 && inn2Overs.length === 0) return "";
-
-  const maxOvers = Math.max(inn1Overs.length, inn2Overs.length);
-  const team1Name = inn1.team_id === match.team1_id ? match.team1.name : match.team2.name;
-  const team2Name = inn2 ? (inn2.team_id === match.team1_id ? match.team1.name : match.team2.name) : match.team2.name;
-
-  const rows: string[] = [];
-  for (let i = 0; i < maxOvers; i++) {
-    const o1 = inn1Overs[i];
-    const o2 = inn2Overs[i];
-    rows.push(`
-      <div class="comparison-row">
-          <div class="comparison-col">${renderOverCard(o1)}</div>
-          <div class="comparison-col">${renderOverCard(o2)}</div>
-      </div>
-    `);
-  }
-
-  return `
-    <div class="over-comparison-block">
-        <div class="section-badge-header">
-            <div class="section-title-wrap">
-                <h2 class="section-page-title">Over Comparison &amp; Visual Analytics</h2>
-                <span class="innings-team-pill">Delivery Timeline Analysis</span>
-            </div>
-        </div>
-
-        <!-- Charts Duo Grid -->
-        <div class="charts-duo-grid">
-            <div class="chart-panel">
-                <div class="chart-panel-title">Worm Chart &bull; Cumulative Run Progression</div>
-                ${generateWormChartSvg(match)}
-            </div>
-            <div class="chart-panel">
-                <div class="chart-panel-title">Manhattan Chart &bull; Over-by-Over Runs &amp; Wickets</div>
-                ${generateManhattanChartSvg(match)}
-            </div>
-        </div>
-
-        <div class="over-comparison-headers">
-            <div class="comp-head comp-head-left">
-                <span class="comp-team-label">${esc(team1Name)}</span>
-            </div>
-            <div class="comp-head comp-head-right">
-                <span class="comp-team-label">${esc(team2Name)}</span>
-            </div>
-        </div>
-
-        <div class="over-comparison-grid">
-            ${rows.join("")}
-        </div>
-    </div>`;
-}
-
-// ---------------------------------------------------------------------------
-// Main HTML Builder
-// ---------------------------------------------------------------------------
-
-export async function buildMatchReportHtml(
-  match: Match,
-  matchUrl: string,
-): Promise<string> {
-  // A 4-module quiet zone (the QR standard): with less, phone cameras
-  // often fail to read it from paper.
-  const qrDataUrl = await QRCode.toDataURL(matchUrl, {
-    margin: 4,
-    width: 260,
-    errorCorrectionLevel: "M",
-    color: { dark: "#113227", light: "#ffffff" },
+  const maxOvers = match.overs_per_innings || 20;
+  const bpo = match.balls_per_over || 6;
+  const p1 = getPhaseStatsForInnings(inn1, maxOvers, bpo);
+  const p2 = getPhaseStatsForInnings(inn2, maxOvers, bpo);
+  if (p1.length === 0) return null;
+  const [{ team: first }, { team: second }] = sidesInBattingOrder(match);
+  const fig = (p: PhaseStat) => ({
+    score: `${p.runs}/${p.wickets}`,
+    runRate: p.rr,
   });
+  return {
+    teams: [tagOf(first), tagOf(second)],
+    rows: p1.map((a, i) => {
+      const b = p2[i];
+      return {
+        name: a.phaseName,
+        overs: a.oversLabel,
+        sides: [fig(a), b ? fig(b) : null],
+        ahead: !b
+          ? null
+          : a.runs > b.runs + 4
+            ? 0
+            : b.runs > a.runs + 4
+              ? 1
+              : null,
+      };
+    }),
+  };
+}
 
+function chartsOf(match: Match): MatchReportModel["charts"] {
+  const sides = mainInningsInOrder(match)
+    .filter((inn): inn is InningsRow => Boolean(inn))
+    .map((inn) => {
+      const team = inn.team_id === match.team2_id ? match.team2 : match.team1;
+      return {
+        key: inn.id,
+        label: tagOf(team),
+        score: `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`,
+        overs: getInningsOverComparison(inn).map((o) => ({
+          over: o.overNumber,
+          runs: o.runs,
+          wickets: o.wickets,
+          total: o.cumulativeRuns,
+          totalWickets: o.cumulativeWickets,
+        })),
+      };
+    })
+    .filter((s) => s.overs.length > 0);
+  if (sides.length === 0) return null;
+  return {
+    maxOvers: Math.max(
+      match.overs_per_innings || 20,
+      ...sides.map((s) => s.overs.length),
+      1,
+    ),
+    sides,
+  };
+}
+
+function oversOf(match: Match): MatchReportModel["overs"] {
+  const inn1 =
+    match.innings?.find((i) => i.innings_number === 1) ?? match.innings?.[0];
+  const inn2 =
+    match.innings?.find((i) => i.innings_number === 2) ?? match.innings?.[1];
+  if (!inn1) return null;
+  const o1 = getInningsOverComparison(inn1);
+  const o2 = inn2 ? getInningsOverComparison(inn2) : [];
+  if (o1.length === 0 && o2.length === 0) return null;
+  const nameOf = (inn: InningsRow | undefined, fallback: Match["team1"]) =>
+    inn
+      ? inn.team_id === match.team1_id
+        ? match.team1.name
+        : match.team2.name
+      : fallback.name;
+  return {
+    teams: [nameOf(inn1, match.team1), nameOf(inn2, match.team2)],
+    rows: Array.from({ length: Math.max(o1.length, o2.length) }, (_, i) => [
+      o1[i] ?? null,
+      o2[i] ?? null,
+    ]),
+  };
+}
+
+function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
   const toss = match.toss_winner_team_id
     ? `${match.toss_winner_team_id === match.team2.id ? match.team2.name : match.team1.name} won the toss and chose to ${match.toss_decision === "bowl" ? "bowl" : "bat"}`
     : null;
-
-  const formattedDate = match.scheduled_at
-    ? new Date(match.scheduled_at).toLocaleString("en-GB", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-    : "—";
-
-  // Batting order: the side that batted first, then the chase.
-  const [
-    { team: firstTeam, innings: inn1 },
-    { team: secondTeam, innings: inn2 },
-  ] = sidesInBattingOrder(match);
-  const pdfFileName = `${firstTeam.name} vs ${secondTeam.name} – match report.pdf`
-    .replace(/[\\/:*?"<>|]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const formatTeamHeadlineScore = (inn: InningsRow | undefined) => {
-    if (!inn) return `<span class="headline-score-empty">Yet to bat</span>`;
-    const runs = inn.total_runs ?? 0;
-    const wkts = inn.total_wickets ?? 0;
-    const balls = inningsBalls(inn);
-    const overs = oversFromBalls(balls);
-    return `<span class="headline-score font-mono">${runs}/${wkts}</span> <span class="headline-overs">(${overs} ov)</span>`;
-  };
-
-  // Top performers summary
-  const renderTeamPerformers = (
-    battingTeam: Match["team1"],
-    bowlingTeam: Match["team2"],
-    bInnings: InningsRow | undefined,
-  ) => {
-    const tBatters = topBatters(bInnings).slice(0, 3);
-    const tBowlers = topBowlers(match, bowlingTeam.id).slice(0, 3);
-
-    const bRuns = bInnings?.total_runs ?? 0;
-    const bWkts = bInnings?.total_wickets ?? 0;
-    const bBalls = inningsBalls(bInnings);
-    const bScore = bInnings
-      ? `${bRuns}/${bWkts} (${oversFromBalls(bBalls)} ov)`
-      : "Yet to bat";
-
-    const batterLines = tBatters.length
-      ? tBatters
-          .map(
-            (b) => `
-              <div class="perf-item">
-                  <span class="perf-player font-medium">${esc(b.user?.full_name ?? "—")}</span>
-                  <span class="perf-metric font-mono font-semibold">${b.runs_scored ?? 0} (${b.balls_faced ?? 0})</span>
-              </div>`,
-          )
-          .join("")
-      : `<div class="perf-empty">No batting data</div>`;
-
-    const bowlerLines = tBowlers.length
-      ? tBowlers
-          .map(
-            (b) => `
-              <div class="perf-item">
-                  <span class="perf-player font-medium">${esc(b.user?.full_name ?? "—")}</span>
-                  <span class="perf-metric font-mono font-semibold">${b.wickets_taken ?? 0}/${b.runs_conceded ?? 0}</span>
-              </div>`,
-          )
-          .join("")
-      : `<div class="perf-empty">No bowling data</div>`;
-
-    return `
-      <div class="summary-team-block">
-          <div class="summary-team-bar">
-              <span class="summary-team-title">${esc(battingTeam.name)}</span>
-              <span class="summary-team-score font-mono">${bScore}</span>
-          </div>
-          <div class="summary-players-grid">
-              <div class="summary-col-batters">${batterLines}</div>
-              <div class="summary-col-bowlers">${bowlerLines}</div>
-          </div>
-      </div>`;
-  };
-
-  // POTM
-  let potmHtml = "";
-  if (match.player_of_the_match) {
-    const potmId = match.player_of_the_match.id;
-    const potmBat = (match.innings ?? [])
-      .flatMap((i) => i.batting_performances ?? [])
-      .find((b) => b.user_id === potmId);
-    const potmBowl = (match.innings ?? [])
-      .flatMap((i) => i.bowling_performances ?? [])
-      .find((b) => b.user_id === potmId);
-
-    const stats: string[] = [];
-    if (potmBat && (potmBat.runs_scored > 0 || potmBat.balls_faced > 0)) {
-      stats.push(
-        `${potmBat.runs_scored} (${potmBat.balls_faced}b, ${potmBat.fours}x4, ${potmBat.sixes}x6)`,
-      );
-    }
-    if (
-      potmBowl &&
-      ((potmBowl.wickets_taken ?? 0) > 0 ||
-        (potmBowl.balls_bowled ?? 0) > 0 ||
-        (potmBowl.overs_bowled ?? 0) > 0)
-    ) {
-      stats.push(
-        `${potmBowl.wickets_taken}/${potmBowl.runs_conceded} (${formatBowlerOvers(potmBowl)} ov)`,
-      );
-    }
-
-    potmHtml = `
-      <div class="potm-callout">
-          <div class="potm-header-label">Player Of The Match</div>
-          <div class="potm-hero-name">${esc(match.player_of_the_match.full_name)}</div>
-          ${stats.length > 0 ? `<div class="potm-hero-stats">${stats.join(" &bull; ")}</div>` : ""}
-      </div>`;
-  }
-
-  // Rules List
-  const rulesList: string[] = [];
-  if (match.wickets_per_innings && match.wickets_per_innings < 10) {
-    rulesList.push(`${match.wickets_per_innings} Wickets Cap`);
-  }
-  if (match.last_man_stands) rulesList.push("Last Man Stands");
-  if (match.golden_ball) rulesList.push("Golden Ball Tiebreaker");
-
-  const sortedInnings = (match.innings ?? [])
-    .slice()
-    .sort((a, b) => a.innings_number - b.innings_number);
-  const inn1Obj = sortedInnings[0];
-  const inn2Obj = sortedInnings[1];
-  const inn1Team = inn1Obj
-    ? inn1Obj.team_id === match.team1_id
-      ? match.team1
-      : match.team2
-    : match.team1;
-  const inn2Team = inn2Obj
-    ? inn2Obj.team_id === match.team1_id
-      ? match.team1
-      : match.team2
-    : match.team2;
-
-  const innings1Html = inn1Obj ? inningsSection(inn1Obj, 0, inn1Team) : "";
-  const innings2Html = inn2Obj ? inningsSection(inn2Obj, 1, inn2Team) : "";
-  // Super overs (innings 3+), after the match's two innings.
-  const superOversHtml = sortedInnings
-    .slice(2)
-    .map((inn) =>
-      inningsSection(
-        inn,
-        inn.innings_number - 1,
-        inn.team_id === match.team2_id ? match.team2 : match.team1,
-      ),
-    )
-    .join("");
-
-  const phaseHtml = renderPhaseAnalysis(match);
-  const impactHtml = renderImpactLeaderboard(match);
-  const hasPhase = Boolean(phaseHtml);
-  const hasImpact = Boolean(impactHtml);
-  const narrativeGridHtml =
-    hasPhase || hasImpact
-      ? `<div class="tactical-narrative-grid ${hasPhase && hasImpact ? "duo-col" : "single-col"}">${phaseHtml}${impactHtml}</div>`
-      : "";
-
-  const umpiresStr = [
+  const umpires = [
     match.umpire1_name,
     match.umpire2_name,
     match.third_umpire_name,
   ]
     .filter(Boolean)
     .join(", ");
-  // Only what the match holds: a missing fact gets no row, not a filler.
-  const infoRows = (
-    [
-      ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
-      ["Match Title", match.title],
-      ["Match Format", match.match_format],
-      ["Overs", `${match.overs_per_innings} ov per side`],
-      ["Venue", match.venue ?? null],
-      ["Date &amp; Time", match.scheduled_at ? formattedDate : null],
-      ["Toss", toss],
-      ["Match Umpires", umpiresStr || null],
-      ["Scorer", match.scorer_name ?? null],
-      ["Ball Type", match.ball_type ?? null],
-    ] as Array<[string, string | null | undefined]>
-  )
-    .filter(([, v]) => Boolean(v))
-    .map(
-      ([label, v]) => `<div class="info-row">
-                        <span class="info-label">${label}</span>
-                        <span class="info-val">${esc(v)}</span>
-                    </div>`,
-    )
-    .concat(
-      `<div class="info-row">
-                        <span class="info-label">Match ID</span>
-                        <span class="info-val font-mono">#${esc(match.id.slice(0, 8))}</span>
-                    </div>`,
-    )
-    .join("\n                    ");
-  const conditionsStr = [match.pitch_conditions, match.weather_conditions]
+  const conditions = [match.pitch_conditions, match.weather_conditions]
     .filter(Boolean)
-    .join(" &bull; ");
+    .join(" · ");
+  const rules = [
+    match.wickets_per_innings && match.wickets_per_innings < 10
+      ? `${match.wickets_per_innings} wickets a side`
+      : null,
+    match.last_man_stands ? "Last man stands" : null,
+    match.golden_ball ? "Golden ball tiebreak" : null,
+  ].filter(Boolean);
+  // Only what the match holds: a missing fact gets no row, not a filler.
+  const rows: [string, string | null | undefined, boolean?][] = [
+    ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
+    ["Match", match.title],
+    ["Format", match.match_format],
+    ["Overs", `${match.overs_per_innings} overs a side`],
+    ["Venue", match.venue ?? null],
+    ["Date and time", date],
+    ["Toss", toss],
+    ["Umpires", umpires || null],
+    ["Scorer", match.scorer_name ?? null],
+    ["Ball", match.ball_type ?? null],
+    ["Pitch and weather", conditions || null, true],
+    ["Special rules", rules.join(", ") || null, true],
+    ["Match ID", `#${match.id.slice(0, 8)}`],
+  ];
+  return rows
+    .filter((r): r is [string, string, boolean?] => Boolean(r[1]))
+    .map(([label, value, wide]) => ({ label, value, wide }));
+}
 
-  const overComparisonHtml = buildOverComparisonSection(match);
+function signoffOf(match: Match): MatchReportModel["signoff"] {
+  // Names only when the match holds them; otherwise a blank line to write
+  // the name on (never the role repeated as a name).
+  return [
+    {
+      role: `${match.team1.short_name ?? match.team1.name} captain`,
+      name: match.team1.captain?.full_name ?? null,
+    },
+    {
+      role: `${match.team2.short_name ?? match.team2.name} captain`,
+      name: match.team2.captain?.full_name ?? null,
+    },
+    { role: "Lead match umpire", name: match.umpire1_name ?? null },
+    { role: "Official scorer / referee", name: match.scorer_name ?? null },
+  ];
+}
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${esc(match.title)} — Official Match Report</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-<style>
-    @page {
-        size: A4 portrait;
-        margin: 8mm 10mm 10mm 10mm;
-    }
-
-    * {
-        box-sizing: border-box;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-
-    :root {
-        --brand-teal: #1c6949; /* pitch green, the app's primary */
-        --brand-dark: #113227; /* scoreboard green, the brand mark's tile */
-        --brand-light: #f4fbf8;
-        --brand-ruby: #ba2626;
-        --slate-900: #090d16;
-        --slate-800: #1e293b;
-        --slate-700: #334155;
-        --slate-600: #475569;
-        --slate-400: #94a3b8;
-        --slate-200: #e2e8f0;
-        --slate-100: #f1f5f9;
-        --slate-50: #f8fafc;
-    }
-
-    body {
-        font-family: 'Barlow', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        color: var(--slate-900);
-        background: #f1f5f9;
-        margin: 0;
-        padding: 0;
-        font-size: 11.5px;
-        line-height: 1.45;
-        -webkit-font-smoothing: antialiased;
-    }
-
-    /* Text & Typography Utilities */
-    .text-left { text-align: left !important; }
-    .text-center { text-align: center !important; }
-    .text-right { text-align: right !important; }
-    .font-mono { font-family: 'Barlow Condensed', sans-serif !important; font-variant-numeric: tabular-nums; }
-    .font-medium { font-weight: 500 !important; }
-    .font-semibold { font-weight: 600 !important; }
-    .font-bold { font-weight: 700 !important; }
-    .font-black { font-weight: 800 !important; }
-    .text-xs { font-size: 10px !important; }
-    .py-3 { padding-top: 8px !important; padding-bottom: 8px !important; }
-    .muted { color: var(--slate-400) !important; font-style: italic; }
-
-    /* Screen Action Bar */
-    #screen-toolbar {
-        position: sticky;
-        top: 0;
-        z-index: 999;
-        background: #090d16;
-        color: #f8fafc;
-        padding: 12px 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-        width: 100%;
-        box-sizing: border-box;
-    }
-    #screen-toolbar .toolbar-info {
-        font-family: 'Barlow', sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        color: #e2e8f0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    #screen-toolbar .toolbar-actions {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-    }
-    #screen-toolbar button {
-        cursor: pointer;
-        padding: 8px 18px;
-        font-size: 12px;
-        font-weight: 700;
-        font-family: 'Barlow', sans-serif;
-        border-radius: 8px;
-        border: none;
-        transition: transform 0.15s, opacity 0.15s;
-    }
-    #screen-toolbar .btn-print {
-        background: #1c6949;
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(28, 105, 73, 0.3);
-    }
-    #screen-toolbar .btn-close,
-    #screen-toolbar .btn-share {
-        background: #1e293b;
-        color: #f1f5f9;
-        border: 1px solid #334155;
-    }
-    #screen-toolbar button:disabled {
-        opacity: 0.6;
-        cursor: progress;
-        transform: none;
-    }
-    #screen-toolbar button[hidden] { display: none; }
-    #screen-toolbar button:hover {
-        opacity: 0.92;
-        transform: translateY(-1px);
-    }
-
-    .table-responsive {
-        width: 100%;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    @media print {
-        #screen-toolbar { display: none !important; }
-        .screen-hide-when-multi { display: none !important; }
-        body {
-            background: #ffffff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        @page {
-            size: A4 portrait;
-            margin: 8mm 10mm 10mm 10mm;
-        }
-        .page-break {
-            page-break-before: always !important;
-            break-before: page !important;
-        }
-        .report-page {
-            box-shadow: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: auto !important;
-            border-radius: 0 !important;
-        }
-        .match-duel-hero,
-        .tactical-narrative-grid,
-        .match-info-card,
-        .innings,
-        .partnerships-wrap,
-        .charts-duo-grid,
-        .official-signoff-card,
-        .report-footer,
-        .bowling-wrap {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        .section-title,
-        .section-badge-header,
-        .report-main-title {
-            break-after: avoid !important;
-            page-break-after: avoid !important;
-        }
-    }
-
-    /* Page Canvas Frame */
-    .report-page {
-        width: 100%;
-        max-width: 840px;
-        margin: 20px auto;
-        background: #ffffff;
-        padding: 24px 28px 20px;
-        border-radius: 4px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 1100px;
-    }
-
-    .page-inner {
-        flex: 1 0 auto;
-    }
-
-    /* Headings & Brand Mark */
-    .report-top-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 2px solid var(--slate-100);
-        padding-bottom: 12px;
-        margin-bottom: 16px;
-    }
-    .brand-mark {
-        font-family: 'Barlow', sans-serif;
-        font-size: 14px;
-        font-weight: 800;
-        color: var(--brand-dark);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .brand-tile {
-        width: 26px;
-        height: 26px;
-        flex-shrink: 0;
-        display: block;
-    }
-    /* The app's wordmark: condensed, bold; its full stop is the red ball. */
-    .brand-wordmark {
-        font-family: 'Barlow Condensed', sans-serif;
-        font-size: 22px;
-        font-weight: 700;
-        line-height: 1;
-        color: var(--brand-dark);
-        display: inline-flex;
-        align-items: baseline;
-        gap: 3px;
-    }
-    .brand-ball {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--brand-ruby);
-        display: inline-block;
-    }
-    .toolbar-brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .toolbar-brand .brand-tile {
-        width: 20px;
-        height: 20px;
-    }
-    .brand-mark span.badge-sub {
-        font-size: 10.5px;
-        font-weight: 600;
-        color: var(--slate-600);
-        letter-spacing: normal;
-        text-transform: none;
-    }
-    .org-badges {
-        display: flex;
-        gap: 6px;
-    }
-    .badge {
-        font-size: 10px;
-        font-weight: 700;
-        padding: 3px 9px;
-        border-radius: 6px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .badge-tournament {
-        background: #fef3c7;
-        color: #92400e;
-        border: 1px solid #fde68a;
-    }
-    .badge-club {
-        background: #e0f2fe;
-        color: #0369a1;
-        border: 1px solid #bae6fd;
-    }
-
-    h1.report-main-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 26px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        margin: 0 0 16px;
-        color: var(--brand-teal);
-    }
-
-    /* Top Head-to-Head Duel Card */
-    .match-duel-hero {
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 16px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 16px 20px;
-        margin-bottom: 20px;
-    }
-    .duel-teams-col {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        justify-content: center;
-    }
-    .duel-team-item {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .team-avatar-crest {
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        background: var(--brand-dark);
-        color: #ffffff;
-        font-family: 'Barlow', sans-serif;
-        font-size: 14px;
-        font-weight: 800;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid #ffffff;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-    .team-avatar-crest img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-    .duel-team-info {
-        display: flex;
-        flex-direction: column;
-    }
-    .duel-team-name {
-        font-family: 'Barlow', sans-serif;
-        font-size: 15px;
-        font-weight: 800;
-        color: var(--slate-900);
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-    }
-    .headline-score {
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--slate-800);
-    }
-    .headline-overs {
-        font-size: 11px;
-        color: var(--slate-600);
-    }
-
-    .duel-outcome-col {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 8px;
-        border-left: 1px dashed #cbd5e1;
-        padding-left: 18px;
-    }
-    .result-pill-box {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .result-pill-label {
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--brand-teal);
-    }
-    .result-pill-desc {
-        font-family: 'Barlow', sans-serif;
-        font-size: 14px;
-        font-weight: 800;
-        color: var(--slate-900);
-    }
-
-    .potm-callout {
-        display: flex;
-        flex-direction: column;
-        gap: 1px;
-        margin-top: 4px;
-        padding-top: 6px;
-        border-top: 1px solid #e2e8f0;
-    }
-    .potm-header-label {
-        font-size: 9.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #d97706;
-    }
-    .potm-hero-name {
-        font-family: 'Barlow', sans-serif;
-        font-size: 12.5px;
-        font-weight: 700;
-        color: var(--slate-900);
-    }
-    .potm-hero-stats {
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-        font-size: 10px;
-        color: var(--slate-600);
-    }
-
-    /* Section Headers */
-    .section-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 14px;
-        font-weight: 800;
-        letter-spacing: -0.01em;
-        color: var(--brand-teal);
-        margin: 0 0 10px;
-        text-transform: capitalize;
-    }
-
-    /* Match Information Card */
-    .match-info-card {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 20px;
-    }
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        column-gap: 28px;
-        row-gap: 8px;
-    }
-    .info-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 12px;
-        font-size: 11px;
-        border-bottom: 1px solid #edf2f7;
-        padding-bottom: 4px;
-        min-width: 0;
-    }
-    .info-label {
-        color: var(--slate-600);
-        font-weight: 500;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-    .info-val {
-        color: var(--slate-900);
-        font-weight: 700;
-        text-align: right;
-        word-break: break-word;
-        min-width: 0;
-    }
-
-    /* Match Summary (Top Performers by Team) */
-    .summary-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 14px 18px;
-        margin-bottom: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    }
-    .summary-team-block {
-        margin-bottom: 14px;
-    }
-    .summary-team-block:last-child {
-        margin-bottom: 0;
-        border-top: 1px solid #f1f5f9;
-        padding-top: 12px;
-    }
-    .summary-team-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-    }
-    .summary-team-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 13px;
-        font-weight: 800;
-        color: var(--brand-teal);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }
-    .summary-team-score {
-        font-size: 12.5px;
-        font-weight: 700;
-        color: var(--slate-800);
-    }
-    .summary-players-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-    }
-    .perf-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 3px 0;
-        font-size: 11px;
-    }
-    .perf-player {
-        color: var(--slate-800);
-    }
-    .perf-metric {
-        color: var(--brand-teal);
-    }
-    .perf-empty {
-        font-size: 10.5px;
-        color: var(--slate-400);
-        padding: 4px 0;
-    }
-
-    /* Innings Scorecard & Tables */
-    .section-badge-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        border-bottom: 2px solid var(--brand-teal);
-        padding-bottom: 8px;
-    }
-    .section-title-wrap {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .section-page-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 18px;
-        font-weight: 800;
-        color: var(--brand-teal);
-        margin: 0;
-    }
-    .innings-team-pill {
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--slate-700);
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        padding: 2px 8px;
-        border-radius: 6px;
-        text-transform: uppercase;
-    }
-    .innings-score-pill {
-        display: flex;
-        align-items: baseline;
-        gap: 6px;
-    }
-    .score-main {
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-        font-size: 17px;
-        font-weight: 800;
-        color: var(--brand-teal);
-    }
-    .score-details {
-        font-size: 11px;
-        color: var(--slate-600);
-    }
-
-    .innings, .card-shell {
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        overflow: hidden;
-        background: #ffffff;
-        margin-bottom: 16px;
-    }
-
-    .table-subheading {
-        font-family: 'Barlow', sans-serif;
-        font-size: 10px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: var(--slate-600);
-        background: #f8fafc;
-        padding: 6px 12px;
-        border-bottom: 1px solid #e2e8f0;
-    }
-
-    .score-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 11px;
-    }
-    .score-table th {
-        background: #fafafa;
-        color: var(--slate-600);
-        font-size: 9.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        padding: 6px 10px;
-        border-bottom: 1.5px solid #cbd5e1;
-        text-align: right;
-    }
-    .score-table th.name { text-align: left; }
-    .score-table td {
-        padding: 5px 10px;
-        border-bottom: 1px solid #f1f5f9;
-    }
-    .score-table td.name { text-align: left; }
-    .score-table td.num {
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-    }
-    .score-table tbody tr:nth-child(even) {
-        background: #fbfcfe;
-    }
-
-    .player-name {
-        font-family: 'Barlow', sans-serif;
-        font-weight: 600;
-        color: var(--slate-900);
-        font-size: 11.5px;
-    }
-    .howout {
-        color: var(--slate-600);
-        font-size: 10px;
-        font-style: italic;
-    }
-
-    .milestone-badge {
-        display: inline-block;
-        font-weight: 800;
-        font-size: 10.5px;
-        padding: 1px 5px;
-        border-radius: 4px;
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-    }
-    .milestone-badge.fifty {
-        background: #dcfce7;
-        color: #15803d;
-        border: 1px solid #bbf7d0;
-    }
-    .milestone-badge.century {
-        background: #fef3c7;
-        color: #b45309;
-        border: 1px solid #fde68a;
-    }
-    .milestone-badge.three-wkt {
-        background: #f3e8ff;
-        color: #7e22ce;
-        border: 1px solid #e9d5ff;
-    }
-
-    .extras-row td {
-        background: #f8fafc;
-        border-top: 1px solid #e2e8f0;
-        color: var(--slate-700);
-        font-size: 10.5px;
-    }
-    .totals-row td {
-        background: #f1f5f9;
-        font-weight: 700;
-        border-top: 1.5px solid #cbd5e1;
-        border-bottom: none;
-        padding: 6px 10px;
-    }
-
-    .dnb-strip {
-        font-size: 10.5px;
-        color: var(--slate-600);
-        padding: 6px 12px;
-        background: #fdfdfd;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .fow {
-        padding: 8px 12px;
-        background: #f8fafc;
-        border-top: 1px solid #f1f5f9;
-        font-size: 10.5px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        align-items: baseline;
-    }
-    .fow-label {
-        font-family: 'Barlow', sans-serif;
-        font-weight: 700;
-        color: var(--slate-700);
-    }
-    .fow-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    .fow-item {
-        color: var(--slate-800);
-    }
-    .fow-sub {
-        color: var(--slate-600);
-    }
-
-    /* Over Comparison (Page 4) */
-    .over-comparison-headers {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 12px;
-    }
-    .comp-head {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 6px 12px;
-        text-align: center;
-    }
-    .comp-team-label {
-        font-family: 'Barlow', sans-serif;
-        font-size: 12px;
-        font-weight: 800;
-        color: var(--brand-teal);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .over-comparison-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .comparison-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-    }
-    .over-card {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 8px 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-    .over-card.empty {
-        background: transparent;
-        border: 1px dashed #e2e8f0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 70px;
-    }
-    .over-empty-text {
-        color: var(--slate-400);
-        font-size: 14px;
-    }
-    .over-balls-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        align-items: center;
-    }
-    .ball-pill {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 22px;
-        height: 20px;
-        padding: 0 4px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 700;
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-    }
-    .ball-dot { background: #f1f5f9; color: var(--slate-600); border: 1px solid #e2e8f0; }
-    .ball-single { background: #ffffff; color: var(--slate-900); border: 1px solid #cbd5e1; }
-    .ball-four { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 800; }
-    .ball-six { background: #faf5ff; color: #7c3aed; border: 1px solid #ddd6fe; font-weight: 800; }
-    .ball-wicket { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 800; }
-    .ball-extra { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
-
-    .over-details-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 10px;
-    }
-    .over-crease-batter {
-        color: var(--slate-800);
-        font-weight: 500;
-    }
-    .over-bowler-col {
-        text-align: right;
-    }
-    .over-bowler-name {
-        font-weight: 600;
-        color: var(--slate-900);
-    }
-    .over-bowler-figs {
-        color: var(--slate-600);
-        font-size: 9.5px;
-    }
-    .over-footer-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 9.5px;
-        font-weight: 700;
-        color: var(--slate-600);
-        border-top: 1px solid #e2e8f0;
-        padding-top: 4px;
-        margin-top: 2px;
-    }
-    .over-running-score {
-        color: var(--brand-teal);
-        font-weight: 800;
-    }
-
-    /* Verification & Footer */
-    .report-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 2px solid var(--slate-100);
-        margin-top: 24px;
-        padding-top: 12px;
-    }
-    .footer-left-meta {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-    }
-    .footer-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--brand-teal);
-    }
-    .footer-url {
-        font-size: 10.5px;
-        color: var(--slate-600);
-        font-family: 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums;
-    }
-    .footer-stamp {
-        font-size: 9px;
-        color: var(--slate-400);
-    }
-    .footer-qr-block {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .footer-qr-caption {
-        font-size: 9.5px;
-        color: var(--slate-600);
-        max-width: 120px;
-        text-align: right;
-        line-height: 1.3;
-    }
-    .footer-qr-block img {
-        width: 72px;
-        height: 72px;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        padding: 2px;
-    }
-
-    .mini-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 1px solid #e2e8f0;
-        padding-top: 8px;
-        margin-top: 16px;
-        font-size: 9.5px;
-        color: var(--slate-400);
-    }
-
-    /* Partnerships Grid */
-    .partnerships-wrap {
-        margin: 12px 0 14px;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        overflow: hidden;
-        background: #ffffff;
-    }
-    .partnerships-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        padding: 8px 10px;
-        background: #fcfdfe;
-    }
-    .partnership-card {
-        background: #ffffff;
-        border: 1px solid #edf2f7;
-        border-radius: 8px;
-        padding: 6px 10px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-    .part-top-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
-    }
-    .part-wkt-badge {
-        font-family: 'Barlow', sans-serif;
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--brand-teal);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .part-runs-score {
-        font-size: 11px;
-        color: var(--slate-700);
-        font-variant-numeric: tabular-nums;
-    }
-    .part-bar-track {
-        display: flex;
-        height: 6px;
-        border-radius: 3px;
-        overflow: hidden;
-        background: #f1f5f9;
-        margin-bottom: 5px;
-    }
-    .part-bar-seg.seg-1 {
-        background: #1c6949;
-    }
-    .part-bar-seg.seg-2 {
-        background: #d97706;
-    }
-    .part-batters-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 10.5px;
-        gap: 8px;
-    }
-    .part-bat-col {
-        display: flex;
-        align-items: baseline;
-        gap: 5px;
-        min-width: 0;
-        flex: 1;
-    }
-    .part-bat-col.left {
-        text-align: left;
-        justify-content: flex-start;
-    }
-    .part-bat-col.right {
-        text-align: right;
-        justify-content: flex-end;
-    }
-    .part-bat-name {
-        color: var(--slate-900);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        min-width: 0;
-    }
-    .part-bat-runs {
-        color: var(--slate-600);
-        flex-shrink: 0;
-        font-variant-numeric: tabular-nums;
-    }
-
-    /* Tactical Narrative Grid: Phase Analysis & Impact */
-    .tactical-narrative-grid {
-        display: grid;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-    .tactical-narrative-grid.duo-col {
-        grid-template-columns: 1fr 1fr;
-    }
-    .tactical-narrative-grid.single-col {
-        grid-template-columns: 1fr;
-    }
-    .phase-analysis-card, .impact-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    }
-    .phase-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 11px;
-    }
-    .phase-table th {
-        font-family: 'Barlow', sans-serif;
-        font-size: 9.5px;
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--slate-600);
-        padding: 6px 8px;
-        border-bottom: 1.5px solid #e2e8f0;
-    }
-    .phase-table td {
-        padding: 7px 8px;
-        border-bottom: 1px solid #f1f5f9;
-        vertical-align: middle;
-    }
-    .phase-name {
-        display: flex;
-        flex-direction: column;
-    }
-    .phase-title {
-        font-weight: 700;
-        color: var(--slate-900);
-    }
-    .phase-sub {
-        font-size: 9px;
-        color: var(--slate-400);
-    }
-    .phase-score {
-        display: block;
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--slate-900);
-        font-variant-numeric: tabular-nums;
-        line-height: 1.2;
-    }
-    .phase-rr {
-        display: block;
-        font-size: 9.5px;
-        color: var(--slate-600);
-        font-variant-numeric: tabular-nums;
-        line-height: 1.2;
-        margin-top: 1px;
-    }
-    .adv-pill {
-        font-family: 'Barlow', sans-serif;
-        font-size: 9.5px;
-        font-weight: 800;
-        padding: 3px 8px;
-        border-radius: 4px;
-        text-transform: uppercase;
-        display: inline-block;
-        letter-spacing: 0.03em;
-    }
-    .adv-team1 {
-        background: #e2f3ec;
-        color: #1c6949;
-    }
-    .adv-team2 {
-        background: #fef3c7;
-        color: #b45309;
-    }
-    .adv-neutral {
-        background: #f1f5f9;
-        color: #64748b;
-    }
-
-    /* Impact Leaderboard */
-    .impact-list {
-        display: flex;
-        flex-direction: column;
-        gap: 7px;
-    }
-    .impact-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 6px 10px;
-        background: #f8fafc;
-        border: 1px solid #edf2f7;
-        border-radius: 6px;
-    }
-    .impact-rank {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: 'Barlow', sans-serif;
-        font-size: 10px;
-        font-weight: 800;
-        flex-shrink: 0;
-    }
-    .rank-gold {
-        background: #fef3c7;
-        color: #b45309;
-        border: 1px solid #fde68a;
-    }
-    .rank-silver {
-        background: #f1f5f9;
-        color: #475569;
-        border: 1px solid #cbd5e1;
-    }
-    .rank-bronze {
-        background: #ffedd5;
-        color: #c2410c;
-        border: 1px solid #fed7aa;
-    }
-    .rank-default {
-        background: #ffffff;
-        color: #64748b;
-        border: 1px solid #e2e8f0;
-    }
-    .impact-details {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-    .impact-top-line {
-        display: flex;
-        align-items: baseline;
-        gap: 6px;
-    }
-    .impact-name {
-        font-size: 11.5px;
-        font-weight: 600;
-        color: var(--slate-900);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .impact-tag {
-        font-size: 9px;
-        color: var(--slate-600);
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        padding: 1px 4px;
-        border-radius: 3px;
-        flex-shrink: 0;
-    }
-    .impact-highlight {
-        font-size: 9.5px;
-        color: var(--slate-600);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .impact-pts {
-        text-align: right;
-        flex-shrink: 0;
-        min-width: 36px;
-    }
-    .impact-score {
-        font-size: 13px;
-        font-weight: 800;
-        color: var(--brand-teal);
-        display: block;
-        line-height: 1.1;
-    }
-    .impact-pts-label {
-        font-size: 8.5px;
-        color: var(--slate-400);
-        text-transform: uppercase;
-        display: block;
-        line-height: 1;
-    }
-
-    /* Charts Duo Grid */
-    .charts-duo-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 14px;
-        margin-bottom: 16px;
-    }
-    .chart-panel {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 12px;
-        overflow: hidden;
-    }
-    .chart-panel-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--slate-700);
-        letter-spacing: 0.05em;
-        margin: 0 0 8px;
-    }
-    .chart-svg {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-
-    /* Official Verification Sign-off */
-    .official-signoff-card {
-        background: #ffffff;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 10px;
-        padding: 14px 16px;
-        margin-top: 16px;
-        page-break-inside: avoid;
-    }
-    .signoff-top-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid #e2e8f0;
-        padding-bottom: 8px;
-        margin-bottom: 12px;
-    }
-    .signoff-brand-seal {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .seal-icon {
-        width: 18px;
-        height: 18px;
-        background: #1c6949;
-        color: #ffffff;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 10px;
-        font-weight: 800;
-    }
-    .seal-title {
-        font-family: 'Barlow', sans-serif;
-        font-size: 12px;
-        font-weight: 800;
-        color: var(--slate-900);
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }
-    .signoff-auth-stamp {
-        font-size: 9.5px;
-        font-weight: 600;
-        color: var(--slate-600);
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-    .signoff-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-bottom: 10px;
-    }
-    .signoff-box {
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-        padding: 10px 12px;
-        background: #f8fafc;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        min-height: 82px;
-    }
-    .signoff-role {
-        font-family: 'Barlow', sans-serif;
-        font-size: 9px;
-        font-weight: 700;
-        text-transform: uppercase;
-        color: var(--brand-teal);
-        letter-spacing: 0.04em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .signoff-name {
-        font-size: 11px;
-        color: var(--slate-900);
-        margin-top: 2px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .signoff-name-blank {
-      min-height: 1.1em;
-      margin-top: 4px;
-      border-bottom: 1px dotted #cbd5e1;
-    }
-    .signoff-sig-area {
-        margin-top: 14px;
-    }
-    .signoff-sig-line {
-        border-bottom: 1px dashed #94a3b8;
-        height: 18px;
-        margin-bottom: 3px;
-        width: 100%;
-    }
-    .signoff-sig-label {
-        font-size: 8px;
-        color: var(--slate-400);
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-    .signoff-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        font-size: 8.5px;
-        color: var(--slate-500);
-        padding-top: 8px;
-        border-top: 1px solid #f1f5f9;
-        margin-top: 4px;
-    }
-
-    @media screen and (max-width: 768px) {
-        html, body {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-            background: #e2e8f0;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        #screen-toolbar {
-            padding: 8px 14px;
-            gap: 10px;
-        }
-        #screen-toolbar .toolbar-info {
-            display: none;
-        }
-        #screen-toolbar .toolbar-actions {
-            flex-wrap: wrap;
-            gap: 8px;
-            width: 100%;
-        }
-        #screen-toolbar .toolbar-actions button {
-            flex: 1 1 40%;
-        }
-        #screen-toolbar button {
-            padding: 6px 14px;
-            font-size: 11.5px;
-        }
-        .report-page {
-            margin: 8px auto !important;
-            padding: 16px 14px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-height: auto !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
-            border-radius: 4px;
-            box-sizing: border-box !important;
-        }
-        .report-top-header {
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .match-duel-hero {
-            grid-template-columns: 1fr !important;
-            padding: 14px 16px;
-            gap: 14px;
-        }
-        .duel-outcome-col {
-            border-left: none !important;
-            border-top: 1px dashed #cbd5e1;
-            padding-left: 0 !important;
-            padding-top: 12px;
-        }
-        .info-grid {
-            grid-template-columns: 1fr !important;
-            row-gap: 8px;
-        }
-        .info-row {
-            grid-column: span 1 !important;
-        }
-        .tactical-narrative-grid.duo-col {
-            grid-template-columns: 1fr !important;
-            gap: 14px;
-        }
-        .charts-duo-grid {
-            grid-template-columns: 1fr !important;
-            gap: 14px;
-        }
-        .over-comparison-headers {
-            grid-template-columns: 1fr !important;
-            gap: 8px;
-        }
-        .comparison-row {
-            grid-template-columns: 1fr !important;
-            gap: 8px;
-        }
-        .signoff-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 10px;
-        }
-        .report-footer {
-            flex-direction: column-reverse !important;
-            align-items: center !important;
-            text-align: center !important;
-            gap: 12px;
-            margin-top: 16px;
-            padding-top: 10px;
-        }
-        .footer-qr-block {
-            flex-direction: column !important;
-            gap: 6px;
-        }
-        .footer-qr-caption {
-            text-align: center;
-            max-width: 240px;
-            font-size: 9px;
-        }
-        .footer-url {
-            word-break: break-all;
-        }
-    }
-
-    @media screen and (max-width: 640px) {
-        #screen-toolbar {
-            padding: 8px 10px;
-            gap: 6px;
-        }
-        #screen-toolbar .toolbar-info {
-            font-size: 11px;
-        }
-        #screen-toolbar button {
-            padding: 5px 10px;
-            font-size: 11px;
-        }
-        .report-page {
-            margin: 0 0 10px 0 !important;
-            padding: 12px 10px !important;
-            border-radius: 0 !important;
-        }
-        .report-main-title {
-            font-size: 20px !important;
-            margin-bottom: 12px !important;
-        }
-        .match-duel-hero {
-            padding: 12px 12px !important;
-            gap: 10px;
-        }
-        .duel-team-name {
-            font-size: 13px !important;
-        }
-        .headline-score {
-            font-size: 13px !important;
-        }
-        .match-info-card {
-            padding: 10px 12px !important;
-        }
-        .info-grid {
-            row-gap: 6px;
-        }
-        .info-row {
-            font-size: 10px;
-            padding-bottom: 2px;
-        }
-        .info-label {
-            font-size: 9.5px;
-        }
-        .info-val {
-            font-size: 10px;
-        }
-        .score-table {
-            min-width: 460px;
-            font-size: 10px;
-        }
-        .score-table th, .score-table td {
-            padding: 4px 6px;
-        }
-        .player-name {
-            font-size: 10.5px;
-        }
-        .table-subheading {
-            padding: 5px 8px;
-            font-size: 9px;
-        }
-        .fow {
-            padding: 6px 8px;
-            font-size: 9.5px;
-        }
-        .dnb-strip {
-            padding: 5px 8px;
-            font-size: 9.5px;
-        }
-        .partnerships-grid {
-            grid-template-columns: 1fr !important;
-            gap: 6px;
-            padding: 6px 8px;
-        }
-        .signoff-box {
-            padding: 8px 10px;
-            min-height: 70px;
-        }
-        .footer-title {
-            font-size: 10px;
-        }
-        .footer-url {
-            font-size: 9px;
-        }
-    }
-</style>
-</head>
-<body>
-    <div id="screen-toolbar">
-        <div class="toolbar-info">
-            <span class="toolbar-brand">${BRAND_MARK}CricScore match report</span>
-        </div>
-        <div class="toolbar-actions">
-            <button id="btn-share-pdf" class="btn-print" type="button" disabled
-                data-file-name="${esc(pdfFileName)}">
-                Preparing PDF…
-            </button>
-            <button class="btn-share" type="button" data-url="${esc(matchUrl)}" onclick="(function(b){var u=b.getAttribute('data-url');if(navigator.share){navigator.share({title:document.title,url:u}).catch(function(){});}else if(navigator.clipboard){navigator.clipboard.writeText(u).then(function(){b.textContent='Link copied';});}})(this)">
-                Share link
-            </button>
-            <button class="btn-close" onclick="(document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){window.print();})">
-                Save as PDF / Print
-            </button>
-            <button class="btn-close" onclick="window.close()">
-                Close
-            </button>
-        </div>
-    </div>
-
-    <!-- PAGE 1: Match Report Overview & Top Performers -->
-    <div class="report-page match-overview-page">
-        <div class="page-inner">
-            <header class="report-top-header">
-                <div class="brand-mark">
-                    ${BRAND_MARK}<span class="brand-wordmark">CricScore<span class="brand-ball" aria-hidden="true"></span></span>
-                    <span style="font-weight: normal; color: #cbd5e1;">|</span>
-                    <span class="badge-sub">Official Match Record</span>
-                </div>
-                <div class="org-badges">
-                    ${match.tournament ? `<span class="badge badge-tournament"><svg style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>${esc(match.tournament.name)}</span>` : ""}
-                    ${match.club ? `<span class="badge badge-club"><svg style="width:12px;height:12px;display:inline-block;vertical-align:-1px;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>${esc(match.club.name)}</span>` : ""}
-                </div>
-            </header>
-
-            <h1 class="report-main-title">Match Report</h1>
-
-            <!-- Head-to-Head Duel Card -->
-            <div class="match-duel-hero">
-                <div class="duel-teams-col">
-                    <div class="duel-team-item">
-                        <div class="team-avatar-crest">
-                            ${firstTeam.logo_url ? `<img src="${esc(firstTeam.logo_url)}" alt="${esc(firstTeam.name)}" data-initials="${esc(crestText(firstTeam))}" />` : esc(crestText(firstTeam))}
-                        </div>
-                        <div class="duel-team-info">
-                            <span class="duel-team-name">${esc(firstTeam.name)}</span>
-                            <div>${formatTeamHeadlineScore(inn1)}</div>
-                        </div>
-                    </div>
-                    <div class="duel-team-item">
-                        <div class="team-avatar-crest">
-                            ${secondTeam.logo_url ? `<img src="${esc(secondTeam.logo_url)}" alt="${esc(secondTeam.name)}" data-initials="${esc(crestText(secondTeam))}" />` : esc(crestText(secondTeam))}
-                        </div>
-                        <div class="duel-team-info">
-                            <span class="duel-team-name">${esc(secondTeam.name)}</span>
-                            <div>${formatTeamHeadlineScore(inn2)}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="duel-outcome-col">
-                    <div class="result-pill-box">
-                        <span class="result-pill-label">Result</span>
-                        <span class="result-pill-desc">${esc(formatMatchResult(match) || "Match in progress")}</span>
-                    </div>
-                    ${potmHtml}
-                </div>
-            </div>
-
-            <!-- Tactical Narrative Grid: Phase Analysis & Match Impact -->
-            ${narrativeGridHtml}
-
-            <!-- Match Information -->
-            <div class="section-title">Match Information &amp; Playing Conditions</div>
-            <div class="match-info-card">
-                <div class="info-grid">
-                    ${infoRows}
-                    ${conditionsStr ? `<div class="info-row" style="grid-column: span 2;"><span class="info-label">Pitch &amp; Weather</span><span class="info-val">${conditionsStr}</span></div>` : ""}
-                    ${rulesList.length > 0 ? `<div class="info-row" style="grid-column: span 2;"><span class="info-label">Special Rules</span><span class="info-val">${rulesList.map(esc).join(", ")}</span></div>` : ""}
-                </div>
-            </div>
-
-            <!-- Match Summary or 1st Innings Scorecard -->
-            ${inn1Obj ? innings1Html : `
-            <div class="section-title">Match Summary</div>
-            <div class="summary-card">
-                ${renderTeamPerformers(firstTeam, secondTeam, inn1)}
-                ${renderTeamPerformers(secondTeam, firstTeam, inn2)}
-            </div>
-            `}
-
-            ${!inn2Obj ? `
-            ${overComparisonHtml}
-            ${renderSignoffBlock(match)}
-            ` : ""}
-        </div>
-
-        ${!inn2Obj ? `
-        <footer class="report-footer">
-            <div class="footer-left-meta">
-                <div class="footer-title">Interactive Digital Scorecard &bull; CricScore Official Archive</div>
-                <div class="footer-url">${esc(matchUrl)}</div>
-                <div class="footer-stamp">Download CricScore App &bull; Verified Electronic Record</div>
-            </div>
-            <div class="footer-qr-block">
-                <div class="footer-qr-caption">Scan to view live ball log &amp; wagon wheel</div>
-                <img src="${qrDataUrl}" alt="QR code" />
-            </div>
-        </footer>
-        ` : `
-        <footer class="mini-footer screen-hide-when-multi">
-            <span>Official Scorecard &bull; Page 1</span>
-            <span>CricScore Official Archive</span>
-        </footer>
-        `}
-    </div>
-
-    ${inn2Obj ? `
-    <!-- PAGE 2: Second Innings Scorecard, Analytics & Official Verification -->
-    <div class="report-page page-break innings-page-2">
-        <div class="page-inner">
-            ${innings2Html}
-
-            ${superOversHtml}
-
-            ${overComparisonHtml}
-
-            ${renderSignoffBlock(match)}
-        </div>
-
-        <footer class="report-footer">
-            <div class="footer-left-meta">
-                <div class="footer-title">Interactive Digital Scorecard &bull; CricScore Official Archive</div>
-                <div class="footer-url">${esc(matchUrl)}</div>
-                <div class="footer-stamp">Download CricScore App &bull; Verified Electronic Record</div>
-            </div>
-            <div class="footer-qr-block">
-                <div class="footer-qr-caption">Scan to view live ball log &amp; wagon wheel</div>
-                <img src="${qrDataUrl}" alt="QR code" />
-            </div>
-        </footer>
-    </div>
-    ` : ""}
-${SHARE_PDF_SCRIPT}
-</body>
-</html>`;
+/** Everything the report page shows, in the order it shows it. */
+export function buildMatchReport(
+  match: Match,
+  matchUrl: string,
+  now: Date = new Date(),
+): MatchReportModel {
+  // Batting order: the side that batted first, then the chase.
+  const [{ team: first }, { team: second }] = sidesInBattingOrder(match);
+  const date = match.scheduled_at
+    ? new Date(match.scheduled_at).toLocaleString("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
+    : null;
+  return {
+    title: match.title,
+    fileName: `${first.name} vs ${second.name} – match report.pdf`
+      .replace(/[\\/:*?"<>|]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+    matchUrl,
+    matchIdShort: match.id.slice(0, 8).toUpperCase(),
+    generated: now.toISOString().slice(0, 10),
+    date,
+    tournament: match.tournament?.name ?? null,
+    club: match.club?.name ?? null,
+    teams: [teamRef(first), teamRef(second)],
+    info: infoOf(match, date),
+    playerOfTheMatch: playerAwardOf(match),
+    innings: allInnings(match),
+    phases: phasesOf(match),
+    impact: calculateMatchImpactLeaders(match),
+    charts: chartsOf(match),
+    overs: oversOf(match),
+    signoff: signoffOf(match),
+  };
 }

@@ -151,6 +151,28 @@ export function deliveryLabel(b: {
   }
 }
 
+/**
+ * How a ball-log entry is coloured on a ball chip: a wicket, a four or six
+ * off the bat, an extra, runs, or a dot (a retirement, logged between
+ * deliveries, stays quiet like a dot).
+ */
+export function deliveryKind(b: {
+  runs_scored?: number | null;
+  extra_type?: string | null;
+  is_wicket?: boolean | null;
+  dismissal_type?: string | null;
+}): "dot" | "run" | "four" | "six" | "wicket" | "extra" {
+  const retired =
+    b.dismissal_type === "retired_hurt" || b.dismissal_type === "retired_out";
+  if (b.is_wicket && !retired) return "wicket";
+  if (b.is_wicket) return "dot";
+  if (b.extra_type && b.extra_type !== "no_ball") return "extra";
+  if (b.runs_scored === 6) return "six";
+  if (b.runs_scored === 4) return "four";
+  if (b.extra_type === "no_ball") return "extra";
+  return (b.runs_scored ?? 0) > 0 ? "run" : "dot";
+}
+
 const DISMISSAL_SHORT: Record<string, string> = {
   bowled: "b",
   caught: "c",

@@ -261,12 +261,16 @@ export function ScoringPanel({
     return "Tap the runs to record the ball";
   };
 
+  // A shot has a direction only when the batter scored off the bat: not a
+  // dot ball, and not wides, byes or leg byes (runs off a no-ball count).
   const shouldPromptWagonWheel = useCallback(
-    (runs: number) => {
+    (runs: number, extraType: string | null) => {
       if (!wagonWheelPrompt || wagonWheelMode === "off") return false;
+      const offTheBat =
+        extraType !== "wide" && extraType !== "bye" && extraType !== "leg_bye";
+      if (!offTheBat || runs <= 0) return false;
       if (wagonWheelMode === "boundaries") return runs === 4 || runs === 6;
-      if (wagonWheelMode === "all") return true;
-      return runs > 0;
+      return true;
     },
     [wagonWheelPrompt, wagonWheelMode],
   );
@@ -307,7 +311,7 @@ export function ScoringPanel({
         selectedExtra,
       );
 
-      if (shouldPromptWagonWheel(runs)) {
+      if (shouldPromptWagonWheel(runs, selectedExtra)) {
         setPendingScore({
           runs: effectiveRuns,
           extra,
@@ -461,13 +465,13 @@ export function ScoringPanel({
 
     // Shape + text carry meaning, not color alone (color-blind safe).
     if (kind === "wicket")
-      return "bg-red-600 text-white border-red-700 font-bold rounded-md outline outline-1 outline-offset-1 outline-red-800";
+      return "bg-wicket text-wicket-foreground border-wicket font-bold rounded-md";
     if (kind === "four")
-      return "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-600 font-bold rounded-full";
+      return "bg-four text-four-foreground border-four font-bold rounded-full";
     if (kind === "six")
-      return "bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-600 font-bold rounded-full";
+      return "bg-six text-six-foreground border-six font-bold rounded-full";
     if (kind === "extra")
-      return "bg-amber-400/25 text-amber-800 dark:text-amber-200 border-amber-600 border-dashed font-bold rounded-full";
+      return "bg-extra/15 text-extra border-extra/60 border-dashed font-bold rounded-full";
     // A retirement is not a ball: square, dashed, quiet.
     if (kind === "retired")
       return "bg-background text-foreground border-border border-dashed font-semibold rounded-md";
@@ -503,7 +507,7 @@ export function ScoringPanel({
 
         {/* Over position + this-over ball trail (tap a ball to edit it) */}
         <div className="flex items-center gap-2">
-          <span className="tabular-nums shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-score text-sm font-bold leading-none text-emerald-800 dark:text-emerald-300 sm:text-base">
+          <span className="tabular-nums shrink-0 rounded-full bg-primary-soft px-2.5 py-1 font-score text-sm font-bold leading-none text-primary-soft-foreground">
             Over {currentOver}.{currentBall}
           </span>
           {lastBalls.length > 0 ? (
@@ -635,7 +639,7 @@ export function ScoringPanel({
               "flex items-center gap-2 rounded-xl border px-3 py-2",
               sunlightMode
                 ? "border-2 border-black bg-amber-400 font-bold text-black"
-                : "border-amber-500/50 bg-amber-500/15 text-amber-900 dark:border-amber-400/50 dark:bg-amber-950/60 dark:text-amber-200",
+                : "border-warning/50 bg-warning/15 text-warning dark:bg-warning/20",
             )}
           >
             <span className="text-xs font-semibold">
@@ -651,14 +655,14 @@ export function ScoringPanel({
               "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
               sunlightMode
                 ? "border-2 border-black bg-amber-300 font-bold text-black"
-                : "border-amber-500/40 bg-amber-500/10 dark:border-amber-500/50 dark:bg-amber-950/40",
+                : "border-warning/40 bg-warning/10 dark:border-warning/50 dark:bg-warning/20",
             )}
           >
             <div className="flex min-w-0 items-center gap-2">
               <AlertTriangle
                 className={cn(
                   "h-4 w-4 shrink-0",
-                  sunlightMode ? "text-black" : "text-amber-500",
+                  sunlightMode ? "text-black" : "text-warning",
                 )}
               />
               <span
@@ -666,7 +670,7 @@ export function ScoringPanel({
                   "text-xs font-bold",
                   sunlightMode
                     ? "font-bold text-black"
-                    : "text-amber-900 dark:text-amber-200",
+                    : "text-warning",
                 )}
               >
                 {getStagedDeliveryDescription()}
@@ -679,7 +683,7 @@ export function ScoringPanel({
                 "h-7 shrink-0 rounded-lg px-2 text-xs font-bold",
                 sunlightMode
                   ? "text-black hover:bg-black/10"
-                  : "text-amber-900 hover:bg-amber-500/20 dark:text-amber-200",
+                  : "text-warning hover:bg-warning/20",
               )}
               onClick={() => setSelectedExtra(null)}
             >
@@ -726,7 +730,7 @@ export function ScoringPanel({
                 className={cn(
                   "score-display tabular-nums flex min-h-14 select-none flex-col items-center justify-center overflow-hidden rounded-xl border-2 px-1 text-2xl font-bold leading-none transition-colors active:opacity-80 disabled:opacity-50 sm:h-16 sm:rounded-2xl sm:text-3xl",
                   // An armed extra changes what every run button records.
-                  selectedExtra && "ring-2 ring-amber-500/70 ring-offset-1 ring-offset-background",
+                  selectedExtra && "ring-2 ring-extra/70 ring-offset-1 ring-offset-background",
                   sunlightMode
                     ? cn(
                         "border-2 font-bold shadow-none",
@@ -753,9 +757,9 @@ export function ScoringPanel({
                         isFive &&
                           "border-border bg-background text-foreground hover:bg-muted",
                         isFour &&
-                          "border-emerald-600/60 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60",
+                          "border-four bg-four text-four-foreground hover:bg-four/90",
                         isSix &&
-                          "border-purple-600/60 bg-purple-500/10 text-purple-700 hover:bg-purple-500/20 dark:bg-purple-950/60 dark:text-purple-300 dark:hover:bg-purple-900/60",
+                          "border-six bg-six text-six-foreground hover:bg-six/90",
                       ),
                 )}
                 onClick={() => handleRunClick(runs)}
@@ -770,11 +774,11 @@ export function ScoringPanel({
                           ? "text-white"
                           : "text-black"
                         : runs === 4
-                          ? "text-emerald-600 dark:text-emerald-400"
+                          ? "text-four-foreground/85"
                           : runs === 6
-                            ? "text-purple-600 dark:text-purple-400"
+                            ? "text-six-foreground/85"
                             : selectedExtra
-                              ? "text-amber-700 dark:text-amber-300"
+                              ? "text-extra"
                               : "text-muted-foreground",
                     )}
                   >
@@ -814,7 +818,7 @@ export function ScoringPanel({
 
         {/* High runs / extras expandable drawer (7 to 13+) */}
         {showMoreRuns && (
-          <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:border-border/80 dark:bg-card/90">
+          <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:bg-card/90">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-foreground">
                 High runs / extras (7 to 13+)
@@ -947,7 +951,7 @@ export function ScoringPanel({
             <span aria-hidden="true">
               Wicket<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
-                <span className="ml-1 text-[0.625rem] font-bold tracking-normal text-amber-200">
+                <span className="ml-1 text-[0.625rem] font-bold tracking-normal text-destructive-foreground/85">
                   (Run Out)
                 </span>
               )}
@@ -1029,7 +1033,7 @@ export function ScoringPanel({
               <div className="flex items-center justify-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 font-score text-sm font-semibold tabular-nums text-foreground">
                   {pendingScore.extraType && (
-                    <span className="capitalize text-amber-700 dark:text-amber-400">
+                    <span className="capitalize text-warning">
                       {pendingScore.extraType.replace("_", " ")} +
                     </span>
                   )}
@@ -1039,12 +1043,12 @@ export function ScoringPanel({
                       : `${pendingScore.rawRuns} ${pendingScore.rawRuns === 1 ? "Run" : "Runs"}`}
                   </span>
                   {pendingScore.rawRuns === 4 && (
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    <span className="font-semibold text-success">
                       · Four
                     </span>
                   )}
                   {pendingScore.rawRuns === 6 && (
-                    <span className="font-semibold text-purple-700 dark:text-purple-400">
+                    <span className="font-semibold text-six">
                       · Six
                     </span>
                   )}

@@ -12,6 +12,7 @@ import {
   endInnings,
   reassignCurrentOverBowler,
   recordBall,
+  replaceBatter,
   retirePlayer,
   setCurrentBatsmen,
   setCurrentBowler,
@@ -104,6 +105,15 @@ async function run(
     case "reassignOverBowler":
       return withoutDelta(
         await reassignCurrentOverBowler(matchId, action.payload.bowlerId, id),
+      );
+    case "replaceBatter":
+      return withoutDelta(
+        await replaceBatter(
+          matchId,
+          action.payload.fromId,
+          action.payload.toId,
+          id,
+        ),
       );
     case "updateBall":
       return withoutDelta(

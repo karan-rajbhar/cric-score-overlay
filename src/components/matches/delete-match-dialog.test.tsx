@@ -117,15 +117,21 @@ describe("MatchMoreMenu", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders nothing for co-scorers and viewers", () => {
+  it("offers no Delete match to co-scorers and viewers", async () => {
     canDelete = false;
-    const { container, rerender } = render(<MatchMoreMenu match={match} />);
-    expect(container).toBeEmptyDOMElement();
+    const { rerender } = render(<MatchMoreMenu match={match} />);
+    const trigger = screen.getByRole("button", { name: "More match actions" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(
+      await screen.findByRole("menuitem", { name: "OBS overlay" }),
+    ).toHaveAttribute("href", "/overlay/m1");
+    expect(
+      screen.queryByRole("menuitem", { name: "Delete match" }),
+    ).not.toBeInTheDocument();
     // Non-admins are never asked (no reads for viewers).
     isAdmin = false;
     canDelete = true;
     rerender(<MatchMoreMenu match={match} />);
-    expect(container).toBeEmptyDOMElement();
     expect(canDeleteQuery).toHaveBeenLastCalledWith("m1", "u1", false);
   });
 });

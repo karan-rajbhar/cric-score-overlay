@@ -45,21 +45,21 @@ export const ALL_DISMISSAL_TYPES = [
   },
   {
     value: "run_out",
-    label: "Run Out",
+    label: "Run out",
     needsFielder: true,
     allowedOnWide: true,
     allowedOnNoBall: true,
   },
   {
     value: "hit_wicket",
-    label: "Hit Wicket",
+    label: "Hit wicket",
     needsFielder: false,
     allowedOnWide: true,
     allowedOnNoBall: false,
   },
   {
     value: "obstructing",
-    label: "Obstructing Field",
+    label: "Obstructing the field",
     needsFielder: false,
     allowedOnWide: true,
     allowedOnNoBall: true,
@@ -225,8 +225,8 @@ export function WicketDialog({
         </DialogHeader>
         <div className="space-y-4 pt-2">
           {extraType && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+            <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-warning">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
               <span>
                 {extraType === "no_ball"
                   ? "No-ball: Under MCC Law 21.18, batter can only be Run Out or Obstructing the Field."
@@ -236,8 +236,8 @@ export function WicketDialog({
           )}
 
           {isFreeHit && !extraType && (
-            <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs font-semibold text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
               <span>
                 Free Hit Delivery: Under Law 21.19, batter can only be dismissed
                 Run Out or Obstructing.

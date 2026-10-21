@@ -18,6 +18,7 @@ import {
   type AwardPenaltyPayload,
   type FlushResult,
   type QueuedAction,
+  type ReplaceBatterPayload,
   type ReplayTransport,
   type RetireBatterPayload,
 } from "~/lib/offline-queue";
@@ -1894,6 +1895,11 @@ export function useScoring(
               a.type === "reassignOverBowler"
             ) {
               replayCtx.bowlerId = a.payload.bowlerId;
+            } else if (a.type === "replaceBatter") {
+              const { fromId, toId } = a.payload;
+              if (replayCtx.strikerId === fromId) replayCtx.strikerId = toId;
+              if (replayCtx.nonStrikerId === fromId)
+                replayCtx.nonStrikerId = toId;
             } else if (a.type === "retireBatter") {
               replayCtx = retireLocally(replayCtx, a.payload);
             } else if (a.type === "awardPenalty") {
@@ -2138,6 +2144,22 @@ export function useScoring(
         setCurrentBowlerId(bowlerId);
       },
     );
+
+  /** The wrong player was recorded as batting: their innings goes to another. */
+  const handleReplaceBatter = (payload: ReplaceBatterPayload) =>
+    runOrQueue("replaceBatter", payload, (id) => {
+      enqueueAction(matchId, "replaceBatter", payload, id);
+      const swap = (x: string | null) =>
+        x === payload.fromId ? payload.toId : x;
+      if (localCtxRef.current) {
+        localCtxRef.current.strikerId = swap(localCtxRef.current.strikerId);
+        localCtxRef.current.nonStrikerId = swap(
+          localCtxRef.current.nonStrikerId,
+        );
+      }
+      setStrikerId(swap);
+      setNonStrikerId(swap);
+    });
 
   const handleStartSuperOver = async () => {
     clearUndone();
@@ -2759,6 +2781,7 @@ export function useScoring(
     handleRetireBatter,
     handleAwardPenalty,
     handleReassignOverBowler,
+    handleReplaceBatter,
     handleStartSuperOver,
     handleConfirmBatsmen,
     handleConfirmBowler,

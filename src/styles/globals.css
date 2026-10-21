@@ -3,85 +3,175 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Light theme, after Scoreline: white cards floating on a near-white page,
+   * a soft pink-to-lavender wash behind the top of each screen (bg-wash),
+   * one deep navy for actions and selection, lavender for quiet emphasis,
+   * colour otherwise only for state. /design shows every token.
+   */
   :root {
-    /*
-     * Light theme: "Sightscreen". Neutral grey-green paper so the dark
-     * scoreboard panel and the few meaningful colours (4 / 6 / W / extras)
-     * carry all the emphasis.
-     */
-    --background: 150 12% 96.5%;
-    --foreground: 160 28% 10%;
+    /* Surfaces */
+    --background: 230 40% 98.5%;
+    --foreground: 236 45% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 160 28% 10%;
+    --card-foreground: 236 45% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 160 28% 10%;
+    --popover-foreground: 236 45% 12%;
+    /* Flat lavender tint (small bands, selected surfaces) */
+    --hero: 236 80% 96.5%;
+    --hero-foreground: 236 45% 12%;
+    /* The wash: pink top-left to lavender to periwinkle (bg-wash) */
+    --wash-1: 342 78% 95%;
+    --wash-2: 246 80% 95.5%;
+    --wash-3: 228 92% 94.5%;
 
-    /* Pitch green: primary actions and boundary fours */
-    --primary: 155 58% 26%;
+    /* Navy: primary actions, the selected tab, the active nav item */
+    --primary: 241 50% 27%;
     --primary-foreground: 0 0% 100%;
+    /* Lavender: selected rows, soft buttons */
+    --primary-soft: 238 85% 95%;
+    --primary-soft-foreground: 241 50% 27%;
+    /* Royal blue: the brand mark only */
+    --brand: 228 55% 40%;
+    --brand-foreground: 0 0% 100%;
 
-    --secondary: 150 10% 93%;
-    --secondary-foreground: 160 22% 16%;
-    --muted: 150 10% 93.5%;
-    --muted-foreground: 160 7% 36%;
-    --accent: 150 12% 91%;
-    --accent-foreground: 160 28% 10%;
+    --secondary: 230 30% 95%;
+    --secondary-foreground: 236 45% 12%;
+    --muted: 230 33% 96%;
+    --muted-foreground: 233 12% 44%;
+    --accent: 230 30% 94.5%;
+    --accent-foreground: 236 45% 12%;
 
-    /* Leather red (wickets, live), ochre (extras, free hit) */
-    --destructive: 0 66% 44%;
+    --border: 230 25% 91%;
+    --input: 230 20% 85%;
+    --ring: 241 60% 45%;
+
+    /* Elevation: soft and wide, tinted navy so it reads as depth, not grime */
+    --shadow-color: 236 45% 25%;
+    --shadow-soft:
+      0 1px 2px hsl(var(--shadow-color) / 0.04),
+      0 8px 24px -8px hsl(var(--shadow-color) / 0.12);
+    --shadow-float:
+      0 2px 6px hsl(var(--shadow-color) / 0.06),
+      0 18px 40px -10px hsl(var(--shadow-color) / 0.22);
+    --shadow-primary: 0 10px 22px -10px hsl(var(--primary) / 0.7);
+
+    /* State */
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --ruby: 0 66% 44%;
-    --ruby-foreground: 0 0% 100%;
-    --gold: 38 88% 42%;
-    --gold-foreground: 0 0% 100%;
+    --live: 0 72% 51%;
+    --live-foreground: 0 0% 100%;
+    --success: 142 72% 29%;
+    --success-foreground: 0 0% 100%;
+    --warning: 26 90% 37%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 150 9% 87%;
-    --input: 150 9% 83%;
-    --ring: 155 58% 30%;
+    /* Deliveries: the same meanings as today (4 green, 6 violet, W red,
+       extras amber), tuned for white text at 4.5:1. */
+    --four: 163 94% 24%;
+    --four-foreground: 0 0% 100%;
+    --six: 262 69% 50%;
+    --six-foreground: 0 0% 100%;
+    --wicket: 0 72% 51%;
+    --wicket-foreground: 0 0% 100%;
+    --extra: 26 90% 37%;
+    --extra-foreground: 0 0% 100%;
 
-    /* Scoreboard panel: painted board green with chalk figures */
-    --board: 160 50% 13%;
-    --board-foreground: 80 20% 95%;
-    --board-muted: 150 14% 72%;
-    --board-line: 160 32% 21%;
+    /* Older names still in use: ruby = live red, gold = amber */
+    --ruby: var(--live);
+    --ruby-foreground: var(--live-foreground);
+    --gold: var(--warning);
+    --gold-foreground: var(--warning-foreground);
 
-    --radius: 0.625rem;
+    /* Scoreboard panel (.scoreboard): deep navy with white figures */
+    --board: 241 50% 18%;
+    --board-foreground: 230 40% 97%;
+    --board-muted: 235 30% 78%;
+    --board-line: 241 40% 26%;
+    /* Chart series: the two teams (validated pair, CVD-safe) */
+    --series-1: 241 51% 47.6%;
+    --series-2: 17 82% 56.3%;
+    /* Accents on the board: ahead (green) and behind (amber) */
+    --board-good: 150 60% 66%;
+    --board-warn: 40 92% 66%;
+
+    --radius: 0.875rem;
   }
 
   .dark {
-    /* Dark theme: "Floodlit". The ground at night; board stays a touch greener. */
-    --background: 160 22% 6%;
-    --foreground: 80 15% 94%;
-    --card: 160 18% 9%;
-    --card-foreground: 80 15% 94%;
-    --popover: 160 18% 11%;
-    --popover-foreground: 80 15% 94%;
+    --background: 235 38% 7%;
+    --foreground: 230 40% 95%;
+    --card: 235 30% 11%;
+    --card-foreground: 230 40% 95%;
+    --popover: 235 30% 13%;
+    --popover-foreground: 230 40% 95%;
+    --hero: 237 35% 14%;
+    --hero-foreground: 230 40% 95%;
+    --wash-1: 330 30% 14%;
+    --wash-2: 250 32% 15%;
+    --wash-3: 228 40% 15%;
 
-    --primary: 150 50% 48%;
-    --primary-foreground: 160 60% 7%;
+    --primary: 238 90% 82%;
+    --primary-foreground: 241 55% 14%;
+    --primary-soft: 238 40% 20%;
+    --primary-soft-foreground: 238 90% 86%;
+    --brand: 228 60% 62%;
+    --brand-foreground: 241 55% 10%;
 
-    --secondary: 160 12% 14%;
-    --secondary-foreground: 80 10% 88%;
-    --muted: 160 12% 13%;
-    --muted-foreground: 150 8% 64%;
-    --accent: 160 12% 16%;
-    --accent-foreground: 80 15% 94%;
+    --secondary: 235 25% 16%;
+    --secondary-foreground: 230 40% 95%;
+    --muted: 235 25% 15%;
+    --muted-foreground: 232 16% 68%;
+    --accent: 235 25% 18%;
+    --accent-foreground: 230 40% 95%;
 
-    --destructive: 0 68% 56%;
-    --destructive-foreground: 0 0% 100%;
-    --ruby: 0 68% 56%;
-    --ruby-foreground: 0 0% 100%;
-    --gold: 40 85% 56%;
-    --gold-foreground: 40 90% 10%;
+    --border: 235 22% 19%;
+    --input: 235 20% 25%;
+    --ring: 238 90% 78%;
 
-    --border: 160 12% 17%;
-    --input: 160 12% 21%;
-    --ring: 150 50% 48%;
+    /* Shadows barely show on dark surfaces; cards add a hairline instead.
+       No coloured glow under the primary button. */
+    --shadow-color: 235 60% 2%;
+    --shadow-soft:
+      0 1px 2px hsl(var(--shadow-color) / 0.4),
+      0 8px 24px -8px hsl(var(--shadow-color) / 0.6);
+    --shadow-float:
+      0 2px 6px hsl(var(--shadow-color) / 0.5),
+      0 18px 40px -10px hsl(var(--shadow-color) / 0.7);
+    --shadow-primary: 0 10px 22px -10px hsl(var(--shadow-color) / 0.8);
 
-    --board: 158 42% 11%;
-    --board-foreground: 80 20% 95%;
-    --board-muted: 150 14% 68%;
-    --board-line: 158 30% 20%;
+    --destructive: 0 80% 66%;
+    --destructive-foreground: 0 60% 10%;
+    --live: 0 72% 51%;
+    --live-foreground: 0 0% 100%;
+    --success: 142 60% 52%;
+    --success-foreground: 142 70% 8%;
+    --warning: 38 92% 58%;
+    --warning-foreground: 30 90% 10%;
+
+    --four: 158 64% 52%;
+    --four-foreground: 162 80% 8%;
+    --six: 255 92% 76%;
+    --six-foreground: 263 70% 12%;
+    --wicket: 0 85% 70%;
+    --wicket-foreground: 0 70% 10%;
+    --extra: 38 92% 58%;
+    --extra-foreground: 30 90% 10%;
+
+    /* Older names still in use: ruby = live red, gold = amber */
+    --ruby: var(--live);
+    --ruby-foreground: var(--live-foreground);
+    --gold: var(--warning);
+    --gold-foreground: var(--warning-foreground);
+
+    --board: 237 35% 14%;
+    --board-foreground: 230 40% 97%;
+    --board-muted: 232 16% 68%;
+    --board-line: 235 22% 22%;
+    --series-1: 242 64% 66.1%;
+    --series-2: 18 69% 51.6%;
+    --board-good: 150 60% 66%;
+    --board-warn: 40 92% 66%;
   }
 }
 
@@ -163,7 +253,7 @@
 @layer components {
   /* Data table: bordered card that scrolls sideways on narrow screens */
   .data-table-container {
-    @apply w-full overflow-x-auto rounded-xl border border-border bg-card dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)];
+    @apply w-full overflow-x-auto rounded-xl bg-card shadow-soft ring-1 ring-border/40 dark:ring-border;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -221,6 +311,8 @@
     --border: 0 0% 0%;
     --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
+    --primary-soft: 0 0% 90%;
+    --primary-soft-foreground: 0 0% 0%;
     --secondary: 0 0% 90%;
     --secondary-foreground: 0 0% 0%;
     --destructive: 0 84% 42%;

@@ -61,12 +61,12 @@ export function MemberRoleAction({
         <Loader2 className="h-3 w-3 animate-spin" />
       ) : isAdmin ? (
         <>
-          <ShieldAlert className="h-3 w-3 text-amber-500" />
+          <ShieldAlert className="h-3 w-3 text-warning" />
           <span>Demote</span>
         </>
       ) : (
         <>
-          <ShieldCheck className="h-3 w-3 text-sky-500" />
+          <ShieldCheck className="h-3 w-3 text-primary" />
           <span>Make admin</span>
         </>
       )}

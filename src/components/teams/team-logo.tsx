@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { cn } from "~/lib/utils";
 import { deriveShortName } from "~/lib/utils";
 
@@ -21,8 +22,8 @@ interface TeamLogoProps {
 }
 
 /**
- * Team crest: uploaded logo if present, otherwise auto-generated initials on
- * a stable per-team accent color.
+ * Team crest, round: uploaded logo if present, otherwise the short code on a
+ * soft tint of a stable per-team hue.
  */
 export function TeamLogo({
   name,
@@ -41,24 +42,21 @@ export function TeamLogo({
         width={36}
         height={36}
         className={cn(
-          "h-9 w-9 shrink-0 rounded-md border border-border object-cover",
+          "h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border/60",
           className,
         )}
       />
     );
   }
 
-  const hue = nameHue(name);
+  // A soft tint of the team's hue in light mode, a deep one in dark mode.
   return (
     <span
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md text-xs font-bold tracking-wide",
+        "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[hsl(var(--h)_70%_93%)] text-xs font-semibold tracking-wide text-[hsl(var(--h)_55%_28%)] dark:bg-[hsl(var(--h)_35%_20%)] dark:text-[hsl(var(--h)_70%_82%)]",
         className,
       )}
-      style={{
-        backgroundColor: `hsl(${hue} 45% 22%)`,
-        color: `hsl(${hue} 80% 75%)`,
-      }}
+      style={{ "--h": nameHue(name) } as React.CSSProperties}
       title={name}
     >
       {deriveShortName(shortName || name)}

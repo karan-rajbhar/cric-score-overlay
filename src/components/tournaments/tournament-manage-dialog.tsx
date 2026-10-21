@@ -29,7 +29,6 @@ import {
   Loader2,
   AlertTriangle,
   Calendar,
-  Layers,
 } from "lucide-react";
 import {
   updateTournament,
@@ -183,7 +182,7 @@ export function TournamentManageDialog({
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold">
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <Settings2 className="h-4 w-4 text-primary" />
             Manage Tournament: {tournament.name}
           </DialogTitle>
@@ -195,14 +194,12 @@ export function TournamentManageDialog({
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
           <TabsList className="grid w-full grid-cols-2 h-10">
             <TabsTrigger value="details" className="gap-1.5 text-xs min-h-[36px]">
-              <Layers className="h-3.5 w-3.5" />
               Settings
             </TabsTrigger>
             <TabsTrigger
               value="danger"
               className="gap-1.5 text-xs min-h-[36px] text-destructive data-[state=active]:text-destructive"
             >
-              <AlertTriangle className="h-3.5 w-3.5" />
               Danger zone
             </TabsTrigger>
           </TabsList>
@@ -401,7 +398,7 @@ export function TournamentManageDialog({
               </p>
               <div className="mt-4 space-y-2">
                 <Label htmlFor="confirm-del" className="text-2xs font-medium text-foreground">
-                  Type <span className="font-bold text-destructive">{tournament.name}</span> to confirm:
+                  Type <span className="font-semibold text-destructive">{tournament.name}</span> to confirm:
                 </Label>
                 <Input
                   id="confirm-del"

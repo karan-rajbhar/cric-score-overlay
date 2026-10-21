@@ -65,6 +65,29 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(onScore).toHaveBeenCalledWith(2, undefined, "point");
   });
 
+  it.each([
+    ["a dot ball", null, "0 runs (dot ball)", 0, undefined],
+    ["a wide", "wide", "1 run", 0, { type: "wide", runs: 2 }],
+    ["a bye", "bye", "1 run", 0, { type: "bye", runs: 1 }],
+    ["a leg bye", "leg bye", "1 run", 0, { type: "leg_bye", runs: 1 }],
+  ] as const)(
+    "scores %s straight away: no shot direction to pick",
+    (_label, extra, runsButton, runs, extras) => {
+      const onScore = vi.fn();
+      render(<ScoringPanel {...defaultProps} onScore={onScore} />);
+      if (extra) {
+        fireEvent.click(
+          screen.getByRole("button", { name: new RegExp(`^${extra}`, "i") }),
+        );
+      }
+      fireEvent.click(screen.getByRole("button", { name: runsButton }));
+      expect(
+        screen.queryByText(/select shot direction/i),
+      ).not.toBeInTheDocument();
+      expect(onScore).toHaveBeenCalledWith(runs, extras, undefined);
+    },
+  );
+
   it("allows skipping shot direction in wagon wheel modal to score directly", () => {
     const onScore = vi.fn();
     render(<ScoringPanel {...defaultProps} onScore={onScore} />);
@@ -96,7 +119,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     expect(screen.getAllByText(/no ball/i).length).toBeGreaterThanOrEqual(1);
 
     // Select Mid Wicket
-    const midWicketSector = screen.getByRole("button", { name: /mid wicket/i });
+    const midWicketSector = screen.getByRole("button", { name: /mid-wicket/i });
     fireEvent.click(midWicketSector);
 
     expect(onScore).toHaveBeenCalledWith(

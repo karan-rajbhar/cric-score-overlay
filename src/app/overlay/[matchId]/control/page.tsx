@@ -38,7 +38,7 @@ export default async function OverlayControlPage({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <ShieldAlert className="h-6 w-6" />
             </div>
-            <CardTitle className="mt-2 text-xl font-bold">
+            <CardTitle className="mt-2 text-xl font-semibold">
               Invalid Match
             </CardTitle>
           </CardHeader>
@@ -47,7 +47,7 @@ export default async function OverlayControlPage({
               The specified match could not be found.
             </p>
             <Button asChild className="w-full">
-              <Link href="/matches">Browse Matches</Link>
+              <Link href="/matches">Browse matches</Link>
             </Button>
           </CardContent>
         </Card>
@@ -68,7 +68,7 @@ export default async function OverlayControlPage({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <ShieldAlert className="h-6 w-6" />
             </div>
-            <CardTitle className="mt-2 text-xl font-bold">
+            <CardTitle className="mt-2 text-xl font-semibold">
               Authentication Required
             </CardTitle>
           </CardHeader>
@@ -101,7 +101,7 @@ export default async function OverlayControlPage({
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <ShieldAlert className="h-6 w-6" />
             </div>
-            <CardTitle className="mt-2 text-xl font-bold">
+            <CardTitle className="mt-2 text-xl font-semibold">
               Access Denied
             </CardTitle>
           </CardHeader>
@@ -113,7 +113,7 @@ export default async function OverlayControlPage({
             </p>
             <div className="flex gap-2">
               <Button variant="outline" asChild className="flex-1">
-                <Link href={`/matches/${matchId}`}>View Match</Link>
+                <Link href={`/matches/${matchId}`}>View match</Link>
               </Button>
               <Button asChild className="flex-1">
                 <Link href={`/overlay/${matchId}`} target="_blank">
