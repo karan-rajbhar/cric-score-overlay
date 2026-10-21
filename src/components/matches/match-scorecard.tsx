@@ -10,6 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { Innings, Match } from "~/lib/match-types";
 import { allInnings, type ReportInnings } from "~/lib/match-report";
+import { inningsInPlay } from "~/lib/cricket";
 
 interface MatchScorecardProps {
   match: Match;
@@ -20,7 +21,7 @@ interface MatchScorecardProps {
  * the batters' names from the batting rows (the stored stands hold ids)
  * and the best one marked.
  */
-function standDataOf(innings: Innings): StandData[] {
+function standDataOf(innings: Innings, inPlay: boolean): StandData[] {
   const names = new Map(
     (innings.batting_performances ?? []).map((b) => [
       b.user_id,
@@ -59,7 +60,9 @@ function standDataOf(innings: Innings): StandData[] {
               { runs: p.batsman2_runs ?? 0, balls: p.batsman2_balls ?? 0 },
             ]
           : null,
-        live: Boolean(p.is_current),
+        // The engine leaves the last stand current when an innings ends
+        // without a wicket: live only while the innings is in play.
+        live: Boolean(p.is_current) && inPlay,
         unbroken: wicket === null && i === rows.length - 1,
         ending: wicket !== null && !fell ? "Retired hurt" : undefined,
       },
@@ -115,7 +118,9 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
 
       {innings.map((inn) => {
         const source = match.innings?.find((i) => i.id === inn.id);
-        const stands = source ? standDataOf(source) : [];
+        const stands = source
+          ? standDataOf(source, inningsInPlay(match, source))
+          : [];
         return (
           <TabsContent key={inn.id} value={inn.id} className="space-y-4">
             <BattingCard

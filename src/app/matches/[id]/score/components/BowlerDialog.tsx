@@ -10,7 +10,11 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import type { BowlingPerformance, TeamPlayer } from "~/lib/match-types";
-import { focusPickerRow, PlayerPicker } from "./PlayerPicker";
+import {
+  focusPickerRow,
+  PlayerPicker,
+  type PickerAddPlayer,
+} from "./PlayerPicker";
 import { buildBowlerRows } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
@@ -38,8 +42,8 @@ interface BowlerDialogProps {
    */
   onConfirm: (bowlerId: string) => void;
   isProcessing: boolean;
-  /** Creates a player in the bowling side; resolves to the new id. */
-  onCreatePlayer?: (name: string) => Promise<string | null>;
+  /** Adds a player to the bowling side; resolves to their id. */
+  onCreatePlayer?: PickerAddPlayer["onAdd"];
   /** Set while adding is impossible (e.g. offline). */
   addPlayerDisabledReason?: string | null;
 }

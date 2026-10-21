@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { BrandMark, BrandWordmark } from "./brand";
 
 describe("Brand Components", () => {
-  it("renders BrandMark with cricket ball SVG and applies custom classNames", () => {
+  it("renders BrandMark on the brand tile and applies custom classNames", () => {
     const { container } = render(<BrandMark className="custom-test-class" />);
     const span = container.querySelector("span");
     expect(span).toBeInTheDocument();
     expect(span).toHaveClass("custom-test-class");
-    expect(span).toHaveClass("bg-board");
+    expect(span).toHaveClass("bg-brand");
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();

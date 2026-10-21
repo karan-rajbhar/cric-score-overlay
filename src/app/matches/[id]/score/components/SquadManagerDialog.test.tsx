@@ -115,4 +115,25 @@ describe("SquadManagerDialog", () => {
     ).toBeInTheDocument();
     expect(actions.searchUsers).not.toHaveBeenCalled();
   });
+
+  it("adds a registered player through the scorer's add", async () => {
+    actions.searchUsers.mockResolvedValue({
+      data: [{ id: "u9", full_name: "Rohit Sharma", username: "rohit" }],
+    });
+    const props = renderDialog();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Rohit" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Add Rohit Sharma to Mumbai" }),
+    );
+    await waitFor(() =>
+      expect(props.onCreatePlayer).toHaveBeenCalledWith(
+        "batting",
+        "Rohit Sharma",
+        "u9",
+      ),
+    );
+    expect(actions.addPlayerToTeam).not.toHaveBeenCalled();
+  });
 });

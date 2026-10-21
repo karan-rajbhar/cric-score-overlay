@@ -1,15 +1,16 @@
 import { cn } from "~/lib/utils";
 
 /**
- * Platform brand: three stumps and a split bail chalked onto a
- * scoreboard-green tile. Same 32-unit grid as src/app/icon.svg
- * (source and alternatives in branding/).
+ * Platform brand: three stumps and a split bail, rounded, on a tile in the
+ * design system's brand blue (`--brand`, the logo's own colour; lighter in
+ * dark mode). Same 32-unit grid as src/app/icon.svg and the app icons
+ * (source in branding/stumps/).
  */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-board text-board-foreground ring-1 ring-inset ring-board-line",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-[28%] bg-brand text-brand-foreground",
         className,
       )}
     >
@@ -19,11 +20,11 @@ export function BrandMark({ className }: { className?: string }) {
         fill="currentColor"
         aria-hidden="true"
       >
-        <rect x="8" y="10" width="4" height="16" rx="0.5" />
-        <rect x="14" y="10" width="4" height="16" rx="0.5" />
-        <rect x="20" y="10" width="4" height="16" rx="0.5" />
-        <rect x="8" y="6" width="7" height="2" rx="0.5" />
-        <rect x="17" y="6" width="7" height="2" rx="0.5" />
+        <rect x="8" y="10.5" width="4" height="15.5" rx="2" />
+        <rect x="14" y="10.5" width="4" height="15.5" rx="2" />
+        <rect x="20" y="10.5" width="4" height="15.5" rx="2" />
+        <rect x="8" y="6.5" width="7" height="2" rx="1" />
+        <rect x="17" y="6.5" width="7" height="2" rx="1" />
       </svg>
     </span>
   );

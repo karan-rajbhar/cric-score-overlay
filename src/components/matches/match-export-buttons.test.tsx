@@ -11,7 +11,8 @@ vi.mock("~/app/matches/queries", () => ({
   getFullMatchForExport: vi.fn(),
 }));
 
-import { MatchExportButtons, drawSummary } from "./match-export-buttons";
+import { MatchExportButtons } from "./match-export-buttons";
+import { drawSummary } from "./summary-image";
 import type { MatchExportSummary } from "~/lib/match-report";
 import type { Match } from "~/lib/match-types";
 
@@ -21,6 +22,7 @@ describe("MatchExportButtons and drawSummary", () => {
     format: "T20 · 20 ov",
     venue: "Melbourne Cricket Ground",
     playedAt: "18 Oct 2026, 19:30",
+    live: false,
     result: "Royal Tigers won by 18 runs",
     matchUrl: "https://cricket.app/matches/match-124",
     playerOfTheMatch: "Virat Kohli",

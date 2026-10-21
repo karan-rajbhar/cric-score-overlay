@@ -5,6 +5,7 @@ import { Card, CardHeader } from "~/components/ds/card";
 import { PartnershipList, type StandData } from "~/components/ds/partnership";
 import { usePartnershipsQuery } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
+import { inningsInPlay } from "~/lib/cricket";
 import { Loader2 } from "lucide-react";
 
 interface Partnership {
@@ -31,7 +32,7 @@ interface Partnership {
  * (each batter's runs and balls faced, as the batting card counts them;
  * older stands got theirs from `scripts/migrate-partnership-splits.mjs`).
  */
-function standOf(p: Partnership, wicket: number): StandData {
+function standOf(p: Partnership, wicket: number, inPlay: boolean): StandData {
   return {
     key: p.id,
     wicket,
@@ -42,7 +43,10 @@ function standOf(p: Partnership, wicket: number): StandData {
     runs: p.runs,
     balls: p.balls,
     shares: storedShares(p),
-    live: Boolean(p.is_current),
+    // The engine leaves the last stand current when an innings ends
+    // without a wicket: live only while its innings is in play.
+    live: Boolean(p.is_current) && inPlay,
+    unbroken: Boolean(p.is_current) && !inPlay,
   };
 }
 
@@ -64,10 +68,11 @@ function groupStands(rows: Partnership[], match: Match) {
 
   return [...byInnings.entries()].map(([inningsId, group]) => {
     const inn = match.innings?.find((i) => i.id === inningsId);
+    const inPlay = inningsInPlay(match, inn);
     const stands = group
       .slice()
       .sort((a, b) => a.start_over - b.start_over)
-      .map((p, idx) => standOf(p, idx + 1));
+      .map((p, idx) => standOf(p, idx + 1, inPlay));
     const best = stands.reduce<StandData | null>(
       (top, s) => (s.runs > (top?.runs ?? 0) ? s : top),
       null,

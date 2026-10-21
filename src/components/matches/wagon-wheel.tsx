@@ -30,6 +30,25 @@ import {
   describeWedge,
 } from "~/lib/wagon-wheel-utils";
 
+type PlacedShot = BallEvent & { side: "off" | "leg" };
+
+function sideRuns(shots: PlacedShot[], side: "off" | "leg") {
+  return shots
+    .filter((s) => s.side === side)
+    .reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
+}
+
+/** Runs, balls and strike rate of `balls`; off / leg side runs of `placed`. */
+function totalsOf(balls: BallEvent[], placed: PlacedShot[]) {
+  const runs = balls.reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
+  return {
+    runs,
+    balls: balls.length,
+    sr: balls.length > 0 ? ((runs / balls.length) * 100).toFixed(1) : "0.0",
+    off: sideRuns(placed, "off"),
+    leg: sideRuns(placed, "leg"),
+  };
+}
 
 interface WagonWheelProps {
   match: Match;
@@ -91,36 +110,19 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
     return inningsBalls.filter((b) => b.batsman_id === selectedBatterId);
   }, [inningsBalls, selectedBatterId]);
 
-  // Synthesize/map shot zone if null using a consistent deterministic distribution
+  // Only shots the scorer gave a direction are drawn or split by side; a
+  // shot without one is counted in the totals but placed nowhere.
   const mappedShots = useMemo(() => {
-    const fallbackSector = SECTORS[0]!;
-    return batterBalls.map((b, idx) => {
-      let zoneId = b.shot_zone;
-      if (!zoneId) {
-        const run = b.runs_scored ?? 0;
-        if (run === 4 || run === 6) {
-          const boundaryZones = [
-            "cover",
-            "mid_wicket",
-            "long_on",
-            "long_off",
-            "point",
-            "square_leg",
-          ];
-          zoneId = boundaryZones[(idx * 7) % boundaryZones.length]!;
-        } else if (run > 0) {
-          zoneId = SECTORS[(idx * 3) % SECTORS.length]!.id;
-        } else {
-          zoneId = SECTORS[idx % SECTORS.length]!.id;
-        }
-      }
-      const sector = SECTORS.find((s) => s.id === zoneId) ?? fallbackSector;
+    return batterBalls.flatMap((b, idx) => {
+      const sector = SECTORS.find((s) => s.id === b.shot_zone);
+      if (!sector) return [];
 
-      // Realistic angle spread within the sector (+/- 14 degrees)
+      // Spread the lines within the sector (+/- 14 degrees) so they do not
+      // sit on top of each other; only the sector is recorded.
       const spread = ((idx * 17) % 28) - 14;
       const finalAngle = (sector.midAngle + spread + 360) % 360;
 
-      // Realistic ray length based on runs scored
+      // Ray length by runs scored
       let distPercent = 0.46; // single / default
       if (b.runs_scored === 6) distPercent = 0.98;
       else if (b.runs_scored === 4) distPercent = 0.92;
@@ -129,16 +131,27 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
       else if (b.runs_scored === 1) distPercent = 0.46;
       else distPercent = 0.28; // dot
 
-      return {
-        ...b,
-        sectorId: sector.id,
-        sectorLabel: sector.label,
-        side: sector.side,
-        angle: finalAngle,
-        distPercent,
-      };
+      return [
+        {
+          ...b,
+          sectorId: sector.id,
+          sectorLabel: sector.label,
+          side: sector.side,
+          angle: finalAngle,
+          distPercent,
+        },
+      ];
     });
   }, [batterBalls]);
+
+  // Scoring shots off the bat with no direction recorded (the scorer is
+  // only asked for those).
+  const unplacedShots = useMemo(
+    () =>
+      batterBalls.filter((b) => (b.runs_scored ?? 0) > 0 && !b.shot_zone)
+        .length,
+    [batterBalls],
+  );
 
   // Sector stats calculation (total runs, balls, boundaries)
   const sectorStats = useMemo(() => {
@@ -176,10 +189,10 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
     return map;
   }, [mappedShots]);
 
-  // Counts of each run category
+  // Counts of each run category, from every ball
   const runCounts = useMemo(() => {
     const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 6: 0, dots: 0 };
-    mappedShots.forEach((s) => {
+    batterBalls.forEach((s) => {
       const r = s.runs_scored;
       if (r === 1) counts[1] += 1;
       else if (r === 2) counts[2] += 1;
@@ -189,72 +202,37 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
       else if (r === 0 && !s.extras) counts.dots += 1;
     });
     return counts;
-  }, [mappedShots]);
+  }, [batterBalls]);
 
-  // Off-side vs Leg-side runs breakdown
+  // Runs, balls and strike rate from every ball (a zone filter can only
+  // count placed shots); off / leg side from placed shots only.
   const { totalRuns, totalBalls, strikeRate, offSideRuns, legSideRuns } =
     useMemo(() => {
-      let activeShots = mappedShots;
-      if (activeRunFilter !== null) {
-        activeShots = mappedShots.filter(
-          (s) => s.runs_scored === activeRunFilter,
-        );
-      }
-      if (selectedSectorId !== null) {
-        activeShots = activeShots.filter(
-          (s) => s.sectorId === selectedSectorId,
-        );
-      }
-
-      const runs = activeShots.reduce(
-        (acc, s) => acc + (s.runs_scored ?? 0),
-        0,
+      const byRuns = <T extends BallEvent>(list: T[]) =>
+        activeRunFilter === null
+          ? list
+          : list.filter((s) => s.runs_scored === activeRunFilter);
+      const placed = byRuns(mappedShots).filter(
+        (s) => selectedSectorId === null || s.sectorId === selectedSectorId,
       );
-      const balls = activeShots.length;
-      const sr =
-        balls > 0 ? ((runs / balls) * 100).toFixed(1) : (0.0).toFixed(1);
-
-      const off = activeShots
-        .filter((s) => s.side === "off")
-        .reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
-      const leg = activeShots
-        .filter((s) => s.side === "leg")
-        .reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
-
+      const t = totalsOf(
+        selectedSectorId === null ? byRuns(batterBalls) : placed,
+        placed,
+      );
       return {
-        totalRuns: runs,
-        totalBalls: balls,
-        strikeRate: sr,
-        offSideRuns: off,
-        legSideRuns: leg,
+        totalRuns: t.runs,
+        totalBalls: t.balls,
+        strikeRate: t.sr,
+        offSideRuns: t.off,
+        legSideRuns: t.leg,
       };
-    }, [mappedShots, activeRunFilter, selectedSectorId]);
+    }, [batterBalls, mappedShots, activeRunFilter, selectedSectorId]);
 
   // Overall totals without run/sector filters (for main card top view)
-  const overallTotals = useMemo(() => {
-    const runs = mappedShots.reduce(
-      (acc, s) => acc + (s.runs_scored ?? 0),
-      0,
-    );
-    const balls = mappedShots.length;
-    const sr =
-      balls > 0 ? ((runs / balls) * 100).toFixed(1) : (0.0).toFixed(1);
-
-    const off = mappedShots
-      .filter((s) => s.side === "off")
-      .reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
-    const leg = mappedShots
-      .filter((s) => s.side === "leg")
-      .reduce((acc, s) => acc + (s.runs_scored ?? 0), 0);
-
-    return {
-      runs,
-      balls,
-      sr,
-      off,
-      leg,
-    };
-  }, [mappedShots]);
+  const overallTotals = useMemo(
+    () => totalsOf(batterBalls, mappedShots),
+    [batterBalls, mappedShots],
+  );
 
   // Toggle run filter pill
   const handleToggleRunFilter = (val: number) => {
@@ -282,9 +260,10 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
   const R_30YD = 116; // 30-yard inner circle
   const R_INNER_GUIDE = 62; // Inner field guide circle
   const R_TEXT = (R_OUTER + R_GRASS) / 2; // Radius for sector run labels (~204)
-  // The striker's crease, at the bottom end of the pitch: the field is seen
-  // from behind the striker (see SECTORS), so shots start here.
-  const BATTER_CONTACT_Y = CY + 16;
+  // The striker's crease, at the top end of the pitch: the field is seen
+  // as the camera behind the bowler shows it (see SECTORS), so shots start
+  // here.
+  const BATTER_CONTACT_Y = CY - 16;
 
   // Selected sector name for label display
   const activeSectorInfo = SECTORS.find((s) => s.id === selectedSectorId);
@@ -294,8 +273,8 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
       <CardHeader className="px-4 pb-2 pt-4 sm:px-5">
         <CardTitle className="text-base font-semibold">Wagon wheel</CardTitle>
         <CardDescription className="text-sm">
-          Where the runs went, seen from behind the batter. Tap a zone or a
-          run value to filter.
+          Where the runs went, seen as on TV from behind the bowler. Tap a
+          zone or a run value to filter.
         </CardDescription>
       </CardHeader>
 
@@ -477,16 +456,16 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 strokeWidth="1"
                 className={FIELD.pitch}
               />
-              {/* Bowling crease (top, the bowler's end) */}
+              {/* Bowling crease (bottom, the bowler's end) */}
               <line
                 x1={CX - 8}
-                y1={CY - 16}
+                y1={CY + 16}
                 x2={CX + 8}
-                y2={CY - 16}
+                y2={CY + 16}
                 strokeWidth="1.2"
                 className={FIELD.crease}
               />
-              {/* Batting crease (bottom, the striker's end) */}
+              {/* Batting crease (top, the striker's end) */}
               <line
                 x1={CX - 8}
                 y1={BATTER_CONTACT_Y}
@@ -495,12 +474,12 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
                 strokeWidth="1.2"
                 className={FIELD.crease}
               />
-              {/* Stumps: the striker's at the bottom, the bowler's end at the top */}
-              <circle cx={CX} cy={CY - 20} r={1.8} className={FIELD.farStumps} />
+              {/* Stumps: the striker's at the top, the bowler's end below */}
+              <circle cx={CX} cy={CY + 20} r={1.8} className={FIELD.farStumps} />
               <g className={FIELD.stumps}>
-                <rect x={CX - 5} y={CY + 19} width={1.8} height={6} rx={0.6} />
-                <rect x={CX - 0.9} y={CY + 19} width={1.8} height={6} rx={0.6} />
-                <rect x={CX + 3.2} y={CY + 19} width={1.8} height={6} rx={0.6} />
+                <rect x={CX - 5} y={CY - 25} width={1.8} height={6} rx={0.6} />
+                <rect x={CX - 0.9} y={CY - 25} width={1.8} height={6} rx={0.6} />
+                <rect x={CX + 3.2} y={CY - 25} width={1.8} height={6} rx={0.6} />
               </g>
 
               {/* Striker Batting Crease Spot */}
@@ -571,6 +550,14 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
               })}
             </svg>
           </div>
+
+          {unplacedShots > 0 && (
+            <p className="mt-1.5 text-center text-xs text-muted-foreground">
+              {mappedShots.length === 0
+                ? "No shot directions recorded for this innings."
+                : `${unplacedShots} scoring ${unplacedShots === 1 ? "shot has" : "shots have"} no direction recorded and ${unplacedShots === 1 ? "is" : "are"} not shown.`}
+            </p>
+          )}
 
           {/* Active Sector Indicator (if filtered by sector) */}
           {selectedSectorId && activeSectorInfo && (

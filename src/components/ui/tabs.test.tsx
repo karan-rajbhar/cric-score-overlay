@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { createPortal } from "react-dom";
 import { describe, expect, it } from "vitest";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 
@@ -68,5 +69,90 @@ describe("Tabs UI Primitives", () => {
     expect(list.className).toContain("justify-start");
     expect(list.className).toContain("overflow-x-auto");
     expect(list.className).not.toContain("justify-center");
+  });
+
+  describe("swiping", () => {
+    function flick(el: Element, fromX: number, toX: number) {
+      fireEvent.touchStart(el, {
+        touches: [{ clientX: fromX, clientY: 200 }],
+      });
+      fireEvent.touchEnd(el, {
+        changedTouches: [{ clientX: toX, clientY: 205 }],
+      });
+    }
+    const active = () =>
+      screen
+        .getAllByRole("tab")
+        .filter((t) => t.getAttribute("data-state") === "active")
+        .map((t) => t.textContent);
+
+    function Nested({ portal }: { portal?: Element }) {
+      return (
+        <Tabs defaultValue="summary">
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            <TabsTrigger value="stats">Stats</TabsTrigger>
+          </TabsList>
+          <TabsContent value="summary">
+            <p data-testid="summary">Summary panel</p>
+            {portal && createPortal(<p data-testid="dialog">Dialog</p>, portal)}
+          </TabsContent>
+          <TabsContent value="scorecard">
+            <Tabs defaultValue="inn1">
+              <TabsList>
+                <TabsTrigger value="inn1">Innings 1</TabsTrigger>
+                <TabsTrigger value="inn2">Innings 2</TabsTrigger>
+              </TabsList>
+              <TabsContent value="inn1">
+                <p data-testid="card">First innings card</p>
+              </TabsContent>
+              <TabsContent value="inn2">
+                <p data-testid="card">Second innings card</p>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+          <TabsContent value="stats">Stats panel</TabsContent>
+        </Tabs>
+      );
+    }
+
+    it("moves between tabs, and tabs inside a panel take the swipe first", () => {
+      render(<Nested />);
+      flick(screen.getByTestId("summary"), 300, 100);
+      expect(active()).toEqual(["Scorecard", "Innings 1"]);
+      // Inside the scorecard: its innings first...
+      flick(screen.getByTestId("card"), 300, 100);
+      expect(active()).toEqual(["Scorecard", "Innings 2"]);
+      // ...then, past the last one, the page's tabs.
+      flick(screen.getByTestId("card"), 300, 100);
+      expect(active()).toEqual(["Stats"]);
+      flick(screen.getByText("Stats panel"), 100, 300);
+      expect(active()).toEqual(["Scorecard", "Innings 1"]);
+      flick(screen.getByTestId("card"), 100, 300);
+      expect(active()).toEqual(["Summary"]);
+    });
+
+    it("leaves touches from a portal (a dialog) and unswipeable tabs alone", () => {
+      const portal = document.createElement("div");
+      document.body.appendChild(portal);
+      const { unmount } = render(<Nested portal={portal} />);
+      flick(screen.getByTestId("dialog"), 300, 100);
+      expect(active()).toEqual(["Summary"]);
+      unmount();
+      portal.remove();
+
+      render(
+        <Tabs defaultValue="a" swipeable={false}>
+          <TabsList>
+            <TabsTrigger value="a">A</TabsTrigger>
+            <TabsTrigger value="b">B</TabsTrigger>
+          </TabsList>
+          <TabsContent value="a">Panel A</TabsContent>
+        </Tabs>,
+      );
+      flick(screen.getByText("Panel A"), 300, 100);
+      expect(active()).toEqual(["A"]);
+    });
   });
 });

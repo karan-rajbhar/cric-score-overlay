@@ -20,6 +20,8 @@ export const COLORS = {
   muted: "#f1f3f8",
   row: "rgba(36, 34, 103, 0.04)",
   primary: "#242267",
+  /** --brand: the logo's tile. */
+  brand: "#2e449e",
   board: "#181745",
   soft: "#e7e8fd",
   text: "#11132c",
@@ -51,6 +53,37 @@ export function paintWash(ctx: CanvasRenderingContext2D, w: number, h: number) {
   fade.addColorStop(1, COLORS.bg);
   ctx.fillStyle = fade;
   ctx.fillRect(0, h * 0.42, w, h * 0.2 + 1);
+}
+
+/**
+ * The brand mark (src/app/icon.svg): three stumps and a split bail on the
+ * brand tile, `size` px square at (x, y).
+ */
+export function paintBrandMark(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+) {
+  const u = size / 32;
+  ctx.save();
+  ctx.fillStyle = COLORS.brand;
+  ctx.beginPath();
+  ctx.roundRect(x, y, size, size, 9 * u);
+  ctx.fill();
+  ctx.fillStyle = COLORS.card;
+  for (const [rx, ry, w, h, r] of [
+    [8, 10.5, 4, 15.5, 2],
+    [14, 10.5, 4, 15.5, 2],
+    [20, 10.5, 4, 15.5, 2],
+    [8, 6.5, 7, 2, 1],
+    [17, 6.5, 7, 2, 1],
+  ] as const) {
+    ctx.beginPath();
+    ctx.roundRect(x + rx * u, y + ry * u, w * u, h * u, r * u);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /** A white card with the design's soft shadow. */

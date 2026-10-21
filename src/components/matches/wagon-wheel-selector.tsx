@@ -42,9 +42,10 @@ export function WagonWheelSelector({
   const R_30YD = 94;
   const R_INNER_GUIDE = 50;
   const R_TEXT = (R_OUTER + R_GRASS) / 2;
-  // The striker's crease, at the bottom end of the pitch: the field is seen
-  // from behind the striker (see SECTORS), so shots start here.
-  const BATTER_CONTACT_Y = CY + 14;
+  // The striker's crease, at the top end of the pitch: the field is seen
+  // as the camera behind the bowler shows it (see SECTORS), so shots start
+  // here.
+  const BATTER_CONTACT_Y = CY - 14;
 
   const handleSectorClick = (
     sectorId: string,
@@ -295,8 +296,8 @@ export function WagonWheelSelector({
               );
             })}
 
-          {/* Pitch: the bowler's end at the top, the striker's crease and
-              stumps at the bottom, where every shot starts */}
+          {/* Pitch: the striker's crease and stumps at the top, where every
+              shot starts; the bowler's end below */}
           <g className="pointer-events-none">
             <rect
               x={CX - 7}
@@ -309,9 +310,9 @@ export function WagonWheelSelector({
             />
             <line
               x1={CX - 8}
-              y1={CY - 14}
+              y1={CY + 14}
               x2={CX + 8}
-              y2={CY - 14}
+              y2={CY + 14}
               strokeWidth="1"
               className={FIELD.crease}
             />
@@ -323,11 +324,11 @@ export function WagonWheelSelector({
               strokeWidth="1.2"
               className={FIELD.crease}
             />
-            <circle cx={CX} cy={CY - 17} r={1.4} className={FIELD.farStumps} />
+            <circle cx={CX} cy={CY + 17} r={1.4} className={FIELD.farStumps} />
             <g className={FIELD.stumps}>
-              <rect x={CX - 4.5} y={CY + 16} width={1.6} height={5} rx={0.5} />
-              <rect x={CX - 0.8} y={CY + 16} width={1.6} height={5} rx={0.5} />
-              <rect x={CX + 2.9} y={CY + 16} width={1.6} height={5} rx={0.5} />
+              <rect x={CX - 4.5} y={CY - 21} width={1.6} height={5} rx={0.5} />
+              <rect x={CX - 0.8} y={CY - 21} width={1.6} height={5} rx={0.5} />
+              <rect x={CX + 2.9} y={CY - 21} width={1.6} height={5} rx={0.5} />
             </g>
             <circle
               cx={CX}
@@ -375,8 +376,8 @@ export function WagonWheelSelector({
       </div>
 
       <p className="mt-1.5 text-2xs font-medium text-muted-foreground">
-        Seen from behind the batter, who is at the bottom end. Tap where the
-        ball went.
+        Seen as on TV, from behind the bowler: the batter is at the top end. Tap
+        where the ball went.
       </p>
     </div>
   );

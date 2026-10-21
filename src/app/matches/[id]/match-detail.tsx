@@ -7,7 +7,6 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { useSwipeTabs } from "~/lib/hooks/useSwipeTabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
@@ -78,16 +77,6 @@ import { ShareMatchButton } from "~/components/matches/share-match-button";
 const screenAction =
   "h-11 w-11 rounded-full border-0 bg-card p-0 shadow-soft ring-1 ring-border/60 hover:bg-accent";
 
-/** The match page's tabs, in tab-bar order (swiping follows it). */
-const MATCH_TABS = [
-  "summary",
-  "scorecard",
-  "superstars",
-  "stats",
-  "balls",
-  "info",
-] as const;
-
 /** Tabs that show per-player figures (refetched per change unless live). */
 const FULL_MATCH_TABS = new Set(["summary", "scorecard", "superstars"]);
 /**
@@ -108,25 +97,6 @@ function MatchDetailsPageContent() {
   const matchId = params.id as string;
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("summary");
-  // Swipe between the tabs, in the order the tab bar shows them; the new
-  // tab's button is scrolled into view in the (scrolling) tab bar.
-  const swipe = useSwipeTabs({
-    tabs: MATCH_TABS,
-    value: activeTab as (typeof MATCH_TABS)[number],
-    onChange: (tab) => {
-      setActiveTab(tab);
-      requestAnimationFrame(() => {
-        const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-        document
-          .querySelector<HTMLElement>(`[role="tab"][data-tab-value="${tab}"]`)
-          ?.scrollIntoView({
-            block: "nearest",
-            inline: "center",
-            behavior: reduce ? "auto" : "smooth",
-          });
-      });
-    },
-  });
   const {
     data: matchData,
     isLoading: loading,
@@ -607,55 +577,42 @@ function MatchDetailsPageContent() {
           <TabsList className="flex h-auto w-full justify-start">
             <TabsTrigger
               value="summary"
-              data-tab-value="summary"
               className="shrink-0 gap-1.5"
             >
               {inPlay ? "Live" : "Summary"}
             </TabsTrigger>
             <TabsTrigger
               value="scorecard"
-              data-tab-value="scorecard"
               className="shrink-0 gap-1.5"
             >
               <span>Scorecard</span>
             </TabsTrigger>
             <TabsTrigger
               value="superstars"
-              data-tab-value="superstars"
               className="shrink-0 gap-1.5"
             >
               <span>Top performers</span>
             </TabsTrigger>
             <TabsTrigger
               value="stats"
-              data-tab-value="stats"
               className="shrink-0 gap-1.5"
             >
               Stats
             </TabsTrigger>
             <TabsTrigger
               value="balls"
-              data-tab-value="balls"
               className="shrink-0 gap-1.5"
             >
               <span>Balls</span>
             </TabsTrigger>
             <TabsTrigger
               value="info"
-              data-tab-value="info"
               className="shrink-0 gap-1.5"
             >
               Info
             </TabsTrigger>
           </TabsList>
 
-          {/* Swipe left / right here for the next / previous tab */}
-          <div
-            className="touch-pan-y"
-            onTouchStart={swipe.onTouchStart}
-            onTouchEnd={swipe.onTouchEnd}
-            onTouchCancel={swipe.onTouchCancel}
-          >
           <TabsContent value="summary">
             <MatchSummary match={match} />
           </TabsContent>
@@ -685,7 +642,6 @@ function MatchDetailsPageContent() {
               currentMatchId={match.id}
             />
           </TabsContent>
-          </div>
         </Tabs>
       </ContentSheet>
     </div>

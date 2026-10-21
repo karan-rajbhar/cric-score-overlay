@@ -182,13 +182,23 @@ import {
   MessageCircle,
   Trash2,
 } from "lucide-react";
-import { economyRate, inningsBalls, oversFromBalls } from "~/lib/cricket";
-import { ShareMatchButton } from "~/components/matches/share-match-button";
+import { economyRate } from "~/lib/cricket";
+import { useMatchShare } from "~/components/matches/use-match-share";
+import { searchUsers } from "~/app/teams/actions";
 import {
-  liveShareText,
+  PlayerSearchContext,
+  type FoundPlayer,
+} from "./components/PlayerPicker";
+
+/** A profile as `searchUsers` returns it. */
+type FoundUser = {
+  id: string;
+  full_name: string | null;
+  username?: string | null;
+};
+import {
+  matchShareMessage,
   matchShareUrl,
-  matchTitle,
-  shareMatch,
   whatsappShareUrl,
 } from "~/lib/share-match";
 import { LiveIndicator } from "~/components/matches/live-indicator";
@@ -442,23 +452,10 @@ function useScoringScreen() {
       ? match?.team1
       : match?.team2
     : match?.team1;
-  // Message for sharing the live score (header icon and Match Tools).
-  const shareScore = {
-    team1: match?.team1?.name,
-    team2: match?.team2?.name,
-    battingTeam: battingTeam?.name,
-    runs: currentInnings?.total_runs,
-    wickets: currentInnings?.total_wickets,
-    overs: currentInnings
-      ? oversFromBalls(
-          inningsBalls(currentInnings, match?.balls_per_over ?? 6),
-          match?.balls_per_over ?? 6,
-        )
-      : null,
-    status: match?.status,
-  };
-  const shareTitle = matchTitle(shareScore);
-  const shareText = liveShareText(shareScore);
+  // Sharing the score (header icon and Match Tools): the summary image of
+  // the match so far with a message; the scorer pastes the message where
+  // the image is downloaded instead (desktop).
+  const matchShare = useMatchShare(match, { copyMessage: true });
 
   const bowlingTeam = currentInnings
     ? currentInnings.team_id === match?.team1_id
@@ -510,6 +507,25 @@ function useScoringScreen() {
   const bowlingTeamPlayerIds = useMemo(
     () => new Set(bowlingTeamPlayers.map((p) => p.user_id)),
     [bowlingTeamPlayers],
+  );
+
+  // Registered players for the pickers' "Add", leaving out both squads, so
+  // the scorer adds the profile that exists instead of a second one.
+  const findPlayers = useCallback(
+    async (query: string): Promise<FoundPlayer[]> => {
+      const { data } = await searchUsers(query);
+      return ((data ?? []) as FoundUser[])
+        .filter(
+          (u) =>
+            !battingTeamPlayerIds.has(u.id) && !bowlingTeamPlayerIds.has(u.id),
+        )
+        .map((u) => ({
+          id: u.id,
+          name: u.full_name ?? "Player",
+          username: u.username,
+        }));
+    },
+    [battingTeamPlayerIds, bowlingTeamPlayerIds],
   );
 
   const strikerDisplay = useMemo(() => {
@@ -878,13 +894,18 @@ function useScoringScreen() {
     }
   };
 
-  const createSquadPlayer = async (side: "batting" | "bowling", name: string) =>
-    handleAddPlayerInline(side, name, match);
+  const createSquadPlayer = async (
+    side: "batting" | "bowling",
+    name: string,
+    existingId?: string,
+  ) => handleAddPlayerInline(side, name, match, existingId);
 
-  // Pickers add a player and select them in the slot being filled.
+  // Pickers add a player (a new one, or a registered one by id) and select
+  // them in the slot being filled.
   const createPickedPlayer =
-    (side: "batting" | "bowling") => async (name: string) => {
-      const res = await handleAddPlayerInline(side, name, match);
+    (side: "batting" | "bowling") =>
+    async (name: string, existingId?: string) => {
+      const res = await handleAddPlayerInline(side, name, match, existingId);
       return res?.data?.user_id ?? null;
     };
   const addPlayerDisabledReason = isOffline
@@ -985,6 +1006,7 @@ function useScoringScreen() {
 
   return {
     addPlayerDisabledReason,
+    findPlayers,
     authLoading,
     batsmenFocus,
     battingBench,
@@ -1078,8 +1100,7 @@ function useScoringScreen() {
     setShowWicketDialog,
     setTossDecision,
     setTossDialogDismissed,
-    shareText,
-    shareTitle,
+    matchShare,
     showAbandonMatchDialog,
     showAddPlayerDialog,
     showDeleteMatchDialog,
@@ -1241,8 +1262,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setShowPenaltyBonusDialog,
     setShowAddPlayerDialog,
     user,
-    shareTitle,
-    shareText,
+    matchShare,
     setShowInviteDialog,
     toggleWagonWheelPrompt,
     wagonWheelPrompt,
@@ -1370,15 +1390,8 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             Share
           </DropdownMenuLabel>
           <DropdownMenuItem
-            onSelect={() => {
-              void shareMatch(
-                matchShareUrl(match.id),
-                shareTitle,
-                shareText,
-              ).then((outcome) => {
-                if (outcome === "copied") toast.success("Link copied");
-              });
-            }}
+            onPointerDown={matchShare.prepare}
+            onSelect={() => void matchShare.share()}
             className="flex cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
           >
             <Share2 className="h-4 w-4 text-muted-foreground" />
@@ -1387,7 +1400,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
           <DropdownMenuItem asChild>
             <a
               href={whatsappShareUrl(
-                `${shareText}\n${matchShareUrl(match.id)}`,
+                matchShareMessage(match, matchShareUrl(match.id)),
               )}
               target="_blank"
               rel="noopener noreferrer"
@@ -1459,8 +1472,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
 
 /** The console's header: back, title, status and tools. */
 function ScoringHeader({ s }: { s: LoadedScreen }) {
-  const { sunlightMode, match, setShowAddPlayerDialog, shareTitle, shareText } =
-    s;
+  const { sunlightMode, match, setShowAddPlayerDialog, matchShare } = s;
   return (
     <>
       {/* Dedicated Scorer Console Header (Distraction-Free) */}
@@ -1528,14 +1540,24 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
               <Users className="h-4 w-4" />
             </Button>
 
-            {/* Share the live score (WhatsApp etc.) */}
-            <ShareMatchButton
-              matchId={match.id}
-              title={shareTitle}
-              text={shareText}
-              label="Share live score"
+            {/* Share the live score: the summary image and a message */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={matchShare.busy}
+              onPointerDown={matchShare.prepare}
+              onClick={() => void matchShare.share()}
+              aria-label="Share live score"
               className="h-8 w-8 rounded-lg p-0 sm:w-auto sm:px-2.5"
-            />
+            >
+              {matchShare.busy ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Share2 />
+              )}
+              <span className="hidden sm:inline">Share</span>
+            </Button>
 
             {/* OBS Broadcast Overlay Shortcut */}
             <Button
@@ -2821,7 +2843,9 @@ export default function ScoringPage() {
         </div>
       </main>
 
-      <ScoringDialogs s={screen} />
+      <PlayerSearchContext.Provider value={s.findPlayers}>
+        <ScoringDialogs s={screen} />
+      </PlayerSearchContext.Provider>
     </div>
   );
 }

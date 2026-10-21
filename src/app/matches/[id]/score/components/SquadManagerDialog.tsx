@@ -13,11 +13,7 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import {
-  addPlayerToTeam,
-  removePlayerFromTeam,
-  searchUsers,
-} from "~/app/teams/actions";
+import { removePlayerFromTeam, searchUsers } from "~/app/teams/actions";
 import type { TeamPlayer } from "~/lib/match-types";
 import { roleLabel } from "./player-rows";
 
@@ -37,10 +33,15 @@ export interface SquadManagerDialogProps {
   /** Ids of players who have batted or bowled in this match. */
   usedIds: Set<string>;
   dismissedIds: Set<string>;
-  /** Creates a brand-new player record and adds them to the side. */
+  /**
+   * Adds a player to the side: a brand-new record named `name`, or with
+   * `existingId` that registered player (the scorer's route, so the match's
+   * co-scorers may add players too).
+   */
   onCreatePlayer: (
     side: "batting" | "bowling",
     name: string,
+    existingId?: string,
   ) => Promise<unknown>;
   /** Called after any roster change so the page can reload squads. */
   onChanged: () => Promise<void> | void;
@@ -125,17 +126,16 @@ function SquadPanel({
     ? team.players.find((p) => normalize(p.user?.full_name ?? "") === q)
     : undefined;
 
-  const addExisting = async (userId: string) => {
-    setBusyId(userId);
-    const res = await addPlayerToTeam(team.id, userId);
-    if (res.error) toast.error(res.error);
-    else {
-      toast.success("Player added to squad");
+  const addExisting = async (u: FoundUser) => {
+    if (isOffline) return;
+    setBusyId(u.id);
+    try {
+      await onCreatePlayer(side, u.full_name ?? "Player", u.id);
       setQuery("");
       setResults([]);
-      await onChanged();
+    } finally {
+      setBusyId(null);
     }
-    setBusyId(null);
   };
 
   const remove = async (userId: string, name: string) => {
@@ -292,7 +292,7 @@ function SquadPanel({
                   <button
                     type="button"
                     disabled={busyId === u.id || isProcessing}
-                    onClick={() => void addExisting(u.id)}
+                    onClick={() => void addExisting(u)}
                     aria-label={`Add ${u.full_name ?? "player"} to ${team.name}`}
                     className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-60"
                   >

@@ -52,34 +52,48 @@ export function ownsHorizontalGesture(
 }
 
 /**
- * Swipe left / right on the tab panels to move between `tabs` (in order).
- * Returns touch handlers for the panels' container.
+ * Swipe left / right on the tab panels to move between `tabs` (in order;
+ * a function is read when the swipe ends). Returns touch handlers for the
+ * panels' container.
+ *
+ * Tab sets nest (a scorecard's innings inside the match page's tabs): the
+ * innermost takes the swipe while it has a tab that way, and stops the
+ * event there; past its first or last tab the swipe goes on to the tabs
+ * around it. Touches from a portal (a dialog opened from a panel) are not
+ * the panels' own and are left alone.
  */
 export function useSwipeTabs<T extends string>({
   tabs,
   value,
   onChange,
+  enabled = true,
 }: {
-  tabs: readonly T[];
+  tabs: readonly T[] | (() => readonly T[]);
   value: T;
   onChange: (tab: T) => void;
+  enabled?: boolean;
 }) {
   const start = useRef<Point | null>(null);
 
-  const onTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
-    const touch = e.touches[0];
-    // One finger only (two is a pinch), and not on something that scrolls
-    // or slides sideways itself.
-    if (
-      e.touches.length !== 1 ||
-      !touch ||
-      ownsHorizontalGesture(e.target, e.currentTarget)
-    ) {
-      start.current = null;
-      return;
-    }
-    start.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
-  }, []);
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLElement>) => {
+      const touch = e.touches[0];
+      // One finger only (two is a pinch), on the panels themselves, and not
+      // on something that scrolls or slides sideways itself.
+      if (
+        !enabled ||
+        e.touches.length !== 1 ||
+        !touch ||
+        !(e.target instanceof Node && e.currentTarget.contains(e.target)) ||
+        ownsHorizontalGesture(e.target, e.currentTarget)
+      ) {
+        start.current = null;
+        return;
+      }
+      start.current = { x: touch.clientX, y: touch.clientY, t: Date.now() };
+    },
+    [enabled],
+  );
 
   const onTouchEnd = useCallback(
     (e: React.TouchEvent<HTMLElement>) => {
@@ -93,8 +107,11 @@ export function useSwipeTabs<T extends string>({
         t: Date.now(),
       });
       if (!dir) return;
-      const next = tabs[tabs.indexOf(value) + dir];
-      if (next) onChange(next);
+      const list = typeof tabs === "function" ? tabs() : tabs;
+      const next = list[list.indexOf(value) + dir];
+      if (!next) return;
+      e.stopPropagation();
+      onChange(next);
     },
     [tabs, value, onChange],
   );

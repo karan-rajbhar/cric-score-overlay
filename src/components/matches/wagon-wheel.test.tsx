@@ -274,4 +274,52 @@ describe("WagonWheel Component (Stumps App Design)", () => {
     expect(screen.getByText("Mid-wicket")).toBeInTheDocument();
     expect(screen.getByText("Square leg")).toBeInTheDocument();
   });
+
+  it("counts shots without a recorded direction but does not place them", () => {
+    const unplaced: BallEvent[] = [
+      {
+        id: "b-x1",
+        match_id: "m-1",
+        innings_id: "inn-1",
+        over_number: 3,
+        ball_number: 1,
+        batsman_id: "user-1",
+        runs_scored: 6,
+        extras: 0,
+        is_wicket: false,
+        shot_zone: null,
+      },
+      {
+        id: "b-x2",
+        match_id: "m-1",
+        innings_id: "inn-1",
+        over_number: 3,
+        ball_number: 2,
+        batsman_id: "user-1",
+        runs_scored: 0,
+        extras: 0,
+        is_wicket: false,
+        shot_zone: null,
+      },
+    ];
+    const match = {
+      ...dummyMatch,
+      innings: [
+        { ...dummyMatch.innings![0]!, ball_by_ball: [...sampleBalls, ...unplaced] },
+      ],
+    } as Match;
+    render(<WagonWheel match={match} />);
+
+    // Runs and balls take every ball (27 + 6, 8 + 2); the sides only the
+    // placed shots (13 and 14, as before).
+    expect(screen.getByText("33")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
+    expect(screen.getByText("13")).toBeInTheDocument();
+    expect(screen.getByText("14")).toBeInTheDocument();
+    // The six is counted, and said to be missing from the picture (the dot
+    // ball is never asked for a direction).
+    expect(
+      screen.getByText("1 scoring shot has no direction recorded and is not shown."),
+    ).toBeInTheDocument();
+  });
 });

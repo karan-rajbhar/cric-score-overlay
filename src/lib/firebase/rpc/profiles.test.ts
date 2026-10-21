@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AppUser } from "../auth-types";
 import { MemoryDataSource } from "../datasource";
-import { createTeamPlayer, ensureOwnProfile } from "./profiles";
+import { addTeamPlayer, createTeamPlayer, ensureOwnProfile } from "./profiles";
 
 function googleUser(id: string, email: string | null, name = "Ann"): AppUser {
   return {
@@ -143,5 +143,42 @@ describe("createTeamPlayer", () => {
     await expect(
       createTeamPlayer(ds, "coscorer", "t1", "Ana", null, "m1"),
     ).rejects.toThrow(/not_authorized/);
+  });
+});
+
+describe("addTeamPlayer", () => {
+  it("adds a registered player to a squad once, for the same people who may create one", async () => {
+    const ds = new MemoryDataSource({
+      teams: [
+        { id: "t1", created_by: "owner", club_id: null },
+        { id: "t2", created_by: "owner", club_id: null },
+      ],
+      users: [{ id: "u1", full_name: "Sam Lee" }],
+      matches: [
+        {
+          id: "m1",
+          created_by: "owner",
+          match_admins: ["coscorer"],
+          team1_id: "t1",
+          team2_id: "t2",
+          status: "live",
+        },
+      ],
+    });
+    await expect(addTeamPlayer(ds, "coscorer", "t1", "u1")).rejects.toThrow(
+      /not_authorized/,
+    );
+    await expect(
+      addTeamPlayer(ds, "coscorer", "t1", "nobody", "m1"),
+    ).rejects.toThrow(/player_not_found/);
+
+    const res = await addTeamPlayer(ds, "coscorer", "t1", "u1", "m1");
+    expect(res).toEqual({ user_id: "u1", full_name: "Sam Lee" });
+    // Again (a retried request): still one squad row.
+    await addTeamPlayer(ds, "coscorer", "t1", "u1", "m1");
+    const rows = await ds.query("team_players", [
+      { field: "user_id", op: "==", value: "u1" },
+    ]);
+    expect(rows).toMatchObject([{ team_id: "t1", added_by: "coscorer" }]);
   });
 });

@@ -19,6 +19,7 @@ import {
 import { inviteEmail, revokeInvitation } from "./access";
 import { deleteMatch } from "./delete-match";
 import {
+  addTeamPlayer,
   checkUsernameAvailable,
   createTeamPlayer,
   ensureOwnProfile,
@@ -204,6 +205,14 @@ export async function callRpc(
         str(args, "p_team_id"),
         str(args, "p_full_name"),
         typeof args.p_jersey_number === "number" ? args.p_jersey_number : null,
+        optStr(args, "p_match_id"),
+      );
+    case "add_team_player":
+      return addTeamPlayer(
+        ctx.ds,
+        ctx.uid,
+        str(args, "p_team_id"),
+        str(args, "p_user_id"),
         optStr(args, "p_match_id"),
       );
     case "delete_match":
