@@ -12,7 +12,7 @@ import {
 } from "~/components/ui/dialog";
 import { cn } from "~/lib/utils";
 import type { BattingPerformance, TeamPlayer } from "~/lib/match-types";
-import { PlayerPicker } from "./PlayerPicker";
+import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
 import { buildBatterRows } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
@@ -42,8 +42,8 @@ interface BatsmenDialogProps {
    */
   onConfirm: (pair: { strikerId: string; nonStrikerId: string }) => void;
   isProcessing: boolean;
-  /** Creates a player in the batting side; resolves to the new id. */
-  onCreatePlayer?: (name: string) => Promise<string | null>;
+  /** Adds a player to the batting side; resolves to their id. */
+  onCreatePlayer?: PickerAddPlayer["onAdd"];
   /** Set while adding is impossible (e.g. offline). */
   addPlayerDisabledReason?: string | null;
   /**

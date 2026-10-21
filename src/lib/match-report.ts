@@ -1,6 +1,7 @@
 import type { Match } from "./match-types";
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
+  ballsRemaining,
   bowlerEconomy,
   byBattingOrder,
   dismissalText,
@@ -8,9 +9,11 @@ import {
   formatDecimalOvers,
   inningsBalls,
   oversFromBalls,
+  runRate,
   scoreLine,
   sidesInBattingOrder,
   strikeRate,
+  teamName,
   topBatters,
   topBowlers,
 } from "./cricket";
@@ -49,6 +52,9 @@ export interface MatchExportSummary {
   format: string;
   venue?: string | null;
   playedAt?: string | null;
+  /** Being played: the image says "Live" and where it stands, not a result. */
+  live: boolean;
+  /** The result; while live, where the match stands (see `matchSituation`). */
   result: string;
   matchUrl: string;
   team1: ExportTeamStats;
@@ -93,7 +99,8 @@ export function buildExportSummary(
           timeStyle: "short",
         })
       : null,
-    result: match.result_description ?? "Match completed",
+    live: isLive(match),
+    result: matchSituation(match),
     matchUrl,
     // In batting order: the side that batted first is shown first.
     team1: teamStats(sidesInBattingOrder(match)[0].team),
@@ -102,6 +109,42 @@ export function buildExportSummary(
   };
 }
 
+
+const isLive = (match: Pick<Match, "status">) =>
+  match.status === "live" || match.status === "innings_break";
+
+/**
+ * Where a match stands, in a line: the result once it is over; while it is
+ * live, the chase ("Warriors need 40 runs from 30 balls") or who is batting
+ * and at what rate.
+ */
+export function matchSituation(match: Match): string {
+  if (!isLive(match)) {
+    return (
+      match.result_description?.trim() ||
+      (match.status === "abandoned" ? "Match abandoned" : "Match completed")
+    );
+  }
+  if (match.status === "innings_break") return "Innings break";
+  const inn =
+    match.innings?.find((i) => i.innings_number === match.current_innings) ??
+    match.innings?.at(-1);
+  if (!inn) return "Live";
+  const bpo = match.balls_per_over || 6;
+  const batting = teamName(match, inn.team_id);
+  const balls = inningsBalls(inn, bpo);
+  const need = (inn.target_runs ?? 0) - inn.total_runs;
+  if (inn.target_runs && need > 0) {
+    const runs = `${need} ${need === 1 ? "run" : "runs"}`;
+    const left = match.overs_per_innings
+      ? ballsRemaining(match.overs_per_innings, balls, bpo)
+      : 0;
+    return left > 0
+      ? `${batting} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
+      : `${batting} need ${runs}`;
+  }
+  return `${batting} batting · run rate ${runRate(inn.total_runs, balls, bpo)}`;
+}
 
 function inningsFor(match: Match, teamId: string) {
   return match.innings?.find((i) => i.team_id === teamId);

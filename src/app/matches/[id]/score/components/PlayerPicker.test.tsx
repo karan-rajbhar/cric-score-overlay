@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PlayerPicker } from "./PlayerPicker";
+import { PlayerPicker, PlayerSearchContext } from "./PlayerPicker";
 import type { PickerRow } from "./player-rows";
 
 const rows: PickerRow[] = [
@@ -225,5 +225,69 @@ describe("PlayerPicker add while typing", () => {
     expect(
       search.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("suggests registered players and adds the one picked instead of a new one", async () => {
+    const onSelect = vi.fn();
+    const onAdd = vi.fn().mockResolvedValue("u-rahul");
+    const find = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "u-rahul", name: "Rahul Dravid", username: "rahul" },
+      ]);
+    render(
+      <PlayerSearchContext.Provider value={find}>
+        <PlayerPicker
+          label="Choose"
+          rows={rows}
+          selectedId={null}
+          onSelect={onSelect}
+          addPlayer={{ teamName: "Team A", onAdd }}
+        />
+      </PlayerSearchContext.Provider>,
+    );
+    const search = screen.getByRole("searchbox");
+    fireEvent.change(search, { target: { value: "rahul" } });
+    const pick = await screen.findByRole("button", {
+      name: /Add Rahul Dravid to Team A/,
+    });
+    expect(find).toHaveBeenCalledWith("rahul");
+    expect(pick).toHaveTextContent("@rahul");
+    expect(
+      screen.getByRole("button", { name: /Add .rahul. as a new player to Team A/ }),
+    ).toBeInTheDocument();
+
+    // Enter does not guess between them.
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+
+    fireEvent.click(pick);
+    await waitFor(() =>
+      expect(onAdd).toHaveBeenCalledWith("Rahul Dravid", "u-rahul"),
+    );
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith("u-rahul"));
+  });
+
+  it("does not look up registered players while adding is unavailable", () => {
+    const find = vi.fn().mockResolvedValue([]);
+    render(
+      <PlayerSearchContext.Provider value={find}>
+        <PlayerPicker
+          label="Choose"
+          rows={rows}
+          selectedId={null}
+          onSelect={vi.fn()}
+          addPlayer={{
+            teamName: "Team A",
+            onAdd: vi.fn(),
+            disabledReason: "Offline",
+          }}
+        />
+      </PlayerSearchContext.Provider>,
+    );
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "rahul" },
+    });
+    expect(find).not.toHaveBeenCalled();
   });
 });

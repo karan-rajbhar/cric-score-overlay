@@ -1,17 +1,46 @@
 "use client";
 
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Check, Loader2, Search, UserPlus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { cn } from "~/lib/utils";
 import type { PickerRow } from "./player-rows";
 
+/** A registered player who is in neither squad yet. */
+export interface FoundPlayer {
+  id: string;
+  name: string;
+  username?: string | null;
+}
+
+/**
+ * Finds registered players by name for "Add" (the scoring screen provides
+ * it, leaving out both squads); without it only a new player can be added.
+ */
+export const PlayerSearchContext = createContext<
+  ((query: string) => Promise<FoundPlayer[]>) | null
+>(null);
+
+/** Typed this many characters before registered players are looked up. */
+const SEARCH_MIN = 2;
+
 export interface PickerAddPlayer {
   /** Team the new player joins, shown on the add button. */
   teamName: string;
-  /** Creates the player; resolves to the new player's id, or null on failure. */
-  onAdd: (name: string) => Promise<string | null>;
+  /**
+   * Adds the player: a new one named `name`, or the registered player
+   * `existingId`. Resolves to their id, or null on failure.
+   */
+  onAdd: (name: string, existingId?: string) => Promise<string | null>;
   /** When set (e.g. offline), adding is disabled and this is shown instead. */
   disabledReason?: string | null;
 }
@@ -66,9 +95,14 @@ export function PlayerPicker({
   className,
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
+  const findPlayers = useContext(PlayerSearchContext);
+  const [found, setFound] = useState<{ q: string; players: FoundPlayer[] }>({
+    q: "",
+    players: [],
+  });
 
   const showSearch = Boolean(addPlayer) || rows.length > searchThreshold;
   const q = normalize(query);
@@ -81,6 +115,27 @@ export function PlayerPicker({
 
   const canAdd = Boolean(addPlayer && q && !addPlayer.disabledReason);
 
+  // Registered players matching what is typed (debounced), so the scorer
+  // adds the person who already has a profile instead of a second one.
+  const lookup = canAdd && findPlayers && q.length >= SEARCH_MIN ? q : "";
+  useEffect(() => {
+    if (!lookup || !findPlayers) return;
+    let cancelled = false;
+    const t = setTimeout(() => {
+      findPlayers(lookup).then(
+        (players) => {
+          if (!cancelled) setFound({ q: lookup, players: players.slice(0, 5) });
+        },
+        () => undefined,
+      );
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [lookup, findPlayers]);
+  const suggestions = lookup && found.q === lookup ? found.players : [];
+
   const focusRow = (id: string | undefined) => {
     if (!id) return;
     const rowsEls =
@@ -90,18 +145,20 @@ export function PlayerPicker({
     });
   };
 
-  const add = async () => {
+  const add = async (existing?: FoundPlayer) => {
     if (!addPlayer || !canAdd || adding) return;
-    const name = query.trim().replace(/\s+/g, " ");
-    setAdding(true);
+    const name = existing?.name ?? query.trim().replace(/\s+/g, " ");
+    setAdding(existing?.id ?? "new");
     try {
-      const id = await addPlayer.onAdd(name);
+      const id = existing
+        ? await addPlayer.onAdd(name, existing.id)
+        : await addPlayer.onAdd(name);
       if (id) {
         onSelect(id);
         setQuery("");
       }
     } finally {
-      setAdding(false);
+      setAdding(null);
     }
   };
 
@@ -114,7 +171,9 @@ export function PlayerPicker({
       if (firstEnabled) {
         onSelect(firstEnabled.id);
         focusRow(firstEnabled.id);
-      } else if (canAdd) {
+      } else if (canAdd && suggestions.length === 0) {
+        // With registered players listed, the scorer picks one or taps
+        // "new player": Enter does not guess.
         void add();
       }
     }
@@ -181,21 +240,62 @@ export function PlayerPicker({
                     another player only if this is a different person.
                   </p>
                 )}
+                {suggestions.length > 0 && (
+                  <div
+                    role="group"
+                    aria-label="Registered players"
+                    className="space-y-1"
+                  >
+                    <p className="px-1 text-xs text-muted-foreground">
+                      Registered players
+                    </p>
+                    {suggestions.map((p) => (
+                      <Button
+                        key={p.id}
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full justify-start gap-2"
+                        disabled={Boolean(adding)}
+                        onClick={() => void add(p)}
+                      >
+                        {adding === p.id ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden
+                          />
+                        ) : (
+                          <UserPlus className="h-4 w-4" aria-hidden />
+                        )}
+                        <span className="min-w-0 truncate">
+                          Add {p.name} to {addPlayer.teamName}
+                        </span>
+                        {p.username && (
+                          <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">
+                            @{p.username}
+                          </span>
+                        )}
+                      </Button>
+                    ))}
+                  </div>
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   className="h-11 w-full justify-start gap-2"
-                  disabled={!canAdd || adding}
+                  disabled={!canAdd || Boolean(adding)}
                   onClick={() => void add()}
                 >
-                  {adding ? (
+                  {adding === "new" ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                   ) : (
                     <UserPlus className="h-4 w-4" aria-hidden />
                   )}
                   <span className="truncate">
-                    {exactMatch ? "Add another" : "Add"} “{query.trim()}” to{" "}
-                    {addPlayer.teamName}
+                    {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
+                    {suggestions.length > 0 &&
+                      !exactMatch &&
+                      "as a new player "}
+                    to {addPlayer.teamName}
                   </span>
                 </Button>
               </div>

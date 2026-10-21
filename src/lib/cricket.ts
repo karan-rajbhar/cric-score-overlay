@@ -369,6 +369,12 @@ export function formatTeamType(type?: string | null): string {
   );
 }
 
+/** Whether an innings is being played now: the match is live and it is open. */
+export const inningsInPlay = (
+  match: Pick<Match, "status">,
+  innings: Pick<Innings, "is_completed"> | undefined,
+): boolean => match.status === "live" && Boolean(innings) && !innings?.is_completed;
+
 /** Innings in which a team batted. */
 export const inningsForTeam = (
   match: Match,

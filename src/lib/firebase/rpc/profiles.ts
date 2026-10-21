@@ -393,6 +393,35 @@ async function scoresMatchOf(
   return isMatchAdmin(ds, matchId, userId);
 }
 
+/**
+ * Who may add players to a team: its creator, captain or vice-captain, a
+ * club admin, or (with `matchId`) a scorer of an unfinished match it plays.
+ */
+async function assertMayAddPlayers(
+  ds: DataSource,
+  callerId: string,
+  teamId: string,
+  matchId: string | null | undefined,
+): Promise<void> {
+  const team = (await ds.getById(
+    "teams",
+    teamId,
+  )) as unknown as TeamsRow | null;
+  if (!team) throw new DbQueryError("team_not_found", "22000");
+  const authorised =
+    team.created_by === callerId ||
+    team.captain_id === callerId ||
+    team.vice_captain_id === callerId ||
+    (await isClubAdmin(ds, team.club_id, callerId)) ||
+    (await scoresMatchOf(ds, matchId, teamId, callerId));
+  if (!authorised) {
+    throw new DbQueryError(
+      "not_authorized: Not authorized to add players to this team",
+      "42501",
+    );
+  }
+}
+
 export async function createTeamPlayer(
   ds: DataSource,
   callerId: string | null,
@@ -415,23 +444,7 @@ export async function createTeamPlayer(
   const name = (fullName ?? "").trim();
   if (!name) throw new DbQueryError("Player name is required", "22023");
 
-  const team = (await ds.getById(
-    "teams",
-    teamId,
-  )) as unknown as TeamsRow | null;
-  if (!team) throw new DbQueryError("team_not_found", "22000");
-  const authorised =
-    team.created_by === callerId ||
-    team.captain_id === callerId ||
-    team.vice_captain_id === callerId ||
-    (await isClubAdmin(ds, team.club_id, callerId)) ||
-    (await scoresMatchOf(ds, matchId, teamId, callerId));
-  if (!authorised) {
-    throw new DbQueryError(
-      "not_authorized: Not authorized to add players to this team",
-      "42501",
-    );
-  }
+  await assertMayAddPlayers(ds, callerId, teamId, matchId);
 
   const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "") || "player";
   const username = await generateUniqueUsername(ds, name, null, null);
@@ -465,4 +478,50 @@ export async function createTeamPlayer(
     jersey_number: jerseyNumber ?? null,
     username,
   };
+}
+
+/**
+ * Adds a registered player to a team's squad: the scorer picks someone who
+ * already has a profile instead of creating a second one. The same people
+ * may do it as `createTeamPlayer`.
+ */
+export async function addTeamPlayer(
+  ds: DataSource,
+  callerId: string | null,
+  teamId: string,
+  userId: string,
+  matchId?: string | null,
+): Promise<{ user_id: string; full_name: string }> {
+  if (!callerId) throw new DbQueryError("Authentication required", "42501");
+  await assertMayAddPlayers(ds, callerId, teamId, matchId);
+
+  const user = (await ds.getById(
+    "users",
+    userId,
+  )) as unknown as UsersRow | null;
+  if (!user) throw new DbQueryError("player_not_found", "22000");
+  const already = await ds.query(
+    "team_players",
+    [
+      { field: "team_id", op: "==", value: teamId },
+      { field: "user_id", op: "==", value: userId },
+    ],
+    { limit: 1 },
+  );
+  if (already.length === 0) {
+    await ds.insert("team_players", [
+      {
+        id: newId(),
+        team_id: teamId,
+        user_id: userId,
+        jersey_number: null,
+        batting_order: null,
+        is_playing_xi: true,
+        role_in_team: null,
+        added_by: callerId,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  }
+  return { user_id: userId, full_name: user.full_name ?? "Player" };
 }

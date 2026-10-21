@@ -4,14 +4,14 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "~/lib/utils";
+// The app's tab root: it also follows a sideways swipe on phones.
+import { Tabs } from "~/components/ui/tabs";
 
 /*
  * Pill tabs, as in Scoreline: the selected tab is a filled navy pill, the
  * rest are white pills with a hairline. The row scrolls sideways on phones
  * instead of wrapping.
  */
-
-const Tabs = TabsPrimitive.Root;
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -38,6 +38,7 @@ const TabsTrigger = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
+    data-tab-value={props.value}
     className={cn(
       pillTab,
       "bg-card ring-1 ring-inset ring-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-[0_6px_14px_-8px_hsl(var(--primary)/0.7)] data-[state=active]:ring-0",

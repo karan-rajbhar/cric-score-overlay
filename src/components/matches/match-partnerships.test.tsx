@@ -118,4 +118,45 @@ describe("MatchPartnerships", () => {
     expect(faf).toHaveTextContent("Faf du Plessis22(18)");
     expect(screen.getByText("+ 5 extras")).toBeInTheDocument();
   });
+
+  it("shows the last stand as live only while its innings is in play", () => {
+    const stand = {
+      id: "part-1",
+      innings_id: "inn-1",
+      runs: 31,
+      balls: 19,
+      start_over: 16,
+      end_over: null,
+      is_current: true,
+      batsman1_id: "bat-1",
+      batsman2_id: "bat-2",
+      batsman1: { full_name: "Chris Miller" },
+      batsman2: { full_name: "Ryan Martinez" },
+    };
+    vi.mocked(matchQueries.usePartnershipsQuery).mockReturnValue({
+      data: [stand],
+      error: null,
+      isLoading: false,
+    } as never);
+    const innings = (is_completed: boolean) => [
+      makeInnings({ id: "inn-1", total_runs: 178, is_completed }),
+    ];
+
+    const { rerender } = render(
+      <MatchPartnerships
+        match={makeMatch({ status: "live", innings: innings(false) })}
+      />,
+    );
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.queryByText("Unbroken")).not.toBeInTheDocument();
+
+    // The engine leaves the stand current once the match is over.
+    rerender(
+      <MatchPartnerships
+        match={makeMatch({ status: "completed", innings: innings(true) })}
+      />,
+    );
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+    expect(screen.getByText("Unbroken")).toBeInTheDocument();
+  });
 });

@@ -299,14 +299,4 @@ async function drawPdf(
   return new File([pdf.output("blob")], fileName, { type: "application/pdf" });
 }
 
-export function downloadFile(f: File) {
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(f);
-  a.download = f.name;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    URL.revokeObjectURL(a.href);
-    a.remove();
-  }, 2000);
-}
+export { downloadFile } from "~/lib/share-match";

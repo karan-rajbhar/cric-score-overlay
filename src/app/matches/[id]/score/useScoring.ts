@@ -53,7 +53,10 @@ import {
   getConfirmedState,
   UNDO_KEY_PREFIX,
 } from "~/lib/offline-match-cache";
-import { createPlayerQuick } from "../../../teams/actions";
+import {
+  addExistingPlayerQuick,
+  createPlayerQuick,
+} from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
 import type { BallEvent, ScoringState, ExtraType } from "../../types";
@@ -2560,10 +2563,13 @@ export function useScoring(
     return { error: res.error };
   };
 
+  // Adds `name` as a new player, or with `existingUserId` the registered
+  // player of that id, to the batting or bowling side's squad.
   const handleAddPlayerInline = async (
     target: "batting" | "bowling" | null,
     name: string,
     currentMatch: Match | null,
+    existingUserId?: string,
   ) => {
     if (!target || !name.trim() || !currentMatch) return null;
     const currentInnings = currentMatch.innings?.find(
@@ -2583,7 +2589,9 @@ export function useScoring(
       return null;
     }
     setIsProcessing(true);
-    const result = await createPlayerQuick(targetTeamId, name.trim(), matchId);
+    const result = existingUserId
+      ? await addExistingPlayerQuick(targetTeamId, existingUserId, matchId)
+      : await createPlayerQuick(targetTeamId, name.trim(), matchId);
     if (result.error || !result.data) {
       toast.error(result.error ?? "Could not add player");
     } else {

@@ -47,8 +47,9 @@ export function MatchStats({ match }: MatchStatsProps) {
 
   return (
     <div className="w-full space-y-6">
-      {/* Broadcast Quick Jump Bar */}
-      <div className="sticky top-[7.25rem] z-10 flex flex-wrap items-center gap-1 rounded-full bg-card/90 p-1 shadow-soft ring-1 ring-border/40 backdrop-blur">
+      {/* Jump bar: pinned under the header and back bar (md up); phones
+          have neither, so it pins to the top of the screen. */}
+      <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-10 flex md:top-[7.25rem] flex-wrap items-center gap-1 rounded-full bg-card/90 p-1 shadow-soft ring-1 ring-border/40 backdrop-blur">
         <span className="hidden px-2.5 text-xs text-muted-foreground sm:inline-block">
           Jump to
         </span>
@@ -117,23 +118,23 @@ export function MatchStats({ match }: MatchStatsProps) {
       </div>
 
       {/* 1. Wagon wheel stays on top — deferred off-screen */}
-      <div id="stats-wagon-wheel" className="chart-defer scroll-mt-16">
+      <div id="stats-wagon-wheel" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
         <WagonWheel match={match} />
       </div>
 
       {/* 2. Worm chart — deferred off-screen */}
-      <div id="stats-worm" className="chart-defer scroll-mt-16">
+      <div id="stats-worm" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
         <MatchWormChart match={match} ballLog={ballLog} />
       </div>
 
       {/* 3. Manhattan — deferred off-screen */}
-      <div id="stats-manhattan" className="chart-defer scroll-mt-16">
+      <div id="stats-manhattan" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
         <MatchManhattan match={match} />
       </div>
 
       {/* 5. Phase splits + momentum per innings */}
       {sortedInnings.length > 0 && (
-        <div id="stats-phases" className="grid gap-4 md:grid-cols-2 scroll-mt-16">
+        <div id="stats-phases" className="grid gap-4 md:grid-cols-2 scroll-mt-16 md:scroll-mt-[10.5rem]">
           {sortedInnings.map((innings, ii) => {
             const table = tables[ii]?.table ?? [];
             const best = bestOver(table);
@@ -224,7 +225,7 @@ export function MatchStats({ match }: MatchStatsProps) {
       )}
 
       {/* 6. Delivery breakdown */}
-      <Card id="stats-breakdown" className="scroll-mt-16">
+      <Card id="stats-breakdown" className="scroll-mt-16 md:scroll-mt-[10.5rem]">
         <CardHeader className="pb-3">
           <CardTitle className="text-balance text-base sm:text-lg">Delivery breakdown</CardTitle>
         </CardHeader>

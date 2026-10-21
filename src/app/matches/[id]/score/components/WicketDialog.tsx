@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/dialog";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "~/lib/utils";
-import { PlayerPicker } from "./PlayerPicker";
+import { PlayerPicker, type PickerAddPlayer } from "./PlayerPicker";
 import { buildFielderRows } from "./player-rows";
 
 export const ALL_DISMISSAL_TYPES = [
@@ -99,8 +99,8 @@ interface WicketDialogProps {
   bowlingTeamName?: string;
   /** Marks the bowler in the fielder list (caught and bowled). */
   bowlerId?: string | null;
-  /** Adds a (substitute) fielder to the bowling side; resolves to the new id. */
-  onCreateFielder?: (name: string) => Promise<string | null>;
+  /** Adds a (substitute) fielder to the bowling side; resolves to their id. */
+  onCreateFielder?: PickerAddPlayer["onAdd"];
   /** Set while adding is impossible (e.g. offline). */
   addPlayerDisabledReason?: string | null;
   strikerId?: string | null;

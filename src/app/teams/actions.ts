@@ -365,6 +365,61 @@ export async function createPlayerQuick(
   }
 }
 
+/**
+ * Adds a registered player (found by `searchUsers`) to a team's squad from
+ * the scoring screen: like `createPlayerQuick`, the match's scorers may do
+ * it until the match is over.
+ */
+export async function addExistingPlayerQuick(
+  teamId: string,
+  userId: string,
+  matchId?: string | null,
+) {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) {
+      return { data: null, error: "You must be logged in to add players" };
+    }
+
+    const { data, error } = await db.rpc("add_team_player", {
+      p_team_id: teamId,
+      p_user_id: userId,
+      ...(matchId ? { p_match_id: matchId } : {}),
+    });
+    if (error) {
+      console.error("Error adding player:", error);
+      if (error.message.includes("not_authorized")) {
+        return {
+          data: null,
+          error:
+            "Only team captains, club admins or this match's scorers can add players",
+        };
+      }
+      if (error.message.includes("team_not_found")) {
+        return { data: null, error: "Team no longer exists" };
+      }
+      if (error.message.includes("player_not_found")) {
+        return { data: null, error: "That player no longer exists" };
+      }
+      return { data: null, error: error.message };
+    }
+
+    revalidatePath(`/teams/${teamId}`);
+    // A live match of this team shows its squad: tell its viewers now.
+    await refreshLiveMatchesFor(db, { teamId });
+    return { data: data as { user_id: string; full_name: string }, error: null };
+  } catch (err) {
+    console.error("Unexpected error in addExistingPlayerQuick:", err);
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : "Failed to add player",
+    };
+  }
+}
+
 export async function addPlayerToTeam(
   teamId: string,
   userId: string,
