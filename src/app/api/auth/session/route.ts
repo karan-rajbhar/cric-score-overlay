@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getAdminAuth, getAdminFirestore } from "~/lib/firebase/admin";
 import { AdminDataSource } from "~/lib/firebase/datasource-admin";
+import { derivedFieldsDataSource } from "~/lib/firebase/derived-fields";
 import { acceptInvitations, canSignIn } from "~/lib/firebase/rpc/access";
 import { ensureOwnProfile } from "~/lib/firebase/rpc/profiles";
 import {
@@ -36,7 +37,12 @@ export async function POST(request: NextRequest) {
   try {
     const decoded = await verifyIdToken(idToken);
     const user = decodedTokenToUser(decoded);
-    const ds = new AdminDataSource(getAdminFirestore());
+    // Derived copies (team rosters, membership snapshots, search keys)
+    // follow the profile sync: re-mapping a claimed squad player's profile
+    // onto this account rewrites the rosters that name it.
+    const ds = derivedFieldsDataSource(
+      new AdminDataSource(getAdminFirestore()),
+    );
 
     if (!(await canSignIn(ds, user, decoded.email_verified === true))) {
       await getAdminAuth()

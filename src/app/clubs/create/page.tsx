@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -18,6 +19,7 @@ import { createClub } from "../actions";
 import { useAuth } from "~/lib/auth";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { PageContainer } from "~/components/layout/page";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 export default function CreateClubPage() {
   const { user, loading: authLoading } = useAuth();
@@ -37,11 +39,12 @@ export default function CreateClubPage() {
       <div className="flex min-h-screen items-center justify-center">
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
+            <h1 className="mb-2 text-lg font-semibold">Sign in required</h1>
             <p className="mb-4 text-sm text-muted-foreground">
-              Sign in to create a club
+              Sign in to create a club.
             </p>
             <Button asChild>
-              <Link href="/auth/login">Sign in</Link>
+              <Link href="/auth/login?redirect=/clubs/create">Sign in</Link>
             </Button>
           </CardContent>
         </Card>
@@ -54,9 +57,16 @@ export default function CreateClubPage() {
     setSaving(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const res = await createClub(fd);
-    if (res?.error) {
-      setError(res.error);
+    try {
+      // On success the action redirects to the new club.
+      const res = await createClub(fd);
+      if (res?.error) {
+        setError(res.error);
+        setSaving(false);
+      }
+    } catch (err) {
+      unstable_rethrow(err);
+      setError(NETWORK_ERROR_MESSAGE);
       setSaving(false);
     }
   };
@@ -81,7 +91,7 @@ export default function CreateClubPage() {
                   id="name"
                   name="name"
                   required
-                  placeholder="e.g., Riverside Cricket Club"
+                  placeholder="e.g. Riverside Cricket Club"
                   className="mt-2"
                 />
               </div>
@@ -90,7 +100,7 @@ export default function CreateClubPage() {
                 <Input
                   id="short_name"
                   name="short_name"
-                  placeholder="e.g., RCC"
+                  placeholder="e.g. RCC"
                   className="mt-2"
                   maxLength={10}
                 />
@@ -100,7 +110,7 @@ export default function CreateClubPage() {
                 <Input
                   id="location"
                   name="location"
-                  placeholder="e.g., Mumbai"
+                  placeholder="e.g. Mumbai"
                   className="mt-2"
                 />
               </div>
@@ -134,7 +144,10 @@ export default function CreateClubPage() {
               </div>
 
               {error && (
-                <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+                >
                   {error}
                 </div>
               )}
@@ -143,7 +156,7 @@ export default function CreateClubPage() {
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
-                    Creating club...
+                    Creating club…
                   </>
                 ) : (
                   "Create club"

@@ -8,8 +8,10 @@
 import type { AppUser } from "../auth-types";
 import type { DataSource } from "../datasource";
 import { DbQueryError, newId } from "../query-builder";
+import { derivedFieldsDataSource } from "../derived-fields";
 import type {
   ClubInvitationsRow,
+  ClubMembershipsRow,
   InvitationsRow,
   MatchesRow,
   UsersRow,
@@ -52,16 +54,11 @@ export async function canSignIn(
   )) as unknown as InvitationsRow[];
   if (invites.some((i) => i.status === "pending")) return true;
 
-  const now = Date.now();
   const clubInvites = (await ds.query(
     "club_invitations",
     byEmail,
   )) as unknown as ClubInvitationsRow[];
-  return clubInvites.some(
-    (i) =>
-      i.status === "pending" &&
-      (!i.expires_at || new Date(i.expires_at).getTime() > now),
-  );
+  return clubInvites.some((i) => isOpenClubInvite(i));
 }
 
 /** Adds `userId` to a match's scorers (no-op if already one). */
@@ -83,9 +80,70 @@ async function addScorer(
   });
 }
 
+/** A club invite that still lets its email in: pending and not expired. */
+export function isOpenClubInvite(
+  invite: Pick<ClubInvitationsRow, "status" | "expires_at">,
+  now = Date.now(),
+): boolean {
+  return (
+    invite.status === "pending" &&
+    (!invite.expires_at || new Date(invite.expires_at).getTime() > now)
+  );
+}
+
 /**
- * Marks the email's pending app invites as used by `uid` and makes them a
- * scorer for any matches they were invited to score.
+ * Makes `uid` an active member of every club whose open invite names this
+ * email, and marks those invites accepted. A membership the user already
+ * has keeps its role (a left one is reactivated).
+ */
+async function acceptClubInvitations(
+  ds: DataSource,
+  email: string,
+  uid: string,
+): Promise<void> {
+  const invites = (await ds.query("club_invitations", [
+    { field: "email", op: "==", value: email },
+  ])) as unknown as ClubInvitationsRow[];
+  const open = invites.filter((i) => isOpenClubInvite(i) && i.club_id);
+  if (open.length === 0) return;
+  // Memberships carry the member's name snapshot (derived on write).
+  const dds = derivedFieldsDataSource(ds);
+  const now = new Date().toISOString();
+  for (const invite of open) {
+    const [existing] = (await ds.query("club_memberships", [
+      { field: "club_id", op: "==", value: invite.club_id },
+      { field: "user_id", op: "==", value: uid },
+    ])) as unknown as ClubMembershipsRow[];
+    if (!existing) {
+      await dds.insert("club_memberships", [
+        {
+          id: newId(),
+          club_id: invite.club_id,
+          user_id: uid,
+          role: "member",
+          status: "active",
+          joined_at: now,
+          updated_at: now,
+        },
+      ]);
+    } else if (existing.status !== "active") {
+      await dds.update("club_memberships", existing.id, {
+        status: "active",
+        updated_at: now,
+      });
+    }
+    await ds.update("club_invitations", invite.id, {
+      status: "accepted",
+      user_id: uid,
+      updated_at: now,
+    });
+  }
+}
+
+/**
+ * Marks the email's pending app invites as used by `uid`, makes them a
+ * scorer for any matches they were invited to score, and a member of any
+ * club that invited them.
  */
 export async function acceptInvitations(
   ds: DataSource,
@@ -94,6 +152,7 @@ export async function acceptInvitations(
 ): Promise<void> {
   const clean = normaliseEmail(email);
   if (!clean) return;
+  await acceptClubInvitations(ds, clean, uid);
   const invites = (await ds.query("invitations", [
     { field: "email", op: "==", value: clean },
   ])) as unknown as InvitationsRow[];

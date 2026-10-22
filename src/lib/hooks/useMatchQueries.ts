@@ -111,6 +111,8 @@ export interface WizardTournament {
   id: string;
   name: string;
   match_format: string;
+  overs_per_innings?: number | null;
+  wickets_per_innings?: number | null;
   custom_overs?: number | null;
   created_by?: string | null;
   club_id?: string | null;
@@ -152,7 +154,9 @@ export function useMatchWizardDataQuery(userId?: string | null) {
             .order("name"),
           db
             .from("tournaments")
-            .select("id, name, match_format, custom_overs, created_by, club_id")
+            .select(
+              "id, name, match_format, overs_per_innings, wickets_per_innings, custom_overs, created_by, club_id",
+            )
             .order("created_at", { ascending: false }),
           db
             .from("clubs")
@@ -624,12 +628,14 @@ export function useTournamentRegistrationsQuery(tournamentId?: string | null) {
       const db = createClient();
       const { data, error } = await db
         .from("tournament_registrations")
-        .select("team_id")
+        .select("team_id, status")
         .eq("tournament_id", tournamentId);
 
       if (error) throw new Error(error.message);
+      // Requests the organisers have not confirmed cannot be picked.
       return new Set(
         (data ?? [])
+          .filter((r) => r.status === "confirmed")
           .map((r) => r.team_id)
           .filter((id): id is string => Boolean(id)),
       );

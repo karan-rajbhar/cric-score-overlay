@@ -26,6 +26,7 @@ import {
 import { cn } from "~/lib/utils";
 import { createMatch } from "../mutations";
 import { createTeamQuick } from "../../teams/actions";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import type { MatchFormat } from "../types";
 import {
   defaultTitle,
@@ -37,16 +38,16 @@ import {
   saveSetup,
   setupBlocker,
   teamGroups,
+  tournamentRules,
   type SetupTeam,
+  type TournamentRulesSource,
 } from "./match-setup";
 import { TeamPicker, type CreateTeamResult } from "./team-picker";
 import { QuickPlayers } from "./quick-players";
 
-interface TournamentOption {
+interface TournamentOption extends TournamentRulesSource {
   id: string;
   name: string;
-  match_format?: string | null;
-  custom_overs?: number | null;
   created_by?: string | null;
   club_id?: string | null;
 }
@@ -148,20 +149,31 @@ function MatchSetupForm({ userId }: { userId: string }) {
     [wizardData?.clubAdminIds],
   );
 
-  // A tournament link sets the format once its list has loaded.
+  /** The tournament's own format, overs and wickets, where it sets them. */
+  const applyTournamentRules = (t: TournamentOption) => {
+    const rules = tournamentRules(t);
+    if (rules.format && rules.overs) {
+      setMatchFormat(rules.format);
+      setOvers(String(rules.overs));
+    }
+    if (rules.wickets) setWickets(String(rules.wickets));
+  };
+
+  // A tournament link sets the rules once its list has loaded.
   const [appliedTournament, setAppliedTournament] = useState("");
   if (urlTournamentId && appliedTournament !== urlTournamentId) {
     const t = tournaments.find((x) => x.id === urlTournamentId);
     if (t) {
       setAppliedTournament(urlTournamentId);
-      const preset = FORMAT_PRESETS.find((p) => p.format === t.match_format);
-      const tOvers = preset?.overs ?? t.custom_overs ?? null;
-      if (tOvers) {
-        setMatchFormat(preset?.format ?? "Custom");
-        setOvers(String(tOvers));
-      }
+      applyTournamentRules(t);
     }
   }
+
+  const pickTournament = (id: string) => {
+    setTournamentId(id);
+    const t = tournaments.find((x) => x.id === id);
+    if (t) applyTournamentRules(t);
+  };
 
   const selectedTournament = tournaments.find((t) => t.id === tournamentId);
   const selectedClub = clubs.find((c) => c.id === clubId);
@@ -283,7 +295,12 @@ function MatchSetupForm({ userId }: { userId: string }) {
     name: string,
     shortName: string,
   ): Promise<CreateTeamResult> => {
-    const res = await createTeamQuick(name, shortName);
+    let res: Awaited<ReturnType<typeof createTeamQuick>>;
+    try {
+      res = await createTeamQuick(name, shortName);
+    } catch {
+      return { team: null, error: NETWORK_ERROR_MESSAGE };
+    }
     if (res.error || !res.data) {
       return { team: null, error: res.error ?? "The team could not be created" };
     }
@@ -305,27 +322,34 @@ function MatchSetupForm({ userId }: { userId: string }) {
     if (blocker || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
-    const result = await createMatch({
-      title: title.trim() || defaultTitle(team1, team2),
-      matchFormat,
-      oversPerInnings: oversNum,
-      wicketsPerInnings: wicketsNum,
-      ballsPerOver: ballsNum,
-      wideCountsAsBallFaced,
-      wideRunsToBatsman,
-      noballExtrasToBatsman,
-      team1Id: effectiveTeam1,
-      team2Id,
-      venue: venue.trim() || undefined,
-      scheduledAt:
-        when === "now"
-          ? new Date().toISOString()
-          : new Date(scheduledAt).toISOString(),
-      umpire1Name: umpire1.trim() || undefined,
-      umpire2Name: umpire2.trim() || undefined,
-      tournamentId: tournamentId || undefined,
-      clubId: clubId || undefined,
-    });
+    let result: Awaited<ReturnType<typeof createMatch>>;
+    try {
+      result = await createMatch({
+        title: title.trim() || defaultTitle(team1, team2),
+        matchFormat,
+        oversPerInnings: oversNum,
+        wicketsPerInnings: wicketsNum,
+        ballsPerOver: ballsNum,
+        wideCountsAsBallFaced,
+        wideRunsToBatsman,
+        noballExtrasToBatsman,
+        team1Id: effectiveTeam1,
+        team2Id,
+        venue: venue.trim() || undefined,
+        scheduledAt:
+          when === "now"
+            ? new Date().toISOString()
+            : new Date(scheduledAt).toISOString(),
+        umpire1Name: umpire1.trim() || undefined,
+        umpire2Name: umpire2.trim() || undefined,
+        tournamentId: tournamentId || undefined,
+        clubId: clubId || undefined,
+      });
+    } catch {
+      setSubmitError(NETWORK_ERROR_MESSAGE);
+      setSubmitting(false);
+      return;
+    }
     if (result.error || !result.data) {
       setSubmitError(result.error ?? "The match could not be created");
       setSubmitting(false);
@@ -362,6 +386,12 @@ function MatchSetupForm({ userId }: { userId: string }) {
   const opponentEmpty = tournamentId
     ? "No other teams are registered in this tournament."
     : "No opponent teams yet. Create one to continue.";
+  // A friendly offers only the user's own teams: say so, or people create
+  // a copy of a team that already exists.
+  const opponentHint =
+    tournamentId || clubId
+      ? undefined
+      : "A friendly lists only your own teams: ones you created, captain, play for or run as a club admin. To play a club or tournament side, choose the club or tournament under More options first.";
 
   return (
     <PageContainer size="form" stack={false}>
@@ -447,6 +477,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
                     onChange={(id) => pickTeam(2, id)}
                     onCreate={tournamentId ? undefined : createTeam}
                     emptyMessage={opponentEmpty}
+                    hint={opponentHint}
                   />
                   {team2 && (team2.player_count ?? 0) < FULL_SQUAD && (
                     <QuickPlayers
@@ -607,7 +638,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
                   <Label htmlFor={ids.tournament}>Tournament</Label>
                   <Select
                     value={tournamentId || "none"}
-                    onValueChange={(v) => setTournamentId(v === "none" ? "" : v)}
+                    onValueChange={(v) => pickTournament(v === "none" ? "" : v)}
                   >
                     <SelectTrigger id={ids.tournament} className="mt-1.5">
                       <SelectValue />
@@ -702,7 +733,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
           </CardContent>
         </Card>
 
-        <div className="sticky bottom-0 z-10 -mx-4 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
+        {/* Phones: sticks just above the floating tab bar (MobileTabBar:
+            a 4.25rem bar over max(0.75rem, safe area)), never under it. */}
+        <div className="sticky bottom-[calc(4.25rem+max(0.75rem,env(safe-area-inset-bottom)))] z-10 -mx-4 border-t bg-background px-4 pb-3 pt-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
           {submitError && (
             <p
               role="alert"

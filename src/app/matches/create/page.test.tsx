@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
+let search = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => search,
 }));
 vi.mock("~/lib/auth", () => ({
   useAuth: () => ({ user: { id: "u1" }, loading: false }),
@@ -19,7 +20,7 @@ const wizard = {
     { id: "t3", name: "Hawks", short_name: "HAW", created_by: "u1", player_count: 0 },
     { id: "t9", name: "Strangers", created_by: "someone-else" },
   ],
-  tournaments: [],
+  tournaments: [] as Record<string, unknown>[],
   clubs: [],
   playerTeamIds: [],
   clubAdminIds: [],
@@ -57,6 +58,8 @@ describe("New match form", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+    search = new URLSearchParams();
+    wizard.tournaments = [];
   });
 
   it("starts on T20 with a reason why it cannot start yet", () => {
@@ -273,5 +276,93 @@ describe("New match form", () => {
     fireEvent.click(toggle);
     expect(screen.getByLabelText("Venue")).toBeVisible();
     expect(screen.getByLabelText("Balls per over")).toHaveValue(6);
+  });
+
+  it("keeps the form when the server cannot be reached, and lets you retry", async () => {
+    vi.mocked(createMatch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    render(<CreateMatchPage />);
+    chooseTeam(/your team/i, "Lions");
+    chooseTeam(/opponent/i, "Tigers");
+    fireEvent.click(startButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not reach the server. Try again.",
+    );
+    expect(startButton()).toBeEnabled();
+    expect(screen.getByRole("button", { name: /your team/i })).toHaveTextContent(
+      "Lions",
+    );
+
+    vi.mocked(createMatch).mockResolvedValueOnce({
+      data: { id: "m3" },
+      error: null,
+    } as never);
+    fireEvent.click(startButton());
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/matches/m3/score"));
+  });
+
+  it("says so when a new team or player cannot reach the server", async () => {
+    vi.mocked(createTeamQuick).mockRejectedValueOnce(new TypeError("fetch"));
+    vi.mocked(createPlayerQuick).mockRejectedValueOnce(new TypeError("fetch"));
+    render(<CreateMatchPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /opponent/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /new team/i }));
+    fireEvent.change(within(dialog).getByLabelText("Team name"), {
+      target: { value: "Rivals" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create team" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not reach the server. Try again.",
+    );
+    expect(
+      within(dialog).getByRole("button", { name: "Create team" }),
+    ).toBeEnabled();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    chooseTeam(/opponent/i, "Hawks");
+    fireEvent.click(screen.getByRole("button", { name: "Add players to Hawks" }));
+    const input = screen.getByLabelText("Add a player to Hawks");
+    fireEvent.change(input, { target: { value: "Ravi" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not reach the server. Try again.",
+    );
+    expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+  });
+
+  it("explains that a friendly lists only your own teams", () => {
+    render(<CreateMatchPage />);
+    fireEvent.click(screen.getByRole("button", { name: /opponent/i }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Search teams"), {
+      target: { value: "Strangers" },
+    });
+    expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "No team matches",
+    );
+    expect(dialog).toHaveTextContent(/A friendly lists only your own teams/);
+  });
+
+  it("starts a tournament match with the tournament's overs and wickets", () => {
+    wizard.tournaments = [
+      {
+        id: "tour",
+        name: "Sixteen Cup",
+        match_format: "Custom",
+        overs_per_innings: 16,
+        wickets_per_innings: 8,
+        created_by: "u1",
+      },
+    ];
+    search = new URLSearchParams("tournamentId=tour");
+    render(<CreateMatchPage />);
+    expect(screen.getByLabelText("Overs per side")).toHaveValue(16);
+    expect(screen.getByRole("radio", { name: "Custom" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /more options/i }));
+    expect(screen.getByLabelText("Wickets per side")).toHaveValue(8);
   });
 });

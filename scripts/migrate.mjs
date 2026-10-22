@@ -32,6 +32,7 @@ const MIGRATIONS = [
   "leaderboard-shards",
   "per-ball-fields",
   "partnership-splits",
+  "placeholder-flag",
 ];
 
 const here = dirname(fileURLToPath(import.meta.url));

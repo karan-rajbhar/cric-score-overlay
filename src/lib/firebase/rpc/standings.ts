@@ -21,6 +21,9 @@ function round(n: number, digits: number): number {
   return Math.round(n * f) / f;
 }
 
+/** Registration statuses whose team is not (yet) in the points table. */
+const NOT_IN_TABLE = new Set(["pending", "rejected", "withdrawn"]);
+
 export async function recalculateTournamentStandings(
   ds: DataSource,
   tournamentId: string,
@@ -52,8 +55,10 @@ export async function recalculateTournamentStandings(
     : allMatchDocs;
 
   const teamIds = new Set<string>();
+  // Requests still waiting for the organisers (or turned down) stay out.
   for (const r of registrations)
-    if (typeof r.team_id === "string") teamIds.add(r.team_id);
+    if (typeof r.team_id === "string" && !NOT_IN_TABLE.has(String(r.status)))
+      teamIds.add(r.team_id);
   for (const m of matchDocs) {
     if (m.team1_id) teamIds.add(m.team1_id);
     if (m.team2_id) teamIds.add(m.team2_id);

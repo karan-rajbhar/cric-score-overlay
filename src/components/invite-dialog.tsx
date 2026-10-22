@@ -16,6 +16,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 /**
  * CricScore is invite-only; any signed-in user can invite an email. No email
@@ -49,14 +50,22 @@ export function InviteDialog({
   const reset = () => {
     setResult(null);
     setShareText(null);
+    setPending(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPending(true);
     reset();
-    const res = await inviteToApp(email);
-    setPending(false);
+    setPending(true);
+    let res: Awaited<ReturnType<typeof inviteToApp>>;
+    try {
+      res = await inviteToApp(email);
+    } catch {
+      setResult({ ok: false, text: NETWORK_ERROR_MESSAGE });
+      return;
+    } finally {
+      setPending(false);
+    }
     if ("error" in res) {
       setResult({ ok: false, text: res.error ?? "Could not save invite" });
       return;

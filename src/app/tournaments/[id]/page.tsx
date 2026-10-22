@@ -23,6 +23,8 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { RegisterTeamDialog } from "~/components/tournaments/register-team-dialog";
+import { TournamentManageDialog } from "~/components/tournaments/tournament-manage-dialog";
+import { RescheduleMatchDialog } from "~/components/matches/reschedule-match-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   PointsTableShare,
@@ -72,6 +74,8 @@ interface MatchRow {
   status: string | null;
   venue: string | null;
   scheduled_at: string | null;
+  umpire1_name?: string | null;
+  umpire2_name?: string | null;
   result_type: string | null;
   win_margin: number | null;
   win_margin_type: string | null;
@@ -148,7 +152,7 @@ export default async function TournamentPage({
       .select(
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-                result_type, win_margin, win_margin_type, result_description, winning_team_id,
+                umpire1_name, umpire2_name, result_type, win_margin, win_margin_type, result_description, winning_team_id,
                 ${MATCH_TEAM_COLUMNS},
                 innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
             `,
@@ -200,9 +204,23 @@ export default async function TournamentPage({
   const isTournamentAdmin =
     !!user && (tournament.created_by === user.id || isClubAdmin);
 
+  // Organisers manage the tournament here; a club's seasons can be linked.
+  const seasons: Array<{ id: string; name: string }> =
+    isTournamentAdmin && tournament.club_id
+      ? (((
+          await db
+            .from("club_seasons")
+            .select("id, name")
+            .eq("club_id", tournament.club_id)
+            .order("created_at", { ascending: false })
+        ).data ?? []) as Array<{ id: string; name: string }>)
+      : [];
+
   // Teams the viewer may register: every team for tournament admins,
-  // otherwise only teams they have a stake in (indexed queries instead of
-  // reading every team). Anonymous viewers need none.
+  // otherwise the teams they manage (created, captain, vice-captain, or run
+  // as a club admin: the server's `canManageTeam`), not teams they only
+  // play for. Indexed queries instead of reading every team; anonymous
+  // viewers need none.
   const TEAM_COLUMNS =
     "id, name, short_name, club_id, created_by, captain_id, vice_captain_id";
   let allTeams: Array<{ id: string; name: string; short_name: string | null }> =
@@ -212,8 +230,7 @@ export default async function TournamentPage({
     const { data } = await db.from("teams").select(TEAM_COLUMNS).order("name");
     allTeams = data ?? [];
   } else if (user) {
-    const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
-      db.from("team_players").select("team_id").eq("user_id", user.id),
+    const [clubMemsRes, clubsRes] = await Promise.all([
       db
         .from("club_memberships")
         .select("club_id")
@@ -227,17 +244,10 @@ export default async function TournamentPage({
       ...(clubMemsRes.data ?? []).map((m) => m.club_id),
       ...(clubsRes.data ?? []).map((c) => c.id),
     ]);
-    const playerTeamIds = new Set<string>(
-      (teamPlayersRes.data ?? []).map((r) => r.team_id),
-    );
-
     const stakes = await Promise.all([
       db.from("teams").select(TEAM_COLUMNS).eq("created_by", user.id),
       db.from("teams").select(TEAM_COLUMNS).eq("captain_id", user.id),
       db.from("teams").select(TEAM_COLUMNS).eq("vice_captain_id", user.id),
-      playerTeamIds.size
-        ? db.from("teams").select(TEAM_COLUMNS).in("id", [...playerTeamIds])
-        : Promise.resolve({ data: [] }),
       adminClubIds.size
         ? db
             .from("teams")
@@ -265,7 +275,6 @@ export default async function TournamentPage({
           t.created_by === user.id ||
           t.captain_id === user.id ||
           t.vice_captain_id === user.id ||
-          playerTeamIds.has(t.id) ||
           (t.club_id && adminClubIds.has(t.club_id))
         ) {
           myTeamIds.add(t.id);
@@ -286,8 +295,12 @@ export default async function TournamentPage({
 
   const canRegisterTeams = isTournamentAdmin || availableTeams.length > 0;
 
+  // Organisers see every request; a team's manager sees their own.
+  const availableTeamIds = new Set(availableTeams.map((t) => t.id));
   const pendingRegistrations = (registrations ?? []).filter(
-    (r) => r.status === "pending",
+    (r) =>
+      r.status === "pending" &&
+      (isTournamentAdmin || availableTeamIds.has(r.team_id)),
   );
   const confirmedRegistrations = (registrations ?? []).filter(
     (r) => r.status === "confirmed",
@@ -343,7 +356,7 @@ export default async function TournamentPage({
   const backLabel =
     targetClubId && clubInfo?.name
       ? `Back to ${clubInfo.name}`
-      : "All Tournaments";
+      : "All tournaments";
 
   return (
     <PageContainer stack={false}>
@@ -446,6 +459,7 @@ export default async function TournamentPage({
                 tournamentId={tournament.id}
                 availableTeams={availableTeams}
                 registeredTeamIds={registeredTeamIds}
+                isOrganiser={isTournamentAdmin}
               />
             )}
             {isTournamentAdmin && (
@@ -455,6 +469,31 @@ export default async function TournamentPage({
                   Schedule match
                 </Link>
               </Button>
+            )}
+            {isTournamentAdmin && (
+              <TournamentManageDialog
+                tournament={{
+                  id: tournament.id,
+                  name: tournament.name,
+                  description: tournament.description,
+                  tournament_format: tournament.tournament_format,
+                  match_format: tournament.match_format,
+                  overs_per_innings: tournament.overs_per_innings,
+                  wickets_per_innings: tournament.wickets_per_innings,
+                  status: tournament.status,
+                  venue: tournament.venue,
+                  start_date: tournament.start_date,
+                  end_date: tournament.end_date,
+                  season_id: tournament.season_id,
+                }}
+                seasons={seasons}
+                clubId={tournament.club_id}
+                afterDeleteHref={
+                  tournament.club_id
+                    ? `/clubs/${tournament.club_id}?tab=tournaments`
+                    : "/tournaments"
+                }
+              />
             )}
           </>
         }
@@ -528,6 +567,7 @@ export default async function TournamentPage({
                     tournamentId={tournament.id}
                     availableTeams={availableTeams}
                     registeredTeamIds={registeredTeamIds}
+                    isOrganiser={isTournamentAdmin}
                   />
                 </div>
               )}
@@ -587,7 +627,10 @@ export default async function TournamentPage({
           {isTournamentAdmin && (
             <div className="flex flex-wrap items-center justify-end gap-2">
               {typedMatches.length === 0 && (
-                <GenerateFixturesButton tournamentId={tournament.id} />
+                <GenerateFixturesButton
+                  tournamentId={tournament.id}
+                  startDate={tournament.start_date}
+                />
               )}
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
@@ -634,14 +677,25 @@ export default async function TournamentPage({
               />
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {upcomingMatches.map((m) => (
-                  <MatchCard
-                    key={m.id}
-                    match={m as unknown as Match}
-                    contextQuery={matchQuery}
-                    showActions={false}
-                  />
-                ))}
+                {upcomingMatches.map((m) =>
+                  isTournamentAdmin ? (
+                    <div key={m.id} className="min-w-0 space-y-2">
+                      <MatchCard
+                        match={m as unknown as Match}
+                        contextQuery={matchQuery}
+                        showActions={false}
+                      />
+                      <RescheduleMatchDialog match={m} />
+                    </div>
+                  ) : (
+                    <MatchCard
+                      key={m.id}
+                      match={m as unknown as Match}
+                      contextQuery={matchQuery}
+                      showActions={false}
+                    />
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -674,12 +728,13 @@ export default async function TournamentPage({
                 tournamentId={tournament.id}
                 availableTeams={availableTeams}
                 registeredTeamIds={registeredTeamIds}
+                isOrganiser={isTournamentAdmin}
               />
             </div>
           )}
 
-          {/* Join requests, for the organisers */}
-          {isTournamentAdmin && pendingRegistrations.length > 0 && (
+          {/* Join requests: all for the organisers, your own otherwise */}
+          {pendingRegistrations.length > 0 && (
             <section aria-labelledby="pending-requests" className="space-y-2">
               <h3
                 id="pending-requests"
@@ -719,10 +774,16 @@ export default async function TournamentPage({
                             : "recently"}
                         </span>
                       </span>
-                      <RegistrationApprovalActions
-                        registrationId={r.id}
-                        tournamentId={tournament.id}
-                      />
+                      {isTournamentAdmin ? (
+                        <RegistrationApprovalActions
+                          registrationId={r.id}
+                          tournamentId={tournament.id}
+                        />
+                      ) : (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          The organisers confirm it
+                        </span>
+                      )}
                     </div>
                   );
                 })}

@@ -35,7 +35,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import { AuthProvider, shouldFallbackToRedirect, useAuth } from "./auth";
+import {
+  AuthProvider,
+  inviteOnlyMessage,
+  shouldFallbackToRedirect,
+  useAuth,
+} from "./auth";
+import { toAuthError } from "./firebase/auth-types";
 
 const googleUser = {
   uid: "u1",
@@ -302,5 +308,22 @@ describe("auth bootstrap while offline", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("invite-only refusal message", () => {
+  it("names the Google account that was refused", () => {
+    const err = Object.assign(new Error(inviteOnlyMessage("wrong@gmail.com")), {
+      code: "app/invite-only",
+    });
+    const { message, code } = toAuthError(err);
+    expect(code).toBe("app/invite-only");
+    expect(message).toContain("wrong@gmail.com has no invite");
+    expect(message).toContain("the Google account your invite was for");
+    expect(message).not.toMatch(/!/);
+  });
+
+  it("still reads when the account has no email", () => {
+    expect(inviteOnlyMessage(null)).toContain("This Google account has no invite");
   });
 });
