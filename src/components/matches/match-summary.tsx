@@ -288,7 +288,14 @@ function BestPerformers({ match }: { match: Match }) {
   );
 }
 
-function KeyMoments({ moments }: { moments: Moment[] }) {
+function KeyMoments({
+  moments,
+  finished,
+}: {
+  moments: Moment[];
+  /** Over (a result, or abandoned): nothing more is coming. */
+  finished: boolean;
+}) {
   return (
     <section aria-labelledby="key-moments" className="space-y-3">
       <h3 id="key-moments" className="text-base font-semibold text-foreground">
@@ -296,7 +303,9 @@ function KeyMoments({ moments }: { moments: Moment[] }) {
       </h3>
       {moments.length === 0 ? (
         <p className="rounded-xl bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
-          The toss, wickets and milestones appear here as the match goes on.
+          {finished
+            ? "No toss, wickets or milestones were recorded for this match."
+            : "The toss, wickets and milestones appear here as the match goes on."}
         </p>
       ) : (
         <ListCard>
@@ -352,7 +361,10 @@ export function MatchSummary({ match }: MatchSummaryProps) {
         )
       )}
       {/* While live the latest first. */}
-      <KeyMoments moments={live ? [...moments].reverse() : moments} />
+      <KeyMoments
+        moments={live ? [...moments].reverse() : moments}
+        finished={["completed", "abandoned", "cancelled"].includes(match.status)}
+      />
     </div>
   );
 }

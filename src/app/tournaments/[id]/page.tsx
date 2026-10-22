@@ -51,6 +51,7 @@ import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
+import { matchGroupsOf } from "~/lib/match-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -328,9 +329,12 @@ export default async function TournamentPage({
   });
 
   const typedMatches = (matches ?? []) as unknown as MatchRow[];
-  const liveMatches = typedMatches.filter((m) => m.status === "live");
-  const upcomingMatches = typedMatches.filter((m) => m.status === "scheduled");
-  const completedMatches = typedMatches.filter((m) => m.status === "completed");
+  const {
+    live: liveMatches,
+    upcoming: upcomingMatches,
+    results: completedMatches,
+    noResult: noResultMatches,
+  } = matchGroupsOf(typedMatches);
 
   const targetClubId = resolvedSearchParams?.clubId;
   const matchQuery = `tournamentId=${tournament.id}${
@@ -343,7 +347,7 @@ export default async function TournamentPage({
   const backLabel =
     targetClubId && clubInfo?.name
       ? `Back to ${clubInfo.name}`
-      : "All Tournaments";
+      : "All tournaments";
 
   return (
     <PageContainer stack={false}>
@@ -654,6 +658,25 @@ export default async function TournamentPage({
               </h3>
               <div className="grid gap-4 md:grid-cols-2">
                 {completedMatches.map((m) => (
+                  <MatchCard
+                    key={m.id}
+                    match={m as unknown as Match}
+                    contextQuery={matchQuery}
+                    showActions={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Abandoned or cancelled: the points table's NR column. */}
+          {noResultMatches.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-foreground">
+                No result
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                {noResultMatches.map((m) => (
                   <MatchCard
                     key={m.id}
                     match={m as unknown as Match}

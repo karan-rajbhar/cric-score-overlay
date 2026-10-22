@@ -122,6 +122,28 @@ describe("share messages", () => {
     );
   });
 
+  it("leaves the link out for a link share, which sends it on its own", () => {
+    expect(matchShareMessage(sampleMatch()).split("\n").at(-1)).toBe(
+      "Bowling: R Patel 1/18 (2.2)",
+    );
+  });
+
+  it("names a DLS target and counts the revised overs", () => {
+    const m = sampleMatch();
+    const chase = m.innings!.find((i) => i.innings_number === 2)!;
+    const revised = {
+      ...m,
+      dls_revision: { innings_number: 2, target_runs: 120, overs: 15 },
+      innings: m.innings!.map((i) =>
+        i === chase ? { ...i, target_runs: 120 } : i,
+      ),
+    } as Match;
+    // 15 overs = 90 balls, 62 bowled.
+    expect(matchShareMessage(revised)).toContain(
+      "Strikers need 35 runs from 28 balls (DLS target 120)",
+    );
+  });
+
   it("names the match from its teams", () => {
     expect(matchTitle({ team1: "Strikers" })).toBe("Strikers");
     expect(matchTitle({})).toBe("Cricket match");

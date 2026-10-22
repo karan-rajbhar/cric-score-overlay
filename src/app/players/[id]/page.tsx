@@ -320,7 +320,7 @@ export default async function PlayerPage({
   }
 
   let backHref = "/players";
-  let backLabel = "Back to Players";
+  let backLabel = "Back to players";
   if (teamInfo) {
     const q = new URLSearchParams();
     if (tournamentId) q.set("tournamentId", tournamentId);
@@ -333,7 +333,7 @@ export default async function PlayerPage({
     backLabel = `Back to ${tournamentInfo.name}`;
   } else if (matchId) {
     backHref = `/matches/${matchId}`;
-    backLabel = "Back to Match";
+    backLabel = "Back to match";
   }
 
   const matchesList: PlayerMatchItem[] = matchesData.map((m) => {

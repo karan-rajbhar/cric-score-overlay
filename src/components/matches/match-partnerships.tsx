@@ -112,14 +112,19 @@ export function MatchPartnerships({ match }: { match: Match }) {
         description="Each wicket stand in batting order, with each batter's runs and balls faced. The bar is split by who scored: first batter dark, second light, extras grey."
       />
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-        {inningsGroups === null ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
+        {/* The error first: a failed query has no data, which would
+            otherwise read as still loading. */}
+        {error ? (
           <p className="text-sm text-muted-foreground">
             {error instanceof Error ? error.message : String(error)}
           </p>
+        ) : inningsGroups === null ? (
+          <div className="flex justify-center py-8">
+            <Loader2
+              className="h-5 w-5 animate-spin text-muted-foreground"
+              aria-label="Loading partnerships"
+            />
+          </div>
         ) : inningsGroups.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             No partnerships recorded yet.

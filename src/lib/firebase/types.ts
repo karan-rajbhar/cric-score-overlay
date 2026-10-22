@@ -196,6 +196,18 @@ export interface TeamSnapshot {
   logo_url: string | null;
 }
 
+/**
+ * A chase target revised by the DLS method (`matches.dls_revision`): the
+ * innings it applies to, the revised target and the overs that innings now
+ * has. The target is also the innings' `target_runs`; the overs replace
+ * `overs_per_innings` for that innings (`inningsLimits`).
+ */
+export interface DlsRevision {
+  innings_number: number;
+  target_runs: number;
+  overs: number;
+}
+
 export interface TeamPlayersRow {
   id: string;
   team_id: string | null;
@@ -314,6 +326,8 @@ export interface MatchesRow {
   win_margin_type: string | null;
   win_margin: number | null;
   result_description: string | null;
+  /** The chase target revised by DLS, if any (cleared by a manual target). */
+  dls_revision?: DlsRevision | null;
   umpire1_name: string | null;
   umpire2_name: string | null;
   third_umpire_name: string | null;
@@ -638,6 +652,11 @@ export interface LiveMatchStateRow {
   last_ball_fielder: string | null;
   last_ball_commentary: string | null;
   last_ball_seq: number | null;
+  /**
+   * Overs of the current innings after a DLS revision (its target is
+   * `target_runs`); absent when the innings has none.
+   */
+  dls_overs?: number | null;
 }
 
 /** Per-over rollup for Manhattan / over-comparison charts (computed). */

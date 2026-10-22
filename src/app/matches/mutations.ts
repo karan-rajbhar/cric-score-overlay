@@ -823,10 +823,17 @@ export async function autoAssignPlayerOfTheMatch(
   }
 }
 
+/**
+ * Sets a chase's DLS target and the overs it now has: the target on the
+ * innings (the engine plays to it), both on `matches.dls_revision` so
+ * viewers see the target was revised and the chase counts the new overs
+ * (the engine ends the innings there too, `inningsLimits`).
+ */
 export async function updateDlsTarget(
   matchId: string,
   inningsId: string,
   targetRuns: number,
+  revisedOvers: number,
 ): Promise<{ success: boolean; error: string | null }> {
   const db = await createServerClient();
   const {
@@ -845,6 +852,44 @@ export async function updateDlsTarget(
     };
   }
 
+  if (!Number.isInteger(targetRuns) || targetRuns < 1) {
+    return { success: false, error: "The target must be at least 1 run" };
+  }
+  const [{ data: match }, { data: innings }] = await Promise.all([
+    db
+      .from("matches")
+      .select("overs_per_innings, balls_per_over")
+      .eq("id", matchId)
+      .single(),
+    db
+      .from("innings")
+      .select("match_id, innings_number, total_balls")
+      .eq("id", inningsId)
+      .single(),
+  ]);
+  if (!match || !innings || innings.match_id !== matchId) {
+    return { success: false, error: "That innings is not part of this match" };
+  }
+  const fullOvers = match.overs_per_innings ?? 20;
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  if (
+    !Number.isInteger(revisedOvers) ||
+    revisedOvers < 1 ||
+    revisedOvers > fullOvers
+  ) {
+    return {
+      success: false,
+      error: `The revised overs must be a whole number from 1 to ${fullOvers}`,
+    };
+  }
+  if (revisedOvers * bpo <= (innings.total_balls ?? 0)) {
+    return {
+      success: false,
+      error: "The revised overs must be more than the overs already bowled",
+    };
+  }
+
   const { error } = await db
     .from("innings")
     .update({ target_runs: targetRuns })
@@ -854,6 +899,21 @@ export async function updateDlsTarget(
   if (error) {
     console.error("updateDlsTarget failed:", error);
     return { success: false, error: friendlyError(error.message) };
+  }
+
+  const { error: matchErr } = await db
+    .from("matches")
+    .update({
+      dls_revision: {
+        innings_number: innings.innings_number,
+        target_runs: targetRuns,
+        overs: revisedOvers,
+      },
+    })
+    .eq("id", matchId);
+  if (matchErr) {
+    console.error("updateDlsTarget failed on the match:", matchErr);
+    return { success: false, error: friendlyError(matchErr.message) };
   }
 
   await refreshLiveState(db, matchId);
@@ -1067,6 +1127,8 @@ export async function updateMatchSettings(
       matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
     if (settings.noballExtrasToBatsman !== undefined)
       matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
+    // A target set by hand replaces any DLS revision.
+    if (settings.targetRuns !== undefined) matchUpdates.dls_revision = null;
 
     if (Object.keys(matchUpdates).length > 0) {
       const { error: matchErr } = await db
@@ -1463,12 +1525,12 @@ export async function updateTargetRuns(
       return { success: false, error: friendlyError(innErr.message) };
     }
 
+    // A target set by hand replaces any DLS revision.
+    const matchPatch: Record<string, unknown> = { dls_revision: null };
     if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
-      await db
-        .from("matches")
-        .update({ overs_per_innings: params.overs })
-        .eq("id", matchId);
+      matchPatch.overs_per_innings = params.overs;
     }
+    await db.from("matches").update(matchPatch).eq("id", matchId);
 
     await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);

@@ -8,7 +8,7 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
-import type { Tables } from "~/lib/firebase/types";
+import type { DlsRevision, Tables } from "~/lib/firebase/types";
 
 export type DbMatch = Tables<"matches">;
 export type DbInnings = Tables<"innings">;
@@ -190,6 +190,8 @@ export interface Match {
   win_margin_type?: "runs" | "wickets" | "balls" | string | null;
   win_margin?: number | null;
   result_description?: string | null;
+  /** The chase target revised by DLS, if any (innings, target, overs). */
+  dls_revision?: DlsRevision | null;
   weather_conditions?: string | null;
   pitch_conditions?: string | null;
   ball_type?: string | null;

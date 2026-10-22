@@ -743,7 +743,7 @@ export default async function ClubPage({
                           <Initials name={m.user?.full_name} fallback="U" className="h-9 w-9" />
                           <div>
                             <div className="font-semibold text-foreground">
-                              {m.user?.full_name ?? "Unnamed Member"}
+                              {m.user?.full_name ?? "Unnamed member"}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               Joined{" "}

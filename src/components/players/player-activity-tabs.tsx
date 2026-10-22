@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { Badge } from "~/components/ui/badge";
-import { StatusBadge } from "~/components/ui/status-badge";
+import { MatchStatusChip } from "~/components/ds/chip";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { MatchCard } from "~/components/matches/match-card";
@@ -220,7 +220,7 @@ function MatchResultCells({
           title={match?.result_description ?? ""}
         >
           {match?.result_description ?? (
-            <StatusBadge status={match?.status ?? "scheduled"} />
+            <MatchStatusChip status={match?.status ?? "scheduled"} />
           )}
         </div>
       </TableCell>

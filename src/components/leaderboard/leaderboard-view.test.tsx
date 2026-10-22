@@ -14,7 +14,7 @@ describe("LeaderboardView Component", () => {
     const emptyData = buildLeaderboardData({ batting: [], bowling: [], fallOfWickets: [] });
     render(<LeaderboardView data={emptyData} />);
 
-    expect(screen.getByText(/no leaderboard statistics available/i)).toBeInTheDocument();
+    expect(screen.getByText(/no leaderboard figures yet/i)).toBeInTheDocument();
   });
 
   const mockData = buildLeaderboardData({

@@ -119,9 +119,10 @@ function creaseLines(match: Match, bpo: number): string[] {
  *   Follow ball by ball: <link>
  *
  * Once it is over: the result and player of the match, then the scorecard
- * link.
+ * link. Without `url` the link line is left out (a link share sends the
+ * link on its own).
  */
-export function matchShareMessage(match: Match, url: string): string {
+export function matchShareMessage(match: Match, url?: string): string {
   const bpo = match.balls_per_over || 6;
   const live = match.status === "live" || match.status === "innings_break";
   const done = match.status === "completed" || match.status === "abandoned";
@@ -139,7 +140,9 @@ export function matchShareMessage(match: Match, url: string): string {
   if (match.status === "completed" && potm) {
     lines.push(`Player of the match: ${potm}`);
   }
-  lines.push(`${live ? "Follow ball by ball" : "Full scorecard"}: ${url}`);
+  if (url) {
+    lines.push(`${live ? "Follow ball by ball" : "Full scorecard"}: ${url}`);
+  }
   return lines.join("\n");
 }
 

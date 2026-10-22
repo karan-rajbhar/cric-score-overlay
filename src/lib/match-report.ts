@@ -1,10 +1,11 @@
 import type { Match } from "./match-types";
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
-  ballsRemaining,
   bowlerEconomy,
   byBattingOrder,
+  chaseLine,
   dismissalText,
+  displayStatusOf,
   formatBowlerOvers,
   formatDecimalOvers,
   inningsBalls,
@@ -125,7 +126,6 @@ export function matchSituation(match: Match): string {
       (match.status === "abandoned" ? "Match abandoned" : "Match completed")
     );
   }
-  if (match.status === "innings_break") return "Innings break";
   const inn =
     match.innings?.find((i) => i.innings_number === match.current_innings) ??
     match.innings?.at(-1);
@@ -133,16 +133,13 @@ export function matchSituation(match: Match): string {
   const bpo = match.balls_per_over || 6;
   const batting = teamName(match, inn.team_id);
   const balls = inningsBalls(inn, bpo);
-  const need = (inn.target_runs ?? 0) - inn.total_runs;
-  if (inn.target_runs && need > 0) {
-    const runs = `${need} ${need === 1 ? "run" : "runs"}`;
-    const left = match.overs_per_innings
-      ? ballsRemaining(match.overs_per_innings, balls, bpo)
-      : 0;
-    return left > 0
-      ? `${batting} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
-      : `${batting} need ${runs}`;
+  // The chase over the overs it has (a DLS revision's included).
+  const chase = chaseLine(match, inn, batting, bpo);
+  if (displayStatusOf(match) === "innings_break") {
+    return chase ? `Innings break. ${chase}` : "Innings break";
   }
+  if (chase) return chase;
+  if (balls === 0 && inn.total_runs === 0) return `${batting} bat first`;
   return `${batting} batting · run rate ${runRate(inn.total_runs, balls, bpo)}`;
 }
 

@@ -325,6 +325,10 @@ export function composeLiveMatchState(
   };
   const ci = parts.innings;
   if (!ci) return base;
+  // Only when DLS revised this innings (rows without it stay as they were).
+  const dls = parts.match.dls_revision;
+  const dlsOvers =
+    dls && dls.innings_number === ci.innings_number ? dls.overs : null;
   return {
     ...base,
     ...inningsFields(parts, ci),
@@ -333,6 +337,7 @@ export function composeLiveMatchState(
     this_over_runs: overRuns(parts.thisOver),
     ...rateFields(parts, ci),
     ...lastBallFields(parts),
+    ...(dlsOvers !== null ? { dls_overs: dlsOvers } : {}),
   };
 }
 
