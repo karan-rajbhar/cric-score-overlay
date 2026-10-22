@@ -159,4 +159,15 @@ describe("MatchPartnerships", () => {
     expect(screen.queryByText("Live")).not.toBeInTheDocument();
     expect(screen.getByText("Unbroken")).toBeInTheDocument();
   });
+
+  it("says the query failed instead of loading forever", () => {
+    vi.mocked(matchQueries.usePartnershipsQuery).mockReturnValue({
+      data: undefined,
+      error: new Error("Could not load partnerships"),
+      isLoading: false,
+    } as never);
+    render(<MatchPartnerships match={makeMatch()} />);
+    expect(screen.getByText("Could not load partnerships")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Loading partnerships")).toBeNull();
+  });
 });

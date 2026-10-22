@@ -33,9 +33,13 @@ import {
   rankPlayersByImpact,
   calculateSuperstars,
   formatMatchResult,
+  chaseLine,
+  dlsRevisionFor,
+  displayStatusOf,
+  inningsOvers,
 } from "./cricket";
 import type { BowlingPerformance, FallOfWicket, Innings } from "./match-types";
-import { makeMatch } from "~/test/factories";
+import { makeInnings, makeMatch } from "~/test/factories";
 
 describe("cricket math & formatting utilities", () => {
   describe("oversFromBalls", () => {
@@ -358,10 +362,11 @@ describe("cricket math & formatting utilities", () => {
 
   describe("formatStatus", () => {
     it("formats known statuses into human-friendly strings", () => {
-      expect(formatStatus("registration_open")).toBe("Registration Open");
-      expect(formatStatus("innings_break")).toBe("Innings Break");
-      expect(formatStatus("in_contention")).toBe("In Contention");
-      expect(formatStatus("scheduled")).toBe("Scheduled");
+      expect(formatStatus("registration_open")).toBe("Registration open");
+      expect(formatStatus("innings_break")).toBe("Innings break");
+      expect(formatStatus("in_contention")).toBe("In contention");
+      // A match before its start reads as its chip does.
+      expect(formatStatus("scheduled")).toBe("Upcoming");
       expect(formatStatus("live")).toBe("Live");
       expect(formatStatus("completed")).toBe("Completed");
       expect(formatStatus("abandoned")).toBe("Abandoned");
@@ -372,14 +377,14 @@ describe("cricket math & formatting utilities", () => {
       expect(formatStatus(undefined)).toBe("");
     });
 
-    it("converts unknown snake_case statuses to Title Case", () => {
-      expect(formatStatus("delayed_rain")).toBe("Delayed Rain");
+    it("converts unknown snake_case statuses to sentence case", () => {
+      expect(formatStatus("delayed_rain")).toBe("Delayed rain");
     });
   });
 
   describe("formatTournamentFormat", () => {
     it("formats known tournament formats", () => {
-      expect(formatTournamentFormat("round_robin")).toBe("Round Robin");
+      expect(formatTournamentFormat("round_robin")).toBe("Round robin");
       expect(formatTournamentFormat("league")).toBe("League");
       expect(formatTournamentFormat("knockout")).toBe("Knockout");
       expect(formatTournamentFormat("mixed")).toBe("Mixed");
@@ -1456,4 +1461,86 @@ describe("cricket math & formatting utilities", () => {
   });
 });
 
+describe("the chase and DLS revisions", () => {
+  const first = makeInnings({
+    total_runs: 160,
+    total_balls: 120,
+    is_completed: true,
+  });
+  const chase = makeInnings({
+    id: "inn-2",
+    team_id: "t2",
+    innings_number: 2,
+    total_runs: 40,
+    total_balls: 36,
+    target_runs: 161,
+  });
 
+  it("counts the match's overs without a revision", () => {
+    const match = makeMatch({ innings: [first, chase] });
+    expect(dlsRevisionFor(match, 2)).toBeNull();
+    expect(inningsOvers(match, 2)).toBe(20);
+    expect(chaseLine(match, chase, "Kings")).toBe(
+      "Kings need 121 runs from 84 balls",
+    );
+  });
+
+  it("counts the revised overs and names the DLS target", () => {
+    const dls_revision = { innings_number: 2, target_runs: 98, overs: 12 };
+    const match = makeMatch({
+      innings: [first, { ...chase, target_runs: 98 }],
+      dls_revision,
+    });
+    expect(dlsRevisionFor(match, 2)).toEqual(dls_revision);
+    // The first innings keeps its overs.
+    expect(dlsRevisionFor(match, 1)).toBeNull();
+    expect(inningsOvers(match, 1)).toBe(20);
+    expect(inningsOvers(match, 2)).toBe(12);
+    expect(chaseLine(match, { ...chase, target_runs: 98 }, "Kings")).toBe(
+      "Kings need 58 runs from 36 balls (DLS target 98)",
+    );
+  });
+
+  it("has no line without a target or once it is reached", () => {
+    const match = makeMatch();
+    expect(chaseLine(match, first, "Tigers")).toBeNull();
+    expect(
+      chaseLine(match, { ...chase, total_runs: 161 }, "Kings"),
+    ).toBeNull();
+  });
+});
+
+describe("displayStatusOf", () => {
+  const done = makeInnings({ total_runs: 150, total_balls: 120, is_completed: true });
+  const chase = makeInnings({
+    id: "inn-2",
+    team_id: "t2",
+    innings_number: 2,
+    target_runs: 151,
+  });
+
+  it("calls the time between innings an innings break", () => {
+    expect(displayStatusOf(makeMatch({ innings: [done, chase] }))).toBe(
+      "innings_break",
+    );
+  });
+
+  it("is live again from the chase's first ball, even a wide", () => {
+    expect(
+      displayStatusOf(
+        makeMatch({ innings: [done, { ...chase, total_balls: 1, total_overs: 0.1 }] }),
+      ),
+    ).toBe("live");
+    expect(
+      displayStatusOf(makeMatch({ innings: [done, { ...chase, total_runs: 1 }] })),
+    ).toBe("live");
+  });
+
+  it("leaves the first innings and other statuses alone", () => {
+    expect(displayStatusOf(makeMatch({ innings: [makeInnings()] }))).toBe("live");
+    expect(
+      displayStatusOf(makeMatch({ status: "completed", innings: [done, chase] })),
+    ).toBe("completed");
+    expect(displayStatusOf(makeMatch({ status: "scheduled" }))).toBe("scheduled");
+  });
+});

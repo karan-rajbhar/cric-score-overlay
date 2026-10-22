@@ -5,7 +5,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "~/lib/utils";
 // The app's tab root: it also follows a sideways swipe on phones.
-import { Tabs } from "~/components/ui/tabs";
+import { Tabs, useEdgeFade } from "~/components/ui/tabs";
 
 /*
  * Pill tabs, as in Scoreline: the selected tab is a filled navy pill, the
@@ -16,16 +16,24 @@ import { Tabs } from "~/components/ui/tabs";
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
-  <TabsPrimitive.List
-    ref={ref}
-    className={cn(
-      "no-scrollbar -mx-1.5 flex max-w-[calc(100%+0.75rem)] items-center gap-2 overflow-x-auto px-1.5 pb-3 pt-1",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, onScroll, ...props }, ref) => {
+  // Faded edges where more tabs are scrolled out of view.
+  const fade = useEdgeFade(ref);
+  return (
+    <TabsPrimitive.List
+      {...fade}
+      onScroll={(e) => {
+        onScroll?.(e);
+        fade.onScroll();
+      }}
+      className={cn(
+        "tabs-fade no-scrollbar -mx-1.5 flex max-w-[calc(100%+0.75rem)] items-center gap-2 overflow-x-auto px-1.5 pb-3 pt-1",
+        className,
+      )}
+      {...props}
+    />
+  );
+});
 TabsList.displayName = TabsPrimitive.List.displayName;
 
 /** Shared look of a pill tab, also used by Segmented. */

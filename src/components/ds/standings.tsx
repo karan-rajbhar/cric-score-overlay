@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cn } from "~/lib/utils";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import {
+  Abbr,
   TableCard,
   figCell,
   figHead,
@@ -41,6 +42,7 @@ function StandingTableRow({
   qualifies,
   firstOut,
   withTied,
+  withNoResult,
   withAction,
 }: {
   row: StandingRow;
@@ -49,6 +51,7 @@ function StandingTableRow({
   /** First place below the cut: draw the line above it. */
   firstOut: boolean;
   withTied: boolean;
+  withNoResult: boolean;
   withAction: boolean;
 }) {
   const status = row.status ? STATUS[row.status] : null;
@@ -101,10 +104,8 @@ function StandingTableRow({
       <td className={figCell}>{row.played}</td>
       <td className={figCell}>{row.won}</td>
       <td className={figCell}>{row.lost}</td>
-      {withTied && (
-        <td className={cn(figCell, "hidden sm:table-cell")}>{row.tied ?? 0}</td>
-      )}
-      <td className={cn(figCell, "hidden sm:table-cell")}>{row.noResult}</td>
+      {withTied && <td className={figCell}>{row.tied ?? 0}</td>}
+      {withNoResult && <td className={figCell}>{row.noResult}</td>}
       <td className={cn(figCell, "font-semibold text-foreground")}>
         {row.points}
         {row.adjustment && (
@@ -121,8 +122,9 @@ function StandingTableRow({
 
 /**
  * Points table. The qualifying places get a navy rank and a line under the
- * last of them (or each row marked qualified its navy rank and a "Q");
- * T and NR hide on phones.
+ * last of them (or each row marked qualified its navy rank and a "Q").
+ * T and NR show (on phones too) once any team has a tie or a no result,
+ * so played always adds up; headings are read out in full.
  */
 export function PointsTable({
   title,
@@ -139,18 +141,19 @@ export function PointsTable({
   qualify?: number;
   className?: string;
 }) {
-  const withTied = rows.some((r) => r.tied !== undefined);
+  const withTied = rows.some((r) => (r.tied ?? 0) > 0);
+  const withNoResult = rows.some((r) => r.noResult > 0);
   const withAction = rows.some((r) => r.action);
-  const columns: [string, string][] = [
-    ["Team", ""],
-    ["P", ""],
-    ["W", ""],
-    ["L", ""],
-    ...(withTied ? ([["T", "hidden sm:table-cell"]] as [string, string][]) : []),
-    ["NR", "hidden sm:table-cell"],
-    ["Pts", ""],
-    ["NRR", ""],
-    ...(withAction ? ([["", ""]] as [string, string][]) : []),
+  const columns: [short: string, full?: string][] = [
+    ["Team"],
+    ["P", "Played"],
+    ["W", "Won"],
+    ["L", "Lost"],
+    ...(withTied ? ([["T", "Tied"]] as [string, string][]) : []),
+    ...(withNoResult ? ([["NR", "No result"]] as [string, string][]) : []),
+    ["Pts", "Points"],
+    ["NRR", "Net run rate"],
+    ...(withAction ? ([[""]] as [string][]) : []),
   ];
   return (
     <TableCard
@@ -161,9 +164,13 @@ export function PointsTable({
       <table className={figTable}>
         <thead>
           <tr>
-            {columns.map(([label, extra], i) => (
-              <th key={`${label}-${i}`} scope="col" className={cn(figHead, extra)}>
-                {label || <span className="sr-only">Actions</span>}
+            {columns.map(([short, full], i) => (
+              <th key={`${short}-${i}`} scope="col" className={figHead}>
+                {short ? (
+                  <Abbr short={short} full={full} />
+                ) : (
+                  <span className="sr-only">Actions</span>
+                )}
               </th>
             ))}
           </tr>
@@ -177,6 +184,7 @@ export function PointsTable({
               qualifies={i < qualify}
               firstOut={qualify > 0 && i === qualify}
               withTied={withTied}
+              withNoResult={withNoResult}
               withAction={withAction}
             />
           ))}

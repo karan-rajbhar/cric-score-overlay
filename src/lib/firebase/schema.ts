@@ -280,6 +280,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "win_margin_type",
     "win_margin",
     "result_description",
+    "dls_revision",
     "umpire1_name",
     "umpire2_name",
     "third_umpire_name",

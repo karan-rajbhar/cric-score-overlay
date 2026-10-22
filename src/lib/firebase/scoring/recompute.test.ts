@@ -622,6 +622,15 @@ describe("advanceAfterInnings", () => {
     expect(result(null)).toMatchObject({ win_margin: 7 });
   });
 
+  it("gives a chase cut short by DLS its revised overs, and no other innings", () => {
+    const revised = {
+      ...baseMatch,
+      dls_revision: { innings_number: 2, target_runs: 98, overs: 12 },
+    } as MatchesRow;
+    expect(inningsLimits(revised, 2).maxBalls).toBe(72);
+    expect(inningsLimits(revised, 1).maxBalls).toBe(120);
+  });
+
   it("limits super overs to one over and two wickets", () => {
     expect(inningsLimits(baseMatch, 1)).toEqual({
       maxBalls: 120,

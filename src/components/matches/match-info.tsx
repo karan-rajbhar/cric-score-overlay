@@ -121,6 +121,10 @@ export function MatchInfo({ match }: MatchInfoProps) {
   const details = rows(
     ["Format", match.match_format],
     ["Overs", `${match.overs_per_innings} overs per innings`],
+    match.dls_revision && [
+      "Revised target (DLS)",
+      `${match.dls_revision.target_runs} runs in ${match.dls_revision.overs} overs`,
+    ],
     match.ball_type && [
       "Ball",
       <span key="b" className="capitalize">

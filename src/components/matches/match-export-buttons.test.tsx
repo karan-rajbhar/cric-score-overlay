@@ -67,12 +67,14 @@ describe("MatchExportButtons and drawSummary", () => {
     innings: [],
   } as unknown as Match;
 
-  it("renders export buttons including Share summary", () => {
+  it("renders the report and image buttons", () => {
     render(<MatchExportButtons match={mockMatch} />);
 
-    expect(screen.getByRole("button", { name: /share summary/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /match report/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /cricsheet json/i })).toBeInTheDocument();
+    // Say what each one gives: a picture, a report page.
+    expect(screen.getByRole("button", { name: /share image/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^match report$/i })).toBeInTheDocument();
+    // The data file is in the ⋯ menu, not among everyone's buttons.
+    expect(screen.queryByRole("button", { name: /cricsheet/i })).not.toBeInTheDocument();
   });
 
   it("drawSummary renders broadcast elements onto the canvas context", () => {

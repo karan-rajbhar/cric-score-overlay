@@ -91,7 +91,7 @@ export function DlsCalculatorModal({
 
   const handleApplyTarget = async () => {
     if (!inn2) {
-      toast.error("2nd innings has not started yet");
+      toast.error("The second innings has not started yet");
       return;
     }
     setIsApplying(true);
@@ -100,15 +100,18 @@ export function DlsCalculatorModal({
         match.id,
         inn2.id,
         calculation.targetRuns,
+        t2Overs,
       );
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success(`DLS target updated to ${calculation.targetRuns} runs`);
+        toast.success(
+          `Target revised to ${calculation.targetRuns} runs in ${t2Overs} overs`,
+        );
         setOpen(false);
       }
     } catch {
-      toast.error("Failed to update DLS target");
+      toast.error("Could not revise the target");
     } finally {
       setIsApplying(false);
     }
@@ -130,7 +133,7 @@ export function DlsCalculatorModal({
               className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
             >
               <CloudRain className="h-4 w-4 shrink-0 text-primary" />
-              <span className="hidden sm:inline">DLS Rain Calc</span>
+              <span className="hidden sm:inline">DLS calculator</span>
               <span className="sm:hidden">DLS</span>
             </Button>
           )}
@@ -140,12 +143,12 @@ export function DlsCalculatorModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5 text-primary" />
-            Duckworth-Lewis-Stern (DLS) Calculator
+            DLS calculator
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Standard Edition DLS Method using official ICC resource percentage
-            tables to recalculate targets when rain or interruptions shorten
-            overs in limited-overs matches.
+            Works out a new chase target with the Duckworth-Lewis-Stern
+            resource tables when rain or another stoppage shortens the second
+            innings.
           </DialogDescription>
         </DialogHeader>
 
@@ -153,7 +156,7 @@ export function DlsCalculatorModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="dls-t1-runs" className="text-xs font-semibold">
-                1st Innings Runs
+                First innings runs
               </Label>
               <Input
                 id="dls-t1-runs"
@@ -167,7 +170,7 @@ export function DlsCalculatorModal({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="dls-t1-overs" className="text-xs font-semibold">
-                1st Innings Overs
+                First innings overs
               </Label>
               <Input
                 id="dls-t1-overs"
@@ -185,7 +188,7 @@ export function DlsCalculatorModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="dls-t2-overs" className="text-xs font-semibold">
-                2nd Innings Revised Overs
+                Second innings overs
               </Label>
               <span className="text-xs font-medium text-primary">
                 {t2Overs} overs available
@@ -216,9 +219,9 @@ export function DlsCalculatorModal({
               </span>
             </div>
             <div className="mt-3 flex items-center justify-center gap-4 border-t border-border/40 pt-2 text-xs text-muted-foreground">
-              <span>Team 1 Res: {calculation.team1Resource}%</span>
-              <ArrowRight className="h-3 w-3" />
-              <span>Team 2 Res: {calculation.team2Resource}%</span>
+              <span>First innings resources {calculation.team1Resource}%</span>
+              <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              <span>Second innings resources {calculation.team2Resource}%</span>
             </div>
           </div>
 
@@ -267,7 +270,7 @@ export function DlsCalculatorModal({
             </div>
             <div className="flex items-center justify-between pt-1 text-xs font-medium">
               <span className="text-muted-foreground">
-                DLS Par Score right now:
+                Par score now
               </span>
               <span className="text-sm font-semibold text-foreground">
                 {parScore} runs
@@ -283,8 +286,8 @@ export function DlsCalculatorModal({
             >
               <Check className="h-4 w-4" />
               {isApplying
-                ? "Updating Target..."
-                : `Apply Target (${calculation.targetRuns} runs) to Match`}
+                ? "Revising the target…"
+                : `Set target: ${calculation.targetRuns} runs in ${t2Overs} overs`}
             </Button>
           )}
         </div>

@@ -19,7 +19,7 @@ describe("ShareMatchButton", () => {
     const share = vi.fn().mockResolvedValue(undefined);
     setNavigator("share", share);
     render(<ShareMatchButton matchId="m1" title="A vs B" />);
-    fireEvent.click(screen.getByRole("button", { name: "Share match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share link" }));
     await waitFor(() =>
       expect(share).toHaveBeenCalledWith({ title: "A vs B", url }),
     );
@@ -29,7 +29,7 @@ describe("ShareMatchButton", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     setNavigator("clipboard", { writeText });
     render(<ShareMatchButton matchId="m1" title="A vs B" />);
-    fireEvent.click(screen.getByRole("button", { name: "Share match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share link" }));
     expect(
       await screen.findByRole("button", { name: "Link copied" }),
     ).toBeInTheDocument();
@@ -42,10 +42,30 @@ describe("ShareMatchButton", () => {
     });
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(<ShareMatchButton matchId="m1" title="A vs B" />);
-    fireEvent.click(screen.getByRole("button", { name: "Share match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Share link" }));
     await waitFor(() => expect(open).toHaveBeenCalled());
     expect(open.mock.calls[0]![0]).toBe(
       `https://wa.me/?text=${encodeURIComponent(`A vs B\n${url}`)}`,
+    );
+  });
+
+  it("sends the score with the link when given a message", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    setNavigator("share", share);
+    render(
+      <ShareMatchButton
+        matchId="m1"
+        title="A vs B"
+        text={"A vs B · Live\nA 85/3 (10.2 ov)"}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Share link" }));
+    await waitFor(() =>
+      expect(share).toHaveBeenCalledWith({
+        title: "A vs B",
+        text: "A vs B · Live\nA 85/3 (10.2 ov)",
+        url,
+      }),
     );
   });
 });

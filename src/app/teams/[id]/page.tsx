@@ -42,6 +42,7 @@ import {
 } from "~/components/teams/team-matches-view";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
+import { teamRecordOf } from "~/lib/team-record";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -138,7 +139,7 @@ export default async function TeamDetailsPage({
   const canEditLogo = canManageTeam;
 
   let backHref = "/teams";
-  let backLabel = "Back to Teams";
+  let backLabel = "Back to teams";
   if (tournamentInfo) {
     backHref = `/tournaments/${tournamentInfo.id}?tab=teams`;
     backLabel = `Back to ${tournamentInfo.name}`;
@@ -210,19 +211,8 @@ export default async function TeamDetailsPage({
     await attachMatchTeams(db, matchesData ?? []),
   )) as unknown as TeamMatchItem[];
 
-  // Match statistics for this team
-  const totalMatches = teamMatches.length;
-  const wonMatches = teamMatches.filter((m) => m.winning_team_id === id).length;
-  const lostMatches = teamMatches.filter(
-    (m) =>
-      m.winning_team_id && m.winning_team_id !== id && m.status === "completed",
-  ).length;
-  const tiedMatches = teamMatches.filter(
-    (m) => m.status === "completed" && !m.winning_team_id,
-  ).length;
-  const completedCount = wonMatches + lostMatches + tiedMatches;
-  const winRate =
-    completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
+  // The team's record: finished matches only (upcoming ones are not played).
+  const record = teamRecordOf(teamMatches, id);
 
   return (
     <PageContainer stack={false}>
@@ -369,14 +359,22 @@ export default async function TeamDetailsPage({
 
       <ContentSheet className="mt-6 sm:mt-8">
       <StatGrid>
-        <StatTile icon={Swords} label="Played" value={totalMatches} />
-        <StatTile icon={Trophy} label="Won" value={wonMatches} />
-        <StatTile icon={X} label="Lost" value={lostMatches} />
+        <StatTile
+          icon={Swords}
+          label="Played"
+          value={record.played}
+          hint={
+            record.noWinner > 0
+              ? `${record.noWinner} tied or no result`
+              : undefined
+          }
+        />
+        <StatTile icon={Trophy} label="Won" value={record.won} />
+        <StatTile icon={X} label="Lost" value={record.lost} />
         <StatTile
           icon={Percent}
           label="Win rate"
-          value={winRate !== null ? `${winRate}%` : "–"}
-          hint={tiedMatches > 0 ? `${tiedMatches} tied or no result` : undefined}
+          value={record.winRate !== null ? `${record.winRate}%` : "–"}
         />
       </StatGrid>
 

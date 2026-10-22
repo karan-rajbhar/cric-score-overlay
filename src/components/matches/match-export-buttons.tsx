@@ -1,12 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { toast } from "sonner";
-import { Download, Share2, FileJson, Loader2 } from "lucide-react";
-import { downloadCricsheetJson } from "~/lib/cricsheet";
-import { getFullMatchForExport } from "~/app/matches/queries";
+import { FileText, ImageIcon, Loader2 } from "lucide-react";
 import type { Match } from "~/lib/match-types";
 import { useMatchShare } from "./use-match-share";
 
@@ -17,16 +14,18 @@ export type {
   MatchExportSummary,
 } from "~/lib/match-report";
 
+/**
+ * A finished match's hero actions: the printable report (a page that
+ * shares or prints as a PDF) and the summary image. The ball-by-ball data
+ * download (Cricsheet) is in the ⋯ menu.
+ */
 export function MatchExportButtons({ match }: { match: Match }) {
   const router = useRouter();
 
   // The summary image: the share sheet on phones, a download elsewhere.
   const summaryShare = useMatchShare(match);
 
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
-
-  const exportPdf = () => {
-    setIsExportingPdf(true);
+  const openReport = () => {
     try {
       const reportUrl = `/matches/${match.id}/report`;
       const isMobile =
@@ -40,35 +39,8 @@ export function MatchExportButtons({ match }: { match: Match }) {
         router.push(reportUrl);
       }
     } catch (err) {
-      console.error("PDF export error:", err);
-      toast.error("Failed to open match report");
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
-
-  const [isExportingCricsheet, setIsExportingCricsheet] = useState(false);
-
-  const handleCricsheetExport = async () => {
-    setIsExportingCricsheet(true);
-    try {
-      let exportMatch = match;
-      const hasBalls = match.innings?.some(
-        (inn) => inn.ball_by_ball && inn.ball_by_ball.length > 0,
-      );
-      if (!hasBalls) {
-        const res = await getFullMatchForExport(match.id);
-        if (res.data) {
-          exportMatch = res.data;
-        }
-      }
-      downloadCricsheetJson(exportMatch);
-      toast.success("Cricsheet JSON downloaded with full delivery data");
-    } catch (err) {
-      console.error("Cricsheet export error:", err);
-      toast.error("Failed to export Cricsheet data");
-    } finally {
-      setIsExportingCricsheet(false);
+      console.error("Match report error:", err);
+      toast.error("Could not open the match report");
     }
   };
 
@@ -77,16 +49,11 @@ export function MatchExportButtons({ match }: { match: Match }) {
       <Button
         variant="outline"
         size="sm"
-        disabled={isExportingPdf}
-        onClick={() => void exportPdf()}
+        onClick={openReport}
         className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
       >
-        {isExportingPdf ? (
-          <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />
-        ) : (
-          <Download className="mr-1.5 h-4 w-4 shrink-0" />
-        )}
-        Match report (PDF)
+        <FileText className="mr-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        Match report
       </Button>
       <Button
         variant="outline"
@@ -100,23 +67,9 @@ export function MatchExportButtons({ match }: { match: Match }) {
         {summaryShare.busy ? (
           <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />
         ) : (
-          <Share2 className="mr-1.5 h-4 w-4 shrink-0" />
+          <ImageIcon className="mr-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
         )}
-        Share summary
-      </Button>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={isExportingCricsheet}
-        onClick={() => void handleCricsheetExport()}
-        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
-      >
-        {isExportingCricsheet ? (
-          <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />
-        ) : (
-          <FileJson className="mr-1.5 h-4 w-4 shrink-0" />
-        )}
-        Cricsheet JSON
+        Share image
       </Button>
     </>
   );
