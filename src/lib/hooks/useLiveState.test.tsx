@@ -38,7 +38,6 @@ vi.mock("~/lib/firebase/realtime", () => ({
 const getMatch = vi.fn();
 vi.mock("~/app/matches/queries", () => ({
   getMatch: (...args: unknown[]) => getMatch(...args),
-  getPartnerships: vi.fn(),
   getOverSummaries: vi.fn(),
   getMatchBallLog: vi.fn(),
   getMatches: vi.fn(),

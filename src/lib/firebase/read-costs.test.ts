@@ -95,7 +95,6 @@ describe("billed reads per page on the seed data", () => {
       getLiveMatchState,
       getScoringState,
       getMatchBallLog,
-      getPartnerships,
     } = await import("~/app/matches/queries");
     const { fetchHeadToHead } = await import("~/lib/hooks/useMatchQueries");
     const { isMatchAdmin } = await import("./rpc/auth-helpers");
@@ -134,8 +133,6 @@ describe("billed reads per page on the seed data", () => {
     });
     results.scoringState = await cost(() => getScoringState(liveMatch.id));
     results.ballLog = await cost(() => getMatchBallLog(completedMatch.id));
-    // Stats tab of a finished match: batter names from the two rosters.
-    results.partnerships = await cost(() => getPartnerships(completedMatch.id));
     // Info tab (browser query, same builder): the two pairings only.
     results.headToHead = await cost(() =>
       fetchHeadToHead(
@@ -291,8 +288,6 @@ describe("billed reads per page on the seed data", () => {
       viewerPerBallBalls: 2,
       viewerPerBallStats: 3,
       ballLog: 45,
-      // 19 with a profile read per batter (17 on the seed match).
-      partnerships: 5,
       // Was every completed match (4 on the seed, unbounded in production):
       // now 2 equality queries for the two pairings (an empty one bills 1).
       headToHead: 3,

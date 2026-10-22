@@ -28,23 +28,3 @@ export const MATCH_DETAIL_SELECT = `
   club:clubs(id, name),
   player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
 `;
-
-/**
- * `getPartnerships`: one row per stand. The batters' names (`batsman1` /
- * `batsman2`) are added from the teams' rosters, not read per batter.
- */
-export const PARTNERSHIPS_SELECT = `
-  id,
-  innings_id,
-  batsman1_id,
-  batsman2_id,
-  runs,
-  balls,
-  batsman1_runs,
-  batsman1_balls,
-  batsman2_runs,
-  batsman2_balls,
-  start_over,
-  end_over,
-  is_current
-`;

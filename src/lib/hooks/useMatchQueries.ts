@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { createClient, getFirebaseDb } from "~/lib/firebase/client";
 import {
   ensureLiveScorecard,
-  getPartnerships,
   getMatchBallLog,
   getMatch,
 } from "~/app/matches/queries";
@@ -210,39 +209,6 @@ export function useMatchWizardDataQuery(userId?: string | null) {
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,
   });
-}
-
-/**
- * TanStack Query hook for Match Partnerships with Realtime Invalidation
- */
-export function usePartnershipsQuery(matchId: string) {
-  // While live, from the live scorecard (no server request per ball).
-  const live = useLiveState(isMatchId(matchId) ? matchId : null);
-  const card = useLiveScorecardWhileLive(matchId, true, live.state?.status);
-  const query = useQuery({
-    queryKey: ["matchPartnerships", matchId],
-    queryFn: async () => {
-      const res = await getPartnerships(matchId);
-      if (res.error) throw new Error(res.error);
-      return res.data ?? [];
-    },
-    enabled: Boolean(matchId) && !card,
-    staleTime: 15 * 1000,
-  });
-
-  useRefetchOnLiveChange(matchId, ["matchPartnerships", matchId], !card);
-
-  const livePartnerships = useMemo(
-    () => (card ? liveScorecardViewOf(card).partnerships : null),
-    [card],
-  );
-  if (!livePartnerships) return query;
-  return {
-    ...query,
-    data: livePartnerships as unknown as typeof query.data,
-    error: null,
-    isLoading: false,
-  };
 }
 
 /**

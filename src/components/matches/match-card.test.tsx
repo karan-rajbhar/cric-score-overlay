@@ -21,7 +21,6 @@ vi.mock("~/app/matches/queries", () => ({
   getMatches: (...a: unknown[]) => getMatches(...a),
   getMatch: vi.fn(),
   getMatchBallLog: vi.fn(),
-  getPartnerships: vi.fn(),
   ensureLiveScorecard: vi.fn(),
 }));
 

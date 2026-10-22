@@ -16,7 +16,7 @@ import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 import { BALL_PLAYER_FIELDS } from "~/lib/ball-log";
 import { withMatchPosition } from "~/lib/match-position";
 import { fetchMatchList } from "./match-list";
-import { MATCH_DETAIL_SELECT, PARTNERSHIPS_SELECT } from "./match-select";
+import { MATCH_DETAIL_SELECT } from "./match-select";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -541,70 +541,3 @@ export async function getFullMatchForExport(matchId: string) {
   }
 }
 
-/**
- * Partnership rows' `batsman1` / `batsman2` ({ full_name }) from the teams'
- * rosters (3 reads) instead of a profile read per batter, as the
- * `users!partnerships_batsman*_id_fkey(full_name)` embeds did.
- */
-async function attachBatterNames(
-  db: Awaited<ReturnType<typeof createServerClient>>,
-  matchId: string,
-  rows: Record<string, unknown>[],
-): Promise<void> {
-  const ids = new Set<string>();
-  for (const r of rows) {
-    for (const id of [r.batsman1_id, r.batsman2_id]) {
-      if (typeof id === "string") ids.add(id);
-    }
-  }
-  const { data: teams } = await db
-    .from("matches")
-    .select("team1_id, team2_id")
-    .eq("id", matchId)
-    .maybeSingle();
-  const names = await playerDirectory(
-    db,
-    [teams?.team1_id, teams?.team2_id],
-    ids,
-  );
-  const nameOf = (id: unknown) => {
-    const user = typeof id === "string" ? names.get(id) : undefined;
-    return user ? { full_name: user.full_name } : null;
-  };
-  for (const r of rows) {
-    r.batsman1 = nameOf(r.batsman1_id);
-    r.batsman2 = nameOf(r.batsman2_id);
-  }
-}
-
-export async function getPartnerships(matchId: string) {
-  try {
-    const db = await createServerClient();
-    const { data, error } = await db
-      .from("partnerships")
-      .select(PARTNERSHIPS_SELECT)
-      .eq("match_id", matchId)
-      .order("start_over");
-    if (error) {
-      console.error("Error fetching partnerships:", error);
-      return { data: null, error: error.message };
-    }
-    const rows = (data ?? []) as unknown as Record<string, unknown>[];
-    if (rows.length) await attachBatterNames(db, matchId, rows);
-    return {
-      data: rows as unknown as Array<
-        NonNullable<typeof data>[number] & {
-          batsman1: { full_name: string | null } | null;
-          batsman2: { full_name: string | null } | null;
-        }
-      >,
-      error: null,
-    };
-  } catch (err) {
-    console.error("Error in getPartnerships:", err);
-    return {
-      data: null,
-      error: err instanceof Error ? err.message : "Failed to fetch partnerships",
-    };
-  }
-}
