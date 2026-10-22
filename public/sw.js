@@ -235,8 +235,12 @@ if (typeof self !== "undefined" && typeof self.addEventListener === "function" &
         try {
           const asNav = classifyRequest({ method: "GET", url: u, mode: "navigate" }, origin);
           if (asNav === "page") {
+            // Already kept (a navigation through this worker stores it and
+            // refreshes it on every visit): no second server render.
+            const key = pageCacheKey(u);
+            if (await pagesCache.match(key)) return;
             const res = await fetch(u, { credentials: "same-origin", headers: { Accept: "text/html" } });
-            if (isCacheable(res)) await pagesCache.put(pageCacheKey(u), res);
+            if (isCacheable(res)) await pagesCache.put(key, res);
             return;
           }
           if (classifyRequest({ method: "GET", url: u }, origin) !== "static") return;

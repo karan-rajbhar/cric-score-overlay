@@ -190,7 +190,7 @@ describe("sw.js lifecycle", () => {
       });
       await done;
     };
-    return { run, store, self, listeners };
+    return { run, store, self, listeners, fetch };
   }
 
   it("precaches the offline page and icons without skipping the wait", async () => {
@@ -206,6 +206,19 @@ describe("sw.js lifecycle", () => {
     expect([...w.store.keys()]).toEqual(["other-app"]);
     expect(w.self.clients.claim).toHaveBeenCalled();
     expect(w.self.registration.unregister).not.toHaveBeenCalled();
+  });
+
+  it("fetches a scoring page the page asks it to keep only when it has none", async () => {
+    const w = loadWorker();
+    const page = `${ORIGIN}/matches/m1/score`;
+    w.store.set("cricscore-pages-new", new Map([[page, "cached"]]));
+    await w.run("message", { type: "CACHE_URLS", urls: [`${page}?x=1`] });
+    expect(w.fetch).not.toHaveBeenCalled();
+    await w.run("message", {
+      type: "CACHE_URLS",
+      urls: [`${ORIGIN}/matches/m2/score`],
+    });
+    expect(w.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("activates a waiting update only when the page asks", async () => {

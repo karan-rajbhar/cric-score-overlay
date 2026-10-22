@@ -169,6 +169,40 @@ export async function generateMetadata({
   return { title: club?.name ?? "Club" };
 }
 
+type Profile = NonNullable<MemberRow["user"]>;
+
+/**
+ * Hall of fame entries with their player. Players are usually members,
+ * whose profiles the members' snapshots carry: only the others are read
+ * (as `users!club_hall_of_fame_player_id_fkey(...)` read each one).
+ */
+async function withHallOfFamePlayers(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  rows: Array<Record<string, unknown> & { player_id?: string | null }>,
+  members: MemberRow[],
+): Promise<HallOfFameRow[]> {
+  const profiles = new Map<string, Profile>();
+  for (const m of members) if (m.user) profiles.set(m.user.id, m.user);
+  const unknown = [
+    ...new Set(
+      rows
+        .map((h) => h.player_id)
+        .filter((pid): pid is string => !!pid && !profiles.has(pid)),
+    ),
+  ];
+  if (unknown.length) {
+    const { data } = await db
+      .from("users")
+      .select("id, full_name, avatar_url")
+      .in("id", unknown);
+    for (const p of (data ?? []) as Profile[]) profiles.set(p.id, p);
+  }
+  return rows.map(({ player_id, ...entry }) => ({
+    ...(entry as unknown as Omit<HallOfFameRow, "player">),
+    player: (player_id && profiles.get(player_id)) || null,
+  }));
+}
+
 export default async function ClubPage({
   params,
   searchParams,
@@ -244,7 +278,7 @@ export default async function ClubPage({
       .select(
         `
                 id, category, title, description, season_or_year, record_metric, inducted_at,
-                player:users!club_hall_of_fame_player_id_fkey(id, full_name, avatar_url)
+                player_id
             `,
       )
       .eq("club_id", id)
@@ -261,7 +295,11 @@ export default async function ClubPage({
   )) as unknown as MatchRow[];
   const typedMembers = (members ?? []) as unknown as MemberRow[];
   const typedSeasons = (seasons ?? []) as unknown as SeasonRow[];
-  const typedHallOfFame = (hallOfFame ?? []) as unknown as HallOfFameRow[];
+  const typedHallOfFame = await withHallOfFamePlayers(
+    db,
+    hallOfFame ?? [],
+    typedMembers,
+  );
 
   const isOwner = user?.id === club.owner_id;
   const myMembership = typedMembers.find((m) => m.user?.id === user?.id);

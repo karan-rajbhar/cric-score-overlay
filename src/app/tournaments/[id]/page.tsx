@@ -87,7 +87,8 @@ const loadTournament = cache(async (id: string) => {
   const db = await createServerClient();
   return db
     .from("tournaments")
-    .select("*, club:clubs(id, name, short_name)")
+    // owner_id: the club admin check below needs no second club read.
+    .select("*, club:clubs(id, name, short_name, owner_id)")
     .eq("id", id)
     .single();
 });
@@ -121,16 +122,14 @@ export default async function TournamentPage({
 
   const [
     { data: tournament },
-    { data: standings },
+    { data: standingRows },
     { data: registrations },
     { data: matches },
   ] = await Promise.all([
     loadTournament(id),
     db
       .from("tournament_standings")
-      .select(
-        "*, team:teams!tournament_standings_team_id_fkey(id, name, short_name, logo_url)",
-      )
+      .select("*")
       .eq("tournament_id", id)
       .order("points", { ascending: false })
       .order("net_run_rate", { ascending: false }),
@@ -160,6 +159,45 @@ export default async function TournamentPage({
   if (!tournament) notFound();
   await attachMatchTeams(db, matches ?? []);
 
+  // The points table's teams are the registered teams, whose documents the
+  // registrations query has just read: only a team no longer registered is
+  // read again (as `team:teams(id, name, short_name, logo_url)` would).
+  type StandingTeam = {
+    id: string;
+    name: string;
+    short_name: string | null;
+    logo_url: string | null;
+  };
+  const standingTeams = new Map<string, StandingTeam | null>();
+  for (const r of registrations ?? []) {
+    const t = r.team as StandingTeam | null;
+    standingTeams.set(
+      r.team_id,
+      t
+        ? {
+            id: t.id,
+            name: t.name,
+            short_name: t.short_name,
+            logo_url: t.logo_url,
+          }
+        : null,
+    );
+  }
+  const unregistered = [
+    ...new Set((standingRows ?? []).map((s) => s.team_id)),
+  ].filter((teamId) => !standingTeams.has(teamId));
+  if (unregistered.length) {
+    const { data } = await db
+      .from("teams")
+      .select("id, name, short_name, logo_url")
+      .in("id", unregistered);
+    for (const t of (data ?? []) as StandingTeam[]) standingTeams.set(t.id, t);
+  }
+  const standings = (standingRows ?? []).map((s) => ({
+    ...s,
+    team: standingTeams.get(s.team_id) ?? null,
+  }));
+
   // Super Stars & Leaderboards: the tournament's stored leaderboard (one
   // read) plus any innings still in play.
   const leaderboardData: LeaderboardData = await loadScopeLeaderboard(
@@ -175,11 +213,7 @@ export default async function TournamentPage({
 
   let isClubAdmin = false;
   if (user && tournament.club_id) {
-    const { data: club } = await db
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", tournament.club_id)
-      .single();
+    const club = tournament.club as { owner_id?: string | null } | null;
 
     if (club?.owner_id === user.id) {
       isClubAdmin = true;

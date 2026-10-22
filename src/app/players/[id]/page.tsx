@@ -196,9 +196,18 @@ export default async function PlayerPage({
     ) as unknown as T[];
   const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
   const bowlingRows = byNewest(records.flatMap(bowlingRowsOfPlayerMatch));
+  // Only the rosters of the matches with a bowler or fielder to name, not
+  // of every fixture listed.
+  const dismissalMatchIds = new Set(
+    battingRows
+      .filter((b) => b.bowler_id || b.fielder_id)
+      .map((b) => b.match_id),
+  );
   const names = await playerDirectory(
     db,
-    matchesData.flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+    matchesData
+      .filter((m) => dismissalMatchIds.has(String(m.id)))
+      .flatMap((m) => [m.team1_id as string, m.team2_id as string]),
     battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
   );
   const nameOf = (uid: string | null) => {

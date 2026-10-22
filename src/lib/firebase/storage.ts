@@ -19,7 +19,15 @@ export interface UploadOptions {
   contentType?: string;
   upsert?: boolean;
   cacheControl?: string;
+  /**
+   * The file never changes once written (a fresh path and download token
+   * per upload, e.g. logos): browsers and the Storage CDN keep it for a
+   * year instead of revalidating it every hour.
+   */
+  immutable?: boolean;
 }
+
+const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 export interface StorageError {
   message: string;
@@ -78,7 +86,11 @@ export class StorageFolder {
         contentType,
         metadata: {
           contentType,
-          cacheControl: options?.cacheControl ?? "public, max-age=3600",
+          cacheControl:
+            options?.cacheControl ??
+            (options?.immutable
+              ? IMMUTABLE_CACHE_CONTROL
+              : "public, max-age=3600"),
           metadata: { firebaseStorageDownloadTokens: token },
         },
       });

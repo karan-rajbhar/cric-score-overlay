@@ -114,8 +114,10 @@ export async function isMatchAdmin(
       match.tournament_id,
     )) as unknown as TournamentsRow | null;
     if (tournament?.created_by === userId) return true;
+    // The match's own club was checked above (2 reads saved).
     if (
       tournament?.club_id &&
+      tournament.club_id !== match.club_id &&
       (await isClubAdmin(ds, tournament.club_id, userId))
     )
       return true;

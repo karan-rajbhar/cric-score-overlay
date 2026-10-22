@@ -622,7 +622,12 @@ export async function updateTeamLogo(teamId: string, file: File) {
 
   const { error: uploadError } = await db.storage
     .from("team-logos")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Logo upload failed:", uploadError);

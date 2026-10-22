@@ -595,7 +595,12 @@ export async function updateClubLogo(
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Club logo upload failed:", uploadError);
@@ -692,7 +697,12 @@ export async function updateClubBanner(
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Club banner upload failed:", uploadError);

@@ -95,7 +95,10 @@ describe("billed reads per page on the seed data", () => {
       getLiveMatchState,
       getScoringState,
       getMatchBallLog,
+      getPartnerships,
     } = await import("~/app/matches/queries");
+    const { fetchHeadToHead } = await import("~/lib/hooks/useMatchQueries");
+    const { isMatchAdmin } = await import("./rpc/auth-helpers");
     const { globalSearch } = await import("~/app/search/actions");
     const { getTeams, searchUsers } = await import("~/app/teams/actions");
     const { default: TeamPage } = await import("~/app/teams/[id]/page");
@@ -131,6 +134,35 @@ describe("billed reads per page on the seed data", () => {
     });
     results.scoringState = await cost(() => getScoringState(liveMatch.id));
     results.ballLog = await cost(() => getMatchBallLog(completedMatch.id));
+    // Stats tab of a finished match: batter names from the two rosters.
+    results.partnerships = await cost(() => getPartnerships(completedMatch.id));
+    // Info tab (browser query, same builder): the two pairings only.
+    results.headToHead = await cost(() =>
+      fetchHeadToHead(
+        state.client as Parameters<typeof fetchHeadToHead>[0],
+        String(completedMatch.team1_id),
+        String(completedMatch.team2_id),
+        completedMatch.id,
+      ),
+    );
+    // `is_match_admin` for a signed-in viewer who is not a scorer (match
+    // page, scoring screen), on a club tournament's match.
+    const viewer = seed.users!.find(
+      (u) =>
+        u.id !== completedMatch.created_by &&
+        !((completedMatch.match_admins as string[] | undefined) ?? []).includes(
+          u.id,
+        ) &&
+        !seed.club_memberships!.some(
+          (m) =>
+            m.user_id === u.id && (m.role === "owner" || m.role === "admin"),
+        ),
+    )!;
+    let viewerIsAdmin: boolean | null = null;
+    results.matchAdminCheck = await cost(async () => {
+      viewerIsAdmin = await isMatchAdmin(ds, completedMatch.id, viewer.id);
+    });
+    expect(viewerIsAdmin).toBe(false);
 
     signIn(admin);
     const scoring = await getScoringState(liveMatch.id);
@@ -241,7 +273,10 @@ describe("billed reads per page on the seed data", () => {
     // (72 by @handle), club page 141, tournament page 98. The club and
     // tournament pages read their leaderboard as LEADERBOARD_SHARDS (8)
     // shard documents (was 1 document, which capped a scope at ~1,500
-    // players): club 42 -> 49, tournament 25 -> 32.
+    // players): club 42 -> 49, tournament 25 -> 32. The club page then
+    // took its hall of fame players from the members' snapshots (49 -> 46)
+    // and the tournament page its points table's teams from the
+    // registrations (32 -> 28: one read per team fewer).
     const bounds: Record<string, number> = {
       home: 2,
       matches: 8,
@@ -256,6 +291,13 @@ describe("billed reads per page on the seed data", () => {
       viewerPerBallBalls: 2,
       viewerPerBallStats: 3,
       ballLog: 45,
+      // 19 with a profile read per batter (17 on the seed match).
+      partnerships: 5,
+      // Was every completed match (4 on the seed, unbounded in production):
+      // now 2 equality queries for the two pairings (an empty one bills 1).
+      headToHead: 3,
+      // 6 when the tournament's club, the match's own, was checked twice.
+      matchAdminCheck: 4,
       typeahead: 10,
       scorerTypeahead: 6,
       search: 25,
@@ -264,10 +306,11 @@ describe("billed reads per page on the seed data", () => {
       searchMidWordLong: 80,
       playersList: 31,
       playersSearch: 30,
-      playerPage: 25,
-      playerPageByHandle: 25,
-      clubPage: 49,
-      tournamentPage: 32,
+      // 24 when dismissal names read the rosters of every listed fixture.
+      playerPage: 22,
+      playerPageByHandle: 22,
+      clubPage: 46,
+      tournamentPage: 28,
       // +1 per live match listed: its innings in progress, which the match
       // summary no longer follows ball by ball (it cost a match write per
       // ball before).

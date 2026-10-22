@@ -6,7 +6,7 @@
  */
 
 import type { AppUser } from "../auth-types";
-import type { DataSource } from "../datasource";
+import type { DataSource, Doc } from "../datasource";
 import { DbQueryError, newId } from "../query-builder";
 import type {
   ClubInvitationsRow,
@@ -29,14 +29,18 @@ export function allowedEmails(): Set<string> {
 
 /**
  * `emailVerified` must be true for email-based matches, so an unverified
- * address cannot claim someone else's invite or profile.
+ * address cannot claim someone else's invite or profile. `profile` is the
+ * account's `users` document when the caller has read it already.
  */
 export async function canSignIn(
   ds: DataSource,
   user: AppUser,
   emailVerified: boolean,
+  profile?: Doc | null,
 ): Promise<boolean> {
-  if (await ds.getById("users", user.id)) return true;
+  const own =
+    profile === undefined ? await ds.getById("users", user.id) : profile;
+  if (own) return true;
 
   const email = emailVerified ? normaliseEmail(user.email) : null;
   if (!email) return false;

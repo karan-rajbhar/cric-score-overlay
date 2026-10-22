@@ -138,6 +138,7 @@ function MatchDetailsPageContent() {
   }>({});
 
   useEffect(() => {
+    if (!match) return; // Names show with the match, which usually has them.
     let cancelled = false;
     async function resolveContext() {
       const updates: typeof contextNames = {};

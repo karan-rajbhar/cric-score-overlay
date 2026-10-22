@@ -3,6 +3,7 @@ import { getAdminAuth, getAdminFirestore } from "~/lib/firebase/admin";
 import { AdminDataSource } from "~/lib/firebase/datasource-admin";
 import { acceptInvitations, canSignIn } from "~/lib/firebase/rpc/access";
 import { ensureOwnProfile } from "~/lib/firebase/rpc/profiles";
+import type { UsersRow } from "~/lib/firebase/types";
 import {
   LEGACY_SESSION_COOKIE_NAME,
   SESSION_COOKIE_NAME,
@@ -37,8 +38,12 @@ export async function POST(request: NextRequest) {
     const decoded = await verifyIdToken(idToken);
     const user = decodedTokenToUser(decoded);
     const ds = new AdminDataSource(getAdminFirestore());
+    // Read once for both checks below (this runs on every full page load).
+    const profile = await ds.getById("users", user.id);
 
-    if (!(await canSignIn(ds, user, decoded.email_verified === true))) {
+    if (
+      !(await canSignIn(ds, user, decoded.email_verified === true, profile))
+    ) {
       await getAdminAuth()
         .deleteUser(user.id)
         .catch(() => undefined);
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      await ensureOwnProfile(ds, user);
+      await ensureOwnProfile(ds, user, profile as unknown as UsersRow | null);
       await acceptInvitations(ds, user.email, user.id);
     } catch (err) {
       console.error("ensureOwnProfile failed during session creation:", err);

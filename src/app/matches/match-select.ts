@@ -29,7 +29,10 @@ export const MATCH_DETAIL_SELECT = `
   player_of_the_match:users!matches_player_of_the_match_id_fkey(id, full_name, avatar_url)
 `;
 
-/** `getPartnerships`: one row per stand with the batters' names. */
+/**
+ * `getPartnerships`: one row per stand. The batters' names (`batsman1` /
+ * `batsman2`) are added from the teams' rosters, not read per batter.
+ */
 export const PARTNERSHIPS_SELECT = `
   id,
   innings_id,
@@ -43,7 +46,5 @@ export const PARTNERSHIPS_SELECT = `
   batsman2_balls,
   start_over,
   end_over,
-  is_current,
-  batsman1:users!partnerships_batsman1_id_fkey(full_name),
-  batsman2:users!partnerships_batsman2_id_fkey(full_name)
+  is_current
 `;

@@ -294,6 +294,8 @@ function profilePatch(
 export async function ensureOwnProfile(
   ds: DataSource,
   user: AppUser | null,
+  /** The account's `users` document, when the caller has just read it. */
+  known?: UsersRow | null,
 ): Promise<{
   ok: boolean;
   user_id: string;
@@ -321,7 +323,7 @@ export async function ensureOwnProfile(
 
   // A: profile already keyed by the auth uid.
   const [existing, existingPrivate] = (await Promise.all([
-    ds.getById("users", uid),
+    known === undefined ? ds.getById("users", uid) : known,
     getUserPrivate(ds, uid),
   ])) as [UsersRow | null, Awaited<ReturnType<typeof getUserPrivate>>];
   if (existing) {
