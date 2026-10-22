@@ -27,7 +27,8 @@ export interface UploadOptions {
   immutable?: boolean;
 }
 
-const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
+/** Also set on older uploads by scripts/migrate-storage-cache-headers.mjs. */
+export const IMMUTABLE_CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 export interface StorageError {
   message: string;
@@ -43,6 +44,11 @@ export function publicDownloadUrl(fullPath: string, token: string): string {
     return `http://${firebaseEmulatorHost}:${EMULATOR_PORTS.storage}/v0/b/${firebaseStorageBucket}/o/${encoded}?alt=media&token=${token}`;
   }
   return `https://firebasestorage.googleapis.com/v0/b/${firebaseStorageBucket}/o/${encoded}?alt=media&token=${token}`;
+}
+
+function cacheControlOf(options?: UploadOptions): string {
+  if (options?.cacheControl != null) return options.cacheControl;
+  return options?.immutable ? IMMUTABLE_CACHE_CONTROL : "public, max-age=3600";
 }
 
 export class StorageFolder {
@@ -86,11 +92,7 @@ export class StorageFolder {
         contentType,
         metadata: {
           contentType,
-          cacheControl:
-            options?.cacheControl ??
-            (options?.immutable
-              ? IMMUTABLE_CACHE_CONTROL
-              : "public, max-age=3600"),
+          cacheControl: cacheControlOf(options),
           metadata: { firebaseStorageDownloadTokens: token },
         },
       });

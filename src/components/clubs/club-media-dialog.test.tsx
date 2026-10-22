@@ -3,12 +3,19 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ClubMediaDialog } from "./club-media-dialog";
 import * as clubActions from "~/app/clubs/actions";
+import * as imageResize from "~/lib/image-resize";
 
 vi.mock("~/app/clubs/actions", () => ({
   updateClubLogo: vi.fn(),
   removeClubLogo: vi.fn(),
   updateClubBanner: vi.fn(),
   removeClubBanner: vi.fn(),
+}));
+
+// jsdom cannot decode images: by default the file goes up as picked.
+vi.mock("~/lib/image-resize", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/image-resize")>()),
+  resizeImageFile: vi.fn(async (file: File) => file),
 }));
 
 describe("ClubMediaDialog", () => {
@@ -83,5 +90,45 @@ describe("ClubMediaDialog", () => {
     await waitFor(() => {
       expect(clubActions.removeClubBanner).toHaveBeenCalledWith("club-1");
     });
+  });
+});
+
+describe("ClubMediaDialog uploads", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uploads the banner scaled down to 1600 px", async () => {
+    const scaled = new File(["small"], "banner.webp", { type: "image/webp" });
+    vi.mocked(imageResize.resizeImageFile).mockResolvedValueOnce(scaled);
+    vi.mocked(clubActions.updateClubBanner).mockResolvedValueOnce({
+      data: "https://example.com/banner.webp",
+      error: null,
+    });
+
+    render(
+      <ClubMediaDialog
+        clubId="club-1"
+        clubName="Apex Cricket Club"
+        shortName="ACC"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /branding & media/i }));
+    const picked = new File(["big"], "banner.png", { type: "image/png" });
+    fireEvent.change(screen.getByTestId("club-banner-input"), {
+      target: { files: [picked] },
+    });
+
+    await waitFor(() => {
+      expect(clubActions.updateClubBanner).toHaveBeenCalledWith(
+        "club-1",
+        scaled,
+      );
+    });
+    expect(imageResize.resizeImageFile).toHaveBeenCalledWith(
+      picked,
+      imageResize.BANNER_MAX_PX,
+    );
   });
 });

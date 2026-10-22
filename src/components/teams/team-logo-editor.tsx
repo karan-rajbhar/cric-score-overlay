@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { updateTeamLogo, removeTeamLogo } from "~/app/teams/actions";
+import { LOGO_MAX_PX, resizeImageFile } from "~/lib/image-resize";
 import { toast } from "sonner";
 import { Loader2, Trash2, Upload } from "lucide-react";
 
@@ -26,7 +27,10 @@ export function TeamLogoEditor({
 
   const handleFile = async (file: File) => {
     setSaving(true);
-    const result = await updateTeamLogo(teamId, file);
+    const result = await updateTeamLogo(
+      teamId,
+      await resizeImageFile(file, LOGO_MAX_PX),
+    );
     if (result.error || !result.data) {
       toast.error(result.error ?? "Could not upload logo");
     } else {
