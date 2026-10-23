@@ -69,6 +69,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
       "Understated heritage look for long-form cricket: navy, ivory and gold leaf, an honours board for milestones.",
     kind: "broadcast",
   },
+  {
+    id: "summer-bash",
+    label: "Summer bash",
+    description:
+      "Loud, neon night-league look for T20: team colours lit up, big stings.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */

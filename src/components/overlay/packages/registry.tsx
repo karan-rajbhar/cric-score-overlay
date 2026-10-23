@@ -23,6 +23,7 @@ import { MotionPreferenceContext } from "./motion";
 import { StageStyleContext } from "./palette-context";
 import { HUNDRED_BALL } from "./hundred-ball";
 import { STANDARD_ELEMENTS } from "./standard";
+import { SUMMER_BASH } from "./summer-bash";
 import { testClassicPackage } from "./test-classic";
 import type { BroadcastPackage, PaletteContext } from "./types";
 import type { CustomColours } from "../overlay-themes";
@@ -55,6 +56,7 @@ export const OVERLAY_PACKAGES: Record<string, BroadcastPackage> = {
   [HUNDRED_BALL.id]: HUNDRED_BALL,
   [WORLD_EVENT_PACKAGE.id]: WORLD_EVENT_PACKAGE,
   "test-classic": testClassicPackage,
+  [SUMMER_BASH.id]: SUMMER_BASH,
 };
 
 /** The package a theme id selects (legacy and unknown ids: Standard). */
