@@ -9,7 +9,7 @@
  * `current_ball` are derived from it) or the chase, else 6.
  */
 
-import type { Match } from "~/lib/match-types";
+import type { BallEvent, Match } from "~/lib/match-types";
 import type { LiveMatchState } from "../../types";
 
 type Position = Pick<
@@ -207,4 +207,102 @@ export function initialsOf(name: string | null | undefined): string {
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())
     .join("");
+}
+
+// ---- the ball log (charts) ------------------------------------------------------
+
+type LogBall = Pick<
+  BallEvent,
+  "over_number" | "runs_scored" | "extras" | "extra_type" | "is_wicket"
+>;
+
+const isLegal = (b: LogBall) =>
+  b.extra_type !== "wide" && b.extra_type !== "no_ball";
+
+const runsOf = (b: LogBall) => (b.runs_scored ?? 0) + (b.extras ?? 0);
+
+/**
+ * Each delivery with the legal ball it belongs to (a wide or no-ball
+ * counts towards the next legal ball), in log order.
+ */
+export function numberedBalls<B extends LogBall>(
+  balls: readonly B[],
+): Array<{ ball: number; b: B }> {
+  let legal = 0;
+  return balls.map((b) => {
+    const ball = legal + 1;
+    if (isLegal(b)) legal += 1;
+    return { ball, b };
+  });
+}
+
+export interface WormPoint {
+  /** Legal balls bowled when it happened. */
+  ball: number;
+  runs: number;
+}
+
+/** Runs by ball: the innings' climb, and where each wicket fell. */
+export function wormOf(balls: readonly LogBall[]): {
+  points: WormPoint[];
+  wickets: WormPoint[];
+} {
+  const points: WormPoint[] = [{ ball: 0, runs: 0 }];
+  const wickets: WormPoint[] = [];
+  let legal = 0;
+  let runs = 0;
+  for (const b of balls) {
+    if (isLegal(b)) legal += 1;
+    runs += runsOf(b);
+    points.push({ ball: legal, runs });
+    if (b.is_wicket) wickets.push({ ball: legal, runs });
+  }
+  return { points, wickets };
+}
+
+export interface SetTotal {
+  /** 1-based set (over) number. */
+  number: number;
+  runs: number;
+  wickets: number;
+}
+
+/** Runs and wickets in each set (over) of the log. */
+export function setTotalsOf(balls: readonly LogBall[]): SetTotal[] {
+  const sets = new Map<number, SetTotal>();
+  for (const b of balls) {
+    const n = (b.over_number ?? 0) + 1;
+    const s = sets.get(n) ?? { number: n, runs: 0, wickets: 0 };
+    s.runs += runsOf(b);
+    if (b.is_wicket) s.wickets += 1;
+    sets.set(n, s);
+  }
+  return [...sets.values()].sort((a, b) => a.number - b.number);
+}
+
+export interface PhaseTotal {
+  /** Legal balls bowled in the phase so far. */
+  balls: number;
+  runs: number;
+  wickets: number;
+}
+
+/** Runs and wickets between two legal ball numbers (inclusive). */
+export function phaseTotalOf(
+  balls: readonly LogBall[],
+  from: number,
+  to: number,
+): PhaseTotal | null {
+  const inside = numberedBalls(balls).filter((x) => x.ball >= from && x.ball <= to);
+  if (!inside.length) return null;
+  return {
+    balls: inside.filter((x) => isLegal(x.b)).length,
+    runs: inside.reduce((n, x) => n + runsOf(x.b), 0),
+    wickets: inside.filter((x) => x.b.is_wicket).length,
+  };
+}
+
+/** Runs per 100 balls (a scoring rate that needs no overs). */
+export function per100(runs: number, balls: number): string | null {
+  return balls > 0 ? ((runs * 100) / balls).toFixed(0) : null;
 }

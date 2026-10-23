@@ -30,6 +30,7 @@ import {
   Caption,
   ChaseLine,
   inningsShort,
+  SideBlock,
   sidesWithTones,
   teamNumberOf,
   teamsOf,
@@ -39,7 +40,6 @@ import {
 import {
   BallBar,
   Block,
-  Crest,
   deepOf,
   Fig,
   Flash,
@@ -54,7 +54,6 @@ import {
   SetSquares,
   Slab,
   Tab,
-  type Tone,
 } from "./kit";
 
 type BugProps = OverlayElementProps["scoreBug"];
@@ -67,47 +66,6 @@ interface Live {
 }
 
 const score = (s: LiveMatchState) => `${s.total_runs ?? 0}-${s.total_wickets ?? 0}`;
-
-/** The batting side's block: crest or code, the innings under it. */
-function SideBlock({
-  tone,
-  logo,
-  code,
-  detail,
-  width = 136,
-  height = HERO_H,
-  delay = 0,
-}: {
-  tone: Tone;
-  logo: string | null;
-  code: string;
-  detail?: string | null;
-  width?: number;
-  height?: number;
-  delay?: number;
-}) {
-  return (
-    <Block
-      tone={tone}
-      className="flex shrink-0 flex-col items-center justify-center gap-2 px-3"
-      style={{ width, height }}
-    >
-      <Reveal delay={delay} kind="pop" className="flex w-full justify-center">
-        <span
-          className="flex items-center justify-center"
-          style={{ height: logo ? height * 0.5 : "auto", width: logo ? height * 0.5 : "100%" }}
-        >
-          <Crest logo={logo} code={code} size={Math.round(height * 0.31)} />
-        </span>
-      </Reveal>
-      {detail && (
-        <Label size={18} color={mutedOn(tone)} className="max-w-full text-center">
-          {detail}
-        </Label>
-      )}
-    </Block>
-  );
-}
 
 /** RUNS 142-5 on paper. */
 function RunsBlock({

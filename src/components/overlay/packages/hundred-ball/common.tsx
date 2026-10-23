@@ -9,8 +9,20 @@ import { useEffect, useState, type ReactNode } from "react";
 import { battingSide, teamCode } from "../../overlay-kit";
 import { sidesOf, type Side } from "../../score-bug";
 import type { LiveMatchState } from "../../types";
-import { ballsWord, figuresOf, surnameOf, type Chase } from "./balls";
-import { Fig, FONT, Label, sideTone, type Tone } from "./kit";
+import { ballsWord, surnameOf, type Chase } from "./balls";
+import {
+  Block,
+  BowlingFig,
+  Crest,
+  Fig,
+  FONT,
+  HERO_H,
+  Label,
+  mutedOn,
+  Reveal,
+  sideTone,
+  type Tone,
+} from "./kit";
 
 export const codeOf = (side: Pick<Side, "short" | "name">) =>
   teamCode(side.short, side.name);
@@ -86,9 +98,11 @@ export function ChaseLine({
 }) {
   const word = Math.max(18, Math.round(size * 0.46));
   const w = (t: string) => (
-    <Label size={word} style={{ letterSpacing: "0.04em" }} color={color}>
-      {t}
-    </Label>
+    <span className="shrink-0">
+      <Label size={word} style={{ letterSpacing: "0.04em", overflow: "visible" }} color={color}>
+        {t}
+      </Label>
+    </span>
   );
   return (
     <span
@@ -177,8 +191,9 @@ export function BowlerCell({
         {surnameOf(state.current_bowler_name)}
       </span>
       <span className="flex shrink-0 items-baseline gap-2">
-        <Fig
-          value={figuresOf(state.bowler_wickets, state.bowler_runs)}
+        <BowlingFig
+          wickets={state.bowler_wickets}
+          runs={state.bowler_runs}
           size={size * 1.3}
         />
         <span
@@ -229,3 +244,45 @@ export function Caption({
     </span>
   );
 }
+
+/** The batting side's block: crest or code, the innings under it. */
+export function SideBlock({
+  tone,
+  logo,
+  code,
+  detail,
+  width = 136,
+  height = HERO_H,
+  delay = 0,
+}: {
+  tone: Tone;
+  logo: string | null;
+  code: string;
+  detail?: string | null;
+  width?: number;
+  height?: number;
+  delay?: number;
+}) {
+  return (
+    <Block
+      tone={tone}
+      className="flex shrink-0 flex-col items-center justify-center gap-2 px-3"
+      style={{ width, height }}
+    >
+      <Reveal delay={delay} kind="pop" className="flex w-full justify-center">
+        <span
+          className="flex items-center justify-center"
+          style={{ height: logo ? height * 0.5 : "auto", width: logo ? height * 0.5 : "100%" }}
+        >
+          <Crest logo={logo} code={code} size={Math.round(height * 0.31)} />
+        </span>
+      </Reveal>
+      {detail && (
+        <Label size={18} color={mutedOn(tone)} className="max-w-full text-center">
+          {detail}
+        </Label>
+      )}
+    </Block>
+  );
+}
+

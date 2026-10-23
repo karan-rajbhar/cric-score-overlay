@@ -55,18 +55,19 @@ export type Tone =
 
 const COLOURED = new Set<Tone>(["volt", "t1", "t2", "four", "six", "wicket", "free"]);
 
+/** A tone's fill and text (the fill as a colour, so the sheen layers on top). */
 export function toneStyle(tone: Tone): CSSProperties {
   switch (tone) {
     case "ink":
-      return { background: "var(--hb-ink)", color: "#ffffff" };
+      return { backgroundColor: "var(--hb-ink)", color: "#ffffff" };
     case "ink2":
-      return { background: "var(--hb-ink2)", color: "#ffffff" };
+      return { backgroundColor: "var(--hb-ink2)", color: "#ffffff" };
     case "paper":
-      return { background: "var(--hb-paper)", color: "var(--hb-ink)" };
+      return { backgroundColor: "var(--hb-paper)", color: "var(--hb-ink)" };
     case "paper2":
-      return { background: "var(--hb-paper2)", color: "var(--hb-ink)" };
+      return { backgroundColor: "var(--hb-paper2)", color: "var(--hb-ink)" };
     default:
-      return { background: `var(--hb-${tone})`, color: `var(--hb-${tone}-fg)` };
+      return { backgroundColor: `var(--hb-${tone})`, color: `var(--hb-${tone}-fg)` };
   }
 }
 
@@ -401,24 +402,28 @@ export function Fig({
   );
 }
 
-/** Runs-wickets with a short dash: 142-5 (each figure rolls). */
-export function ScoreFig({
-  runs,
-  wickets,
+/** Two figures joined by a short dash: 142-5, 1-18 (each one rolls). */
+export function PairFig({
+  a,
+  b,
+  label,
   size = 96,
   className,
 }: {
-  runs: number | null | undefined;
-  wickets: number | null | undefined;
+  a: number | null | undefined;
+  b: number | null | undefined;
+  /** What a screen reader hears: "142 for 5". */
+  label: string;
   size?: number;
   className?: string;
 }) {
   return (
     <span
       className={cn("inline-flex items-baseline whitespace-nowrap", className)}
-      aria-label={`${runs ?? 0} for ${wickets ?? 0}`}
+      role="img"
+      aria-label={label}
     >
-      <Fig value={runs ?? 0} size={size} />
+      <Fig value={a ?? 0} size={size} />
       <span
         aria-hidden="true"
         className="inline-block font-extrabold"
@@ -432,8 +437,51 @@ export function ScoreFig({
       >
         -
       </span>
-      <Fig value={wickets ?? 0} size={size} />
+      <Fig value={b ?? 0} size={size} />
     </span>
+  );
+}
+
+/** Runs-wickets: 142-5. */
+export function ScoreFig({
+  runs,
+  wickets,
+  size = 96,
+  className,
+}: {
+  runs: number | null | undefined;
+  wickets: number | null | undefined;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <PairFig
+      a={runs}
+      b={wickets}
+      size={size}
+      className={className}
+      label={`${runs ?? 0} for ${wickets ?? 0}`}
+    />
+  );
+}
+
+/** A bowler's wickets-runs: 1-18. */
+export function BowlingFig({
+  wickets,
+  runs,
+  size = 84,
+}: {
+  wickets: number | null | undefined;
+  runs: number | null | undefined;
+  size?: number;
+}) {
+  return (
+    <PairFig
+      a={wickets}
+      b={runs}
+      size={size}
+      label={`${wickets ?? 0} for ${runs ?? 0}`}
+    />
   );
 }
 
