@@ -586,7 +586,8 @@ export const DEMO_FIRST_INNINGS_STATE: LiveMatchState = (() => {
     current_run_rate:
       Math.round(((inn.total_runs * 6) / inn.total_balls) * 100) / 100,
     last_wicket: FIRST_LIVE.lastWicket,
-    powerplay: null,
+    powerplay: { end_over: 6 },
+    free_hit: true,
   };
 })();
 

@@ -41,6 +41,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     description: "Your primary and accent colours, text picked for contrast.",
     kind: "plain",
   },
+  {
+    id: "summer-bash",
+    label: "Summer bash",
+    description:
+      "Loud, neon night-league look for T20: team colours lit up, big stings.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
