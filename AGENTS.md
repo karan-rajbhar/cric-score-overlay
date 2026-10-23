@@ -97,6 +97,13 @@ Operating notes for agents working on **CricScore** (`cric-score-overlay`).
 
 <!-- BEGIN:nextjs-agent-rules -->
 
+## Streaming (streamers, channels, Stream Deck, sponsors)
+
+- Streamers (`matches.match_streamers`) run a match's overlay graphics but cannot score: `canProduceOverlay` (`~/lib/firebase/permissions`, predicate in `rpc/auth-helpers.ts`, rpc `can_produce_overlay`) is match admins plus streamers; `is_match_admin` stays false for them. Added in the match scorers dialog (`MatchStreamersSection`, actions in `app/matches/streamers.ts`); people not on CricScore get an app invite with `invitations.streamer_match_ids` (rpc `invite_streamer`, accepted in `acceptInvitations`).
+- Stream channels (`stream_channels/{id}`, `~/lib/overlay/channels`): one fixed overlay link per club ground or camera (`/overlay/channel/{id}`), or a clubless user's own (`owner_id`). Club admins manage them from the club page's Streaming dialog; producers put a match on one with `ChannelPicker`. The channel page listens to the channel doc (1 read, 1 per switch) and loads the overlay's starting data from `GET /api/overlay/match/{id}` (a stable route: OBS sources outlive deploys).
+- Stream Deck / Companion: `POST` or `GET /api/overlay/remote/{token}/{action}` (`remote-actions.ts`). Tokens are `{id}.{secret}`, stored hashed in server-only `producer_tokens/{id}` (`remote-token.ts`, shown once, `RemoteControlPanel`), 5 requests a second per token per instance, never logged. Server code sends producer commands only through `sendProducerCommand` (`~/lib/overlay/commands`).
+- Sponsor logos: `sponsors` arrays on clubs and tournaments (`~/lib/overlay/sponsors`), files in Storage `sponsor-logos/` (bytes checked: PNG / JPEG / WebP / script-free SVG, at most 1 MB; cached for a year). `resolveMatchSponsors` picks the tournament's set, else the club's, once when a stream starts.
+
 ## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.

@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { inviteToApp } from "~/app/invitations/actions";
 import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { MatchStreamersSection } from "~/components/matches/match-streamers-section";
 import { useAuth } from "~/lib/auth";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
@@ -520,6 +521,8 @@ export function MatchScorersDialog({
             </div>
           )}
         </div>
+
+        <MatchStreamersSection matchId={matchId} />
       </DialogContent>
     </Dialog>
   );

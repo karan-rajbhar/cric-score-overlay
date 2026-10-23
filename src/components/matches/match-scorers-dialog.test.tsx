@@ -16,6 +16,14 @@ vi.mock("~/app/matches/mutations", () => ({
   searchScorers: vi.fn().mockResolvedValue({ data: [], error: null }),
 }));
 
+// Streamers section (its own test: match-streamers-section.test.tsx).
+vi.mock("~/app/matches/streamers", () => ({
+  getMatchStreamers: vi.fn().mockResolvedValue({ data: [], error: null }),
+  addMatchStreamer: vi.fn(),
+  removeMatchStreamer: vi.fn(),
+  inviteMatchStreamer: vi.fn(),
+}));
+
 const inviteToApp = vi.fn();
 vi.mock("~/app/invitations/actions", () => ({
   inviteToApp: (email: string, matchId?: string) => inviteToApp(email, matchId),

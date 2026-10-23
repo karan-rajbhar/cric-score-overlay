@@ -48,6 +48,12 @@ service cloud.firestore {
     match /users_private/{id}            { allow read, write: if false; }
     match /invitations/{id}              { allow read, write: if false; }
 
+    // Fixed overlay links: the channel overlay (an unauthenticated OBS
+    // source) listens to its channel doc for the match on air there.
+    match /stream_channels/{id}          { allow read: if true; allow write: if false; }
+    // Hashed Stream Deck / Companion tokens: Admin SDK only.
+    match /producer_tokens/{id}          { allow read, write: if false; }
+
     // Realtime broadcast messages (overlay producer commands): the overlay
     // (an unauthenticated OBS source) reads them; only the server writes
     // them, after checking the producer is an admin of that match

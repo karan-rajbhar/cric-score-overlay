@@ -35,6 +35,8 @@ export const TABLE_NAMES: readonly TableName[] = [
   "player_matches",
   "player_career_stats",
   "leaderboards",
+  "stream_channels",
+  "producer_tokens",
 ] as const;
 
 /**
@@ -100,6 +102,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "founded_year",
     "owner_id",
     "social_links",
+    "sponsors",
     "name_lower",
     "search_prefixes",
     "created_at",
@@ -122,6 +125,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "status",
     "accepted_by",
     "scorer_match_ids",
+    "streamer_match_ids",
     "created_at",
     "updated_at",
   ],
@@ -214,6 +218,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_man_stands",
     "golden_ball",
     "created_by",
+    "sponsors",
     "name_lower",
     "search_prefixes",
     "created_at",
@@ -293,6 +298,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "season_id",
     "created_by",
     "match_admins",
+    "match_streamers",
     "player_of_the_match_id",
     "wickets_per_innings",
     "last_man_stands",
@@ -474,6 +480,19 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
   // `leaderboards/{scope}_{scopeId}_{shard}`: per-player accumulators,
   // sharded by player (stats.mjs).
   leaderboards: ["id", "scope", "scope_id", "shard", "players", "updated_at"],
+  // Fixed overlay links (`/overlay/channel/{id}`), see ~/lib/overlay/channels.
+  stream_channels: [
+    "id",
+    "club_id",
+    "owner_id",
+    "name",
+    "match_id",
+    "created_by",
+    "created_at",
+    "updated_at",
+  ],
+  // Server-only: hashed remote-control tokens, see ~/lib/overlay/remote-token.
+  producer_tokens: ["id", "match_id", "secret_hash", "created_by", "created_at"],
 };
 
 /**
@@ -663,6 +682,8 @@ export const TIMESTAMP_DEFAULTS: Partial<Record<TableName, readonly string[]>> =
     player_matches: ["updated_at"],
     player_career_stats: ["last_updated"],
     leaderboards: ["updated_at"],
+    stream_channels: ["created_at", "updated_at"],
+    producer_tokens: ["created_at"],
   };
 
 /** Unique constraints enforced before insert (Postgres error code 23505). */
@@ -767,6 +788,7 @@ export const CASCADE_RULES: Partial<
     { table: "teams", column: "club_id", action: "setNull" },
     { table: "tournaments", column: "club_id", action: "setNull" },
     { table: "matches", column: "club_id", action: "setNull" },
+    { table: "stream_channels", column: "club_id", action: "cascade" },
   ],
   club_seasons: [
     { table: "matches", column: "season_id", action: "setNull" },
@@ -825,6 +847,8 @@ export const SINGULAR: Record<TableName, string> = {
   player_matches: "player_match",
   player_career_stats: "player_career_stat",
   leaderboards: "leaderboard",
+  stream_channels: "stream_channel",
+  producer_tokens: "producer_token",
 };
 
 /**
@@ -855,6 +879,9 @@ export const USER_REFERENCES: readonly {
   { table: "matches", column: "created_by" },
   { table: "matches", column: "player_of_the_match_id" },
   { table: "matches", column: "match_admins", array: true },
+  // A placeholder profile can be picked as a streamer; channels and tokens
+  // are only ever created by signed-in accounts, which are never remapped.
+  { table: "matches", column: "match_streamers", array: true },
   // Scorecards (innings arrays, over documents, player_matches) embed user
   // ids inside nested values; `remapScorecardUserId` rewrites those, and
   // the statistics (career / leaderboards) follow the player records.

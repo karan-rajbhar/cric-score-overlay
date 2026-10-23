@@ -54,6 +54,7 @@ import { ProfileHeader } from "~/components/ds/player-header";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
+import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -500,6 +501,7 @@ export default async function TournamentPage({
                 isOrganiser={isTournamentAdmin}
               />
             )}
+            {isTournamentAdmin && <SponsorLogosDialog scope="tournament" scopeId={tournament.id} />}
             {isTournamentAdmin && (
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>

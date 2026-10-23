@@ -97,12 +97,15 @@ export async function isMatchAdmin(
   ds: DataSource,
   matchId: string | null | undefined,
   userId: string | null | undefined,
+  loaded?: Pick<
+    MatchesRow,
+    "created_by" | "match_admins" | "club_id" | "tournament_id"
+  > | null,
 ): Promise<boolean> {
   if (!matchId || !userId) return false;
-  const match = (await ds.getById(
-    "matches",
-    matchId,
-  )) as unknown as MatchesRow | null;
+  const match =
+    loaded ??
+    ((await ds.getById("matches", matchId)) as unknown as MatchesRow | null);
   if (!match) return false;
   if (match.created_by === userId) return true;
   if ((match.match_admins ?? []).includes(userId)) return true;
@@ -123,4 +126,25 @@ export async function isMatchAdmin(
       return true;
   }
   return false;
+}
+
+/**
+ * Who may drive a match's overlay graphics (control room, producer
+ * commands, remote tokens, putting it on a stream channel): its admins
+ * ({@link isMatchAdmin}) plus its streamers (`match_streamers`). Streamers
+ * may not score: `isMatchAdmin` stays false for them.
+ */
+export async function canProduceOverlay(
+  ds: DataSource,
+  matchId: string | null | undefined,
+  userId: string | null | undefined,
+  loaded?: MatchesRow | null,
+): Promise<boolean> {
+  if (!matchId || !userId) return false;
+  const match =
+    loaded ??
+    ((await ds.getById("matches", matchId)) as unknown as MatchesRow | null);
+  if (!match) return false;
+  if ((match.match_streamers ?? []).includes(userId)) return true;
+  return isMatchAdmin(ds, matchId, userId, match);
 }

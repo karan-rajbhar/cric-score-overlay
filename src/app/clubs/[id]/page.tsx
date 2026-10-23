@@ -41,6 +41,7 @@ import {
   DeleteSeasonButton,
 } from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
+import { ClubStreamingDialog } from "~/components/streaming/club-streaming-dialog";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
 import {
   ClubPendingInvites,
@@ -491,6 +492,7 @@ export default async function ClubPage({
               />
             )}
             {isAdmin && <ClubSettingsDialog club={club} />}
+            {isAdmin && <ClubStreamingDialog clubId={club.id} />}
             {isAdmin && <SeasonDialog clubId={club.id} />}
             <ClubMembershipButton
               clubId={club.id}
