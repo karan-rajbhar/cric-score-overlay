@@ -525,7 +525,6 @@ function BreakBug({ p, offset }: { p: BugProps; offset: number }) {
   );
 }
 
-const inningsScore = (i: Innings) => `${i.total_runs ?? 0}-${i.total_wickets ?? 0}`;
 
 /** After the match: the winner's colour, the result, both scores. */
 function ResultBug({ p, offset }: { p: BugProps; offset: number }) {
@@ -569,7 +568,7 @@ function ResultBug({ p, offset }: { p: BugProps; offset: number }) {
                   <Label size={22} color="var(--hb-ink-muted)">
                     {match ? nameOfInnings(i) : ""}
                   </Label>
-                  <Fig value={inningsScore(i)} size={34} roll={false} />
+                  <ScoreFig runs={i.total_runs} wickets={i.total_wickets} size={34} />
                   <Label size={18} color="var(--hb-ink-muted)">
                     {i.total_balls} {ballsWord(i.total_balls)}
                   </Label>
