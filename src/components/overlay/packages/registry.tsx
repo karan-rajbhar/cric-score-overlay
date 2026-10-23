@@ -21,6 +21,7 @@ import type { LiveMatchState } from "../types";
 import { OverlayStageContext } from "./element";
 import { MotionPreferenceContext } from "./motion";
 import { StageStyleContext } from "./palette-context";
+import { HUNDRED_BALL } from "./hundred-ball";
 import { STANDARD_ELEMENTS } from "./standard";
 import type { BroadcastPackage, PaletteContext } from "./types";
 import type { CustomColours } from "../overlay-themes";
@@ -49,6 +50,7 @@ export const OVERLAY_PACKAGES: Record<string, BroadcastPackage> = {
   team: plain("team"),
   custom: plain("custom"),
   [FRANCHISE_NIGHT.id]: FRANCHISE_NIGHT,
+  [HUNDRED_BALL.id]: HUNDRED_BALL,
 };
 
 /** The package a theme id selects (legacy and unknown ids: Standard). */
