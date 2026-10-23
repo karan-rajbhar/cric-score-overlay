@@ -41,6 +41,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     description: "Your primary and accent colours, text picked for contrast.",
     kind: "plain",
   },
+  {
+    id: "test-classic",
+    label: "Test classic",
+    description:
+      "Understated heritage look for long-form cricket: navy, ivory and gold leaf, an honours board for milestones.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */

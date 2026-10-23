@@ -22,6 +22,7 @@ import { OverlayStageContext } from "./element";
 import { MotionPreferenceContext } from "./motion";
 import { StageStyleContext } from "./palette-context";
 import { STANDARD_ELEMENTS } from "./standard";
+import { testClassicPackage } from "./test-classic";
 import type { BroadcastPackage, PaletteContext } from "./types";
 import type { CustomColours } from "../overlay-themes";
 
@@ -47,6 +48,7 @@ export const OVERLAY_PACKAGES: Record<string, BroadcastPackage> = {
   light: plain("light"),
   team: plain("team"),
   custom: plain("custom"),
+  "test-classic": testClassicPackage,
 };
 
 /** The package a theme id selects (legacy and unknown ids: Standard). */
