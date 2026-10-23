@@ -1,15 +1,10 @@
 "use server";
 
 import type { Doc } from "~/lib/firebase/datasource";
-import {
-  INFIX_LEN,
-  isInfixQuery,
-  matchesSearch,
-  normalizeText,
-  searchKey,
-} from "~/lib/firebase/derive.mjs";
+import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
+import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 import { createServerClient } from "~/lib/firebase/server";
 import { canManageTeam } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
@@ -28,6 +23,8 @@ export async function getTeams(filters?: {
   type?: "club" | "match" | "tournament";
   /** Only return teams the current user has a stake in. */
   mine?: boolean;
+  /** Keyset cursor of the "all teams" page (`~/lib/keyset`). */
+  after?: string;
 }) {
   const db = await createServerClient();
 
@@ -43,6 +40,7 @@ export async function getTeams(filters?: {
   // snapshots then answer the captain lookup without a profile read.
   const SELECT = `
       *,
+      name_lower,
       _count:team_players(count),
       captain:users!teams_captain_id_fkey(full_name)
     `;
@@ -52,6 +50,7 @@ export async function getTeams(filters?: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows are loosely typed (see ResultRow)
   let data: any[] | null = null;
   let error: { message: string } | null = null;
+  let next: string | null = null;
   if (user && filters?.mine) {
     // "mine" shows only teams the user has a stake in (created, lead, or
     // squad member): one indexed query per kind of stake instead of reading
@@ -98,30 +97,34 @@ export async function getTeams(filters?: {
         .sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1)) as Doc[],
       [{ field: "created_at", ascending: false, nullsFirst: true }],
     );
+  } else if (filters?.search) {
+    // Word-prefix match on name / short name: one page, in name order.
+    const found = await prefixSearch(
+      db,
+      "teams",
+      filters.search,
+      SELECT,
+      PAGE_SIZE,
+    );
+    data = found.data.filter(
+      (t) => !filters.type || t.team_type === filters.type,
+    );
+    error = found.error ? { message: found.error } : null;
   } else {
-    let query = db.from("teams").select(SELECT);
-    // A one-word query of 4+ characters looks up its first trigram (every
-    // name containing the query, at a word start or inside a word, has it)
-    // and is confirmed in memory, as are queries longer than the stored keys.
-    const norm = filters?.search ? normalizeText(filters.search) : "";
-    const key =
-      searchFor && isInfixQuery(norm) && norm.length > INFIX_LEN
-        ? norm.slice(0, INFIX_LEN)
-        : searchFor;
-    if (key) {
-      // Native search_prefixes match instead of a scan.
-      query = query.contains("search_prefixes", [key]);
-    }
-    if (filters?.type) {
-      query = query.eq("team_type", filters.type);
-    }
-    const res = await query.order("created_at", { ascending: false });
-    data = res.data;
+    // Every team, a page at a time in name order (keyset, no scan).
+    const cursor = parseCursor(filters?.after);
+    let query = db.from("teams").select(SELECT).order("name_lower");
+    if (filters?.type) query = query.eq("team_type", filters.type);
+    if (cursor) query = query.after(cursor.value, cursor.id);
+    const res = await query.limit(PAGE_SIZE + 1);
     error = res.error;
-    if (data && key && key !== norm) {
-      data = data.filter((t) =>
-        matchesSearch(filters!.search, [t.name, t.short_name]),
+    if (res.data) {
+      const page = keysetPage(
+        res.data as Array<{ id: string; name_lower?: string | null }>,
+        (t) => t.name_lower ?? "",
       );
+      data = page.rows;
+      next = page.next;
     }
   }
 
@@ -140,7 +143,7 @@ export async function getTeams(filters?: {
         : 0,
   }));
 
-  return { data: teamsWithCount, error: null };
+  return { data: teamsWithCount, error: null, next };
 }
 
 export async function getTeam(id: string) {

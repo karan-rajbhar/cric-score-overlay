@@ -21,6 +21,7 @@ import { PageContainer } from "~/components/layout/page";
 import { useAuth } from "~/lib/auth";
 import {
   useMatchWizardDataQuery,
+  useMatchWizardScopeQuery,
   useTournamentRegistrationsQuery,
 } from "~/lib/hooks/useMatchQueries";
 import { cn } from "~/lib/utils";
@@ -129,21 +130,37 @@ function MatchSetupForm({ userId }: { userId: string }) {
     [registeredSet],
   );
 
+  // The selected tournament's and club's teams, and those documents.
+  const { data: scopeData } = useMatchWizardScopeQuery({
+    tournamentId,
+    clubId,
+    tournamentTeamIds: [...tournamentTeamIds],
+  });
+
   const teams = useMemo(() => {
     const created = new Set(createdTeams.map((t) => t.id));
-    return [
+    return uniqueById([
       ...createdTeams,
       ...((wizardData?.teams ?? []) as SetupTeam[]).filter(
         (t) => !created.has(t.id),
       ),
-    ].map((t) =>
+      ...((scopeData?.teams ?? []) as SetupTeam[]).filter(
+        (t) => !created.has(t.id),
+      ),
+    ]).map((t) =>
       addedPlayers[t.id]
         ? { ...t, player_count: (t.player_count ?? 0) + addedPlayers[t.id]! }
         : t,
     );
-  }, [createdTeams, wizardData?.teams, addedPlayers]);
-  const tournaments = (wizardData?.tournaments ?? []) as TournamentOption[];
-  const clubs = (wizardData?.clubs ?? []) as ClubOption[];
+  }, [createdTeams, wizardData?.teams, scopeData?.teams, addedPlayers]);
+  const tournaments = uniqueById([
+    ...((wizardData?.tournaments ?? []) as TournamentOption[]),
+    ...((scopeData?.tournaments ?? []) as TournamentOption[]),
+  ]);
+  const scopedClubs = uniqueById([
+    ...((wizardData?.clubs ?? []) as ClubOption[]),
+    ...((scopeData?.clubs ?? []) as ClubOption[]),
+  ]);
   const clubAdminIds = useMemo(
     () => new Set<string>(wizardData?.clubAdminIds ?? []),
     [wizardData?.clubAdminIds],
@@ -176,7 +193,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
   };
 
   const selectedTournament = tournaments.find((t) => t.id === tournamentId);
-  const selectedClub = clubs.find((c) => c.id === clubId);
+  const selectedClub = scopedClubs.find((c) => c.id === clubId);
   const isTournamentOrganizer = Boolean(
     selectedTournament &&
       (selectedTournament.created_by === userId ||
@@ -227,6 +244,16 @@ function MatchSetupForm({ userId }: { userId: string }) {
       t.created_by === userId ||
       (t.club_id && clubAdminIds.has(t.club_id)),
   );
+  // The picked teams' clubs may be offered as the match's club too.
+  const { data: teamClubs } = useMatchWizardScopeQuery({
+    clubIds: [team1?.club_id, team2?.club_id].filter(
+      (id): id is string => !!id && !scopedClubs.some((c) => c.id === id),
+    ),
+  });
+  const clubs = uniqueById([
+    ...scopedClubs,
+    ...((teamClubs?.clubs ?? []) as ClubOption[]),
+  ]);
   const selectableClubs = clubs.filter(
     (c) =>
       c.id === urlClubId ||
@@ -841,6 +868,12 @@ function CreateMatchGate() {
     );
   }
   return <MatchSetupForm userId={user.id} />;
+}
+
+/** Each id once, the first copy kept. */
+function uniqueById<T extends { id: string }>(rows: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
 }
 
 export default function CreateMatchPage() {

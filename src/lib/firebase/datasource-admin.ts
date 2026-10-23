@@ -4,6 +4,7 @@
 
 import "server-only";
 import {
+  AggregateField,
   FieldPath,
   type DocumentData,
   type Firestore,
@@ -78,6 +79,17 @@ export class AdminDataSource implements DataSource {
   async count(table: string, filters: NativeFilter[]): Promise<number> {
     const snap = await this.build(table, filters).count().get();
     return snap.data().count;
+  }
+
+  async sum(
+    table: string,
+    filters: NativeFilter[],
+    field: string,
+  ): Promise<number> {
+    const snap = await this.build(table, filters)
+      .aggregate({ total: AggregateField.sum(field) })
+      .get();
+    return snap.data().total ?? 0;
   }
 
   async insert(table: string, docs: Doc[]): Promise<void> {

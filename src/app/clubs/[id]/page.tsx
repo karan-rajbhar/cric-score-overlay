@@ -53,6 +53,13 @@ import { ClubLogo } from "~/components/clubs/club-logo";
 import { ClubMediaDialog } from "~/components/clubs/club-media-dialog";
 import { ClubTournamentsTab } from "~/components/clubs/club-tournaments-tab";
 import { ClubMatchesTab } from "~/components/clubs/club-matches-tab";
+import { ShowMoreLink } from "~/components/layout/pager";
+import {
+  clubMilestonesFromList,
+  clubMilestonesOf,
+  type ClubMilestoneAggregates,
+  type MilestoneMatch,
+} from "~/lib/firebase/club-milestones";
 import {
   ClubStatsTab,
   ClubBatterLeader,
@@ -176,6 +183,17 @@ export async function generateMetadata({
   return { title: club?.name ?? "Club" };
 }
 
+/** Matches / members listed at first; "Show more" adds as many again. */
+const MATCH_PAGE = 50;
+const MEMBER_PAGE = 100;
+/** Most a "Show more" link can grow a list to. */
+const MAX_SHOWN = 1000;
+
+function shownCount(raw: string | undefined, page: number): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > page ? Math.min(n, MAX_SHOWN) : page;
+}
+
 type Profile = NonNullable<MemberRow["user"]>;
 
 /**
@@ -215,7 +233,7 @@ export default async function ClubPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tab?: string }>;
+  searchParams?: Promise<{ tab?: string; matches?: string; members?: string }>;
 }) {
   const { id } = await params;
   if (
@@ -230,12 +248,33 @@ export default async function ClubPage({
     data: { user },
   } = await db.auth.getUser();
 
+  // Matches and members come a page at a time (the latest matches, the
+  // earliest members); the counts and milestones are aggregations, so a
+  // club with hundreds of matches or members costs a few dozen reads.
+  const matchLimit = shownCount(resolvedSearchParams?.matches, MATCH_PAGE);
+  const memberLimit = shownCount(resolvedSearchParams?.members, MEMBER_PAGE);
+  const MATCH_COLUMNS = `
+                id, title, match_format, overs_per_innings, status, venue, scheduled_at,
+                result_type, win_margin, win_margin_type, result_description, season_id,
+                ${MATCH_TEAM_COLUMNS},
+                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
+            `;
+  const MEMBER_COLUMNS =
+    "id, role, status, joined_at, user:users(id, full_name, avatar_url)";
+  const membersOfClub = () =>
+    db
+      .from("club_memberships")
+      .select(MEMBER_COLUMNS)
+      .eq("club_id", id)
+      .order("joined_at", { ascending: true });
+
   const [
     { data: club },
     { data: teams },
     { data: tournaments },
-    { data: matches },
-    { data: members },
+    { data: matchRows },
+    { data: memberRows },
+    { data: ownMemberships },
     { data: seasons },
     { data: hallOfFame },
   ] = await Promise.all([
@@ -258,23 +297,18 @@ export default async function ClubPage({
       .order("start_date", { ascending: false }),
     db
       .from("matches")
-      .select(
-        `
-                id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-                result_type, win_margin, win_margin_type, result_description, season_id,
-                ${MATCH_TEAM_COLUMNS},
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
-            `,
-      )
+      .select(MATCH_COLUMNS)
       .eq("club_id", id)
-      .order("scheduled_at", { ascending: false }),
-    db
-      .from("club_memberships")
-      .select(
-        "id, role, status, joined_at, user:users(id, full_name, avatar_url)",
-      )
-      .eq("club_id", id)
-      .order("joined_at", { ascending: true }),
+      .order("scheduled_at", { ascending: false })
+      .limit(matchLimit + 1),
+    membersOfClub().limit(memberLimit + 1),
+    user
+      ? db
+          .from("club_memberships")
+          .select(MEMBER_COLUMNS)
+          .eq("club_id", id)
+          .eq("user_id", user.id)
+      : Promise.resolve({ data: [] }),
     db
       .from("club_seasons")
       .select("id, name, start_date, end_date, is_current")
@@ -298,23 +332,63 @@ export default async function ClubPage({
   const typedTournaments = (tournaments ?? []) as unknown as TournamentRow[];
   const typedMatches = (await attachMatchTeams(
     db,
-    matches ?? [],
+    (matchRows ?? []).slice(0, matchLimit),
   )) as unknown as MatchRow[];
-  const typedMembers = (members ?? []) as unknown as MemberRow[];
+  const moreMatches = (matchRows ?? []).length > matchLimit;
+  // Live matches, wherever they fall in the list: their innings in progress
+  // feed the leaderboard and the milestones. All are listed when the club
+  // has no more matches than that.
+  const liveMatches = moreMatches
+    ? ((await attachMatchTeams(
+        db,
+        (
+          await db
+            .from("matches")
+            .select(`${MATCH_COLUMNS}, summary_runs, summary_wickets`)
+            .eq("club_id", id)
+            .eq("status", "live")
+        ).data ?? [],
+      )) as unknown as Array<MatchRow & MilestoneMatch>)
+    : (typedMatches.filter((m) => m.status === "live") as Array<
+        MatchRow & MilestoneMatch
+      >);
   const typedSeasons = (seasons ?? []) as unknown as SeasonRow[];
-  const typedHallOfFame = await withHallOfFamePlayers(
-    db,
-    hallOfFame ?? [],
-    typedMembers,
-  );
 
   const isOwner = user?.id === club.owner_id;
-  const myMembership = typedMembers.find((m) => m.user?.id === user?.id);
+  // The viewer's own membership (the first, as the full list had it).
+  const myMembership = (
+    (ownMemberships ?? []) as unknown as MemberRow[]
+  ).sort((a, b) => (a.joined_at < b.joined_at ? -1 : 1))[0];
   const isAdmin = isOwner || myMembership?.role === "admin";
   const isMember = !!myMembership;
 
   // Private clubs are only visible to their owner and members.
   if (club.is_public === false && !isOwner && !isMember) notFound();
+
+  // Admins pick members in their dialogs (hall of fame, roles): they get
+  // every member; everyone else a page at a time.
+  let typedMembers = (memberRows ?? []) as unknown as MemberRow[];
+  let moreMembers = typedMembers.length > memberLimit;
+  const memberTotal = moreMembers
+    ? ((
+        await db
+          .from("club_memberships")
+          .select("id", { count: "exact", head: true })
+          .eq("club_id", id)
+      ).count ?? 0)
+    : typedMembers.length;
+  if (moreMembers && isAdmin) {
+    typedMembers = ((await membersOfClub()).data ??
+      []) as unknown as MemberRow[];
+    moreMembers = false;
+  } else {
+    typedMembers = typedMembers.slice(0, memberLimit);
+  }
+  const typedHallOfFame = await withHallOfFamePlayers(
+    db,
+    hallOfFame ?? [],
+    typedMembers,
+  );
 
   // Admins see the club's invites still waiting for a first sign-in.
   const pendingInvites: PendingClubInvite[] = isAdmin
@@ -348,28 +422,40 @@ export default async function ClubPage({
     }));
 
   // Aggregate Club Statistics
-  const matchIds = typedMatches.map((m) => m.id);
   let battingLeaders: ClubBatterLeader[] = [];
   let bowlingLeaders: ClubBowlerLeader[] = [];
   let leaderboardData: LeaderboardData | null = null;
-  let totalRuns = 0;
-  let totalWickets = 0;
-  let highestTeamScore: {
-    runs: number;
-    wickets: number;
-    overs: number;
-    teamName?: string;
-  } | null = null;
 
-  if (matchIds.length > 0) {
-    // The club's stored leaderboard (one read) plus innings still in play
-    // (which also brings the live matches' scores below up to date).
-    leaderboardData = await loadScopeLeaderboard(
-      db,
-      "club",
-      id,
-      typedMatches as unknown as ScopeMatch[],
-    );
+  const [leaderboard, aggregates] = await Promise.all([
+    // The club's stored leaderboard (8 shard reads) plus innings still in
+    // play (which also brings the live matches' scores up to date).
+    typedMatches.length > 0
+      ? loadScopeLeaderboard(
+          db,
+          "club",
+          id,
+          liveMatches as unknown as ScopeMatch[],
+        )
+      : Promise.resolve(null),
+    // Milestones over more matches than listed: aggregations.
+    moreMatches
+      ? db
+          .rpc<ClubMilestoneAggregates>("club_milestones", {
+            p_club_id: id,
+            p_live_count: liveMatches.length,
+          })
+          .then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
+  // The listed live matches show the same fresh innings.
+  const liveById = new Map(liveMatches.map((m) => [m.id, m]));
+  for (const m of typedMatches) {
+    const fresh = liveById.get(m.id);
+    if (fresh) m.innings = fresh.innings;
+  }
+
+  if (leaderboard) {
+    leaderboardData = leaderboard;
 
     battingLeaders = leaderboardData.batting.map((b) => ({
       userId: b.userId,
@@ -395,38 +481,15 @@ export default async function ClubPage({
     }));
   }
 
-  typedMatches.forEach((m) => {
-    m.innings?.forEach((inn) => {
-      const runs = inn.total_runs ?? 0;
-      const wickets = inn.total_wickets ?? 0;
-      const overs = inn.total_overs ?? 0;
-      totalRuns += runs;
-      totalWickets += wickets;
-
-      if (!highestTeamScore || runs > highestTeamScore.runs) {
-        const team =
-          inn.team_id === m.team1?.id
-            ? m.team1
-            : inn.team_id === m.team2?.id
-              ? m.team2
-              : null;
-        highestTeamScore = {
-          runs,
-          wickets,
-          overs,
-          teamName: team?.name ?? undefined,
-        };
-      }
-    });
-  });
-
-  const milestones: ClubMilestones = {
-    totalMatches: typedMatches.length,
-    completedMatches: typedMatches.filter((m) => m.status === "completed").length,
-    totalRuns,
-    totalWickets,
-    highestTeamScore,
-  };
+  const milestones: ClubMilestones = aggregates
+    ? clubMilestonesOf(
+        {
+          ...aggregates,
+          top: await attachMatchTeams(db, aggregates.top),
+        },
+        liveMatches,
+      )
+    : clubMilestonesFromList(typedMatches as unknown as MilestoneMatch[]);
 
   return (
     <PageContainer stack={false}>
@@ -526,7 +589,7 @@ export default async function ClubPage({
         <StatTile icon={Shield} label="Teams" value={typedTeams.length} />
         <StatTile icon={Trophy} label="Tournaments" value={typedTournaments.length} />
         <StatTile icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
-        <StatTile icon={Users} label="Members" value={typedMembers.length} />
+        <StatTile icon={Users} label="Members" value={memberTotal} />
       </StatGrid>
 
       {/* Club Tabs */}
@@ -654,6 +717,12 @@ export default async function ClubPage({
             seasons={typedSeasons}
             isAdmin={isAdmin}
           />
+          {moreMatches && (
+            <ShowMoreLink
+              href={`/clubs/${club.id}?tab=matches&matches=${matchLimit + MATCH_PAGE}`}
+              label="Show older matches"
+            />
+          )}
         </TabsContent>
 
         {/* TAB 4: CLUB STATS & RECORDS */}
@@ -866,6 +935,12 @@ export default async function ClubPage({
               )}
             </CardContent>
           </Card>
+          {moreMembers && (
+            <ShowMoreLink
+              href={`/clubs/${club.id}?tab=members&members=${memberLimit + MEMBER_PAGE}`}
+              label="Show more members"
+            />
+          )}
         </TabsContent>
       </Tabs>
       </ContentSheet>

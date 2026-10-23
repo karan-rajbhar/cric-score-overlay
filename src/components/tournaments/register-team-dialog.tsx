@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -21,7 +21,10 @@ import {
 import { Label } from "~/components/ui/label";
 import Link from "next/link";
 import { Plus, Loader2 } from "lucide-react";
-import { registerTeamForTournament } from "~/app/tournaments/actions";
+import {
+  getRegistrableTeams,
+  registerTeamForTournament,
+} from "~/app/tournaments/actions";
 import { toast } from "sonner";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
@@ -33,21 +36,81 @@ interface TeamOption {
 
 interface RegisterTeamDialogProps {
   tournamentId: string;
-  availableTeams: TeamOption[];
+  /**
+   * The teams the user may register. Left out for organisers, who may
+   * register any team: the dialog reads the list when it opens.
+   */
+  availableTeams?: TeamOption[];
   registeredTeamIds: string[];
   /** Organisers add teams directly; anyone else sends a request. */
   isOrganiser?: boolean;
 }
 
+/**
+ * The teams to offer: those given, or (organisers) every team, read once
+ * when the dialog first opens.
+ */
+function useRegistrableTeams(
+  tournamentId: string,
+  open: boolean,
+  given: TeamOption[] | undefined,
+) {
+  const [loaded, setLoaded] = useState<TeamOption[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loads = !given;
+  useEffect(() => {
+    if (!open || !loads || loaded) return;
+    let cancelled = false;
+    getRegistrableTeams(tournamentId)
+      .then((res) => {
+        if (cancelled) return;
+        setLoaded(res.data);
+        setError(res.error);
+      })
+      .catch(() => {
+        if (!cancelled) setError(NETWORK_ERROR_MESSAGE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, loads, loaded, tournamentId]);
+  return {
+    teams: given ?? loaded ?? [],
+    loading: loads && !loaded && !error,
+    error,
+  };
+}
+
+function LoadStatus({ error }: { error: string | null }) {
+  return error ? (
+    <p role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  ) : (
+    <p
+      role="status"
+      className="flex items-center gap-2 text-sm text-muted-foreground"
+    >
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      Loading teams…
+    </p>
+  );
+}
+
 export function RegisterTeamDialog({
   tournamentId,
-  availableTeams,
+  availableTeams: givenTeams,
   registeredTeamIds,
   isOrganiser = false,
 }: RegisterTeamDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [isPending, startTransition] = useTransition();
+  const {
+    teams: availableTeams,
+    loading,
+    error: loadError,
+  } = useRegistrableTeams(tournamentId, open, givenTeams);
 
   const unregisteredTeams = availableTeams.filter(
     (t) => !registeredTeamIds.includes(t.id),
@@ -97,7 +160,9 @@ export function RegisterTeamDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-3">
-          {availableTeams.length === 0 ? (
+          {loading || loadError ? (
+            <LoadStatus error={loadError} />
+          ) : availableTeams.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               There are no teams to register yet.{" "}
               <Link

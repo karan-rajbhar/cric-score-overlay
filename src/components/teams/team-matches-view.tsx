@@ -52,12 +52,18 @@ interface TeamMatchesViewProps {
   currentTeamId: string;
   matches: TeamMatchItem[];
   tournamentInfo?: { id: string; name: string } | null;
+  /** All the team's matches, when `matches` is only the latest of them. */
+  totalCount?: number;
+  /** The team's matches in `tournamentInfo`, likewise. */
+  tournamentCount?: number;
 }
 
 export function TeamMatchesView({
   currentTeamId,
   matches,
   tournamentInfo,
+  totalCount,
+  tournamentCount,
 }: TeamMatchesViewProps) {
   // Scope filter: "tournament" vs "all" (if tournamentInfo is present, default to tournament)
   const [scopeFilter, setScopeFilter] = useState<"tournament" | "all">(
@@ -98,9 +104,12 @@ export function TeamMatchesView({
             options={[
               {
                 value: "tournament",
-                label: `${tournamentInfo.name} (${tournamentMatchesCount})`,
+                label: `${tournamentInfo.name} (${tournamentCount ?? tournamentMatchesCount})`,
               },
-              { value: "all", label: `All matches (${matches.length})` },
+              {
+                value: "all",
+                label: `All matches (${totalCount ?? matches.length})`,
+              },
             ]}
           />
         )}

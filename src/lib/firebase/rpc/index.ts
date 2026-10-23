@@ -47,6 +47,7 @@ import {
 import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
 import { ensureLiveScorecard } from "../scorecard-refresh";
+import { clubMilestoneAggregates } from "../club-milestones";
 
 export interface RpcContext {
   db: Firestore | null;
@@ -175,6 +176,16 @@ export async function callRpc(
       // The match's `live_scorecard` doc, built once for matches that
       // predate it (viewers then listen to it directly).
       return ensureLiveScorecard(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "club_milestones": {
+      // Server-only: the club page's milestone aggregates (a few reads
+      // instead of every club match).
+      const live = Number(args.p_live_count ?? 0);
+      return clubMilestoneAggregates(
+        ctx.ds,
+        str(args, "p_club_id"),
+        Number.isFinite(live) && live > 0 ? Math.floor(live) : 0,
+      );
+    }
     case "recalculate_tournament_standings":
       await recalculateTournamentStandings(
         ctx.ds,

@@ -43,7 +43,20 @@ import {
 } from "~/components/teams/team-matches-view";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
-import { teamRecordOf } from "~/lib/team-record";
+import {
+  FINISHED_STATUSES,
+  teamRecordFromCounts,
+  teamRecordOf,
+} from "~/lib/team-record";
+import { ShowMoreLink } from "~/components/layout/pager";
+
+/** Matches listed at first; "Show older matches" adds as many again. */
+const MATCH_PAGE = 50;
+
+function latestCount(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > MATCH_PAGE ? Math.min(n, 1000) : MATCH_PAGE;
+}
 import { EntityActions } from "~/components/follow/entity-actions";
 
 /** The team: read once per request, by the page and its title. */
@@ -65,6 +78,8 @@ export default async function TeamDetailsPage({
 }: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{
+    /** How many of the latest matches to list ("Show older matches"). */
+    matches?: string;
     tournamentId?: string;
     clubId?: string;
     tab?: string;
@@ -200,8 +215,11 @@ export default async function TeamDetailsPage({
     );
   }
 
-  // Fetch all matches for this team: one indexed query per side (an `or`
-  // would read every match), merged in the order the `or` query returned.
+  // The latest matches, one indexed query per side (an `or` would read
+  // every match), merged in the order the `or` query returned, plus any
+  // live ones; the totals and the record are count()s, so a team with
+  // hundreds of matches costs a few dozen reads.
+  const matchLimit = latestCount(resolvedSearchParams?.matches);
   const columns = `
       id, title, match_format, overs_per_innings, status, venue, scheduled_at,
       result_type, win_margin, win_margin_type, result_description, winning_team_id,
@@ -210,17 +228,74 @@ export default async function TeamDetailsPage({
       ${MATCH_TEAM_COLUMNS},
       innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
     `;
+  const SIDES = ["team1_id", "team2_id"] as const;
+  const countQuery = (side: (typeof SIDES)[number]) =>
+    db
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq(side, id);
+  type CountQuery = ReturnType<typeof countQuery>;
+  /** The team's matches on either side (a count() per side). */
+  const both = async (
+    narrow: (q: CountQuery) => CountQuery = (q) => q,
+  ): Promise<number> => {
+    const counts = await Promise.all(
+      SIDES.map(async (side) => (await narrow(countQuery(side))).count ?? 0),
+    );
+    return counts[0]! + counts[1]!;
+  };
   const sides = await Promise.all(
-    (["team1_id", "team2_id"] as const).map((side) =>
-      db.from("matches").select(columns).eq(side, id),
+    SIDES.map((side) =>
+      db
+        .from("matches")
+        .select(columns)
+        .eq(side, id)
+        .order("scheduled_at", { ascending: false })
+        .limit(matchLimit + 1),
     ),
   );
+  // Every match is at hand unless a side filled its page.
+  const complete = sides.every(({ data }) => (data ?? []).length <= matchLimit);
   const byId = new Map<string, Doc>();
   for (const { data } of sides) {
     for (const m of (data ?? []) as Doc[]) byId.set(m.id, m);
   }
-  const matchesData = sortRows(
+  const latest = sortRows(
     [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
+  );
+  const moreMatches = latest.length > matchLimit;
+  const shown = new Map(latest.slice(0, matchLimit).map((m) => [m.id, m]));
+
+  // Beyond the page: the live matches, the totals and the record as
+  // count()s (a few reads however many matches there are).
+  const [liveSides, counts] = complete
+    ? [[], null]
+    : await Promise.all([
+        Promise.all(
+          SIDES.map((side) =>
+            db.from("matches").select(columns).eq(side, id).eq("status", "live"),
+          ),
+        ),
+        Promise.all([
+          both(),
+          tournamentInfo
+            ? both((q) => q.eq("tournament_id", tournamentInfo!.id))
+            : Promise.resolve(undefined),
+          both((q) => q.in("status", FINISHED_STATUSES)),
+          both((q) =>
+            q.in("status", FINISHED_STATUSES).eq("winning_team_id", id),
+          ),
+          both((q) =>
+            q.in("status", FINISHED_STATUSES).gt("winning_team_id", ""),
+          ),
+        ]),
+      ]);
+  for (const { data } of liveSides) {
+    for (const m of (data ?? []) as Doc[]) shown.set(m.id, m);
+  }
+  const matchesData = sortRows(
+    [...shown.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
     [{ field: "scheduled_at", ascending: false, nullsFirst: true }],
   );
 
@@ -232,7 +307,15 @@ export default async function TeamDetailsPage({
   )) as unknown as TeamMatchItem[];
 
   // The team's record: finished matches only (upcoming ones are not played).
-  const record = teamRecordOf(teamMatches, id);
+  const record = counts
+    ? teamRecordFromCounts({ played: counts[2], won: counts[3], decided: counts[4] })
+    : teamRecordOf(latest as unknown as TeamMatchItem[], id);
+  const totalCount = counts ? counts[0] : latest.length;
+  const tournamentCount = counts
+    ? counts[1]
+    : tournamentInfo
+      ? latest.filter((m) => m.tournament_id === tournamentInfo!.id).length
+      : undefined;
 
   return (
     <PageContainer stack={false}>
@@ -426,7 +509,19 @@ export default async function TeamDetailsPage({
                   currentTeamId={team.id}
                   matches={teamMatches}
                   tournamentInfo={tournamentInfo}
+                  totalCount={totalCount}
+                  tournamentCount={tournamentCount}
                 />
+                {moreMatches && (
+                  <ShowMoreLink
+                    href={`/teams/${team.id}?${new URLSearchParams({
+                      ...(tournamentId ? { tournamentId } : {}),
+                      ...(clubId ? { clubId } : {}),
+                      matches: String(matchLimit + MATCH_PAGE),
+                    })}`}
+                    label="Show older matches"
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="squad" className="mt-4 space-y-4">

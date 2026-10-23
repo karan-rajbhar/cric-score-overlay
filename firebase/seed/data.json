@@ -1489,7 +1489,8 @@
         "rop",
         "tan",
         "tro"
-      ]
+      ],
+      "team_count": 2
     },
     {
       "id": "650e8400-e29b-41d4-a716-446655440002",
@@ -1577,7 +1578,8 @@
         "sso",
         "tio",
         "ver"
-      ]
+      ],
+      "team_count": 2
     }
   ],
   "club_seasons": [
@@ -4235,6 +4237,15 @@
           "target_runs": 179
         }
       ],
+      "summary_runs": 340,
+      "summary_wickets": 13,
+      "best_innings": {
+        "runs": 178,
+        "wickets": 5,
+        "overs": 20,
+        "team_id": "750e8400-e29b-41d4-a716-446655440001"
+      },
+      "best_innings_runs": 178,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440001",
         "name": "East Coast Cricket Championship 2024",
@@ -4395,6 +4406,15 @@
           "target_runs": 153
         }
       ],
+      "summary_runs": 307,
+      "summary_wickets": 11,
+      "best_innings": {
+        "runs": 155,
+        "wickets": 4,
+        "overs": 18.3,
+        "team_id": "750e8400-e29b-41d4-a716-446655440003"
+      },
+      "best_innings_runs": 155,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440001",
         "name": "East Coast Cricket Championship 2024",
@@ -4545,6 +4565,15 @@
           "target_runs": 147
         }
       ],
+      "summary_runs": 254,
+      "summary_wickets": 12,
+      "best_innings": {
+        "runs": 146,
+        "wickets": 9,
+        "overs": 20,
+        "team_id": "750e8400-e29b-41d4-a716-446655440004"
+      },
+      "best_innings_runs": 146,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440001",
         "name": "East Coast Cricket Championship 2024",
@@ -4708,6 +4737,15 @@
           "target_runs": 103
         }
       ],
+      "summary_runs": 190,
+      "summary_wickets": 10,
+      "best_innings": {
+        "runs": 102,
+        "wickets": 4,
+        "overs": 10,
+        "team_id": "750e8400-e29b-41d4-a716-446655440001"
+      },
+      "best_innings_runs": 102,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440003",
         "name": "Weekend 10-Over Bash",
@@ -4876,6 +4914,15 @@
           "target_runs": 95
         }
       ],
+      "summary_runs": 172,
+      "summary_wickets": 9,
+      "best_innings": {
+        "runs": 94,
+        "wickets": 5,
+        "overs": 10,
+        "team_id": "750e8400-e29b-41d4-a716-446655440002"
+      },
+      "best_innings_runs": 94,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440003",
         "name": "Weekend 10-Over Bash",
@@ -5011,6 +5058,10 @@
         "warriors"
       ],
       "innings_summary": [],
+      "summary_runs": 0,
+      "summary_wickets": 0,
+      "best_innings": null,
+      "best_innings_runs": null,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440001",
         "name": "East Coast Cricket Championship 2024",
@@ -5138,6 +5189,10 @@
         "warriors"
       ],
       "innings_summary": [],
+      "summary_runs": 0,
+      "summary_wickets": 0,
+      "best_innings": null,
+      "best_innings_runs": null,
       "tournament_snapshot": {
         "id": "850e8400-e29b-41d4-a716-446655440002",
         "name": "West Coast ODI Series",
@@ -5330,6 +5385,15 @@
           "target_runs": 166
         }
       ],
+      "summary_runs": 330,
+      "summary_wickets": 14,
+      "best_innings": {
+        "runs": 165,
+        "wickets": 6,
+        "overs": 20,
+        "team_id": "750e8400-e29b-41d4-a716-446655440001"
+      },
+      "best_innings_runs": 165,
       "club_snapshot": {
         "id": "650e8400-e29b-41d4-a716-446655440001",
         "name": "Metropolitan Cricket Club",

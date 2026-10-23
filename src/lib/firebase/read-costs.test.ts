@@ -301,9 +301,12 @@ describe("billed reads per page on the seed data", () => {
       searchMidWordLong: 80,
       playersList: 31,
       playersSearch: 30,
-      // 24 when dismissal names read the rosters of every listed fixture.
-      playerPage: 22,
-      playerPageByHandle: 22,
+      // 24 when dismissal names read the rosters of every listed fixture;
+      // back to 24 with the teams' live and next fixtures read by status
+      // (4 queries, 1 read each when empty) instead of every fixture of
+      // every team (see the scale test).
+      playerPage: 24,
+      playerPageByHandle: 24,
       clubPage: 46,
       tournamentPage: 28,
       // +1 per live match listed: its innings in progress, which the match
@@ -322,6 +325,93 @@ describe("billed reads per page on the seed data", () => {
         process.env.READ_COSTS_OUT,
         JSON.stringify(results, null, 2),
       );
+    }
+  }, 60_000);
+});
+
+/**
+ * The same pages on the seed grown to production-like size
+ * (`__fixtures__/scale.ts`: 1,000 matches, 400 teams, 120 clubs, 150
+ * tournaments, a club with 250 matches and 300 members), where the
+ * unbounded lists showed. What each read before keyset pages, limits and
+ * count() / sum() aggregations is noted per bound.
+ */
+describe("billed reads per page at scale", () => {
+  it("stays bounded however many documents there are", async () => {
+    const { scaleSeed } = await import("./__fixtures__/scale");
+    const { data, ids } = scaleSeed(seed);
+    ds = new MemoryDataSource(data);
+    const users = new Map(data.users!.map((u) => [u.id, u]));
+    const { default: TeamsPage } = await import("~/app/teams/page");
+    const { default: ClubsPage } = await import("~/app/clubs/page");
+    const { default: TournamentsPage } = await import("~/app/tournaments/page");
+    const { default: ClubPage } = await import("~/app/clubs/[id]/page");
+    const { default: TeamPage } = await import("~/app/teams/[id]/page");
+    const { default: PlayerPage } = await import("~/app/players/[id]/page");
+    const { default: TournamentPage } = await import(
+      "~/app/tournaments/[id]/page"
+    );
+    const { fetchWizardBase, fetchWizardScope } = await import(
+      "~/app/matches/create/wizard-data"
+    );
+    const none = { searchParams: Promise.resolve({}) };
+    const at: Record<string, number> = {};
+
+    signIn(null);
+    at.teamsAll = await cost(() => TeamsPage(none as never));
+    at.clubsList = await cost(() => ClubsPage(none));
+    at.tournamentsList = await cost(() => TournamentsPage(none));
+    at.bigClubPage = await cost(() =>
+      ClubPage({ params: Promise.resolve({ id: ids.bigClub }), ...none }),
+    );
+    at.bigTeamPage = await cost(() =>
+      TeamPage({ params: Promise.resolve({ id: ids.bigTeam }), ...none }),
+    );
+    at.busyPlayerPage = await cost(() =>
+      PlayerPage({ params: Promise.resolve({ id: ids.player }), ...none }),
+    );
+
+    signIn(users.get(ids.organiser)!);
+    // An organiser opening the match wizard, then picking their club.
+    at.wizard = await cost(async () => {
+      const base = await fetchWizardBase(state.client as never, ids.organiser);
+      expect(base.teams.length).toBeGreaterThan(0);
+      await fetchWizardScope(state.client as never, { clubId: ids.bigClub });
+    });
+    at.tournamentPageOrganiser = await cost(() =>
+      TournamentPage({
+        params: Promise.resolve({ id: ids.tournament }),
+        ...none,
+      }),
+    );
+
+    console.info("billed reads per page (at scale)", at);
+    const bounds: Record<string, number> = {
+      // ~404 before (every team): one page of 30 now.
+      teamsAll: 32,
+      // ~244 (every public club and a team count() each): one page, the
+      // counts stored on the clubs.
+      clubsList: 33,
+      // ~153 (every tournament): one page.
+      tournamentsList: 32,
+      // ~590 (every club match and member): the latest 50 matches, the
+      // first 100 members, 8 leaderboard shards and the milestone
+      // aggregates (count / sum / top innings).
+      bigClubPage: 200,
+      // ~206 (every match of the team): the latest 50 per side and count()s
+      // for the totals and the record.
+      bigTeamPage: 70,
+      // ~310 (every fixture of the player's 3 teams): the matches they have
+      // records in, their teams' live and next 20 fixtures.
+      busyPlayerPage: 125,
+      // ~680 (every team, tournament and club): the organiser's own (here
+      // they created all 150 tournaments) and the picked club's teams.
+      wizard: 195,
+      // ~418 (every team, for the register dialog): read when it opens.
+      tournamentPageOrganiser: 16,
+    };
+    for (const [page, max] of Object.entries(bounds)) {
+      expect(at[page], page).toBeLessThanOrEqual(max);
     }
   }, 60_000);
 });

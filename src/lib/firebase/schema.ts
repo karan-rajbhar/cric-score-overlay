@@ -105,6 +105,8 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "sponsors",
     "name_lower",
     "search_prefixes",
+    // Kept by the teams write hook (club-team-count.ts).
+    "team_count",
     "created_at",
     "updated_at",
   ],
@@ -310,6 +312,11 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "last_ball_seq",
     "recent_client_actions",
     "innings_summary",
+    // Derived from innings_summary, written with it (summaryTotalsOf).
+    "summary_runs",
+    "summary_wickets",
+    "best_innings",
+    "best_innings_runs",
     "tournament_snapshot",
     "club_snapshot",
     "title_lower",
@@ -513,6 +520,10 @@ export const HIDDEN_COLUMNS: Partial<Record<TableName, readonly string[]>> = {
     "title_lower",
     "search_prefixes",
     "innings_summary",
+    "summary_runs",
+    "summary_wickets",
+    "best_innings",
+    "best_innings_runs",
     "tournament_snapshot",
     "club_snapshot",
     "recent_client_actions",
@@ -562,7 +573,12 @@ export const TABLE_DEFAULTS: Partial<
   Record<TableName, Record<string, unknown>>
 > = {
   users: { is_active: true },
-  clubs: { is_public: true, club_type: "community", social_links: {} },
+  clubs: {
+    is_public: true,
+    club_type: "community",
+    social_links: {},
+    team_count: 0,
+  },
   club_memberships: { role: "member", status: "active" },
   club_invitations: { status: "pending" },
   invitations: { status: "pending" },
@@ -612,6 +628,10 @@ export const TABLE_DEFAULTS: Partial<
     golden_ball: false,
     last_ball_seq: 0,
     innings_summary: [],
+    summary_runs: 0,
+    summary_wickets: 0,
+    best_innings: null,
+    best_innings_runs: null,
   },
   innings: {
     total_runs: 0,
