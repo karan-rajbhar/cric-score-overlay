@@ -33,7 +33,8 @@ import {
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
-import { TeamLogoEditor } from "~/components/teams/team-logo-editor";
+import { EditTeamDialog } from "~/components/teams/edit-team-dialog";
+import { squadClaims, type PlayerClaim } from "~/lib/squad-claims";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import {
@@ -42,6 +43,8 @@ import {
 } from "~/components/teams/team-matches-view";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
+import { teamRecordOf } from "~/lib/team-record";
+import { EntityActions } from "~/components/follow/entity-actions";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -61,7 +64,11 @@ export default async function TeamDetailsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tournamentId?: string; clubId?: string }>;
+  searchParams?: Promise<{
+    tournamentId?: string;
+    clubId?: string;
+    tab?: string;
+  }>;
 }) {
   const { id } = await params;
   if (
@@ -70,7 +77,7 @@ export default async function TeamDetailsPage({
     notFound();
   }
   const resolvedSearchParams = await searchParams;
-  const { tournamentId, clubId } = resolvedSearchParams ?? {};
+  const { tournamentId, clubId, tab } = resolvedSearchParams ?? {};
 
   const { data: team, error } = await loadTeam(id);
 
@@ -135,10 +142,8 @@ export default async function TeamDetailsPage({
       team?.created_by === user.id ||
       isClubAdmin);
 
-  const canEditLogo = canManageTeam;
-
   let backHref = "/teams";
-  let backLabel = "Back to Teams";
+  let backLabel = "Back to teams";
   if (tournamentInfo) {
     backHref = `/tournaments/${tournamentInfo.id}?tab=teams`;
     backLabel = `Back to ${tournamentInfo.name}`;
@@ -179,6 +184,22 @@ export default async function TeamDetailsPage({
       };
     }> | null) || [];
 
+  // Team admins see who in the squad has no account yet ("Not on
+  // CricScore") or was invited to claim their profile (masked email; the
+  // address itself stays on the server). Viewers pay no extra reads.
+  let claims: Record<string, PlayerClaim> = {};
+  const squadIds = [...new Set(players.map((p) => p.user_id).filter(Boolean))];
+  if (canManageTeam && squadIds.length > 0) {
+    const [{ data: profiles }, { data: privates }] = await Promise.all([
+      db.from("users").select("id, is_placeholder").in("id", squadIds),
+      db.from("users_private").select("id, email").in("id", squadIds),
+    ]);
+    claims = squadClaims(
+      (profiles ?? []) as { id: string; is_placeholder?: boolean | null }[],
+      (privates ?? []) as { id: string; email?: string | null }[],
+    );
+  }
+
   // Fetch all matches for this team: one indexed query per side (an `or`
   // would read every match), merged in the order the `or` query returned.
   const columns = `
@@ -210,19 +231,8 @@ export default async function TeamDetailsPage({
     await attachMatchTeams(db, matchesData ?? []),
   )) as unknown as TeamMatchItem[];
 
-  // Match statistics for this team
-  const totalMatches = teamMatches.length;
-  const wonMatches = teamMatches.filter((m) => m.winning_team_id === id).length;
-  const lostMatches = teamMatches.filter(
-    (m) =>
-      m.winning_team_id && m.winning_team_id !== id && m.status === "completed",
-  ).length;
-  const tiedMatches = teamMatches.filter(
-    (m) => m.status === "completed" && !m.winning_team_id,
-  ).length;
-  const completedCount = wonMatches + lostMatches + tiedMatches;
-  const winRate =
-    completedCount > 0 ? Math.round((wonMatches / completedCount) * 100) : null;
+  // The team's record: finished matches only (upcoming ones are not played).
+  const record = teamRecordOf(teamMatches, id);
 
   return (
     <PageContainer stack={false}>
@@ -325,22 +335,31 @@ export default async function TeamDetailsPage({
       <ProfileHeader
         name={team.name}
         crest={
-          canEditLogo ? (
-            <TeamLogoEditor
-              teamId={team.id}
-              teamName={team.name}
-              shortName={team.short_name}
-              logoUrl={team.logo_url}
-            />
-          ) : (
-            <TeamCrest
-              name={team.name}
-              shortName={team.short_name}
-              logoUrl={team.logo_url}
-              size="xl"
-              className="shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
-            />
-          )
+          <TeamCrest
+            name={team.name}
+            shortName={team.short_name}
+            logoUrl={team.logo_url}
+            size="xl"
+            className="shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
+          />
+        }
+        actions={
+          <>
+            <EntityActions kind="team" id={team.id} name={team.name} />
+            {canManageTeam && (
+              <EditTeamDialog
+                team={{
+                  id: team.id,
+                  name: team.name,
+                  short_name: team.short_name,
+                  description: team.description,
+                  logo_url: team.logo_url,
+                  primary_color: team.primary_color,
+                  secondary_color: team.secondary_color,
+                }}
+              />
+            )}
+          </>
         }
         labels={
           <>
@@ -368,79 +387,81 @@ export default async function TeamDetailsPage({
       />
 
       <ContentSheet className="mt-6 sm:mt-8">
-      <StatGrid>
-        <StatTile icon={Swords} label="Played" value={totalMatches} />
-        <StatTile icon={Trophy} label="Won" value={wonMatches} />
-        <StatTile icon={X} label="Lost" value={lostMatches} />
-        <StatTile
-          icon={Percent}
-          label="Win rate"
-          value={winRate !== null ? `${winRate}%` : "–"}
-          hint={tiedMatches > 0 ? `${tiedMatches} tied or no result` : undefined}
-        />
-      </StatGrid>
+        <StatGrid>
+          <StatTile
+            icon={Swords}
+            label="Played"
+            value={record.played}
+            hint={
+              record.noWinner > 0
+                ? `${record.noWinner} tied or no result`
+                : undefined
+            }
+          />
+          <StatTile icon={Trophy} label="Won" value={record.won} />
+          <StatTile icon={X} label="Lost" value={record.lost} />
+          <StatTile
+            icon={Percent}
+            label="Win rate"
+            value={record.winRate !== null ? `${record.winRate}%` : "–"}
+          />
+        </StatGrid>
 
-      <div className="mt-6 space-y-6 sm:mt-8">
-        {/* Matches and squad */}
-        <div>
-          <Tabs
-            defaultValue={tournamentId ? "matches" : "matches"}
-            className="w-full"
-          >
-            <div className="flex items-center justify-between">
-              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
-                <TabsTrigger
-                  value="matches"
-                >
-                  Matches
-                </TabsTrigger>
-                <TabsTrigger
-                  value="squad"
-                >
-                  Squad
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="matches" className="mt-4">
-              <TeamMatchesView
-                currentTeamId={team.id}
-                matches={teamMatches}
-                tournamentInfo={tournamentInfo}
-              />
-            </TabsContent>
-
-            <TabsContent value="squad" className="mt-4 space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
-                  Squad roster
-                </h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <TeamSquadShare
-                    teamId={team.id}
-                    teamName={team.name}
-                    shortName={team.short_name}
-                    players={players.map((p) => ({
-                      full_name: p.user?.full_name ?? "Unknown",
-                      role_in_team: p.role_in_team,
-                      jersey_number: p.jersey_number,
-                    }))}
-                  />
-                  {canManageTeam && <AddPlayerDialog teamId={team.id} />}
-                </div>
+        <div className="mt-6 space-y-6 sm:mt-8">
+          {/* Matches and squad */}
+          <div>
+            <Tabs
+              defaultValue={tab === "squad" ? "squad" : "matches"}
+              className="w-full"
+            >
+              <div className="flex items-center justify-between">
+                <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
+                  <TabsTrigger value="matches">Matches</TabsTrigger>
+                  <TabsTrigger value="squad">Squad</TabsTrigger>
+                </TabsList>
               </div>
 
-              <PlayerList
-                teamId={team.id}
-                players={players}
-                allowEdit={canManageTeam}
-                tournamentId={tournamentId}
-                clubId={targetClubId}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="matches" className="mt-4">
+                <TeamMatchesView
+                  currentTeamId={team.id}
+                  matches={teamMatches}
+                  tournamentInfo={tournamentInfo}
+                />
+              </TabsContent>
+
+              <TabsContent value="squad" className="mt-4 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
+                    Squad
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TeamSquadShare
+                      teamId={team.id}
+                      teamName={team.name}
+                      shortName={team.short_name}
+                      players={players.map((p) => ({
+                        full_name: p.user?.full_name ?? "Unknown",
+                        role_in_team: p.role_in_team,
+                        jersey_number: p.jersey_number,
+                      }))}
+                    />
+                    {canManageTeam && <AddPlayerDialog teamId={team.id} />}
+                  </div>
+                </div>
+
+                <PlayerList
+                  teamId={team.id}
+                  teamName={team.name}
+                  players={players}
+                  claims={claims}
+                  allowEdit={canManageTeam}
+                  tournamentId={tournamentId}
+                  clubId={targetClubId}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
-      </div>
       </ContentSheet>
     </PageContainer>
   );

@@ -17,6 +17,9 @@ import {
   getDeadLetterCount,
   clearDeadLetterActions,
   skipHeadAction,
+  refusedHeadAction,
+  requeueDeadLetters,
+  discardDeadLetter,
   postReplayBatch,
   replayTimeoutMs,
   type PendingBallParams,
@@ -497,6 +500,56 @@ describe("Offline queue replay through /api/scoring/replay", () => {
     expect(seen).toEqual([undefined, true, true, true, true]);
     expect(getPendingActions(matchId)).toHaveLength(1);
     expect(getDeadLetterCount(matchId)).toBe(0);
+  });
+
+  it("lets only a head the server refused be skipped, never one that went unanswered", async () => {
+    enqueuePendingBall(ball(1));
+    enqueuePendingBall(ball(2));
+    // No reply (weak signal): it may yet be saved, so it is not skippable.
+    await flushPendingActions(matchId, async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(refusedHeadAction(matchId)).toBeNull();
+    // The server answers with a refusal (not fatal: retried, not dropped).
+    await flushPendingActions(
+      matchId,
+      routeLike({ recordBall: async () => ({ error: "Try again later" }) }),
+      { maxRetries: 5 },
+    );
+    const head = refusedHeadAction(matchId);
+    expect(head?.queueId).toBe(getPendingActions(matchId)[0]!.queueId);
+    expect(head?.lastError).toBe("Try again later");
+    // Unanswered again: no longer skippable.
+    await flushPendingActions(matchId, async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    expect(refusedHeadAction(matchId)).toBeNull();
+  });
+
+  it("puts dead-lettered actions back in order to send again, or discards one", async () => {
+    enqueueAction(matchId, "setBowler", { bowlerId: "b9" }, "q1", { instant: true });
+    enqueueAction(matchId, "recordBall", ball(4), "q2", { instant: true });
+    enqueueAction(matchId, "recordBall", ball(1), "q3", { instant: true });
+    // The first is refused for good: it and the two after it are dropped.
+    await flushPendingActions(
+      matchId,
+      routeLike({ setBowler: async () => ({ error: "invalid bowler" }) }),
+    );
+    expect(getDeadLetterActions(matchId).map((d) => d.action.queueId)).toEqual([
+      "q1",
+      "q2",
+      "q3",
+    ]);
+
+    discardDeadLetter(matchId, "q1");
+    expect(requeueDeadLetters(matchId)).toBe(2);
+    expect(getDeadLetterCount(matchId)).toBe(0);
+    const back = getPendingActions(matchId);
+    expect(back.map((a) => a.queueId)).toEqual(["q2", "q3"]);
+    // Sent again as offline-mode actions under the same ids.
+    expect(back.every((a) => !a.instant && !a.lastError && !a.refused)).toBe(
+      true,
+    );
   });
 
   it("passes on the documents of the batch that applied every action", async () => {

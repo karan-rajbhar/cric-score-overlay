@@ -1,3 +1,5 @@
+import type { DataSource } from "./datasource";
+import { canProduceOverlay as canProduceOverlayOn } from "./rpc/auth-helpers";
 import type { ServerClient } from "./server-client";
 
 /**
@@ -54,4 +56,25 @@ export async function canManageTeam(
     return true;
   }
   return isClubAdminOf(db, team.club_id, userId);
+}
+
+/**
+ * Who may drive a match's overlay graphics: its admins (creator, scorers,
+ * club / tournament admins) plus its streamers (`matches.match_streamers`).
+ * Streamers cannot score: `is_match_admin` stays false for them.
+ *
+ * Takes the request's server client (asks `rpc("can_produce_overlay")`) or
+ * a DataSource (the predicate in `rpc/auth-helpers.ts`, one copy).
+ */
+export async function canProduceOverlay(
+  db: ServerClient | DataSource,
+  matchId: string,
+  userId: string,
+): Promise<boolean> {
+  if ("kind" in db) return canProduceOverlayOn(db, matchId, userId);
+  const { data } = await db.rpc<boolean>("can_produce_overlay", {
+    p_match_id: matchId,
+    p_user_id: userId,
+  });
+  return data === true;
 }

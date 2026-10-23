@@ -18,6 +18,7 @@ import {
   createPlayerQuick,
 } from "~/app/teams/actions";
 import { toast } from "sonner";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 interface AddPlayerDialogProps {
   teamId: string;
@@ -53,6 +54,8 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
         if (cancelled) return;
         if (error) toast.error("Search failed");
         else setUsers((data ?? []) as FoundUser[]);
+      } catch {
+        if (!cancelled) toast.error(NETWORK_ERROR_MESSAGE);
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -80,7 +83,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
       if (result.error) toast.error(result.error);
       else finish(`${user.full_name ?? "Player"} added to the squad`);
     } catch {
-      toast.error("Failed to add player");
+      toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
       setBusy(null);
     }
@@ -94,7 +97,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
       if (result.error) toast.error(result.error);
       else finish(`${trimmed} added to the squad`);
     } catch {
-      toast.error("Failed to add player");
+      toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
       setBusy(null);
     }
@@ -148,51 +151,61 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
               ) : (
                 <UserPlus className="mr-2 h-4 w-4" />
               )}
-              <div className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto">
-                {results.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => void addExisting(user)}
-                    className="flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                        {user.full_name?.substring(0, 1)}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {user.full_name}
-                        </p>
-                        {user.username && (
-                          <p className="truncate font-mono text-xs text-muted-foreground">
-                            @{user.username}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {busy === user.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="h-4 w-4 shrink-0 text-primary" />
-                    )}
-                  </button>
-                ))}
-
-                {trimmed.length >= 2 && !searching && results.length === 0 && (
-                  <p className="px-1 py-2 text-xs text-muted-foreground">
-                    No registered player matches “{trimmed}”.
-                  </p>
-                )}
-                {searching && (
-                  <p className="px-1 py-2 text-xs text-muted-foreground">
-                    Searching…
-                  </p>
-                )}
-              </div>
-              Add “{trimmed}” as a new player
+              <span className="truncate">Add “{trimmed}” as a new player</span>
             </Button>
+          )}
+
+          {trimmed.length >= 2 && (
+            <div
+              className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto"
+              aria-label="Registered players"
+              role="group"
+            >
+              {results.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => void addExisting(user)}
+                  className="flex min-h-11 w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                      {user.full_name?.substring(0, 1)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {user.full_name}
+                      </p>
+                      {user.username && (
+                        <p className="truncate font-mono text-xs text-muted-foreground">
+                          @{user.username}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {busy === user.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus
+                      className="h-4 w-4 shrink-0 text-primary"
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              ))}
+
+              {!searching && results.length === 0 && (
+                <p className="px-1 py-2 text-xs text-muted-foreground">
+                  No registered player matches “{trimmed}”.
+                </p>
+              )}
+              {searching && (
+                <p className="px-1 py-2 text-xs text-muted-foreground">
+                  Searching…
+                </p>
+              )}
+            </div>
           )}
         </div>
       </DialogContent>

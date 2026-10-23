@@ -24,6 +24,9 @@ import {
 } from "~/lib/cricket";
 import type { Match, Innings } from "~/lib/match-types";
 import type { DeliveryToEdit } from "~/app/matches/[id]/score/components/EditBallDialog";
+import { bowlerQuota } from "~/app/matches/[id]/score/components/player-rows";
+import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
+import { limitsOfInnings } from "~/app/matches/[id]/score/innings-notice";
 import { cn } from "~/lib/utils";
 import { useMediaQuery } from "~/lib/hooks/useMediaQuery";
 
@@ -88,7 +91,15 @@ export function LiveMatchHUD({
   onChangeBowler,
   sunlightMode = false,
 }: LiveMatchHUDProps) {
-  const isSecondInnings = match.current_innings === 2;
+  const inningsNumber = match.current_innings ?? 1;
+  // Super overs (innings 3 on) are one over and two wickets a side.
+  const superOver = isSuperOverInnings(inningsNumber);
+  /** A chase: the match's 2nd innings, or a super over's. */
+  const isSecondInnings = inningsNumber % 2 === 0;
+  // The engine's limits for this innings (one over for a super over).
+  const limits = limitsOfInnings(match, inningsNumber);
+  const oversLimit = limits.maxBalls / limits.ballsPerOver;
+  const wicketsLimit = limits.wicketsCap;
   const firstInnings = useMemo(
     () => match.innings?.find((i) => i.innings_number === 1),
     [match.innings],
@@ -96,11 +107,11 @@ export function LiveMatchHUD({
 
   const targetRuns = useMemo(() => {
     if (currentInnings?.target_runs != null) return currentInnings.target_runs;
-    if (isSecondInnings && firstInnings?.total_runs != null) {
+    if (inningsNumber === 2 && firstInnings?.total_runs != null) {
       return firstInnings.total_runs + 1;
     }
     return null;
-  }, [currentInnings, isSecondInnings, firstInnings]);
+  }, [currentInnings, inningsNumber, firstInnings]);
 
   const ballsBowled = useMemo(
     () => (currentInnings ? inningsBalls(currentInnings) : 0),
@@ -108,15 +119,12 @@ export function LiveMatchHUD({
   );
 
   const bpo = match.balls_per_over ?? 6;
-  const totalInningsBalls = (match.overs_per_innings ?? 20) * bpo;
+  const totalInningsBalls = limits.maxBalls;
   const ballsRem = Math.max(0, totalInningsBalls - ballsBowled);
 
   const currentRuns = currentInnings?.total_runs ?? 0;
   const currentWickets = currentInnings?.total_wickets ?? 0;
-  const wicketsInHand = Math.max(
-    0,
-    (match.wickets_per_innings ?? 10) - currentWickets,
-  );
+  const wicketsInHand = Math.max(0, wicketsLimit - currentWickets);
 
   const runsNeeded = useMemo(() => {
     if (targetRuns == null || !isSecondInnings) return null;
@@ -131,8 +139,8 @@ export function LiveMatchHUD({
     if (isSecondInnings || ballsBowled === 0) return null;
     const crrNum = parseFloat(crr);
     if (isNaN(crrNum) || crrNum <= 0) return null;
-    return Math.round(crrNum * (match.overs_per_innings ?? 20));
-  }, [isSecondInnings, ballsBowled, crr, match.overs_per_innings]);
+    return Math.round(crrNum * oversLimit);
+  }, [isSecondInnings, ballsBowled, crr, oversLimit]);
 
   const proj8 = isSecondInnings
     ? null
@@ -157,14 +165,14 @@ export function LiveMatchHUD({
     };
   }, [currentInnings, currentRuns, ballsBowled, bpo]);
 
-  const maxBowlerOvers = Math.max(
-    1,
-    Math.ceil((match.overs_per_innings ?? 20) / 5),
-  );
+  // The same quota the bowler picker shows (none under five overs).
+  const maxBowlerOvers = superOver ? 1 : bowlerQuota(match.overs_per_innings);
   const bowlerBallsCount = bowler ? ballsFromOvers(bowler.overs, bpo) : 0;
-  const bowlerMaxBalls = maxBowlerOvers * bpo;
+  const bowlerMaxBalls = (maxBowlerOvers ?? 0) * bpo;
   const isBowlerSpellFinished =
-    bowlerBallsCount >= bowlerMaxBalls && bowlerBallsCount > 0;
+    maxBowlerOvers !== null &&
+    bowlerBallsCount >= bowlerMaxBalls &&
+    bowlerBallsCount > 0;
 
   const thisOverRuns = useMemo(
     () =>
@@ -222,7 +230,7 @@ export function LiveMatchHUD({
           onClick={onChangeBowler}
           aria-label="Change current bowler"
           title="Change bowler"
-          className="shadow-2xs inline-flex h-7 items-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:px-2"
+          className="shadow-2xs inline-flex h-11 min-w-11 items-center justify-center gap-1 rounded-lg border border-border/80 bg-background/80 px-1.5 text-2xs font-bold text-foreground hover:bg-muted sm:h-7 sm:min-w-0 sm:px-2"
         >
           <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <span className="hidden sm:inline">Change</span>
@@ -277,8 +285,9 @@ export function LiveMatchHUD({
                         : "border-white/20 bg-white/5 text-white/80",
                     )}
                   >
-                    Inns {match.current_innings} ·{" "}
-                    {match.match_format || "Match"}
+                    {superOver
+                      ? `Super over · ${isSecondInnings ? "2nd" : "1st"} innings`
+                      : `Inns ${inningsNumber} · ${match.match_format || "Match"}`}
                   </Badge>
                 </div>
                 <div className="mt-0.5 flex items-baseline gap-2">
@@ -299,7 +308,7 @@ export function LiveMatchHUD({
                     ({oversFromBalls(ballsBowled, bpo)} ov)
                   </span>
                   <span className={cn("text-2xs font-semibold sm:hidden", dim)}>
-                    of {match.overs_per_innings ?? 20}
+                    of {oversFromBalls(totalInningsBalls, bpo)}
                   </span>
                 </div>
               </div>
@@ -318,7 +327,7 @@ export function LiveMatchHUD({
                         : "border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white",
                     )}
                   >
-                    End inns
+                    End innings
                   </Button>
                   <Dialog
                     open={confirmEndOpen}
@@ -339,9 +348,9 @@ export function LiveMatchHUD({
                             {oversFromBalls(ballsBowled, bpo)}
                           </span>{" "}
                           overs.{" "}
-                          {(match.current_innings ?? 1) % 2 === 1
-                            ? `The next innings starts with a target of ${currentRuns + 1}.`
-                            : "No more balls can be scored in this innings."}
+                          {isSecondInnings
+                            ? "This ends the match: the result is worked out from the scores."
+                            : `The next innings starts with a target of ${currentRuns + 1}.`}
                         </DialogDescription>
                       </DialogHeader>
                       <DialogFooter className="gap-2 sm:gap-0">
@@ -394,7 +403,7 @@ export function LiveMatchHUD({
                 className={cn("shrink-0 text-xs font-bold tabular-nums", dim)}
               >
                 {oversFromBalls(ballsBowled, bpo)} /{" "}
-                {match.overs_per_innings ?? 20} ov
+                {oversFromBalls(totalInningsBalls, bpo)} ov
               </span>
             </div>
 
@@ -543,7 +552,7 @@ export function LiveMatchHUD({
                           bright,
                         )}
                       >
-                        1st Innings ·{" "}
+                        {superOver ? "Super over" : "1st innings"} ·{" "}
                         <span
                           className={cn(
                             "font-bold tabular-nums",
@@ -804,7 +813,7 @@ export function LiveMatchHUD({
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate text-xs font-semibold text-foreground sm:text-sm">
-                  {bowler ? bowler.name : "Select bowler"}
+                  {bowler ? bowler.name : "No bowler yet"}
                 </span>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <span className="whitespace-nowrap font-score text-sm font-bold tabular-nums text-foreground sm:text-base">
@@ -821,7 +830,7 @@ export function LiveMatchHUD({
                       <strong className="font-bold tabular-nums text-foreground">
                         {oversFromBalls(bowlerBallsCount, bpo)}
                       </strong>{" "}
-                      / {maxBowlerOvers}
+                      {maxBowlerOvers !== null && <> / {maxBowlerOvers}</>}
                     </span>
                     <span>
                       Econ:{" "}
@@ -836,19 +845,21 @@ export function LiveMatchHUD({
                       </strong>
                     </span>
                   </div>
-                  <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-muted sm:block">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        isBowlerSpellFinished
-                          ? "bg-warning"
-                          : "bg-foreground/40",
-                      )}
-                      style={{
-                        width: `${Math.min(100, (bowlerBallsCount / bowlerMaxBalls) * 100)}%`,
-                      }}
-                    />
-                  </div>
+                  {maxBowlerOvers !== null && (
+                    <div className="mt-1.5 hidden h-1.5 w-full overflow-hidden rounded-full bg-muted sm:block">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300",
+                          isBowlerSpellFinished
+                            ? "bg-warning"
+                            : "bg-foreground/40",
+                        )}
+                        style={{
+                          width: `${Math.min(100, (bowlerBallsCount / bowlerMaxBalls) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-[0.625rem] text-muted-foreground sm:text-xs">
@@ -857,7 +868,7 @@ export function LiveMatchHUD({
               )}
               {isBowlerSpellFinished && (
                 <p className="mt-1 text-[0.625rem] font-bold text-warning">
-                  Max quota reached ({maxBowlerOvers} ov)
+                  Quota bowled ({maxBowlerOvers} ov)
                 </p>
               )}
             </div>

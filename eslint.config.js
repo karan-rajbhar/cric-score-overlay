@@ -10,6 +10,8 @@ const eslintConfig = [
       "supabase/.temp/**",
       "supabase/functions/**",
       "coverage/**",
+      // Local agent worktrees (git-ignored copies of the repo).
+      ".claude/**",
     ],
   },
   ...coreWebVitals,

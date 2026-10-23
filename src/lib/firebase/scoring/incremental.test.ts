@@ -26,10 +26,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import {
-  MATCH_DETAIL_SELECT,
-  PARTNERSHIPS_SELECT,
-} from "~/app/matches/match-select";
+import { MATCH_DETAIL_SELECT } from "~/app/matches/match-select";
 import {
   canonicalJson,
   inningsSummaryEntry,
@@ -165,19 +162,9 @@ function rendered(innings: Array<Record<string, unknown>>): unknown[] {
     });
 }
 
-const PARTNERSHIP_FIELDS = PARTNERSHIPS_SELECT.split(",")
-  .map((f) => f.trim().split(":")[0]!)
-  .filter(Boolean);
-
-function partnershipRows(rows: Array<Record<string, unknown>>): unknown[] {
-  return rows
-    .map((r) => Object.fromEntries(PARTNERSHIP_FIELDS.map((k) => [k, r[k]])))
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
-}
-
 /**
  * `live_scorecard/{matchId}` equals a fresh build from the stored innings,
- * and renders exactly what `getMatch` / `getPartnerships` return.
+ * and renders exactly what `getMatch` returns.
  */
 async function checkLiveScorecard(
   ds: Stage2Side["ds"],
@@ -216,14 +203,6 @@ async function checkLiveScorecard(
   const view = liveScorecardView(card);
   expect(rendered(view.innings)).toEqual(
     rendered(expected as Array<Record<string, unknown>>),
-  );
-  const { data: stands } = await client
-    .from("partnerships")
-    .select(PARTNERSHIPS_SELECT)
-    .eq("match_id", matchId)
-    .order("start_over");
-  expect(partnershipRows(view.partnerships)).toEqual(
-    partnershipRows((stands ?? []) as Array<Record<string, unknown>>),
   );
 }
 

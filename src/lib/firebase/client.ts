@@ -1,7 +1,7 @@
 /**
  * Browser-side Firebase client.
  *
- * Exposes the same `from()` / `rpc()` / `channel()` surface the client
+ * Exposes the same `from()` / `rpc()` surface the client
  * components already use, backed by the Firebase web SDK. Reads are
  * governed by `firestore.rules`; writes happen through server actions.
  */
@@ -30,9 +30,9 @@ import {
 import { WebDataSource } from "./datasource-web";
 import { expandEmbedded, legacyRowsDataSource } from "./legacy-rows";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
-import { RealtimeChannel } from "./realtime";
 import {
   canDeleteMatch,
+  canProduceOverlay,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
@@ -143,6 +143,15 @@ export class BrowserClient {
             )) as T,
             error: null,
           };
+        case "can_produce_overlay":
+          return {
+            data: (await canProduceOverlay(
+              this.ds,
+              String(args.p_match_id ?? ""),
+              userArg,
+            )) as T,
+            error: null,
+          };
         case "is_club_member":
           return {
             data: (await isClubMember(
@@ -175,14 +184,6 @@ export class BrowserClient {
         error: { message: err instanceof Error ? err.message : String(err) },
       };
     }
-  }
-
-  channel(topic: string): RealtimeChannel {
-    return new RealtimeChannel(this.db, topic);
-  }
-
-  async removeChannel(channel: RealtimeChannel): Promise<"ok"> {
-    return channel.unsubscribe();
   }
 }
 

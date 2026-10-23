@@ -38,7 +38,6 @@ vi.mock("~/lib/firebase/realtime", () => ({
 const getMatch = vi.fn();
 vi.mock("~/app/matches/queries", () => ({
   getMatch: (...args: unknown[]) => getMatch(...args),
-  getPartnerships: vi.fn(),
   getOverSummaries: vi.fn(),
   getMatchBallLog: vi.fn(),
   getMatches: vi.fn(),
@@ -122,6 +121,27 @@ describe("applyLiveState", () => {
     expect(patched.innings?.[0]?.total_balls).toBe(7);
   });
 
+  it("carries a DLS revision of the innings in play onto the match", () => {
+    const patched = applyLiveState(
+      baseMatch(),
+      liveDoc(7, {
+        target_runs: 98,
+        dls_overs: 12,
+        innings_number: 2,
+      }) as unknown as LiveMatchState,
+    );
+    expect(patched.dls_revision).toEqual({
+      innings_number: 2,
+      target_runs: 98,
+      overs: 12,
+    });
+    // Without one the match keeps what it had.
+    expect(
+      applyLiveState(baseMatch(), liveDoc(7) as unknown as LiveMatchState)
+        .dls_revision,
+    ).toBeUndefined();
+  });
+
   it("ignores a live row for another match", () => {
     const match = baseMatch();
     const other = { ...liveDoc(3), match_id: "other" };
@@ -138,8 +158,12 @@ describe("useLiveState", () => {
     expect(watches).toHaveLength(1);
     expect(watches[0]).toMatchObject({ table: "live_state", id: MATCH_ID });
 
-    act(() => watches[0]!.next(liveDoc(4)));
+    act(() =>
+      watches[0]!.next({ ...liveDoc(4), updated_at: "2026-10-22T10:00:00.000Z" }),
+    );
     expect(a.result.current.version).toBe(4);
+    // When it last changed, for the "Updated 2 min ago" line.
+    expect(a.result.current.updatedAt).toBe("2026-10-22T10:00:00.000Z");
     expect(b.result.current.state?.total_runs).toBe(40);
     expect(a.result.current.state).not.toHaveProperty("refs");
 

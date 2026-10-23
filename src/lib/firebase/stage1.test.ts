@@ -179,8 +179,18 @@ describe("team snapshots on match lists", () => {
     expect(calls).toBe(1);
     expect(reads).toBe(seed.teams!.length);
     const withSnapshots = await list(new MemoryDataSource(seed));
-    expect(rows.map((r) => [r.team1, r.team2])).toEqual(
-      withSnapshots.rows.map((r) => [r.team1, r.team2]),
+    // Seed snapshots predate team colours; a fresh one carries them (null).
+    const display = (t: unknown) => {
+      const { primary_color, secondary_color, ...rest } = (t ?? {}) as Record<
+        string,
+        unknown
+      >;
+      expect(primary_color ?? null).toBeNull();
+      expect(secondary_color ?? null).toBeNull();
+      return rest;
+    };
+    expect(rows.map((r) => [display(r.team1), display(r.team2)])).toEqual(
+      withSnapshots.rows.map((r) => [display(r.team1), display(r.team2)]),
     );
   });
 
@@ -228,6 +238,8 @@ describe("syncTeamSnapshots", () => {
       name: "Tigers",
       short_name: "TIG",
       logo_url: "https://x/logo.png",
+      primary_color: null,
+      secondary_color: null,
     });
     expect((await ds.getById("matches", "m2"))?.team2_snapshot).toMatchObject({
       logo_url: "https://x/logo.png",

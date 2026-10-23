@@ -23,6 +23,8 @@ import {
   CalendarClock,
 } from "lucide-react";
 import { RegisterTeamDialog } from "~/components/tournaments/register-team-dialog";
+import { TournamentManageDialog } from "~/components/tournaments/tournament-manage-dialog";
+import { RescheduleMatchDialog } from "~/components/matches/reschedule-match-dialog";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
   PointsTableShare,
@@ -49,8 +51,12 @@ import { Chip } from "~/components/ds/chip";
 import { ListCard, ListRow, MetaItem } from "~/components/ds/list";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
+import { EntityActions } from "~/components/follow/entity-actions";
+import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-round-dialog";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
+import { matchGroupsOf } from "~/lib/match-groups";
+import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +78,8 @@ interface MatchRow {
   status: string | null;
   venue: string | null;
   scheduled_at: string | null;
+  umpire1_name?: string | null;
+  umpire2_name?: string | null;
   result_type: string | null;
   win_margin: number | null;
   win_margin_type: string | null;
@@ -87,7 +95,8 @@ const loadTournament = cache(async (id: string) => {
   const db = await createServerClient();
   return db
     .from("tournaments")
-    .select("*, club:clubs(id, name, short_name)")
+    // owner_id: the club admin check below needs no second club read.
+    .select("*, club:clubs(id, name, short_name, owner_id)")
     .eq("id", id)
     .single();
 });
@@ -121,16 +130,14 @@ export default async function TournamentPage({
 
   const [
     { data: tournament },
-    { data: standings },
+    { data: standingRows },
     { data: registrations },
     { data: matches },
   ] = await Promise.all([
     loadTournament(id),
     db
       .from("tournament_standings")
-      .select(
-        "*, team:teams!tournament_standings_team_id_fkey(id, name, short_name, logo_url)",
-      )
+      .select("*")
       .eq("tournament_id", id)
       .order("points", { ascending: false })
       .order("net_run_rate", { ascending: false }),
@@ -148,7 +155,7 @@ export default async function TournamentPage({
       .select(
         `
                 id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-                result_type, win_margin, win_margin_type, result_description, winning_team_id,
+                umpire1_name, umpire2_name, result_type, win_margin, win_margin_type, result_description, winning_team_id,
                 ${MATCH_TEAM_COLUMNS},
                 innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
             `,
@@ -159,6 +166,45 @@ export default async function TournamentPage({
 
   if (!tournament) notFound();
   await attachMatchTeams(db, matches ?? []);
+
+  // The points table's teams are the registered teams, whose documents the
+  // registrations query has just read: only a team no longer registered is
+  // read again (as `team:teams(id, name, short_name, logo_url)` would).
+  type StandingTeam = {
+    id: string;
+    name: string;
+    short_name: string | null;
+    logo_url: string | null;
+  };
+  const standingTeams = new Map<string, StandingTeam | null>();
+  for (const r of registrations ?? []) {
+    const t = r.team as StandingTeam | null;
+    standingTeams.set(
+      r.team_id,
+      t
+        ? {
+            id: t.id,
+            name: t.name,
+            short_name: t.short_name,
+            logo_url: t.logo_url,
+          }
+        : null,
+    );
+  }
+  const unregistered = [
+    ...new Set((standingRows ?? []).map((s) => s.team_id)),
+  ].filter((teamId) => !standingTeams.has(teamId));
+  if (unregistered.length) {
+    const { data } = await db
+      .from("teams")
+      .select("id, name, short_name, logo_url")
+      .in("id", unregistered);
+    for (const t of (data ?? []) as StandingTeam[]) standingTeams.set(t.id, t);
+  }
+  const standings = (standingRows ?? []).map((s) => ({
+    ...s,
+    team: standingTeams.get(s.team_id) ?? null,
+  }));
 
   // Super Stars & Leaderboards: the tournament's stored leaderboard (one
   // read) plus any innings still in play.
@@ -175,11 +221,7 @@ export default async function TournamentPage({
 
   let isClubAdmin = false;
   if (user && tournament.club_id) {
-    const { data: club } = await db
-      .from("clubs")
-      .select("owner_id")
-      .eq("id", tournament.club_id)
-      .single();
+    const club = tournament.club as { owner_id?: string | null } | null;
 
     if (club?.owner_id === user.id) {
       isClubAdmin = true;
@@ -200,9 +242,23 @@ export default async function TournamentPage({
   const isTournamentAdmin =
     !!user && (tournament.created_by === user.id || isClubAdmin);
 
+  // Organisers manage the tournament here; a club's seasons can be linked.
+  const seasons: Array<{ id: string; name: string }> =
+    isTournamentAdmin && tournament.club_id
+      ? (((
+          await db
+            .from("club_seasons")
+            .select("id, name")
+            .eq("club_id", tournament.club_id)
+            .order("created_at", { ascending: false })
+        ).data ?? []) as Array<{ id: string; name: string }>)
+      : [];
+
   // Teams the viewer may register: every team for tournament admins,
-  // otherwise only teams they have a stake in (indexed queries instead of
-  // reading every team). Anonymous viewers need none.
+  // otherwise the teams they manage (created, captain, vice-captain, or run
+  // as a club admin: the server's `canManageTeam`), not teams they only
+  // play for. Indexed queries instead of reading every team; anonymous
+  // viewers need none.
   const TEAM_COLUMNS =
     "id, name, short_name, club_id, created_by, captain_id, vice_captain_id";
   let allTeams: Array<{ id: string; name: string; short_name: string | null }> =
@@ -212,8 +268,7 @@ export default async function TournamentPage({
     const { data } = await db.from("teams").select(TEAM_COLUMNS).order("name");
     allTeams = data ?? [];
   } else if (user) {
-    const [teamPlayersRes, clubMemsRes, clubsRes] = await Promise.all([
-      db.from("team_players").select("team_id").eq("user_id", user.id),
+    const [clubMemsRes, clubsRes] = await Promise.all([
       db
         .from("club_memberships")
         .select("club_id")
@@ -227,17 +282,10 @@ export default async function TournamentPage({
       ...(clubMemsRes.data ?? []).map((m) => m.club_id),
       ...(clubsRes.data ?? []).map((c) => c.id),
     ]);
-    const playerTeamIds = new Set<string>(
-      (teamPlayersRes.data ?? []).map((r) => r.team_id),
-    );
-
     const stakes = await Promise.all([
       db.from("teams").select(TEAM_COLUMNS).eq("created_by", user.id),
       db.from("teams").select(TEAM_COLUMNS).eq("captain_id", user.id),
       db.from("teams").select(TEAM_COLUMNS).eq("vice_captain_id", user.id),
-      playerTeamIds.size
-        ? db.from("teams").select(TEAM_COLUMNS).in("id", [...playerTeamIds])
-        : Promise.resolve({ data: [] }),
       adminClubIds.size
         ? db
             .from("teams")
@@ -265,7 +313,6 @@ export default async function TournamentPage({
           t.created_by === user.id ||
           t.captain_id === user.id ||
           t.vice_captain_id === user.id ||
-          playerTeamIds.has(t.id) ||
           (t.club_id && adminClubIds.has(t.club_id))
         ) {
           myTeamIds.add(t.id);
@@ -286,8 +333,12 @@ export default async function TournamentPage({
 
   const canRegisterTeams = isTournamentAdmin || availableTeams.length > 0;
 
+  // Organisers see every request; a team's manager sees their own.
+  const availableTeamIds = new Set(availableTeams.map((t) => t.id));
   const pendingRegistrations = (registrations ?? []).filter(
-    (r) => r.status === "pending",
+    (r) =>
+      r.status === "pending" &&
+      (isTournamentAdmin || availableTeamIds.has(r.team_id)),
   );
   const confirmedRegistrations = (registrations ?? []).filter(
     (r) => r.status === "confirmed",
@@ -328,9 +379,12 @@ export default async function TournamentPage({
   });
 
   const typedMatches = (matches ?? []) as unknown as MatchRow[];
-  const liveMatches = typedMatches.filter((m) => m.status === "live");
-  const upcomingMatches = typedMatches.filter((m) => m.status === "scheduled");
-  const completedMatches = typedMatches.filter((m) => m.status === "completed");
+  const {
+    live: liveMatches,
+    upcoming: upcomingMatches,
+    results: completedMatches,
+    noResult: noResultMatches,
+  } = matchGroupsOf(typedMatches);
 
   const targetClubId = resolvedSearchParams?.clubId;
   const matchQuery = `tournamentId=${tournament.id}${
@@ -343,7 +397,7 @@ export default async function TournamentPage({
   const backLabel =
     targetClubId && clubInfo?.name
       ? `Back to ${clubInfo.name}`
-      : "All Tournaments";
+      : "All tournaments";
 
   return (
     <PageContainer stack={false}>
@@ -441,13 +495,16 @@ export default async function TournamentPage({
         }
         actions={
           <>
+            <EntityActions kind="tournament" id={tournament.id} name={tournament.name} />
             {canRegisterTeams && (
               <RegisterTeamDialog
                 tournamentId={tournament.id}
                 availableTeams={availableTeams}
                 registeredTeamIds={registeredTeamIds}
+                isOrganiser={isTournamentAdmin}
               />
             )}
+            {isTournamentAdmin && <SponsorLogosDialog scope="tournament" scopeId={tournament.id} />}
             {isTournamentAdmin && (
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
@@ -455,6 +512,31 @@ export default async function TournamentPage({
                   Schedule match
                 </Link>
               </Button>
+            )}
+            {isTournamentAdmin && (
+              <TournamentManageDialog
+                tournament={{
+                  id: tournament.id,
+                  name: tournament.name,
+                  description: tournament.description,
+                  tournament_format: tournament.tournament_format,
+                  match_format: tournament.match_format,
+                  overs_per_innings: tournament.overs_per_innings,
+                  wickets_per_innings: tournament.wickets_per_innings,
+                  status: tournament.status,
+                  venue: tournament.venue,
+                  start_date: tournament.start_date,
+                  end_date: tournament.end_date,
+                  season_id: tournament.season_id,
+                }}
+                seasons={seasons}
+                clubId={tournament.club_id}
+                afterDeleteHref={
+                  tournament.club_id
+                    ? `/clubs/${tournament.club_id}?tab=tournaments`
+                    : "/tournaments"
+                }
+              />
             )}
           </>
         }
@@ -528,6 +610,7 @@ export default async function TournamentPage({
                     tournamentId={tournament.id}
                     availableTeams={availableTeams}
                     registeredTeamIds={registeredTeamIds}
+                    isOrganiser={isTournamentAdmin}
                   />
                 </div>
               )}
@@ -586,9 +669,14 @@ export default async function TournamentPage({
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
           {isTournamentAdmin && (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {typedMatches.length === 0 && (
-                <GenerateFixturesButton tournamentId={tournament.id} />
+              {typedMatches.length === 0 &&
+                !isBracketFormat(tournament.tournament_format) && (
+                <GenerateFixturesButton
+                  tournamentId={tournament.id}
+                  startDate={tournament.start_date}
+                />
               )}
+              {isBracketFormat(tournament.tournament_format) && <NextRoundDialog tournamentId={tournament.id} />}
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
@@ -634,14 +722,25 @@ export default async function TournamentPage({
               />
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {upcomingMatches.map((m) => (
-                  <MatchCard
-                    key={m.id}
-                    match={m as unknown as Match}
-                    contextQuery={matchQuery}
-                    showActions={false}
-                  />
-                ))}
+                {upcomingMatches.map((m) =>
+                  isTournamentAdmin ? (
+                    <div key={m.id} className="min-w-0 space-y-2">
+                      <MatchCard
+                        match={m as unknown as Match}
+                        contextQuery={matchQuery}
+                        showActions={false}
+                      />
+                      <RescheduleMatchDialog match={m} />
+                    </div>
+                  ) : (
+                    <MatchCard
+                      key={m.id}
+                      match={m as unknown as Match}
+                      contextQuery={matchQuery}
+                      showActions={false}
+                    />
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -664,6 +763,25 @@ export default async function TournamentPage({
               </div>
             </div>
           )}
+
+          {/* Abandoned or cancelled: the points table's NR column. */}
+          {noResultMatches.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-foreground">
+                No result
+              </h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                {noResultMatches.map((m) => (
+                  <MatchCard
+                    key={m.id}
+                    match={m as unknown as Match}
+                    contextQuery={matchQuery}
+                    showActions={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* TAB 3: TEAMS & SQUADS */}
@@ -674,12 +792,13 @@ export default async function TournamentPage({
                 tournamentId={tournament.id}
                 availableTeams={availableTeams}
                 registeredTeamIds={registeredTeamIds}
+                isOrganiser={isTournamentAdmin}
               />
             </div>
           )}
 
-          {/* Join requests, for the organisers */}
-          {isTournamentAdmin && pendingRegistrations.length > 0 && (
+          {/* Join requests: all for the organisers, your own otherwise */}
+          {pendingRegistrations.length > 0 && (
             <section aria-labelledby="pending-requests" className="space-y-2">
               <h3
                 id="pending-requests"
@@ -719,10 +838,16 @@ export default async function TournamentPage({
                             : "recently"}
                         </span>
                       </span>
-                      <RegistrationApprovalActions
-                        registrationId={r.id}
-                        tournamentId={tournament.id}
-                      />
+                      {isTournamentAdmin ? (
+                        <RegistrationApprovalActions
+                          registrationId={r.id}
+                          tournamentId={tournament.id}
+                        />
+                      ) : (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          The organisers confirm it
+                        </span>
+                      )}
                     </div>
                   );
                 })}

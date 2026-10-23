@@ -70,7 +70,7 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
       value: b.highestScoreDisplay,
       label: b.highestScoreBalls
         ? `${b.highestScoreBalls} balls in knock • SR ${b.highestScoreStrikeRateDisplay}`
-        : "Highest Innings",
+        : "Highest innings",
     }),
     getContextStats: (b) => [
       {
@@ -156,7 +156,7 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
     heroLabel: "Sixes struck",
     getHeroStat: (b) => ({
       value: `${b.sixes}`,
-      label: b.sixes === 1 ? "Six Hit" : "Sixes Hit",
+      label: b.sixes === 1 ? "Six hit" : "Sixes hit",
     }),
     getContextStats: (b) => [
       { label: "Runs from sixes", value: `${b.sixes * 6}` },
@@ -172,7 +172,7 @@ const BATTING_CONFIGS: Record<BattingSortOption, MetricConfig<BattingLeaderboard
     heroLabel: "Fours struck",
     getHeroStat: (b) => ({
       value: `${b.fours}`,
-      label: b.fours === 1 ? "Four Hit" : "Fours Hit",
+      label: b.fours === 1 ? "Four hit" : "Fours hit",
     }),
     getContextStats: (b) => [
       { label: "Runs from fours", value: `${b.fours * 4}` },
@@ -204,7 +204,7 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
     heroLabel: "Wickets taken",
     getHeroStat: (bw) => ({
       value: `${bw.wickets}`,
-      label: bw.wickets === 1 ? "Wicket" : "Wickets Taken",
+      label: bw.wickets === 1 ? "Wicket" : "Wickets taken",
     }),
     getContextStats: (bw) => [
       { label: "Overs bowled", value: bw.overs },
@@ -222,7 +222,7 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
       value: bw.bestBowling.display,
       label: bw.bestBowling.overs
         ? `${bw.bestBowling.overs} ov • Econ ${bw.bestBowling.economy}`
-        : "Best Match Spell",
+        : "Best match spell",
     }),
     getContextStats: (bw) => [
       {
@@ -270,7 +270,7 @@ const BOWLING_CONFIGS: Record<BowlingSortOption, MetricConfig<BowlingLeaderboard
     heroLabel: "Maiden overs",
     getHeroStat: (bw) => ({
       value: `${bw.maidens}`,
-      label: bw.maidens === 1 ? "Maiden Over" : "Maiden Overs",
+      label: bw.maidens === 1 ? "Maiden over" : "Maiden overs",
     }),
     getContextStats: (bw) => [
       { label: "Overs bowled", value: bw.overs },
@@ -337,7 +337,7 @@ const FIELDING_CONFIGS: Record<FieldingSortOption, MetricConfig<FieldingLeaderbo
     heroLabel: "Total dismissals",
     getHeroStat: (f) => ({
       value: `${f.totalDismissals}`,
-      label: f.totalDismissals === 1 ? "Dismissal" : "Total Dismissals",
+      label: f.totalDismissals === 1 ? "Dismissal" : "Total dismissals",
     }),
     getContextStats: (f) => [
       { label: "Catches (ct)", value: `${f.catches}` },
@@ -382,7 +382,7 @@ const FIELDING_CONFIGS: Record<FieldingSortOption, MetricConfig<FieldingLeaderbo
     heroLabel: "Run outs executed",
     getHeroStat: (f) => ({
       value: `${f.runOuts}`,
-      label: f.runOuts === 1 ? "Run Out" : "Run Outs",
+      label: f.runOuts === 1 ? "Run out" : "Run outs",
     }),
     getContextStats: (f) => [
       { label: "Matches played", value: `${f.matches}` },
@@ -2290,7 +2290,7 @@ export function LeaderboardView({
     return (
       <EmptyState
         icon={Activity}
-        title="No Leaderboard Statistics Available"
+        title="No leaderboard figures yet"
         description="Detailed leaderboards for batting, bowling, fielding, and MVP will automatically appear as match scorecards are recorded."
       />
     );

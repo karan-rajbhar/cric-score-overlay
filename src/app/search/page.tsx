@@ -2,6 +2,7 @@ import Link from "next/link";
 import { globalSearch } from "./actions";
 import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { MatchStatusChip } from "~/components/ds/chip";
 import { Initials } from "~/components/ui/initials";
 import { PageContainer, PageHeader, SectionHeader } from "~/components/layout/page";
 import { Search } from "lucide-react";
@@ -117,7 +118,7 @@ export default async function SearchPage({
                           {x.venue ?? "—"}
                         </p>
                       </div>
-                      <StatusBadge status={x.status} className="shrink-0" />
+                      <MatchStatusChip status={x.status} className="shrink-0" />
                     </div>
                 </Link>
               );

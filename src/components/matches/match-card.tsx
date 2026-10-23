@@ -9,7 +9,13 @@ import {
   MatchCard as MatchCardView,
 } from "~/components/ds/match-card";
 import { MatchNote } from "~/components/ds/score";
-import { formatMatchResult, sidesInBattingOrder } from "~/lib/cricket";
+import {
+  displayStatusOf,
+  formatMatchResult,
+  formatStatus,
+  sidesInBattingOrder,
+} from "~/lib/cricket";
+import type { InningsRef } from "~/components/ds/score";
 import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
 import { liveLine, ref, teamRef } from "./match-hero";
@@ -37,6 +43,32 @@ export function matchStart(iso?: string | null) {
     }),
     time: d.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit" }),
   };
+}
+
+/** "158 for 9 (20.0 overs)": a score as it is read aloud. */
+const spokenScore = (inn: InningsRef) =>
+  `${inn.runs} for ${inn.wickets} (${inn.overs} overs)`;
+
+/**
+ * What a screen reader hears for a card, which replaces what it shows: the
+ * sides, the status, each side's score and the line under them.
+ */
+export function matchCardLabel({
+  status,
+  sides,
+  note,
+}: {
+  status: string;
+  sides: { name: string; innings?: InningsRef }[];
+  note?: string | null;
+}): string {
+  const names = sides.map((s) => s.name).join(" versus ");
+  const scores = sides
+    .map((s) => `${s.name} ${s.innings ? spokenScore(s.innings) : "yet to bat"}`)
+    .join(", ");
+  return [`${names}, ${formatStatus(status).toLowerCase()}`, scores, note]
+    .filter(Boolean)
+    .join(". ");
 }
 
 /**
@@ -76,6 +108,13 @@ export function MatchCard({
     return (
       <FixtureCard
         href={href}
+        label={[
+          `${match.team1.name} versus ${match.team2.name}, upcoming`,
+          start ? `${start.date} at ${start.time}` : "date to be confirmed",
+          match.venue,
+        ]
+          .filter(Boolean)
+          .join(", ")}
         date={[start?.date ?? "Date to be confirmed", competition]
           .filter(Boolean)
           .join(" · ")}
@@ -107,25 +146,36 @@ export function MatchCard({
     dim: dim(s.team.id),
   });
 
+  const status = displayStatusOf(match);
   const result = match.result_description ? formatMatchResult(match) : null;
   const chase = batting ? liveLine(match, batting, bpo) : null;
   const note = result ? (
     <MatchNote tone="result">{result}</MatchNote>
   ) : chase ? (
     <MatchNote tone="live">{chase}</MatchNote>
-  ) : match.status === "innings_break" ? (
+  ) : status === "innings_break" ? (
     <MatchNote>Innings break</MatchNote>
   ) : match.venue ? (
     <MatchNote className="truncate">{match.venue}</MatchNote>
   ) : null;
+  const first = side(sides[0]);
+  const second = side(sides[1]);
 
   return (
     <MatchCardView
       href={href}
+      label={matchCardLabel({
+        status,
+        sides: [
+          { name: first.team.name, innings: first.innings },
+          { name: second.team.name, innings: second.innings },
+        ],
+        note: result ?? chase,
+      })}
       competition={competition ? `${competition} · ${format}` : format}
-      status={match.status}
-      first={side(sides[0])}
-      second={side(sides[1])}
+      status={status}
+      first={first}
+      second={second}
       note={
         detail ? (
           <>

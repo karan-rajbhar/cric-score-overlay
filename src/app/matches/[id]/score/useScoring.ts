@@ -10,12 +10,17 @@ import {
   getPendingCount,
   popLastAction,
   getPendingActions,
-  getDeadLetterCount,
+  getDeadLetterActions,
+  clearDeadLetterActions,
+  discardDeadLetter,
+  refusedHeadAction,
+  requeueDeadLetters,
   skipHeadAction,
   newActionId,
   postReplayBatch,
   toReplayBatch,
   type AwardPenaltyPayload,
+  type DeadLetterItem,
   type FlushResult,
   type QueuedAction,
   type ReplaceBatterPayload,
@@ -59,8 +64,14 @@ import {
 } from "../../../teams/actions";
 import { toast } from "sonner";
 import type { Match, TeamPlayer } from "~/lib/match-types";
-import type { BallEvent, ScoringState, ExtraType } from "../../types";
+import type {
+  BallEvent,
+  ScoringState,
+  ExtraType,
+  NoBallRuns,
+} from "../../types";
 import type { DeliveryToEdit } from "./components/EditBallDialog";
+import { isChaseInnings, OFFLINE_MATCH_OVER } from "./innings-notice";
 import {
   applyLiveResync,
   applyScoringDelta,
@@ -75,6 +86,10 @@ import {
  * `NEXT_PUBLIC_INSTANT_SCORING=false` to wait for the server instead.
  */
 const INSTANT_SCORING = process.env.NEXT_PUBLIC_INSTANT_SCORING !== "false";
+
+/** A server action that got no answer (the toss needs a connection). */
+export const NO_CONNECTION_TOSS =
+  "No connection: the toss was not saved. Try again when you have signal.";
 
 /** Retry delays (ms) while queued actions cannot reach the server. */
 const RETRY_DELAYS = [2_000, 4_000, 8_000, 15_000, 30_000];
@@ -255,9 +270,20 @@ export function useScoring(
   const [pendingCount, setPendingCount] = useState(() =>
     getPendingCount(matchId),
   );
-  const [deadLetterCount, setDeadLetterCount] = useState(() =>
-    getDeadLetterCount(matchId),
+  /** Actions the server refused (or that came after one), kept for review. */
+  const [deadLetters, setDeadLetters] = useState<DeadLetterItem[]>(() =>
+    getDeadLetterActions(matchId),
   );
+  /** The queue's head, when the server answered it with a refusal. */
+  const [refusedHead, setRefusedHead] = useState<QueuedAction | null>(() =>
+    refusedHeadAction(matchId),
+  );
+  /** Re-read the queue's counts, dead letters and refused head. */
+  const refreshQueueState = useCallback(() => {
+    setPendingCount(getPendingCount(matchId));
+    setDeadLetters(getDeadLetterActions(matchId));
+    setRefusedHead(refusedHeadAction(matchId));
+  }, [matchId]);
   const localCtxRef = useRef<LocalScoringContext | null>(null);
   const playersRef = useRef<{ batting: Player[]; bowling: Player[] }>({
     batting: [],
@@ -916,8 +942,7 @@ export function useScoring(
       // after a lost response is not applied twice.
       const res = await flushPendingActions(matchId, sendBatch);
 
-      setPendingCount(getPendingCount(matchId));
-      setDeadLetterCount(getDeadLetterCount(matchId));
+      refreshQueueState();
       const appliedIds = new Set(res.applied ?? []);
       const applied = sent.filter((a) => appliedIds.has(a.queueId));
       // Every applied action is one this pass knew of (not one queued while
@@ -1008,7 +1033,16 @@ export function useScoring(
       if (loud) setIsProcessing(false);
       return res;
     },
-    [matchId, sendBatch, syncFromDb, applySnapshot, squadNames, checkPrediction, announceChange],
+    [
+      matchId,
+      sendBatch,
+      syncFromDb,
+      applySnapshot,
+      squadNames,
+      checkPrediction,
+      announceChange,
+      refreshQueueState,
+    ],
   );
 
   /**
@@ -1403,7 +1437,7 @@ export function useScoring(
       return;
     }
     if (state.innings_break) {
-      toast.info("Innings break — set new batsmen and bowler");
+      toast.info("Innings break: choose the openers and the bowler");
       void catchUp();
       return;
     }
@@ -1528,14 +1562,22 @@ export function useScoring(
   ) => {
     clearUndone();
     setIsProcessing(true);
-    const result = await startMatch(matchId, tossWinner, tossDecision);
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      await syncFromDb();
+    try {
+      const result = await startMatch(matchId, tossWinner, tossDecision);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        await syncFromDb();
+      }
+      return result;
+    } catch {
+      // No answer (no signal at the ground): nothing was saved.
+      const error = NO_CONNECTION_TOSS;
+      toast.error(error);
+      return { data: null, error };
+    } finally {
+      setIsProcessing(false);
     }
-    setIsProcessing(false);
-    return result;
   };
 
   const scoreOffline = (
@@ -1546,14 +1588,14 @@ export function useScoring(
     actionId?: string,
   ) => {
     if (!bowlerId) {
-      toast.error("Select a bowler before scoring");
+      toast.error("Choose the bowler before scoring");
       setIsProcessing(false);
-      return { data: null, error: "Select a bowler before scoring" };
+      return { data: null, error: "Choose the bowler before scoring" };
     }
     if (!batsmanId || !nonStriker) {
-      toast.error("Select batsmen before scoring");
+      toast.error("Choose the batters before scoring");
       setIsProcessing(false);
-      return { data: null, error: "Select batsmen before scoring" };
+      return { data: null, error: "Choose the batters before scoring" };
     }
 
     const currentCtx =
@@ -1573,7 +1615,13 @@ export function useScoring(
         currentCtx.totalRuns >= currentCtx.targetRuns;
 
       if (isAllOut || isOversExhausted || isTargetChased) {
-        toast.error("Innings is complete. Please end innings or complete match.");
+        // Offline nothing finishes the match: the server decides the
+        // result once the queue reaches it.
+        toast.error(
+          isChaseInnings(currentCtx.currentInnings)
+            ? OFFLINE_MATCH_OVER
+            : "The innings is over. End the innings to start the next one.",
+        );
         setIsProcessing(false);
         return { data: null, error: "Innings is complete" };
       }
@@ -1737,6 +1785,7 @@ export function useScoring(
             extra_type: ball.event.extraType ?? null,
             is_wicket: ball.event.isWicket ?? false,
             dismissal_type: ball.event.dismissalType ?? null,
+            no_ball_runs: ball.event.noBallRuns ?? null,
           })
         : "",
       position: ball ? `${ball.over}.${ball.ball}` : null,
@@ -1992,6 +2041,9 @@ export function useScoring(
     extraType: ExtraType | null;
     isWicket: boolean;
     dismissalType: string | null;
+    fielderId?: string | null;
+    dismissedPlayerId?: string | null;
+    noBallRuns?: NoBallRuns | null;
     batsmanId?: string | null;
     bowlerId?: string | null;
   }) => {
@@ -2042,6 +2094,11 @@ export function useScoring(
                 extra_type: params.extraType,
                 is_wicket: params.isWicket,
                 dismissal_type: params.dismissalType,
+                fielder_id: params.isWicket ? (params.fielderId ?? null) : null,
+                no_ball_runs: params.noBallRuns ?? null,
+                dismissed_player_id: params.isWicket
+                  ? (params.dismissedPlayerId ?? d.dismissed_player_id ?? null)
+                  : null,
                 batsman_id: params.batsmanId ?? d.batsman_id,
                 bowler_id: params.bowlerId ?? d.bowler_id,
               }
@@ -2302,20 +2359,20 @@ export function useScoring(
     sId: string | null,
     nsId: string | null,
   ) => {
-    if (!sId || !nsId) return { error: "Select both batsmen" };
+    if (!sId || !nsId) return { error: "Choose both batters" };
     if (sId === nsId) {
       const err = "Striker and non-striker must be different players";
       toast.error(err);
       return { error: err };
     }
     if (currentBowlerId && (sId === currentBowlerId || nsId === currentBowlerId)) {
-      const err = "A batsman cannot be the current bowler";
+      const err = "A batter cannot be the current bowler";
       toast.error(err);
       return { error: err };
     }
     const bowlingPlayerIds = new Set(bowlingTeamPlayers.map((p) => p.user_id));
     if (bowlingPlayerIds.has(sId) || bowlingPlayerIds.has(nsId)) {
-      const err = "Cannot select an opposing team player as a batsman";
+      const err = "A player of the bowling side cannot bat";
       toast.error(err);
       return { error: err };
     }
@@ -2429,7 +2486,7 @@ export function useScoring(
   const handleConfirmBowler = async (bowlerId: string | null) => {
     if (!bowlerId) return { error: "Select a bowler" };
     if (bowlerId === strikerId || bowlerId === nonStrikerId) {
-      const err = "The current batsman cannot be selected as bowler";
+      const err = "A batter at the crease cannot bowl";
       toast.error(err);
       return { error: err };
     }
@@ -2635,6 +2692,29 @@ export function useScoring(
       enqueueAction(matchId, "endInnings", {});
       setPendingCount(getPendingCount(matchId));
 
+      // The end of a chase decides the match: no next innings to open here,
+      // the server settles the result once it gets the queue.
+      if (isChaseInnings(match?.current_innings)) {
+        setMatch((prev) =>
+          prev
+            ? {
+                ...prev,
+                innings: (prev.innings ?? []).map((i) =>
+                  i.innings_number === prev.current_innings
+                    ? { ...i, is_completed: true }
+                    : i,
+                ),
+              }
+            : prev,
+        );
+        setStrikerId(null);
+        setNonStrikerId(null);
+        setCurrentBowlerId(null);
+        toast.info(OFFLINE_MATCH_OVER);
+        setIsProcessing(false);
+        return { data: null, error: null };
+      }
+
       setMatch((prev) => {
         if (!prev) return prev;
         const currentInn = prev.innings?.find(
@@ -2717,7 +2797,7 @@ export function useScoring(
       }
 
       toast.info(
-        "Innings break — offline mode. Select new batsmen and bowler for the 2nd innings.",
+        "Innings break (offline): choose the openers and the bowler for the next innings.",
       );
       optionsRef.current?.onNeedsBatsman?.();
       setIsProcessing(false);
@@ -2737,14 +2817,39 @@ export function useScoring(
     return { data: null, error: res.error };
   };
 
-  const handleSkipHeadAction = () => {
-    const skipped = skipHeadAction(matchId);
-    setPendingCount(getPendingCount(matchId));
-    setDeadLetterCount(getDeadLetterCount(matchId));
-    if (skipped) {
-      toast.info(`Skipped blocked offline ${skipped.type} action`);
+  /**
+   * Discard the action at the head of the queue, which the server refused
+   * (never one that only went unanswered: the page offers it only then).
+   * It goes to the actions kept for review; the rest of the queue is sent
+   * and the screen shows what the server has.
+   */
+  const handleSkipHeadAction = async () => {
+    if (!refusedHeadAction(matchId)) {
+      refreshQueueState();
+      return null;
     }
+    const skipped = skipHeadAction(matchId);
+    refreshQueueState();
+    if (getPendingCount(matchId) > 0 && !isOfflineNow()) {
+      await flushQueue({ manual: true });
+    }
+    if (!isOfflineNow()) await syncFromDb();
     return skipped;
+  };
+
+  /** Send the actions kept for review again, in the order they were made. */
+  const handleResendDeadLetters = async () => {
+    const count = requeueDeadLetters(matchId);
+    refreshQueueState();
+    if (count > 0 && !isOfflineNow()) await flushQueue({ manual: true });
+    return count;
+  };
+
+  /** Drop one action kept for review (null: all of them). */
+  const handleDiscardDeadLetter = (queueId: string | null) => {
+    if (queueId) discardDeadLetter(matchId, queueId);
+    else clearDeadLetterActions(matchId);
+    refreshQueueState();
   };
 
   return {
@@ -2772,9 +2877,17 @@ export function useScoring(
     syncStuck,
     isOffline,
     pendingCount,
-    deadLetterCount,
+    deadLetterCount: deadLetters.length,
+    /** Actions the server refused (and those queued after them). */
+    deadLetters,
+    /** The queue's head when the server refused it (it may be skipped). */
+    refusedHead,
+    /** A ball or action is waiting for the server's answer to show. */
+    awaitingServer,
     flushOfflineQueue,
     handleSkipHeadAction,
+    handleResendDeadLetters,
+    handleDiscardDeadLetter,
     setStrikerId,
     setNonStrikerId,
     setCurrentBowlerId,

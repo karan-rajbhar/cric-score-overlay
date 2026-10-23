@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { usePathname } from "next/navigation";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 import { useAuth } from "~/lib/auth";
@@ -70,7 +71,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Tools",
     items: [
-      { href: "/overlay/test", label: "Stream overlays", icon: Tv },
+      { href: "/overlay/test/control", label: "Stream overlays", icon: Tv },
       { href: "/search", label: "Search", icon: Search },
     ],
   },
@@ -81,6 +82,19 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } =
     useSidebarStore();
+
+  // The drawer is for phones: close it when the window grows past them
+  // (a modal left open there would keep the page inert).
+  React.useEffect(() => {
+    if (!mobileOpen || typeof window.matchMedia !== "function") return;
+    const wide = window.matchMedia("(min-width: 768px)");
+    const close = () => {
+      if (wide.matches) setMobileOpen(false);
+    };
+    close();
+    wide.addEventListener?.("change", close);
+    return () => wide.removeEventListener?.("change", close);
+  }, [mobileOpen, setMobileOpen]);
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -93,16 +107,15 @@ export function AppSidebar() {
         {isMobile && (
           <div className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <span className="text-sm font-semibold text-foreground">
+              <DialogPrimitive.Title className="text-sm font-semibold text-foreground">
                 Menu
-              </span>
-              <button
-                onClick={() => setMobileOpen(false)}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Close
                 className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label="Close menu"
               >
-                <X className="h-5 w-5 shrink-0" />
-              </button>
+                <X className="h-5 w-5 shrink-0" aria-hidden="true" />
+              </DialogPrimitive.Close>
             </div>
             <DrawerAccount onNavigate={() => setMobileOpen(false)} />
           </div>
@@ -211,21 +224,19 @@ export function AppSidebar() {
         {renderContent(false)}
       </aside>
 
-      {/* Mobile Slide-Out Drawer */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
-            onClick={() => setMobileOpen(false)}
-          />
-
-          {/* Drawer Panel */}
-          <div className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto overscroll-contain rounded-r-[1.75rem] bg-card pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-float">
+      {/* Phone drawer: a modal dialog (focus moves in and stays, Escape or
+          the backdrop closes it, focus returns to More). */}
+      <DialogPrimitive.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden" />
+          <DialogPrimitive.Content
+            aria-describedby={undefined}
+            className="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] overflow-y-auto overscroll-contain rounded-r-[1.75rem] bg-card pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-float focus:outline-none md:hidden"
+          >
             {renderContent(true)}
-          </div>
-        </div>
-      )}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   );
 }

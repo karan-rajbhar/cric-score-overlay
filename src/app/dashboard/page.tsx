@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getMyUpcomingMatches } from "./actions";
 import Link from "next/link";
 import { Plus, Search, Trophy } from "lucide-react";
 import { useAuth } from "~/lib/auth";
@@ -20,6 +22,7 @@ import {
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { GetStarted } from "~/components/dashboard/get-started";
+import { FollowingMatches } from "~/components/follow/following-matches";
 import { PageContainer } from "~/components/layout/page";
 import type { Match } from "~/lib/match-types";
 
@@ -99,8 +102,20 @@ export default function Dashboard() {
     limit: 6,
   });
   const { data: adminClubsSet } = useUserAdminClubIdsQuery(user?.id);
+  // Your own fixtures first: the global list may not reach them.
+  const { data: myUpcomingData } = useQuery({
+    queryKey: ["myUpcomingMatches", user?.id ?? "anon"],
+    queryFn: async () =>
+      ((await getMyUpcomingMatches()) ?? []) as unknown as Match[],
+    enabled: Boolean(user),
+    staleTime: 30 * 1000,
+  });
   const liveMatches = liveData ?? [];
-  const upcoming = upcomingData ?? [];
+  const myUpcoming = myUpcomingData ?? [];
+  const myUpcomingIds = new Set(myUpcoming.map((m) => m.id));
+  const upcoming = (upcomingData ?? []).filter(
+    (m) => !myUpcomingIds.has(m.id),
+  );
   const recentMatches = recentData ?? [];
   const myClubAdminIds = adminClubsSet ?? new Set<string>();
 
@@ -171,10 +186,18 @@ export default function Dashboard() {
         )}
       </section>
 
+      {myUpcoming.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeader title="Your upcoming matches" />
+          <UpcomingGroups matches={myUpcoming} />
+        </section>
+      )}
+      <FollowingMatches />
+
       {upcoming.length > 0 && (
         <section className="space-y-4">
           <SectionHeader
-            title="Upcoming"
+            title={myUpcoming.length > 0 ? "Other upcoming matches" : "Upcoming"}
             href="/matches"
             actionLabel="See more"
           />

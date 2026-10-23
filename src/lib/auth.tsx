@@ -22,6 +22,7 @@ import { getFirebaseAuth, toAppUser } from "~/lib/firebase/client";
 import { clearAppCaches } from "~/lib/pwa/service-worker";
 import { clearScorerData } from "~/lib/offline-match-cache";
 import { matchesWithPendingActions } from "~/lib/offline-queue";
+import { removeDevicePush } from "~/lib/push/client";
 import {
   toAuthError,
   type AppUser,
@@ -56,6 +57,18 @@ function hasServerSessionHint(): boolean {
 }
 
 const INVITE_ONLY_CODE = "app/invite-only";
+
+/**
+ * Why a Google account was refused, naming it: the usual cause is signing
+ * in with another account than the one the invite was for.
+ */
+export function inviteOnlyMessage(email: string | null | undefined): string {
+  const who = email ? email : "This Google account";
+  return (
+    `CricScore is invite-only, and ${who} has no invite (or its invite has expired). ` +
+    "Sign in with the Google account your invite was for, or ask someone who uses CricScore to invite this email."
+  );
+}
 
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
@@ -133,7 +146,7 @@ async function syncServerSession(user: FirebaseUser | null): Promise<void> {
   });
   if (res.status === 403) {
     await firebaseSignOut(getFirebaseAuth()).catch(() => undefined);
-    throw Object.assign(new Error("CricScore is invite-only"), {
+    throw Object.assign(new Error(inviteOnlyMessage(user.email)), {
       code: INVITE_ONLY_CODE,
     });
   }
@@ -293,6 +306,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // While the session still exists: this device stops getting this
+    // user's notifications.
+    await removeDevicePush();
     try {
       await firebaseSignOut(getFirebaseAuth());
     } catch (err) {

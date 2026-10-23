@@ -15,7 +15,8 @@ import { createServerClient } from "~/lib/firebase/server";
 import { attachMatchTeams } from "~/lib/firebase/team-snapshot";
 import { BALL_PLAYER_FIELDS } from "~/lib/ball-log";
 import { withMatchPosition } from "~/lib/match-position";
-import { MATCH_DETAIL_SELECT, PARTNERSHIPS_SELECT } from "./match-select";
+import { fetchMatchList } from "./match-list";
+import { MATCH_DETAIL_SELECT } from "./match-select";
 
 export async function getMatches(filters?: {
   status?: string;
@@ -24,26 +25,7 @@ export async function getMatches(filters?: {
 }) {
   try {
     const db = await createServerClient();
-    let query = db
-      .from("matches")
-      .select(
-        `
-        *,
-        innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
-      `,
-      )
-      .order("scheduled_at", { ascending: false });
-    if (filters?.status) query = query.eq("status", filters.status);
-    if (filters?.clubId) query = query.eq("club_id", filters.clubId);
-    const limit = filters?.limit ?? 50;
-    query = query.limit(limit);
-    const { data, error } = await query;
-    if (error) {
-      console.error("Error fetching matches:", error);
-      return { data: null, error: error.message };
-    }
-    // Team names / logos come from the match's snapshot (no team reads).
-    return { data: await attachMatchTeams(db, data ?? []), error: null };
+    return { data: await fetchMatchList(db, filters), error: null };
   } catch (err) {
     console.error("Error fetching matches:", err);
     return {
@@ -344,7 +326,10 @@ export async function getScoringState(matchId: string) {
       dismissal_type?: string | null;
       bowler_id?: string | null;
       batsman_id?: string | null;
+      non_striker_id?: string | null;
       dismissed_player_id?: string | null;
+      fielder_id?: string | null;
+      no_ball_runs?: string | null;
     }> = [];
     let lastOverBowlerId: string | null = null;
     let displayOverDoc: OversRow | null = null;
@@ -559,24 +544,3 @@ export async function getFullMatchForExport(matchId: string) {
   }
 }
 
-export async function getPartnerships(matchId: string) {
-  try {
-    const db = await createServerClient();
-    const { data, error } = await db
-      .from("partnerships")
-      .select(PARTNERSHIPS_SELECT)
-      .eq("match_id", matchId)
-      .order("start_over");
-    if (error) {
-      console.error("Error fetching partnerships:", error);
-      return { data: null, error: error.message };
-    }
-    return { data, error: null };
-  } catch (err) {
-    console.error("Error in getPartnerships:", err);
-    return {
-      data: null,
-      error: err instanceof Error ? err.message : "Failed to fetch partnerships",
-    };
-  }
-}

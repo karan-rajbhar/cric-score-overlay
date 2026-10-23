@@ -183,13 +183,13 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
 
     // Checkboxes for extras
     const wideBallCheckbox = screen.getByRole("checkbox", {
-      name: /add wide balls to batsman/i,
+      name: /count wides as balls faced/i,
     });
     const wideRunsCheckbox = screen.getByRole("checkbox", {
-      name: /add wide runs to batsman/i,
+      name: /give wide runs to the batter/i,
     });
     const nbExtrasCheckbox = screen.getByRole("checkbox", {
-      name: /add no ball extras to batsman/i,
+      name: /give no-ball runs to the batter/i,
     });
 
     fireEvent.click(wideBallCheckbox);
@@ -206,6 +206,43 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
         noballExtrasToBatsman: true,
       }),
     );
+  });
+
+  it("plays free hits unless the match switched them off, and saves the choice", () => {
+    const onSave = vi.fn();
+    const { unmount } = render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    const freeHit = screen.getByRole("checkbox", {
+      name: /free hit after a no-ball/i,
+    });
+    // A match from before the setting: free hits on, as they were.
+    expect(freeHit).toBeChecked();
+    fireEvent.click(freeHit);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ freeHit: false }),
+    );
+    unmount();
+
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{ ...dummyMatch, free_hit: false }}
+        onSave={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+    expect(
+      screen.getByRole("checkbox", { name: /free hit after a no-ball/i }),
+    ).not.toBeChecked();
   });
 
   it("triggers onOpenAbandon when abandon match button in danger zone is clicked", () => {

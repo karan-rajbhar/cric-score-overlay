@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
 }));
 vi.mock("~/app/matches/mutations", () => ({ deleteMatch: vi.fn() }));
+vi.mock("~/app/matches/reschedule", () => ({ rescheduleMatch: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let user: { id: string } | null = { id: "u1" };
@@ -17,8 +18,14 @@ let isAdmin: boolean | undefined = true;
 let canDelete: boolean | undefined = true;
 const canDeleteQuery = vi.fn();
 vi.mock("~/lib/auth", () => ({ useAuth: () => ({ user }) }));
+let canStream: boolean | undefined = false;
+const canStreamQuery = vi.fn();
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchAdminQuery: () => ({ data: isAdmin }),
+  useCanProduceOverlayQuery: (...args: unknown[]) => {
+    canStreamQuery(...args);
+    return { data: args[2] ? canStream : undefined };
+  },
   useCanDeleteMatchQuery: (...args: unknown[]) => {
     canDeleteQuery(...args);
     return { data: args[2] ? canDelete : undefined };
@@ -33,9 +40,7 @@ const match = {
 };
 
 function renderDialog(onOpenChange = vi.fn()) {
-  render(
-    <DeleteMatchDialog open onOpenChange={onOpenChange} match={match} />,
-  );
+  render(<DeleteMatchDialog open onOpenChange={onOpenChange} match={match} />);
   return {
     input: screen.getByLabelText("Type the match name to confirm"),
     button: screen.getByRole("button", { name: "Delete match" }),
@@ -123,8 +128,12 @@ describe("MatchMoreMenu", () => {
     const trigger = screen.getByRole("button", { name: "More match actions" });
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     expect(
-      await screen.findByRole("menuitem", { name: "OBS overlay" }),
-    ).toHaveAttribute("href", "/overlay/m1");
+      await screen.findByRole("menuitem", { name: "Stream this match" }),
+    ).toHaveAttribute("href", "/matches/m1/stream");
+    // Scorers also get the control room.
+    expect(
+      screen.getByRole("menuitem", { name: "Overlay control room" }),
+    ).toHaveAttribute("href", "/overlay/m1/control");
     expect(
       screen.queryByRole("menuitem", { name: "Delete match" }),
     ).not.toBeInTheDocument();
@@ -133,5 +142,20 @@ describe("MatchMoreMenu", () => {
     canDelete = true;
     rerender(<MatchMoreMenu match={match} />);
     expect(canDeleteQuery).toHaveBeenLastCalledWith("m1", "u1", false);
+  });
+
+  it("gives streamers the control room, asking only once the menu opens", async () => {
+    isAdmin = false;
+    canDelete = false;
+    canStream = true;
+    render(<MatchMoreMenu match={match} />);
+    expect(canStreamQuery).toHaveBeenLastCalledWith("m1", "u1", false);
+    const trigger = screen.getByRole("button", { name: "More match actions" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(
+      await screen.findByRole("menuitem", { name: "Overlay control room" }),
+    ).toHaveAttribute("href", "/overlay/m1/control");
+    expect(canStreamQuery).toHaveBeenLastCalledWith("m1", "u1", true);
+    canStream = false;
   });
 });

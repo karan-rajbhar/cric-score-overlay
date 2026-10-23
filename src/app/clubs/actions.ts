@@ -436,7 +436,31 @@ export async function removeMember(clubId: string, membershipId: string) {
   return { success: true };
 }
 
-export async function inviteClubMember(clubId: string, email: string) {
+export type ClubInviteStatus =
+  | "invited"
+  | "already_invited"
+  | "added"
+  | "already_member";
+
+/**
+ * Invites an email to a club (admins only). No email is sent: the admin
+ * shares the sign-in message. Someone already on CricScore joins the club
+ * at once; a new email may sign in and becomes a member on first sign-in
+ * (`acceptInvitations`).
+ */
+export async function inviteClubMember(
+  clubId: string,
+  email: string,
+): Promise<
+  | { error: string }
+  | {
+      success: true;
+      status: ClubInviteStatus;
+      message: string;
+      /** Set when the invitee still has to sign in: share the message. */
+      shareEmail: string | null;
+    }
+> {
   const db = await createServerClient();
   const {
     data: { user },
@@ -450,7 +474,7 @@ export async function inviteClubMember(clubId: string, email: string) {
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes("@")) {
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
     return { error: "A valid email address is required" };
   }
 
@@ -462,6 +486,12 @@ export async function inviteClubMember(clubId: string, email: string) {
     .maybeSingle();
 
   if (existingUser) {
+    const { data: profile } = await db
+      .from("users")
+      .select("full_name")
+      .eq("id", existingUser.id)
+      .maybeSingle();
+    const name = (profile?.full_name as string | null) ?? null;
     const { data: existingMember } = await db
       .from("club_memberships")
       .select("id, status")
@@ -469,16 +499,64 @@ export async function inviteClubMember(clubId: string, email: string) {
       .eq("user_id", existingUser.id)
       .maybeSingle();
 
-    if (existingMember && existingMember.status === "active") {
-      return { error: "This user is already an active member of the club" };
+    if (existingMember?.status === "active") {
+      return {
+        success: true,
+        status: "already_member",
+        message: `${name ?? "They"} ${name ? "is" : "are"} already a member.`,
+        shareEmail: null,
+      };
     }
+    const now = new Date().toISOString();
+    const { error } = existingMember
+      ? await db
+          .from("club_memberships")
+          .update({ status: "active", role: "member", updated_at: now })
+          .eq("id", existingMember.id)
+      : await db.from("club_memberships").insert({
+          club_id: clubId,
+          user_id: existingUser.id,
+          role: "member",
+          status: "active",
+        });
+    if (error) {
+      console.error("inviteClubMember error:", error);
+      return { error: error.message };
+    }
+    revalidatePath(`/clubs/${clubId}`);
+    return {
+      success: true,
+      status: "added",
+      message: `${name ?? "They"} ${name ? "is" : "are"} now a member of the club.`,
+      shareEmail: null,
+    };
+  }
+
+  // One open invite per email and club: sending again reuses it.
+  const { data: invites } = await db
+    .from("club_invitations")
+    .select("id, status, expires_at")
+    .eq("club_id", clubId)
+    .eq("email", cleanEmail);
+  const open = (invites ?? []).find(
+    (i) =>
+      i.status === "pending" &&
+      (!i.expires_at || new Date(i.expires_at).getTime() > Date.now()),
+  );
+  if (open) {
+    return {
+      success: true,
+      status: "already_invited",
+      message: "That email is already invited. You can send the message again.",
+      shareEmail: cleanEmail,
+    };
   }
 
   const { error } = await db.from("club_invitations").insert({
     club_id: clubId,
     invited_by: user.id,
     email: cleanEmail,
-    user_id: existingUser?.id ?? null,
+    user_id: null,
     status: "pending",
   });
 
@@ -488,7 +566,45 @@ export async function inviteClubMember(clubId: string, email: string) {
   }
 
   revalidatePath(`/clubs/${clubId}`);
-  return { success: true };
+  return {
+    success: true,
+    status: "invited",
+    message: "Invite saved. Send them the message below.",
+    shareEmail: cleanEmail,
+  };
+}
+
+/** Withdraws a club's pending invite (admins only): the email can no longer sign in with it. */
+export async function revokeClubInvite(
+  clubId: string,
+  inviteId: string,
+): Promise<{ error: string | null }> {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+  if (!(await checkClubAdminAuth(db, clubId, user.id))) {
+    return { error: "Only the club's admins can withdraw its invites" };
+  }
+  const { data: invite } = await db
+    .from("club_invitations")
+    .select("id, club_id, status")
+    .eq("id", inviteId)
+    .maybeSingle();
+  if (!invite || invite.club_id !== clubId) {
+    return { error: "Invite not found" };
+  }
+  if (invite.status !== "pending") {
+    return { error: "That invite is no longer pending" };
+  }
+  const { error } = await db
+    .from("club_invitations")
+    .update({ status: "revoked", updated_at: new Date().toISOString() })
+    .eq("id", inviteId);
+  if (error) return { error: error.message };
+  revalidatePath(`/clubs/${clubId}`);
+  return { error: null };
 }
 
 export async function deleteSeason(seasonId: string, clubId: string) {
@@ -595,7 +711,12 @@ export async function updateClubLogo(
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Club logo upload failed:", uploadError);
@@ -692,7 +813,12 @@ export async function updateClubBanner(
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Club banner upload failed:", uploadError);

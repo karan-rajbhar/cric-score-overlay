@@ -92,6 +92,7 @@ function CardLink({
  */
 export function MatchCard({
   href,
+  label,
   competition,
   status,
   first,
@@ -101,6 +102,11 @@ export function MatchCard({
   className,
 }: {
   href?: string;
+  /**
+   * The link's name for screen readers, which replaces what the card
+   * shows: give the status, scores and result too ("A versus B" without).
+   */
+  label?: string;
   competition: React.ReactNode;
   status: string;
   first: Side;
@@ -113,7 +119,7 @@ export function MatchCard({
   return (
     <CardLink
       href={href}
-      label={`${first.team.name} versus ${second.team.name}`}
+      label={label ?? `${first.team.name} versus ${second.team.name}`}
       className={cn(cardSurface, className)}
       action={action}
     >
@@ -150,6 +156,7 @@ function FixtureSide({ team }: { team: TeamRef }) {
  */
 export function FixtureCard({
   href,
+  label,
   date,
   time,
   home,
@@ -160,6 +167,8 @@ export function FixtureCard({
   className,
 }: {
   href?: string;
+  /** The link's name for screen readers (see MatchCard). */
+  label?: string;
   date: React.ReactNode;
   time: React.ReactNode;
   home: TeamRef;
@@ -173,7 +182,7 @@ export function FixtureCard({
   return (
     <CardLink
       href={href}
-      label={`${home.name} versus ${away.name}`}
+      label={label ?? `${home.name} versus ${away.name}`}
       className={cn(bare ? "rounded-xl" : cardSurface, className)}
       bodyClassName="p-4"
       action={action}

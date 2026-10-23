@@ -87,7 +87,15 @@ function ballText(b: BallByBallRow): string {
   const runs = b.runs_scored ?? 0;
   if (b.is_wicket) return "W";
   if (b.extra_type === "wide") return runs ? `${runs}+wd` : "wd";
-  if (b.extra_type === "no_ball") return runs ? `${runs}+nb` : "nb";
+  if (b.extra_type === "no_ball") {
+    // Byes / leg byes off it ride in extras after the 1-run penalty.
+    const byes =
+      b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye"
+        ? Math.max(0, (b.extras ?? 0) - 1)
+        : 0;
+    if (byes) return `nb+${byes}${b.no_ball_runs === "bye" ? "b" : "lb"}`;
+    return runs ? `${runs}+nb` : "nb";
+  }
   return String(runs);
 }
 
@@ -449,6 +457,10 @@ export function composeLiveMatchState(
     ...colourFields(parts),
   };
   const ci = parts.innings;
+  // Only when DLS revised this innings (rows without it stay as they were).
+  const dls = ci ? parts.match.dls_revision : null;
+  const dlsOvers =
+    ci && dls && dls.innings_number === ci.innings_number ? dls.overs : null;
   const row: LiveMatchStateRow = ci
     ? {
         ...base,
@@ -460,6 +472,7 @@ export function composeLiveMatchState(
         ...lastBallFields(parts),
         last_wicket: lastWicketOf(parts, ci),
         powerplay: powerplayOf(parts, ci),
+        ...(dlsOvers !== null ? { dls_overs: dlsOvers } : {}),
       }
     : base;
   return { ...row, events: eventsOf(parts, row) };

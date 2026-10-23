@@ -11,7 +11,8 @@ import {
   type TeamRef,
 } from "~/components/ds/score";
 import {
-  ballsRemaining,
+  chaseLine,
+  displayStatusOf,
   formatMatchResult,
   inningsBalls,
   oversFromBalls,
@@ -36,26 +37,25 @@ export const ref = (inn: Innings, bpo: number): InningsRef => ({
   overs: oversFromBalls(inningsBalls(inn, bpo), bpo),
 });
 
-/** The sentence under a live score: the chase, or the run rate so far. */
+/**
+ * The sentence under a live score: the chase (over the overs it has, a DLS
+ * revision's included), the run rate so far, or who bats first before the
+ * first ball.
+ */
 export function liveLine(
-  match: Pick<Match, "overs_per_innings">,
+  match: Pick<Match, "overs_per_innings" | "dls_revision">,
   batting: Side,
   bpo: number,
 ): string | null {
   const inn = batting.innings;
   if (!inn) return null;
-  const target = inn.target_runs;
+  if (inn.target_runs) return chaseLine(match, inn, batting.team.name, bpo);
   const balls = inningsBalls(inn, bpo);
-  if (!target) return `Run rate ${runRate(inn.total_runs, balls, bpo)}`;
-  const need = target - (inn.total_runs ?? 0);
-  if (need <= 0) return null;
-  const runs = `${need} ${need === 1 ? "run" : "runs"}`;
-  const left = match.overs_per_innings
-    ? ballsRemaining(match.overs_per_innings, balls, bpo)
-    : 0;
-  return left > 0
-    ? `${batting.team.name} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
-    : `${batting.team.name} need ${runs}`;
+  // Before the first ball a run rate of 0.00 says nothing.
+  if (balls === 0 && (inn.total_runs ?? 0) === 0) {
+    return inn.innings_number === 1 ? `${batting.team.name} bat first` : null;
+  }
+  return `Run rate ${runRate(inn.total_runs, balls, bpo)}`;
 }
 
 /** "Mehta" from "Arjun Mehta": the hero has room for a surname. */
@@ -193,11 +193,17 @@ export function MatchHero({
   ) : undefined;
 
   const line = batting ? liveLine(match, batting, bpo) : null;
+  // A finished match says how it ended: the result, or why there was none
+  // ("Match abandoned: Rain").
+  const finished =
+    match.status === "completed" || match.status === "abandoned";
   const note =
-    match.status === "completed" && match.result_description ? (
+    finished && match.result_description ? (
       <div>
         <MatchNote tone="result">{formatMatchResult(match)}</MatchNote>
-        {award && <PlayerAwardCard award={award} className="mt-4" />}
+        {award && match.status === "completed" && (
+          <PlayerAwardCard award={award} className="mt-4" />
+        )}
       </div>
     ) : line ? (
       <MatchNote tone="live">{line}</MatchNote>
@@ -212,7 +218,7 @@ export function MatchHero({
       plain={plain}
       competition={competition}
       stage={stage}
-      status={match.status}
+      status={displayStatusOf(match)}
       home={withPerformers(sides[0], 0)}
       away={withPerformers(sides[1], 1)}
       centre={centre}

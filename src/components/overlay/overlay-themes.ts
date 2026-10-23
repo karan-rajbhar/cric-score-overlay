@@ -390,3 +390,17 @@ export function overlayThemeVars(palette: OverlayPalette): CSSProperties {
   };
   return vars as CSSProperties;
 }
+
+/** The theme a new overlay starts with. */
+export const DEFAULT_OVERLAY_THEME: OverlayThemeId = "standard";
+
+/**
+ * The legacy palette id the inline score bug still reads (`THEME_STYLES`);
+ * goes once every graphic takes the theme id directly.
+ */
+export function paletteOf(themeId: string): "starsports" | "minimal" | "custom" {
+  const id = resolveOverlayTheme(themeId);
+  if (id === "light") return "minimal";
+  if (id === "custom") return "custom";
+  return "starsports";
+}

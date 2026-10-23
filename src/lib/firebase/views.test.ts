@@ -64,6 +64,29 @@ describe("buildLiveMatchState (targeted reads)", () => {
     }
   });
 
+  it("counts a DLS chase's revised overs and says so (dls_overs)", async () => {
+    // A seed chase: 82 balls bowled of 20 overs, target 147.
+    const id = "950e8400-e29b-41d4-a716-446655440003";
+    const before = await buildLiveMatchState(new MemoryDataSource(seed), id);
+    expect(before).not.toHaveProperty("dls_overs");
+    const revised = {
+      ...seed,
+      matches: seed.matches!.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              dls_revision: { innings_number: 2, target_runs: 120, overs: 16 },
+            }
+          : m,
+      ),
+    };
+    const state = await buildLiveMatchState(new MemoryDataSource(revised), id);
+    expect(state).toMatchObject({
+      dls_overs: 16,
+      balls_remaining: 16 * 6 - 82,
+    });
+  });
+
   it("returns null for a missing match", async () => {
     expect(await buildLiveMatchState(new MemoryDataSource(seed), "nope")).toBe(
       null,

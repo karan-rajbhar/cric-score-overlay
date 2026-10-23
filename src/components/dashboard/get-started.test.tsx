@@ -31,7 +31,7 @@ describe("GetStarted", () => {
     expect(screen.getByText(/1 of 4/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /add players/i })).toHaveAttribute(
       "href",
-      "/teams/t1",
+      "/teams/t1?tab=squad",
     );
     expect(
       screen.getByRole("link", { name: /create a match/i }),

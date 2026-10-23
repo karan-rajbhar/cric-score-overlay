@@ -1,3 +1,4 @@
+import type { DlsRevision } from "./firebase/types";
 import type {
   BattingPerformance,
   BowlingPerformance,
@@ -108,6 +109,78 @@ export const ballsRemaining = (
   return Math.max(0, Math.round(oversPerInnings * bpo) - ballsBowled);
 };
 
+/** The DLS revision of this innings' target, if it has one. */
+export function dlsRevisionFor(
+  match: { dls_revision?: DlsRevision | null },
+  inningsNumber: number,
+): DlsRevision | null {
+  const d = match.dls_revision;
+  return d && d.innings_number === inningsNumber && d.overs > 0 ? d : null;
+}
+
+/** The overs an innings has: a DLS revision's, else the match's. */
+export function inningsOvers(
+  match: Pick<Match, "overs_per_innings" | "dls_revision">,
+  inningsNumber: number,
+): number {
+  return (
+    dlsRevisionFor(match, inningsNumber)?.overs ?? match.overs_per_innings ?? 0
+  );
+}
+
+/**
+ * The chase in a line, "Warriors need 40 runs from 30 balls", counting the
+ * overs the innings has (a DLS revision's, then named: "(DLS target 98)");
+ * null without a target or once it is reached.
+ */
+export function chaseLine(
+  match: Pick<Match, "overs_per_innings" | "dls_revision">,
+  inn: Pick<
+    Innings,
+    "innings_number" | "target_runs" | "total_runs" | "total_balls" | "total_overs"
+  >,
+  battingName: string,
+  ballsPerOver: number = 6,
+): string | null {
+  const target = inn.target_runs;
+  if (!target) return null;
+  const need = target - (inn.total_runs ?? 0);
+  if (need <= 0) return null;
+  const balls = inningsBalls(inn, ballsPerOver);
+  const overs = inningsOvers(match, inn.innings_number);
+  const left = overs ? ballsRemaining(overs, balls, ballsPerOver) : 0;
+  const runs = `${need} ${need === 1 ? "run" : "runs"}`;
+  const line =
+    left > 0
+      ? `${battingName} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
+      : `${battingName} need ${runs}`;
+  return dlsRevisionFor(match, inn.innings_number)
+    ? `${line} (DLS target ${target})`
+    : line;
+}
+
+/**
+ * A match's status as a viewer reads it: "innings_break" from the end of
+ * an innings until the next one's first ball (the engine keeps the match
+ * "live" and opens the chase straight away), else the stored status.
+ */
+export function displayStatusOf(
+  match: Pick<Match, "status" | "innings">,
+): string {
+  if (match.status !== "live") return match.status;
+  const innings = match.innings ?? [];
+  const open = innings.find((i) => !i.is_completed);
+  if (!open || open.innings_number < 2) return match.status;
+  const untouched =
+    inningsBalls(open) === 0 &&
+    (open.total_runs ?? 0) === 0 &&
+    (open.total_wickets ?? 0) === 0;
+  const previousDone = innings.some(
+    (i) => i.innings_number === open.innings_number - 1 && i.is_completed,
+  );
+  return untouched && previousDone ? "innings_break" : match.status;
+}
+
 /** Required run rate (runs needed per remaining overs). */
 export const requiredRunRate = (
   runsNeeded: number,
@@ -128,6 +201,7 @@ export function deliveryLabel(b: {
   extra_type?: string | null;
   is_wicket?: boolean | null;
   dismissal_type?: string | null;
+  no_ball_runs?: string | null;
 }): string {
   if (b.is_wicket && b.dismissal_type === "retired_hurt") return "rh";
   if (b.is_wicket && b.dismissal_type === "retired_out") return "ro";
@@ -135,9 +209,17 @@ export function deliveryLabel(b: {
   switch (b.extra_type) {
     case "wide":
       return `wd${(b.extras ?? 0) > 1 ? `+${(b.extras ?? 0) - 1}` : ""}`;
-    case "no_ball":
+    case "no_ball": {
+      // Byes / leg byes off it: in extras after the 1-run penalty ("nb+2b").
+      if (b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye") {
+        const byes = Math.max(0, (b.extras ?? 0) - 1);
+        return byes > 0
+          ? `nb+${byes}${b.no_ball_runs === "bye" ? "b" : "lb"}`
+          : "nb";
+      }
       // Scorer payload: runs_scored = bat runs, extras = 1 (the no-ball).
       return `nb${(b.runs_scored ?? 0) > 0 ? `+${b.runs_scored}` : ""}`;
+    }
     case "bye":
       return `b${b.extras ?? 0}`;
     case "leg_bye":
@@ -283,14 +365,15 @@ export function formatExtraType(type?: string | null): string {
 export function formatStatus(status?: string | null): string {
   if (!status) return "";
   const map: Record<string, string> = {
-    scheduled: "Scheduled",
+    // Matches read the same as their status chip (`MatchStatusChip`).
+    scheduled: "Upcoming",
     live: "Live",
     completed: "Completed",
     abandoned: "Abandoned",
     cancelled: "Cancelled",
-    registration_open: "Registration Open",
-    in_contention: "In Contention",
-    innings_break: "Innings Break",
+    registration_open: "Registration open",
+    in_contention: "In contention",
+    innings_break: "Innings break",
     ongoing: "Ongoing",
     upcoming: "Upcoming",
     pending: "Pending",
@@ -301,25 +384,22 @@ export function formatStatus(status?: string | null): string {
     inactive: "Inactive",
     banned: "Banned",
   };
-  return (
-    map[status] ??
-    status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+  // Sentence case: "No result", not "No Result".
+  const words = status.replace(/_/g, " ");
+  return map[status] ?? words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** Human-friendly label for tournament formats. */
 export function formatTournamentFormat(format?: string | null): string {
   if (!format) return "League";
   const map: Record<string, string> = {
-    round_robin: "Round Robin",
+    round_robin: "Round robin",
     league: "League",
     knockout: "Knockout",
     mixed: "Mixed",
   };
-  return (
-    map[format] ??
-    format.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+  const words = format.replace(/_/g, " ");
+  return map[format] ?? words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** Human-friendly label for player team roles. */

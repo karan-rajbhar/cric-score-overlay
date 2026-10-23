@@ -56,6 +56,8 @@ export interface BallInput {
   isWicket?: boolean;
   dismissalType?: string | null;
   dismissedPlayerId?: string | null;
+  /** On a no-ball: the runs completed were byes / leg byes (in `extras`). */
+  noBallRuns?: 'bat' | 'bye' | 'leg_bye' | null;
 }
 
 /**
@@ -149,13 +151,21 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     runsToTotal = extras;
     runsToBowler = extras;
     ballsToBatsman = 0;
-    // Strike does not change on wides.
+    // The runs they ran on a wide (after the 1-run penalty) cross them
+    // when odd, as the server's engine has it.
+    const ran = runsScored > 0 ? runsScored : Math.max(0, extras - 1);
+    if (ran % 2 !== 0) swapStrike = true;
   } else if (ball.extraType === 'no_ball') {
     isLegal = false;
+    // Byes off a no-ball: in `extras` after the penalty, not the bowler's.
+    const byes =
+      ball.noBallRuns === 'bye' || ball.noBallRuns === 'leg_bye'
+        ? Math.max(0, extras - 1)
+        : 0;
     runsToTotal = extras + runsScored;
-    runsToBowler = extras + runsScored;
+    runsToBowler = extras - byes + runsScored;
     runsToBatsman = runsScored;
-    if (runsScored % 2 !== 0) swapStrike = true;
+    if ((runsScored + byes) % 2 !== 0) swapStrike = true;
   } else if (ball.extraType === 'bye' || ball.extraType === 'leg_bye') {
     isLegal = true;
     runsToTotal = extras;

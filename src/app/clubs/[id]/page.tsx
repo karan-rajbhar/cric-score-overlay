@@ -14,6 +14,7 @@ import { Chip } from "~/components/ds/chip";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
+import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -41,7 +42,13 @@ import {
   DeleteSeasonButton,
 } from "~/components/clubs/season-dialog";
 import { ClubSettingsDialog } from "~/components/clubs/club-settings-dialog";
+import { ClubStreamingDialog } from "~/components/streaming/club-streaming-dialog";
 import { InviteMemberDialog } from "~/components/clubs/invite-member-dialog";
+import {
+  ClubPendingInvites,
+  type PendingClubInvite,
+} from "~/components/clubs/club-pending-invites";
+import { isOpenClubInvite } from "~/lib/firebase/rpc/access";
 import { ClubLogo } from "~/components/clubs/club-logo";
 import { ClubMediaDialog } from "~/components/clubs/club-media-dialog";
 import { ClubTournamentsTab } from "~/components/clubs/club-tournaments-tab";
@@ -169,6 +176,40 @@ export async function generateMetadata({
   return { title: club?.name ?? "Club" };
 }
 
+type Profile = NonNullable<MemberRow["user"]>;
+
+/**
+ * Hall of fame entries with their player. Players are usually members,
+ * whose profiles the members' snapshots carry: only the others are read
+ * (as `users!club_hall_of_fame_player_id_fkey(...)` read each one).
+ */
+async function withHallOfFamePlayers(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  rows: Array<Record<string, unknown> & { player_id?: string | null }>,
+  members: MemberRow[],
+): Promise<HallOfFameRow[]> {
+  const profiles = new Map<string, Profile>();
+  for (const m of members) if (m.user) profiles.set(m.user.id, m.user);
+  const unknown = [
+    ...new Set(
+      rows
+        .map((h) => h.player_id)
+        .filter((pid): pid is string => !!pid && !profiles.has(pid)),
+    ),
+  ];
+  if (unknown.length) {
+    const { data } = await db
+      .from("users")
+      .select("id, full_name, avatar_url")
+      .in("id", unknown);
+    for (const p of (data ?? []) as Profile[]) profiles.set(p.id, p);
+  }
+  return rows.map(({ player_id, ...entry }) => ({
+    ...(entry as unknown as Omit<HallOfFameRow, "player">),
+    player: (player_id && profiles.get(player_id)) || null,
+  }));
+}
+
 export default async function ClubPage({
   params,
   searchParams,
@@ -244,7 +285,7 @@ export default async function ClubPage({
       .select(
         `
                 id, category, title, description, season_or_year, record_metric, inducted_at,
-                player:users!club_hall_of_fame_player_id_fkey(id, full_name, avatar_url)
+                player_id
             `,
       )
       .eq("club_id", id)
@@ -261,7 +302,11 @@ export default async function ClubPage({
   )) as unknown as MatchRow[];
   const typedMembers = (members ?? []) as unknown as MemberRow[];
   const typedSeasons = (seasons ?? []) as unknown as SeasonRow[];
-  const typedHallOfFame = (hallOfFame ?? []) as unknown as HallOfFameRow[];
+  const typedHallOfFame = await withHallOfFamePlayers(
+    db,
+    hallOfFame ?? [],
+    typedMembers,
+  );
 
   const isOwner = user?.id === club.owner_id;
   const myMembership = typedMembers.find((m) => m.user?.id === user?.id);
@@ -270,6 +315,27 @@ export default async function ClubPage({
 
   // Private clubs are only visible to their owner and members.
   if (club.is_public === false && !isOwner && !isMember) notFound();
+
+  // Admins see the club's invites still waiting for a first sign-in.
+  const pendingInvites: PendingClubInvite[] = isAdmin
+    ? (
+        ((
+          await db
+            .from("club_invitations")
+            .select("id, email, status, expires_at, created_at")
+            .eq("club_id", id)
+        ).data ?? []) as Array<{
+          id: string;
+          email: string | null;
+          status: string | null;
+          expires_at: string | null;
+          created_at: string | null;
+        }>
+      )
+        .filter((i) => i.email && isOpenClubInvite(i))
+        .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+        .map((i) => ({ id: i.id, email: i.email!, created_at: i.created_at }))
+    : [];
 
   const socialLinks =
     (club.social_links as Record<string, string> | null) ?? {};
@@ -427,7 +493,9 @@ export default async function ClubPage({
               />
             )}
             {isAdmin && <ClubSettingsDialog club={club} />}
+            {isAdmin && <ClubStreamingDialog clubId={club.id} />}
             {isAdmin && <SeasonDialog clubId={club.id} />}
+            <EntityActions kind="club" id={club.id} name={club.name} />
             <ClubMembershipButton
               clubId={club.id}
               isMember={isMember}
@@ -710,7 +778,9 @@ export default async function ClubPage({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {isAdmin && <InviteMemberDialog clubId={club.id} />}
+              {isAdmin && (
+                <InviteMemberDialog clubId={club.id} clubName={club.name} />
+              )}
               <ClubMembershipButton
                 clubId={club.id}
                 isMember={isMember}
@@ -719,6 +789,13 @@ export default async function ClubPage({
               />
             </div>
           </div>
+
+          {isAdmin && (
+            <ClubPendingInvites
+              invites={pendingInvites}
+              club={{ id: club.id, name: club.name }}
+            />
+          )}
 
           <Card>
             <CardContent className="p-0">
@@ -737,13 +814,13 @@ export default async function ClubPage({
                     return (
                       <div
                         key={m.id}
-                        className="flex items-center justify-between p-4"
+                        className="flex items-center justify-between gap-3 p-4"
                       >
-                        <div className="flex items-center gap-3">
-                          <Initials name={m.user?.full_name} fallback="U" className="h-9 w-9" />
-                          <div>
-                            <div className="font-semibold text-foreground">
-                              {m.user?.full_name ?? "Unnamed Member"}
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Initials name={m.user?.full_name} fallback="U" className="h-9 w-9 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-foreground">
+                              {m.user?.full_name ?? "Unnamed member"}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               Joined{" "}
@@ -752,7 +829,7 @@ export default async function ClubPage({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           <Badge
                             variant={
                               isClubOwner

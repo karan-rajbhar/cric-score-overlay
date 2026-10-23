@@ -78,6 +78,20 @@ describe("offline-scoring-engine", () => {
     expect(result.strikerId).toBe("bat-1");
   });
 
+  it.each([
+    [2, "bat-2"], // wide + 1 run: they cross
+    [3, "bat-1"], // wide + 2 runs
+    [5, "bat-1"], // boundary wide: no crossing
+  ])("crosses the batters on odd runs off a wide (extras %i)", (extras, striker) => {
+    const result = processDeliveryLocally(baseContext, {
+      extras,
+      extraType: "wide",
+    });
+    expect(result.totalRuns).toBe(extras);
+    expect(result.strikerId).toBe(striker);
+    expect(result.strikerBalls + result.nonStrikerBalls).toBe(0);
+  });
+
   it("handles no-ball with runs scored off the bat", () => {
     const result = processDeliveryLocally(baseContext, {
       runsScored: 1,

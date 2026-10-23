@@ -1,1556 +1,1231 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { sendOverlayCommand } from "./send-command";
+import { useCallback, useEffect, useId, useState } from "react";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ExternalLink,
+  Loader2,
+  RotateCcw,
+  Send,
+  XCircle,
+} from "lucide-react";
+import { OverlayPreview } from "~/components/overlay/overlay-preview";
+import { overlayPhaseOf } from "~/components/overlay/overlay-stage";
+import {
+  OVERLAY_THEMES,
+  resolveOverlayTheme,
+} from "~/components/overlay/overlay-themes";
 import type {
-  LiveMatchState,
-  OverlayTheme,
-  ProducerCommand,
-  ActiveEventSting,
   ActiveLowerThirdStrap,
-  BroadcastViewId,
+  LiveMatchState,
+  PresentationCardType,
 } from "~/components/overlay/types";
 import {
-  BroadcastSuiteOverlay,
-  BROADCAST_VIEW_OPTIONS,
-} from "~/components/overlay/broadcast-suite-overlay";
-import { EventStings } from "~/components/overlay/event-stings";
-import { LowerThirdStraps } from "~/components/overlay/lower-third-straps";
-import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
-import type { Match } from "~/lib/match-types";
-import { useBroadcastStore } from "~/lib/stores/useBroadcastStore";
+  useOverlayProducer,
+  type CommandRecord,
+  type OverlayCommand,
+} from "~/components/overlay/use-overlay-producer";
+import { useOverlayLayers } from "~/components/overlay/use-overlay-state";
 import { useLiveState } from "~/lib/hooks/useLiveState";
+import type { Match } from "~/lib/match-types";
 import {
-  playFourFanfare,
-  playSixExplosion,
-  playWicketTone,
-  playMilestoneFanfare,
-  playFreeHitAlert,
-} from "~/components/overlay/sound-effects";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "~/components/ui/dialog";
-import {
-  Copy,
-  Check,
-  ExternalLink,
-  Palette,
-  XCircle,
-  Volume2,
-  VolumeX,
-  Send,
-  SlidersHorizontal,
-  Undo2,
-  RotateCcw,
-  Keyboard,
-  Users,
-  Layers,
-  BarChart3,
-  Calendar,
-} from "lucide-react";
+  autoRulesIn,
+  DEFAULT_AUTO_RULES,
+  manualAutoRules,
+  type SceneLayout,
+} from "~/lib/overlay-state";
 import { cn } from "~/lib/utils";
+import { ChannelPicker } from "~/components/streaming/channel-picker";
+import { RemoteControlPanel } from "~/components/streaming/remote-control-panel";
+import { DEMO_MATCH_DETAILS, DEMO_MATCH_STATE } from "../demo-data";
 
 interface ControlClientProps {
   matchId: string;
   initialState: LiveMatchState | null;
   initialMatch: Match | null;
+  /** Server clock when the page was rendered (ms). */
+  serverNow?: number;
 }
 
-function oversText(balls: number | null): string {
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type StingType = NonNullable<OverlayCommand["stingType"]>;
+
+const EVENT_CARDS: Array<{ type: StingType; label: string; key: string }> = [
+  { type: "four", label: "Four", key: "4" },
+  { type: "six", label: "Six", key: "6" },
+  { type: "wicket", label: "Wicket", key: "W" },
+  { type: "milestone", label: "Fifty / hundred", key: "M" },
+  { type: "free_hit", label: "Free hit", key: "F" },
+];
+
+const STRAPS: Array<{
+  type: ActiveLowerThirdStrap["type"];
+  label: string;
+  hint: string;
+  key: string;
+}> = [
+  {
+    type: "batsman",
+    label: "Striker",
+    hint: "Runs, balls, strike rate",
+    key: "B",
+  },
+  { type: "bowler", label: "Bowler", hint: "Wickets, runs, economy", key: "O" },
+  {
+    type: "partnership",
+    label: "Partnership",
+    hint: "The stand so far",
+    key: "P",
+  },
+  { type: "target", label: "Chase", hint: "Runs needed from balls", key: "T" },
+];
+
+const NOTICES: Array<{
+  type: ActiveLowerThirdStrap["type"];
+  label: string;
+  text: string;
+}> = [
+  { type: "drinks", label: "Drinks break", text: "Drinks break" },
+  { type: "rain_delay", label: "Rain delay", text: "Rain has stopped play" },
+  { type: "innings_break", label: "Innings break", text: "Innings break" },
+  { type: "timeout", label: "Time out", text: "Time out" },
+];
+
+const CARDS: Array<{ id: PresentationCardType; label: string }> = [
+  { id: "toss", label: "Toss" },
+  { id: "playing_xi", label: "Playing XI" },
+  { id: "scorecard", label: "Scorecard" },
+  { id: "partnership", label: "Partnership" },
+  { id: "over_summary", label: "This over" },
+  { id: "result", label: "Result" },
+];
+
+const LAYOUTS: Array<{ id: SceneLayout; label: string }> = [
+  { id: "bottom", label: "Bottom bar" },
+  { id: "top", label: "Top bar" },
+  { id: "compact", label: "Corner" },
+];
+
+const AUTO_LABELS: Record<string, string> = {
+  four: "Fours",
+  six: "Sixes",
+  wicket: "Wickets",
+  milestone: "Fifties and hundreds",
+  free_hit: "Free hits",
+};
+
+const STRAP_SECONDS = [5, 8, 10, 15];
+
+function oversText(balls: number | null | undefined): string {
   if (!balls) return "0.0";
   return `${Math.floor(balls / 6)}.${balls % 6}`;
 }
 
-const THEME_OPTIONS: Array<{
-  id: OverlayTheme;
-  label: string;
-  desc: string;
-  swatch: string;
-}> = [
-  {
-    id: "starsports",
-    label: "Star Sports",
-    desc: "Blue and gold",
-    swatch: "bg-amber-400",
-  },
-  {
-    id: "sonysports",
-    label: "Sony Sports",
-    desc: "Red",
-    swatch: "bg-red-600",
-  },
-  {
-    id: "foxcricket",
-    label: "Fox Cricket",
-    desc: "Orange",
-    swatch: "bg-amber-500",
-  },
-  {
-    id: "apex",
-    label: "Apex",
-    desc: "Gold",
-    swatch: "bg-yellow-300",
-  },
-  {
-    id: "volt",
-    label: "Volt",
-    desc: "Lime",
-    swatch: "bg-lime-400",
-  },
-  {
-    id: "agni",
-    label: "Agni",
-    desc: "Orange and red",
-    swatch: "bg-orange-500",
-  },
-  {
-    id: "skysports",
-    label: "Sky Sports",
-    desc: "Red and navy",
-    swatch: "bg-red-600",
-  },
-  {
-    id: "thehundred",
-    label: "The Hundred",
-    desc: "Pink and cyan",
-    swatch: "bg-pink-500",
-  },
-  {
-    id: "dharma",
-    label: "Dharma",
-    desc: "Maroon and gold",
-    swatch: "bg-amber-500",
-  },
-  {
-    id: "thunder",
-    label: "Thunder",
-    desc: "Cyan and indigo",
-    swatch: "bg-cyan-400",
-  },
-  {
-    id: "nakshatra",
-    label: "Nakshatra",
-    desc: "Purple and gold",
-    swatch: "bg-purple-500",
-  },
-  {
-    id: "emerald",
-    label: "Emerald",
-    desc: "Green and gold",
-    swatch: "bg-emerald-500",
-  },
-  {
-    id: "dark",
-    label: "Dark",
-    desc: "Neutral dark",
-    swatch: "bg-zinc-700",
-  },
-];
+/** Why a card cannot go up yet, or null when it can. */
+function cardUnavailable(
+  card: PresentationCardType,
+  state: LiveMatchState,
+  match: Match | null,
+): string | null {
+  const phase = overlayPhaseOf(state);
+  switch (card) {
+    case "toss":
+      return state.toss_winner_team_id ? null : "No toss recorded yet";
+    case "playing_xi":
+      return (match?.team1?.team_players?.length ?? 0) +
+        (match?.team2?.team_players?.length ?? 0) >
+        0
+        ? null
+        : "No squads picked yet";
+    case "scorecard":
+      return phase === "pre" ? "Starts with the first innings" : null;
+    case "partnership":
+    case "over_summary":
+      return phase === "live" ? null : "Only while an innings is in play";
+    case "result":
+      return phase === "done" ? null : "After the match";
+    default:
+      return null;
+  }
+}
 
-// Curated phase decks replacing the unorganized 29-button scroll
-const GRAPHIC_PHASE_DECKS: Array<{
-  id: string;
-  name: string;
-  description: string;
-  icon: typeof Layers;
-  views: Array<{ id: BroadcastViewId; label: string; desc: string }>;
-}> = [
-  {
-    id: "scorebars",
-    name: "Live scorebars",
-    description: "In-play broadcast bugs anchored at the bottom of the feed",
-    icon: Layers,
-    views: [
-      {
-        id: "1",
-        label: "Standard Scorebar",
-        desc: "Batters, bowler, runs & match status",
-      },
-      {
-        id: "16",
-        label: "Striker Focus",
-        desc: "Expanded striker runs & ball-by-ball",
-      },
-      {
-        id: "17",
-        label: "Runner Focus",
-        desc: "Non-striker profile & boundary tally",
-      },
-      {
-        id: "18",
-        label: "Bowler Focus",
-        desc: "Current spell overs, maidens & wickets",
-      },
-      {
-        id: "19",
-        label: "Fall of Wicket Bug",
-        desc: "Recently dismissed batter details",
-      },
-    ],
-  },
-  {
-    id: "scorecards",
-    name: "Scorecards & squads",
-    description: "Full-screen cards during fall of wickets or extended pauses",
-    icon: Users,
-    views: [
-      {
-        id: "2",
-        label: "Batting Team 1",
-        desc: "First innings batsman dismissal card",
-      },
-      {
-        id: "3",
-        label: "Bowling Team 1",
-        desc: "Bowling figures & economy rates",
-      },
-      {
-        id: "4",
-        label: "Batting Team 2",
-        desc: "Second innings chase card",
-      },
-      {
-        id: "5",
-        label: "Bowling Team 2",
-        desc: "Second innings bowling card",
-      },
-      {
-        id: "6",
-        label: "Team 1 Playing XI",
-        desc: "Squad list & captain/keeper badges",
-      },
-      {
-        id: "7",
-        label: "Team 2 Playing XI",
-        desc: "Opponent squad & playing roster",
-      },
-      {
-        id: "8",
-        label: "Match Summary",
-        desc: "Combined scores & match outcome",
-      },
-    ],
-  },
-  {
-    id: "breaks",
-    name: "Breaks & stoppages",
-    description: "Full presentation screens for toss, innings break & weather",
-    icon: Calendar,
-    views: [
-      {
-        id: "13",
-        label: "Pre-Match Intro",
-        desc: "Tournament splash & stadium header",
-      },
-      {
-        id: "14",
-        label: "Innings Break",
-        desc: "Target requirement & 1st innings total",
-      },
-      {
-        id: "15",
-        label: "Drinks Break",
-        desc: "Mid-session pause & match equation",
-      },
-      {
-        id: "28",
-        label: "Rain Delay Notice",
-        desc: "Weather interruption announcement",
-      },
-    ],
-  },
-  {
-    id: "analytics",
-    name: "Analytics & charts",
-    description: "In-depth graphs, match trends & tournament honours",
-    icon: BarChart3,
-    views: [
-      {
-        id: "22",
-        label: "Run Rate Worm",
-        desc: "Comparative innings trajectory chart",
-      },
-      {
-        id: "21",
-        label: "Over by Over Manhattan",
-        desc: "Runs scored bar chart per over",
-      },
-      {
-        id: "23",
-        label: "Partnership Graphic",
-        desc: "Current partnership contribution",
-      },
-      {
-        id: "20",
-        label: "Points Table",
-        desc: "Tournament standings & net run rate",
-      },
-      {
-        id: "29",
-        label: "Player of the Match",
-        desc: "Award winner spotlight & figures",
-      },
-      {
-        id: "24",
-        label: "Batter Career",
-        desc: "Milestones, averages & historical stats",
-      },
-      {
-        id: "26",
-        label: "Bowler Career",
-        desc: "Wicket milestones & economy profile",
-      },
-    ],
-  },
-];
+function Panel({
+  title,
+  hint,
+  children,
+  className,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const id = useId();
+  return (
+    <section
+      aria-labelledby={id}
+      className={cn(
+        "rounded-xl border border-white/10 bg-[#0e131d] p-4",
+        className,
+      )}
+    >
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id={id} className="text-base font-semibold text-white">
+          {title}
+        </h2>
+        {hint && <p className="text-sm text-slate-400">{hint}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-// 1-Click Broadcast Notice Presets for instant broadcast straps
-const NOTICE_PRESETS = [
-  {
-    id: "drinks",
-    label: "Drinks break",
-    text: "Drinks break in progress · Play resumes shortly",
-  },
-  {
-    id: "rain",
-    label: "Rain delay",
-    text: "Rain stopped play · Ground staff covering the pitch",
-  },
-  {
-    id: "timeout",
-    label: "Strategic timeout",
-    text: "2.5-minute strategic tactical timeout underway",
-  },
-  {
-    id: "innings",
-    label: "Innings break",
-    text: "Change of innings in progress · Pitch preparation underway",
-  },
-  {
-    id: "drs",
-    label: "DRS review",
-    text: "Decision review in progress · Third umpire reviewing ball trajectory",
-  },
-  {
-    id: "inspection",
-    label: "Pitch inspection",
-    text: "Next official umpires inspection scheduled in 15 minutes",
-  },
-];
+const BUTTON =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-40";
+const QUIET = `${BUTTON} border-white/10 bg-white/5 text-slate-100 hover:bg-white/10`;
+const ON_AIR = `${BUTTON} border-red-500/60 bg-red-500/15 text-white`;
+const SELECTED = `${BUTTON} border-white/70 bg-white/15 text-white`;
+const PRIMARY = `${BUTTON} border-white bg-white text-black hover:bg-white/90`;
+
+/** The latest command's fate, read out to screen readers too. */
+function CommandStatusLine({
+  last,
+  listening,
+  onRetry,
+}: {
+  last: CommandRecord | null;
+  listening: boolean;
+  onRetry: () => void;
+}) {
+  let body: React.ReactNode = (
+    <span className="text-slate-400">
+      Nothing sent yet. What you send shows in the preview once the overlay has
+      it.
+    </span>
+  );
+  if (last?.status === "sending") {
+    body = (
+      <span className="flex items-center gap-2 text-slate-200">
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+        Sending: {last.label}
+      </span>
+    );
+  } else if (last?.status === "sent") {
+    body = (
+      <span className="flex items-center gap-2 text-slate-200">
+        <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Sent: {last.label}.{" "}
+        {listening
+          ? "Waiting for the overlay to confirm."
+          : "This page has lost its connection, so it cannot confirm."}
+      </span>
+    );
+  } else if (last?.status === "on_air") {
+    body = (
+      <span className="flex items-center gap-2 text-emerald-300">
+        <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+        On air: {last.label}
+      </span>
+    );
+  } else if (last?.status === "failed") {
+    body = (
+      <span className="flex flex-wrap items-center gap-2 text-red-300">
+        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Not sent: {last.label}. {last.message}
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-md border border-red-400/40 px-2 py-1 text-sm text-white hover:bg-red-500/20"
+        >
+          Try again
+        </button>
+      </span>
+    );
+  }
+  return (
+    <div
+      role="status"
+      aria-label="Last command"
+      aria-live="polite"
+      className="rounded-lg bg-black/40 px-3 py-2 text-sm"
+    >
+      {body}
+    </div>
+  );
+}
 
 export function ControlClient({
   matchId,
   initialState,
   initialMatch,
+  serverNow,
 }: ControlClientProps) {
-  const isTestMode = matchId === "test";
-  const isRealUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      matchId,
-    );
+  const isDemo = matchId === "test";
+  const isRealMatch = UUID_REGEX.test(matchId);
+  const [demoState, setDemoState] = useState<LiveMatchState | null>(
+    isDemo ? (initialState ?? DEMO_MATCH_STATE) : null,
+  );
+  const match = initialMatch ?? (isDemo ? DEMO_MATCH_DETAILS : null);
 
-  // Live match state with fallback to demo data
-  const [state, setState] = useState<LiveMatchState | null>(initialState);
-  const [match] = useState<Match | null>(initialMatch);
-  const [copiedObsUrl, setCopiedObsUrl] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // Active operational state from broadcast store
-  const {
-    selectedBroadcastView,
-    selectedTheme,
-    audioEnabled,
-    marginOffsetPx,
-    strapDurationSecs,
-    customStrapText,
-    activeSting,
-    activeStrap,
-    monitorScale,
-    monitorBg,
-    lastAction,
-    setBroadcastView: setSelectedBroadcastView,
-    setSelectedTheme,
-    setAudioEnabled,
-    setMarginOffsetPx,
-    setStrapDurationSecs,
-    setCustomStrapText,
-    setMonitorScale,
-    setMonitorBg,
-    setLastAction,
-    clearSting,
-    clearStrap,
-  } = useBroadcastStore();
-
-  const [activeDeckTab, setActiveDeckTab] = useState<string>("scorebars");
-  const monitorRef = useRef<HTMLDivElement>(null);
-
-  const activeState = state ?? DEMO_MATCH_STATE;
-  const activeMatch = match ?? DEMO_MATCH_DETAILS;
-
-  // Measure monitor scale to fit 1920x1080 perfectly into 16:9 monitor
-  useEffect(() => {
-    if (!monitorRef.current) return;
-    const updateScale = () => {
-      if (monitorRef.current) {
-        const w = monitorRef.current.clientWidth;
-        setMonitorScale(w / 1920);
-      }
-    };
-    updateScale();
-    const ro = new ResizeObserver(updateScale);
-    ro.observe(monitorRef.current);
-    return () => ro.disconnect();
-  }, [setMonitorScale]);
-
-  // Live scoreboard: one listener on live_state/{matchId} (1 read per
-  // change). Once the match is completed or abandoned it stops; the
-  // producer can resume it (e.g. after a scorer undoes the final ball).
+  // Live score: one listener on live_state/{matchId} (1 read per change).
+  // Once the match is over it stops; the producer can resume it (e.g.
+  // after a scorer undoes the final ball).
   const [resumeLive, setResumeLive] = useState(false);
+  const [lastState, setLastState] = useState<LiveMatchState | null>(
+    initialState,
+  );
   const isFinished =
-    state?.status === "completed" || state?.status === "abandoned";
+    lastState?.status === "completed" || lastState?.status === "abandoned";
   const live = useLiveState(matchId, {
-    enabled: isRealUuid && (!isFinished || resumeLive),
+    enabled: isRealMatch && (!isFinished || resumeLive),
     pauseWhenHidden: false,
   });
-  // Adopt each new snapshot; keep the last one after the listener stops.
-  const [seenLive, setSeenLive] = useState<LiveMatchState | null>(null);
-  if (live.state && live.state !== seenLive) {
-    setSeenLive(live.state);
-    setState(live.state);
+  if (live.state && live.state !== lastState) setLastState(live.state);
+  const state: LiveMatchState =
+    (isDemo ? demoState : (live.state ?? lastState)) ?? DEMO_MATCH_STATE;
+
+  // What is on air: the overlay state (one listener), as the overlay sees it.
+  const producer = useOverlayProducer(matchId, isDemo);
+  const { doc, send, last } = producer;
+  const layers = useOverlayLayers({
+    doc,
+    loaded: producer.loaded,
+    state,
+    serverNow,
+    muted: true,
+  });
+  const { scene } = layers;
+  const listening = producer.status === "connected";
+
+  const [strapSeconds, setStrapSeconds] = useState(8);
+  const [noticeText, setNoticeText] = useState("");
+  const [sponsorText, setSponsorText] = useState(scene.sponsor);
+  const [tickerText, setTickerText] = useState(scene.tickerText);
+  const [sponsorsText, setSponsorsText] = useState(
+    scene.sponsors.map((s) => s.name).join("\n"),
+  );
+  const [volume, setVolume] = useState(Math.round(scene.volume * 100));
+  // The forms start from what is stored, once it has been read.
+  const [formsLoaded, setFormsLoaded] = useState(false);
+  if (producer.loaded && !formsLoaded) {
+    setFormsLoaded(true);
+    setSponsorText(scene.sponsor);
+    setTickerText(scene.tickerText);
+    setSponsorsText(scene.sponsors.map((s) => s.name).join("\n"));
+    setVolume(Math.round(scene.volume * 100));
   }
 
-  // Command dispatcher: to the overlay, through the server (which checks
-  // this producer may drive this match's overlay).
-  const sendCommand = useCallback(
-    (cmd: Omit<ProducerCommand, "timestamp">) => {
-      void sendOverlayCommand(matchId, { ...cmd, timestamp: Date.now() });
+  // ---- commands ----
+  const showSting = useCallback(
+    (type: StingType) => {
+      const label = EVENT_CARDS.find((c) => c.type === type)?.label ?? type;
+      void send(
+        { type: "TRIGGER_STING", stingType: type },
+        `Event card: ${label}`,
+      );
     },
-    [matchId],
+    [send],
   );
 
-  const setActiveSting = useCallback(
-    (sting: ActiveEventSting | null) => {
-      if (!sting) clearSting();
-      else useBroadcastStore.getState().triggerSting(sting);
-    },
-    [clearSting],
-  );
-
-  const setActiveStrap = useCallback(
-    (strap: ActiveLowerThirdStrap | null) => {
-      if (!strap) clearStrap();
-      else
-        useBroadcastStore.getState().triggerStrap({
-          ...strap,
-          strapType: strap.type,
-        });
-    },
-    [clearStrap],
-  );
-
-  // Return to live scorebar (Take off full cards)
-  const handleReturnToScorebar = useCallback(() => {
-    setSelectedBroadcastView("1");
-    setActiveSting(null);
-    setActiveStrap(null);
-    sendCommand({
-      type: "SET_BROADCAST_VIEW",
-      broadcastView: "1",
-    });
-    setLastAction("Scorebar on air");
-  }, [
-    sendCommand,
-    setActiveSting,
-    setActiveStrap,
-    setLastAction,
-    setSelectedBroadcastView,
-  ]);
-
-  // Switch broadcast view
-  const handleSelectBroadcastView = useCallback(
-    (view: BroadcastViewId) => {
-      setSelectedBroadcastView(view);
-      setActiveSting(null);
-      sendCommand({
-        type: "SET_BROADCAST_VIEW",
-        broadcastView: view,
-      });
-      const opt = BROADCAST_VIEW_OPTIONS.find((o) => o.id === view);
-      setLastAction(`Switched to: ${opt?.label ?? view} (View ${view})`);
-    },
-    [sendCommand, setActiveSting, setLastAction, setSelectedBroadcastView],
-  );
-
-  // Trigger celebration stings
-  const handleTriggerSting = useCallback(
-    (stingType: "four" | "six" | "wicket" | "milestone" | "free_hit") => {
-      if (audioEnabled) {
-        if (stingType === "four") playFourFanfare();
-        else if (stingType === "six") playSixExplosion();
-        else if (stingType === "wicket") playWicketTone();
-        else if (stingType === "milestone") playMilestoneFanfare();
-        else if (stingType === "free_hit") playFreeHitAlert();
-      }
-
-      const titles: Record<string, string> = {
-        four: "Four",
-        six: "Six",
-        wicket: "Wicket",
-        milestone: "Milestone",
-        free_hit: "Free hit",
-      };
-
-      const stingId = `sting-${Date.now()}`;
-      const sting: ActiveEventSting = {
-        id: stingId,
-        type: stingType,
-        title: titles[stingType] ?? "Boundary",
-        subtitle:
-          activeState.batting_team_short_name ??
-          activeState.batting_team_name ??
-          "Live",
-        detail: activeState.striker_name
-          ? `${activeState.striker_name} · ${activeState.striker_runs ?? 0} (${activeState.striker_balls ?? 0}b)`
-          : undefined,
-        durationMs: 4000,
-      };
-
-      setActiveSting(sting);
-      setTimeout(() => {
-        setActiveSting(null);
-      }, 4000);
-
-      sendCommand({ type: "TRIGGER_STING", stingType });
-      setLastAction(`Event card: ${titles[stingType]}`);
-    },
-    [activeState, audioEnabled, sendCommand, setActiveSting, setLastAction],
-  );
-
-  // Trigger in-play lower-third straps
-  const handleTriggerStrap = useCallback(
-    (type: ActiveLowerThirdStrap["type"]) => {
-      let title = "";
-      let subtitle = "";
-      let detail = "";
-      let badge = "";
-
-      if (type === "batsman") {
-        badge = "Batter";
-        title = activeState.striker_name ?? "Striker";
-        subtitle = `${activeState.striker_runs ?? 0} runs off ${activeState.striker_balls ?? 0} balls`;
-        const sr =
-          activeState.striker_balls && activeState.striker_balls > 0
-            ? (
-                ((activeState.striker_runs ?? 0) / activeState.striker_balls) *
-                100
-              ).toFixed(1)
-            : "0.0";
-        detail = `Strike rate: ${sr}`;
-      } else if (type === "bowler") {
-        badge = "Bowler";
-        title = activeState.current_bowler_name ?? "Bowler";
-        subtitle = `${activeState.bowler_wickets ?? 0}/${activeState.bowler_runs ?? 0} (${activeState.bowler_balls ? Math.floor(activeState.bowler_balls / 6) + "." + (activeState.bowler_balls % 6) : "0.0"} ov)`;
-        const econ =
-          activeState.bowler_balls && activeState.bowler_balls > 0
-            ? (
-                ((activeState.bowler_runs ?? 0) / activeState.bowler_balls) *
-                6
-              ).toFixed(2)
-            : "0.00";
-        detail = `Economy: ${econ}`;
-      } else if (type === "partnership") {
-        badge = "Partnership";
-        title = `${activeState.partnership_runs ?? 0} runs`;
-        subtitle = `${activeState.striker_name ?? "Batsman 1"} & ${activeState.non_striker_name ?? "Batsman 2"}`;
-        detail = `${activeState.partnership_balls ?? 0} balls faced`;
-      } else if (type === "target") {
-        badge = "Chase";
-        title = `Target: ${activeState.target_runs ?? 0}`;
-        subtitle = `Need ${activeState.runs_needed ?? 0} runs off ${activeState.balls_remaining ?? 0} balls`;
-        detail = `Req RR: ${activeState.required_run_rate ?? "0.00"}`;
-      }
-
-      const strapId = `strap-${type}-${Date.now()}`;
+  const showStrap = useCallback(
+    (type: ActiveLowerThirdStrap["type"], label: string, text?: string) => {
       const strap: ActiveLowerThirdStrap = {
-        id: strapId,
+        id: `strap-${type}-${Date.now()}`,
         type,
-        title,
-        subtitle,
-        detail,
-        badge,
-        durationMs: strapDurationSecs * 1000,
+        title: "",
+        durationMs: strapSeconds * 1000,
       };
-
-      setActiveStrap(strap);
-      setTimeout(() => {
-        setActiveStrap(null);
-      }, strapDurationSecs * 1000);
-
-      sendCommand({ type: "SHOW_STRAP", strap });
-      setLastAction(`Lower third: ${badge}`);
-    },
-    [
-      activeState,
-      sendCommand,
-      setActiveStrap,
-      setLastAction,
-      strapDurationSecs,
-    ],
-  );
-
-  // Trigger custom alert strap
-  const handleSendCustomAlert = useCallback(
-    (customText?: string) => {
-      const text = (customText ?? customStrapText).trim();
-      if (!text) return;
-      const strapId = `custom-${Date.now()}`;
-      const strap: ActiveLowerThirdStrap = {
-        id: strapId,
-        type: "custom",
-        title: "Match notice",
-        subtitle: text,
-        badge: "Notice",
-        durationMs: strapDurationSecs * 1000,
-      };
-      setActiveStrap(strap);
-      setTimeout(() => {
-        setActiveStrap(null);
-      }, strapDurationSecs * 1000);
-
-      sendCommand({ type: "SHOW_STRAP", strap });
-      setLastAction(`Notice: "${text}"`);
-      if (!customText) setCustomStrapText("");
-    },
-    [
-      customStrapText,
-      sendCommand,
-      setActiveStrap,
-      setCustomStrapText,
-      setLastAction,
-      strapDurationSecs,
-    ],
-  );
-
-  // Emergency Panic clear
-  const handlePanicClear = useCallback(() => {
-    handleReturnToScorebar();
-    sendCommand({ type: "PANIC_CLEAR" });
-    setLastAction("Cleared all graphics");
-  }, [handleReturnToScorebar, sendCommand, setLastAction]);
-
-  // Global keyboard shortcuts for live operators
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
-      if (e.key === "4") {
-        e.preventDefault();
-        handleTriggerSting("four");
-      } else if (e.key === "6") {
-        e.preventDefault();
-        handleTriggerSting("six");
-      } else if (e.key === "w" || e.key === "W") {
-        e.preventDefault();
-        handleTriggerSting("wicket");
-      } else if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        handleTriggerSting("milestone");
-      } else if (e.key === "f" || e.key === "F") {
-        e.preventDefault();
-        handleTriggerSting("free_hit");
-      } else if (e.key === " " || e.key === "Escape") {
-        e.preventDefault();
-        handleReturnToScorebar();
-      } else if (e.key === "b" || e.key === "B") {
-        e.preventDefault();
-        handleTriggerStrap("batsman");
-      } else if (e.key === "o" || e.key === "O") {
-        e.preventDefault();
-        handleTriggerStrap("bowler");
-      } else if (e.key === "p" || e.key === "P") {
-        e.preventDefault();
-        handleTriggerStrap("partnership");
-      } else if (e.key === "t" || e.key === "T") {
-        e.preventDefault();
-        handleTriggerStrap("target");
+      if (type === "custom") {
+        strap.badge = "Notice";
+        strap.title = text ?? "";
       }
-    };
+      void send({ type: "SHOW_STRAP", strap }, `Lower third: ${label}`);
+    },
+    [send, strapSeconds],
+  );
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleTriggerSting, handleReturnToScorebar, handleTriggerStrap]);
+  const clearAll = useCallback(() => {
+    void send({ type: "PANIC_CLEAR" }, "Cleared graphics, score bug only");
+  }, [send]);
 
-  // Audio toggle
-  const handleToggleAudio = () => {
-    const next = !audioEnabled;
-    setAudioEnabled(next);
-    sendCommand({ type: "TOGGLE_AUDIO", audioEnabled: next });
-    setLastAction(next ? "Sound on" : "Sound off");
-  };
-
-  // Theme selector
-  const handleSelectTheme = (thm: OverlayTheme) => {
-    setSelectedTheme(thm);
-    sendCommand({ type: "SET_THEME", theme: thm });
-    setLastAction(`Theme: ${thm}`);
-  };
-
-  // Margin offset
-  const handleSetMarginOffset = (px: number) => {
-    setMarginOffsetPx(px);
-    sendCommand({ type: "SET_MARGIN_OFFSET", marginOffsetPx: px });
-    setLastAction(`Safe margin offset: +${px}px`);
-  };
-
-  // Copy OBS URL (relative on SSR/render to prevent hydration mismatch)
-  const obsUrl = `/overlay/${matchId}`;
-
-  const copyObsUrl = async () => {
-    try {
-      const fullUrl =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/overlay/${matchId}`
-          : `/overlay/${matchId}`;
-      await navigator.clipboard.writeText(fullUrl);
-      setCopiedObsUrl(true);
-      setTimeout(() => setCopiedObsUrl(false), 2500);
-      setLastAction("Copied OBS browser source URL");
-    } catch {
-      // fallback
+  const toggleCard = (id: PresentationCardType, label: string) => {
+    if (scene.card === id) {
+      void send({ type: "HIDE_CARD" }, `Took off: ${label}`);
+    } else {
+      void send({ type: "SHOW_CARD", card: id }, `Card: ${label}`);
     }
   };
 
-  // Simulator helper mutations (Test Mode Only)
-  const simulateScoreChange = (runsDelta: number, isWicket = false) => {
-    if (!isTestMode) return;
-    setState((prev) => {
-      const curr = prev ?? DEMO_MATCH_STATE;
-      const totalBalls = (curr.total_balls ?? 0) + 1;
-      const totalRuns = (curr.total_runs ?? 0) + runsDelta;
-      const totalWickets = isWicket
-        ? (curr.total_wickets ?? 0) + 1
-        : (curr.total_wickets ?? 0);
-      const strikerRuns = isWicket
-        ? curr.striker_runs
-        : (curr.striker_runs ?? 0) + runsDelta;
-      const strikerBalls = (curr.striker_balls ?? 0) + 1;
-      const runsNeeded =
-        curr.target_runs && curr.target_runs > totalRuns
-          ? curr.target_runs - totalRuns
-          : 0;
-      const ballsRemaining = Math.max(0, 120 - totalBalls);
-
-      return {
-        ...curr,
-        total_runs: totalRuns,
-        total_wickets: totalWickets,
-        total_balls: totalBalls,
-        current_over: Math.floor(totalBalls / 6),
-        current_ball: totalBalls % 6,
-        striker_runs: strikerRuns,
-        striker_balls: strikerBalls,
-        runs_needed: runsNeeded,
-        balls_remaining: ballsRemaining,
-        required_run_rate:
-          ballsRemaining > 0
-            ? Number(((runsNeeded / ballsRemaining) * 6).toFixed(2))
-            : 0,
-      };
-    });
-    setLastAction(
-      `Simulator: ${isWicket ? "Wicket" : `+${runsDelta} runs`} (Score: ${(activeState.total_runs ?? 0) + runsDelta}/${(activeState.total_wickets ?? 0) + (isWicket ? 1 : 0)})`,
-    );
-  };
-
-  const simulateStrikeRotation = () => {
-    if (!isTestMode) return;
-    setState((prev) => {
-      const curr = prev ?? DEMO_MATCH_STATE;
-      return {
-        ...curr,
-        striker_name: curr.non_striker_name,
-        striker_runs: curr.non_striker_runs,
-        striker_balls: curr.non_striker_balls,
-        non_striker_name: curr.striker_name,
-        non_striker_runs: curr.striker_runs,
-        non_striker_balls: curr.striker_balls,
-      };
-    });
-    setLastAction("Simulator: rotated strike");
-  };
-
-  const currentViewMeta = useMemo(() => {
-    return (
-      BROADCAST_VIEW_OPTIONS.find((o) => o.id === selectedBroadcastView) ?? {
-        id: selectedBroadcastView,
-        label: "Scorebar",
+  // Keyboard shortcuts for whoever runs the graphics from a laptop.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const tag = target?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target?.isContentEditable ||
+        target?.closest("[role=dialog]")
+      ) {
+        return;
       }
-    );
-  }, [selectedBroadcastView]);
+      const key = e.key.toLowerCase();
+      if (key === "escape") {
+        e.preventDefault();
+        clearAll();
+        return;
+      }
+      const sting = EVENT_CARDS.find((c) => c.key.toLowerCase() === key);
+      if (sting) {
+        e.preventDefault();
+        showSting(sting.type);
+        return;
+      }
+      const strap = STRAPS.find((s) => s.key.toLowerCase() === key);
+      if (strap) {
+        e.preventDefault();
+        showStrap(strap.type, strap.label);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [clearAll, showSting, showStrap]);
 
-  const activeDeck = useMemo(() => {
-    return (
-      GRAPHIC_PHASE_DECKS.find((d) => d.id === activeDeckTab) ??
-      GRAPHIC_PHASE_DECKS[0]!
-    );
-  }, [activeDeckTab]);
+  // ---- what is on air, in words ----
+  const cardOnAir = CARDS.find((c) => c.id === layers.card);
+  const strapOnAir = layers.strap;
+  const strapLabel = strapOnAir
+    ? strapOnAir.type === "custom"
+      ? strapOnAir.title || "Notice"
+      : (STRAPS.find((s) => s.type === strapOnAir.type)?.label ??
+        NOTICES.find((n) => n.type === strapOnAir.type)?.label ??
+        "Lower third")
+    : null;
+  const mainOnAir = !scene.showBug
+    ? "Score bug hidden"
+    : scene.view !== null
+      ? "Graphics-suite view"
+      : `Score bug (${LAYOUTS.find((l) => l.id === scene.layout)?.label.toLowerCase()})`;
+
+  const rules = autoRulesIn(doc);
+  const allAuto = Object.values(rules).every((r) => r.on);
+  const noneAuto = Object.values(rules).every((r) => !r.on);
+  const theme = resolveOverlayTheme(scene.theme);
+
+  const team1 = state.team1_name ?? state.team1_short_name ?? "Team 1";
+  const team2 = state.team2_name ?? state.team2_short_name ?? "Team 2";
+  const ids = {
+    notice: useId(),
+    sponsor: useId(),
+    sponsors: useId(),
+    ticker: useId(),
+    strapSeconds: useId(),
+    lift: useId(),
+    volume: useId(),
+    primary: useId(),
+    accent: useId(),
+  };
+
+  const simulate = (runs: number, wicket = false) =>
+    setDemoState((prev) => {
+      const s = prev ?? DEMO_MATCH_STATE;
+      const balls = (s.total_balls ?? 0) + 1;
+      return {
+        ...s,
+        total_runs: (s.total_runs ?? 0) + runs,
+        total_wickets: (s.total_wickets ?? 0) + (wicket ? 1 : 0),
+        total_balls: balls,
+        striker_runs: wicket ? s.striker_runs : (s.striker_runs ?? 0) + runs,
+        striker_balls: (s.striker_balls ?? 0) + 1,
+        last_ball_runs: runs,
+        last_ball_is_wicket: wicket,
+        last_ball_dismissed_player: wicket ? s.striker_name : null,
+        last_ball_seq: (s.last_ball_seq ?? 0) + 1,
+        runs_needed:
+          s.runs_needed !== null ? Math.max(0, s.runs_needed - runs) : null,
+        balls_remaining:
+          s.balls_remaining !== null
+            ? Math.max(0, s.balls_remaining - 1)
+            : null,
+      };
+    });
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#080c14] text-slate-100 ">
-      {/* ============================================================= */}
-      {/* 1. STUDIO HEADER & ON-AIR TALLY BAR                           */}
-      {/* ============================================================= */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0b0f18] px-3 py-2.5 sm:px-5 sm:py-3">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2.5 sm:gap-4">
-          {/* Match & Live Studio Status */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5">
-            <span className="text-sm font-medium text-slate-400">
-              Control room
-            </span>
-
-            <div className="flex items-baseline gap-2">
-              <span className="text-sm font-semibold text-white">
-                {activeState.team1_name ?? activeState.team1_short_name ?? "T1"}{" "}
-                vs{" "}
-                {activeState.team2_name ?? activeState.team2_short_name ?? "T2"}
-              </span>
-              <span className="text-xs font-semibold tabular-nums text-slate-300">
-                {activeState.total_runs ?? 0}/{activeState.total_wickets ?? 0} (
-                {oversText(activeState.total_balls)} ov)
-              </span>
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#080c14] text-slate-100">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0f18]/95 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link
+              href={isRealMatch ? `/matches/${matchId}` : "/"}
+              aria-label="Back to the match"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold text-white [text-wrap:balance]">
+                Control room
+              </h1>
+              <p className="truncate text-sm text-slate-400">
+                {team1} v {team2}
+                <span className="ml-2 font-score tabular-nums text-slate-200">
+                  {state.total_runs ?? 0}/{state.total_wickets ?? 0} (
+                  {oversText(state.total_balls)} ov)
+                </span>
+              </p>
             </div>
           </div>
-
-          {/* Live On-Air Tally Indicator & Return Button */}
-          <div className="flex items-center gap-2">
-            <div
+          <div className="flex flex-wrap items-center gap-2">
+            <span
               className={cn(
-                "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition",
-                selectedBroadcastView === "1"
-                  ? "border-white/10 bg-white/5 text-slate-300"
-                  : "border-red-500/40 bg-red-500/10 text-red-200",
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm",
+                listening
+                  ? "bg-emerald-500/10 text-emerald-300"
+                  : "bg-amber-500/15 text-amber-200",
               )}
             >
-              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" />
-              <span>
-                On air:{" "}
-                <span className="font-semibold text-white">
-                  {currentViewMeta.label}
-                </span>
-              </span>
-            </div>
-
-            {selectedBroadcastView !== "1" && (
-              <button
-                onClick={handleReturnToScorebar}
-                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white px-3 py-1.5 text-xs font-medium text-black transition-colors hover:bg-white/90"
-                title="Return to Scorebar (Space / Esc)"
-              >
-                <Undo2 className="h-3.5 w-3.5 shrink-0" />
-                <span className="hidden sm:inline">Back to scorebar</span>
-                <span className="sm:hidden">Back</span>
-              </button>
-            )}
-          </div>
-
-          {/* Quick Production Tools */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {isRealUuid && isFinished && !resumeLive && (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  listening ? "bg-emerald-400" : "bg-amber-400",
+                )}
+              />
+              {listening
+                ? "Connected"
+                : producer.status === "error"
+                  ? "Connection lost, retrying"
+                  : "Connecting…"}
+            </span>
+            {isRealMatch && isFinished && !resumeLive && (
               <button
                 type="button"
                 onClick={() => setResumeLive(true)}
-                className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+                className={QUIET}
                 title="Live updates stop when the match ends"
               >
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
-                <span>Resume live updates</span>
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Resume live updates
               </button>
             )}
-            <button
-              onClick={copyObsUrl}
-              className={`flex min-h-[36px] items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold shadow-sm transition ${
-                copiedObsUrl
-                  ? "bg-emerald-600 text-white"
-                  : "border border-white/10 bg-white/10 text-white hover:bg-white/20"
-              }`}
-            >
-              {copiedObsUrl ? (
-                <Check className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <Copy className="h-3.5 w-3.5 shrink-0" />
-              )}
-              <span className="hidden sm:inline">
-                {copiedObsUrl ? "Copied" : "Copy OBS URL"}
-              </span>
-            </button>
-
+            {isRealMatch && (
+              <Link href={`/matches/${matchId}/stream`} className={QUIET}>
+                Stream setup
+              </Link>
+            )}
             <a
-              href={obsUrl}
+              href={`/overlay/${matchId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
-              title="Open full transparent overlay in new window"
+              className={QUIET}
             >
-              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Popout</span>
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              Open overlay
             </a>
-
             <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
-              title="Configure Themes, Margins & Audio"
+              type="button"
+              onClick={clearAll}
+              className={`${BUTTON} border-red-500 bg-red-600 text-white hover:bg-red-500`}
+              title="Takes off every card and lower third (Esc)"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Settings</span>
-            </button>
-
-            <button
-              onClick={handlePanicClear}
-              className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500"
-              title="Clear all graphics"
-            >
-              <XCircle className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Clear</span>
+              <XCircle className="h-4 w-4" aria-hidden="true" />
+              Clear graphics
             </button>
           </div>
         </div>
       </header>
 
-      {/* ============================================================= */}
-      {/* 2. MAIN 2-COLUMN BROADCAST CONTROL SUITE                      */}
-      {/* ============================================================= */}
-      <main className="mx-auto max-w-7xl p-3 sm:p-5">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-          {/* ========================================================= */}
-          {/* LEFT COLUMN: PROGRAM MONITOR & INSTANT EVENT HOTDECK      */}
-          {/* ========================================================= */}
-          <div className="space-y-4 lg:col-span-6 xl:col-span-6">
-            {/* 16:9 Live Preview Screen Card */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
-              {/* Monitor Titlebar */}
-              <div className="flex items-center justify-between border-b border-white/10 pb-2.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span className="font-semibold text-slate-200">
-                    Program Feed
-                  </span>
-                  <span className="text-2xs text-slate-400">
-                    1920×1080 · 60fps
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
+      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 lg:grid-cols-12">
+        <div className="min-w-0 space-y-4 lg:col-span-7">
+          <Panel
+            title="On air"
+            hint="The overlay as your viewers see it, over the camera."
+          >
+            <OverlayPreview
+              state={state}
+              match={match}
+              layers={layers}
+              label="Preview of the overlay on air"
+            />
+            <ul className="mt-3 space-y-2 text-sm">
+              <li className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-black/30 px-3">
+                <span className="min-w-0 truncate">
+                  <span className="text-slate-400">Main: </span>
+                  {mainOnAir}
+                </span>
+                {scene.view !== null && (
                   <button
+                    type="button"
+                    className="rounded-md px-2 py-1 text-slate-200 underline-offset-2 hover:underline"
                     onClick={() =>
-                      setMonitorBg(monitorBg === "stadium" ? "grid" : "stadium")
+                      void send(
+                        { type: "SET_BROADCAST_VIEW", broadcastView: null },
+                        "Back to the score bug",
+                      )
                     }
-                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-2xs font-semibold text-slate-300 transition hover:bg-white/10"
-                    title="Toggle preview backdrop between stadium cam and transparency grid"
                   >
-                    {monitorBg === "stadium" ? (
-                      <>
-                        <span>Stadium</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>Grid</span>
-                      </>
-                    )}
+                    Back to score bug
                   </button>
-
-                  <button
-                    onClick={handleToggleAudio}
-                    className={cn(
-                      "flex items-center gap-1 rounded-lg border px-2 py-1 text-2xs font-bold transition",
-                      audioEnabled
-                        ? "border-white/20 bg-white/10 text-white"
-                        : "border-white/10 bg-white/5 text-slate-400",
-                    )}
-                    title="Toggle celebration sting audio fanfares"
-                  >
-                    {audioEnabled ? (
-                      <Volume2 className="h-3.5 w-3.5" />
-                    ) : (
-                      <VolumeX className="h-3.5 w-3.5" />
-                    )}
-                    <span>{audioEnabled ? "Sound on" : "Muted"}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 16:9 Scaled Monitor Viewport */}
-              <div
-                ref={monitorRef}
-                className={cn(
-                  "relative mt-3 aspect-video w-full overflow-hidden rounded-lg border border-white/10",
-                  monitorBg === "stadium"
-                    ? "bg-[#0b1220]"
-                    : "bg-slate-950 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]",
                 )}
-              >
-                {/* 1920x1080 Scaled Canvas */}
-                <div
-                  style={{
-                    width: "1920px",
-                    height: "1080px",
-                    transform: `scale(${monitorScale})`,
-                    transformOrigin: "top left",
-                  }}
-                  className="pointer-events-none absolute left-0 top-0 select-none overflow-hidden"
-                >
-                  <BroadcastSuiteOverlay
-                    state={activeState}
-                    match={activeMatch}
-                    activeView={selectedBroadcastView}
-                    theme={selectedTheme}
-                  />
-                  <EventStings
-                    sting={activeSting}
-                    theme={selectedTheme}
-                    onDismiss={() => setActiveSting(null)}
-                  />
-                  <LowerThirdStraps
-                    strap={activeStrap}
-                    state={activeState}
-                    theme={selectedTheme}
-                    layout="bottom"
-                    onDismiss={() => setActiveStrap(null)}
-                  />
-                </div>
-              </div>
-
-              {/* Active Layers Status HUD */}
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-black/40 px-3 py-2 text-2xs">
-                <div className="flex items-center gap-3">
-                  <span className="text-slate-400">Layers:</span>
-                  <span className="font-medium text-slate-200">
-                    Base: {currentViewMeta.label}
+              </li>
+              {cardOnAir && (
+                <li className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-red-500/10 px-3">
+                  <span className="min-w-0 truncate">
+                    <span className="text-slate-400">Card: </span>
+                    {cardOnAir.label}
                   </span>
-                  <span className="text-slate-600">•</span>
-                  <span
-                    className={cn(
-                      "font-semibold",
-                      activeStrap ? "text-slate-200" : "text-slate-500",
-                    )}
-                  >
-                    Strap:{" "}
-                    {activeStrap ? (activeStrap.badge ?? "Active") : "None"}
-                  </span>
-                  <span className="text-slate-600">•</span>
-                  <span
-                    className={cn(
-                      "font-semibold",
-                      activeSting ? "text-slate-200" : "text-slate-500",
-                    )}
-                  >
-                    Sting: {activeSting ? activeSting.title : "Idle"}
-                  </span>
-                </div>
-
-                <span className="text-xs text-slate-400">{lastAction}</span>
-              </div>
-            </div>
-
-            {/* Stream-Deck Instant Event Celebration Hotdeck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
-              <div className="mb-2.5 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Event cards
-                </h2>
-                <span className="text-2xs text-slate-400">
-                  <span className="hidden sm:inline">Click or use hotkeys</span>
-                  <span className="sm:hidden">Tap to show</span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {(
-                  [
-                    { type: "four", label: "Four", sub: "Boundary", key: "4" },
-                    {
-                      type: "six",
-                      label: "Six",
-                      sub: "Over the rope",
-                      key: "6",
-                    },
-                    { type: "wicket", label: "Wicket", sub: "Out", key: "W" },
-                    {
-                      type: "milestone",
-                      label: "Milestone",
-                      sub: "50 / 100",
-                      key: "M",
-                    },
-                    {
-                      type: "free_hit",
-                      label: "Free hit",
-                      sub: "After a no-ball",
-                      key: "F",
-                    },
-                  ] as const
-                ).map((ev) => (
                   <button
-                    key={ev.type}
-                    onClick={() => handleTriggerSting(ev.type)}
-                    className={cn(
-                      "relative flex flex-col items-center justify-center gap-0.5 rounded-lg border border-white/10 bg-white/5 p-3 text-white transition-colors hover:bg-white/10",
-                      ev.type === "free_hit" && "col-span-2 sm:col-span-1",
-                    )}
-                  >
-                    <kbd className="absolute right-2 top-2 hidden rounded border border-white/10 px-1 font-mono text-[10px] text-slate-400 sm:inline">
-                      {ev.key}
-                    </kbd>
-                    <span
-                      className={cn(
-                        "text-sm font-semibold",
-                        ev.type === "wicket" && "text-red-400",
-                      )}
-                    >
-                      {ev.label}
-                    </span>
-                    <span className="text-xs text-slate-400">{ev.sub}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* In-Play Lower-Third Popups Deck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
-              <div className="mb-2.5 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Lower thirds
-                </h2>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">Duration:</span>
-                  <select
-                    value={strapDurationSecs}
-                    onChange={(e) =>
-                      setStrapDurationSecs(Number(e.target.value))
-                    }
-                    className="rounded-lg border border-white/10 bg-slate-800 px-2 py-0.5 text-xs text-white"
-                  >
-                    <option value={5}>5s</option>
-                    <option value={8}>8s</option>
-                    <option value={10}>10s</option>
-                    <option value={15}>15s</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[
-                  {
-                    id: "batsman",
-                    label: "Striker",
-                    hotkey: "B",
-                    desc: "Runs, balls & strike rate",
-                  },
-                  {
-                    id: "bowler",
-                    label: "Bowler",
-                    hotkey: "O",
-                    desc: "Overs, maidens & wickets",
-                  },
-                  {
-                    id: "partnership",
-                    label: "Partnership",
-                    hotkey: "P",
-                    desc: "Active pair contribution",
-                  },
-                  {
-                    id: "target",
-                    label: "Chase",
-                    hotkey: "T",
-                    desc: "Runs needed from balls",
-                  },
-                ].map((s) => (
-                  <button
-                    key={s.id}
+                    type="button"
+                    className="rounded-md px-2 py-1 text-white underline-offset-2 hover:underline"
                     onClick={() =>
-                      handleTriggerStrap(s.id as ActiveLowerThirdStrap["type"])
+                      void send(
+                        { type: "HIDE_CARD" },
+                        `Took off: ${cardOnAir.label}`,
+                      )
                     }
-                    className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/5 p-2.5 text-left transition-colors hover:bg-white/10"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-white">
-                        {s.label}
-                      </span>
-                      <span className="rounded bg-white/10 px-1 font-mono text-[9px] text-slate-300">
-                        [{s.hotkey}]
-                      </span>
-                    </div>
-                    <span className="mt-1 text-[10px] text-slate-400">
-                      {s.desc}
-                    </span>
+                    Take off
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Test Match Simulator (Only active on /overlay/test/control) */}
-            {isTestMode && (
-              <div className="rounded-xl border border-dashed border-white/15 bg-[#0e131d] p-3.5 sm:p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-slate-100">
-                    Match simulator (test only)
-                  </h2>
-                  <span className="text-[10px] text-slate-400">
-                    Changes the preview state only
+                </li>
+              )}
+              {strapLabel && (
+                <li className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-red-500/10 px-3">
+                  <span className="min-w-0 truncate">
+                    <span className="text-slate-400">Lower third: </span>
+                    {strapLabel}
                   </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
                   <button
-                    onClick={() => simulateScoreChange(4)}
-                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
+                    type="button"
+                    className="rounded-md px-2 py-1 text-white underline-offset-2 hover:underline"
+                    onClick={() =>
+                      void send(
+                        { type: "HIDE_STRAP" },
+                        "Took off the lower third",
+                      )
+                    }
                   >
-                    +4 runs
+                    Take off
                   </button>
-                  <button
-                    onClick={() => simulateScoreChange(6)}
-                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
-                  >
-                    +6 runs
-                  </button>
-                  <button
-                    onClick={() => simulateScoreChange(0, true)}
-                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
-                  >
-                    +Wkt
-                  </button>
-                  <button
-                    onClick={simulateStrikeRotation}
-                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-white/10"
-                  >
-                    Rotate strike
-                  </button>
-                  <button
-                    onClick={() => {
-                      setState(DEMO_MATCH_STATE);
-                      setLastAction("Simulator: reset to demo state");
-                    }}
-                    className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 hover:bg-white/10"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Reset</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ========================================================= */}
-          {/* RIGHT COLUMN: PHASE-DRIVEN GRAPHICS DECKS & NOTICE PRESETS */}
-          {/* ========================================================= */}
-          <div className="space-y-4 lg:col-span-6 xl:col-span-6">
-            {/* Phase Graphics Switcher Deck */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
-              <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-3">
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Graphics
-                </h2>
-                <span className="text-2xs text-slate-400">
-                  Select graphic to push live
-                </span>
-              </div>
-
-              {/* 4 Clean Phase Navigation Tabs */}
-              <div
-                role="tablist"
-                className="no-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-xl bg-black/40 p-1"
-              >
-                {GRAPHIC_PHASE_DECKS.map((deck) => {
-                  const Icon = deck.icon;
-                  const isActive = activeDeckTab === deck.id;
-                  return (
-                    <button
-                      key={deck.id}
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => setActiveDeckTab(deck.id)}
-                      className={cn(
-                        "flex min-h-[38px] flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-medium transition-colors",
-                        isActive
-                          ? "bg-white text-black"
-                          : "text-slate-400 hover:bg-white/5 hover:text-white",
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      <span>{deck.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Views Grid for Active Phase */}
-              <div className="mt-3.5 space-y-2">
-                <p className="text-2xs text-slate-400">
-                  {activeDeck.description}:
-                </p>
-
-                <div className="grid grid-cols-1 gap-2 min-[480px]:grid-cols-2">
-                  {activeDeck.views.map((v) => {
-                    const isLive = selectedBroadcastView === v.id;
-                    return (
-                      <button
-                        key={v.id}
-                        onClick={() => handleSelectBroadcastView(v.id)}
-                        className={cn(
-                          "flex flex-col justify-between rounded-lg border p-3 text-left transition-colors",
-                          isLive
-                            ? "border-red-500/50 bg-red-500/10"
-                            : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10",
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={cn(
-                              "text-xs font-semibold",
-                              "text-white",
-                            )}
-                          >
-                            {v.label}
-                          </span>
-                          {isLive ? (
-                            <span className="flex items-center gap-1 text-2xs font-medium text-red-300">
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                              <span>On air</span>
-                            </span>
-                          ) : (
-                            <span className="font-mono text-[10px] text-slate-500">
-                              v{v.id}
-                            </span>
-                          )}
-                        </div>
-                        <span className="mt-1 text-2xs text-slate-400">
-                          {v.desc}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                </li>
+              )}
+            </ul>
+            <div className="mt-3">
+              <CommandStatusLine
+                last={last}
+                listening={listening}
+                onRetry={producer.retry}
+              />
             </div>
+          </Panel>
 
-            {/* 1-Click Broadcast Notice Presets & Custom Ticker */}
-            <div className="rounded-xl border border-slate-800 bg-[#0e131d] p-3.5 sm:p-4">
-              <div className="mb-2.5 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Notices
-                </h2>
-                <span className="text-2xs text-slate-400">Presets</span>
-              </div>
-
-              {/* 1-Click Notice Badges */}
-              <div className="flex flex-wrap gap-1.5">
-                {NOTICE_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSendCustomAlert(p.text)}
-                    className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Custom Ticker Input Box */}
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="text"
-                  value={customStrapText}
-                  onChange={(e) => setCustomStrapText(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && handleSendCustomAlert()
-                  }
-                  placeholder="Custom broadcast alert (e.g. 'Inspection at 3:30 PM')"
-                  className="min-h-[44px] w-full rounded-xl border border-white/10 bg-black/40 px-3.5 py-2 text-base text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none sm:min-h-0 sm:text-xs"
-                />
+          <Panel
+            title="Event cards"
+            hint={
+              allAuto
+                ? "These also show by themselves after each ball."
+                : "Shown for a few seconds in the middle of the frame."
+            }
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {EVENT_CARDS.map((c) => (
                 <button
-                  onClick={() => handleSendCustomAlert()}
-                  className="flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-lg bg-white px-4 py-2 text-xs font-medium text-black transition-colors hover:bg-white/90"
+                  key={c.type}
+                  type="button"
+                  onClick={() => showSting(c.type)}
+                  className={cn(
+                    QUIET,
+                    "relative",
+                    c.type === "free_hit" && "col-span-2 sm:col-span-1",
+                  )}
+                  aria-keyshortcuts={c.key}
                 >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>Send alert</span>
+                  {c.label}
+                  <kbd className="absolute right-1.5 top-1 hidden font-mono text-xs text-slate-500 sm:inline">
+                    {c.key}
+                  </kbd>
+                </button>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Lower thirds" hint="A strip above the score bug.">
+            <div className="mb-3 flex items-center gap-2 text-sm">
+              <label htmlFor={ids.strapSeconds} className="text-slate-300">
+                Show for
+              </label>
+              <select
+                id={ids.strapSeconds}
+                value={strapSeconds}
+                onChange={(e) => setStrapSeconds(Number(e.target.value))}
+                className="min-h-10 rounded-lg border border-white/10 bg-slate-900 px-2 text-sm text-white"
+              >
+                {STRAP_SECONDS.map((s) => (
+                  <option key={s} value={s}>
+                    {s} seconds
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {STRAPS.map((s) => (
+                <button
+                  key={s.type}
+                  type="button"
+                  onClick={() => showStrap(s.type, s.label)}
+                  className={cn(QUIET, "flex-col items-start text-left")}
+                  aria-keyshortcuts={s.key}
+                >
+                  <span className="flex w-full items-center justify-between">
+                    {s.label}
+                    <kbd className="hidden font-mono text-xs text-slate-500 sm:inline">
+                      {s.key}
+                    </kbd>
+                  </span>
+                  <span className="text-xs font-normal text-slate-400">
+                    {s.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {NOTICES.map((n) => (
+                <button
+                  key={n.type}
+                  type="button"
+                  onClick={() => showStrap(n.type, n.label)}
+                  className={QUIET}
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
+            <form
+              className="mt-3 flex flex-col gap-2 sm:flex-row"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const text = noticeText.trim();
+                if (!text) return;
+                showStrap("custom", `Notice "${text}"`, text);
+                setNoticeText("");
+              }}
+            >
+              <label htmlFor={ids.notice} className="sr-only">
+                Your own notice
+              </label>
+              <input
+                id={ids.notice}
+                value={noticeText}
+                onChange={(e) => setNoticeText(e.target.value)}
+                maxLength={120}
+                placeholder="Your own notice, e.g. Play resumes at 3:30"
+                className="min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none sm:text-sm"
+              />
+              <button
+                type="submit"
+                className={`${PRIMARY} shrink-0 whitespace-nowrap`}
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Show notice
+              </button>
+            </form>
+          </Panel>
+
+          {isDemo && (
+            <Panel
+              title="Practice match"
+              hint="Changes the score on this page only."
+            >
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={QUIET}
+                  onClick={() => simulate(1)}
+                >
+                  Add a single
+                </button>
+                <button
+                  type="button"
+                  className={QUIET}
+                  onClick={() => simulate(4)}
+                >
+                  Add a four
+                </button>
+                <button
+                  type="button"
+                  className={QUIET}
+                  onClick={() => simulate(6)}
+                >
+                  Add a six
+                </button>
+                <button
+                  type="button"
+                  className={QUIET}
+                  onClick={() => simulate(0, true)}
+                >
+                  Add a wicket
+                </button>
+                <button
+                  type="button"
+                  className={QUIET}
+                  onClick={() => setDemoState(DEMO_MATCH_STATE)}
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  Reset
                 </button>
               </div>
-            </div>
-          </div>
+            </Panel>
+          )}
         </div>
-      </main>
 
-      {/* ============================================================= */}
-      {/* 3. UNIFIED THEME & BROADCAST SETTINGS DIALOG (NO REDUNDANCY)  */}
-      {/* ============================================================= */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border-white/10 bg-slate-900 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-white">
-              <span>Overlay settings</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">
-              Theme, OBS safe-zone margin and hotkeys.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-2">
-            {/* TV Broadcast Themes */}
-            <div>
-              <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-                <Palette className="h-4 w-4" />
-                <span>Theme</span>
-              </label>
-
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {THEME_OPTIONS.map((thm) => {
-                  const isSelected = selectedTheme === thm.id;
-                  return (
-                    <button
-                      key={thm.id}
-                      onClick={() => handleSelectTheme(thm.id)}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-lg border p-2.5 text-left transition-colors",
-                        isSelected
-                          ? "border-white/40 bg-white/10"
-                          : "border-white/10 bg-white/5 hover:bg-white/10",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-3 w-3 shrink-0 rounded-full ring-1 ring-white/30",
-                          thm.swatch,
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-medium text-white">
-                          {thm.label}
-                        </div>
-                        <div className="truncate text-[10px] text-slate-400">
-                          {thm.desc}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* OBS Safe-Zone Margin Offset */}
-            <div className="border-t border-white/10 pt-4">
-              <label className="mb-1 block text-sm font-semibold text-slate-200">
-                OBS safe-zone margin
-              </label>
-              <p className="mb-2 text-xs text-slate-400">
-                Lifts the bottom scorebar above YouTube/Twitch live chat or
-                mobile portrait safe areas.
-              </p>
-
-              <div className="flex gap-2">
-                {[0, 16, 32, 48].map((px) => (
+        <div className="min-w-0 space-y-4 lg:col-span-5">
+          <Panel
+            title="Full-screen cards"
+            hint="Stay up until you take them off."
+          >
+            <div className="grid grid-cols-2 gap-2">
+              {CARDS.map((c) => {
+                const why = cardUnavailable(c.id, state, match);
+                const onAir = scene.card === c.id;
+                return (
                   <button
-                    key={px}
-                    onClick={() => handleSetMarginOffset(px)}
+                    key={c.id}
+                    type="button"
+                    disabled={!onAir && why !== null}
+                    aria-pressed={onAir}
+                    onClick={() => toggleCard(c.id, c.label)}
                     className={cn(
-                      "rounded-md border px-3.5 py-1.5 text-xs font-medium tabular-nums transition-colors",
-                      marginOffsetPx === px
-                        ? "border-white bg-white text-black"
-                        : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10",
+                      onAir ? ON_AIR : QUIET,
+                      "flex-col items-start text-left",
                     )}
                   >
-                    +{px}px
+                    <span>{c.label}</span>
+                    <span className="text-xs font-normal text-slate-400">
+                      {onAir ? "On air: tap to take off" : (why ?? "Ready")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Panel>
+
+          <Panel title="Automatic event cards">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={allAuto}
+                className={allAuto ? SELECTED : QUIET}
+                onClick={() =>
+                  void send(
+                    { type: "SET_AUTO", auto: DEFAULT_AUTO_RULES },
+                    "Automatic event cards on",
+                  )
+                }
+              >
+                Automatic
+              </button>
+              <button
+                type="button"
+                aria-pressed={noneAuto}
+                className={noneAuto ? SELECTED : QUIET}
+                onClick={() =>
+                  void send(
+                    { type: "SET_AUTO", auto: manualAutoRules(rules) },
+                    "Automatic event cards off",
+                  )
+                }
+              >
+                I&apos;ll run them
+              </button>
+            </div>
+            <fieldset className="mt-3">
+              <legend className="mb-2 text-sm text-slate-400">
+                Show by themselves after
+              </legend>
+              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                {Object.entries(rules).map(([id, rule]) => (
+                  <label
+                    key={id}
+                    className="flex min-h-10 items-center gap-2 text-sm text-slate-200"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={rule.on}
+                      onChange={(e) =>
+                        void send(
+                          {
+                            type: "SET_AUTO",
+                            auto: {
+                              ...rules,
+                              [id]: { ...rule, on: e.target.checked },
+                            },
+                          },
+                          `${AUTO_LABELS[id] ?? id}: ${e.target.checked ? "automatic" : "manual"}`,
+                        )
+                      }
+                      className="h-4 w-4 accent-white"
+                    />
+                    {AUTO_LABELS[id] ?? id}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </Panel>
+
+          <Panel title="Score bug">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={scene.showBug}
+                className={QUIET}
+                onClick={() =>
+                  void send(
+                    { type: "TOGGLE_BUG", visible: !scene.showBug },
+                    scene.showBug
+                      ? "Hid the score bug"
+                      : "Showed the score bug",
+                  )
+                }
+              >
+                {scene.showBug ? "Hide score bug" : "Show score bug"}
+              </button>
+            </div>
+            <fieldset className="mt-3">
+              <legend className="mb-2 text-sm text-slate-400">Position</legend>
+              <div className="flex flex-wrap gap-2">
+                {LAYOUTS.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    aria-pressed={scene.layout === l.id}
+                    className={scene.layout === l.id ? SELECTED : QUIET}
+                    onClick={() =>
+                      void send(
+                        { type: "SET_LAYOUT", layout: l.id },
+                        `Position: ${l.label}`,
+                      )
+                    }
+                  >
+                    {l.label}
                   </button>
                 ))}
               </div>
-            </div>
-
-            {/* Keyboard Hotkeys Guide */}
-            <div className="border-t border-white/10 pt-4">
-              <label className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-200">
-                <Keyboard className="h-4 w-4" />
-                <span>Keyboard shortcuts</span>
+            </fieldset>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <label htmlFor={ids.lift} className="text-slate-300">
+                Lift from the bottom edge
               </label>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
-                  <div className="text-xs font-medium text-slate-400">
-                    Event cards
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Four</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [4]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Six</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [6]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Wicket</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [W]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Milestone (50/100)</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [M]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Free hit</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [F]
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 rounded-xl bg-black/40 p-3">
-                  <div className="text-xs font-medium text-slate-400">
-                    Navigation
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Back to scorebar</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [Space / Esc]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Striker</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [B]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Bowler</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [O]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Partnership</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [P]
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-slate-300">
-                    <span>Chase</span>
-                    <span className="rounded bg-white/10 px-1.5 font-mono text-2xs">
-                      [T]
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <select
+                id={ids.lift}
+                value={scene.marginOffsetPx}
+                onChange={(e) =>
+                  void send(
+                    {
+                      type: "SET_MARGIN_OFFSET",
+                      marginOffsetPx: Number(e.target.value),
+                    },
+                    `Lift: ${e.target.value}px`,
+                  )
+                }
+                className="min-h-10 rounded-lg border border-white/10 bg-slate-900 px-2 text-sm text-white"
+              >
+                {[0, 16, 32, 48, 64, 96].map((px) => (
+                  <option key={px} value={px}>
+                    {px === 0 ? "None" : `${px} px`}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </Panel>
+
+          <Panel title="Look">
+            <fieldset>
+              <legend className="mb-2 text-sm text-slate-400">Theme</legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {OVERLAY_THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    aria-pressed={theme === t.id}
+                    className={cn(
+                      theme === t.id ? SELECTED : QUIET,
+                      "flex-col items-start text-left",
+                    )}
+                    onClick={() =>
+                      void send(
+                        { type: "SET_THEME", theme: t.id },
+                        `Theme: ${t.label}`,
+                      )
+                    }
+                  >
+                    {t.label}
+                    <span className="text-xs font-normal text-slate-400">
+                      {t.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+            {theme === "custom" && (
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+                <label
+                  htmlFor={ids.primary}
+                  className="flex items-center gap-2"
+                >
+                  Main colour
+                  <input
+                    id={ids.primary}
+                    type="color"
+                    value={scene.customColors.primary}
+                    onChange={(e) =>
+                      void send(
+                        {
+                          type: "SET_CUSTOM_COLORS",
+                          customColors: {
+                            ...scene.customColors,
+                            primary: e.target.value,
+                          },
+                        },
+                        "Custom colours",
+                      )
+                    }
+                    className="h-10 w-14 rounded border border-white/10 bg-transparent"
+                  />
+                </label>
+                <label htmlFor={ids.accent} className="flex items-center gap-2">
+                  Highlight colour
+                  <input
+                    id={ids.accent}
+                    type="color"
+                    value={scene.customColors.accent}
+                    onChange={(e) =>
+                      void send(
+                        {
+                          type: "SET_CUSTOM_COLORS",
+                          customColors: {
+                            ...scene.customColors,
+                            accent: e.target.value,
+                          },
+                        },
+                        "Custom colours",
+                      )
+                    }
+                    className="h-10 w-14 rounded border border-white/10 bg-transparent"
+                  />
+                </label>
+              </div>
+            )}
+
+            <form
+              className="mt-4 space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send(
+                  { type: "SET_SPONSOR", sponsorText },
+                  sponsorText.trim()
+                    ? "Sponsor line"
+                    : "Removed the sponsor line",
+                );
+              }}
+            >
+              <label
+                htmlFor={ids.sponsor}
+                className="block text-sm text-slate-300"
+              >
+                Sponsor line on the score bug
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id={ids.sponsor}
+                  value={sponsorText}
+                  maxLength={80}
+                  onChange={(e) => setSponsorText(e.target.value)}
+                  placeholder="e.g. Presented by Smith Builders"
+                  className="min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white placeholder:text-slate-500 sm:text-sm"
+                />
+                <button type="submit" className={QUIET}>
+                  Save
+                </button>
+              </div>
+            </form>
+
+            <form
+              className="mt-4 space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const sponsors = sponsorsText
+                  .split("\n")
+                  .map((name) => name.trim())
+                  .filter(Boolean)
+                  .map((name, i) => ({ id: `s${i + 1}`, name }));
+                void send(
+                  { type: "SET_SPONSORS", sponsors },
+                  sponsors.length
+                    ? "Sponsors in the corner"
+                    : "Removed the sponsors",
+                );
+              }}
+            >
+              <label
+                htmlFor={ids.sponsors}
+                className="block text-sm text-slate-300"
+              >
+                Sponsors taking turns in the top corner, one per line
+              </label>
+              <textarea
+                id={ids.sponsors}
+                rows={3}
+                value={sponsorsText}
+                onChange={(e) => setSponsorsText(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white sm:text-sm"
+              />
+              <button type="submit" className={QUIET}>
+                Save sponsors
+              </button>
+            </form>
+
+            <form
+              className="mt-4 space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send(
+                  { type: "TOGGLE_TICKER", visible: true, tickerText },
+                  "Ticker on",
+                );
+              }}
+            >
+              <label
+                htmlFor={ids.ticker}
+                className="block text-sm text-slate-300"
+              >
+                Ticker along the bottom edge
+              </label>
+              <input
+                id={ids.ticker}
+                value={tickerText}
+                maxLength={200}
+                onChange={(e) => setTickerText(e.target.value)}
+                placeholder="e.g. Next match: Saturday 10 am at Riverside"
+                className="min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white placeholder:text-slate-500 sm:text-sm"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  className={scene.tickerVisible ? ON_AIR : QUIET}
+                  disabled={!tickerText.trim()}
+                >
+                  {scene.tickerVisible ? "Update ticker" : "Show ticker"}
+                </button>
+                {scene.tickerVisible && (
+                  <button
+                    type="button"
+                    className={QUIET}
+                    onClick={() =>
+                      void send(
+                        { type: "TOGGLE_TICKER", visible: false },
+                        "Ticker off",
+                      )
+                    }
+                  >
+                    Hide ticker
+                  </button>
+                )}
+              </div>
+            </form>
+          </Panel>
+
+          <Panel
+            title="Sound"
+            hint="Plays from the overlay. In OBS, tick Control audio via OBS."
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                aria-pressed={scene.sound}
+                className={scene.sound ? SELECTED : QUIET}
+                onClick={() =>
+                  void send(
+                    { type: "TOGGLE_AUDIO", audioEnabled: !scene.sound },
+                    scene.sound ? "Sound off" : "Sound on",
+                  )
+                }
+              >
+                {scene.sound ? "Sound on" : "Sound off"}
+              </button>
+              <label htmlFor={ids.volume} className="text-sm text-slate-300">
+                Volume
+              </label>
+              <input
+                id={ids.volume}
+                type="range"
+                min={0}
+                max={100}
+                step={10}
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                onPointerUp={(e) =>
+                  void send(
+                    {
+                      type: "TOGGLE_AUDIO",
+                      audioVolume: Number(e.currentTarget.value) / 100,
+                    },
+                    `Volume ${e.currentTarget.value}%`,
+                  )
+                }
+                onKeyUp={(e) =>
+                  void send(
+                    {
+                      type: "TOGGLE_AUDIO",
+                      audioVolume: Number(e.currentTarget.value) / 100,
+                    },
+                    `Volume ${e.currentTarget.value}%`,
+                  )
+                }
+                className="w-40 accent-white"
+              />
+            </div>
+          </Panel>
+
+          {isRealMatch && (
+            <Panel
+              title="Fixed links and Stream Deck"
+              hint="Optional: a ground's own overlay link, and buttons."
+            >
+              {/* The app's own components, in its dark colours. */}
+              <div className="dark space-y-4 text-foreground">
+                <ChannelPicker matchId={matchId} />
+                <RemoteControlPanel matchId={matchId} />
+              </div>
+            </Panel>
+          )}
+
+          <details className="rounded-xl border border-white/10 bg-[#0e131d] p-4 text-sm">
+            <summary className="cursor-pointer font-semibold text-white">
+              Keyboard shortcuts
+            </summary>
+            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-slate-300">
+              {[...EVENT_CARDS, ...STRAPS].map((s) => (
+                <div key={s.key} className="contents">
+                  <dt>
+                    <kbd className="font-mono">{s.key}</kbd>
+                  </dt>
+                  <dd>{s.label}</dd>
+                </div>
+              ))}
+              <dt>
+                <kbd className="font-mono">Esc</kbd>
+              </dt>
+              <dd>Clear graphics</dd>
+            </dl>
+          </details>
+        </div>
+      </main>
     </div>
   );
 }

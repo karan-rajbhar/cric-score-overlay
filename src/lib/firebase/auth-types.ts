@@ -72,5 +72,9 @@ export function toAuthError(err: unknown): AuthError {
       "Network error. Check your connection and try again.",
     "auth/operation-not-allowed": "This sign-in method is not enabled.",
   };
+  // The invite-only refusal names the account it refused (auth.tsx).
+  if (code === "app/invite-only" && err instanceof Error && err.message) {
+    return { message: err.message, code };
+  }
   return { message: (code && friendly[code]) || fallback, code };
 }

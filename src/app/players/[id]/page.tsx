@@ -35,6 +35,8 @@ import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
+import { PlayerMilestones } from "~/components/players/player-milestones";
+import { EntityActions } from "~/components/follow/entity-actions";
 import { liveScorecardInnings } from "~/lib/firebase/live-innings";
 import { livePerformanceOf } from "~/lib/firebase/live-player";
 import type { LiveScorecardDoc } from "~/lib/firebase/live-scorecard";
@@ -196,9 +198,18 @@ export default async function PlayerPage({
     ) as unknown as T[];
   const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
   const bowlingRows = byNewest(records.flatMap(bowlingRowsOfPlayerMatch));
+  // Only the rosters of the matches with a bowler or fielder to name, not
+  // of every fixture listed.
+  const dismissalMatchIds = new Set(
+    battingRows
+      .filter((b) => b.bowler_id || b.fielder_id)
+      .map((b) => b.match_id),
+  );
   const names = await playerDirectory(
     db,
-    matchesData.flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+    matchesData
+      .filter((m) => dismissalMatchIds.has(String(m.id)))
+      .flatMap((m) => [m.team1_id as string, m.team2_id as string]),
     battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
   );
   const nameOf = (uid: string | null) => {
@@ -320,7 +331,7 @@ export default async function PlayerPage({
   }
 
   let backHref = "/players";
-  let backLabel = "Back to Players";
+  let backLabel = "Back to players";
   if (teamInfo) {
     const q = new URLSearchParams();
     if (tournamentId) q.set("tournamentId", tournamentId);
@@ -333,7 +344,7 @@ export default async function PlayerPage({
     backLabel = `Back to ${tournamentInfo.name}`;
   } else if (matchId) {
     backHref = `/matches/${matchId}`;
-    backLabel = "Back to Match";
+    backLabel = "Back to match";
   }
 
   const matchesList: PlayerMatchItem[] = matchesData.map((m) => {
@@ -497,6 +508,7 @@ export default async function PlayerPage({
           }
         />
         <ProfileTeams teams={teams} tournamentId={tournamentId} />
+        {!isSelf && <EntityActions kind="player" id={user.id} name={user.full_name} className="" />}
       </div>
 
       {/* Career figures first, then the innings, matches and teams. */}
@@ -542,6 +554,7 @@ export default async function PlayerPage({
                   ["Run outs", stats?.total_run_outs ?? 0],
                 ]}
               />
+              <PlayerMilestones batting={batting} bowling={bowling} />
             </>
           }
         />

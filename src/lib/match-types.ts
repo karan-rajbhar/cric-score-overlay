@@ -8,7 +8,7 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
-import type { Tables } from "~/lib/firebase/types";
+import type { DlsRevision, Tables } from "~/lib/firebase/types";
 
 export type DbMatch = Tables<"matches">;
 export type DbInnings = Tables<"innings">;
@@ -136,6 +136,8 @@ export interface BallEvent {
   dismissed_player?: UserRef | null;
   commentary?: string | null;
   shot_zone?: string | null;
+  /** On a no-ball: its completed runs were byes / leg byes (in extras). */
+  no_ball_runs?: "bye" | "leg_bye" | null;
   seq?: number;
 }
 
@@ -190,6 +192,8 @@ export interface Match {
   win_margin_type?: "runs" | "wickets" | "balls" | string | null;
   win_margin?: number | null;
   result_description?: string | null;
+  /** The chase target revised by DLS, if any (innings, target, overs). */
+  dls_revision?: DlsRevision | null;
   weather_conditions?: string | null;
   pitch_conditions?: string | null;
   ball_type?: string | null;
@@ -206,6 +210,8 @@ export interface Match {
   wickets_per_innings?: number | null;
   last_man_stands?: boolean | null;
   golden_ball?: boolean | null;
+  /** Free hit after a no-ball; null or absent: on. */
+  free_hit?: boolean | null;
   club_id?: string | null;
   tournament_id?: string | null;
   season_id?: string | null;

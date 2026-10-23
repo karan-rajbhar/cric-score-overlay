@@ -1,10 +1,12 @@
 import type { Match } from "./match-types";
+import { noBallByesOf } from "./firebase/scoring/recompute";
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
-  ballsRemaining,
   bowlerEconomy,
   byBattingOrder,
+  chaseLine,
   dismissalText,
+  displayStatusOf,
   formatBowlerOvers,
   formatDecimalOvers,
   inningsBalls,
@@ -125,7 +127,6 @@ export function matchSituation(match: Match): string {
       (match.status === "abandoned" ? "Match abandoned" : "Match completed")
     );
   }
-  if (match.status === "innings_break") return "Innings break";
   const inn =
     match.innings?.find((i) => i.innings_number === match.current_innings) ??
     match.innings?.at(-1);
@@ -133,16 +134,13 @@ export function matchSituation(match: Match): string {
   const bpo = match.balls_per_over || 6;
   const batting = teamName(match, inn.team_id);
   const balls = inningsBalls(inn, bpo);
-  const need = (inn.target_runs ?? 0) - inn.total_runs;
-  if (inn.target_runs && need > 0) {
-    const runs = `${need} ${need === 1 ? "run" : "runs"}`;
-    const left = match.overs_per_innings
-      ? ballsRemaining(match.overs_per_innings, balls, bpo)
-      : 0;
-    return left > 0
-      ? `${batting} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
-      : `${batting} need ${runs}`;
+  // The chase over the overs it has (a DLS revision's included).
+  const chase = chaseLine(match, inn, batting, bpo);
+  if (displayStatusOf(match) === "innings_break") {
+    return chase ? `Innings break. ${chase}` : "Innings break";
   }
+  if (chase) return chase;
+  if (balls === 0 && inn.total_runs === 0) return `${batting} bat first`;
   return `${batting} batting · run rate ${runRate(inn.total_runs, balls, bpo)}`;
 }
 
@@ -358,12 +356,14 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
 
       const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
       if (isLegal) overLegalBalls++;
+      // Byes off a no-ball are not the bowler's (only its penalty is).
+      const nbByes = noBallByesOf(d);
       if (
         d.extra_type !== "bye" &&
         d.extra_type !== "leg_bye" &&
         d.extra_type !== "penalty"
       ) {
-        overBowlerRuns += totalBallRuns;
+        overBowlerRuns += totalBallRuns - (nbByes?.runs ?? 0);
       }
 
       if (d.batsman_id) {
@@ -388,7 +388,7 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
           d.extra_type === "leg_bye" ||
           d.extra_type === "penalty"
             ? 0
-            : totalBallRuns;
+            : totalBallRuns - (nbByes?.runs ?? 0);
         bwStat.runs += bowlerRuns;
         if (isWkt) bwStat.wickets++;
         if (isLegal) bwStat.balls++;
@@ -404,7 +404,11 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
         text = extras > 1 ? `${extras}Wd` : "Wd";
         type = "extra";
       } else if (d.extra_type === "no_ball") {
-        text = runsScored > 0 ? `${runsScored}Nb` : "Nb";
+        text = nbByes?.runs
+          ? `Nb+${nbByes.runs}${nbByes.kind === "bye" ? "b" : "lb"}`
+          : runsScored > 0
+            ? `${runsScored}Nb`
+            : "Nb";
         type = "extra";
       } else if (d.extra_type === "bye") {
         text = `B${extras}`;

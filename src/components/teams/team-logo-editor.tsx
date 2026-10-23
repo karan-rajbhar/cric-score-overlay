@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { updateTeamLogo, removeTeamLogo } from "~/app/teams/actions";
+import { LOGO_MAX_PX, resizeImageFile } from "~/lib/image-resize";
 import { toast } from "sonner";
 import { Loader2, Trash2, Upload } from "lucide-react";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 interface TeamLogoEditorProps {
   teamId: string;
@@ -26,26 +28,39 @@ export function TeamLogoEditor({
 
   const handleFile = async (file: File) => {
     setSaving(true);
-    const result = await updateTeamLogo(teamId, file);
-    if (result.error || !result.data) {
-      toast.error(result.error ?? "Could not upload logo");
-    } else {
-      setCurrent(result.data);
-      toast.success("Logo updated");
+    try {
+      const result = await updateTeamLogo(
+        teamId,
+        await resizeImageFile(file, LOGO_MAX_PX),
+      );
+      if (result.error || !result.data) {
+        toast.error(result.error ?? "Could not upload logo");
+      } else {
+        setCurrent(result.data);
+        toast.success("Logo updated");
+      }
+    } catch {
+      toast.error(NETWORK_ERROR_MESSAGE);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const handleRemove = async () => {
     setSaving(true);
-    const result = await removeTeamLogo(teamId);
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      setCurrent(null);
-      toast.success("Logo removed");
+    try {
+      const result = await removeTeamLogo(teamId);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        setCurrent(null);
+        toast.success("Logo removed");
+      }
+    } catch {
+      toast.error(NETWORK_ERROR_MESSAGE);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   return (
@@ -79,7 +94,7 @@ export function TeamLogoEditor({
           type="button"
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-10 w-10"
           onClick={() => inputRef.current?.click()}
           disabled={saving}
           aria-label={current ? "Change logo" : "Upload logo"}
@@ -92,7 +107,7 @@ export function TeamLogoEditor({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-10 w-10"
             onClick={() => void handleRemove()}
             disabled={saving}
             aria-label="Remove logo"

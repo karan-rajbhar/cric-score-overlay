@@ -78,6 +78,34 @@ export const RETIREMENT_TYPES = [
 
 export type RetirementType = (typeof RETIREMENT_TYPES)[number]["value"];
 
+/** What a run out's completed runs were (the ball's extra type, if any). */
+export type RunsKind = "bat" | "bye" | "leg_bye";
+
+/** Dismissals that may take either batter (the rest: the striker). */
+export function dismissesEitherBatter(type: string): boolean {
+  return type === "run_out" || type === "obstructing" || isRetirementType(type);
+}
+
+/**
+ * Why the wicket cannot be confirmed yet, in the words shown under the
+ * button (null: it can).
+ */
+export function wicketMissing(
+  dismissalType: string,
+  fielderId: string,
+): string | null {
+  if (!dismissalType) return "Choose how the batter was out";
+  const d = ALL_DISMISSAL_TYPES.find((x) => x.value === dismissalType);
+  if (d?.needsFielder && !fielderId) {
+    return dismissalType === "stumped"
+      ? "Choose the keeper"
+      : dismissalType === "caught"
+        ? "Choose the catcher"
+        : "Choose the fielder";
+  }
+  return null;
+}
+
 export function isRetirementType(
   v: string | null | undefined,
 ): v is RetirementType {
@@ -112,6 +140,12 @@ interface WicketDialogProps {
   extraType?: string | null;
   runsCompleted?: number;
   onRunsCompletedChange?: (runs: number) => void;
+  /**
+   * What the runs completed before a run out were: off the bat, byes or
+   * leg byes (on a no-ball too). Not asked on a wide: those are wides.
+   */
+  runsKind?: RunsKind;
+  onRunsKindChange?: (kind: RunsKind) => void;
   onConfirm: () => void;
   isProcessing: boolean;
   isFreeHit?: boolean;
@@ -138,11 +172,13 @@ export function WicketDialog({
   extraType,
   runsCompleted = 0,
   onRunsCompletedChange,
+  runsKind = "bat",
+  onRunsKindChange,
   onConfirm,
   isProcessing,
   isFreeHit = false,
 }: WicketDialogProps) {
-  // Filter dismissal types based on MCC laws when an extra delivery or Free Hit is active
+  // The dismissals the armed extra (or a free hit) allows.
   const availableDismissals = ALL_DISMISSAL_TYPES.filter((d) => {
     if (isFreeHit) {
       return d.value === "run_out" || d.value === "obstructing";
@@ -154,14 +190,14 @@ export function WicketDialog({
   const retirements = extraType ? [] : RETIREMENT_TYPES;
   const retiring = isRetirementType(dismissalType);
 
-  // If currently selected dismissal is not valid under the active extra/free hit, auto-select first valid
+  // A dismissal the armed extra / free hit rules out is dropped (nothing
+  // is picked for the scorer: a wrong default would be a wrong scorecard).
   useEffect(() => {
+    if (!open || !dismissalType) return;
     const valid =
       availableDismissals.some((d) => d.value === dismissalType) ||
       (!extraType && isRetirementType(dismissalType));
-    if (open && !valid) {
-      onDismissalTypeChange(availableDismissals[0]?.value ?? "run_out");
-    }
+    if (!valid) onDismissalTypeChange("");
   }, [
     open,
     extraType,
@@ -171,14 +207,17 @@ export function WicketDialog({
     onDismissalTypeChange,
   ]);
 
-  /** A run out or a retirement can be either batter; the rest the striker. */
-  const eitherBatter = (type: string) =>
-    type === "run_out" || isRetirementType(type);
   const pickType = (type: string) => {
     onDismissalTypeChange(type);
-    if (!eitherBatter(type) && strikerId && dismissedPlayerId !== strikerId) {
+    if (
+      !dismissesEitherBatter(type) &&
+      strikerId &&
+      dismissedPlayerId !== strikerId
+    ) {
       onDismissedPlayerChange?.(strikerId);
     }
+    // Byes go with a run out only: any other dismissal ends the ball.
+    if (type !== "run_out" && runsKind !== "bat") onRunsKindChange?.("bat");
   };
   const chipClass = (selected: boolean) =>
     cn(
@@ -187,6 +226,7 @@ export function WicketDialog({
         ? "border-black bg-black text-white shadow-sm dark:border-white dark:bg-white dark:text-black"
         : "border-border/80 bg-background text-foreground hover:bg-muted",
     );
+  const missing = wicketMissing(dismissalType, fielderId);
   const retireeName =
     (dismissedPlayerId || strikerId) === nonStrikerId
       ? nonStrikerName || "Non-striker"
@@ -219,28 +259,25 @@ export function WicketDialog({
         <DialogHeader>
           <DialogTitle>Record wicket</DialogTitle>
           <DialogDescription>
-            Specify the dismissal mode and involved players to record the fall
-            of wicket.
+            How the batter was out, and who was involved.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          {extraType && (
-            <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-warning">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+          {(extraType === "no_ball" || extraType === "wide" || isFreeHit) && (
+            <div
+              role="note"
+              className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-2.5 text-xs text-warning"
+            >
+              <AlertTriangle
+                className="h-4 w-4 shrink-0 text-warning"
+                aria-hidden="true"
+              />
               <span>
                 {extraType === "no_ball"
-                  ? "No-ball: Under MCC Law 21.18, batter can only be Run Out or Obstructing the Field."
-                  : "Wide: Under MCC Law 22.17, batter cannot be Bowled, Caught, or LBW."}
-              </span>
-            </div>
-          )}
-
-          {isFreeHit && !extraType && (
-            <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs font-semibold text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-              <span>
-                Free Hit Delivery: Under Law 21.19, batter can only be dismissed
-                Run Out or Obstructing.
+                  ? "No ball: the batter can be out only run out or obstructing the field."
+                  : isFreeHit
+                    ? "Free hit: the batter can be out only run out or obstructing the field."
+                    : "Wide: the batter cannot be out bowled, caught or LBW."}
               </span>
             </div>
           )}
@@ -250,7 +287,7 @@ export function WicketDialog({
               className="text-sm font-semibold text-foreground"
               id="dismissal-label"
             >
-              How was the batsman out?
+              How was the batter out?
             </p>
             {/* Rapid 1-Tap Dismissal Chips for outdoor scoring */}
             <div
@@ -313,7 +350,7 @@ export function WicketDialog({
           {strikerId && nonStrikerId && onDismissedPlayerChange && (
             <div>
               <p className="text-sm font-medium" id="dismissed-batter-label">
-                {retiring ? "Who retires" : "Batsman dismissed"}
+                {retiring ? "Who retires" : "Batter out"}
               </p>
               <div
                 className="mt-1.5 grid grid-cols-2 gap-2"
@@ -330,7 +367,7 @@ export function WicketDialog({
                 ].map((b) => {
                   const selected = (dismissedPlayerId || strikerId) === b.id;
                   const disabled =
-                    !eitherBatter(dismissalType) && b.id !== strikerId;
+                    !dismissesEitherBatter(dismissalType) && b.id !== strikerId;
                   return (
                     <button
                       key={b.id}
@@ -359,26 +396,69 @@ export function WicketDialog({
             </div>
           )}
 
-          {/* Runs completed before run out */}
+          {/* Runs completed before run out, and what they were */}
           {dismissalType === "run_out" && onRunsCompletedChange && (
-            <div>
-              <label className="text-sm font-medium">
-                Runs completed before run-out
-              </label>
-              <div className="mt-1.5 flex gap-2">
-                {[0, 1, 2, 3].map((r) => (
-                  <Button
-                    key={r}
-                    type="button"
-                    variant={runsCompleted === r ? "default" : "outline"}
-                    size="sm"
-                    className="flex-1 min-h-[40px] text-sm font-bold"
-                    onClick={() => onRunsCompletedChange(r)}
-                  >
-                    {r}
-                  </Button>
-                ))}
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium" id="runs-completed-label">
+                  Runs completed before the run out
+                </p>
+                <div
+                  className="mt-1.5 flex gap-2"
+                  role="group"
+                  aria-labelledby="runs-completed-label"
+                >
+                  {[0, 1, 2, 3].map((r) => (
+                    <Button
+                      key={r}
+                      type="button"
+                      variant={runsCompleted === r ? "default" : "outline"}
+                      size="sm"
+                      aria-pressed={runsCompleted === r}
+                      className="min-h-11 flex-1 text-sm font-bold"
+                      onClick={() => onRunsCompletedChange(r)}
+                    >
+                      {r}
+                    </Button>
+                  ))}
+                </div>
               </div>
+              {onRunsKindChange &&
+                runsCompleted > 0 &&
+                extraType !== "wide" && (
+                  <div>
+                    <p className="text-sm font-medium" id="runs-kind-label">
+                      The runs were
+                    </p>
+                    <div
+                      className="mt-1.5 grid grid-cols-3 gap-2"
+                      role="radiogroup"
+                      aria-labelledby="runs-kind-label"
+                    >
+                      {(
+                        [
+                          ["bat", "Off the bat"],
+                          ["bye", "Byes"],
+                          ["leg_bye", "Leg byes"],
+                        ] as const
+                      ).map(([kind, label]) => {
+                        const checked = runsKind === kind;
+                        return (
+                          <button
+                            key={kind}
+                            type="button"
+                            role="radio"
+                            aria-checked={checked}
+                            onClick={() => onRunsKindChange(kind)}
+                            className={chipClass(checked)}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
             </div>
           )}
 
@@ -386,10 +466,10 @@ export function WicketDialog({
             <div>
               <p className="mb-1.5 text-sm font-medium">
                 {dismissalType === "run_out"
-                  ? "Fielder (involved in run-out)"
+                  ? "Fielder"
                   : dismissalType === "stumped"
                     ? "Keeper"
-                    : "Fielder / catcher"}
+                    : "Catcher"}
               </p>
               <PlayerPicker
                 label="Choose fielder"
@@ -416,12 +496,21 @@ export function WicketDialog({
             <Button
               className="h-11 min-h-[44px] w-full text-sm font-semibold"
               onClick={onConfirm}
-              disabled={isProcessing}
+              disabled={isProcessing || Boolean(missing)}
+              aria-describedby={missing ? "wicket-missing" : undefined}
             >
               {retiring
                 ? `${dismissalType === "retired_hurt" ? "Retire hurt" : "Retire out"}: ${retireeName}`
                 : "Confirm wicket"}
             </Button>
+            {missing && (
+              <p
+                id="wicket-missing"
+                className="mt-1.5 text-center text-xs text-muted-foreground"
+              >
+                {missing}
+              </p>
+            )}
           </div>
         </div>
       </DialogContent>
