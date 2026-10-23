@@ -6,8 +6,8 @@
  */
 
 import { useEffect, useState, type ReactNode } from "react";
-import { battingSide, teamCode } from "../../overlay-kit";
-import { sidesOf, type Side } from "../../score-bug";
+import { battingSide } from "../../overlay-kit";
+import { sidesOf, teamCode, type Side } from "../shared";
 import type { LiveMatchState } from "../../types";
 import { ballsWord, surnameOf, type Chase } from "./balls";
 import {

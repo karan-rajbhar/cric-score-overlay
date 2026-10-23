@@ -13,7 +13,7 @@
 
 import type { CSSProperties } from "react";
 import type { Innings } from "~/lib/match-types";
-import { tossLineOf } from "../../score-bug";
+import { tossLineOf } from "../shared";
 import type { LiveMatchState } from "../../types";
 import type { OverlayElementProps } from "../types";
 import {
@@ -137,7 +137,7 @@ function BallsBlock({
           <Label size={18} color="var(--hb-ink-muted)">
             {set.word} {set.number}
           </Label>
-          <SetSquares tokens={set.tokens} open={set.open} size={30} delay={delay + 120} />
+          <SetSquares balls={set.balls} open={set.open} size={30} delay={delay + 120} />
         </div>
       )}
       {count.limit !== null && (
@@ -370,7 +370,7 @@ function CompactBug({ live, offset }: { live: Live; offset: number }) {
             <Label size={18} color="var(--hb-ink-muted)">
               {set.word} {set.number}
             </Label>
-            <SetSquares tokens={set.tokens.slice(-bpo)} open={set.open} size={24} gap={4} />
+            <SetSquares balls={set.balls.slice(-bpo)} open={set.open} size={24} gap={4} />
           </div>
           {count.limit !== null && (
             <BallBar value={count.bowled} max={count.limit} height={6} className="absolute inset-x-0 bottom-0" />

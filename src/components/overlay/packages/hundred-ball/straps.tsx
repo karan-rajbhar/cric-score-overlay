@@ -13,8 +13,8 @@
 import type { ReactNode } from "react";
 import { formatDismissalType } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
-import { winPredictorFromLive } from "~/lib/win-predictor";
-import { strapText } from "../../strap-views";
+
+import { estimateOf, strapText } from "../shared";
 import type { ActiveLowerThirdStrap, LayoutMode, LiveMatchState } from "../../types";
 import type { BreakKind, ElementBaseProps, OverlayElementProps } from "../types";
 import {
@@ -37,6 +37,7 @@ import {
   BowlingFig,
   deepOf,
   Fig,
+  FONT,
   HERO_H,
   Label,
   lowerAnchor,
@@ -406,7 +407,7 @@ export function HundredThisOverStrap(p: OverlayElementProps["thisOver"]) {
   const bpo = ballsPerOverFrom(state, p.match);
   const set = currentSetOf(state, bpo);
   const runs = state.this_over_runs;
-  if (!set.tokens.length && runs === null) {
+  if (!set.balls.length && runs === null) {
     if (!strap?.title) return null;
     return (
       <Plate layout={p.layout} testId="hb-this-over" tab={strap.badge || `${set.word} ${set.number}`} name={strap.title} sub={strap.subtitle} />
@@ -445,7 +446,7 @@ export function HundredThisOverStrap(p: OverlayElementProps["thisOver"]) {
           ) : (
             <Label color="var(--hb-ink-muted)">This {set.word.toLowerCase()}</Label>
           )}
-          <SetSquares tokens={set.tokens} open={set.open} size={56} gap={8} delay={200} />
+          <SetSquares balls={set.balls} open={set.open} size={56} gap={8} delay={200} />
         </Block>
       </Slab>
     </Root>
@@ -466,7 +467,7 @@ export function SplitBar({
   size?: number;
   width?: number;
 }) {
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est || est.kind !== "chase") return null;
   const sides = sidesWithTones(state);
   const min = 0.24;
@@ -510,7 +511,7 @@ export function EstimateStrap({
   testId: string;
 }) {
   const { state } = p;
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est) return null;
   const sides = sidesWithTones(state);
   const anchor = lowerAnchor(p.layout);
@@ -626,7 +627,7 @@ export function HundredBreak(p: OverlayElementProps["breakStrap"]) {
             <Block tone={tone} className="flex flex-col justify-end px-8 pb-6 pt-5" style={{ minHeight: 168 }}>
               <Label color={mutedOn(tone)}>{strap?.badge || (kind === "rain_delay" ? "Weather" : "Break in play")}</Label>
               <Reveal delay={160}>
-                <span className="mt-3 block uppercase leading-[0.86]" style={{ fontFamily: "var(--font-hb-stencil), var(--pkg-font-display)", fontSize: 112, fontWeight: 900 }}>
+                <span className="mt-3 block uppercase leading-[0.86]" style={{ fontFamily: FONT.stencil, fontSize: 112, fontWeight: 900 }}>
                   {title}
                 </span>
               </Reveal>

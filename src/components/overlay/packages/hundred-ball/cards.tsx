@@ -16,7 +16,7 @@ import type {
   TeamPlayer,
 } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
-import { winPredictorFromLive } from "~/lib/win-predictor";
+import { estimateOf } from "../shared";
 import { playingXi, tossWinnerName } from "../../presentation-card-views";
 import { inningsTeamName } from "../../scorecard-cards";
 import type { LiveMatchState } from "../../types";
@@ -28,10 +28,9 @@ import {
   ballsWord,
   chaseOf,
   currentSetOf,
-  initialsOf,
-  inningsBallLimit,
   surnameOf,
 } from "./balls";
+import { initialsOf, inningsBalls, roleMark } from "../shared";
 import {
   Caption,
   ChaseLine,
@@ -376,7 +375,7 @@ export function HundredFallOfWickets(p: OverlayElementProps["fallOfWickets"]) {
   if (!fow.length) return null;
   const bpo = ballsPerOverFrom(state, match);
   const limit =
-    inningsBallLimit({ ...state, innings_number: innings.innings_number }, bpo) ??
+    inningsBalls({ ...state, innings_number: innings.innings_number }, bpo) ??
     Math.max(innings.total_balls, 1);
   const side = boardSideOf(state, match, innings);
   return (
@@ -447,9 +446,6 @@ export function HundredFallOfWickets(p: OverlayElementProps["fallOfWickets"]) {
 }
 
 // ---- teams -------------------------------------------------------------------------
-
-const roleMark = (role: string | null | undefined) =>
-  role === "captain" ? " (c)" : role === "wicket_keeper" ? " (wk)" : "";
 
 function XiList({
   players,
@@ -1161,7 +1157,7 @@ export function HundredThisOverCard(p: OverlayElementProps["thisOver"]) {
       heroLabel="Runs"
     >
       <Block tone="ink2" className="flex flex-col gap-6 px-8 py-8">
-        <SetSquares tokens={set.tokens} open={set.open} size={104} gap={14} delay={300} />
+        <SetSquares balls={set.balls} open={set.open} size={104} gap={14} delay={300} />
         {count.limit !== null && (
           <div className="flex items-center gap-6">
             <Label size={20} color="var(--hb-ink-muted)" className="shrink-0">
@@ -1176,7 +1172,7 @@ export function HundredThisOverCard(p: OverlayElementProps["thisOver"]) {
 }
 
 export function EstimateCard({ state, testId }: { state: LiveMatchState; testId: string }) {
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est) return null;
   const sides = sidesWithTones(state);
   if (est.kind === "projection") {

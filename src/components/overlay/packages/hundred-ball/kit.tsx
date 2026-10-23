@@ -17,13 +17,13 @@ import {
 import { cn } from "~/lib/utils";
 import type { LayoutMode } from "../../types";
 import { AnimatedNumber, MotionPreferenceContext } from "../motion";
-import { tokenKind, type TokenKind } from "./balls";
+import { CrestSlot, SAFE, type DeliveryKind, type OverBall } from "../shared";
+import { STENCIL_FAMILY } from "./fonts";
 import s from "./hundred-ball.module.css";
 
 // ---- canvas -----------------------------------------------------------------
 
-/** Title-safe inset on the 1920x1080 canvas (5%). */
-export const SAFE = { x: 96, y: 54 } as const;
+export { SAFE };
 /** Gap between blocks: the ink seam. */
 export const SEAM = 6;
 /** Hero row height of the bug (lower thirds match it). */
@@ -35,7 +35,7 @@ export const FONT = {
   display: "var(--pkg-font-display, ui-monospace, monospace)",
   text: "var(--pkg-font-text, system-ui, sans-serif)",
   figures: "var(--pkg-font-figures, ui-monospace, monospace)",
-  stencil: "var(--font-hb-stencil), var(--pkg-font-display, sans-serif)",
+  stencil: `${STENCIL_FAMILY}, var(--pkg-font-display, sans-serif)`,
 } as const;
 
 // ---- tones ------------------------------------------------------------------
@@ -507,7 +507,11 @@ export function Text({
   );
 }
 
-/** A team's crest: its logo, else its code. */
+/**
+ * A team's crest (the shared slot): its logo, else its code set in the
+ * blocky display face. Codes are data: no name is passed, so the slot
+ * keeps the code rather than a monogram.
+ */
 export function Crest({
   logo,
   code,
@@ -517,29 +521,21 @@ export function Crest({
   code: string;
   size?: number;
 }) {
-  if (logo) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={logo}
-        alt=""
-        className="h-full w-full object-contain"
-        style={{ filter: "drop-shadow(0 2px 2px rgb(0 0 0 / 0.25))" }}
-      />
-    );
-  }
   return (
-    <span
-      className="block truncate text-center font-extrabold uppercase leading-none"
-      style={{
+    <CrestSlot
+      logo={logo}
+      code={code}
+      className="flex h-full w-full items-center justify-center"
+      imgClassName="h-full w-full object-contain"
+      imgStyle={{ filter: "drop-shadow(0 2px 2px rgb(0 0 0 / 0.25))" }}
+      textClassName="block truncate text-center font-extrabold uppercase leading-none"
+      textStyle={{
         fontFamily: FONT.display,
         fontSize: size,
         letterSpacing: "-0.03em",
         fontStretch: "87.5%",
       }}
-    >
-      {code}
-    </span>
+    />
   );
 }
 
@@ -579,22 +575,24 @@ export function Tab({
 
 // ---- deliveries ---------------------------------------------------------------
 
-const TOKEN_TONE: Record<TokenKind, CSSProperties> = {
+const TOKEN_TONE: Record<DeliveryKind, CSSProperties> = {
   dot: { background: "var(--hb-ink3)", color: "rgb(255 255 255 / 0.82)" },
   run: { background: "var(--hb-paper)", color: "var(--hb-ink)" },
   four: { background: "var(--hb-four)", color: "var(--hb-four-fg)" },
   six: { background: "var(--hb-six)", color: "var(--hb-six-fg)" },
   wicket: { background: "var(--hb-wicket)", color: "var(--hb-wicket-fg)" },
   extra: { background: "var(--hb-free)", color: "var(--hb-free-fg)" },
+  event: { background: "var(--hb-paper2)", color: "var(--hb-ink)" },
 };
 
-const SPOKEN: Record<TokenKind, string> = {
+const SPOKEN: Record<DeliveryKind, string> = {
   dot: "dot ball",
   run: "runs",
   four: "four",
   six: "six",
   wicket: "wicket",
   extra: "extra",
+  event: "",
 };
 
 /**
@@ -603,14 +601,14 @@ const SPOKEN: Record<TokenKind, string> = {
  * balls still to come.
  */
 export function SetSquares({
-  tokens,
+  balls,
   open,
   size = 30,
   gap = 6,
   delay = 0,
   className,
 }: {
-  tokens: readonly string[];
+  balls: readonly OverBall[];
   open: number;
   size?: number;
   gap?: number;
@@ -623,8 +621,7 @@ export function SetSquares({
       className={cn("flex items-center", className)}
       style={{ gap }}
     >
-      {tokens.map((t, i) => {
-        const kind = tokenKind(t);
+      {balls.map(({ token: t, kind }, i) => {
         const label = kind === "dot" ? "•" : t;
         const b = build("pop", delay + i * 50, 360);
         return (
@@ -648,7 +645,9 @@ export function SetSquares({
           >
             <span aria-hidden="true">{label}</span>
             <span className="sr-only">
-              {kind === "run" || kind === "extra" ? `${t} ${SPOKEN[kind]}` : SPOKEN[kind]}
+              {kind === "run" || kind === "extra" || kind === "event"
+                ? `${t} ${SPOKEN[kind]}`.trim()
+                : SPOKEN[kind]}
             </span>
           </li>
         );

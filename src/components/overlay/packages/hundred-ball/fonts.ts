@@ -6,7 +6,7 @@
  */
 
 import { Archivo, Big_Shoulders_Stencil, Martian_Mono } from "next/font/google";
-import type { PackageFonts } from "../types";
+import { packageFonts } from "../shared";
 
 const mono = Martian_Mono({
   subsets: ["latin"],
@@ -33,9 +33,10 @@ const text = Archivo({
   preload: false,
 });
 
-export const HUNDRED_FONTS: PackageFonts = {
-  className: [mono.variable, stencil.variable, text.variable].join(" "),
-  display: "var(--font-hb-mono), ui-monospace, monospace",
-  text: "var(--font-hb-text), system-ui, sans-serif",
-  figures: "var(--font-hb-mono), ui-monospace, monospace",
-};
+/** The stencil face's family (stings and break cards use it directly). */
+export const STENCIL_FAMILY = stencil.style.fontFamily;
+
+export const HUNDRED_FONTS = packageFonts(
+  { display: mono, text, figures: mono },
+  "ui-monospace, monospace",
+);
