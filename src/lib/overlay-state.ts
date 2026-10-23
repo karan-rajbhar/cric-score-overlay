@@ -58,6 +58,8 @@ export interface OverlayScene {
   sponsor: string;
   /** Sponsors rotating under the corner watermark. */
   sponsors: SponsorItem[];
+  /** Moves on with each "next sponsor" (Stream Deck): who is shown first. */
+  sponsorIndex: number;
   customColors: CustomThemeColors;
   /** Presentation card on air until taken off. */
   card: PresentationCardType;
@@ -75,6 +77,7 @@ export const DEFAULT_SCENE: OverlayScene = {
   tickerText: "",
   sponsor: "",
   sponsors: [],
+  sponsorIndex: 0,
   customColors: { primary: "#1e3a8a", accent: "#f59e0b" },
   card: "none",
 };
@@ -148,6 +151,8 @@ export interface OverlayStatePatch {
   strap?: StoredStrap | null;
   cue?: OverlayCue | null;
   auto?: AutoRules;
+  /** Show the next sponsor now (the server adds one to `sponsorIndex`). */
+  nextSponsor?: true;
 }
 
 const LAYOUTS: readonly SceneLayout[] = ["bottom", "top", "compact"];
@@ -251,7 +256,7 @@ function sponsorsOf(v: unknown): SponsorItem[] | undefined {
       ...(typeof s.tagline === "string" && s.tagline
         ? { tagline: s.tagline.slice(0, 120) }
         : {}),
-      ...(typeof s.logoUrl === "string" && /^https:\/\//.test(s.logoUrl)
+      ...(typeof s.logoUrl === "string" && /^https?:\/\//.test(s.logoUrl)
         ? { logoUrl: s.logoUrl.slice(0, 500) }
         : {}),
     }));
@@ -400,6 +405,9 @@ export function overlayPatchOf(
       patch.auto = auto;
       break;
     }
+    case "NEXT_SPONSOR":
+      patch.nextSponsor = true;
+      break;
     case "PANIC_CLEAR":
       patch.strap = null;
       patch.cue = null;
@@ -432,7 +440,13 @@ export function applyOverlayPatch(
     version: base.version + 1,
     last_command_id: commandId,
     at: now,
-    scene: { ...base.scene, ...(patch.scene ?? {}) },
+    scene: {
+      ...base.scene,
+      ...(patch.scene ?? {}),
+      ...(patch.nextSponsor
+        ? { sponsorIndex: (base.scene.sponsorIndex ?? 0) + 1 }
+        : {}),
+    },
     ...(patch.strap !== undefined ? { strap: patch.strap } : {}),
     ...(patch.cue !== undefined ? { cue: patch.cue } : {}),
     ...(patch.auto !== undefined ? { auto: patch.auto } : {}),
@@ -488,6 +502,9 @@ function parseScene(raw: unknown): Partial<OverlayScene> {
   if (sponsor !== undefined) out.sponsor = sponsor;
   const sponsors = sponsorsOf(r.sponsors);
   if (sponsors) out.sponsors = sponsors;
+  if (typeof r.sponsorIndex === "number" && Number.isFinite(r.sponsorIndex)) {
+    out.sponsorIndex = Math.max(0, Math.floor(r.sponsorIndex));
+  }
   const colors = colorsOf(r.customColors);
   if (colors) out.customColors = colors;
   if (isOneOf(CARDS, r.card)) out.card = r.card;

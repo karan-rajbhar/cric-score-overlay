@@ -39,6 +39,26 @@ vi.mock("~/components/overlay/sound-effects", () => ({
   playFreeHitAlert: vi.fn(),
 }));
 
+vi.mock("~/app/overlay/sponsor-actions", () => ({
+  getMatchSponsors: vi.fn(async () => ({
+    source: null,
+    sourceId: null,
+    sponsors: [],
+  })),
+}));
+// The streaming panels (server actions of their own; tested on their own).
+vi.mock("~/components/streaming/channel-picker", () => ({
+  ChannelPicker: ({ matchId }: { matchId: string }) => (
+    <div data-testid="channel-picker">{matchId}</div>
+  ),
+}));
+vi.mock("~/components/streaming/remote-control-panel", () => ({
+  RemoteControlPanel: ({ matchId }: { matchId: string }) => (
+    <div data-testid="remote-panel">{matchId}</div>
+  ),
+}));
+
+import { getMatchSponsors } from "~/app/overlay/sponsor-actions";
 import { ControlClient } from "./control-client";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 
@@ -85,6 +105,7 @@ beforeEach(() => {
   window.ResizeObserver =
     MockResizeObserver as unknown as typeof ResizeObserver;
   fetchMock.mockReset();
+  vi.mocked(getMatchSponsors).mockClear();
   fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -177,7 +198,7 @@ describe("ControlClient", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Six/ }));
     await waitFor(() =>
       expect(lastCommand()).toHaveTextContent(
-        "Not sent: Event card: Six. Only this match's scorers and organisers can change its overlay.",
+        "Not sent: Event card: Six. Only this match's scorers, organisers and streamers can change its overlay.",
       ),
     );
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
@@ -197,6 +218,47 @@ describe("ControlClient", () => {
     expect(result).toBeDisabled();
     expect(result).toHaveTextContent("After the match");
     expect(screen.getByRole("button", { name: /^Scorecard/ })).toBeEnabled();
+  });
+
+  it("offers fixed links and Stream Deck for a real match only", () => {
+    const { unmount } = renderReal();
+    expect(screen.getByTestId("channel-picker")).toHaveTextContent(REAL_ID);
+    expect(screen.getByTestId("remote-panel")).toHaveTextContent(REAL_ID);
+    unmount();
+    renderDemo();
+    expect(screen.queryByTestId("channel-picker")).toBeNull();
+  });
+
+  it("copies the club's sponsors in when the stream starts", async () => {
+    vi.mocked(getMatchSponsors).mockResolvedValueOnce({
+      source: "club",
+      sourceId: "c1",
+      sponsors: [
+        {
+          id: "s1",
+          name: "Smith Builders",
+          logo_url: "https://cdn.example.com/s1.png",
+          slots: ["corner"],
+        },
+      ] as never,
+    });
+    renderReal();
+    // The stored state has never had sponsors.
+    act(() => watchOf("overlay_state").next(null));
+    fireEvent.click(screen.getByRole("button", { name: /^Six/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const seed = JSON.parse(fetchMock.mock.calls[1]![1].body as string).payload;
+    expect(seed).toMatchObject({
+      type: "SET_SPONSORS",
+      sponsors: [{ id: "s1", name: "Smith Builders" }],
+    });
+    // No id: the producer's own command keeps its confirmation.
+    expect(seed.id).toBeUndefined();
+
+    // Only once.
+    fireEvent.click(screen.getByRole("button", { name: /^Four/ }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    expect(getMatchSponsors).toHaveBeenCalledTimes(1);
   });
 
   it("runs the demo match on this page, preview included", () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getMatch, getLiveMatchState } from "~/app/matches/queries";
+import { TransparentPage } from "~/components/overlay/transparent-page";
 import { OverlayClient } from "./overlay-client";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "./demo-data";
 import type { LiveMatchState } from "~/components/overlay/types";
@@ -14,14 +15,6 @@ export const metadata: Metadata = {
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Whatever the browser or the app's theme would paint, the page itself is
- * transparent: streaming tools composite it over the camera. (OBS's default
- * custom CSS does the same; other tools, or a cleared field, do not.)
- */
-const TRANSPARENT_PAGE =
-  "html,body{background:transparent!important;color-scheme:normal!important;overflow:hidden}";
 
 /**
  * The score and match to start from (2 server reads, the live state cached
@@ -75,7 +68,7 @@ export default async function OverlayPage({
   if (matchId === "test") {
     return (
       <>
-        <style>{TRANSPARENT_PAGE}</style>
+        <TransparentPage />
         <OverlayClient
           matchId={matchId}
           initial={DEMO_MATCH_STATE}
@@ -91,7 +84,7 @@ export default async function OverlayPage({
 
   return (
     <>
-      <style>{TRANSPARENT_PAGE}</style>
+      <TransparentPage />
       <OverlayClient
         matchId={matchId}
         initial={data}

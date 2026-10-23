@@ -206,3 +206,23 @@ describe("lower thirds and automatic rules", () => {
     expect(isAutomatic({ ...base, auto: DEFAULT_AUTO_RULES })).toBe(true);
   });
 });
+
+describe("Stream Deck commands", () => {
+  it("are all things the overlay state takes", async () => {
+    const { REMOTE_ACTIONS, remoteCommandFor } = await import(
+      "~/lib/overlay/remote-actions"
+    );
+    for (const { id } of REMOTE_ACTIONS) {
+      expect(overlayPatchOf(remoteCommandFor(id, NOW), NOW), id).not.toBeNull();
+    }
+  });
+
+  it("moves the sponsor rotation on", () => {
+    const patch = overlayPatchOf({ type: "NEXT_SPONSOR" }, NOW)!;
+    expect(patch).toEqual({ nextSponsor: true });
+    const once = applyOverlayPatch(null, patch, null, NOW);
+    expect(applyOverlayPatch(once, patch, null, NOW).scene.sponsorIndex).toBe(
+      2,
+    );
+  });
+});

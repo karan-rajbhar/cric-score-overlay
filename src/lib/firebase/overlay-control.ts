@@ -26,14 +26,19 @@ export async function publishOverlayCommand(
   const data: Record<string, unknown> = {
     match_id: matchId,
     version: FieldValue.increment(1),
-    last_command_id: typeof payload.id === "string" ? payload.id : null,
     at: now,
     updated_at: FieldValue.serverTimestamp(),
   };
+  // A command without an id (Stream Deck, the sponsors copied in at the
+  // start) leaves the control room's last confirmation as it was.
+  if (typeof payload.id === "string") data.last_command_id = payload.id;
   const fields = Object.keys(data);
-  if (patch.scene) {
-    data.scene = patch.scene;
-    for (const key of Object.keys(patch.scene)) fields.push(`scene.${key}`);
+  const scene: Record<string, unknown> = { ...(patch.scene ?? {}) };
+  // Counted on the server, so two quick presses move on twice.
+  if (patch.nextSponsor) scene.sponsorIndex = FieldValue.increment(1);
+  if (Object.keys(scene).length) {
+    data.scene = scene;
+    for (const key of Object.keys(scene)) fields.push(`scene.${key}`);
   }
   for (const key of ["strap", "cue", "auto"] as const) {
     if (patch[key] !== undefined) {

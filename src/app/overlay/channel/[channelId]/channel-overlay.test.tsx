@@ -21,11 +21,12 @@ vi.mock("../../[matchId]/overlay-client", () => ({
   OverlayClient: (props: {
     matchId: string;
     initial: { total_runs: number } | null;
-    initialControls: boolean;
+    serverNow?: number;
+    params?: { theme?: string };
   }) => (
     <div data-testid="overlay">
       {props.matchId}:{props.initial?.total_runs ?? "none"}:
-      {String(props.initialControls)}
+      {props.serverNow ?? "no-clock"}:{props.params?.theme ?? "-"}
     </div>
   ),
 }));
@@ -50,6 +51,7 @@ function stubFetch(holdFor: string[] = []) {
               json: async () => ({
                 live: { total_runs: id.length * 10 },
                 match: { id },
+                serverNow: 5,
               }),
             } as Response);
       if (!holdFor.includes(id)) return Promise.resolve(respond());
@@ -87,10 +89,11 @@ describe("ChannelOverlay", () => {
 
   it("swaps the overlay when the channel switches match, without a reload", async () => {
     stubFetch(["match-b"]);
-    render(<ChannelOverlay channelId="ch1" />);
+    render(<ChannelOverlay channelId="ch1" theme="light" />);
     await channel("a");
+    // The server's clock and the link's settings go to the overlay.
     expect(await screen.findByTestId("overlay")).toHaveTextContent(
-      "a:10:false",
+      "a:10:5:light",
     );
 
     // Switching: the previous match stays on air until the next loads.

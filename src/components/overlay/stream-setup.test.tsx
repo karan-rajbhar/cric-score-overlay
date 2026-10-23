@@ -3,6 +3,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("~/lib/firebase/client", () => ({ getFirebaseDb: () => ({}) }));
 vi.mock("~/lib/firebase/realtime", () => ({ watchDoc: () => () => {} }));
+vi.mock("~/app/overlay/sponsor-actions", () => ({
+  getMatchSponsors: vi.fn(async () => ({
+    source: null,
+    sourceId: null,
+    sponsors: [],
+  })),
+}));
+vi.mock("~/components/streaming/channel-picker", () => ({
+  ChannelPicker: () => <div data-testid="channel-picker" />,
+}));
 vi.mock("./sound-effects", () => ({
   playFourFanfare: vi.fn(),
   playSixExplosion: vi.fn(),
@@ -79,8 +89,9 @@ describe("StreamSetup", () => {
     ).toBeInTheDocument();
   });
 
-  it("lets only the match's scorers change the overlay", () => {
+  it("lets only the match's scorers and streamers change the overlay", () => {
     setup(false);
+    expect(screen.queryByTestId("channel-picker")).toBeNull();
     expect(
       screen.queryByRole("button", { name: "Send test graphic" }),
     ).toBeNull();
@@ -90,6 +101,8 @@ describe("StreamSetup", () => {
 
   it("sends a test graphic and the choice of who runs the graphics", async () => {
     setup(true);
+    // A ground's fixed link, for producers.
+    expect(screen.getByTestId("channel-picker")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Send test graphic" }));
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
     expect(body).toMatchObject({

@@ -718,6 +718,13 @@ function PreMatchBar({ state, match, scene, phase }: BugProps) {
   );
 }
 
+/** `list` starting at item `from` (wrapping round). */
+function rotate<T>(list: T[], from: number): T[] {
+  if (list.length < 2) return list;
+  const at = ((from % list.length) + list.length) % list.length;
+  return [...list.slice(at), ...list.slice(0, at)];
+}
+
 export interface OverlayStageProps {
   /** Latest score; null while there is none to show. */
   state: LiveMatchState | null;
@@ -809,8 +816,10 @@ export function OverlayStage({
 
       {/* Only with sponsors to show: the bug already names the event. */}
       <CornerWatermark
+        // "Next sponsor" starts the rotation over from the next one.
+        key={scene.sponsorIndex}
         title={state.tournament_name ?? state.title}
-        sponsors={scene.sponsors}
+        sponsors={rotate(scene.sponsors, scene.sponsorIndex)}
         visible={scene.sponsors.length > 0}
       />
 

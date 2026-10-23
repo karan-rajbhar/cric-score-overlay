@@ -23,6 +23,7 @@ import {
 import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
+  useCanProduceOverlayQuery,
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
@@ -79,6 +80,15 @@ export function MatchMoreMenu({
     user?.id,
     isAdmin === true,
   );
+  // Streamers run the graphics without being admins: asked only when a
+  // signed-in non-admin opens the menu.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { data: canStream } = useCanProduceOverlayQuery(
+    match.id,
+    user?.id,
+    menuOpen && isAdmin === false,
+  );
+  const canProduce = isAdmin === true || canStream === true;
   const [showDelete, setShowDelete] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const canReschedule = canDelete === true && match.status === "scheduled";
@@ -90,7 +100,7 @@ export function MatchMoreMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -112,7 +122,7 @@ export function MatchMoreMenu({
               <span>Stream this match</span>
             </Link>
           </DropdownMenuItem>
-          {isAdmin === true && (
+          {canProduce && (
             <DropdownMenuItem asChild>
               <Link
                 href={`/overlay/${match.id}/control`}

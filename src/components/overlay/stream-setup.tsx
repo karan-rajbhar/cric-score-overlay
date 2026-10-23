@@ -12,6 +12,7 @@ import {
   manualAutoRules,
 } from "~/lib/overlay-state";
 import { cn } from "~/lib/utils";
+import { ChannelPicker } from "~/components/streaming/channel-picker";
 import { OverlayPreview } from "./overlay-preview";
 import { OVERLAY_THEMES, resolveOverlayTheme } from "./overlay-themes";
 import type { LiveMatchState } from "./types";
@@ -224,7 +225,7 @@ export function StreamSetup({
         description={
           canProduce
             ? "The overlay changes as soon as you pick."
-            : "Only this match's scorers and organisers can change it."
+            : "Only this match's scorers, organisers and streamers can change it."
         }
       >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -306,6 +307,20 @@ export function StreamSetup({
             </p>
           </div>
         )}
+        {canProduce && (
+          <details className="mt-4 rounded-xl border border-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">
+              Streaming every match from the same ground?
+            </summary>
+            <p className="mt-2 text-muted-foreground">
+              Use the ground&apos;s fixed link instead: set it up in OBS once,
+              then put each match on it here.
+            </p>
+            <div className="mt-3">
+              <ChannelPicker matchId={matchId} />
+            </div>
+          </details>
+        )}
         {tool === "obs" && (
           <dl className="mt-4 divide-y divide-border rounded-xl border border-border text-sm">
             {OBS_FIELDS.map(([field, what]) => (
@@ -361,8 +376,9 @@ export function StreamSetup({
           </>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Ask one of this match&apos;s scorers to send a test from this page,
-            or wait for the next ball: the score updates on its own.
+            Ask one of this match&apos;s scorers or streamers to send a test
+            from this page, or wait for the next ball: the score updates on its
+            own.
           </p>
         )}
       </Step>
@@ -420,8 +436,8 @@ export function StreamSetup({
         ) : (
           <p className="text-sm text-muted-foreground">
             Event cards show by themselves after fours, sixes, wickets and
-            fifties. The match&apos;s scorers can change that in the control
-            room.
+            fifties. The match&apos;s scorers and streamers can change that in
+            the control room.
           </p>
         )}
       </Step>

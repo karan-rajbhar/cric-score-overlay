@@ -166,6 +166,7 @@ export interface ProducerCommand {
     | "TOGGLE_AUDIO"
     | "SET_BROADCAST_VIEW"
     | "SET_AUTO"
+    | "NEXT_SPONSOR"
     | "PANIC_CLEAR";
   card?: PresentationCardType;
   visible?: boolean;

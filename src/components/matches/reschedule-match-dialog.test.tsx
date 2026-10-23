@@ -17,6 +17,7 @@ let canDelete = true;
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchAdminQuery: () => ({ data: true }),
   useCanDeleteMatchQuery: () => ({ data: canDelete }),
+  useCanProduceOverlayQuery: () => ({ data: undefined }),
 }));
 
 const fixture = {
@@ -52,7 +53,7 @@ describe("Reschedule", () => {
     });
     rerender(<MatchMoreMenu match={{ ...fixture, status: "live" }} />);
     await openMenu();
-    await screen.findByRole("menuitem", { name: "OBS overlay" });
+    await screen.findByRole("menuitem", { name: "Stream this match" });
     expect(screen.queryByRole("menuitem", { name: "Reschedule" })).toBeNull();
   });
 
@@ -60,7 +61,7 @@ describe("Reschedule", () => {
     canDelete = false;
     render(<MatchMoreMenu match={fixture} />);
     await openMenu();
-    await screen.findByRole("menuitem", { name: "OBS overlay" });
+    await screen.findByRole("menuitem", { name: "Stream this match" });
     expect(screen.queryByRole("menuitem", { name: "Reschedule" })).toBeNull();
   });
 

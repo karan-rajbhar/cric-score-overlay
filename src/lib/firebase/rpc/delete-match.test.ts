@@ -54,6 +54,14 @@ function setup() {
   tables.live_state = [{ id: MATCH, version: 3 }];
   tables[LIVE_SCORECARD_COLLECTION] = [{ id: MATCH, version: 2 }];
   tables.overlay_state = [{ id: MATCH, version: 5 }];
+  tables.producer_tokens = [
+    { id: "tok", match_id: MATCH, secret_hash: "h" },
+    { id: "other-tok", match_id: "other-match", secret_hash: "h" },
+  ];
+  tables.stream_channels = [
+    { id: "ground", club_id: "c1", name: "Main ground", match_id: MATCH },
+    { id: "nets", club_id: "c1", name: "Nets", match_id: "other-match" },
+  ];
   const memory = new MemoryDataSource(tables);
   const { ds } = builderContextFor(memory, null);
   const run = (uid: string | null, matchId = MATCH, typed?: string) =>
@@ -71,19 +79,23 @@ function setup() {
 function owned(memory: MemoryDataSource, matchId: string) {
   return {
     match: memory.all("matches").filter((m) => m.id === matchId).length,
-    innings: memory.all("innings").filter((d) => d.match_id === matchId)
-      .length,
+    innings: memory.all("innings").filter((d) => d.match_id === matchId).length,
     overs: memory.all("overs").filter((d) => d.match_id === matchId).length,
     player_matches: memory
       .all("player_matches")
       .filter((d) => d.match_id === matchId).length,
-    live_state: memory.all("live_state").filter((d) => d.id === matchId)
-      .length,
+    live_state: memory.all("live_state").filter((d) => d.id === matchId).length,
     live_scorecard: memory
       .all(LIVE_SCORECARD_COLLECTION)
       .filter((d) => d.id === matchId).length,
     overlay_state: memory.all("overlay_state").filter((d) => d.id === matchId)
       .length,
+    producer_tokens: memory
+      .all("producer_tokens")
+      .filter((d) => d.match_id === matchId).length,
+    channels_on_air: memory
+      .all("stream_channels")
+      .filter((d) => d.match_id === matchId).length,
   };
 }
 
@@ -238,7 +250,16 @@ describe("delete_match cascade", () => {
       live_state: 0,
       live_scorecard: 0,
       overlay_state: 0,
+      producer_tokens: 0,
+      channels_on_air: 0,
     });
+    // Other matches keep their token and channel.
+    expect(memory.all("producer_tokens").map((t) => t.id)).toEqual([
+      "other-tok",
+    ]);
+    expect((await memory.getById("stream_channels", "nets"))!.match_id).toBe(
+      "other-match",
+    );
     expect(memory.all("matches")).toHaveLength(others);
     expect(memory.all("overs")).toHaveLength(otherOvers);
     // The invite stays; only the match id leaves it.

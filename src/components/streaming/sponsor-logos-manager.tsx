@@ -25,6 +25,7 @@ import {
   MAX_SPONSOR_LOGO_BYTES,
   SPONSOR_LOGO_ACCEPT,
 } from "~/lib/overlay/sponsor-logo";
+import { LOGO_MAX_PX, resizeImageFile } from "~/lib/image-resize";
 import { useServerResult } from "./use-server-result";
 
 type Scope = "club" | "tournament";
@@ -127,7 +128,13 @@ export function SponsorLogosManager({
       toast.error("Choose a logo file");
       return;
     }
-    if (file.size > MAX_SPONSOR_LOGO_BYTES) {
+    // Scaled down in the browser first (a phone photo becomes a few KB);
+    // SVG is sent as it is.
+    const logo =
+      file.type === "image/svg+xml"
+        ? file
+        : await resizeImageFile(file, LOGO_MAX_PX);
+    if (logo.size > MAX_SPONSOR_LOGO_BYTES) {
       toast.error("Logos must be 1 MB or smaller");
       return;
     }
@@ -136,7 +143,7 @@ export function SponsorLogosManager({
     form.set("scopeId", scopeId);
     form.set("name", name);
     for (const s of slots) form.append("slots", s);
-    form.set("file", file);
+    form.set("file", logo);
     if (await apply(() => uploadSponsorLogo(form))) {
       setName("");
       setFile(null);
@@ -164,7 +171,10 @@ export function SponsorLogosManager({
   };
 
   return (
-    <section aria-labelledby={`sponsors-heading-${scope}`} className="space-y-3">
+    <section
+      aria-labelledby={`sponsors-heading-${scope}`}
+      className="space-y-3"
+    >
       <div>
         <h3 id={`sponsors-heading-${scope}`} className="text-sm font-semibold">
           Sponsor logos

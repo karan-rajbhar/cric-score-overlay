@@ -6,7 +6,7 @@ export type SendResult = { ok: true } | { ok: false; message: string };
 function failureMessage(status: number): string {
   if (status === 401) return "You are signed out. Sign in again, then retry.";
   if (status === 403) {
-    return "Only this match's scorers and organisers can change its overlay.";
+    return "Only this match's scorers, organisers and streamers can change its overlay.";
   }
   if (status === 400) return "The overlay did not accept this.";
   return "The server could not save it. Try again.";

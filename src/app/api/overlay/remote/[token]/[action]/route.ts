@@ -1,13 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverDataSource } from "~/lib/firebase/server-ds";
-import type { LiveMatchStateRow } from "~/lib/firebase/types";
 import { sendProducerCommand } from "~/lib/overlay/commands";
 import { remoteRateLimiter } from "~/lib/overlay/rate-limit";
-import {
-  isRemoteAction,
-  needsInnings,
-  remoteCommandFor,
-} from "~/lib/overlay/remote-actions";
+import { isRemoteAction, remoteCommandFor } from "~/lib/overlay/remote-actions";
 import { tokenIdOf, verifyRemoteToken } from "~/lib/overlay/remote-token";
 
 /**
@@ -17,7 +12,8 @@ import { tokenIdOf, verifyRemoteToken } from "~/lib/overlay/remote-token";
  * the token's match overlay.
  *
  * - The token is the credential (no session, no CORS headers): 1 read to
- *   check it, hashes compared in constant time (`remote-token.ts`).
+ *   check it, hashes compared in constant time (`remote-token.ts`), then
+ *   1 write to the match's `overlay_state` (`sendProducerCommand`).
  * - At most 5 requests per second per token (per server instance), counted
  *   before the read, so a stuck button costs nothing.
  * - Nothing here logs the token or the request URL.
@@ -69,15 +65,10 @@ async function handle(_request: NextRequest, { params }: Context) {
   if (!matchId) return fail(401, "invalid_token", "Unknown or revoked token");
 
   try {
-    let innings: number | null = null;
-    if (needsInnings(action)) {
-      const live = (await ds.getById(
-        "live_state",
-        matchId,
-      )) as unknown as Partial<LiveMatchStateRow> | null;
-      innings = live?.innings_number ?? live?.current_innings ?? null;
+    // Into the match's overlay_state, as the control room's commands go.
+    if (!(await sendProducerCommand(matchId, remoteCommandFor(action)))) {
+      return fail(400, "unsupported_action", "The overlay cannot show this");
     }
-    await sendProducerCommand(matchId, remoteCommandFor(action, innings));
     return NextResponse.json({ ok: true, action }, { headers: NO_STORE });
   } catch (err) {
     console.error(
@@ -101,7 +92,6 @@ export async function GET(_request: NextRequest, _context: Context) {
     headers: { ...NO_STORE, Allow: "POST, HEAD" },
   });
 }
-
 
 export function HEAD() {
   return new Response(null, { status: 204, headers: NO_STORE });

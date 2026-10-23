@@ -38,6 +38,8 @@ import {
   type SceneLayout,
 } from "~/lib/overlay-state";
 import { cn } from "~/lib/utils";
+import { ChannelPicker } from "~/components/streaming/channel-picker";
+import { RemoteControlPanel } from "~/components/streaming/remote-control-panel";
 import { DEMO_MATCH_DETAILS, DEMO_MATCH_STATE } from "../demo-data";
 
 interface ControlClientProps {
@@ -1189,6 +1191,19 @@ export function ControlClient({
               />
             </div>
           </Panel>
+
+          {isRealMatch && (
+            <Panel
+              title="Fixed links and Stream Deck"
+              hint="Optional: a ground's own overlay link, and buttons."
+            >
+              {/* The app's own components, in its dark colours. */}
+              <div className="dark space-y-4 text-foreground">
+                <ChannelPicker matchId={matchId} />
+                <RemoteControlPanel matchId={matchId} />
+              </div>
+            </Panel>
+          )}
 
           <details className="rounded-xl border border-white/10 bg-[#0e131d] p-4 text-sm">
             <summary className="cursor-pointer font-semibold text-white">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+import { canProduceOverlay } from "~/lib/firebase/permissions";
 import { createServerClient } from "~/lib/firebase/server";
 import { getMatch, getLiveMatchState } from "~/app/matches/queries";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
@@ -91,7 +92,8 @@ export default async function OverlayControlPage({
     return (
       <Notice title="Sign in to run the graphics">
         <p className="text-sm text-muted-foreground">
-          The control room is for this match&apos;s scorers and organisers.
+          The control room is for this match&apos;s scorers, organisers and
+          streamers.
         </p>
         <Button asChild className="w-full">
           <Link
@@ -104,17 +106,14 @@ export default async function OverlayControlPage({
     );
   }
 
-  const { data: isAdmin } = await db.rpc("is_match_admin", {
-    p_match_id: matchId,
-    p_user_id: user.id,
-  });
-
-  if (!isAdmin) {
+  // Its admins and its streamers (who run the graphics but cannot score).
+  if (!(await canProduceOverlay(db, matchId, user.id))) {
     return (
-      <Notice title="Only for this match's scorers">
+      <Notice title="Only for this match's scorers and streamers">
         <p className="text-sm text-muted-foreground">
-          The match creator, its scorers and club or tournament organisers can
-          run its graphics. Anyone can add the overlay to a stream.
+          The match creator, its scorers and streamers, and club or tournament
+          organisers can run its graphics. Anyone can add the overlay to a
+          stream.
         </p>
         <div className="flex gap-2">
           <Button variant="outline" asChild className="flex-1">

@@ -58,7 +58,8 @@ function useRefetchOnLiveChange(
   const keyHash = JSON.stringify(queryKey);
 
   useOnLiveChange(live, () => {
-    if (enabled) scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey);
+    if (enabled)
+      scheduleInvalidate(queryClient, JSON.parse(keyHash) as QueryKey);
   });
 
   useEffect(() => {
@@ -163,10 +164,7 @@ export function useMatchWizardDataQuery(userId?: string | null) {
             .select("id, name, short_name, owner_id")
             .order("name"),
           userId
-            ? db
-                .from("team_players")
-                .select("team_id")
-                .eq("user_id", userId)
+            ? db.from("team_players").select("team_id").eq("user_id", userId)
             : Promise.resolve({ data: [] }),
           userId
             ? db
@@ -277,7 +275,9 @@ export async function syncBallLog(
     return "incremental";
   }
   const docs = await Promise.all(
-    changed.map((id) => readDoc<OversRow>(getFirebaseDb(), OVERS_COLLECTION, id)),
+    changed.map((id) =>
+      readDoc<OversRow>(getFirebaseDb(), OVERS_COLLECTION, id),
+    ),
   );
   // A full refetch landed while these were in flight: start over.
   if ((ballLogVersions.get(matchId) ?? null) !== from) {
@@ -312,7 +312,9 @@ function scheduleBallLogSync(queryClient: QueryClient, matchId: string) {
     matchId,
     setTimeout(() => {
       ballLogSyncs.delete(matchId);
-      const run: Promise<unknown> = (ballLogRuns.get(matchId) ?? Promise.resolve())
+      const run: Promise<unknown> = (
+        ballLogRuns.get(matchId) ?? Promise.resolve()
+      )
         .then(() => syncBallLog(queryClient, matchId))
         .catch(() => refetchBallLog(queryClient, matchId))
         .finally(() => {
@@ -668,6 +670,31 @@ export function useMatchAdminQuery(
 }
 
 /**
+ * Whether the user may run the match's overlay graphics (its admins and
+ * streamers: `can_produce_overlay`). Only asked once `enabled`, so viewers
+ * pay no reads.
+ */
+export function useCanProduceOverlayQuery(
+  matchId: string | null | undefined,
+  userId: string | null | undefined,
+  enabled: boolean,
+) {
+  return useQuery<boolean>({
+    queryKey: ["canProduceOverlay", matchId ?? "", userId ?? "anon"],
+    queryFn: async () => {
+      if (!matchId || !userId) return false;
+      const { data, error } = await createClient().rpc("can_produce_overlay", {
+        p_match_id: matchId,
+      });
+      if (error) throw new Error("Could not check overlay access");
+      return Boolean(data);
+    },
+    enabled: enabled && Boolean(matchId && userId),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Whether the user may delete the match (creator, club admin, tournament
  * creator; not co-scorers). Only asked once `enabled` (e.g. the user is a
  * match admin), so viewers pay no reads. The server re-checks on delete.
@@ -775,7 +802,9 @@ export function useMatchDetailQuery(
       !current ||
       (state?.status ?? current.status) !== current.status ||
       (state?.innings_number != null &&
-        !current.innings?.some((i) => i.innings_number === state.innings_number)) ||
+        !current.innings?.some(
+          (i) => i.innings_number === state.innings_number,
+        )) ||
       (rev !== null && rev !== fetchedRev.current);
     // A live match's per-ball detail comes from the live scorecard.
     const covered = !!cardRef.current && state?.status === "live";

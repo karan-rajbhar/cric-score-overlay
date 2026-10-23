@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getMatchSponsors } from "~/app/overlay/sponsor-actions";
+import { overlaySponsorItems } from "~/lib/overlay/sponsors";
 import { sendOverlayCommand } from "./send-command";
 import {
   applyOverlayPatch,
@@ -53,6 +55,34 @@ export function useOverlayProducer(matchId: string, demo = false) {
     setLast({ ...last, status: "on_air" });
   }
 
+  // When the stream starts (the first command here, the overlay showing
+  // no sponsors ever set), the club's or tournament's sponsor logos are
+  // copied in. In the background, without an id: the producer's own
+  // command keeps its "on air" confirmation.
+  const latest = useRef({ doc, loaded: demo || snap.loaded });
+  useEffect(() => {
+    latest.current = { doc, loaded: demo || snap.loaded };
+  });
+  const seeded = useRef(false);
+  const seedSponsors = useCallback(async () => {
+    const { doc: current, loaded } = latest.current;
+    if (seeded.current || demo || !loaded) return;
+    seeded.current = true;
+    if (current?.scene.sponsors !== undefined) return;
+    try {
+      const { sponsors } = await getMatchSponsors(matchId);
+      const items = overlaySponsorItems(sponsors, "corner");
+      if (!items.length) return;
+      await sendOverlayCommand(matchId, {
+        type: "SET_SPONSORS",
+        sponsors: items,
+        timestamp: Date.now(),
+      });
+    } catch (err) {
+      console.error("[overlay] could not copy the sponsors:", err);
+    }
+  }, [demo, matchId]);
+
   const send = useCallback(
     async (command: OverlayCommand, label: string): Promise<boolean> => {
       const id = newCommandId();
@@ -76,9 +106,10 @@ export function useOverlayProducer(matchId: string, demo = false) {
         }
         return curr.status === "sending" ? { ...curr, status: "sent" } : curr;
       });
+      if (result.ok) void seedSponsors();
       return result.ok;
     },
-    [demo, matchId],
+    [demo, matchId, seedSponsors],
   );
 
   const retry = useCallback(() => {

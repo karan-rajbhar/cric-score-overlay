@@ -5,6 +5,7 @@ import { ScreenBar } from "~/components/ds/screen";
 import { StreamSetup } from "~/components/overlay/stream-setup";
 import type { LiveMatchState } from "~/components/overlay/types";
 import { getLiveMatchState, getMatch } from "~/app/matches/queries";
+import { canProduceOverlay } from "~/lib/firebase/permissions";
 import { createServerClient } from "~/lib/firebase/server";
 import { requestOrigin } from "~/lib/match-share-server";
 import type { Match } from "~/lib/match-types";
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-/** Whether the signed-in user (if any) may run this match's graphics. */
+/**
+ * Whether the signed-in user (if any) may run this match's graphics: its
+ * admins and streamers (`canProduceOverlay`).
+ */
 async function canProduce(matchId: string): Promise<boolean> {
   try {
     const db = await createServerClient();
@@ -24,11 +28,7 @@ async function canProduce(matchId: string): Promise<boolean> {
       data: { user },
     } = await db.auth.getUser();
     if (!user) return false;
-    const { data } = await db.rpc("is_match_admin", {
-      p_match_id: matchId,
-      p_user_id: user.id,
-    });
-    return data === true;
+    return await canProduceOverlay(db, matchId, user.id);
   } catch {
     return false;
   }

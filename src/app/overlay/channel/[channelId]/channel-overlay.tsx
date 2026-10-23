@@ -13,6 +13,8 @@ const STREAM_CHANNELS = "stream_channels";
 interface OverlayData {
   live: LiveMatchState | null;
   match: Match | null;
+  /** Server clock when the data was read (ms). */
+  serverNow?: number;
 }
 
 /**
@@ -45,9 +47,10 @@ interface Shown extends OverlayData {
 
 /**
  * Follows `stream_channels/{channelId}` (1 read, then 1 per switch) and
- * shows the existing overlay for its match. A switch keeps the previous
- * match on air until the next one has loaded, then swaps without a
- * reload; off air (or a missing channel / match) renders nothing.
+ * shows the match overlay (`OverlayClient`: `live_state`, 1 read per ball,
+ * and `overlay_state`) for its match. A switch keeps the previous match on
+ * air until the next one has loaded, then swaps without a reload; off air
+ * (or a missing channel / match) renders nothing.
  */
 export function ChannelOverlay({
   channelId,
@@ -55,12 +58,15 @@ export function ChannelOverlay({
   theme,
   sponsor,
   safeZone = false,
+  delaySeconds = 0,
 }: {
   channelId: string;
   layout?: string;
   theme?: string;
   sponsor?: string;
   safeZone?: boolean;
+  /** `?delay=`: seconds to hold each score change. */
+  delaySeconds?: number;
 }) {
   const [onAir, setOnAir] = useState<OnAir>({ matchId: null, epoch: 0 });
   const [shown, setShown] = useState<Shown | null>(null);
@@ -118,11 +124,10 @@ export function ChannelOverlay({
       matchId={shown.matchId}
       initial={shown.live}
       match={shown.match}
-      initialLayout={layout}
-      initialTheme={theme}
-      initialControls={false}
-      initialSponsor={sponsor}
-      initialSafeZone={safeZone}
+      params={{ layout, theme, sponsor }}
+      serverNow={shown.serverNow}
+      delaySeconds={delaySeconds}
+      showSafeZone={safeZone}
     />
   );
 }

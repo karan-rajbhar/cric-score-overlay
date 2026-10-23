@@ -16,8 +16,7 @@ vi.mock("~/lib/firebase/admin", () => ({
   getAdminFirestore: () => ({
     collection: (name: string) => ({
       doc: (id: string) => ({
-        set: (data: unknown, options: unknown) =>
-          set(name, id, data, options),
+        set: (data: unknown, options: unknown) => set(name, id, data, options),
       }),
     }),
   }),
@@ -73,10 +72,11 @@ describe("POST /api/overlay/command", () => {
       strap: null,
       cue: null,
     });
+    // No id: the control room's last confirmation stays as it was.
+    expect(options.mergeFields).not.toContain("last_command_id");
     expect(options.mergeFields).toEqual(
       expect.arrayContaining([
         "version",
-        "last_command_id",
         "scene.view",
         "scene.card",
         "strap",
@@ -100,6 +100,7 @@ describe("POST /api/overlay/command", () => {
     });
     // The layout, colours... stay as they were.
     expect(options.mergeFields).toContain("scene.theme");
+    expect(options.mergeFields).toContain("last_command_id");
     expect(options.mergeFields).not.toContain("scene");
     expect(options.mergeFields).not.toContain("strap");
 
@@ -144,9 +145,9 @@ describe("POST /api/overlay/command", () => {
       (await POST(request(command, { "Content-Type": "text/plain" }))).status,
     ).toBe(415);
     // A match id that would leave the document path.
-    expect(
-      (await POST(request({ ...command, matchId: "a/b" }))).status,
-    ).toBe(400);
+    expect((await POST(request({ ...command, matchId: "a/b" }))).status).toBe(
+      400,
+    );
     expect(set).not.toHaveBeenCalled();
   });
 });
