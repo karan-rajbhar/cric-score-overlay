@@ -1,0 +1,256 @@
+/*
+ * Hundred-ball: block depth, the 45-degree corner cut and the staggered
+ * builds inside each graphic (the stage animates the whole layer on enter
+ * and exit; these choreograph its blocks). Every animation reads its delay
+ * from --d. Previews that honour reduced motion mark the root `.still`.
+ */
+
+/* ---- depth ------------------------------------------------------------- */
+
+/* A coloured block: light top edge, darker foot, a faint top sheen. */
+.sheen {
+  background-image:
+    linear-gradient(180deg, rgb(255 255 255 / 0.13) 0%, rgb(255 255 255 / 0) 42%),
+    linear-gradient(0deg, rgb(0 0 0 / 0.18) 0%, rgb(0 0 0 / 0) 26%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.26),
+    inset 0 -4px 0 rgb(0 0 0 / 0.22);
+}
+
+/* A paper block: a cool foot so white still reads as a raised plate. */
+.paperSheen {
+  background-image: linear-gradient(0deg, rgb(13 14 20 / 0.07) 0%, rgb(13 14 20 / 0) 34%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 0.9),
+    inset 0 -4px 0 rgb(13 14 20 / 0.1);
+}
+
+/* The soft shadow that lifts a whole slab off the picture. */
+.lift {
+  filter: drop-shadow(0 14px 22px rgb(0 0 0 / 0.38)) drop-shadow(0 2px 3px rgb(0 0 0 / 0.3));
+}
+
+/* The 45-degree corner cut (top right / top left), from the type's angles. */
+.cut {
+  clip-path: polygon(0 0, calc(100% - var(--cut, 20px)) 0, 100% var(--cut, 20px), 100% 100%, 0 100%);
+}
+
+.cutLeft {
+  clip-path: polygon(var(--cut, 20px) 0, 100% 0, 100% 100%, 0 100%, 0 var(--cut, 20px));
+}
+
+/* ---- builds -------------------------------------------------------------- */
+
+.anim {
+  animation-delay: var(--d, 0ms);
+  animation-fill-mode: both;
+  animation-timing-function: var(--hb-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+.wipeRight {
+  animation-name: hbWipeRight;
+  animation-duration: var(--t, 460ms);
+}
+
+.wipeLeft {
+  animation-name: hbWipeLeft;
+  animation-duration: var(--t, 460ms);
+}
+
+.wipeUp {
+  animation-name: hbWipeUp;
+  animation-duration: var(--t, 460ms);
+}
+
+.wipeDown {
+  animation-name: hbWipeDown;
+  animation-duration: var(--t, 460ms);
+}
+
+.rise {
+  animation-name: hbRise;
+  animation-duration: var(--t, 420ms);
+}
+
+.slideLeft {
+  animation-name: hbSlideLeft;
+  animation-duration: var(--t, 420ms);
+}
+
+.slideRight {
+  animation-name: hbSlideRight;
+  animation-duration: var(--t, 420ms);
+}
+
+.pop {
+  animation-name: hbPop;
+  animation-duration: var(--t, 520ms);
+}
+
+.slam {
+  animation-name: hbSlam;
+  animation-duration: var(--t, 420ms);
+  animation-timing-function: cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+.growX {
+  transform-origin: left center;
+  animation-name: hbGrowX;
+  animation-duration: var(--t, 600ms);
+}
+
+.growY {
+  transform-origin: center bottom;
+  animation-name: hbGrowY;
+  animation-duration: var(--t, 520ms);
+}
+
+.fade {
+  animation-name: hbFade;
+  animation-duration: var(--t, 300ms);
+}
+
+/* A white flash over a block whose figure just changed (keyed span). */
+.flash {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: var(--flash, #ffffff);
+  animation: hbFlash 560ms ease-out both;
+}
+
+/* Sting: full-width bands across the picture, then gone. */
+.bandSweep {
+  animation:
+    hbWipeRight 300ms cubic-bezier(0.7, 0, 0.2, 1) both,
+    hbWipeOutRight 300ms cubic-bezier(0.7, 0, 0.2, 1) both;
+  animation-delay: var(--d, 0ms), calc(var(--d, 0ms) + 420ms);
+}
+
+/* Sting: the event colour sweeps across, then closes in on the plate. */
+.bandSettle {
+  animation:
+    hbWipeRight 320ms cubic-bezier(0.7, 0, 0.2, 1) both,
+    hbClosePlate 420ms cubic-bezier(0.7, 0, 0.2, 1) both;
+  animation-delay: var(--d, 0ms), calc(var(--d, 0ms) + 640ms);
+}
+
+/* Sting: the giant stencil figure drifting behind the word. */
+.drift {
+  animation: hbDrift 2600ms cubic-bezier(0.2, 0.6, 0.3, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes hbWipeRight {
+  from { clip-path: inset(-120px 100% -120px -120px); }
+  to { clip-path: inset(-120px -120px -120px -120px); }
+}
+
+@keyframes hbWipeOutRight {
+  from { clip-path: inset(-120px -120px -120px -120px); }
+  to { clip-path: inset(-120px -120px -120px 100%); }
+}
+
+@keyframes hbWipeLeft {
+  from { clip-path: inset(-120px -120px -120px 100%); }
+  to { clip-path: inset(-120px -120px -120px -120px); }
+}
+
+@keyframes hbWipeUp {
+  from { clip-path: inset(100% -120px -120px -120px); }
+  to { clip-path: inset(-120px -120px -120px -120px); }
+}
+
+@keyframes hbWipeDown {
+  from { clip-path: inset(-120px -120px 100% -120px); }
+  to { clip-path: inset(-120px -120px -120px -120px); }
+}
+
+@keyframes hbClosePlate {
+  from { clip-path: inset(-120px -120px -120px -120px); }
+  to { clip-path: inset(0 var(--plate-x, 22%) 0 var(--plate-x, 22%)); }
+}
+
+@keyframes hbRise {
+  from { transform: translateY(105%); }
+  to { transform: none; }
+}
+
+@keyframes hbSlideLeft {
+  from { transform: translateX(48px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes hbSlideRight {
+  from { transform: translateX(-48px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes hbPop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes hbSlam {
+  from { transform: scale(1.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@keyframes hbGrowX {
+  from { transform: scaleX(0); }
+  to { transform: none; }
+}
+
+@keyframes hbGrowY {
+  from { transform: scaleY(0); }
+  to { transform: none; }
+}
+
+@keyframes hbFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hbFlash {
+  from { opacity: 0.55; }
+  to { opacity: 0; }
+}
+
+@keyframes hbDrift {
+  from { transform: translateX(-12%); opacity: 0; }
+  20% { opacity: 1; }
+  to { transform: translateX(6%); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .still .anim,
+  .still .flash,
+  .still .bandSweep,
+  .still .bandSettle,
+  .still .drift {
+    animation: none !important;
+  }
+  .still .bandSweep {
+    display: none;
+  }
+}
+
+/* ---- ticker ------------------------------------------------------------ */
+
+.crawl {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: hbCrawl var(--t, 40s) linear infinite;
+}
+
+@keyframes hbCrawl {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .still .crawl {
+    animation: none !important;
+  }
+}

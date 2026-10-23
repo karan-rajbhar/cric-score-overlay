@@ -132,7 +132,20 @@ describe("billed reads per page on the seed data", () => {
       await getLiveMatchState(liveMatch.id, { skipCache: true });
     });
     results.scoringState = await cost(() => getScoringState(liveMatch.id));
-    results.ballLog = await cost(() => getMatchBallLog(completedMatch.id));
+    // A finished match's ball log: the first view archives each innings
+    // (one document per innings, built on the server), later views read
+    // the archives instead of every over.
+    let firstLog: unknown = null;
+    const writesBefore = ds.writes;
+    results.ballLog = await cost(async () => {
+      firstLog = (await getMatchBallLog(completedMatch.id)).data;
+    });
+    expect(ds.writes - writesBefore).toBe(2);
+    let archivedLog: unknown = null;
+    results.ballLogArchived = await cost(async () => {
+      archivedLog = (await getMatchBallLog(completedMatch.id)).data;
+    });
+    expect(archivedLog).toEqual(firstLog);
     // Info tab (browser query, same builder): the two pairings only.
     results.headToHead = await cost(() =>
       fetchHeadToHead(
@@ -188,6 +201,12 @@ describe("billed reads per page on the seed data", () => {
     const live = (await ds.getById("live_state", liveMatch.id))!;
     const card = (await ds.getById("live_scorecard", liveMatch.id))!;
     expect(card).toBeTruthy();
+    // The scorecard carries the live_state of the same commit (no refs), so
+    // the Summary / Scorecard / Stats tabs need no live_state listener.
+    const { refs: _refs, id: _id, ...liveCopy } = live;
+    void _refs;
+    void _id;
+    expect(card.live).toEqual(liveCopy);
     const overs = live.overs_changed as string[];
     expect(overs).toHaveLength(1);
     const readOvers = () =>
@@ -195,11 +214,11 @@ describe("billed reads per page on the seed data", () => {
     const listen = (...tables: string[]) =>
       cost(() => Promise.all(tables.map((t) => ds.getById(t, liveMatch.id))));
     results.viewerPerBallOverlay = await listen("live_state");
-    results.viewerPerBallSummary = await listen("live_state", "live_scorecard");
+    results.viewerPerBallSummary = await listen("live_scorecard");
     results.viewerPerBallBalls =
       (await listen("live_state")) + (await cost(readOvers));
     results.viewerPerBallStats =
-      (await listen("live_state", "live_scorecard")) + (await cost(readOvers));
+      (await listen("live_scorecard")) + (await cost(readOvers));
     const bytes = (doc: unknown) => Buffer.byteLength(JSON.stringify(doc));
     const overDoc = await ds.getById("overs", overs[0]!);
     egress.liveState = bytes(live);
@@ -284,10 +303,14 @@ describe("billed reads per page on the seed data", () => {
       // 12 when the screen re-read its state after every ball.
       scoringScreenPerBall: 5,
       viewerPerBallOverlay: 1,
-      viewerPerBallSummary: 2,
+      // 2 and 3 with a live_state listener next to the scorecard's.
+      viewerPerBallSummary: 1,
       viewerPerBallBalls: 2,
-      viewerPerBallStats: 3,
-      ballLog: 45,
+      viewerPerBallStats: 2,
+      // Every over of the match (45 before the archives): once, then
+      // innings + archives + the rosters for names.
+      ballLog: 50,
+      ballLogArchived: 7,
       // Was every completed match (4 on the seed, unbounded in production):
       // now 2 equality queries for the two pairings (an empty one bills 1).
       headToHead: 3,

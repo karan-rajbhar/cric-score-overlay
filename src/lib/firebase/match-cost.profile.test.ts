@@ -14,10 +14,12 @@
  *
  * - scorer (`useScoring.ts` + `OtherScorerNotice`): the server action, the
  *   refetches the hook makes after it, and its `live_state` listener;
- * - viewer on the match page (`useMatchDetailQuery` & co.): a read per
- *   `live_state` / `live_scorecard` change, the `overs` docs named by
- *   `live_state.overs_changed` (Balls / Stats tabs) and a `getMatch`
- *   refetch on structural changes (status, innings, `match_rev`);
+ * - viewer on the match page (`useMatchDetailQuery` & co.): while the
+ *   match is live, a read per `live_scorecard` change (it carries the
+ *   `live_state` copy, so no second listener), otherwise per `live_state`
+ *   change; the `overs` docs named by `live_state.overs_changed` (Balls /
+ *   Stats tabs) and a `getMatch` refetch on structural changes (status,
+ *   innings, `match_rev`);
  * - OBS overlay: `live_state` only;
  * - a second scorer on the scoring screen (`useLiveResync`): its
  *   `live_state` listener, and per change by the other scorer the
@@ -518,7 +520,19 @@ describe("Firestore cost of a whole match", () => {
         const [, resync] = await meter.run(() => coScorer.follow(live.version));
         r.coScorerReads += liveWrites + sum(resync.reads);
       }
-      let viewer = liveWrites + cardWrites;
+      // Summary tab: while live it follows only the scorecard, which
+      // carries the live_state copy of the same commit.
+      const card = await peek(
+        async () =>
+          (await ds.getById("live_scorecard", matchId)) as {
+            live?: Record<string, unknown> | null;
+          } | null,
+      );
+      const followsCard = live?.status === "live" && !!card?.live;
+      if (followsCard && liveWrites) {
+        expect(card!.live!.version).toBe(live!.version);
+      }
+      let viewer = followsCard ? cardWrites : liveWrites + cardWrites;
       let balls = liveWrites;
       if (liveWrites && live) {
         balls += (live.overs_changed ?? []).length;
@@ -943,11 +957,15 @@ const BOUNDS = {
   perBallWrites: 4,
   /** The 5 the ball reads + the screen's live_state listener. */
   perBallScorerReads: 6,
-  /** live_state + live_scorecard listeners (Summary tab). */
-  perBallViewerReads: 2,
+  /**
+   * The live_scorecard listener (Summary tab), which carries the
+   * live_state copy: 2 with a live_state listener as well.
+   */
+  perBallViewerReads: 1,
   matchWrites: 1_290,
   matchScorerReads: 2_170,
-  matchViewerReads: 640,
+  /** 640 with a live_state listener next to the scorecard's. */
+  matchViewerReads: 335,
   matchOverlayReads: 315,
   /** live_state listener + the innings and over a remote ball wrote. */
   matchCoScorerReads: 910,

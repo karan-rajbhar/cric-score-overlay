@@ -100,6 +100,7 @@ describe("resolveOverlayPackage", () => {
     expect(resolveOverlayPackage("starsports").id).toBe("standard");
     expect(resolveOverlayPackage("nope").id).toBe("standard");
     expect(resolveOverlayPackage(TEST_ID).id).toBe(TEST_ID);
+    expect(resolveOverlayPackage("hundred-ball").id).toBe("hundred-ball");
   });
 });
 

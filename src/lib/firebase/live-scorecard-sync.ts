@@ -19,10 +19,12 @@
  */
 
 import { matchIdOf } from "./innings-summary";
+import { canonicalJson } from "./derive.mjs";
 import {
   buildLiveScorecard,
   decodeLiveScorecard,
   LIVE_SCORECARD_COLLECTION,
+  liveCopyOf,
   liveScorecardUserIds,
   sameLiveScorecard,
   type LiveScorecardDoc,
@@ -115,7 +117,61 @@ async function stageDoc(
     now: new Date().toISOString(),
   });
   if (prev && sameLiveScorecard(prev, doc)) return;
-  t.put(LIVE_SCORECARD_COLLECTION, matchId, doc);
+  // The live_state copy carries over (refreshed by stageLiveCopies when
+  // this transaction writes live_state too).
+  const live = prev?.live ?? (await currentLiveCopy(t, matchId));
+  t.put(LIVE_SCORECARD_COLLECTION, matchId, live ? { ...doc, live } : doc);
+}
+
+/** The match's live_state as copied into the scorecard (1 read if unread). */
+async function currentLiveCopy(
+  t: ScoringTx,
+  matchId: string,
+): Promise<Record<string, unknown> | null> {
+  const after = t.docAfter(LIVE_STATE, matchId);
+  const live =
+    after === undefined
+      ? await t.doc<Record<string, unknown>>(LIVE_STATE, matchId)
+      : after;
+  return live ? liveCopyOf(live) : null;
+}
+
+/**
+ * Copy every `live_state` the transaction writes into its match's
+ * `live_scorecard.live` (runs last, before commit), so the copy is always
+ * the live_state of the same commit. Normal deliveries write the scorecard
+ * anyway: no extra write; the scorecard was read already: no extra read.
+ * A match without a scorecard doc is left alone (viewers then follow
+ * live_state).
+ */
+export async function stageLiveCopies(t: ScoringTx): Promise<void> {
+  for (const w of t.pendingWrites()) {
+    if (w.table !== LIVE_STATE || w.kind === "delete") continue;
+    const matchId = w.id;
+    const card = t.pending(LIVE_SCORECARD_COLLECTION, matchId);
+    if (card?.kind === "delete") continue;
+    const after = t.docAfter(LIVE_STATE, matchId);
+    if (!after) continue;
+    const live = liveCopyOf(after);
+    const current =
+      card?.kind === "set"
+        ? (card.data as unknown as LiveScorecardDoc)
+        : (t.docAfter(LIVE_SCORECARD_COLLECTION, matchId) as
+            | LiveScorecardDoc
+            | null
+            | undefined) ??
+          (await t.doc<LiveScorecardDoc>(LIVE_SCORECARD_COLLECTION, matchId));
+    if (!current) continue;
+    if (canonicalJson(current.live ?? null) === canonicalJson(live)) continue;
+    const { id: _id, ...rest } = current as LiveScorecardDoc & { id?: string };
+    void _id;
+    t.put(LIVE_SCORECARD_COLLECTION, matchId, {
+      ...rest,
+      // A doc this transaction did not rebuild moves to its next version.
+      version: card ? rest.version : (rest.version ?? 0) + 1,
+      live,
+    });
+  }
 }
 
 /**
