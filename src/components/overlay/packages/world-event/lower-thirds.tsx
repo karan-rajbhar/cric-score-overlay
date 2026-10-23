@@ -18,16 +18,17 @@ import { usePlayerProfile } from "../../overlay-data";
 import { economyText, overTokens, oversText, strikeRateText } from "../../overlay-kit";
 import { inningsStats, playerInSlot, type PlayerSlot } from "../../profile-card";
 import { strapText } from "../../strap-views";
-import type { ActiveLowerThirdStrap, LayoutMode, LiveMatchState } from "../../types";
+import type { ActiveLowerThirdStrap, LayoutMode, LiveMatchState, SeriesFigures } from "../../types";
 import type { BreakKind, OverlayElementProps } from "../types";
+import { avatarOf, chaseLine, projectedTotals } from "../shared/derive";
+import { AvatarSlot } from "../shared/slots";
 import {
   battingAndBowling,
-  chaseOf,
+  finishAtCurrentRate,
   fixed2,
   ordinal,
-  projectionsOf,
   scoreText,
-  shortName,
+  surnameOf,
   type SideInfo,
 } from "./data";
 import {
@@ -37,13 +38,12 @@ import {
   Fig,
   LowerFrame,
   Root,
-  SAFE_X,
-  SAFE_Y,
   side,
   StatCells,
   Tab,
   type Stat,
 } from "./kit";
+import { SAFE, scoreBugAnchor } from "../shared/layout";
 
 // ---- the frame ------------------------------------------------------------
 
@@ -145,7 +145,7 @@ function lastOutLine(state: LiveMatchState): string | null {
   const w = state.last_wicket;
   if (!w) return null;
   const how = w.dismissal_type ? formatDismissalType(w.dismissal_type) : null;
-  const by = w.bowler_name ? `b ${shortName(w.bowler_name)}` : null;
+  const by = w.bowler_name ? `b ${surnameOf(w.bowler_name)}` : null;
   const at = `${scoreText(w.score, w.wicket_number)} (${w.overs} ov)`;
   return [how && by ? `${how}, ${by}` : (how ?? by), at].filter(Boolean).join("  ·  ");
 }
@@ -379,7 +379,7 @@ export function SplitBar({
 }
 
 export function WorldEventChase(p: OverlayElementProps["chase"]) {
-  const chase = chaseOf(p.state);
+  const chase = chaseLine(p.state);
   if (!chase) {
     return p.strap?.title ? (
       <TextLowerThird state={p.state} layout={p.layout} strap={p.strap} team={battingAndBowling(p.state).bat} testId="we-chase" />
@@ -387,7 +387,8 @@ export function WorldEventChase(p: OverlayElementProps["chase"]) {
   }
   const { bat, bowl } = battingAndBowling(p.state);
   const est = winPredictorFromLive(p.state);
-  const max = Math.max(chase.rrr ?? 0, chase.crr ?? 0);
+  const max = Math.max(chase.requiredRate ?? 0, chase.currentRate ?? 0);
+  const atRate = finishAtCurrentRate(p.state, chase);
   return (
     <LowerFrame state={p.state} layout={p.layout} width={1240} testId="we-chase">
       <div className="relative z-10 ml-[150px]">
@@ -409,10 +410,10 @@ export function WorldEventChase(p: OverlayElementProps["chase"]) {
               ) : (
                 <>
                   <span className="we-label we-ink-muted text-[22px]">Need</span>
-                  <Fig value={chase.need} className="we-fig text-[72px] leading-[0.9] text-[#dc0078]" />
-                  <span className="we-label we-ink-muted text-[22px]">{chase.need === 1 ? "run" : "runs"} from</span>
-                  <Fig value={chase.balls} className="we-fig text-[72px] leading-[0.9]" />
-                  <span className="we-label we-ink-muted text-[22px]">{chase.balls === 1 ? "ball" : "balls"}</span>
+                  <Fig value={chase.runsNeeded} className="we-fig text-[72px] leading-[0.9] text-[#dc0078]" />
+                  <span className="we-label we-ink-muted text-[22px]">{chase.runsNeeded === 1 ? "run" : "runs"} from</span>
+                  <Fig value={chase.ballsRemaining} className="we-fig text-[72px] leading-[0.9]" />
+                  <span className="we-label we-ink-muted text-[22px]">{chase.ballsRemaining === 1 ? "ball" : "balls"}</span>
                 </>
               )}
             </div>
@@ -423,14 +424,14 @@ export function WorldEventChase(p: OverlayElementProps["chase"]) {
           </div>
           <div className="we-night2 we-a-wipe-down grid grid-cols-[1.2fr_1fr] gap-8 px-7 py-4" style={delay(260)}>
             <div className="flex flex-col justify-center gap-2.5">
-              {chase.rrr !== null && <RateBar label="Req rate" value={chase.rrr} max={max} tone="we-accent" start={420} />}
-              {chase.crr !== null && <RateBar label="Run rate" value={chase.crr} max={max} tone="we-mint" start={500} />}
+              {chase.requiredRate !== null && <RateBar label="Req rate" value={chase.requiredRate} max={max} tone="we-accent" start={420} />}
+              {chase.currentRate !== null && <RateBar label="Run rate" value={chase.currentRate} max={max} tone="we-mint" start={500} />}
             </div>
             <div className="flex flex-col justify-center gap-2 border-l pl-8 we-hair">
-              {chase.atCurrentRate !== null && (
+              {atRate !== null && (
                 <span className="we-label flex items-baseline justify-between gap-4 text-[18px]">
                   <span className="we-muted">At this rate</span>
-                  <span className="we-fig text-[28px] normal-case tracking-normal">{chase.atCurrentRate}</span>
+                  <span className="we-fig text-[28px] normal-case tracking-normal">{atRate}</span>
                 </span>
               )}
               {est?.kind === "chase" && (
@@ -518,7 +519,7 @@ export function WorldEventPartnershipStrap({ state, layout, strap }: { state: Li
       layout={layout}
       team={bat}
       tab={`${strap?.badge || "Partnership"}  ·  ${ordinal((state.total_wickets ?? 0) + 1)} wicket`}
-      title={`${shortName(state.striker_name)} & ${shortName(state.non_striker_name)}`}
+      title={`${surnameOf(state.striker_name)} & ${surnameOf(state.non_striker_name)}`}
       subtitle={`${state.striker_name} ${state.striker_runs ?? 0} (${state.striker_balls ?? 0})  ·  ${state.non_striker_name} ${state.non_striker_runs ?? 0} (${state.non_striker_balls ?? 0})`}
       figure={<Fig value={state.partnership_runs} />}
       figureLabel={`Off ${balls} ${balls === 1 ? "ball" : "balls"}`}
@@ -537,7 +538,7 @@ export function WorldEventWinStrap({ state, layout, strap }: { state: LiveMatchS
   if (!est) return strap?.title ? <TextLowerThird state={state} layout={layout} strap={strap} team={null} testId="we-win-strap" /> : null;
   const { bat, bowl } = battingAndBowling(state);
   if (est.kind === "projection") {
-    const rows = projectionsOf(state) ?? [];
+    const rows = projectedTotals(state);
     return (
       <LowerThird
         state={state}
@@ -585,16 +586,16 @@ const BREAK_TAB: Record<BreakKind, string> = {
 function scoreStrip(state: LiveMatchState) {
   if (state.total_runs === null) return undefined;
   const { bat } = battingAndBowling(state);
-  const chase = chaseOf(state);
+  const chase = chaseLine(state);
   return (
     <span className="we-label flex items-baseline gap-8 px-6 text-[20px]">
       <span>
         {bat.code} <span className="we-fig text-[28px]">{scoreText(state.total_runs, state.total_wickets)}</span>{" "}
         <span className="we-muted">({oversText(state.total_balls)} ov)</span>
       </span>
-      {chase && chase.need > 0 ? (
+      {chase ? (
         <span className="text-[#bdf7e8]">
-          Need {chase.need} from {chase.balls}
+          {chase.text}
         </span>
       ) : state.current_run_rate !== null ? (
         <span className="we-muted">Run rate {fixed2(state.current_run_rate)}</span>
@@ -634,7 +635,7 @@ export function WorldEventMessage(p: OverlayElementProps["message"]) {
   const form = p.strap.type === "message" ? (p.strap.form ?? "double") : null;
   if (form === "single") {
     return (
-      <Root state={p.state} data-testid="we-message-single" style={{ left: SAFE_X, right: SAFE_X, bottom: SAFE_Y }}>
+      <Root state={p.state} data-testid="we-message-single" style={scoreBugAnchor("bottom")}>
         <div className="we-lift flex h-[96px] items-stretch">
           {text.badge && (
             <div className="we-a-slide-r flex shrink-0">
@@ -652,7 +653,7 @@ export function WorldEventMessage(p: OverlayElementProps["message"]) {
   }
   if (form === "baseline") {
     return (
-      <Root state={p.state} data-testid="we-message-baseline" style={{ left: SAFE_X, right: SAFE_X, bottom: 10 }}>
+      <Root state={p.state} data-testid="we-message-baseline" style={{ left: SAFE.x, right: SAFE.x, bottom: 10 }}>
         <div className="we-night we-a-wipe-r flex h-[38px] items-center gap-5 pr-6">
           {text.badge && <span className="we-accent we-label flex h-full items-center px-5">{text.badge}</span>}
           <span className="we-trunc text-[20px] font-semibold">{text.title}</span>
@@ -689,21 +690,15 @@ export function WorldEventMessage(p: OverlayElementProps["message"]) {
 
 /** A player's photo in a square, or their initials on their side's colour. */
 export function Portrait({ url, name, n, size = 150 }: { url?: string | null; name: string; n: 1 | 2; size?: number }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
   return (
-    <span className="we-team flex h-full w-full items-center justify-center overflow-hidden" style={{ ...side(n), minHeight: size }}>
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="we-x text-[56px] opacity-90">{initials}</span>
-      )}
-    </span>
+    <AvatarSlot
+      url={url}
+      name={name}
+      className="we-team flex h-full w-full items-center justify-center overflow-hidden"
+      style={{ ...side(n), minHeight: size }}
+      imgClassName="h-full w-full object-cover"
+      textClassName="we-x text-[56px] opacity-90"
+    />
   );
 }
 
@@ -724,6 +719,25 @@ function careerStats(c: PlayerCareerStatsRow, bowler: boolean): Stat[] {
   return out;
 }
 
+/** A player's figures in this tournament (the control room's snapshot). */
+function seriesStats(f: SeriesFigures, bowler: boolean): Stat[] {
+  const out: Stat[] = [{ label: "Matches", value: f.matches }];
+  const count = bowler ? f.wickets : f.runs;
+  if (count !== null && count !== undefined) out.push({ label: bowler ? "Wickets" : "Runs", value: count });
+  const extra: Array<[string, string | null | undefined]> = bowler
+    ? [
+        ["Econ", f.economy ? f.economy.toFixed(2) : null],
+        ["Best", f.best],
+      ]
+    : [
+        ["Average", f.average ? f.average.toFixed(1) : null],
+        ["Strike rate", f.strikeRate ? f.strikeRate.toFixed(1) : null],
+        ["Best", f.highest],
+      ];
+  for (const [label, value] of extra) if (value) out.push({ label, value });
+  return out;
+}
+
 export function WorldEventPlayerProfile(p: OverlayElementProps["playerProfile"]) {
   const who = playerInSlot(p.state, p.slot);
   const career = p.mode === "career";
@@ -731,29 +745,17 @@ export function WorldEventPlayerProfile(p: OverlayElementProps["playerProfile"])
   const profile = p.profile ?? read.profile;
   const { bat, bowl } = battingAndBowling(p.state);
   const team = who.bowler ? bowl : bat;
-  if (!who.name) return null;
-  let stats: Stat[];
-  let tab: string;
-  if (career) {
-    if ((p.profile === undefined && !read.loaded) || !profile?.career) return null;
-    stats = careerStats(profile.career, who.bowler);
-    tab = "Career";
-  } else {
-    const f = who.id ? p.snapshots?.series?.[who.id] : null;
-    if (!f) return null;
-    stats = [{ label: "Matches", value: f.matches }];
-    if (who.bowler) {
-      if (f.wickets !== null && f.wickets !== undefined) stats.push({ label: "Wickets", value: f.wickets });
-      if (f.economy) stats.push({ label: "Econ", value: f.economy.toFixed(2) });
-      if (f.best) stats.push({ label: "Best", value: f.best });
-    } else {
-      if (f.runs !== null && f.runs !== undefined) stats.push({ label: "Runs", value: f.runs });
-      if (f.average) stats.push({ label: "Average", value: f.average.toFixed(1) });
-      if (f.strikeRate) stats.push({ label: "Strike rate", value: f.strikeRate.toFixed(1) });
-      if (f.highest) stats.push({ label: "Best", value: f.highest });
-    }
-    tab = p.state.tournament_name ?? "This tournament";
-  }
+  const loaded = p.profile !== undefined || read.loaded;
+  const series = who.id ? p.snapshots?.series?.[who.id] : null;
+  const stats = career
+    ? loaded && profile?.career
+      ? careerStats(profile.career, who.bowler)
+      : null
+    : series
+      ? seriesStats(series, who.bowler)
+      : null;
+  if (!who.name || !stats) return null;
+  const tab = career ? "Career" : (p.state.tournament_name ?? "This tournament");
   return (
     <LowerThird
       state={p.state}
@@ -762,7 +764,7 @@ export function WorldEventPlayerProfile(p: OverlayElementProps["playerProfile"])
       tab={`${tab}  ·  ${team.code}`}
       title={who.name}
       subtitle={team.name}
-      photo={<Portrait url={career ? profile?.avatarUrl : null} name={who.name} n={team.n} />}
+      photo={<Portrait url={(career ? profile?.avatarUrl : null) ?? avatarOf(p.match, who.id)} name={who.name} n={team.n} />}
       stats={stats}
       width={1240}
       testId={`we-profile-${p.mode}`}

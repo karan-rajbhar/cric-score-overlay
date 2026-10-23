@@ -11,7 +11,7 @@ const EASE_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
 const EASE_SNAP = "cubic-bezier(0.65, 0, 0.35, 1)";
 
 const MATERIALS = `
-.we{font-family:var(--we-font, "Figtree"),"Helvetica Neue",Arial,system-ui,sans-serif;color:#fff;-webkit-font-smoothing:antialiased;line-height:1.1;font-feature-settings:"tnum" 1;}
+.we{font-family:var(--pkg-font-display,"Figtree","Helvetica Neue",Arial,sans-serif);color:#fff;-webkit-font-smoothing:antialiased;line-height:1.1;font-feature-settings:"tnum" 1;}
 .we *{box-sizing:border-box;}
 .we-x{font-weight:900;text-transform:uppercase;letter-spacing:0.01em;}
 .we-fig{font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;}
@@ -56,10 +56,12 @@ const BALLS = `
 .we-ball-six{background:#dc0078;color:#fff;}
 .we-ball-wicket{background:#d4142a;color:#fff;}
 .we-ball-extra{background:#ffb020;color:#120a3d;}
+.we-ball-event{background:rgba(255,255,255,0.18);color:#fff;}
 .we-ball-slot{box-shadow:inset 0 0 0 2px rgba(255,255,255,0.30);}
 .we-on-paper .we-ball-dot{box-shadow:inset 0 0 0 2.5px #4f4a72;}
 .we-on-paper .we-ball-dot::after{background:#4f4a72;}
 .we-on-paper .we-ball-run{background:#140a4f;color:#fff;}
+.we-on-paper .we-ball-event{background:#e3e0f3;color:#120a3d;}
 .we-on-paper .we-ball-slot{box-shadow:inset 0 0 0 2px rgba(18,10,61,0.20);}
 `;
 

@@ -12,7 +12,8 @@ import { teamCode } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
 import type { OverlayElementProps } from "../types";
 import { sideOfName } from "./data";
-import { CardFrame, Crest, delay, Root, SAFE_X, Tab, useLocalTime } from "./kit";
+import { CardFrame, Crest, delay, Root, Tab, useLocalTime } from "./kit";
+import { FULL_FRAME } from "../shared/layout";
 
 const TH = "we-label we-ink-muted px-3 py-2.5 text-right text-[16px]";
 const TD = "we-figl px-3 text-right text-[26px]";
@@ -160,7 +161,7 @@ export function WorldEventNextFixture(p: OverlayElementProps["nextFixture"]) {
   const when = useLocalTime(f.startsAt);
   if (!f.team1 || !f.team2) return null;
   return (
-    <Root state={p.state} data-testid="we-fixture" className="inset-0 flex items-center justify-center" style={{ padding: `54px ${SAFE_X}px` }}>
+    <Root state={p.state} data-testid="we-fixture" className="flex items-center justify-center" style={FULL_FRAME}>
       <section className="we-lift relative w-full max-w-[1400px]">
         <div className="absolute -top-[38px] left-0 z-10">
           <Tab className="we-a-drop" style={delay(260)}>

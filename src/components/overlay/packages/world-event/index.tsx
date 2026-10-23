@@ -50,6 +50,8 @@ import {
 import { WorldEventScoreBug } from "./score-bug";
 import { WorldEventPointsTable, WorldEventLeaderboard, WorldEventNextFixture } from "./standings";
 import { WorldEventSting } from "./sting";
+import { packageFonts } from "../shared/fonts";
+import { figtree } from "./fonts";
 import { worldEventPalette, worldEventVars } from "./theme";
 
 /** Every element, in this package's look (none falls back to Standard). */
@@ -221,6 +223,7 @@ export const WORLD_EVENT_PACKAGE: BroadcastPackage = {
   kind: "broadcast",
   palette: worldEventPalette,
   vars: worldEventVars,
+  fonts: packageFonts({ display: figtree }, "'Helvetica Neue', Arial, sans-serif"),
   motion: {
     scoreBug: bug,
     sting,

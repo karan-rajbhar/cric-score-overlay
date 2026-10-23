@@ -8,7 +8,8 @@
 
 import { useEffect, useState } from "react";
 import type { OverlayElementProps } from "../types";
-import { delay, Root, SAFE_X, SAFE_Y } from "./kit";
+import { delay, Root } from "./kit";
+import { SAFE } from "../shared/layout";
 
 const ROTATE_MS = 20_000;
 
@@ -23,7 +24,7 @@ export function WorldEventSponsors(p: OverlayElementProps["sponsors"]) {
   if (!p.title && count === 0) return null;
   const sponsor = count ? p.sponsors[at % count] : null;
   return (
-    <Root state={p.state} data-testid="we-sponsors" className="flex flex-col items-end" style={{ right: SAFE_X, top: SAFE_Y }}>
+    <Root state={p.state} data-testid="we-sponsors" className="flex flex-col items-end" style={{ right: SAFE.x, top: SAFE.y }}>
       {p.title && (
         <div className="we-lift flex h-[50px] max-w-[460px] items-stretch">
           <span className="we-accent w-[10px] shrink-0" />
@@ -52,7 +53,7 @@ export function WorldEventTicker(p: OverlayElementProps["ticker"]) {
   if (!p.text.trim()) return null;
   return (
     <Root state={p.state} data-testid="we-ticker" className="inset-x-0 bottom-0 flex h-[46px] items-stretch overflow-hidden">
-      <span className="we-accent we-label we-cut-r z-10 flex shrink-0 items-center pr-10 text-[19px]" style={{ paddingLeft: SAFE_X, ["--we-cut" as string]: "18px" }}>
+      <span className="we-accent we-label we-cut-r z-10 flex shrink-0 items-center pr-10 text-[19px]" style={{ paddingLeft: SAFE.x, ["--we-cut" as string]: "18px" }}>
         Latest
       </span>
       <div className="we-night -ml-[18px] flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap">

@@ -17,12 +17,12 @@ import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { overTokens, oversText } from "../../overlay-kit";
 import { ballsPerOverOf, inningsLabel, tossLineOf } from "../../score-bug";
+import { chaseLine } from "../shared/derive";
 import type { LiveMatchState } from "../../types";
 import type { OverlayElementProps } from "../types";
 import {
   battingAndBowling,
   bugName,
-  chaseOf,
   fixed2,
   mainInnings,
   scoreText,
@@ -37,13 +37,12 @@ import {
   delay,
   Fig,
   Root,
-  SAFE_X,
-  SAFE_Y,
   ScoreFig,
   side,
   useLocalTime,
   useRotation,
 } from "./kit";
+import { SAFE, scoreBugAnchor } from "../shared/layout";
 
 type BugProps = OverlayElementProps["scoreBug"];
 
@@ -54,13 +53,15 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** The live context line's items, most important first. */
 export function liveContext(state: LiveMatchState): string[] {
   const items: string[] = [];
-  const chase = chaseOf(state);
-  if (chase && chase.need > 0) {
-    items.push(`Need ${plural(chase.need, "run", "runs")} from ${plural(chase.balls, "ball", "balls")}`);
+  const chase = chaseLine(state);
+  if (chase) {
+    items.push(
+      `Need ${plural(chase.runsNeeded, "run", "runs")} from ${plural(chase.ballsRemaining, "ball", "balls")}`,
+    );
     const rates = [
       `Target ${chase.target}`,
-      chase.rrr !== null && `Req rate ${fixed2(chase.rrr)}`,
-      chase.crr !== null && `Run rate ${fixed2(chase.crr)}`,
+      chase.requiredRate !== null && `Req rate ${fixed2(chase.requiredRate)}`,
+      chase.currentRate !== null && `Run rate ${fixed2(chase.currentRate)}`,
     ].filter(Boolean);
     items.push(rates.join("  ·  "));
   } else if (state.current_run_rate !== null && (state.total_balls ?? 0) > 0) {
@@ -224,7 +225,7 @@ function BarFrame({
       state={state}
       data-testid="we-score-bug"
       data-phase={phase}
-      style={{ left: SAFE_X, right: SAFE_X, bottom }}
+      style={{ ...scoreBugAnchor("bottom"), bottom }}
     >
       {above && <div className="mb-1.5 flex items-end justify-between gap-4 px-[128px]">{above}</div>}
       <div className="we-lift flex h-[96px] items-stretch bg-[#0a0532]">
@@ -399,10 +400,11 @@ function InningsLine({
 function BreakBar({ state, match, bpo, bottom }: { state: LiveMatchState; match: Match | null; bpo: number; bottom: number }) {
   const { bat, bowl } = battingAndBowling(state);
   const first = inningsOfSide(state, match, bowl.n);
-  const chase = chaseOf(state);
+  const chase = chaseLine(state, bpo);
   const target = chase?.target ?? (first ? first.total_runs + 1 : null);
   const items = [
-    chase && `Need ${chase.need} from ${chase.balls} balls${chase.rrr !== null ? `  ·  Req rate ${fixed2(chase.rrr)}` : ""}`,
+    chase &&
+      `${chase.text}${chase.requiredRate !== null ? `  ·  Req rate ${fixed2(chase.requiredRate)}` : ""}`,
     "Innings break",
     tossLineOf(state, match),
   ].filter((s): s is string => !!s);
@@ -419,8 +421,8 @@ function BreakBar({ state, match, bpo, bottom }: { state: LiveMatchState; match:
           <span className="we-label we-ink-muted text-[17px]">{bat.code} to bat</span>
           {chase ? (
             <span className="flex items-baseline gap-2">
-              <span className="we-fig text-[36px] leading-none">{chase.need}</span>
-              <span className="we-label we-ink-muted text-[17px]">from {chase.balls} balls</span>
+              <span className="we-fig text-[36px] leading-none">{chase.runsNeeded}</span>
+              <span className="we-label we-ink-muted text-[17px]">from {chase.ballsRemaining} balls</span>
             </span>
           ) : (
             <span className="we-fig text-[30px] leading-none">{inningsLabel(2)}</span>
@@ -491,7 +493,7 @@ function TopBar({ state, bpo, phase }: { state: LiveMatchState; bpo: number; pha
         ? `Innings break${state.target_runs ? `  ·  target ${state.target_runs}` : ""}`
         : (state.tournament_name ?? state.title ?? "");
   return (
-    <Root state={state} data-testid="we-score-bug" data-phase={phase} style={{ left: SAFE_X, right: SAFE_X, top: SAFE_Y }}>
+    <Root state={state} data-testid="we-score-bug" data-phase={phase} style={scoreBugAnchor("top")}>
       <div className="we-lift flex h-[66px] items-stretch bg-[#0a0532]">
         <EndCap team={bat} at="left" width={96} />
         <div className="we-paper we-on-paper we-a-wipe-r flex min-w-0 flex-1 items-center gap-6 pl-5 pr-[40px] text-[26px]" style={delay(80)}>
@@ -545,7 +547,7 @@ function TopBar({ state, bpo, phase }: { state: LiveMatchState; bpo: number; pha
 /** Under the slim bar: the chase, when there is one. */
 function TopChase({ state }: { state: LiveMatchState }) {
   const items = liveContext(state);
-  if (!chaseOf(state)) return null;
+  if (!chaseLine(state)) return null;
   return (
     <div className="mt-1.5 flex justify-center">
       <span className="we-accent we-trap we-a-drop flex h-[36px] max-w-[760px] items-center px-8" style={{ ["--we-cut" as string]: "14px", ...delay(300) }}>
@@ -563,7 +565,7 @@ function CompactCard({ state, bpo, phase, bottom }: { state: LiveMatchState; bpo
       ? liveContext(state)
       : [phase === "done" ? (state.result_description ?? "Match finished") : phase === "break" ? "Innings break" : (state.tournament_name ?? state.title ?? "")].filter(Boolean);
   return (
-    <Root state={state} data-testid="we-score-bug" data-phase={phase} className="w-[480px]" style={{ left: SAFE_X, bottom }}>
+    <Root state={state} data-testid="we-score-bug" data-phase={phase} className="w-[480px]" style={{ ...scoreBugAnchor("compact"), bottom }}>
       <div className="we-lift">
         <div className="we-night we-a-wipe-r flex h-[76px] items-center gap-3 pr-4">
           <div className="we-team we-cut-r flex h-full w-[84px] shrink-0 items-center justify-center pr-2" style={{ ...side(bat.n), ["--we-cut" as string]: "14px" }}>
@@ -610,7 +612,7 @@ function CompactCard({ state, bpo, phase, bottom }: { state: LiveMatchState; bpo
 export function WorldEventScoreBug(p: BugProps) {
   const state = p.state;
   const bpo = ballsPerOverOf(p.match);
-  const bottom = SAFE_Y + (p.marginOffsetPx ?? 0);
+  const bottom = SAFE.y + (p.marginOffsetPx ?? 0);
   const pre = p.phase === "pre" || state.innings_number == null;
   const phase = pre ? "pre" : p.phase;
   if (p.layout === "top") return <TopBar state={state} bpo={bpo} phase={phase} />;

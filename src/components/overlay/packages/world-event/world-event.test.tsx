@@ -14,21 +14,21 @@ import type { LiveMatchState } from "../../types";
 import { GALLERY_STATES, OverlayGallery } from "../gallery";
 import { resolveOverlayPackage } from "../registry";
 import { OVERLAY_ELEMENTS } from "../types";
+import { chaseLine } from "../shared/derive";
 import {
   bugName,
-  chaseOf,
   dismissalText,
+  finishAtCurrentRate,
   matchTitleOf,
   ordinal,
-  projectionsOf,
   xiOf,
 } from "./data";
 import { WORLD_EVENT_PACKAGE } from "./index";
-import { ballLabel, crestText } from "./kit";
+import { ballLabel, Balls, Crest } from "./kit";
 import { liveContext, WorldEventScoreBug } from "./score-bug";
 import { nrrText } from "./standings";
 import { STING_LOOK } from "./sting";
-import { ballTone, teamTone, WE, worldEventVars } from "./theme";
+import { teamTone, WE, worldEventVars } from "./theme";
 
 const PKG = "world-event";
 
@@ -155,36 +155,30 @@ describe("World event package", () => {
 });
 
 describe("World event figures", () => {
-  it("reads the chase from the live row", () => {
-    const chase = chaseOf(DEMO_MATCH_STATE)!;
-    expect(chase.need).toBe(DEMO_MATCH_STATE.runs_needed);
-    expect(chase.balls).toBe(DEMO_MATCH_STATE.balls_remaining);
-    expect(chase.target).toBe(DEMO_MATCH_STATE.target_runs);
-    expect(chase.atCurrentRate).toBe(
+  it("puts the chase first on the context line, with where it ends at this rate", () => {
+    const chase = chaseLine(DEMO_MATCH_STATE)!;
+    expect(finishAtCurrentRate(DEMO_MATCH_STATE, chase)).toBe(
       Math.round(
         DEMO_MATCH_STATE.total_runs! +
           (DEMO_MATCH_STATE.current_run_rate! * DEMO_MATCH_STATE.balls_remaining!) / 6,
       ),
     );
-    expect(chaseOf(DEMO_FIRST_INNINGS_STATE)).toBeNull();
+    expect(finishAtCurrentRate(DEMO_MATCH_STATE, null)).toBeNull();
     expect(liveContext(DEMO_MATCH_STATE)[0]).toBe(
-      `Need ${chase.need} runs from ${chase.balls} balls`,
+      `Need ${chase.runsNeeded} runs from ${chase.ballsRemaining} balls`,
     );
+    expect(liveContext(DEMO_MATCH_STATE)[1]).toContain(`Target ${chase.target}`);
+    // First innings: the run rate leads.
+    expect(liveContext(DEMO_FIRST_INNINGS_STATE)[0]).toMatch(/^Current run rate \d/);
   });
 
-  it("projects the first innings at the current and the next whole rates", () => {
-    const rows = projectionsOf(DEMO_FIRST_INNINGS_STATE)!;
-    const s = DEMO_FIRST_INNINGS_STATE;
-    const left = (s.overs_per_innings! * 6 - s.total_balls!) / 6;
-    const crr = (s.total_runs! * 6) / s.total_balls!;
-    expect(rows[0]).toMatchObject({ current: true, total: Math.round(s.total_runs! + crr * left) });
-    expect(rows.slice(1).map((r) => r.rate)).toEqual([
-      Math.floor(crr) + 1,
-      Math.floor(crr) + 3,
-      Math.floor(crr) + 5,
+  it("draws this over's balls with the over's empty slots", () => {
+    const { container } = render(<Balls tokens={["1", "wd", "4", "0", "W"]} slots={6} />);
+    const chips = [...container.querySelectorAll("li")].map((li) => li.className);
+    expect(chips.filter((c) => c.includes("we-ball-slot"))).toHaveLength(2);
+    expect(chips.slice(0, 5).map((c) => c.match(/we-ball-(\w+)/)![1])).toEqual([
+      "run", "extra", "four", "dot", "wicket",
     ]);
-    expect(projectionsOf(DEMO_MATCH_STATE)).toBeNull();
-    expect(projectionsOf({ ...s, total_balls: 3 })).toBeNull();
   });
 
   it("writes dismissals scorecard style from the fall of wickets", () => {
@@ -237,11 +231,10 @@ describe("World event figures", () => {
     expect(ballLabel("0")).toBe("");
     expect(ballLabel("2+wd")).toBe("2wd");
     expect(ballLabel("nb+1lb")).toBe("nb+1lb");
-    expect(["0", "1", "4", "6", "W", "wd", "4+nb"].map(ballTone)).toEqual([
-      "dot", "run", "four", "six", "wicket", "extra", "extra",
-    ]);
-    expect(crestText("RIV", "Riverside Rangers")).toBe("RIV");
-    expect(crestText("", "Riverside Rangers")).toBe("RR");
+    const crest = render(<Crest n={1} code="RIV" name="Riverside Rangers" />);
+    expect(crest.container.textContent).toBe("RR");
+    const logo = render(<Crest n={2} code="HAW" name="Harbour Hawks" logo="/logo.png" />);
+    expect(logo.container.querySelector("img")).not.toBeNull();
     expect(nrrText(0.912)).toBe("+0.912");
     expect(nrrText(-0.118)).toBe("-0.118");
     expect(nrrText(null)).toBe("–");

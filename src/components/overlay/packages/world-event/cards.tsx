@@ -19,10 +19,8 @@ import type { LiveMatchState } from "../../types";
 import type { OverlayElementProps } from "../types";
 import {
   battingAndBowling,
-  chaseOf,
   dismissalText,
   fixed2,
-  leadersOf,
   mainInnings,
   matchTitleOf,
   ordinal,
@@ -35,19 +33,20 @@ import {
   type XiEntry,
 } from "./data";
 import { standShares } from "./lower-thirds";
+import { chaseLine, inningsLeaders } from "../shared/derive";
 import {
   Balls,
+  BUG_HEIGHT,
   CardFrame,
   Crest,
   delay,
   Fig,
   Root,
-  SAFE_X,
-  SAFE_Y,
   side,
   Tab,
   useLocalTime,
 } from "./kit";
+import { FULL_FRAME, lowerThirdAnchor, SAFE } from "../shared/layout";
 
 const TH = "we-label we-ink-muted px-3 py-2.5 text-right text-[16px]";
 const TD = "we-fig px-3 py-2 text-right text-[24px]";
@@ -371,7 +370,7 @@ export function WorldEventPlayingXi(p: OverlayElementProps["playingXi"]) {
   if (!players.length) return null;
   const groups = players.length === 11 ? ORDER_GROUPS : [["Batting order", 0, players.length] as [string, number, number]];
   return (
-    <Root state={p.state} data-testid="we-xi-team" className="inset-0 flex items-center justify-center" style={{ padding: `${SAFE_Y}px ${SAFE_X}px` }}>
+    <Root state={p.state} data-testid="we-xi-team" className="flex items-center justify-center" style={FULL_FRAME}>
       <section className="we-lift relative flex w-full max-w-[1500px] items-stretch">
         <div className="absolute -top-[38px] left-0 z-10">
           <Tab className="we-a-drop" style={delay(260)}>
@@ -415,7 +414,7 @@ export function WorldEventToss(p: OverlayElementProps["toss"]) {
   const lose = win.n === 1 ? t2 : t1;
   const choice = p.state.toss_decision === "bowl" ? "bowl" : "bat";
   return (
-    <Root state={p.state} data-testid="we-toss" className="inset-x-0 flex justify-center" style={{ bottom: 250, padding: `0 ${SAFE_X}px` }}>
+    <Root state={p.state} data-testid="we-toss" className="inset-x-0 flex justify-center" style={{ bottom: 250, padding: `0 ${SAFE.x}px` }}>
       <div className="relative w-full max-w-[1500px]">
         <div className="absolute -top-[38px] left-[140px] z-10">
           <Tab className="we-a-drop" style={delay(300)}>
@@ -484,7 +483,7 @@ export function WorldEventMatchIntro(p: OverlayElementProps["matchIntro"]) {
   ].filter(Boolean);
   const title = matchTitleOf(p.state);
   return (
-    <Root state={p.state} data-testid="we-intro" className="inset-0 flex flex-col items-center justify-center" style={{ padding: `${SAFE_Y}px ${SAFE_X}px` }}>
+    <Root state={p.state} data-testid="we-intro" className="flex flex-col items-center justify-center" style={FULL_FRAME}>
       <div className="mb-5 flex flex-col items-center gap-2">
         {p.state.tournament_name && (
           <span className="we-accent we-label we-trap we-a-drop px-10 py-2 text-[22px]" style={{ ["--we-cut" as string]: "14px", ...delay(200) }}>
@@ -572,7 +571,7 @@ export function WorldEventResult(p: OverlayElementProps["result"]) {
 }
 
 function LeaderList({ innings, start }: { innings: Innings; start: number }) {
-  const { batters, bowlers } = leadersOf(innings);
+  const { batters, bowlers } = inningsLeaders(innings, 3, 3);
   const row = "we-a-rise flex h-[46px] items-center gap-3 px-5";
   return (
     <div className="grid grid-cols-2">
@@ -621,7 +620,7 @@ function InningsBand({ state, innings, match, start }: { state: LiveMatchState; 
 export function WorldEventMatchSummary(p: OverlayElementProps["matchSummary"]) {
   const main = mainInnings(p.innings);
   if (!main.length) return null;
-  const chase = chaseOf(p.state);
+  const chase = chaseLine(p.state);
   const title = p.state.result_description ?? `${p.state.team1_name} v ${p.state.team2_name}`;
   return (
     <CardFrame
@@ -630,9 +629,9 @@ export function WorldEventMatchSummary(p: OverlayElementProps["matchSummary"]) {
       eyebrow={eyebrow(p.state, "Match summary")}
       title={<span className="we-trunc block">{title}</span>}
       aside={
-        !p.state.result_description && chase && chase.need > 0 ? (
+        !p.state.result_description && chase ? (
           <span className="we-label text-[20px] text-[#bdf7e8]">
-            Need {chase.need} from {chase.balls}
+            {chase.text}
           </span>
         ) : undefined
       }
@@ -832,7 +831,7 @@ export function WorldEventPlayerOfTheMatch(p: OverlayElementProps["playerOfTheMa
     cells.push({ label: "Bowling", value: `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})` });
   }
   return (
-    <Root state={p.state} data-testid="we-potm" className="flex flex-col items-start" style={{ left: SAFE_X, bottom: 220, width: 1240 }}>
+    <Root state={p.state} data-testid="we-potm" className="flex flex-col items-start" style={{ ...lowerThirdAnchor(BUG_HEIGHT, 34), width: 1240 }}>
       <div className="relative z-10 ml-[150px]">
         <Tab tone="gold" className="we-a-drop" style={delay(320)}>
           Player of the match

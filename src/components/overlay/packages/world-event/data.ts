@@ -13,6 +13,7 @@ import type {
   TeamPlayer,
 } from "~/lib/match-types";
 import { battingSide, teamCode } from "../../overlay-kit";
+import type { ChaseLine } from "../shared/derive";
 import { sidesOf } from "../../score-bug";
 import type { LiveMatchState } from "../../types";
 
@@ -93,91 +94,13 @@ export function sideOfInnings(
 export const fixed2 = (n: number | null | undefined): string | null =>
   n === null || n === undefined || !Number.isFinite(n) ? null : n.toFixed(2);
 
-export interface ChaseFigures {
-  target: number;
-  need: number;
-  balls: number;
-  rrr: number | null;
-  crr: number | null;
-  /** Where the chase ends at the current rate (whole runs). */
-  atCurrentRate: number | null;
-}
-
-/** The chase in progress, or null when the live row has none. */
-export function chaseOf(state: LiveMatchState): ChaseFigures | null {
-  if (
-    state.target_runs === null ||
-    state.target_runs === undefined ||
-    state.runs_needed === null ||
-    state.runs_needed === undefined ||
-    state.balls_remaining === null ||
-    state.balls_remaining === undefined ||
-    state.innings_completed
-  ) {
-    return null;
-  }
-  const crr = state.current_run_rate ?? null;
-  const atCurrentRate =
-    crr !== null && (state.total_balls ?? 0) > 0
-      ? Math.round((state.total_runs ?? 0) + (crr * state.balls_remaining) / 6)
-      : null;
-  return {
-    target: state.target_runs,
-    need: Math.max(0, state.runs_needed),
-    balls: state.balls_remaining,
-    rrr: state.required_run_rate ?? null,
-    crr,
-    atCurrentRate,
-  };
-}
-
-export interface ProjectionRow {
-  /** "Current rate" or "10 an over". */
-  label: string;
-  rate: number;
-  total: number;
-  current: boolean;
-}
-
 /**
- * First-innings projections: the total at the current rate and at the
- * next whole rates up (the TV "projected score" table). Null outside a
- * first innings in play, or before an over's worth of balls.
+ * Where the chasing side finishes at its current rate (whole runs), from
+ * the shared chase line; null before a ball.
  */
-export function projectionsOf(
-  state: LiveMatchState,
-  ballsPerOver = 6,
-): ProjectionRow[] | null {
-  const overs = state.dls_overs ?? state.overs_per_innings;
-  const balls = state.total_balls ?? 0;
-  if (
-    state.innings_number !== 1 ||
-    state.status !== "live" ||
-    state.innings_completed ||
-    !overs ||
-    balls < ballsPerOver
-  ) {
-    return null;
-  }
-  const runs = state.total_runs ?? 0;
-  const left = Math.max(0, overs * ballsPerOver - balls) / ballsPerOver;
-  const crr = (runs * ballsPerOver) / balls;
-  const base = Math.floor(crr) + 1;
-  const rates = [base, base + 2, base + 4];
-  return [
-    {
-      label: "Current rate",
-      rate: crr,
-      total: Math.round(runs + crr * left),
-      current: true,
-    },
-    ...rates.map((rate) => ({
-      label: `${rate} an over`,
-      rate,
-      total: Math.round(runs + rate * left),
-      current: false,
-    })),
-  ];
+export function finishAtCurrentRate(state: LiveMatchState, chase: ChaseLine | null): number | null {
+  if (!chase || chase.currentRate === null || !state.total_balls) return null;
+  return Math.round((state.total_runs ?? 0) + (chase.currentRate * chase.ballsRemaining) / 6);
 }
 
 /** 1 → "1st", 2 → "2nd", 11 → "11th". */
@@ -199,8 +122,8 @@ function nameIn(innings: Innings, id: string | null | undefined): string | null 
   );
 }
 
-/** A surname-first short form for dismissals: "Owen Hughes" → "Hughes". */
-export function shortName(full: string | null | undefined): string {
+/** A surname for dismissals: "Owen Hughes" → "Hughes". */
+export function surnameOf(full: string | null | undefined): string {
   const parts = (full ?? "").trim().split(/\s+/).filter(Boolean);
   return parts.length > 1 ? parts.slice(1).join(" ") : (parts[0] ?? "");
 }
@@ -220,8 +143,8 @@ export function dismissalText(
     (f) => f.batsman_out_id === batter.user_id,
   );
   const type = batter.dismissal_type ?? fow?.dismissal_type ?? null;
-  const bowler = shortName(fow?.bowler?.full_name ?? nameIn(innings, fow?.bowler_id));
-  const fielder = shortName(
+  const bowler = surnameOf(fow?.bowler?.full_name ?? nameIn(innings, fow?.bowler_id));
+  const fielder = surnameOf(
     fow?.fielder?.full_name ?? nameIn(innings, fow?.fielder_id),
   );
   const b = bowler ? `b ${bowler}` : "";
@@ -280,28 +203,6 @@ export function xiOf(team: MatchTeam | null | undefined): XiEntry[] {
           : null;
     return { id: p.id, userId: p.user_id, name: p.user?.full_name ?? "", mark, role: label };
   });
-}
-
-export interface InningsLeaders {
-  batters: BattingPerformance[];
-  bowlers: NonNullable<Innings["bowling_performances"]>;
-}
-
-/** The innings' top batters (by runs) and bowlers (by wickets, then runs). */
-export function leadersOf(innings: Innings, bat = 3, bowl = 3): InningsLeaders {
-  return {
-    batters: [...(innings.batting_performances ?? [])]
-      .filter((b) => b.balls_faced > 0 || b.runs_scored > 0)
-      .sort((a, b) => b.runs_scored - a.runs_scored || a.balls_faced - b.balls_faced)
-      .slice(0, bat),
-    bowlers: [...(innings.bowling_performances ?? [])]
-      .filter((b) => b.balls_bowled > 0)
-      .sort(
-        (a, b) =>
-          b.wickets_taken - a.wickets_taken || a.runs_conceded - b.runs_conceded,
-      )
-      .slice(0, bowl),
-  };
 }
 
 /** The main innings (1 and 2) in order. */

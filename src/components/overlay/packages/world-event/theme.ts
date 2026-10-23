@@ -159,18 +159,3 @@ export function sideVars(side: 1 | 2): Record<string, string> {
     "--we-side-dark": `var(--we-t${side}-dark)`,
   };
 }
-
-export type BallTone = "dot" | "run" | "four" | "six" | "wicket" | "extra";
-
-/**
- * A delivery token of `live_state.this_over_balls` ("0", "1", "4", "6",
- * "W", "wd", "2+wd", "nb", "4+nb", "nb+1lb") as its tone.
- */
-export function ballTone(token: string): BallTone {
-  if (token === "W") return "wicket";
-  if (/wd|nb/.test(token)) return "extra";
-  if (token === "4") return "four";
-  if (token === "6") return "six";
-  if (token === "0") return "dot";
-  return "run";
-}

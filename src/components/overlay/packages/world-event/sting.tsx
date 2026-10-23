@@ -12,7 +12,8 @@
 import { cn } from "~/lib/utils";
 import type { OverlayElementProps, StingKind } from "../types";
 import { battingAndBowling, scoreText } from "./data";
-import { Crest, delay, Root, SAFE_X } from "./kit";
+import { Crest, delay, Root } from "./kit";
+import { SAFE } from "../shared/layout";
 
 interface StingLook {
   /** The band's material class. */
@@ -50,7 +51,7 @@ export function WorldEventSting(p: OverlayElementProps["sting"]) {
           <span aria-hidden="true" className="we-a-flash absolute inset-0 bg-white" />
           <span aria-hidden="true" className="absolute inset-y-0 right-0 w-[46%] bg-black/10 [clip-path:polygon(18%_0,100%_0,100%_100%,0_100%)]" />
         </div>
-        <div className="relative flex h-full items-center gap-12" style={{ padding: `0 ${SAFE_X}px` }}>
+        <div className="relative flex h-full items-center gap-12" style={{ padding: `0 ${SAFE.x}px` }}>
           {look.figure && (
             <span
               className="we-a-zoom we-fig flex h-[196px] min-w-[196px] shrink-0 items-center justify-center bg-white px-6 leading-none shadow-[0_18px_40px_rgba(6,3,30,0.35)]"

@@ -8,18 +8,28 @@
  * colour; the predictor and projections come from the live row alone.
  */
 
-import { useMemo, type ReactNode } from "react";
-import { phaseBoundaries } from "~/lib/match-report";
-import { buildOverTable, type OverPoint } from "~/lib/match-charts";
+import type { ReactNode } from "react";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
-import { describeDonutSegment, polarToCartesian, SECTORS } from "~/lib/wagon-wheel-utils";
 import { winPredictorFromLive } from "~/lib/win-predictor";
-import { useInningsBallLog, useScorecardInnings } from "../../overlay-data";
 import { oversText } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
+import {
+  axisMax,
+  chartOvers,
+  describeDonutSegment,
+  phaseRates,
+  polarToCartesian,
+  runsPerOver,
+  sectorTotals,
+  wormSeries,
+  wormWickets,
+  type OverPoint,
+} from "../shared/charts";
+import { projectedTotals } from "../shared/derive";
+import { useBatterShots, useInningsSeries } from "../shared/use-chart-data";
 import type { OverlayElementProps } from "../types";
-import { battingAndBowling, fixed2, projectionsOf, scoreText, sideOfInnings, teamsOf, type SideInfo } from "./data";
+import { battingAndBowling, fixed2, scoreText, teamsOf, type SideInfo } from "./data";
 import { SplitBar } from "./lower-thirds";
 import { CardFrame, Crest, delay, Fig, side } from "./kit";
 
@@ -29,27 +39,18 @@ interface Series {
   table: OverPoint[];
 }
 
+/** The first two innings' over tables (shared ball-log reads), each with its side. */
 function useSeries(state: LiveMatchState, match: Match | null | undefined): Series[] | null {
-  const { innings } = useScorecardInnings(match);
-  const main = useMemo(() => innings.filter((i) => i.innings_number <= 2), [innings]);
-  const log = useInningsBallLog(state, main, true);
-  return useMemo(() => {
-    if (!log) return null;
-    const teams = teamsOf(state);
-    return main.map((inn) => ({
-      innings: inn,
-      team: teams[sideOfInnings(state, inn, match) - 1]!,
-      table: buildOverTable(log.get(inn.id) ?? []),
-    }));
-  }, [main, log, match, state]);
+  const series = useInningsSeries(state, match);
+  if (!series) return null;
+  const teams = teamsOf(state);
+  return series.slice(0, 2).map((s) => ({ innings: s.innings, team: teams[s.side - 1]!, table: s.table }));
 }
 
-/** A rounded-up axis maximum and its grid step. */
-export function axisOf(max: number, steps = 5): { top: number; step: number } {
-  const raw = Math.max(1, max) / steps;
-  const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw;
-  return { top: Math.ceil(Math.max(1, max) / step) * step, step };
+/** An axis whose grid falls on round numbers: about five lines up to `max`. */
+export function axisOf(max: number): { top: number; step: number } {
+  const step = max <= 12 ? 2 : max <= 30 ? 5 : max <= 120 ? 20 : max <= 250 ? 50 : 100;
+  return { top: axisMax(max, step), step };
 }
 
 function Legend({ series }: { series: Series[] }) {
@@ -108,9 +109,9 @@ function ChartCard({ state, title, series, children }: { state: LiveMatchState; 
 }
 
 export function WorldEventRunsPerOver(p: OverlayElementProps["runsPerOver"]) {
-  const series = useSeries(p.state, p.match)?.slice(0, 2);
+  const series = useSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
-  const overs = Math.max(p.state.overs_per_innings ?? 20, ...series.map((s) => s.table.length), 1);
+  const overs = chartOvers(p.state.overs_per_innings, series.map((s) => s.table));
   const { top, step } = axisOf(Math.max(...series.flatMap((s) => s.table.map((o) => o.runs)), 6));
   const slot = (W - PAD.l - PAD.r) / overs;
   const barW = Math.max(6, (slot * 0.78) / series.length);
@@ -125,17 +126,17 @@ export function WorldEventRunsPerOver(p: OverlayElementProps["runsPerOver"]) {
           </text>
         ))}
         {series.map((s, si) =>
-          s.table.map((o) => {
-            const x = PAD.l + slot * (o.overNumber - 1) + slot * 0.11 + si * barW;
+          runsPerOver(s.table).map((o) => {
+            const x = PAD.l + slot * (o.over - 1) + slot * 0.11 + si * barW;
             return (
-              <g key={`${s.innings.id}-${o.overNumber}`} style={side(s.team.n)}>
+              <g key={`${s.innings.id}-${o.over}`} style={side(s.team.n)}>
                 <rect
                   className="we-a-grow-y"
                   x={x}
                   y={y(o.runs)}
                   width={barW - 2}
                   height={Math.max(0, y(0) - y(o.runs))}
-                  style={{ fill: "var(--we-side-dark)", transformBox: "fill-box", ...delay(300 + o.overNumber * 25 + si * 120) }}
+                  style={{ fill: "var(--we-side-dark)", transformBox: "fill-box", ...delay(300 + o.over * 25 + si * 120) }}
                 />
                 {Array.from({ length: o.wickets }, (_, k) => (
                   <circle key={k} cx={x + (barW - 2) / 2} cy={y(o.runs) - 12 - k * 20} r={8} fill="#ff3b55" stroke="#fff" strokeWidth={2.5} />
@@ -150,9 +151,9 @@ export function WorldEventRunsPerOver(p: OverlayElementProps["runsPerOver"]) {
 }
 
 export function WorldEventWorm(p: OverlayElementProps["worm"]) {
-  const series = useSeries(p.state, p.match)?.slice(0, 2);
+  const series = useSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
-  const overs = Math.max(p.state.overs_per_innings ?? 20, ...series.map((s) => s.table.length), 1);
+  const overs = chartOvers(p.state.overs_per_innings, series.map((s) => s.table));
   const max = Math.max(...series.map((s) => s.table.at(-1)?.cumulativeRuns ?? 0), p.state.target_runs ?? 0, 10);
   const { top, step } = axisOf(max);
   const x = (over: number) => PAD.l + ((W - PAD.l - PAD.r) * over) / overs;
@@ -175,7 +176,7 @@ export function WorldEventWorm(p: OverlayElementProps["worm"]) {
           </g>
         )}
         {series.map((s, si) => {
-          const pts = [{ over: 0, runs: 0 }, ...s.table.map((o) => ({ over: o.overNumber, runs: o.cumulativeRuns }))];
+          const pts = wormSeries(s.table);
           const d = pts.map((q, i) => `${i ? "L" : "M"}${x(q.over).toFixed(1)},${y(q.runs).toFixed(1)}`).join(" ");
           return (
             <g key={s.innings.id} style={side(s.team.n)}>
@@ -189,10 +190,8 @@ export function WorldEventWorm(p: OverlayElementProps["worm"]) {
                 className="we-a-draw"
                 style={{ stroke: "var(--we-side-dark)", strokeDasharray: 1, ["--we-len" as string]: 1, ...delay(300 + si * 300) }}
               />
-              {s.table
-                .filter((o) => o.wickets > 0)
-                .map((o) => (
-                  <circle key={o.overNumber} cx={x(o.overNumber)} cy={y(o.cumulativeRuns)} r={9} fill="#ff3b55" stroke="#fff" strokeWidth={2.5} className="we-a-fade" style={delay(1300 + si * 300)} />
+              {wormWickets(pts).map((o) => (
+                  <circle key={o.over} cx={x(o.over)} cy={y(o.runs)} r={9} fill="#ff3b55" stroke="#fff" strokeWidth={2.5} className="we-a-fade" style={delay(1300 + si * 300)} />
                 ))}
             </g>
           );
@@ -203,25 +202,12 @@ export function WorldEventWorm(p: OverlayElementProps["worm"]) {
 }
 
 export function WorldEventRunRates(p: OverlayElementProps["runRates"]) {
-  const series = useSeries(p.state, p.match)?.slice(0, 2);
+  const series = useSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
-  const maxOvers = Math.max(p.state.overs_per_innings ?? 20, ...series.map((s) => s.table.length), 1);
-  const b = phaseBoundaries(maxOvers);
-  const phases = b
-    ? [
-        { label: "Powerplay", from: 1, to: b.ppEnd },
-        { label: "Middle overs", from: b.ppEnd + 1, to: b.midEnd },
-        { label: "Death overs", from: b.midEnd + 1, to: maxOvers },
-      ]
-    : [{ label: "Innings", from: 1, to: maxOvers }];
-  const rate = (s: Series, from: number, to: number) => {
-    const overs = s.table.filter((o) => o.overNumber >= from && o.overNumber <= to);
-    if (!overs.length) return null;
-    const runs = overs.reduce((n, o) => n + o.runs, 0);
-    return { rr: runs / overs.length, runs, wkts: overs.reduce((n, o) => n + o.wickets, 0) };
-  };
-  const all = phases.flatMap((ph) => series.map((s) => rate(s, ph.from, ph.to)?.rr ?? 0));
-  const max = Math.max(...all, 1);
+  const maxOvers = chartOvers(p.state.overs_per_innings, series.map((s) => s.table));
+  const bySeries = series.map((s) => phaseRates(s.table, maxOvers));
+  const phases = bySeries[0] ?? [];
+  const max = Math.max(...bySeries.flat().map((r) => r.runRate ?? 0), 1);
   return (
     <ChartCard state={p.state} title="Run rates" series={series}>
       <div className="flex flex-col gap-5 py-2">
@@ -235,7 +221,8 @@ export function WorldEventRunRates(p: OverlayElementProps["runRates"]) {
             </span>
             <div className="flex flex-col gap-2">
               {series.map((s, si) => {
-                const r = rate(s, ph.from, ph.to);
+                const phase = bySeries[si]?.[pi];
+                const r = phase && phase.runRate !== null ? { rr: phase.runRate, runs: phase.runs, wkts: phase.wickets } : null;
                 return (
                   <div key={s.innings.id} className="flex items-center gap-4" style={side(s.team.n)}>
                     <span className="we-x w-[70px] text-[20px]">{s.team.code}</span>
@@ -267,7 +254,6 @@ const CY = 260;
 const R_OUT = 248;
 const R_FIELD = 186;
 const R_IN = 120;
-const DIST: Record<number, number> = { 1: 0.46, 2: 0.62, 3: 0.76, 4: 0.94, 6: 1.0 };
 const SHOT = (runs: number) => (runs === 6 ? "#ff3d9a" : runs === 4 ? "#19e0b4" : "#ffffff");
 
 export function WorldEventWagonWheel(p: OverlayElementProps["wagonWheel"]) {
@@ -275,24 +261,11 @@ export function WorldEventWagonWheel(p: OverlayElementProps["wagonWheel"]) {
   const id = p.batterId ?? s.striker_id ?? null;
   const nonStriker = !!id && id === s.non_striker_id;
   const name = nonStriker ? s.non_striker_name : s.striker_name;
-  const { innings } = useScorecardInnings(p.match);
-  const current = useMemo(() => innings.filter((i) => i.innings_number === s.innings_number), [innings, s.innings_number]);
-  const log = useInningsBallLog(s, current, true);
-  const shots = useMemo(() => {
-    const balls = id && current[0] ? (log?.get(current[0].id) ?? []).filter((b) => b.batsman_id === id) : [];
-    return balls.flatMap((b, i) => {
-      const sector = SECTORS.find((x) => x.id === b.shot_zone);
-      const runs = b.runs_scored ?? 0;
-      if (!sector || runs <= 0) return [];
-      const angle = (sector.midAngle + (((i * 17) % 28) - 14) + 360) % 360;
-      const end = polarToCartesian(CX, CY, R_FIELD * (DIST[runs] ?? 0.46), angle);
-      return [{ key: b.id, runs, end, sector: sector.id }];
-    });
-  }, [log, current, id]);
-  if (!log || !shots.length || !name) return null;
+  const data = useBatterShots(s, p.match, p.batterId);
+  if (!data.loaded || !data.shots.length || !name) return null;
+  const shots = data.shots.map((x) => ({ ...x, end: polarToCartesian(CX, CY, R_FIELD * x.reach, x.angle) }));
+  const sectors = sectorTotals(data.shots);
   const { bat } = battingAndBowling(s);
-  const bySector = new Map<string, number>();
-  for (const x of shots) bySector.set(x.sector, (bySector.get(x.sector) ?? 0) + x.runs);
   const runs = nonStriker ? s.non_striker_runs : s.striker_runs;
   const balls = nonStriker ? s.non_striker_balls : s.striker_balls;
   const count = (n: number) => shots.filter((x) => x.runs === n).length;
@@ -319,14 +292,14 @@ export function WorldEventWagonWheel(p: OverlayElementProps["wagonWheel"]) {
             <stop offset="100%" stopColor="#170b5c" />
           </radialGradient>
         </defs>
-        {SECTORS.map((x) => (
+        {sectors.map((x) => (
           <path key={x.id} d={describeDonutSegment(CX, CY, R_FIELD, R_OUT, x.angleStart, x.angleEnd)} fill="#22137a" stroke="#0a0532" strokeWidth={3} />
         ))}
-        {SECTORS.map((x) => {
+        {sectors.map((x) => {
           const pt = polarToCartesian(CX, CY, (R_OUT + R_FIELD) / 2, x.midAngle);
           return (
             <text key={`t-${x.id}`} x={pt.x} y={pt.y} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="26" fontWeight="850">
-              {bySector.get(x.id) ?? 0}
+              {x.runs}
             </text>
           );
         })}
@@ -421,8 +394,8 @@ export function WorldEventWinPredictor(p: OverlayElementProps["winPredictor"]) {
 
 function WorldEventProjectedCard({ state }: { state: LiveMatchState }) {
   const est = winPredictorFromLive(state);
-  const rows = projectionsOf(state);
-  if (!rows || !est || est.kind !== "projection") return null;
+  const rows = projectedTotals(state);
+  if (!rows.length || !est || est.kind !== "projection") return null;
   const { bat } = battingAndBowling(state);
   return (
     <CardFrame

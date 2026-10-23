@@ -21,16 +21,16 @@ import { cn } from "~/lib/utils";
 import { useStageStyle } from "../palette-context";
 import { AnimatedNumber, MotionPreferenceContext } from "../motion";
 import type { LayoutMode, LiveMatchState } from "../../types";
+import { monogramOf, overBall, overSlotsLeft } from "../shared/derive";
+import { FULL_FRAME, lowerThirdAnchor, SAFE, SAFE_WIDTH } from "../shared/layout";
+import { useImageFallback } from "../shared/slots";
 import { WORLD_EVENT_CSS } from "./styles";
-import { ballTone, sideVars, worldEventVars } from "./theme";
-import { useWorldEventFont } from "./use-fonts";
+import { sideVars, worldEventVars } from "./theme";
 
-export const SAFE_X = 96;
-export const SAFE_Y = 54;
-/** Where the score bug's top edge sits (bottom layouts). */
-export const BUG_TOP = 186;
-/** Lower thirds' bottom edge above the bug. */
-export const LOWER_BOTTOM = 220;
+/** The score bug's height with the tabs above it (bottom layouts). */
+export const BUG_HEIGHT = 132;
+/** Room for a lower third's own tab above its frame. */
+const LOWER_GAP = 34;
 
 /** The stylesheet, hoisted and de-duplicated by React. */
 export function WeStyles() {
@@ -77,7 +77,6 @@ export function Root({
   style?: CSSProperties;
   children: ReactNode;
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "style">) {
-  const font = useWorldEventFont();
   const stage = useStageStyle();
   const still = useStill();
   const vars =
@@ -88,7 +87,7 @@ export function Root({
       {...rest}
       data-we=""
       data-we-still={still ? "" : undefined}
-      className={cn("we pointer-events-none fixed select-none", font, className)}
+      className={cn("we pointer-events-none fixed select-none", className)}
       style={{ ...vars, ...style }}
     >
       <WeStyles />
@@ -146,19 +145,7 @@ export function ScoreFig({
   );
 }
 
-/** Initials for a crest without a logo: the code, else the name's letters. */
-export function crestText(code: string | null | undefined, name?: string | null): string {
-  const c = (code ?? "").trim();
-  if (c) return c.slice(0, 4);
-  return (name ?? "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
-
-/** A team crest: its logo on white, or its code on its colour. */
+/** A team crest: its logo on white, or its monogram on its colour (a logo that fails to load too). */
 export function Crest({
   n,
   logo,
@@ -176,16 +163,18 @@ export function Crest({
   className?: string;
   style?: CSSProperties;
 }) {
-  const text = crestText(code, name);
+  const img = useImageFallback(logo);
+  const text = monogramOf(name, code);
   return (
     <span
       aria-hidden="true"
-      className={cn("we-crest", logo && "we-crest-logo", className)}
+      data-crest=""
+      className={cn("we-crest", img.show && "we-crest-logo", className)}
       style={{ ...side(n), width: size, height: size, ...style }}
     >
-      {logo ? (
+      {img.show ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logo} alt="" />
+        <img src={logo!} alt="" onError={img.onError} />
       ) : (
         <span
           className="we-x leading-none"
@@ -219,13 +208,13 @@ export function Balls({
   stagger?: number;
   className?: string;
 }) {
-  const empty = Math.max(0, slots - tokens.length);
+  const empty = overSlotsLeft(tokens.map(overBall), slots);
   return (
     <ol aria-label="This over" className={cn("flex items-center", className)} style={{ gap: Math.round(size * 0.2) }}>
       {tokens.map((t, i) => (
         <li
           key={i}
-          className={cn("we-ball", `we-ball-${ballTone(t)}`, stagger > 0 && "we-a-pop")}
+          className={cn("we-ball", `we-ball-${overBall(t).kind}`, stagger > 0 && "we-a-pop")}
           style={{
             minWidth: size,
             height: size,
@@ -313,11 +302,14 @@ export function StatCells({
   );
 }
 
-/** Where a lower third sits for the score bug's layout. */
+/**
+ * Where a lower third sits for the score bug's layout: above the bar, at
+ * the bottom of title safe under a top bar, beside the corner card.
+ */
 export function lowerPlacement(layout: LayoutMode): CSSProperties {
-  if (layout === "top") return { left: SAFE_X, bottom: SAFE_Y };
-  if (layout === "compact") return { right: SAFE_X, bottom: SAFE_Y };
-  return { left: SAFE_X, bottom: LOWER_BOTTOM };
+  if (layout === "top") return { left: SAFE.x, bottom: SAFE.y, maxWidth: SAFE_WIDTH };
+  if (layout === "compact") return { right: SAFE.x, bottom: SAFE.y, maxWidth: SAFE_WIDTH };
+  return lowerThirdAnchor(BUG_HEIGHT, LOWER_GAP);
 }
 
 /** A full-screen card, centred in the safe area. */
@@ -349,8 +341,8 @@ export function CardFrame({
     <Root
       state={state}
       data-testid={testId}
-      className="inset-0 flex items-center justify-center"
-      style={{ padding: `${SAFE_Y}px ${SAFE_X}px` }}
+      className="flex items-center justify-center"
+      style={FULL_FRAME}
     >
       <section className="we-lift relative w-full" style={{ maxWidth: width }}>
         {eyebrow && (
@@ -405,7 +397,7 @@ export function LowerFrame({
       state={state}
       data-testid={testId}
       className={cn("flex flex-col items-start", className)}
-      style={{ ...lowerPlacement(layout), width, maxWidth: 1920 - 2 * SAFE_X }}
+      style={{ ...lowerPlacement(layout), width }}
     >
       {children}
     </Root>
