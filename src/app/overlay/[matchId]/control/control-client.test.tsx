@@ -1,11 +1,19 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 const watches: Array<{
   table: string;
   id: string;
   next: (data: Record<string, unknown> | null) => void;
+  status?: (s: string) => void;
 }> = [];
 
 vi.mock("~/lib/firebase/client", () => ({ getFirebaseDb: () => ({}) }));
@@ -14,29 +22,15 @@ vi.mock("~/lib/firebase/realtime", () => ({
     _db: unknown,
     table: string,
     id: string,
-    handlers: { next: (data: Record<string, unknown> | null) => void },
+    handlers: {
+      next: (data: Record<string, unknown> | null) => void;
+      status?: (s: string) => void;
+    },
   ) => {
-    watches.push({ table, id, next: handlers.next });
+    watches.push({ table, id, next: handlers.next, status: handlers.status });
     return () => {};
   },
 }));
-
-vi.mock("~/lib/firebase", () => ({
-  firebase: {
-    channel: vi.fn(() => ({
-      subscribe: vi.fn(),
-    })),
-    removeChannel: vi.fn(),
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn().mockResolvedValue({ data: null }),
-        })),
-      })),
-    })),
-  },
-}));
-
 vi.mock("~/components/overlay/sound-effects", () => ({
   playFourFanfare: vi.fn(),
   playSixExplosion: vi.fn(),
@@ -45,7 +39,6 @@ vi.mock("~/components/overlay/sound-effects", () => ({
   playFreeHitAlert: vi.fn(),
 }));
 
-import { firebase } from "~/lib/firebase";
 import { ControlClient } from "./control-client";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
 
@@ -55,233 +48,201 @@ class MockResizeObserver {
   disconnect = vi.fn();
 }
 
-const REAL_ID = "11111111-2222-4333-8444-555555555555";
-// Separate id: the shared listener for REAL_ID lingers briefly after unmount.
-const DONE_ID = "22222222-2222-4333-8444-555555555555";
+let n = 0;
+let REAL_ID = "";
+const fetchMock = vi.fn();
+
+const watchOf = (table: string) => watches.find((w) => w.table === table)!;
+const lastCommand = () => screen.getByRole("status", { name: "Last command" });
+const sentPayload = () =>
+  JSON.parse(fetchMock.mock.calls.at(-1)![1].body as string).payload;
+
+function renderDemo() {
+  return render(
+    <ControlClient
+      matchId="test"
+      initialState={DEMO_MATCH_STATE}
+      initialMatch={DEMO_MATCH_DETAILS}
+    />,
+  );
+}
+
+function renderReal(state = DEMO_MATCH_STATE) {
+  return render(
+    <ControlClient
+      matchId={REAL_ID}
+      initialState={{ ...state, match_id: REAL_ID }}
+      initialMatch={DEMO_MATCH_DETAILS}
+    />,
+  );
+}
 
 beforeEach(() => {
+  n += 1;
+  // A new id per test: the live_state listener outlives an unmount briefly.
+  REAL_ID = `11111111-2222-4333-8444-${String(n).padStart(12, "0")}`;
   watches.length = 0;
   window.ResizeObserver =
     MockResizeObserver as unknown as typeof ResizeObserver;
-  Object.defineProperty(navigator, "clipboard", {
-    value: { writeText: vi.fn().mockResolvedValue(undefined) },
-    configurable: true,
-    writable: true,
-  });
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
-describe("ControlClient Component", () => {
-  it("renders the studio header with live status, match score, and action buttons", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(screen.getByText(/Control room/i)).toBeInTheDocument();
-    expect(screen.getByText(/Royal Challengers/i)).toBeInTheDocument();
-    expect(screen.getByText(/Super Kings/i)).toBeInTheDocument();
+describe("ControlClient", () => {
+  it("names the match and the score, and links to setting up the stream", () => {
+    renderReal();
     expect(
-      screen.getByRole("button", { name: /Copy OBS URL/i }),
+      screen.getByRole("heading", { name: "Control room" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Royal Challengers v Super Kings/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/168\/5/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Stream setup" })).toHaveAttribute(
+      "href",
+      `/matches/${REAL_ID}/stream`,
+    );
+    expect(screen.getByRole("link", { name: /Open overlay/ })).toHaveAttribute(
+      "href",
+      `/overlay/${REAL_ID}`,
+    );
   });
 
-  it("renders the 5 instant celebration sting buttons with hotkey labels", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(screen.getByRole("button", { name: /Four/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Six/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /W\s*Wicket\s*Out/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Milestone/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Free hit/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders match phase graphics switcher decks instead of a raw 29-button scroll", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(
-      screen.getByRole("tab", { name: /Live Scorebars/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: /Scorecards & Squads/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: /Breaks & Stoppages/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("tab", { name: /Analytics & Charts/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("allows switching phase tabs to reveal relevant broadcast graphics", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    const scorecardsTab = screen.getByRole("tab", {
-      name: /Scorecards & Squads/i,
-    });
-    fireEvent.click(scorecardsTab);
-
-    expect(screen.getByText(/Batting Team 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/Bowling Team 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/Team 1 Playing XI/i)).toBeInTheDocument();
-  });
-
-  it("renders 1-click broadcast notice presets and custom alert sender", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    const drinksBtn = screen.getByRole("button", { name: /DRINKS BREAK/i });
-    expect(drinksBtn).toBeInTheDocument();
-    fireEvent.click(drinksBtn);
-
-    expect(
-      screen.getByPlaceholderText(/Custom broadcast alert/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Send Alert/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("renders interactive match scenario simulator in test mode and responds to score mutations", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(screen.getByText(/Match Simulator/i)).toBeInTheDocument();
-    const plusFourBtn = screen.getByRole("button", { name: /\+4 Runs/i });
-    fireEvent.click(plusFourBtn);
-
-    // Initial 168 + 4 = 172
-    expect(screen.getAllByText(/172\//i).length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("displays live ON-AIR tally and allows returning to scorebar", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(screen.getByText(/On air:/i)).toBeInTheDocument();
-  });
-
-  it("opens the unified Settings & Themes dialog when Settings button is clicked", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    const settingsBtn = screen.getByRole("button", { name: /Settings/i });
-    fireEvent.click(settingsBtn);
-
-    expect(screen.getByText(/Overlay settings/i)).toBeInTheDocument();
-    expect(screen.getByText(/^Theme$/i)).toBeInTheDocument();
-    expect(screen.getByText(/Keyboard shortcuts/i)).toBeInTheDocument();
-  });
-
-  it("handles keyboard shortcuts to trigger celebratory stings", () => {
-    render(
-      <ControlClient
-        matchId="test"
-        initialState={DEMO_MATCH_STATE}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    // Fire keydown for '4'
-    fireEvent.keyDown(window, { key: "4" });
-    // Fire keydown for 'w'
-    fireEvent.keyDown(window, { key: "w" });
-    // Fire keydown for Space
-    fireEvent.keyDown(window, { key: " " });
-  });
-
-  it("follows live_state with a single doc listener instead of polling", () => {
+  it("follows live_state and overlay_state, one listener each, no polling", () => {
     const intervalSpy = vi.spyOn(globalThis, "setInterval");
-    render(
-      <ControlClient
-        matchId={REAL_ID}
-        initialState={{ ...DEMO_MATCH_STATE, match_id: REAL_ID }}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-
-    expect(watches.map((w) => [w.table, w.id])).toEqual([
-      ["live_state", REAL_ID],
+    renderReal();
+    expect(watches.map((w) => w.table).sort()).toEqual([
+      "live_state",
+      "overlay_state",
     ]);
-    expect(firebase.from).not.toHaveBeenCalled();
     expect(
-      intervalSpy.mock.calls.some(([, ms]) => typeof ms === "number" && ms <= 15000),
+      intervalSpy.mock.calls.some(
+        ([, ms]) => typeof ms === "number" && ms < 8000,
+      ),
     ).toBe(false);
-
     act(() =>
-      watches[0]!.next({
+      watchOf("live_state").next({
         ...DEMO_MATCH_STATE,
         match_id: REAL_ID,
         total_runs: 201,
         version: 9,
       }),
     );
-    expect(screen.getAllByText(/201\//).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/201\/5/)).toBeInTheDocument();
+  });
+
+  it("says a command is on air only once the overlay state names it", async () => {
+    renderReal();
+    act(() => watchOf("overlay_state").status?.("connected"));
+    fireEvent.click(screen.getByRole("button", { name: /^Striker/ }));
+    expect(lastCommand()).toHaveTextContent("Sending: Lower third: Striker");
+
+    const payload = sentPayload();
+    expect(payload).toMatchObject({
+      type: "SHOW_STRAP",
+      strap: { type: "batsman", durationMs: 8000 },
+    });
+    expect(typeof payload.id).toBe("string");
+    await waitFor(() =>
+      expect(lastCommand()).toHaveTextContent(
+        "Sent: Lower third: Striker. Waiting for the overlay to confirm.",
+      ),
+    );
+
+    act(() =>
+      watchOf("overlay_state").next({
+        version: 1,
+        last_command_id: payload.id,
+        at: Date.now(),
+        scene: {},
+        strap: { ...payload.strap, at: Date.now() },
+      }),
+    );
+    expect(lastCommand()).toHaveTextContent("On air: Lower third: Striker");
+    // What is up can be taken off.
+    await waitFor(() =>
+      expect(screen.getByText("Lower third:")).toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Take off" }));
+    expect(sentPayload()).toMatchObject({ type: "HIDE_STRAP" });
+  });
+
+  it("says why a command did not go out, and can try again", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
+    renderReal();
+    fireEvent.click(screen.getByRole("button", { name: /^Six/ }));
+    await waitFor(() =>
+      expect(lastCommand()).toHaveTextContent(
+        "Not sent: Event card: Six. Only this match's scorers and organisers can change its overlay.",
+      ),
+    );
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    fireEvent.click(
+      within(lastCommand()).getByRole("button", { name: "Try again" }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentPayload()).toMatchObject({
+      type: "TRIGGER_STING",
+      stingType: "six",
+    });
+  });
+
+  it("offers each card only when it has something true to show", () => {
+    renderDemo();
+    const result = screen.getByRole("button", { name: /^Result/ });
+    expect(result).toBeDisabled();
+    expect(result).toHaveTextContent("After the match");
+    expect(screen.getByRole("button", { name: /^Scorecard/ })).toBeEnabled();
+  });
+
+  it("runs the demo match on this page, preview included", () => {
+    renderDemo();
+    fireEvent.click(screen.getByRole("button", { name: /^Scorecard/ }));
+    expect(lastCommand()).toHaveTextContent("On air: Card: Scorecard");
+    expect(
+      screen.getByRole("button", { name: /^Scorecard/, pressed: true }),
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a four" }));
+    expect(screen.getByText(/172\/5/)).toBeInTheDocument();
+  });
+
+  it("picks themes from the shared list", () => {
+    renderDemo();
+    const look = screen
+      .getByRole("heading", { name: "Look" })
+      .closest("section")!;
+    for (const label of ["Standard", "Light", "Custom"]) {
+      expect(
+        within(look).getByRole("button", { name: new RegExp(`^${label}`) }),
+      ).toBeInTheDocument();
+    }
+    fireEvent.click(within(look).getByRole("button", { name: /^Custom/ }));
+    expect(screen.getByLabelText("Main colour")).toBeInTheDocument();
+  });
+
+  it("has keyboard shortcuts that leave the browser's own alone", () => {
+    renderReal();
+    fireEvent.keyDown(window, { key: "w" });
+    expect(sentPayload()).toMatchObject({ stingType: "wicket" });
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+    fireEvent.keyDown(window, { key: " " });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(sentPayload()).toMatchObject({ type: "PANIC_CLEAR" });
   });
 
   it("stops live updates for a finished match until the producer resumes them", () => {
-    render(
-      <ControlClient
-        matchId={DONE_ID}
-        initialState={{
-          ...DEMO_MATCH_STATE,
-          match_id: DONE_ID,
-          status: "completed",
-        }}
-        initialMatch={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(watches).toHaveLength(0);
-
+    renderReal({ ...DEMO_MATCH_STATE, status: "completed" });
+    expect(watches.map((w) => w.table)).toEqual(["overlay_state"]);
     fireEvent.click(
       screen.getByRole("button", { name: /Resume live updates/i }),
     );
-    expect(watches.map((w) => w.table)).toEqual(["live_state"]);
+    expect(watches.map((w) => w.table)).toContain("live_state");
   });
 });

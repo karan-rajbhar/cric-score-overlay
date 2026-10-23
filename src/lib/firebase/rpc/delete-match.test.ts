@@ -53,6 +53,7 @@ function setup() {
   ];
   tables.live_state = [{ id: MATCH, version: 3 }];
   tables[LIVE_SCORECARD_COLLECTION] = [{ id: MATCH, version: 2 }];
+  tables.overlay_state = [{ id: MATCH, version: 5 }];
   const memory = new MemoryDataSource(tables);
   const { ds } = builderContextFor(memory, null);
   const run = (uid: string | null, matchId = MATCH, typed?: string) =>
@@ -81,6 +82,8 @@ function owned(memory: MemoryDataSource, matchId: string) {
     live_scorecard: memory
       .all(LIVE_SCORECARD_COLLECTION)
       .filter((d) => d.id === matchId).length,
+    overlay_state: memory.all("overlay_state").filter((d) => d.id === matchId)
+      .length,
   };
 }
 
@@ -234,6 +237,7 @@ describe("delete_match cascade", () => {
       player_matches: 0,
       live_state: 0,
       live_scorecard: 0,
+      overlay_state: 0,
     });
     expect(memory.all("matches")).toHaveLength(others);
     expect(memory.all("overs")).toHaveLength(otherOvers);

@@ -3,14 +3,11 @@
  *
  * - {@link watchDoc}: listen to one document (1 read for the first snapshot,
  *   1 per change). Live scores use `live_state/{matchId}` this way; see
- *   `~/lib/hooks/useLiveState`.
+ *   `~/lib/hooks/useLiveState`. So does the broadcast overlay for what the
+ *   control room puts on air (`overlay_state/{matchId}`,
+ *   `~/lib/overlay-state`).
  * - {@link readDoc}: one read of one document (the ball log re-reads the
  *   `overs` docs a live change touched).
- * - {@link RealtimeChannel} `broadcast`: listens to fire-and-forget
- *   messages that are not stored anywhere else (overlay producer
- *   commands). The server appends them to `broadcasts/{topic}/messages`
- *   (`/api/overlay/command`; browsers cannot write there) and they expire
- *   via Firestore TTL; each message is a write plus a read per listener.
  *
  * There is deliberately no collection-change listener: its first snapshot
  * bills a read for every matching document (the whole ball log).
@@ -18,113 +15,14 @@
 
 import "client-only";
 import {
-  collection,
   doc,
   getDoc,
   getDocFromServer,
   onSnapshot,
-  query,
-  Timestamp,
-  where,
   type DocumentData,
   type Firestore,
   type Unsubscribe,
 } from "firebase/firestore";
-import { BROADCAST_COLLECTION } from "./config";
-
-export type ChannelStatus =
-  | "SUBSCRIBED"
-  | "CLOSED"
-  | "CHANNEL_ERROR"
-  | "TIMED_OUT";
-
-export interface BroadcastFilter {
-  event: string;
-}
-
-type BroadcastHandler<P = unknown> = (message: {
-  event: string;
-  payload: P;
-}) => void;
-
-interface Registration {
-  start: () => Unsubscribe;
-}
-
-export class RealtimeChannel {
-  private registrations: Registration[] = [];
-  private unsubscribers: Unsubscribe[] = [];
-  private subscribed = false;
-
-  constructor(
-    private readonly db: Firestore,
-    readonly topic: string,
-  ) {}
-
-  on<P>(
-    _type: "broadcast",
-    filter: BroadcastFilter,
-    handler: BroadcastHandler<P>,
-  ): this {
-    const { event } = filter;
-    const cb = handler as BroadcastHandler<unknown>;
-    this.registrations.push({
-      start: () => {
-        // Small backwards margin absorbs clock skew between client and server.
-        const since = Timestamp.fromMillis(Date.now() - 2000);
-        const q = query(
-          collection(this.db, BROADCAST_COLLECTION, this.topic, "messages"),
-          where("ts", ">", since),
-        );
-        return onSnapshot(
-          q,
-          (snap) => {
-            for (const change of snap.docChanges()) {
-              if (change.type !== "added") continue;
-              const data = change.doc.data();
-              if (data.ts === null || data.ts === undefined) continue;
-              if (event !== "*" && data.event !== event) continue;
-              cb({ event: String(data.event), payload: data.payload });
-            }
-          },
-          (err) =>
-            console.error(
-              `[realtime] broadcast listener failed (${this.topic}):`,
-              err,
-            ),
-        );
-      },
-    });
-    return this;
-  }
-
-  subscribe(callback?: (status: ChannelStatus, err?: Error) => void): this {
-    if (this.subscribed) {
-      callback?.("SUBSCRIBED");
-      return this;
-    }
-    this.subscribed = true;
-    try {
-      for (const registration of this.registrations) {
-        this.unsubscribers.push(registration.start());
-      }
-      queueMicrotask(() => callback?.("SUBSCRIBED"));
-    } catch (err) {
-      callback?.(
-        "CHANNEL_ERROR",
-        err instanceof Error ? err : new Error(String(err)),
-      );
-    }
-    return this;
-  }
-
-  async unsubscribe(): Promise<"ok"> {
-    for (const stop of this.unsubscribers) stop();
-    this.unsubscribers = [];
-    this.subscribed = false;
-    return "ok";
-  }
-}
 
 /** One read of a document; `null` when it does not exist. */
 export async function readDoc<T = DocumentData>(

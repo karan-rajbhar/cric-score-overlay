@@ -123,8 +123,12 @@ describe("MatchMoreMenu", () => {
     const trigger = screen.getByRole("button", { name: "More match actions" });
     fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
     expect(
-      await screen.findByRole("menuitem", { name: "OBS overlay" }),
-    ).toHaveAttribute("href", "/overlay/m1");
+      await screen.findByRole("menuitem", { name: "Stream this match" }),
+    ).toHaveAttribute("href", "/matches/m1/stream");
+    // Scorers also get the control room.
+    expect(
+      screen.getByRole("menuitem", { name: "Overlay control room" }),
+    ).toHaveAttribute("href", "/overlay/m1/control");
     expect(
       screen.queryByRole("menuitem", { name: "Delete match" }),
     ).not.toBeInTheDocument();

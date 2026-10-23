@@ -150,9 +150,9 @@ Firestore transaction. The ball log is the source of truth: figures, partnership
 fall of wickets and totals are recomputed from it on every change, so undo and
 edits can never leave the scorecard stale.
 
-**Realtime.** Clients listen to Firestore for changes to a match and exchange
-light broadcast messages under `broadcasts/{topic}/messages` (score pings and
-overlay producer commands). Messages carry a TTL field so Firestore expires them.
+**Realtime.** Clients listen to single Firestore documents per match:
+`live_state/{matchId}` for the score and, on the stream overlay and its control
+room, `overlay_state/{matchId}` for what the producer has on air.
 
 **Security.** All writes go through server actions using the Admin SDK after
 permission checks. `firestore.rules` and `storage.rules` only grant browsers the
@@ -181,6 +181,10 @@ on any Docker host; production does not use them.
 
 ## OBS overlay
 
-Add a Browser Source pointing at `https://<host>/overlay/<matchId>` at 1920×1080.
-Open `/overlay/<matchId>/control` (match admins only) to push cards, stings and
-tickers to the overlay. `/overlay/test` renders demo data without a match.
+On a match page, open ⋯ → **Stream this match** (`/matches/<id>/stream`): it
+walks through OBS, PRISM Live Studio or vMix, gives the overlay link
+(`https://<host>/overlay/<matchId>`, a 1920×1080 transparent Browser Source) with
+a QR code, and lets a scorer send a test graphic. Match admins run cards, lower
+thirds, sponsors and the ticker from `/overlay/<matchId>/control`, which previews
+what is on air. `/overlay/test` and `/overlay/test/control` run on demo data.
+`?delay=<seconds>` on the overlay link holds score changes for a lagging video.

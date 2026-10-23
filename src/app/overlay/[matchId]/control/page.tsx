@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 import { createServerClient } from "~/lib/firebase/server";
 import { getMatch, getLiveMatchState } from "~/app/matches/queries";
 import { DEMO_MATCH_STATE, DEMO_MATCH_DETAILS } from "../demo-data";
@@ -5,13 +8,49 @@ import { ControlClient } from "./control-client";
 import type { LiveMatchState } from "~/components/overlay/types";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
-import { ShieldAlert } from "lucide-react";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = {
+  title: "Control room",
+  robots: { index: false, follow: false },
+};
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function Notice({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center p-4">
+      <Card className="max-w-md text-center">
+        <CardHeader>
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+            <ShieldAlert className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <CardTitle className="mt-2 text-xl font-semibold [text-wrap:balance]">
+            {title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">{children}</CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/** The score and match, and the server's clock when they were read. */
+async function loadControlRoom(matchId: string) {
+  const [liveResult, matchResult] = await Promise.all([
+    getLiveMatchState(matchId, { skipCache: true }),
+    getMatch(matchId),
+  ]);
+  return { liveResult, matchResult, serverNow: Date.now() };
+}
 
 export default async function OverlayControlPage({
   params,
@@ -32,26 +71,14 @@ export default async function OverlayControlPage({
 
   if (!UUID_REGEX.test(matchId)) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <CardTitle className="mt-2 text-xl font-semibold">
-              Invalid Match
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              The specified match could not be found.
-            </p>
-            <Button asChild className="w-full">
-              <Link href="/matches">Browse matches</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <Notice title="Match not found">
+        <p className="text-sm text-muted-foreground">
+          This control room link does not match a CricScore match.
+        </p>
+        <Button asChild className="w-full">
+          <Link href="/matches">Browse matches</Link>
+        </Button>
+      </Notice>
     );
   }
 
@@ -62,29 +89,18 @@ export default async function OverlayControlPage({
 
   if (!user) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <CardTitle className="mt-2 text-xl font-semibold">
-              Authentication Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              You must be signed in as a match administrator to access the
-              broadcast control room.
-            </p>
-            <Button asChild className="w-full">
-              <Link href={`/login?redirect=/overlay/${matchId}/control`}>
-                Sign In
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <Notice title="Sign in to run the graphics">
+        <p className="text-sm text-muted-foreground">
+          The control room is for this match&apos;s scorers and organisers.
+        </p>
+        <Button asChild className="w-full">
+          <Link
+            href={`/auth/login?redirect=${encodeURIComponent(`/overlay/${matchId}/control`)}`}
+          >
+            Sign in
+          </Link>
+        </Button>
+      </Notice>
     );
   }
 
@@ -95,48 +111,31 @@ export default async function OverlayControlPage({
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center p-4">
-        <Card className="max-w-md text-center">
-          <CardHeader>
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-              <ShieldAlert className="h-6 w-6" />
-            </div>
-            <CardTitle className="mt-2 text-xl font-semibold">
-              Access Denied
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              You do not have administrative permissions to control broadcast
-              graphics for this match. Only match creators, designated match
-              admins, or club officials have control access.
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" asChild className="flex-1">
-                <Link href={`/matches/${matchId}`}>View match</Link>
-              </Button>
-              <Button asChild className="flex-1">
-                <Link href={`/overlay/${matchId}`} target="_blank">
-                  View Overlay
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Notice title="Only for this match's scorers">
+        <p className="text-sm text-muted-foreground">
+          The match creator, its scorers and club or tournament organisers can
+          run its graphics. Anyone can add the overlay to a stream.
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild className="flex-1">
+            <Link href={`/matches/${matchId}`}>View match</Link>
+          </Button>
+          <Button asChild className="flex-1">
+            <Link href={`/matches/${matchId}/stream`}>Stream setup</Link>
+          </Button>
+        </div>
+      </Notice>
     );
   }
 
-  const [liveResult, matchResult] = await Promise.all([
-    getLiveMatchState(matchId, { skipCache: true }),
-    getMatch(matchId),
-  ]);
+  const { liveResult, matchResult, serverNow } = await loadControlRoom(matchId);
 
   return (
     <ControlClient
       matchId={matchId}
       initialState={(liveResult.data as LiveMatchState | null) ?? null}
       initialMatch={matchResult.data}
+      serverNow={serverNow}
     />
   );
 }

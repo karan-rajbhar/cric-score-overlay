@@ -70,7 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Tools",
     items: [
-      { href: "/overlay/test", label: "Stream overlays", icon: Tv },
+      { href: "/overlay/test/control", label: "Stream overlays", icon: Tv },
       { href: "/search", label: "Search", icon: Search },
     ],
   },

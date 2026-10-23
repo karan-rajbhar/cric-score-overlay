@@ -48,13 +48,10 @@ service cloud.firestore {
     match /users_private/{id}            { allow read, write: if false; }
     match /invitations/{id}              { allow read, write: if false; }
 
-    // Realtime broadcast messages (overlay producer commands): the overlay
-    // (an unauthenticated OBS source) reads them; only the server writes
-    // them, after checking the producer is an admin of that match
+    // What the control room has on a match's overlay (one doc per match):
+    // the overlay (an unauthenticated OBS source) reads it; only the server
+    // writes it, after checking the producer is an admin of that match
     // (/api/overlay/command).
-    match /broadcasts/{topic}/messages/{id} {
-      allow read: if true;
-      allow write: if false;
-    }
+    match /overlay_state/{id}            { allow read: if true; allow write: if false; }
   }
 }

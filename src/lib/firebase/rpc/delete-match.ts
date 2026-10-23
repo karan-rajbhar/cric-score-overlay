@@ -14,15 +14,16 @@
  * 4. One transaction: `player_matches` removed and the statistics moved
  *    with them (`syncMatchRecords` with no match: career stats and the
  *    club / tournament leaderboard shards change by exactly those records),
- *    `live_state` and `live_scorecard` deleted, then the match document.
+ *    `live_state`, `live_scorecard` and `overlay_state` deleted, then the
+ *    match document.
  *
- * Broadcast messages (`broadcasts/overlay_control_{id}/messages`) expire by
- * TTL and are left alone. Running it for a match that is already gone
+ * Running it for a match that is already gone
  * clears any leftovers (steps 3-4) and reports `already_deleted`.
  */
 
 import type { Firestore } from "firebase-admin/firestore";
 import { confirmsMatchDelete } from "../../match-delete";
+import { OVERLAY_STATE_COLLECTION } from "../../overlay-state";
 import type { DataSource } from "../datasource";
 import { LIVE_SCORECARD_COLLECTION } from "../live-scorecard";
 import { DbQueryError } from "../query-builder";
@@ -131,6 +132,7 @@ async function purge(
     const out = await syncMatchRecords(t, matchId, null, [], now);
     t.delete(LIVE_STATE_COLLECTION, matchId);
     t.delete(LIVE_SCORECARD_COLLECTION, matchId);
+    t.delete(OVERLAY_STATE_COLLECTION, matchId);
     if (matchExists) t.delete("matches", matchId);
     return out;
   });
