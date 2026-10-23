@@ -3,10 +3,7 @@
  */
 
 import type { LiveMatchStateRow } from "~/lib/firebase/types";
-import type {
-  LEGACY_OVERLAY_THEME_IDS,
-  OverlayThemeId,
-} from "./overlay-themes";
+import type { StingKind } from "./packages/types";
 
 /**
  * Fields an overlay may get without: documents written before they existed,
@@ -43,12 +40,10 @@ export type LiveMatchState = Omit<
 
 export type LayoutMode = "bottom" | "top" | "compact" | "broadcast";
 /**
- * A theme id as URLs, commands and stored settings carry it: one of
- * `OVERLAY_THEMES`, or a legacy id that `resolveOverlayTheme` maps to one.
+ * A theme id as URLs, commands and stored settings carry it: a package id
+ * (`packages/manifest.ts`), or a legacy id `resolveOverlayTheme` maps.
  */
-export type OverlayTheme =
-  | OverlayThemeId
-  | (typeof LEGACY_OVERLAY_THEME_IDS)[number];
+export type OverlayTheme = string;
 
 export interface CustomThemeColors {
   primary: string; // e.g. "#1e3a8a"
@@ -67,6 +62,8 @@ export type PresentationCardType =
 export interface ActiveEventSting {
   id: string;
   type: "four" | "six" | "wicket" | "milestone" | "free_hit";
+  /** What it celebrates exactly (fifty, five-for...), when known. */
+  kind?: StingKind;
   title: string;
   subtitle?: string;
   detail?: string;
@@ -154,7 +151,8 @@ export type BroadcastViewId =
   | "41" // Run rate
   | "42" // Win predictor
   | "43" // Leaderboard
-  | "44"; // Next fixture
+  | "44" // Next fixture
+  | "45"; // Fall of wickets
 
 export interface ProducerCommand {
   /**

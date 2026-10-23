@@ -13,7 +13,6 @@
 
 import type { Match } from "~/lib/match-types";
 import { BroadcastSuiteOverlay } from "./broadcast-suite-overlay";
-import { CornerWatermark } from "./corner-watermark";
 import { EventStings } from "./event-stings";
 import {
   HoldScreen,
@@ -21,9 +20,10 @@ import {
   strapHidesScoreBug,
   useHeldState,
 } from "./lower-third-straps";
-import { NewsTicker } from "./news-ticker";
+import { OverlayElement } from "./packages/element";
+import { OverlayPackageScope } from "./packages/registry";
 import { PresentationCards } from "./presentation-cards";
-import { overlayPhaseOf, ScoreBug } from "./score-bug";
+import { overlayPhaseOf } from "./score-bug";
 import type { LiveMatchState } from "./types";
 import type { OverlayLayers } from "./use-overlay-state";
 
@@ -52,6 +52,8 @@ export interface OverlayStageProps {
   showSafeZone?: boolean;
   onDismissSting: () => void;
   onDismissStrap: () => void;
+  /** A preview (control room, setup): honours prefers-reduced-motion. */
+  preview?: boolean;
 }
 
 export function OverlayStage({
@@ -62,6 +64,7 @@ export function OverlayStage({
   showSafeZone = false,
   onDismissSting,
   onDismissStrap,
+  preview = false,
 }: OverlayStageProps) {
   const { scene } = layers;
   const hold = layers.hold ?? null;
@@ -109,92 +112,113 @@ export function OverlayStage({
         ? 0
         : scene.marginOffsetPx;
 
+  const base = {
+    state,
+    match,
+    snapshots: layers.snapshots ?? null,
+    layout: scene.layout,
+    ...theme,
+  };
+
   return (
-    <div
-      data-phase={overlayPhaseOf(state)}
-      className="pointer-events-none fixed inset-0 select-none overflow-hidden bg-transparent font-sans"
+    <OverlayPackageScope
+      theme={scene.theme}
+      customColors={scene.customColors}
+      state={state}
+      respectReducedMotion={preview}
     >
-      <EventStings
-        sting={layers.sting}
-        onDismiss={onDismissSting}
-        {...theme}
-      />
-
-      <PresentationCards
-        card={layers.card}
-        state={state}
-        match={match}
-        {...theme}
-      />
-
-      {/* Lifted clear of the score bug: a transformed box is where its
-          fixed-position strap is placed. */}
       <div
-        className="pointer-events-none fixed inset-0"
-        style={{ transform: `translateY(-${strapLift}px)` }}
+        data-phase={overlayPhaseOf(state)}
+        className="pointer-events-none fixed inset-0 select-none overflow-hidden bg-transparent font-sans"
       >
-        <LowerThirdStraps
-          strap={layers.strap}
+        <EventStings
+          sting={layers.sting}
           state={state}
-          layout={scene.layout}
-          onDismiss={onDismissStrap}
+          onDismiss={onDismissSting}
           {...theme}
+        />
+
+        <PresentationCards
+          card={layers.card}
+          state={state}
+          match={match}
+          {...theme}
+        />
+
+        {/* Lifted clear of the score bug: a transformed box is where its
+            fixed-position strap is placed. */}
+        <div
+          className="pointer-events-none fixed inset-0"
+          style={{ transform: `translateY(-${strapLift}px)` }}
+        >
+          <LowerThirdStraps
+            strap={layers.strap}
+            state={state}
+            layout={scene.layout}
+            onDismiss={onDismissStrap}
+            {...theme}
+          />
+        </div>
+
+        {/* Only with sponsors to show: the bug already names the event. */}
+        <OverlayElement
+          // "Next sponsor" starts the rotation over from the next one.
+          key={scene.sponsorIndex}
+          id="sponsors"
+          present={scene.sponsors.length > 0}
+          props={{
+            ...base,
+            sponsors: rotate(scene.sponsors, scene.sponsorIndex),
+            title: state.tournament_name ?? state.title,
+          }}
+        />
+
+        <OverlayElement
+          id="ticker"
+          present={scene.tickerVisible && !!scene.tickerText.trim()}
+          motionKey={scene.tickerText}
+          props={{ ...base, text: scene.tickerText }}
+        />
+
+        {hold === "card" && <HoldScreen mode="card" {...theme} />}
+
+        {showSafeZone && (
+          <div
+            className="pointer-events-none fixed inset-0 z-50"
+            role="img"
+            aria-label="Safe-zone guides: action safe 90 percent, title safe 80 percent"
+          >
+            <div className="absolute inset-[5%] border border-dashed border-amber-400/60 p-2 text-sm text-amber-300">
+              Action safe (90%)
+            </div>
+            <div className="absolute inset-[10%] border border-dashed border-sky-400/60 p-2 text-sm text-sky-300">
+              Title safe (80%)
+            </div>
+          </div>
+        )}
+
+        {scene.showBug && suite && (
+          <BroadcastSuiteOverlay
+            state={state}
+            match={match}
+            activeView={view}
+            snapshots={layers.snapshots}
+            sponsor={scene.sponsor}
+            {...theme}
+          />
+        )}
+        <OverlayElement
+          id="scoreBug"
+          present={bugShown && hold !== "card"}
+          motionKey={`${state.total_runs}/${state.total_wickets}`}
+          props={{
+            ...base,
+            sponsor: scene.sponsor,
+            marginOffsetPx: scene.marginOffsetPx,
+            phase: overlayPhaseOf(state),
+          }}
         />
       </div>
-
-      {/* Only with sponsors to show: the bug already names the event. */}
-      <CornerWatermark
-        // "Next sponsor" starts the rotation over from the next one.
-        key={scene.sponsorIndex}
-        title={state.tournament_name ?? state.title}
-        sponsors={rotate(scene.sponsors, scene.sponsorIndex)}
-        visible={scene.sponsors.length > 0}
-        {...theme}
-      />
-
-      <NewsTicker
-        text={scene.tickerText}
-        visible={scene.tickerVisible}
-        {...theme}
-      />
-
-      {hold === "card" && <HoldScreen mode="card" {...theme} />}
-
-      {showSafeZone && (
-        <div
-          className="pointer-events-none fixed inset-0 z-50"
-          role="img"
-          aria-label="Safe-zone guides: action safe 90 percent, title safe 80 percent"
-        >
-          <div className="absolute inset-[5%] border border-dashed border-amber-400/60 p-2 text-sm text-amber-300">
-            Action safe (90%)
-          </div>
-          <div className="absolute inset-[10%] border border-dashed border-sky-400/60 p-2 text-sm text-sky-300">
-            Title safe (80%)
-          </div>
-        </div>
-      )}
-
-      {scene.showBug && suite && (
-        <BroadcastSuiteOverlay
-          state={state}
-          match={match}
-          activeView={view}
-          snapshots={layers.snapshots}
-          sponsor={scene.sponsor}
-          {...theme}
-        />
-      )}
-      {bugShown && hold !== "card" && (
-        <ScoreBug
-          state={state}
-          match={match}
-          layout={scene.layout}
-          sponsor={scene.sponsor}
-          marginOffsetPx={scene.marginOffsetPx}
-          {...theme}
-        />
-      )}
-    </div>
+    </OverlayPackageScope>
   );
 }

@@ -124,6 +124,7 @@ const SCORECARD_VIEWS = new Set<string>([
   "29",
   "40",
   "41",
+  "45",
 ]);
 const SCORECARD_CARDS = new Set<string>([
   "scorecard",

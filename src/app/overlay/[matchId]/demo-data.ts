@@ -5,7 +5,11 @@
  * all agree. No real players or teams.
  */
 
-import type { LiveMatchState } from "~/components/overlay/types";
+import type {
+  LiveMatchState,
+  OverlaySnapshots,
+} from "~/components/overlay/types";
+import type { PlayerProfile } from "~/components/overlay/overlay-data";
 import type { LiveEvent, LiveLastWicket } from "~/lib/firebase/types";
 import type {
   BallEvent,
@@ -369,13 +373,18 @@ function buildDemo() {
       need <= 24
     ) {
       second.innings.target_runs = target;
-      return { first, second, target };
+      return { first, second, target, seed };
     }
   }
   throw new Error("demo: no seed gives a close chase");
 }
 
-const { first: FIRST, second: SECOND, target: TARGET } = buildDemo();
+const {
+  first: FIRST,
+  second: SECOND,
+  target: TARGET,
+  seed: SEED,
+} = buildDemo();
 
 const squad = (t: DemoTeam): TeamPlayer[] =>
   t.players.map((p, i) => ({
@@ -516,4 +525,248 @@ export const DEMO_MATCH_DETAILS: Match = {
   team2: matchTeam(HAWKS),
   innings: [FIRST.innings, SECOND.innings],
   tournament: { id: "demo-league", name: "Metro T20 League" },
+};
+
+// ---- other moments of the demo match (the overlay gallery) ----------------
+
+const FIRST_LIVE = simulate(1, HAWKS, RANGERS, SEED, 74, 0);
+
+/** The first innings in progress (12.2 overs): a projection, a powerplay over. */
+export const DEMO_FIRST_INNINGS_STATE: LiveMatchState = (() => {
+  const inn = FIRST_LIVE.innings;
+  const striker = inn.batting_performances!.find(
+    (b) => b.user_id === FIRST_LIVE.striker,
+  )!;
+  const non = inn.batting_performances!.find(
+    (b) => b.user_id === FIRST_LIVE.nonStriker,
+  )!;
+  const bowler = inn.bowling_performances!.find(
+    (b) => b.user_id === FIRST_LIVE.bowler,
+  )!;
+  return {
+    ...DEMO_MATCH_STATE,
+    current_innings: 1,
+    innings_number: 1,
+    current_over: Math.floor(inn.total_balls / 6),
+    current_ball: inn.total_balls % 6,
+    total_runs: inn.total_runs,
+    total_wickets: inn.total_wickets,
+    total_overs: inn.total_overs,
+    total_balls: inn.total_balls,
+    extras_total: inn.extras_total,
+    target_runs: null,
+    runs_needed: null,
+    balls_remaining: null,
+    required_run_rate: null,
+    batting_team_name: HAWKS.name,
+    batting_team_short_name: HAWKS.short,
+    bowling_team_name: RANGERS.name,
+    bowling_team_short_name: RANGERS.short,
+    striker_name: nameOf(FIRST_LIVE.striker),
+    striker_id: FIRST_LIVE.striker,
+    striker_runs: striker.runs_scored,
+    striker_balls: striker.balls_faced,
+    striker_fours: striker.fours,
+    striker_sixes: striker.sixes,
+    non_striker_name: nameOf(FIRST_LIVE.nonStriker),
+    non_striker_id: FIRST_LIVE.nonStriker,
+    non_striker_runs: non.runs_scored,
+    non_striker_balls: non.balls_faced,
+    non_striker_fours: non.fours,
+    non_striker_sixes: non.sixes,
+    current_bowler_name: nameOf(FIRST_LIVE.bowler),
+    bowler_id: FIRST_LIVE.bowler,
+    bowler_balls: bowler.balls_bowled,
+    bowler_runs: bowler.runs_conceded,
+    bowler_wickets: bowler.wickets_taken,
+    bowler_maidens: bowler.maidens,
+    partnership_runs: FIRST_LIVE.partnership.runs,
+    partnership_balls: FIRST_LIVE.partnership.balls,
+    this_over_balls: FIRST_LIVE.thisOver.join(" "),
+    current_run_rate:
+      Math.round(((inn.total_runs * 6) / inn.total_balls) * 100) / 100,
+    last_wicket: FIRST_LIVE.lastWicket,
+    powerplay: null,
+  };
+})();
+
+/** Between the innings: the chase set, nobody in yet. */
+export const DEMO_BREAK_STATE: LiveMatchState = {
+  ...DEMO_MATCH_STATE,
+  total_runs: 0,
+  total_wickets: 0,
+  total_overs: 0,
+  total_balls: 0,
+  extras_total: 0,
+  current_over: 0,
+  current_ball: 0,
+  striker_name: null,
+  striker_id: null,
+  striker_runs: null,
+  striker_balls: null,
+  non_striker_name: null,
+  non_striker_id: null,
+  non_striker_runs: null,
+  non_striker_balls: null,
+  current_bowler_name: null,
+  bowler_id: null,
+  bowler_balls: null,
+  bowler_runs: null,
+  bowler_wickets: null,
+  partnership_runs: null,
+  partnership_balls: null,
+  this_over_balls: null,
+  this_over_runs: null,
+  current_run_rate: null,
+  runs_needed: TARGET,
+  balls_remaining: OVERS * 6,
+  required_run_rate: Math.round(((TARGET * 6) / (OVERS * 6)) * 100) / 100,
+  last_wicket: null,
+  last_ball_seq: FIRST.balls.length,
+};
+
+/** After the match. */
+export const DEMO_RESULT_STATE: LiveMatchState = {
+  ...DEMO_MATCH_STATE,
+  status: "completed",
+  innings_completed: true,
+  result_type: "win",
+  result_description: `${HAWKS.name} won by ${Math.max(1, (DEMO_MATCH_STATE.runs_needed ?? 1) - 1)} runs`,
+  winning_team_name: HAWKS.name,
+  runs_needed: null,
+  balls_remaining: null,
+  required_run_rate: null,
+  bowling_team_name: null,
+  bowling_team_short_name: null,
+};
+
+/** Before the first ball, toss done. */
+export const DEMO_PRE_STATE: LiveMatchState = {
+  ...DEMO_MATCH_STATE,
+  status: "scheduled",
+  current_innings: null,
+  innings_number: null,
+  total_runs: null,
+  total_wickets: null,
+  total_overs: null,
+  total_balls: null,
+  batting_team_name: null,
+  batting_team_short_name: null,
+  bowling_team_name: null,
+  bowling_team_short_name: null,
+  striker_name: null,
+  striker_id: null,
+  non_striker_name: null,
+  non_striker_id: null,
+  current_bowler_name: null,
+  bowler_id: null,
+  this_over_balls: null,
+  runs_needed: null,
+  balls_remaining: null,
+  required_run_rate: null,
+  target_runs: null,
+  current_run_rate: null,
+  partnership_runs: null,
+  partnership_balls: null,
+  last_wicket: null,
+  last_ball_seq: null,
+};
+
+/** The match with its player of the match named (the result's cards). */
+export const DEMO_RESULT_MATCH: Match = {
+  ...DEMO_MATCH_DETAILS,
+  status: "completed",
+  player_of_the_match: {
+    id: FIRST.innings.bowling_performances![0]!.user_id,
+    full_name: nameOf(FIRST.innings.bowling_performances![0]!.user_id),
+  },
+};
+
+const LEAGUE_TEAMS = [
+  ["Harbour Hawks", "HAW", 5, 4, 1, 8, 0.912],
+  ["Riverside Rangers", "RIV", 5, 3, 2, 6, 0.244],
+  ["Hillside Comets", "HIL", 5, 3, 2, 6, -0.118],
+  ["Eastgate Owls", "EAS", 5, 2, 3, 4, -0.305],
+  ["Millbrook Foxes", "MIL", 5, 2, 3, 4, -0.402],
+  ["Quarry Lane Kites", "QUA", 5, 1, 4, 2, -0.296],
+] as const;
+
+/** What the control room would load for a tournament match. */
+export const DEMO_SNAPSHOTS: OverlaySnapshots = {
+  pointsTable: {
+    title: "Metro T20 League",
+    rows: LEAGUE_TEAMS.map(([team, short, played, won, lost, points, nrr]) => ({
+      team,
+      short,
+      played,
+      won,
+      lost,
+      points,
+      nrr,
+      highlight: team === RANGERS.name || team === HAWKS.name,
+    })),
+  },
+  leaderboard: {
+    title: "Most runs",
+    metric: "Runs",
+    rows: [
+      { name: "Arjun Mehta", team: RANGERS.name, value: 246, detail: "5 inns · SR 141.4" },
+      { name: "Ethan Brooks", team: HAWKS.name, value: 231, detail: "5 inns · SR 133.5" },
+      { name: "Callum Price", team: "Hillside Comets", value: 198, detail: "5 inns · SR 152.3" },
+      { name: "Nikhil Rao", team: RANGERS.name, value: 176, detail: "5 inns · SR 128.5" },
+      { name: "Kabir Shah", team: HAWKS.name, value: 160, detail: "4 inns · SR 145.4" },
+    ],
+  },
+  nextFixture: {
+    title: "Next match",
+    team1: "Hillside Comets",
+    team1Short: "HIL",
+    team2: "Eastgate Owls",
+    team2Short: "EAS",
+    startsAt: "2026-11-01T09:30:00Z",
+    venue: "Hillside Recreation Ground",
+    round: "Round 6",
+  },
+  series: Object.fromEntries(
+    [SECOND.striker, SECOND.nonStriker, SECOND.bowler].map((id, i) => [
+      id,
+      i === 2
+        ? { matches: 5, wickets: 9, economy: 7.1, best: "3-18" }
+        : { matches: 5, runs: 150 + i * 40, highest: "61", average: 32.5, strikeRate: 136.2 },
+    ]),
+  ),
+};
+
+/** A career record for the gallery's profile cards (no reads). */
+export const DEMO_CAREER: PlayerProfile = {
+  avatarUrl: null,
+  career: {
+    id: "demo-career",
+    user_id: SECOND.striker,
+    total_matches: 42,
+    total_innings_batted: 39,
+    total_runs: 1184,
+    total_balls_faced: 902,
+    total_fours: 121,
+    total_sixes: 37,
+    highest_score: 88,
+    not_outs: 6,
+    centuries: 0,
+    half_centuries: 7,
+    total_innings_bowled: 12,
+    total_overs_bowled: 31,
+    total_balls_bowled: 186,
+    total_runs_conceded: 251,
+    total_wickets: 11,
+    best_bowling_figures: "3-21",
+    five_wicket_hauls: 0,
+    total_catches: 14,
+    total_stumpings: 0,
+    total_run_outs: 3,
+    batting_average: 35.9,
+    strike_rate: 131.3,
+    bowling_average: 22.8,
+    economy_rate: 8.1,
+    last_updated: null,
+  },
 };

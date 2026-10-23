@@ -17,6 +17,7 @@ import {
   overlayThemeVars,
   type CustomColours,
 } from "./overlay-themes";
+import { useStageStyle } from "./packages/palette-context";
 import type { LiveMatchState } from "./types";
 
 /** Class sets reading the theme variables (kept in a .tsx for Tailwind). */
@@ -115,10 +116,12 @@ export function OverlayFrame({
   className?: string;
   children: ReactNode;
 } & React.HTMLAttributes<HTMLDivElement>) {
+  // Inside a stage: the package's resolved style (one palette for all).
+  const stage = useStageStyle();
   return (
     <div
       {...rest}
-      style={{ ...overlayStyle(state, theme, customColors), ...style }}
+      style={{ ...(stage ?? overlayStyle(state, theme, customColors)), ...style }}
       className={cn("select-none font-score", className)}
     >
       {children}
