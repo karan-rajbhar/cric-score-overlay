@@ -573,6 +573,67 @@ export interface LeaderboardsRow {
   updated_at: string | null;
 }
 
+/** The latest dismissal of the current innings (`live_state.last_wicket`). */
+export interface LiveLastWicket {
+  player_id: string;
+  name: string | null;
+  runs: number;
+  balls: number;
+  dismissal_type: string | null;
+  /** The bowler credited with it (null for run outs and the like). */
+  bowler_name: string | null;
+  wicket_number: number;
+  /** Team score when it fell: `score`/`wicket_number`. */
+  score: number;
+  /** Overs at the fall, as stored (e.g. 11.2). */
+  overs: number;
+}
+
+/** A team's colours ("#rrggbb"), when it has them. */
+export interface LiveTeamColours {
+  primary: string | null;
+  secondary: string | null;
+}
+
+/** The powerplay in progress (`live_state.powerplay`). */
+export interface LivePowerplay {
+  /** Its last over (1-based): overs 1 to `end_over`. */
+  end_over: number;
+}
+
+export type LiveEventType =
+  | "four"
+  | "six"
+  | "wicket"
+  | "batter_milestone"
+  | "bowler_milestone"
+  | "hat_trick"
+  | "partnership_milestone"
+  | "over_end"
+  | "innings_end"
+  | "match_end"
+  | "new_batter"
+  | "new_bowler";
+
+/**
+ * Something the change behind a `live_state` version did, for overlays to
+ * react to (`live_state.events`, see `live-events.ts`). Every key is
+ * present (null when it does not apply): Firestore stores no undefined.
+ */
+export interface LiveEvent {
+  type: LiveEventType;
+  /** The batter or bowler it is about. */
+  player_id: string | null;
+  name: string | null;
+  /** The milestone: 50 / 100 runs, 3 / 5 wickets, a 50-run stand. */
+  value: number | null;
+  runs: number | null;
+  balls: number | null;
+  wickets: number | null;
+  /** over_end: the over completed (1-based); innings_end: the innings. */
+  number: number | null;
+}
+
 /** Denormalised read model for overlays and live pages (computed, not stored). */
 export interface LiveMatchStateRow {
   match_id: string | null;
@@ -638,6 +699,28 @@ export interface LiveMatchStateRow {
   last_ball_fielder: string | null;
   last_ball_commentary: string | null;
   last_ball_seq: number | null;
+  // Overlay fields (optional: documents written before they existed).
+  toss_winner_name?: string | null;
+  striker_id?: string | null;
+  striker_fours?: number | null;
+  striker_sixes?: number | null;
+  non_striker_id?: string | null;
+  non_striker_fours?: number | null;
+  non_striker_sixes?: number | null;
+  bowler_id?: string | null;
+  bowler_maidens?: number | null;
+  last_wicket?: LiveLastWicket | null;
+  powerplay?: LivePowerplay | null;
+  /**
+   * Team colours from the match's team snapshots; null when neither team
+   * has any (one small key per ball: live_state is read on every ball).
+   */
+  team_colors?: {
+    team1: LiveTeamColours | null;
+    team2: LiveTeamColours | null;
+  } | null;
+  /** What the change behind this version did (empty for undo / edits). */
+  events?: LiveEvent[];
 }
 
 /** Per-over rollup for Manhattan / over-comparison charts (computed). */

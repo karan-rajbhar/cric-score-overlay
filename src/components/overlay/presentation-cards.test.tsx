@@ -1,129 +1,85 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { PresentationCards } from "./presentation-cards";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import {
-  DEMO_MATCH_STATE,
   DEMO_MATCH_DETAILS,
+  DEMO_MATCH_STATE,
 } from "~/app/overlay/[matchId]/demo-data";
+import type { Match } from "~/lib/match-types";
+import {
+  PresentationCards,
+  presentationCardAvailable,
+  playingXi,
+} from "./presentation-cards";
+import type { PresentationCardType } from "./types";
 
-describe("PresentationCards Component", () => {
-  it("renders null when card is 'none'", () => {
-    const { container } = render(
-      <PresentationCards
-        card="none"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
+const S = DEMO_MATCH_STATE;
+const M = DEMO_MATCH_DETAILS;
+
+const show = (card: PresentationCardType, state = S, match: Match | null = M) =>
+  render(<PresentationCards card={card} state={state} match={match} />);
+
+describe("PresentationCards", () => {
+  it("renders nothing for none", () => {
+    const { container } = show("none");
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders Toss card correctly", () => {
-    render(
-      <PresentationCards
-        card="toss"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(screen.getByText(/TOSS RESULT/i)).toBeInTheDocument();
-    expect(screen.getByText("Royal Challengers")).toBeInTheDocument();
-    expect(screen.getByText("Super Kings")).toBeInTheDocument();
-    expect(
-      screen.getByText(/won the toss and elected to/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Richard Kettleborough/i)).toBeInTheDocument();
+  it("shows the toss from the live row", () => {
+    show("toss");
+    expect(screen.getByText(`${S.toss_winner_name} won the toss`)).toBeInTheDocument();
+    expect(screen.getByText("Chose to bat")).toBeInTheDocument();
   });
 
-  it("renders Playing XI card with team squads", () => {
-    render(
-      <PresentationCards
-        card="playing_xi"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
+  it("lists only players picked for this match", () => {
+    const squad = M.team1.team_players!;
+    const extra = { ...squad[0]!, id: "reserve", is_playing_xi: false, user: { id: "r", full_name: "Reserve Player" } };
+    const match = { ...M, team1: { ...M.team1, team_players: [...squad, extra] } };
+    expect(playingXi(match.team1.team_players)).toHaveLength(11);
+    show("playing_xi", S, match);
     expect(screen.getByText("Playing XI")).toBeInTheDocument();
-    expect(screen.getByText("1. Virat Kohli")).toBeInTheDocument();
-    expect(screen.getByText("1. Ruturaj Gaikwad")).toBeInTheDocument();
+    expect(screen.queryByText("Reserve Player")).not.toBeInTheDocument();
   });
 
-  it("renders Scorecard card with batting & bowling", () => {
-    render(
-      <PresentationCards
-        card="scorecard"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(screen.getByText("Match scorecard")).toBeInTheDocument();
-    expect(screen.getByText("Batting")).toBeInTheDocument();
-    expect(screen.getByText("Bowling")).toBeInTheDocument();
-  });
-
-  it("renders Partnership card with active stand", () => {
-    render(
-      <PresentationCards
-        card="partnership"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(screen.getByText(/Partnership/i)).toBeInTheDocument();
-    expect(screen.getByText(/52 RUNS/i)).toBeInTheDocument();
-    expect(screen.getByText(/Virat Kohli/i)).toBeInTheDocument();
-    expect(screen.getByText(/Glenn Maxwell/i)).toBeInTheDocument();
-  });
-
-  it("renders Over Summary card with ball chips", () => {
-    render(
-      <PresentationCards
-        card="over_summary"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(screen.getByText(/Over Summary/i)).toBeInTheDocument();
-    expect(screen.getByText("This over")).toBeInTheDocument();
-    expect(screen.getByText(/Bowler: Ravindra Jadeja/i)).toBeInTheDocument();
-  });
-
-  it("renders Result & POTM card", () => {
-    const completedState = {
-      ...DEMO_MATCH_STATE,
-      status: "completed",
-      winning_team_name: "Royal Challengers",
-      result_description: "Royal Challengers won by 5 wickets",
+  it("has no Playing XI card when nobody is marked as playing", () => {
+    const unpicked = (players = M.team1.team_players!) =>
+      players.map((p) => ({ ...p, is_playing_xi: null }));
+    const match = {
+      ...M,
+      team1: { ...M.team1, team_players: unpicked() },
+      team2: { ...M.team2, team_players: unpicked(M.team2.team_players) },
     };
-
-    render(
-      <PresentationCards
-        card="result"
-        state={completedState}
-        match={DEMO_MATCH_DETAILS}
-      />,
-    );
-    expect(screen.getByText(/Match Result/i)).toBeInTheDocument();
-    expect(
-      screen.getByText("Royal Challengers won by 5 wickets"),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Player of the Match/i)).toBeInTheDocument();
-    expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
+    expect(presentationCardAvailable("playing_xi", S, match)).toBe(false);
+    const { container } = show("playing_xi", S, match);
+    expect(container.firstChild).toBeNull();
   });
 
-  it("calls onClose when close button is clicked", () => {
-    const handleClose = vi.fn();
-    render(
-      <PresentationCards
-        card="toss"
-        state={DEMO_MATCH_STATE}
-        match={DEMO_MATCH_DETAILS}
-        onClose={handleClose}
-      />,
-    );
+  it("shows the current innings' scorecard", () => {
+    show("scorecard");
+    expect(screen.getByText(`${S.batting_team_name} batting`)).toBeInTheDocument();
+    expect(screen.getAllByText(S.striker_name!).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Fall of wickets/)).toBeInTheDocument();
+  });
 
-    const closeButton = screen.getByLabelText("Close presentation card");
-    fireEvent.click(closeButton);
-    expect(handleClose).toHaveBeenCalledTimes(1);
+  it("shows the partnership with each batter's share", () => {
+    show("partnership");
+    expect(screen.getByText(`${S.partnership_runs} runs`)).toBeInTheDocument();
+    expect(screen.getByText(S.striker_name!)).toBeInTheDocument();
+  });
+
+  it("shows this over's balls", () => {
+    show("over_summary");
+    expect(screen.getByRole("list", { name: "This over" })).toBeInTheDocument();
+  });
+
+  it("has no result card while the match is live", () => {
+    expect(presentationCardAvailable("result", S, M)).toBe(false);
+    const done = { ...S, status: "completed", result_description: "Riverside Rangers won by 4 wickets" };
+    show("result", done);
+    expect(screen.getByText("Riverside Rangers won by 4 wickets")).toBeInTheDocument();
+  });
+
+  it("puts no buttons on air", () => {
+    show("scorecard");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

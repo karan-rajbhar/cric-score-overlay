@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { THEME_ACCENT } from "./theme-accent";
-import type { ActiveEventSting, OverlayTheme } from "./types";
+import { cn } from "~/lib/utils";
+import { OV, OverlayFrame, type OverlayThemeProps } from "./overlay-kit";
+import type { ActiveEventSting } from "./types";
 
-interface EventStingsProps {
+interface EventStingsProps extends OverlayThemeProps {
   sting: ActiveEventSting | null;
   onDismiss: () => void;
-  theme?: OverlayTheme;
 }
 
 const EVENT_LABEL: Record<ActiveEventSting["type"], string> = {
@@ -18,15 +18,25 @@ const EVENT_LABEL: Record<ActiveEventSting["type"], string> = {
   free_hit: "Free hit",
 };
 
+/** The state colour of each event (the app's delivery tokens). */
+const EDGE: Record<ActiveEventSting["type"], string> = {
+  four: "bg-four",
+  six: "bg-six",
+  wicket: "bg-wicket",
+  milestone: "bg-[color:var(--ov-accent)]",
+  free_hit: "bg-extra",
+};
+
 /**
- * Event card for FOUR / SIX / WICKET / milestone / free hit moments.
- * A single flat strap with a coloured side bar, a short slide-up entry and an
- * auto-dismiss timer. Wickets always use red so they read the same on every theme.
+ * Event card for four / six / wicket / milestone / free hit moments: a flat
+ * card in the theme's bar colours with the event's state colour down its
+ * left edge, a short slide-up entry and an auto-dismiss timer.
  */
 export function EventStings({
   sting,
   onDismiss,
-  theme = "starsports",
+  theme,
+  customColors,
 }: EventStingsProps) {
   const onDismissRef = useRef(onDismiss);
   useEffect(() => {
@@ -38,61 +48,67 @@ export function EventStings({
 
   useEffect(() => {
     if (!stingId) return;
-
-    const timer = setTimeout(() => {
-      onDismissRef.current();
-    }, duration);
-
+    const timer = setTimeout(() => onDismissRef.current(), duration);
     return () => clearTimeout(timer);
   }, [stingId, duration]);
 
   if (!sting) return null;
 
-  const accent =
-    sting.type === "wicket"
-      ? "#dc2626"
-      : (sting.accentColor ?? THEME_ACCENT[theme] ?? THEME_ACCENT.starsports);
-
   return (
-    <div className="pointer-events-none fixed inset-0 z-50 flex select-none items-center justify-center px-4 font-score">
+    <OverlayFrame
+      state={null}
+      theme={theme}
+      customColors={customColors}
+      className="pointer-events-none fixed inset-x-0 bottom-[11rem] z-50 flex justify-center px-12"
+    >
       <div
         role="status"
         aria-live="polite"
-        data-theme={theme}
         data-sting-type={sting.type}
-        className="flex w-full max-w-2xl overflow-hidden rounded-md border border-white/10 bg-[#0b0f17]/95 text-white shadow-[0_8px_24px_rgba(0,0,0,0.6)] duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none"
+        className={cn(
+          "flex w-full max-w-[52rem] overflow-hidden rounded-lg duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none",
+          OV.bar,
+          OV.shadow,
+        )}
       >
         <div
           aria-hidden="true"
-          className="w-2 shrink-0"
-          style={{ background: accent }}
+          className={cn("w-3 shrink-0", EDGE[sting.type])}
         />
-        <div className="flex min-w-0 flex-1 flex-col gap-1 px-6 py-4">
-          <span className="text-sm font-medium text-white/60">
-            {EVENT_LABEL[sting.type]}
-          </span>
-          <h2 className="text-balance text-4xl font-semibold leading-tight">
+        <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-7 py-4">
+          {EVENT_LABEL[sting.type].toLowerCase() !==
+            sting.title.toLowerCase() && (
+            <span className={cn("text-base font-medium", OV.barMuted)}>
+              {EVENT_LABEL[sting.type]}
+            </span>
+          )}
+          <h2 className="truncate text-[2.75rem] font-semibold leading-tight">
             {sting.title}
           </h2>
           {sting.subtitle && (
-            <p className="mt-1 truncate text-xl font-medium text-white/90">
+            <p className="truncate text-[1.5rem] font-medium">
               {sting.subtitle}
             </p>
           )}
           {sting.type === "free_hit" && (
-            <p className="text-sm font-medium text-white/70">
+            <p className={cn("text-base", OV.barMuted)}>
               No dismissals except run out
             </p>
           )}
         </div>
         {sting.detail && (
-          <div className="flex shrink-0 items-center border-l border-white/10 bg-black/30 px-6">
-            <span className="text-lg font-bold tabular-nums text-white">
+          <div
+            className={cn(
+              "flex max-w-[22rem] shrink-0 items-center px-7",
+              OV.panel,
+            )}
+          >
+            <span className="text-[1.5rem] font-semibold tabular-nums">
               {sting.detail}
             </span>
           </div>
         )}
       </div>
-    </div>
+    </OverlayFrame>
   );
 }

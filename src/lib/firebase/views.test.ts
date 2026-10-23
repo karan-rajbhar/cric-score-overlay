@@ -10,6 +10,7 @@ import {
   countingDataSource,
   legacyBuildLiveMatchState,
   legacyRecordState,
+  withoutOverlayFields,
 } from "./scoring/__fixtures__/legacy";
 import { buildLiveMatchState, buildOverSummaries } from "./views";
 
@@ -45,7 +46,9 @@ describe("buildLiveMatchState (targeted reads)", () => {
       const expected = await legacyBuildLiveMatchState(legacyView(ds), id);
       const { ds: counted, stats } = countingDataSource(ds);
       const actual = await buildLiveMatchState(counted, id);
-      expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+      expect(JSON.stringify(withoutOverlayFields(actual))).toBe(
+        JSON.stringify(expected),
+      );
       // Match, tournament, current innings (scorecard + last ball), current
       // over and the names shown. Before stage 2: 12-18 documents.
       expect(stats.reads).toBeLessThanOrEqual(10);
@@ -55,7 +58,7 @@ describe("buildLiveMatchState (targeted reads)", () => {
   it("falls back to the over documents for innings without the caches", async () => {
     const ds = new MemoryDataSource(withoutInningsCaches());
     for (const id of matchIds) {
-      expect(await buildLiveMatchState(ds, id)).toEqual(
+      expect(withoutOverlayFields(await buildLiveMatchState(ds, id))).toEqual(
         await legacyBuildLiveMatchState(legacyView(ds), id),
       );
     }
@@ -126,7 +129,7 @@ describe("writeLiveState", () => {
     )) as unknown as LiveStateDoc | null;
     expect(stored?.version).toBe(2);
     expect(typeof stored?.updated_at).toBe("string");
-    expect(liveRowOf(stored!)).toEqual(
+    expect(withoutOverlayFields(liveRowOf(stored!))).toEqual(
       await legacyBuildLiveMatchState(legacyView(ds), id),
     );
   });

@@ -81,8 +81,12 @@ describe("ControlClient Component", () => {
     );
 
     expect(screen.getByText(/Control room/i)).toBeInTheDocument();
-    expect(screen.getByText(/Royal Challengers/i)).toBeInTheDocument();
-    expect(screen.getByText(/Super Kings/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(DEMO_MATCH_STATE.team1_name!, "i")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(DEMO_MATCH_STATE.team2_name!, "i")),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Copy OBS URL/i }),
     ).toBeInTheDocument();
@@ -186,8 +190,11 @@ describe("ControlClient Component", () => {
     const plusFourBtn = screen.getByRole("button", { name: /\+4 Runs/i });
     fireEvent.click(plusFourBtn);
 
-    // Initial 168 + 4 = 172
-    expect(screen.getAllByText(/172\//i).length).toBeGreaterThanOrEqual(1);
+    // The demo's total plus 4.
+    const after = `${(DEMO_MATCH_STATE.total_runs ?? 0) + 4}/`;
+    expect(screen.getAllByText(new RegExp(after)).length).toBeGreaterThanOrEqual(
+      1,
+    );
   });
 
   it("displays live ON-AIR tally and allows returning to scorebar", () => {

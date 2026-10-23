@@ -1,141 +1,73 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { EventStings } from "./event-stings";
+import {
+  LEGACY_OVERLAY_THEME_IDS,
+  OVERLAY_THEMES,
+} from "./overlay-themes";
 import type { ActiveEventSting } from "./types";
 
-describe("EventStings Component", () => {
-  it("renders null when sting is null", () => {
-    const { container } = render(
-      <EventStings sting={null} onDismiss={vi.fn()} />,
-    );
+const sting = (over: Partial<ActiveEventSting> = {}): ActiveEventSting => ({
+  id: "s1",
+  type: "four",
+  title: "Four",
+  subtitle: "Arjun Mehta",
+  detail: "34 (21)",
+  durationMs: 4000,
+  ...over,
+});
+
+describe("EventStings", () => {
+  it("renders nothing without a sting", () => {
+    const { container } = render(<EventStings sting={null} onDismiss={vi.fn()} />);
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders FOUR! sting correctly", () => {
-    const sting: ActiveEventSting = {
-      id: "test-4",
-      type: "four",
-      title: "FOUR!",
-      subtitle: "Virat Kohli cracks a boundary",
-      detail: "78* (46b)",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={vi.fn()} />);
-    expect(screen.getByText("FOUR!")).toBeInTheDocument();
-    expect(
-      screen.getByText("Virat Kohli cracks a boundary"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("78* (46b)")).toBeInTheDocument();
-  });
-
-  it("renders MAXIMUM! sting correctly", () => {
-    const sting: ActiveEventSting = {
-      id: "test-6",
-      type: "six",
-      title: "MAXIMUM!",
-      subtitle: "Massive six over long-on",
-      detail: "84* (47b)",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={vi.fn()} />);
-    expect(screen.getByText("MAXIMUM!")).toBeInTheDocument();
-    expect(screen.getByText("Massive six over long-on")).toBeInTheDocument();
-  });
-
-  it("renders WICKET! sting with dismissal details", () => {
-    const sting: ActiveEventSting = {
-      id: "test-w",
-      type: "wicket",
-      title: "WICKET!",
-      subtitle: "Faf du Plessis OUT",
-      detail: "c Dhoni b Jadeja",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={vi.fn()} />);
-    expect(screen.getByText("WICKET!")).toBeInTheDocument();
-    expect(screen.getByText("Faf du Plessis OUT")).toBeInTheDocument();
-    expect(screen.getByText("c Dhoni b Jadeja")).toBeInTheDocument();
-  });
-
-  it("renders MILESTONE! sting correctly", () => {
-    const sting: ActiveEventSting = {
-      id: "test-m",
-      type: "milestone",
-      title: "FANTASTIC FIFTY!",
-      subtitle: "Virat Kohli · 50 Runs",
-      detail: "Off 32 deliveries",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={vi.fn()} />);
-    expect(screen.getByText("FANTASTIC FIFTY!")).toBeInTheDocument();
-    expect(screen.getByText("Virat Kohli · 50 Runs")).toBeInTheDocument();
-    expect(screen.getByText("Off 32 deliveries")).toBeInTheDocument();
-  });
-
-  it("renders FREE HIT! sting correctly", () => {
-    const sting: ActiveEventSting = {
-      id: "test-fh",
-      type: "free_hit",
-      title: "FREE HIT!",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={vi.fn()} />);
-    expect(screen.getByText("FREE HIT!")).toBeInTheDocument();
-    expect(
-      screen.getByText(/No Dismissals Except Run Out/i),
-    ).toBeInTheDocument();
+  it("shows the title, the player and the figures", () => {
+    render(<EventStings sting={sting()} onDismiss={vi.fn()} />);
+    expect(screen.getByRole("status")).toHaveAttribute("data-sting-type", "four");
+    expect(screen.getByText("Four")).toBeInTheDocument();
+    expect(screen.getByText("Arjun Mehta")).toBeInTheDocument();
+    expect(screen.getByText("34 (21)")).toBeInTheDocument();
   });
 
   it.each([
-    "starsports",
-    "sonysports",
-    "foxcricket",
-    "skysports",
-    "thehundred",
-    "apex",
-    "volt",
-    "thunder",
-    "dharma",
-    "nakshatra",
-    "agni",
-    "custom",
-  ] as const)("renders the same event card for the %s theme", (theme) => {
-    const sting: ActiveEventSting = {
-      id: `test-${theme}-4`,
-      type: "four",
-      title: "Four",
-      subtitle: "David Warner cuts for four",
-      detail: "78* (46b)",
-      durationMs: 4000,
-    };
-
-    render(<EventStings sting={sting} theme={theme} onDismiss={vi.fn()} />);
-    const card = screen.getByRole("status");
-    expect(card).toHaveAttribute("data-theme", theme);
-    expect(screen.getByText("Four")).toBeInTheDocument();
-    expect(screen.getByText("David Warner cuts for four")).toBeInTheDocument();
-    expect(screen.getByText("78* (46b)")).toBeInTheDocument();
+    ["four", "bg-four"],
+    ["six", "bg-six"],
+    ["wicket", "bg-wicket"],
+    ["free_hit", "bg-extra"],
+  ] as const)("marks a %s with its delivery colour", (type, cls) => {
+    const { container } = render(
+      <EventStings sting={sting({ type })} onDismiss={vi.fn()} />,
+    );
+    expect(container.querySelector(`.${cls}`)).not.toBeNull();
   });
 
-  it("dismisses after the sting duration", () => {
+  it("explains a free hit", () => {
+    render(
+      <EventStings
+        sting={sting({ type: "free_hit", title: "Free hit", detail: undefined })}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("No dismissals except run out")).toBeInTheDocument();
+  });
+
+  it.each([
+    ...OVERLAY_THEMES.map((t) => t.id),
+    ...LEGACY_OVERLAY_THEME_IDS,
+  ])("renders the same card in the %s theme", (theme) => {
+    render(<EventStings sting={sting()} onDismiss={vi.fn()} theme={theme} />);
+    expect(screen.getByText("Four")).toBeInTheDocument();
+  });
+
+  it("dismisses itself after its duration", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
-    const sting: ActiveEventSting = {
-      id: "test-timer",
-      type: "wicket",
-      title: "Wicket",
-      durationMs: 1000,
-    };
-
-    render(<EventStings sting={sting} onDismiss={onDismiss} />);
-    vi.advanceTimersByTime(999);
+    render(<EventStings sting={sting({ durationMs: 3000 })} onDismiss={onDismiss} />);
+    act(() => vi.advanceTimersByTime(2999));
     expect(onDismiss).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
+    act(() => vi.advanceTimersByTime(1));
     expect(onDismiss).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });

@@ -11,8 +11,14 @@
  */
 
 import { matchPositionOf } from "~/lib/match-position";
+import { phaseBoundaries } from "~/lib/match-report";
 import type { DataSource, Doc } from "./datasource";
 import type { Filter } from "./filters";
+import {
+  creaseEvents,
+  deliveryEvents,
+  type DeliveryContext,
+} from "./live-events";
 import {
   ballLogOf,
   ballRowsOf,
@@ -25,14 +31,17 @@ import {
   partnershipRowsOf,
   type OversRow,
 } from "./scorecard";
-import { inningsLimits } from "./scoring/result";
+import { inningsLimits, isSuperOverInnings } from "./scoring/result";
 import type { DocReader } from "./scoring/tx";
 import type {
   BallByBallRow,
   BattingPerformancesRow,
   BowlingPerformancesRow,
   InningsRow,
+  LiveEvent,
+  LiveLastWicket,
   LiveMatchStateRow,
+  LivePowerplay,
   MatchOverSummariesRow,
   MatchesRow,
   PartnershipsRow,
@@ -100,6 +109,23 @@ export interface LiveStateTeam {
   name: string | null;
   short_name: string | null;
   logo_url: string | null;
+  /** "#rrggbb" when the team has colours (absent on older snapshots). */
+  primary_color?: string | null;
+  secondary_color?: string | null;
+}
+
+/** A team's colours from its snapshot or document, when it has them. */
+export function teamColoursOf(team: unknown): {
+  primary_color: string | null;
+  secondary_color: string | null;
+} {
+  const t = (team ?? {}) as Record<string, unknown>;
+  const colour = (v: unknown) =>
+    typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : null;
+  return {
+    primary_color: colour(t.primary_color),
+    secondary_color: colour(t.secondary_color),
+  };
 }
 
 /** Everything `live_match_state` is derived from, already loaded. */
@@ -118,6 +144,15 @@ export interface LiveStateParts {
   thisOver: BallByBallRow[];
   lastBall: BallByBallRow | null;
   nameOf: (id: string | null | undefined) => string | null;
+  /**
+   * What `live_state.events` reports: the delivery just recorded (with
+   * the previous row), a crease / bowler change, or nothing (undo, edits
+   * and rebuilds).
+   */
+  change?:
+    | { kind: "delivery"; prev: LiveMatchStateRow | null; delivery: DeliveryContext }
+    | { kind: "crease"; prev: LiveMatchStateRow | null }
+    | null;
 }
 
 /** Player ids whose names the live state shows. */
@@ -175,6 +210,24 @@ function matchFields(parts: LiveStateParts) {
   };
 }
 
+/** Team colours for the overlay's team-colours theme, and the toss winner. */
+function colourFields(parts: LiveStateParts) {
+  const colours = (t: LiveStateTeam | undefined) =>
+    t?.primary_color || t?.secondary_color
+      ? {
+          primary: t.primary_color ?? null,
+          secondary: t.secondary_color ?? null,
+        }
+      : null;
+  const team1 = colours(parts.teams.get(parts.match.team1_id));
+  const team2 = colours(parts.teams.get(parts.match.team2_id));
+  const toss = parts.match.toss_winner_team_id;
+  return {
+    toss_winner_name: toss ? (parts.teams.get(toss)?.name ?? null) : null,
+    team_colors: team1 || team2 ? { team1, team2 } : null,
+  };
+}
+
 /** The innings fields of a match with no innings yet (in the row's order). */
 const NO_INNINGS_FIELDS = {
   innings_number: null,
@@ -216,6 +269,16 @@ const NO_INNINGS_FIELDS = {
   last_ball_fielder: null,
   last_ball_commentary: null,
   last_ball_seq: null,
+  striker_id: null,
+  striker_fours: null,
+  striker_sixes: null,
+  non_striker_id: null,
+  non_striker_fours: null,
+  non_striker_sixes: null,
+  bowler_id: null,
+  bowler_maidens: null,
+  last_wicket: null,
+  powerplay: null,
 } as const;
 
 /** The current innings' totals and sides. */
@@ -258,7 +321,58 @@ function creaseFields(parts: LiveStateParts) {
     bowler_wickets: bowler?.wickets_taken ?? null,
     partnership_runs: partnership?.runs ?? null,
     partnership_balls: partnership?.balls ?? null,
+    striker_id: striker?.user_id ?? null,
+    striker_fours: striker?.fours ?? null,
+    striker_sixes: striker?.sixes ?? null,
+    non_striker_id: nonStriker?.user_id ?? null,
+    non_striker_fours: nonStriker?.fours ?? null,
+    non_striker_sixes: nonStriker?.sixes ?? null,
+    bowler_id: bowler?.user_id ?? null,
+    bowler_maidens: bowler?.maidens ?? null,
   };
+}
+
+/** The innings' latest dismissal, from its fall of wickets and card. */
+function lastWicketOf(
+  parts: LiveStateParts,
+  ci: InningsRow,
+): LiveLastWicket | null {
+  const fall = [...(ci.fall_of_wickets ?? [])].sort(
+    (a, b) => a.wicket_number - b.wicket_number,
+  );
+  const last = fall[fall.length - 1];
+  if (!last?.batsman_out_id) return null;
+  const card = battingRowsOf(ci).find((b) => b.user_id === last.batsman_out_id);
+  return {
+    player_id: last.batsman_out_id,
+    name: parts.nameOf(last.batsman_out_id),
+    runs: card?.runs_scored ?? 0,
+    balls: card?.balls_faced ?? 0,
+    dismissal_type: last.dismissal_type ?? null,
+    bowler_name: parts.nameOf(last.bowler_id),
+    wicket_number: last.wicket_number,
+    score: last.runs_at_fall,
+    overs: last.overs_at_fall,
+  };
+}
+
+/**
+ * The powerplay while it is on: overs 1 to 6 of a T20, 1 to 10 of a
+ * 50-over innings, in proportion for other lengths (as the match report
+ * splits phases). There is no match setting for it yet.
+ */
+function powerplayOf(
+  parts: LiveStateParts,
+  ci: InningsRow,
+): LivePowerplay | null {
+  if (isSuperOverInnings(ci.innings_number) || ci.is_completed) return null;
+  const maxOvers = parts.match.overs_per_innings;
+  if (!maxOvers) return null;
+  const bounds = phaseBoundaries(maxOvers);
+  if (!bounds) return null;
+  const bpo = inningsLimits(parts.match, ci.innings_number).ballsPerOver;
+  const over = Math.floor((ci.total_balls ?? 0) / bpo) + 1;
+  return over <= bounds.ppEnd ? { end_over: bounds.ppEnd } : null;
 }
 
 /** Run rates, and the chase when there is a target. */
@@ -316,24 +430,39 @@ function lastBallFields(parts: LiveStateParts) {
   };
 }
 
+/** `live_state.events` for the change described by `parts.change`. */
+function eventsOf(parts: LiveStateParts, row: LiveMatchStateRow): LiveEvent[] {
+  const change = parts.change;
+  if (change?.kind === "delivery") {
+    return deliveryEvents(change.prev, row, change.delivery, parts.nameOf);
+  }
+  if (change?.kind === "crease") return creaseEvents(change.prev, row);
+  return [];
+}
+
 export function composeLiveMatchState(
   parts: LiveStateParts,
 ): LiveMatchStateRow {
   const base: LiveMatchStateRow = {
     ...matchFields(parts),
     ...NO_INNINGS_FIELDS,
+    ...colourFields(parts),
   };
   const ci = parts.innings;
-  if (!ci) return base;
-  return {
-    ...base,
-    ...inningsFields(parts, ci),
-    ...creaseFields(parts),
-    this_over_balls: overText(parts.thisOver),
-    this_over_runs: overRuns(parts.thisOver),
-    ...rateFields(parts, ci),
-    ...lastBallFields(parts),
-  };
+  const row: LiveMatchStateRow = ci
+    ? {
+        ...base,
+        ...inningsFields(parts, ci),
+        ...creaseFields(parts),
+        this_over_balls: overText(parts.thisOver),
+        this_over_runs: overRuns(parts.thisOver),
+        ...rateFields(parts, ci),
+        ...lastBallFields(parts),
+        last_wicket: lastWicketOf(parts, ci),
+        powerplay: powerplayOf(parts, ci),
+      }
+    : base;
+  return { ...row, events: eventsOf(parts, row) };
 }
 
 /** The match's current innings via an equality query (one document). */
@@ -417,6 +546,7 @@ export async function loadMatchHeader(
         name: snap.name ?? null,
         short_name: snap.short_name ?? null,
         logo_url: snap.logo_url ?? null,
+        ...teamColoursOf(snap),
       });
     }
   }
@@ -452,6 +582,7 @@ export async function loadMatchHeader(
       name: t.name ?? null,
       short_name: t.short_name ?? null,
       logo_url: t.logo_url ?? null,
+      ...teamColoursOf(t),
     });
   }
   return { teams, tournamentName: tournament?.name ?? null };

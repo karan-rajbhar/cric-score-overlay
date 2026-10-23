@@ -1,452 +1,520 @@
+/**
+ * The overlay's demo match (`/overlay/test`): two fictional sides, a full
+ * first innings and a chase at 18.4 overs, built ball by ball from a fixed
+ * seed so the scorecards, fall of wickets, stands, charts and wagon wheel
+ * all agree. No real players or teams.
+ */
+
 import type { LiveMatchState } from "~/components/overlay/types";
-import type { Match } from "~/lib/match-types";
+import type { LiveEvent, LiveLastWicket } from "~/lib/firebase/types";
+import type {
+  BallEvent,
+  BattingPerformance,
+  BowlingPerformance,
+  FallOfWicket,
+  Innings,
+  InningsPartnership,
+  Match,
+  MatchTeam,
+  TeamPlayer,
+} from "~/lib/match-types";
+import { SECTORS } from "~/lib/wagon-wheel-utils";
+
+const MATCH_ID = "test";
+const OVERS = 20;
+
+interface DemoTeam {
+  id: string;
+  name: string;
+  short: string;
+  players: { id: string; name: string; role: string }[];
+}
+
+const team = (
+  id: string,
+  name: string,
+  short: string,
+  names: string[],
+): DemoTeam => ({
+  id,
+  name,
+  short,
+  players: names.map((n, i) => ({
+    id: `${id}-p${i + 1}`,
+    name: n,
+    role: i < 5 ? "Batter" : i < 7 ? "All-rounder" : "Bowler",
+  })),
+});
+
+const RANGERS = team("demo-rangers", "Riverside Rangers", "RIV", [
+  "Arjun Mehta",
+  "Sam Whitfield",
+  "Leo Fernandes",
+  "Nikhil Rao",
+  "Tom Ashby",
+  "Ravi Iyer",
+  "Ben Carter",
+  "Omar Siddiqui",
+  "Jay Patel",
+  "Max Holloway",
+  "Dev Nair",
+]);
+
+const HAWKS = team("demo-hawks", "Harbour Hawks", "HAW", [
+  "Ethan Brooks",
+  "Kabir Shah",
+  "Noah Pereira",
+  "Rohan Desai",
+  "Callum Price",
+  "Imran Qureshi",
+  "Luke Bennett",
+  "Aditya Kulkarni",
+  "Ryan Moss",
+  "Faisal Khan",
+  "Owen Hughes",
+]);
+
+/** Deterministic PRNG (mulberry32). */
+function rng(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type Outcome = { runs: number; wide?: boolean; wicket?: string };
+
+function outcome(r: number): Outcome {
+  if (r < 0.03) return { runs: 0, wide: true };
+  if (r < 0.065) return { runs: 0, wicket: r < 0.05 ? "caught" : "bowled" };
+  if (r < 0.39) return { runs: 0 };
+  if (r < 0.74) return { runs: 1 };
+  if (r < 0.83) return { runs: 2 };
+  if (r < 0.84) return { runs: 3 };
+  if (r < 0.95) return { runs: 4 };
+  return { runs: 6 };
+}
+
+interface SimInnings {
+  innings: Innings;
+  balls: BallEvent[];
+  striker: string;
+  nonStriker: string;
+  bowler: string;
+  thisOver: string[];
+  partnership: { runs: number; balls: number };
+  lastWicket: LiveLastWicket | null;
+}
+
+const nameOf = (id: string) =>
+  [...RANGERS.players, ...HAWKS.players].find((p) => p.id === id)?.name ?? "";
+
+function simulate(
+  number: number,
+  bat: DemoTeam,
+  bowl: DemoTeam,
+  seed: number,
+  maxLegal: number,
+  seqStart: number,
+): SimInnings {
+  const rand = rng(seed);
+  const inningsId = `demo-inn-${number}`;
+  const batting = new Map<string, BattingPerformance>();
+  const bowling = new Map<string, BowlingPerformance>();
+  const fow: FallOfWicket[] = [];
+  const stands: InningsPartnership[] = [];
+  const balls: BallEvent[] = [];
+  const batter = (id: string, pos: number): BattingPerformance => {
+    const row = batting.get(id) ?? {
+      id: `${inningsId}-bat-${id}`,
+      match_id: MATCH_ID,
+      innings_id: inningsId,
+      user_id: id,
+      batting_position: pos,
+      runs_scored: 0,
+      balls_faced: 0,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+      dismissal_type: null,
+      user: { id, full_name: nameOf(id) },
+    };
+    batting.set(id, row);
+    return row;
+  };
+  const bowlerRow = (id: string): BowlingPerformance => {
+    const row = bowling.get(id) ?? {
+      id: `${inningsId}-bowl-${id}`,
+      match_id: MATCH_ID,
+      innings_id: inningsId,
+      user_id: id,
+      overs_bowled: 0,
+      balls_bowled: 0,
+      runs_conceded: 0,
+      wickets_taken: 0,
+      maidens: 0,
+      wides: 0,
+      no_balls: 0,
+      user: { id, full_name: nameOf(id) },
+    };
+    bowling.set(id, row);
+    return row;
+  };
+  const attack = bowl.players.slice(6).map((p) => p.id);
+  let next = 2;
+  let striker = bat.players[0]!.id;
+  let nonStriker = bat.players[1]!.id;
+  batter(striker, 1);
+  batter(nonStriker, 2);
+  let legal = 0;
+  let runs = 0;
+  let wickets = 0;
+  let extras = 0;
+  let wides = 0;
+  let seq = seqStart;
+  let thisOver: string[] = [];
+  let overRuns = 0;
+  let stand = { runs: 0, balls: 0, b1: striker, b2: nonStriker, r1: 0, r2: 0, f1: 0, f2: 0 };
+  let lastWicket: LiveLastWicket | null = null;
+  let bowler = attack[0]!;
+
+  while (legal < maxLegal && wickets < 10) {
+    const over = Math.floor(legal / 6);
+    bowler = attack[over % attack.length]!;
+    const o = outcome(rand());
+    seq += 1;
+    const b = bowlerRow(bowler);
+    const zone =
+      o.runs > 0 ? SECTORS[Math.floor(rand() * SECTORS.length)]!.id : null;
+    balls.push({
+      id: `${inningsId}-b${seq}`,
+      match_id: MATCH_ID,
+      innings_id: inningsId,
+      innings: { innings_number: number, team_id: bat.id },
+      over_number: over,
+      ball_number: (legal % 6) + 1,
+      batsman_id: striker,
+      non_striker_id: nonStriker,
+      bowler_id: bowler,
+      runs_scored: o.wide ? 0 : o.runs,
+      extras: o.wide ? 1 : 0,
+      extra_type: o.wide ? "wide" : null,
+      is_wicket: !!o.wicket,
+      dismissal_type: o.wicket ?? null,
+      dismissed_player_id: o.wicket ? striker : null,
+      shot_zone: zone,
+      seq,
+    });
+    if (o.wide) {
+      runs += 1;
+      extras += 1;
+      wides += 1;
+      overRuns += 1;
+      b.runs_conceded += 1;
+      b.wides += 1;
+      stand.runs += 1;
+      thisOver.push("wd");
+      continue;
+    }
+    legal += 1;
+    b.balls_bowled += 1;
+    const s = batter(striker, 0);
+    s.balls_faced += 1;
+    stand.balls += 1;
+    if (stand.b1 === striker) stand.f1 += 1;
+    else stand.f2 += 1;
+    if (o.wicket) {
+      wickets += 1;
+      b.wickets_taken += 1;
+      s.is_out = true;
+      s.dismissal_type = o.wicket;
+      thisOver.push("W");
+      fow.push({
+        id: `${inningsId}-fow-${wickets}`,
+        match_id: MATCH_ID,
+        innings_id: inningsId,
+        wicket_number: wickets,
+        runs_at_fall: runs,
+        overs_at_fall: Number(`${Math.floor(legal / 6)}.${legal % 6}`),
+        batsman_out_id: striker,
+        dismissal_type: o.wicket,
+        bowler_id: bowler,
+        batsman: { id: striker, full_name: nameOf(striker) },
+      });
+      lastWicket = {
+        player_id: striker,
+        name: nameOf(striker),
+        runs: s.runs_scored,
+        balls: s.balls_faced,
+        dismissal_type: o.wicket,
+        bowler_name: nameOf(bowler),
+        wicket_number: wickets,
+        score: runs,
+        overs: Number(`${Math.floor(legal / 6)}.${legal % 6}`),
+      };
+      stands.push({
+        batsman1_id: stand.b1,
+        batsman2_id: stand.b2,
+        wicket_number: wickets,
+        runs: stand.runs,
+        balls: stand.balls,
+        batsman1_runs: stand.r1,
+        batsman1_balls: stand.f1,
+        batsman2_runs: stand.r2,
+        batsman2_balls: stand.f2,
+      });
+      if (wickets < 10) {
+        striker = bat.players[next]!.id;
+        batter(striker, next + 1);
+        next += 1;
+        stand = { runs: 0, balls: 0, b1: nonStriker, b2: striker, r1: 0, r2: 0, f1: 0, f2: 0 };
+      }
+    } else {
+      runs += o.runs;
+      overRuns += o.runs;
+      s.runs_scored += o.runs;
+      if (o.runs === 4) s.fours += 1;
+      if (o.runs === 6) s.sixes += 1;
+      b.runs_conceded += o.runs;
+      stand.runs += o.runs;
+      if (stand.b1 === striker) stand.r1 += o.runs;
+      else stand.r2 += o.runs;
+      thisOver.push(String(o.runs));
+      if (o.runs % 2 === 1) [striker, nonStriker] = [nonStriker, striker];
+    }
+    if (legal % 6 === 0) {
+      if (overRuns === 0) b.maidens += 1;
+      b.overs_bowled = Math.floor(b.balls_bowled / 6);
+      [striker, nonStriker] = [nonStriker, striker];
+      if (legal < maxLegal) thisOver = [];
+      overRuns = 0;
+    }
+  }
+  for (const b of bowling.values()) {
+    b.overs_bowled = Number(`${Math.floor(b.balls_bowled / 6)}.${b.balls_bowled % 6}`);
+  }
+  const completed = legal >= OVERS * 6 || wickets >= 10;
+  if (!completed) {
+    stands.push({
+      batsman1_id: stand.b1,
+      batsman2_id: stand.b2,
+      runs: stand.runs,
+      balls: stand.balls,
+      batsman1_runs: stand.r1,
+      batsman1_balls: stand.f1,
+      batsman2_runs: stand.r2,
+      batsman2_balls: stand.f2,
+      is_current: true,
+    });
+  }
+  for (const id of [striker, nonStriker]) {
+    const row = batting.get(id);
+    if (row && !completed) {
+      row.is_current_batsman = true;
+      row.is_striker = id === striker;
+    }
+  }
+  const current = bowling.get(bowler);
+  if (current && !completed) current.is_current_bowler = true;
+  return {
+    innings: {
+      id: inningsId,
+      match_id: MATCH_ID,
+      innings_number: number,
+      team_id: bat.id,
+      total_runs: runs,
+      total_wickets: wickets,
+      total_balls: legal,
+      total_overs: Math.floor(legal / 6),
+      is_completed: completed,
+      extras_total: extras,
+      extras_byes: 0,
+      extras_leg_byes: 0,
+      extras_wides: wides,
+      extras_no_balls: 0,
+      extras_penalties: 0,
+      batting_performances: [...batting.values()].sort(
+        (a, b) => (a.batting_position ?? 0) - (b.batting_position ?? 0),
+      ),
+      bowling_performances: [...bowling.values()],
+      fall_of_wickets: fow,
+      partnerships: stands,
+      ball_by_ball: balls,
+    },
+    balls,
+    striker,
+    nonStriker,
+    bowler,
+    thisOver,
+    partnership: { runs: stand.runs, balls: stand.balls },
+    lastWicket,
+  };
+}
+
+/** Seeds whose chase ends up close at 18.4 overs (a few to choose from). */
+function buildDemo() {
+  for (let seed = 7; seed < 400; seed += 1) {
+    const first = simulate(1, HAWKS, RANGERS, seed, OVERS * 6, 0);
+    const target = first.innings.total_runs + 1;
+    const second = simulate(2, RANGERS, HAWKS, seed * 31 + 3, 112, first.balls.length);
+    const need = target - second.innings.total_runs;
+    if (
+      first.innings.total_runs >= 150 &&
+      second.innings.total_wickets <= 6 &&
+      need >= 12 &&
+      need <= 24
+    ) {
+      second.innings.target_runs = target;
+      return { first, second, target };
+    }
+  }
+  throw new Error("demo: no seed gives a close chase");
+}
+
+const { first: FIRST, second: SECOND, target: TARGET } = buildDemo();
+
+const squad = (t: DemoTeam): TeamPlayer[] =>
+  t.players.map((p, i) => ({
+    id: `${t.id}-tp${i + 1}`,
+    team_id: t.id,
+    user_id: p.id,
+    batting_order: i + 1,
+    is_playing_xi: true,
+    role_in_team: p.role,
+    user: { id: p.id, full_name: p.name },
+  }));
+
+const matchTeam = (t: DemoTeam): MatchTeam => ({
+  id: t.id,
+  name: t.name,
+  short_name: t.short,
+  logo_url: null,
+  team_players: squad(t),
+});
+
+const inn2 = SECOND.innings;
+const strikerRow = inn2.batting_performances!.find(
+  (b) => b.user_id === SECOND.striker,
+)!;
+const nonStrikerRow = inn2.batting_performances!.find(
+  (b) => b.user_id === SECOND.nonStriker,
+)!;
+const bowlerRow = inn2.bowling_performances!.find(
+  (b) => b.user_id === SECOND.bowler,
+)!;
+const lastBall = SECOND.balls[SECOND.balls.length - 1]!;
+const ballsLeft = OVERS * 6 - inn2.total_balls;
+const needed = TARGET - inn2.total_runs;
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export const DEMO_MATCH_STATE: LiveMatchState = {
-  match_id: "test",
-  title: "Premier League 2026 - Grand Final",
-  tournament_name: "Premier League 2026",
+  match_id: MATCH_ID,
+  title: "Metro T20 League · Final",
+  tournament_name: "Metro T20 League",
   status: "live",
   match_format: "T20",
-  overs_per_innings: 20,
-  venue: "Lord's Cricket Ground, London",
+  overs_per_innings: OVERS,
+  venue: "Victoria Park, Northfield",
   current_innings: 2,
-  current_over: 18,
-  current_ball: 4,
+  current_over: Math.floor(inn2.total_balls / 6),
+  current_ball: inn2.total_balls % 6,
   result_type: null,
   result_description: null,
-  toss_winner_team_id: "team-rcb",
+  toss_winner_team_id: HAWKS.id,
+  toss_winner_name: HAWKS.name,
   toss_decision: "bat",
-  umpire1_name: "Richard Kettleborough",
-  umpire2_name: "Nitin Menon",
-  team1_name: "Royal Challengers",
-  team1_short_name: "RCB",
+  umpire1_name: "Peter Lane",
+  umpire2_name: "Suresh Menon",
+  team1_name: RANGERS.name,
+  team1_short_name: RANGERS.short,
   team1_logo_url: null,
-  team2_name: "Super Kings",
-  team2_short_name: "CSK",
+  team2_name: HAWKS.name,
+  team2_short_name: HAWKS.short,
   team2_logo_url: null,
   winning_team_name: null,
   innings_number: 2,
-  total_runs: 168,
-  total_wickets: 5,
-  total_overs: 18,
-  total_balls: 112,
-  extras_total: 8,
+  total_runs: inn2.total_runs,
+  total_wickets: inn2.total_wickets,
+  total_overs: inn2.total_overs,
+  total_balls: inn2.total_balls,
+  extras_total: inn2.extras_total,
   innings_completed: false,
-  target_runs: 185,
-  batting_team_name: "Royal Challengers",
-  batting_team_short_name: "RCB",
-  bowling_team_name: "Super Kings",
-  bowling_team_short_name: "CSK",
-  striker_name: "Virat Kohli",
-  striker_runs: 78,
-  striker_balls: 46,
-  non_striker_name: "Glenn Maxwell",
-  non_striker_runs: 34,
-  non_striker_balls: 19,
-  current_bowler_name: "Ravindra Jadeja",
-  bowler_balls: 22,
-  bowler_runs: 28,
-  bowler_wickets: 2,
-  partnership_runs: 52,
-  partnership_balls: 31,
-  this_over_balls: "1 4 0 6 2",
-  current_run_rate: 9.0,
-  runs_needed: 17,
-  balls_remaining: 8,
-  required_run_rate: 12.75,
-  last_ball_runs: 2,
-  last_ball_extras: 0,
-  last_ball_extra_type: null,
-  last_ball_is_wicket: false,
-  last_ball_dismissal_type: null,
+  target_runs: TARGET,
+  batting_team_name: RANGERS.name,
+  batting_team_short_name: RANGERS.short,
+  bowling_team_name: HAWKS.name,
+  bowling_team_short_name: HAWKS.short,
+  striker_name: nameOf(SECOND.striker),
+  striker_runs: strikerRow.runs_scored,
+  striker_balls: strikerRow.balls_faced,
+  non_striker_name: nameOf(SECOND.nonStriker),
+  non_striker_runs: nonStrikerRow.runs_scored,
+  non_striker_balls: nonStrikerRow.balls_faced,
+  current_bowler_name: nameOf(SECOND.bowler),
+  bowler_balls: bowlerRow.balls_bowled,
+  bowler_runs: bowlerRow.runs_conceded,
+  bowler_wickets: bowlerRow.wickets_taken,
+  partnership_runs: SECOND.partnership.runs,
+  partnership_balls: SECOND.partnership.balls,
+  this_over_balls: SECOND.thisOver.join(" "),
+  this_over_runs: SECOND.thisOver.reduce(
+    (n, t) => n + (t === "wd" ? 1 : t === "W" ? 0 : Number(t)),
+    0,
+  ),
+  current_run_rate: round2((inn2.total_runs * 6) / inn2.total_balls),
+  runs_needed: needed,
+  balls_remaining: ballsLeft,
+  required_run_rate: round2((needed * 6) / ballsLeft),
+  last_ball_runs: lastBall.runs_scored,
+  last_ball_extras: lastBall.extras,
+  last_ball_extra_type: lastBall.extra_type ?? null,
+  last_ball_is_wicket: lastBall.is_wicket,
+  last_ball_dismissal_type: lastBall.dismissal_type ?? null,
   last_ball_dismissed_player: null,
   last_ball_fielder: null,
-  last_ball_commentary: "Pushed into deep midwicket for a sharp brace.",
-  last_ball_seq: 112,
+  last_ball_commentary: "Worked into the leg side and they come back for two.",
+  last_ball_seq: lastBall.seq ?? null,
+  striker_id: SECOND.striker,
+  striker_fours: strikerRow.fours,
+  striker_sixes: strikerRow.sixes,
+  non_striker_id: SECOND.nonStriker,
+  non_striker_fours: nonStrikerRow.fours,
+  non_striker_sixes: nonStrikerRow.sixes,
+  bowler_id: SECOND.bowler,
+  bowler_maidens: bowlerRow.maidens,
+  last_wicket: SECOND.lastWicket,
+  powerplay: null,
+  team_colors: {
+    team1: { primary: "#0f766e", secondary: "#f8fafc" },
+    team2: { primary: "#b91c1c", secondary: "#fde68a" },
+  },
+  events: [] as LiveEvent[],
 };
 
 export const DEMO_MATCH_DETAILS: Match = {
-  id: "test",
-  title: "Premier League 2026 - Grand Final",
+  id: MATCH_ID,
+  title: DEMO_MATCH_STATE.title ?? "",
   match_format: "T20",
-  overs_per_innings: 20,
+  overs_per_innings: OVERS,
   status: "live",
   current_innings: 2,
-  current_over: 18,
-  current_ball: 4,
-  venue: "Lord's Cricket Ground, London",
+  current_over: DEMO_MATCH_STATE.current_over ?? 0,
+  current_ball: DEMO_MATCH_STATE.current_ball ?? 0,
+  venue: DEMO_MATCH_STATE.venue,
   scheduled_at: new Date().toISOString(),
-  toss_winner_team_id: "team-csk",
+  toss_winner_team_id: HAWKS.id,
   toss_decision: "bat",
-  umpire1_name: "Richard Kettleborough",
-  umpire2_name: "Nitin Menon",
-  team1_id: "team-rcb",
-  team2_id: "team-csk",
-  player_of_the_match: {
-    id: "user-vk",
-    full_name: "Virat Kohli",
-  },
-  team1: {
-    id: "team-rcb",
-    name: "Royal Challengers",
-    short_name: "RCB",
-    team_players: [
-      {
-        id: "tp-1",
-        team_id: "team-rcb",
-        user_id: "u1",
-        role_in_team: "Captain / Batter",
-        user: { id: "u1", full_name: "Virat Kohli" },
-      },
-      {
-        id: "tp-2",
-        team_id: "team-rcb",
-        user_id: "u2",
-        role_in_team: "Opening Batter",
-        user: { id: "u2", full_name: "Faf du Plessis" },
-      },
-      {
-        id: "tp-3",
-        team_id: "team-rcb",
-        user_id: "u3",
-        role_in_team: "All-Rounder",
-        user: { id: "u3", full_name: "Glenn Maxwell" },
-      },
-      {
-        id: "tp-4",
-        team_id: "team-rcb",
-        user_id: "u4",
-        role_in_team: "Wicketkeeper / Batter",
-        user: { id: "u4", full_name: "Dinesh Karthik" },
-      },
-      {
-        id: "tp-5",
-        team_id: "team-rcb",
-        user_id: "u5",
-        role_in_team: "Batter",
-        user: { id: "u5", full_name: "Rajat Patidar" },
-      },
-      {
-        id: "tp-6",
-        team_id: "team-rcb",
-        user_id: "u6",
-        role_in_team: "All-Rounder",
-        user: { id: "u6", full_name: "Cameron Green" },
-      },
-      {
-        id: "tp-7",
-        team_id: "team-rcb",
-        user_id: "u7",
-        role_in_team: "Fast Bowler",
-        user: { id: "u7", full_name: "Mohammed Siraj" },
-      },
-      {
-        id: "tp-8",
-        team_id: "team-rcb",
-        user_id: "u8",
-        role_in_team: "Fast Bowler",
-        user: { id: "u8", full_name: "Lockie Ferguson" },
-      },
-      {
-        id: "tp-9",
-        team_id: "team-rcb",
-        user_id: "u9",
-        role_in_team: "Fast Bowler",
-        user: { id: "u9", full_name: "Yash Dayal" },
-      },
-      {
-        id: "tp-10",
-        team_id: "team-rcb",
-        user_id: "u10",
-        role_in_team: "Spinner",
-        user: { id: "u10", full_name: "Karn Sharma" },
-      },
-      {
-        id: "tp-11",
-        team_id: "team-rcb",
-        user_id: "u11",
-        role_in_team: "All-Rounder",
-        user: { id: "u11", full_name: "Swapnil Singh" },
-      },
-    ],
-  },
-  team2: {
-    id: "team-csk",
-    name: "Super Kings",
-    short_name: "CSK",
-    team_players: [
-      {
-        id: "tp-21",
-        team_id: "team-csk",
-        user_id: "u21",
-        role_in_team: "Captain / Batter",
-        user: { id: "u21", full_name: "Ruturaj Gaikwad" },
-      },
-      {
-        id: "tp-22",
-        team_id: "team-csk",
-        user_id: "u22",
-        role_in_team: "Opening Batter",
-        user: { id: "u22", full_name: "Rachin Ravindra" },
-      },
-      {
-        id: "tp-23",
-        team_id: "team-csk",
-        user_id: "u23",
-        role_in_team: "Batter",
-        user: { id: "u23", full_name: "Ajinkya Rahane" },
-      },
-      {
-        id: "tp-24",
-        team_id: "team-csk",
-        user_id: "u24",
-        role_in_team: "Batter",
-        user: { id: "u24", full_name: "Shivam Dube" },
-      },
-      {
-        id: "tp-25",
-        team_id: "team-csk",
-        user_id: "u25",
-        role_in_team: "All-Rounder",
-        user: { id: "u25", full_name: "Ravindra Jadeja" },
-      },
-      {
-        id: "tp-26",
-        team_id: "team-csk",
-        user_id: "u26",
-        role_in_team: "Wicketkeeper / Finisher",
-        user: { id: "u26", full_name: "MS Dhoni" },
-      },
-      {
-        id: "tp-27",
-        team_id: "team-csk",
-        user_id: "u27",
-        role_in_team: "All-Rounder",
-        user: { id: "u27", full_name: "Moeen Ali" },
-      },
-      {
-        id: "tp-28",
-        team_id: "team-csk",
-        user_id: "u28",
-        role_in_team: "Fast Bowler",
-        user: { id: "u28", full_name: "Deepak Chahar" },
-      },
-      {
-        id: "tp-29",
-        team_id: "team-csk",
-        user_id: "u29",
-        role_in_team: "Fast Bowler",
-        user: { id: "u29", full_name: "Tushar Deshpande" },
-      },
-      {
-        id: "tp-30",
-        team_id: "team-csk",
-        user_id: "u30",
-        role_in_team: "Fast Bowler",
-        user: { id: "u30", full_name: "Matheesha Pathirana" },
-      },
-      {
-        id: "tp-31",
-        team_id: "team-csk",
-        user_id: "u31",
-        role_in_team: "Spinner",
-        user: { id: "u31", full_name: "Maheesh Theekshana" },
-      },
-    ],
-  },
-  innings: [
-    {
-      id: "inn-1",
-      match_id: "test",
-      innings_number: 1,
-      team_id: "team-csk",
-      total_runs: 184,
-      total_wickets: 6,
-      total_balls: 120,
-      total_overs: 20,
-      is_completed: true,
-      extras_total: 10,
-      extras_byes: 1,
-      extras_leg_byes: 2,
-      extras_wides: 5,
-      extras_no_balls: 2,
-      extras_penalties: 0,
-      batting_performances: [
-        {
-          id: "bp-1",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u21",
-          runs_scored: 62,
-          balls_faced: 42,
-          fours: 7,
-          sixes: 2,
-          is_out: true,
-          dismissal_type: "caught",
-          user: { id: "u21", full_name: "Ruturaj Gaikwad" },
-        },
-        {
-          id: "bp-2",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u22",
-          runs_scored: 38,
-          balls_faced: 24,
-          fours: 4,
-          sixes: 2,
-          is_out: true,
-          dismissal_type: "bowled",
-          user: { id: "u22", full_name: "Rachin Ravindra" },
-        },
-        {
-          id: "bp-3",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u24",
-          runs_scored: 44,
-          balls_faced: 21,
-          fours: 2,
-          sixes: 4,
-          is_out: true,
-          dismissal_type: "caught",
-          user: { id: "u24", full_name: "Shivam Dube" },
-        },
-        {
-          id: "bp-4",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u26",
-          runs_scored: 20,
-          balls_faced: 8,
-          fours: 2,
-          sixes: 2,
-          is_out: false,
-          dismissal_type: null,
-          user: { id: "u26", full_name: "MS Dhoni" },
-        },
-      ],
-      bowling_performances: [
-        {
-          id: "bl-1",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u7",
-          overs_bowled: 4,
-          balls_bowled: 24,
-          runs_conceded: 35,
-          wickets_taken: 2,
-          maidens: 0,
-          wides: 2,
-          no_balls: 1,
-          user: { id: "u7", full_name: "Mohammed Siraj" },
-        },
-        {
-          id: "bl-2",
-          match_id: "test",
-          innings_id: "inn-1",
-          user_id: "u9",
-          overs_bowled: 4,
-          balls_bowled: 24,
-          runs_conceded: 42,
-          wickets_taken: 2,
-          maidens: 0,
-          wides: 1,
-          no_balls: 0,
-          user: { id: "u9", full_name: "Yash Dayal" },
-        },
-      ],
-    },
-    {
-      id: "inn-2",
-      match_id: "test",
-      innings_number: 2,
-      team_id: "team-rcb",
-      total_runs: 168,
-      total_wickets: 5,
-      total_balls: 112,
-      total_overs: 18,
-      is_completed: false,
-      target_runs: 185,
-      extras_total: 8,
-      extras_byes: 0,
-      extras_leg_byes: 2,
-      extras_wides: 5,
-      extras_no_balls: 1,
-      extras_penalties: 0,
-      batting_performances: [
-        {
-          id: "bp-11",
-          match_id: "test",
-          innings_id: "inn-2",
-          user_id: "u1",
-          runs_scored: 78,
-          balls_faced: 46,
-          fours: 8,
-          sixes: 3,
-          is_out: false,
-          is_current_batsman: true,
-          is_striker: true,
-          user: { id: "u1", full_name: "Virat Kohli" },
-        },
-        {
-          id: "bp-12",
-          match_id: "test",
-          innings_id: "inn-2",
-          user_id: "u2",
-          runs_scored: 24,
-          balls_faced: 16,
-          fours: 3,
-          sixes: 1,
-          is_out: true,
-          dismissal_type: "caught",
-          user: { id: "u2", full_name: "Faf du Plessis" },
-        },
-        {
-          id: "bp-13",
-          match_id: "test",
-          innings_id: "inn-2",
-          user_id: "u3",
-          runs_scored: 34,
-          balls_faced: 19,
-          fours: 2,
-          sixes: 2,
-          is_out: false,
-          is_current_batsman: true,
-          is_striker: false,
-          user: { id: "u3", full_name: "Glenn Maxwell" },
-        },
-      ],
-      bowling_performances: [
-        {
-          id: "bl-21",
-          match_id: "test",
-          innings_id: "inn-2",
-          user_id: "u25",
-          overs_bowled: 3,
-          balls_bowled: 22,
-          runs_conceded: 28,
-          wickets_taken: 2,
-          maidens: 0,
-          wides: 1,
-          no_balls: 0,
-          is_current_bowler: true,
-          user: { id: "u25", full_name: "Ravindra Jadeja" },
-        },
-        {
-          id: "bl-22",
-          match_id: "test",
-          innings_id: "inn-2",
-          user_id: "u30",
-          overs_bowled: 3,
-          balls_bowled: 18,
-          runs_conceded: 32,
-          wickets_taken: 2,
-          maidens: 0,
-          wides: 2,
-          no_balls: 1,
-          user: { id: "u30", full_name: "Matheesha Pathirana" },
-        },
-      ],
-    },
-  ],
+  umpire1_name: DEMO_MATCH_STATE.umpire1_name,
+  umpire2_name: DEMO_MATCH_STATE.umpire2_name,
+  team1_id: RANGERS.id,
+  team2_id: HAWKS.id,
+  player_of_the_match: null,
+  team1: matchTeam(RANGERS),
+  team2: matchTeam(HAWKS),
+  innings: [FIRST.innings, SECOND.innings],
+  tournament: { id: "demo-league", name: "Metro T20 League" },
 };
