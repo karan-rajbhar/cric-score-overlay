@@ -123,6 +123,20 @@ describe("cricket math & formatting utilities", () => {
   });
 
   describe("deliveryLabel", () => {
+    it("labels byes and leg byes off a no-ball apart from runs off the bat", () => {
+      const nb = { is_wicket: false, extra_type: "no_ball" };
+      expect(deliveryLabel({ ...nb, runs_scored: 2, extras: 1 })).toBe("nb+2");
+      expect(
+        deliveryLabel({ ...nb, runs_scored: 0, extras: 3, no_ball_runs: "bye" }),
+      ).toBe("nb+2b");
+      expect(
+        deliveryLabel({ ...nb, runs_scored: 0, extras: 2, no_ball_runs: "leg_bye" }),
+      ).toBe("nb+1lb");
+      expect(
+        deliveryLabel({ ...nb, runs_scored: 0, extras: 1, no_ball_runs: "bye" }),
+      ).toBe("nb");
+    });
+
     it("labels a retirement rh / ro, not as a wicket ball", () => {
       const retired = { is_wicket: true, runs_scored: 0, extras: 0, extra_type: null };
       expect(deliveryLabel({ ...retired, dismissal_type: "retired_hurt" })).toBe("rh");

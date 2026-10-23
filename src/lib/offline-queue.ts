@@ -70,6 +70,11 @@ export interface QueuedActionBase {
   retryCount?: number;
   lastError?: string | null;
   /**
+   * The last attempt got an answer from the server refusing it (as opposed
+   * to no answer at all): only such an action may be skipped by the scorer.
+   */
+  refused?: boolean;
+  /**
    * Queued by instant scoring while online (the screen already shows it,
    * see `~/lib/scoring-prediction`), not by offline mode.
    */
@@ -155,6 +160,12 @@ export interface UpdateBallPayload {
   extraType: BallEvent["extraType"] | null;
   isWicket: boolean;
   dismissalType: string | null;
+  /** The catcher / fielder / keeper (kept: the server sets what it is sent). */
+  fielderId?: string | null;
+  /** Who was out (either batter for a run out or obstructing). */
+  dismissedPlayerId?: string | null;
+  /** On a no-ball: byes / leg byes rather than runs off the bat. */
+  noBallRuns?: BallEvent["noBallRuns"];
   batsmanId?: string | null;
   bowlerId?: string | null;
 }
@@ -445,6 +456,60 @@ export function moveToDeadLetter(
     retryCount: (action.retryCount ?? 0) + 1,
   });
   safeSetItem(getDlqKey(matchId), JSON.stringify(current));
+}
+
+/**
+ * The action at the head of the queue when the server answered its last
+ * attempt with a refusal (it stays queued until retried or skipped). Null
+ * when the head has only gone unanswered (weak signal): that one is never
+ * to be skipped, the server may yet apply it.
+ */
+export function refusedHeadAction(matchId: string): QueuedAction | null {
+  const head = getPendingActions(matchId)[0];
+  return head?.refused ? head : null;
+}
+
+/** Remove one dead-letter action (the scorer discarded it). */
+export function discardDeadLetter(matchId: string, queueId: string): void {
+  const kept = getDeadLetterActions(matchId).filter(
+    (d) => d.action.queueId !== queueId,
+  );
+  if (kept.length) safeSetItem(getDlqKey(matchId), JSON.stringify(kept));
+  else clearDeadLetterActions(matchId);
+}
+
+/**
+ * Put every dead-letter action back at the end of the queue, in the order
+ * they were made, to be sent again (as offline-mode actions: the screen
+ * shows what the server makes of them). Same ids, so one the server did
+ * apply is not applied twice. Returns how many were re-queued.
+ */
+export function requeueDeadLetters(matchId: string): number {
+  const dead = getDeadLetterActions(matchId)
+    .slice()
+    .sort((a, b) => a.action.enqueuedAt - b.action.enqueuedAt);
+  if (!dead.length) return 0;
+  const pending = getPendingActions(matchId);
+  const queued = new Set(pending.map((a) => a.queueId));
+  const back = dead
+    .filter((d) => !queued.has(d.action.queueId))
+    .map(({ action }) => {
+      const {
+        retryCount: _retries,
+        lastError: _error,
+        refused: _refused,
+        instant: _instant,
+        ...rest
+      } = action;
+      void _retries;
+      void _error;
+      void _refused;
+      void _instant;
+      return rest as QueuedAction;
+    });
+  safeSetItem(getActionsKey(matchId), JSON.stringify([...pending, ...back]));
+  clearDeadLetterActions(matchId);
+  return back.length;
 }
 
 /**
@@ -745,6 +810,7 @@ function recordFailure(
     ...action,
     retryCount: retries,
     lastError: error,
+    refused: !noReply,
   };
   // No reply (offline, a dropped connection): the server may not even have
   // seen it, so it is never given up on; it waits at the head, in order.
@@ -911,6 +977,7 @@ async function flushSequentially(
             ...action,
             retryCount: (action.retryCount ?? 0) + 1,
             lastError: error,
+            refused: true,
           });
           progressed = true;
           break;

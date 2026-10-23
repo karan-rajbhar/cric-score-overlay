@@ -28,7 +28,7 @@ describe("WicketDialog", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Record wicket" })).toBeInTheDocument();
-    expect(screen.getByText("How was the batsman out?")).toBeInTheDocument();
+    expect(screen.getByText("How was the batter out?")).toBeInTheDocument();
 
     // Check rapid chips
     const bowledChip = screen.getByRole("button", { name: "Bowled" });
@@ -62,7 +62,7 @@ describe("WicketDialog", () => {
     expect(handleDismissalChange).toHaveBeenCalledWith("caught");
   });
 
-  it("filters dismissals under No-Ball according to MCC Law 21.18", () => {
+  it("filters dismissals on a no-ball", () => {
     render(
       <WicketDialog
         open={true}
@@ -80,7 +80,7 @@ describe("WicketDialog", () => {
       />,
     );
 
-    expect(screen.getByText(/Under MCC Law 21.18/i)).toBeInTheDocument();
+    expect(screen.getByText(/No ball: the batter can be out only run out/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Bowled" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run out" })).toBeInTheDocument();
   });
@@ -209,5 +209,106 @@ describe("WicketDialog", () => {
       <WicketDialog {...props} dismissalType="run_out" extraType="no_ball" />,
     );
     expect(screen.queryByRole("button", { name: "Retired hurt" })).toBeNull();
+  });
+
+  describe("asks rather than assumes", () => {
+    const base = {
+      open: true,
+      onOpenChange: vi.fn(),
+      onDismissalTypeChange: vi.fn(),
+      fielderId: "",
+      onFielderChange: vi.fn(),
+      bowlingTeamPlayers: mockFielders,
+      strikerId: "s-1",
+      nonStrikerId: "ns-1",
+      strikerName: "Virat Kohli",
+      nonStrikerName: "Rohit Sharma",
+      onDismissedPlayerChange: vi.fn(),
+      onConfirm: vi.fn(),
+      isProcessing: false,
+    };
+
+    it("preselects no dismissal and says what is missing", () => {
+      const { rerender } = render(<WicketDialog {...base} dismissalType="" />);
+      const confirm = screen.getByRole("button", { name: "Confirm wicket" });
+      expect(confirm).toBeDisabled();
+      expect(confirm).toHaveAccessibleDescription(
+        "Choose how the batter was out",
+      );
+      for (const name of ["Bowled", "Caught", "LBW"]) {
+        expect(screen.getByRole("button", { name })).toHaveAttribute(
+          "aria-pressed",
+          "false",
+        );
+      }
+      // Caught needs the catcher before it can be confirmed.
+      rerender(<WicketDialog {...base} dismissalType="caught" />);
+      expect(
+        screen.getByRole("button", { name: "Confirm wicket" }),
+      ).toHaveAccessibleDescription("Choose the catcher");
+      rerender(<WicketDialog {...base} dismissalType="caught" fielderId="u-1" />);
+      expect(screen.getByRole("button", { name: "Confirm wicket" })).toBeEnabled();
+    });
+
+    it("drops a dismissal the armed extra rules out instead of picking one", () => {
+      const onDismissalTypeChange = vi.fn();
+      render(
+        <WicketDialog
+          {...base}
+          onDismissalTypeChange={onDismissalTypeChange}
+          dismissalType="bowled"
+          extraType="wide"
+        />,
+      );
+      expect(onDismissalTypeChange).toHaveBeenCalledWith("");
+      expect(screen.getByRole("note")).toHaveTextContent(
+        "Wide: the batter cannot be out bowled, caught or LBW.",
+      );
+    });
+
+    it("lets either batter be out obstructing the field", () => {
+      render(
+        <WicketDialog
+          {...base}
+          dismissalType="obstructing"
+          dismissedPlayerId="ns-1"
+        />,
+      );
+      expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toBeEnabled();
+      expect(screen.getByRole("radio", { name: /Rohit Sharma/ })).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+    });
+
+    it("asks what a run out's runs were, on a no-ball too, but not on a wide", () => {
+      const onRunsKindChange = vi.fn();
+      const props = {
+        ...base,
+        dismissalType: "run_out",
+        fielderId: "u-1",
+        runsCompleted: 2,
+        onRunsCompletedChange: vi.fn(),
+        runsKind: "bat" as const,
+        onRunsKindChange,
+      };
+      const { rerender } = render(<WicketDialog {...props} />);
+      const group = screen.getByRole("radiogroup", { name: "The runs were" });
+      expect(group).toBeInTheDocument();
+      // No warning about wides when nothing (or a bye) was armed.
+      expect(screen.queryByText(/Wide:/)).toBeNull();
+      fireEvent.click(screen.getByRole("radio", { name: "Byes" }));
+      expect(onRunsKindChange).toHaveBeenCalledWith("bye");
+
+      rerender(<WicketDialog {...props} extraType="no_ball" />);
+      expect(
+        screen.getByRole("radiogroup", { name: "The runs were" }),
+      ).toBeInTheDocument();
+
+      rerender(<WicketDialog {...props} extraType="wide" />);
+      expect(
+        screen.queryByRole("radiogroup", { name: "The runs were" }),
+      ).toBeNull();
+    });
   });
 });

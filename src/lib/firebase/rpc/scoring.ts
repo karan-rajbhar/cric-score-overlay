@@ -89,6 +89,7 @@ import {
   newEventBall,
   penaltyFields,
   retirementFields,
+  noBallRunsOf,
   type CheckedBall,
   type RecordBallArgs,
 } from "../scoring/ball-docs";
@@ -1351,6 +1352,8 @@ export interface UpdateBallArgs {
   /** Re-assign the delivery to another striker / bowler. */
   p_batsman_id?: string | null;
   p_bowler_id?: string | null;
+  /** On a no-ball: byes / leg byes rather than runs off the bat. */
+  p_no_ball_runs?: string | null;
 }
 
 export async function updateBall(
@@ -1371,6 +1374,8 @@ export async function updateBall(
   ) {
     throw new DbQueryError("invalid_input", "22000");
   }
+  const noBallRuns = noBallRunsOf(extraType, args.p_no_ball_runs);
+  if (noBallRuns === undefined) throw new DbQueryError("invalid_input", "22000");
   const now = new Date().toISOString();
 
   const tracked = await runOnce(ctx, async (t) => {
@@ -1430,9 +1435,13 @@ export async function updateBall(
         ? (args.p_dismissed_player_id ?? ball.batsman_id ?? null)
         : null,
     };
-    const balls = bundle.balls.map((b) =>
-      b.id === ball.id ? { ...ball, ...patch } : b,
-    );
+    const balls = bundle.balls.map((b) => {
+      if (b.id !== ball.id) return b;
+      const edited: BallByBallRow = { ...ball, ...patch };
+      if (noBallRuns) edited.no_ball_runs = noBallRuns;
+      else delete edited.no_ball_runs;
+      return edited;
+    });
     const out = runRecompute(bundle, balls, now);
     const after = writeRecompute(t, bundle, out, balls, now);
     await syncIfCompleted(t, match, innings, after, now);

@@ -32,7 +32,7 @@ interface AbandonMatchDialogProps {
     resultType: "abandoned" | "no_result" | "win";
     winningTeamId?: string | null;
     notes?: string | null;
-  }) => Promise<void> | void;
+  }) => Promise<boolean | void> | boolean | void;
   isProcessing?: boolean;
 }
 
@@ -59,16 +59,25 @@ export function AbandonMatchDialog({
   );
   const [winningTeamId, setWinningTeamId] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const busy = isProcessing || saving;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onConfirm({
-      reason,
-      resultType,
-      winningTeamId: resultType === "win" ? winningTeamId : null,
-      notes: notes.trim() || null,
-    });
-    onOpenChange(false);
+    if (busy) return;
+    setSaving(true);
+    try {
+      const done = await onConfirm({
+        reason,
+        resultType,
+        winningTeamId: resultType === "win" ? winningTeamId : null,
+        notes: notes.trim() || null,
+      });
+      // Not saved (no connection): the form stays as it is.
+      if (done !== false) onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -81,11 +90,12 @@ export function AbandonMatchDialog({
                 <AlertTriangle className="h-4 w-4" />
               </span>
               <DialogTitle className="text-lg font-semibold">
-                Abandon match
+                End the match early
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
-              End this match due to weather, unsafe conditions, or forfeiture.
+              Abandoned, no result, or awarded to a team (weather, light,
+              a walkover).
             </DialogDescription>
           </DialogHeader>
 
@@ -171,8 +181,7 @@ export function AbandonMatchDialog({
             </div>
 
             <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
-              <strong>Notice:</strong> Abandoning the match is final and will
-              close scoring for this fixture.
+              This ends the match: no more balls can be scored.
             </div>
           </div>
 
@@ -182,7 +191,7 @@ export function AbandonMatchDialog({
               variant="outline"
               size="sm"
               onClick={() => onOpenChange(false)}
-              disabled={isProcessing}
+              disabled={busy}
             >
               Cancel
             </Button>
@@ -190,10 +199,16 @@ export function AbandonMatchDialog({
               type="submit"
               variant="destructive"
               size="sm"
-              disabled={isProcessing || (resultType === "win" && !winningTeamId)}
+              disabled={busy || (resultType === "win" && !winningTeamId)}
               className="font-semibold"
             >
-              {isProcessing ? "Abandoning..." : "Confirm Abandon Match"}
+              {busy
+                ? "Saving…"
+                : resultType === "win"
+                  ? "Award the match"
+                  : resultType === "no_result"
+                    ? "End with no result"
+                    : "Abandon match"}
             </Button>
           </DialogFooter>
         </form>

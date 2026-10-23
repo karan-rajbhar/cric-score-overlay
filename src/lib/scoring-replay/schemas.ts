@@ -34,6 +34,9 @@ const opt = <T extends z.ZodTypeAny>(schema: T) =>
 
 const runs = z.number().int().min(0).max(99);
 
+/** What a no-ball's completed runs were (absent: off the bat). */
+const noBallRuns = z.enum(["bat", "bye", "leg_bye"]);
+
 const ballEvent = z.object({
   runsScored: opt(runs),
   extras: opt(runs),
@@ -44,6 +47,8 @@ const ballEvent = z.object({
   dismissedPlayerId: id.nullish(),
   commentary: opt(z.string().max(2000)),
   shotZone: optText(64),
+  // Optional (v1 still): absent means runs off the bat, as before.
+  noBallRuns: opt(noBallRuns),
 });
 
 const empty = z.object({});
@@ -87,6 +92,10 @@ export const replayPayloadSchemasV1 = {
     extraType: extraType.nullish(),
     isWicket: z.boolean(),
     dismissalType: z.string().max(64).nullish(),
+    // Optional (v1 still): an older client's edit sends neither.
+    fielderId: id.nullish(),
+    dismissedPlayerId: id.nullish(),
+    noBallRuns: noBallRuns.nullish(),
     batsmanId: id.nullish(),
     bowlerId: id.nullish(),
   }),

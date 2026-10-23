@@ -16,6 +16,7 @@ import type {
   MatchFormData,
   ScoringState,
   ExtraType,
+  NoBallRuns,
 } from "./types";
 import { getMatch } from "./queries";
 import { calculatePlayerOfTheMatch } from "~/lib/cricket";
@@ -461,6 +462,7 @@ export async function recordBall(params: {
       p_commentary: params.event.commentary ?? null,
       p_dismissed_player_id: params.event.dismissedPlayerId ?? null,
       p_shot_zone: params.event.shotZone ?? undefined,
+      p_no_ball_runs: params.event.noBallRuns ?? null,
       p_client_action_id: params.clientActionId ?? null,
     });
     if (error) {
@@ -875,6 +877,8 @@ export async function updateBall(params: {
   dismissedPlayerId?: string | null;
   batsmanId?: string | null;
   bowlerId?: string | null;
+  /** On a no-ball: byes / leg byes rather than runs off the bat. */
+  noBallRuns?: NoBallRuns | null;
   /** Idempotency key (offline queue id): a replay is not applied twice. */
   clientActionId?: string | null;
 }): Promise<{ data: ScoringState | null; error: string | null }> {
@@ -913,6 +917,7 @@ export async function updateBall(params: {
       p_dismissal_type: params.dismissalType ?? null,
       p_fielder_id: params.fielderId ?? null,
       p_dismissed_player_id: params.dismissedPlayerId ?? null,
+      p_no_ball_runs: params.noBallRuns ?? null,
       p_client_action_id: params.clientActionId ?? null,
     });
 
@@ -991,6 +996,8 @@ export interface MatchSettingsUpdate {
   wicketsPerInnings?: number;
   lastManStands?: boolean;
   goldenBall?: boolean;
+  /** The ball after a no-ball is a free hit. */
+  freeHit?: boolean;
   title?: string;
   ballsPerOver?: number;
   maxBallsPerOver?: number | null;
@@ -1056,6 +1063,8 @@ export async function updateMatchSettings(
       matchUpdates.last_man_stands = settings.lastManStands;
     if (settings.goldenBall !== undefined)
       matchUpdates.golden_ball = settings.goldenBall;
+    if (settings.freeHit !== undefined)
+      matchUpdates.free_hit = settings.freeHit;
     if (settings.title !== undefined) matchUpdates.title = settings.title;
     if (settings.ballsPerOver !== undefined)
       matchUpdates.balls_per_over = settings.ballsPerOver;

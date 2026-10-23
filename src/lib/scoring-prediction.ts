@@ -180,6 +180,7 @@ export function recordBallArgsOf(
     p_commentary: p.event.commentary ?? null,
     p_dismissed_player_id: p.event.dismissedPlayerId ?? null,
     p_shot_zone: p.event.shotZone ?? null,
+    p_no_ball_runs: p.event.noBallRuns ?? null,
   };
 }
 

@@ -45,7 +45,15 @@ export interface BallEvent {
   dismissedPlayerId?: string | null;
   commentary?: string;
   shotZone?: string | null;
+  /**
+   * On a no-ball: the completed runs were byes or leg byes (in `extras`,
+   * after the 1-run penalty), not off the bat. Absent: off the bat.
+   */
+  noBallRuns?: NoBallRuns | null;
 }
+
+/** What a no-ball's completed runs were. */
+export type NoBallRuns = "bat" | "bye" | "leg_bye";
 
 export interface ScoringState {
   ok: boolean;
