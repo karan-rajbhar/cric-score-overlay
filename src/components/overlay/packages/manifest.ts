@@ -41,6 +41,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     description: "Your primary and accent colours, text picked for contrast.",
     kind: "plain",
   },
+  {
+    id: "franchise-night",
+    label: "Franchise night",
+    description:
+      "Glossy prime-time franchise-league look: dark glass lit in team colours, gold accents, big figures.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
