@@ -151,7 +151,10 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     runsToTotal = extras;
     runsToBowler = extras;
     ballsToBatsman = 0;
-    // Strike does not change on wides.
+    // The runs they ran on a wide (after the 1-run penalty) cross them
+    // when odd, as the server's engine has it.
+    const ran = runsScored > 0 ? runsScored : Math.max(0, extras - 1);
+    if (ran % 2 !== 0) swapStrike = true;
   } else if (ball.extraType === 'no_ball') {
     isLegal = false;
     // Byes off a no-ball: in `extras` after the penalty, not the bowler's.

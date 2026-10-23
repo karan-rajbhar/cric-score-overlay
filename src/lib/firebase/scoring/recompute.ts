@@ -153,6 +153,26 @@ export function noBallByesOf(ball: {
   return { kind, runs: Math.max(0, (ball.extras ?? 0) - NO_BALL_PENALTY) };
 }
 
+/** The wide penalty, in `extras` of a wide (the rest the batters ran). */
+export const WIDE_PENALTY = 1;
+
+/**
+ * The runs the batters ran (or the boundary) on a wide, held in its
+ * `extras` after the penalty (as the scoring screen records a wide). They
+ * count as wides, but an odd number of them crosses the batters like any
+ * other runs (a boundary, four, does not). A wide that carries runs in
+ * `runs_scored` (older and imported balls) has its penalty alone in
+ * `extras`: those runs already decide the crossing.
+ */
+export function wideRunsOf(ball: {
+  extra_type?: string | null;
+  extras?: number | null;
+  runs_scored?: number | null;
+}): number {
+  if (ball.extra_type !== "wide" || (ball.runs_scored ?? 0) > 0) return 0;
+  return Math.max(0, (ball.extras ?? 0) - WIDE_PENALTY);
+}
+
 /** What the bowler is charged for `ball` (not byes, leg byes or penalties). */
 export function bowlerConcedes(ball: BallInput): number {
   const runs = ball.runs_scored ?? 0;
@@ -400,10 +420,12 @@ export function endsAfterBall(
   ball: BallInput,
   dismissedId: string | null,
 ): Ends {
+  // Runs the batters ran that are not off the bat: byes and leg byes
+  // (off a no-ball too) and the runs on a wide.
   const byeRuns =
     ball.extra_type === "bye" || ball.extra_type === "leg_bye"
       ? (ball.extras ?? 0)
-      : (noBallByesOf(ball)?.runs ?? 0);
+      : (noBallByesOf(ball)?.runs ?? 0) + wideRunsOf(ball);
   const swap = ((ball.runs_scored ?? 0) + byeRuns) % 2 === 1;
   const batter = ball.batsman_id;
   const partner = ball.non_striker_id ?? null;
