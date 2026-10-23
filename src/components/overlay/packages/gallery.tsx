@@ -152,7 +152,6 @@ export function galleryElementProps<E extends OverlayElementId>(
   const props: { [K in OverlayElementId]: () => OverlayElementProps[K] } = {
     scoreBug: () => ({
       ...base,
-      layout: v === "top" || v === "compact" ? v : "bottom",
       sponsor: "Northfield Builders",
       marginOffsetPx: 0,
       phase: overlayPhaseOf(state),
