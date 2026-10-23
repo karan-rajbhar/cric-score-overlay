@@ -1,168 +1,131 @@
-import { render, screen } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { LowerThirdStraps } from "./lower-third-straps";
 import { DEMO_MATCH_STATE } from "~/app/overlay/[matchId]/demo-data";
-import type { ActiveLowerThirdStrap } from "./types";
+import {
+  HoldScreen,
+  LowerThirdStraps,
+  strapAvailable,
+  strapHidesScoreBug,
+  useHeldState,
+} from "./lower-third-straps";
+import type { ActiveLowerThirdStrap, LiveMatchState } from "./types";
 
-describe("LowerThirdStraps Component", () => {
-  it("renders null when strap is null or none", () => {
+const S = DEMO_MATCH_STATE;
+
+function show(strap: Partial<ActiveLowerThirdStrap>, state: LiveMatchState = S) {
+  return render(
+    <LowerThirdStraps
+      strap={{ id: "x", type: "custom", title: "", durationMs: 5000, ...strap }}
+      state={state}
+      layout="bottom"
+      onDismiss={vi.fn()}
+    />,
+  );
+}
+
+describe("LowerThirdStraps", () => {
+  it("renders nothing without a strap", () => {
     const { container } = render(
-      <LowerThirdStraps
-        strap={null}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={vi.fn()}
-      />,
+      <LowerThirdStraps strap={null} state={S} layout="bottom" onDismiss={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders Batsman Inning strap with strike rate", () => {
-    const strap: ActiveLowerThirdStrap = {
-      id: "s1",
-      type: "batsman",
-      title: "",
-      durationMs: 5000,
-    };
-
-    render(
-      <LowerThirdStraps
-        strap={strap}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText(/BATSMAN INNINGS/i)).toBeInTheDocument();
-    expect(screen.getByText(/Virat Kohli/i)).toBeInTheDocument();
-    expect(screen.getByText(/78 runs off 46 balls/i)).toBeInTheDocument();
-    expect(screen.getByText(/Strike Rate/i)).toBeInTheDocument();
-  });
-
-  it("renders Bowler Spell strap with economy", () => {
-    const strap: ActiveLowerThirdStrap = {
-      id: "s2",
-      type: "bowler",
-      title: "",
-      durationMs: 5000,
-    };
-
-    render(
-      <LowerThirdStraps
-        strap={strap}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText(/CURRENT SPELL/i)).toBeInTheDocument();
-    expect(screen.getByText(/Ravindra Jadeja/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 wickets for 28 runs/i)).toBeInTheDocument();
-    expect(screen.getByText(/Economy/i)).toBeInTheDocument();
-  });
-
-  it("renders Target Equation strap", () => {
-    const strap: ActiveLowerThirdStrap = {
-      id: "s3",
-      type: "target",
-      title: "",
-      durationMs: 5000,
-    };
-
-    render(
-      <LowerThirdStraps
-        strap={strap}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText(/CHASE EQUATION/i)).toBeInTheDocument();
+  it("shows the striker's innings with boundaries and strike rate", () => {
+    show({ type: "batsman" });
+    expect(screen.getByText(S.striker_name!)).toBeInTheDocument();
     expect(
-      screen.getByText(/Need 17 runs from 8 deliveries/i),
+      screen.getByText(`${S.striker_runs} off ${S.striker_balls} balls`),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Required RR/i)).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`4s ${S.striker_fours}`))).toBeInTheDocument();
+    expect(screen.getByText(/SR \d+\.\d/)).toBeInTheDocument();
   });
 
-  it("renders custom production alert strap", () => {
-    const strap: ActiveLowerThirdStrap = {
-      id: "s4",
-      type: "custom",
-      title: "BROADCAST ALERT",
-      customText: "Physio on ground tending to batsman",
-      badge: "LIVE NOTICE",
-      durationMs: 5000,
-    };
+  it("shows the bowler's figures with maidens and economy", () => {
+    show({ type: "bowler" });
+    expect(screen.getByText(S.current_bowler_name!)).toBeInTheDocument();
+    expect(screen.getByText(/Maidens \d+ · Econ \d+\.\d{2}/)).toBeInTheDocument();
+  });
 
-    render(
-      <LowerThirdStraps
-        strap={strap}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("LIVE NOTICE")).toBeInTheDocument();
-    expect(screen.getByText("BROADCAST ALERT")).toBeInTheDocument();
+  it("shows the chase", () => {
+    show({ type: "target" });
     expect(
-      screen.getByText("Physio on ground tending to batsman"),
+      screen.getByText(`Need ${S.runs_needed} from ${S.balls_remaining} balls`),
     ).toBeInTheDocument();
+    expect(screen.getByText(`Target ${S.target_runs}`)).toBeInTheDocument();
   });
 
-  it("handles configurable auto-dismiss timers and infinite duration", () => {
-    vi.useFakeTimers();
-    const onDismiss = vi.fn();
+  it("shows the last wicket from the live row", () => {
+    show({ type: "last_wicket" });
+    expect(screen.getByText(S.last_wicket!.name!)).toBeInTheDocument();
+  });
 
-    // 5000ms duration
-    const strap5s: ActiveLowerThirdStrap = {
-      id: "s-5s",
-      type: "batsman",
-      title: "",
-      durationMs: 5000,
-    };
+  it("labels the win predictor as an estimate", () => {
+    show({ type: "win_predictor" });
+    expect(screen.getByText("Estimate")).toBeInTheDocument();
+    expect(screen.getByText(/\d+% · .* \d+%/)).toBeInTheDocument();
+  });
 
-    const { unmount } = render(
-      <LowerThirdStraps
-        strap={strap5s}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={onDismiss}
-      />,
+  it("renders nothing for a strap without data, and says so", () => {
+    const noPowerplay = { ...S, powerplay: null };
+    expect(strapAvailable("powerplay", noPowerplay)).toBe(false);
+    const { container } = show({ type: "powerplay" }, noPowerplay);
+    expect(container.firstChild).toBeNull();
+    expect(strapAvailable("powerplay", { ...S, powerplay: { end_over: 6 } })).toBe(true);
+    expect(strapAvailable("commentary", { ...S, last_ball_commentary: null })).toBe(false);
+    expect(strapAvailable("custom", S)).toBe(true);
+  });
+
+  it("shows producer messages in three forms", () => {
+    const { rerender } = show({
+      type: "message",
+      form: "double",
+      title: "Lunch",
+      subtitle: "Play resumes at 1.40pm",
+    });
+    expect(screen.getByText("Lunch")).toBeInTheDocument();
+    expect(screen.getByText("Play resumes at 1.40pm")).toBeInTheDocument();
+    for (const form of ["single", "baseline"] as const) {
+      rerender(
+        <LowerThirdStraps
+          strap={{ id: form, type: "message", form, title: `A ${form} line` }}
+          state={S}
+          layout="bottom"
+          onDismiss={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(`A ${form} line`)).toBeInTheDocument();
+    }
+  });
+
+  it("hides the score bar only for a single-line message", () => {
+    expect(strapHidesScoreBug({ id: "a", type: "message", title: "x", form: "single" })).toBe(true);
+    expect(strapHidesScoreBug({ id: "b", type: "message", title: "x", form: "baseline" })).toBe(false);
+    expect(strapHidesScoreBug(null)).toBe(false);
+  });
+});
+
+describe("holding", () => {
+  it("covers the picture in black, or shows a holding line", () => {
+    const { rerender, container } = render(<HoldScreen mode="black" />);
+    expect(screen.getByLabelText("Holding")).toHaveClass("bg-black");
+    rerender(<HoldScreen mode="card" />);
+    expect(screen.getByText("Score being updated")).toBeInTheDocument();
+    rerender(<HoldScreen mode="clean" />);
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("freezes the live row while held", () => {
+    const { result, rerender } = renderHook(
+      ({ state, held }) => useHeldState(state, held),
+      { initialProps: { state: 1, held: false } },
     );
-
-    vi.advanceTimersByTime(4999);
-    expect(onDismiss).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1);
-    expect(onDismiss).toHaveBeenCalledTimes(1);
-
-    unmount();
-    onDismiss.mockClear();
-
-    // Infinite duration (-1)
-    const strapInfinite: ActiveLowerThirdStrap = {
-      id: "s-inf",
-      type: "batsman",
-      title: "",
-      durationMs: -1,
-    };
-
-    render(
-      <LowerThirdStraps
-        strap={strapInfinite}
-        state={DEMO_MATCH_STATE}
-        layout="bottom"
-        onDismiss={onDismiss}
-      />,
-    );
-
-    vi.advanceTimersByTime(60000);
-    expect(onDismiss).not.toHaveBeenCalled();
-
-    vi.useRealTimers();
+    expect(result.current).toBe(1);
+    rerender({ state: 2, held: true });
+    expect(result.current).toBe(1);
+    rerender({ state: 3, held: true });
+    expect(result.current).toBe(1);
+    rerender({ state: 4, held: false });
+    expect(result.current).toBe(4);
   });
 });

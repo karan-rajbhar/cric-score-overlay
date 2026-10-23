@@ -1,6 +1,8 @@
 /**
- * Event cards (four, six, wicket, milestone, free hit): their text, from the
- * live score, and their sounds. Pure, apart from {@link playStingSound}.
+ * Event cards the producer asks for (four, six, wicket, milestone, free
+ * hit): their text, from the live score, and their sounds. Automatic ones
+ * come from `live_state.events` (`auto-graphics.ts`). Pure, apart from
+ * {@link playStingSound}.
  */
 
 import { formatHowOut } from "~/lib/cricket";
@@ -98,41 +100,6 @@ export function stingFor(
         detail: "Next delivery is a free hit",
       };
   }
-}
-
-/**
- * The card a new delivery earns, if any: wicket, six, four or free hit, or
- * a fifty / hundred the striker just reached (`celebrated` remembers which
- * were shown, so each shows once).
- */
-export function autoStingsFor(
-  state: LiveMatchState,
-  celebrated: Set<string>,
-): ActiveEventSting[] {
-  const seq = state.last_ball_seq ?? 0;
-  const out: ActiveEventSting[] = [];
-  if (state.last_ball_is_wicket) {
-    out.push(stingFor("wicket", state, `wkt-${seq}`));
-  } else if (state.last_ball_runs === 6) {
-    out.push(stingFor("six", state, `six-${seq}`));
-  } else if (state.last_ball_runs === 4) {
-    out.push(stingFor("four", state, `four-${seq}`));
-  } else if (state.last_ball_extra_type === "no_ball") {
-    out.push(stingFor("free_hit", state, `freehit-${seq}`));
-  }
-  const name = state.striker_name;
-  const runs = state.striker_runs ?? 0;
-  if (name && !state.last_ball_is_wicket) {
-    for (const mark of [100, 50]) {
-      const key = `${state.innings_number ?? 1}-${name}-${mark}`;
-      if (runs >= mark && runs < mark + 6 && !celebrated.has(key)) {
-        celebrated.add(key);
-        out.push(stingFor("milestone", state, `m${mark}-${seq}`));
-        break;
-      }
-    }
-  }
-  return out;
 }
 
 export function playStingSound(type: StingType, volume: number): void {

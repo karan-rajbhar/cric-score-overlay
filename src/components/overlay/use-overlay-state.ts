@@ -7,8 +7,9 @@
  *   (1 read on load, 1 per producer command), never paused (OBS may report
  *   a source on air as hidden).
  * - {@link useOverlayLayers}: what that state and the live score put on
- *   air besides the score: the scene, the lower third and the event card
- *   (from the producer's cue or a new delivery the automatic rules cover).
+ *   air besides the score: the scene, the lower third, the event card and
+ *   any automatic card or view (`autoGraphics` on each new live row, under
+ *   the automatic rules), plus replays for the OBS bridge.
  *
  * The OBS overlay and the control room's preview both use them, so the
  * preview shows what the overlay received, not what the producer clicked.
@@ -28,13 +29,17 @@ import {
   type OverlayStateDoc,
   type SceneUrlParams,
 } from "~/lib/overlay-state";
-import { autoStingsFor, playStingSound, stingFor } from "./stings";
+import { autoGraphics, type AutoGraphic } from "./auto-graphics";
+import { playStingSound, stingFor } from "./stings";
 import type {
   ActiveEventSting,
   ActiveLowerThirdStrap,
+  BroadcastViewId,
   LiveMatchState,
+  OverlaySnapshots,
   PresentationCardType,
 } from "./types";
+import type { HoldMode } from "~/lib/overlay-state";
 
 export interface OverlayStateSnapshot {
   doc: OverlayStateDoc | null;
@@ -77,7 +82,16 @@ export interface OverlayLayers {
   sting: ActiveEventSting | null;
   strap: ActiveLowerThirdStrap | null;
   card: PresentationCardType;
+  /** The suite view on air (an automatic one over the producer's); null: the score bug. */
+  view?: BroadcastViewId | null;
+  /** Data the control room sent for the standings / leaders cards. */
+  snapshots?: OverlaySnapshots | null;
+  /** Holding while the score is corrected. */
+  hold?: HoldMode | null;
 }
+
+/** A replay the automatic rules ask for (`obs-bridge.ts` plays it). */
+export type ReplayRequest = Extract<AutoGraphic, { kind: "replay" }>;
 
 export interface OverlayLayersOptions {
   doc: OverlayStateDoc | null;
@@ -94,6 +108,8 @@ export interface OverlayLayersOptions {
   serverNow?: number;
   /** Never play sounds (previews). */
   muted?: boolean;
+  /** Replays the automatic rules ask for (the OBS overlay only). */
+  onReplay?: (item: ReplayRequest) => void;
 }
 
 export interface OverlayLayersResult extends OverlayLayers {
@@ -108,6 +124,7 @@ export function useOverlayLayers({
   state,
   serverNow,
   muted = false,
+  onReplay,
 }: OverlayLayersOptions): OverlayLayersResult {
   const scene = sceneOf(params, doc?.scene);
   const [sting, setSting] = useState<ActiveEventSting | null>(null);
@@ -149,28 +166,56 @@ export function useOverlayLayers({
     show(stingFor(cue.kind, stateRef.current, cue.id));
   }, [loaded, cue, serverTime, show]);
 
-  // A card for each new delivery the automatic rules cover (never for the
-  // first snapshot, nor an undo).
-  const lastSeq = useRef<number | null>(state?.last_ball_seq ?? null);
-  const celebrated = useRef(new Set<string>());
+  // Automatic graphics for each new live row (never the first snapshot:
+  // `autoGraphics` treats it as history; an undo or edit has no events).
   const rules = autoRulesIn(doc);
-  const rulesKey = JSON.stringify(rules);
+  const rulesRef = useRef(rules);
+  const onReplayRef = useRef(onReplay);
   useEffect(() => {
-    const seq = state?.last_ball_seq;
-    if (!state || seq === null || seq === undefined) return;
-    const prev = lastSeq.current;
-    lastSeq.current = seq;
-    if (prev === null || seq <= prev) return;
-    const on = JSON.parse(rulesKey) as typeof rules;
-    const earned = autoStingsFor(state, celebrated.current).filter(
-      (s) => on[s.type]?.on !== false,
-    );
-    // A milestone outranks the boundary that brought it up.
-    const next = earned[earned.length - 1];
-    if (!next) return;
-    const seconds = on[next.type]?.seconds;
-    show(seconds ? { ...next, durationMs: seconds * 1000 } : next);
-  }, [state, rulesKey, show]);
+    rulesRef.current = rules;
+    onReplayRef.current = onReplay;
+  });
+  const [autoStrap, setAutoStrap] = useState<ActiveLowerThirdStrap | null>(
+    null,
+  );
+  const [autoCard, setAutoCard] = useState<PresentationCardType | null>(null);
+  const [autoView, setAutoView] = useState<BroadcastViewId | null>(null);
+  const prevRow = useRef<LiveMatchState | null>(null);
+  const pending = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    if (!state) return;
+    const prev = prevRow.current;
+    prevRow.current = state;
+    const items = autoGraphics(prev, state, rulesRef.current);
+    if (!items.length) return;
+    // A new moment replaces whatever the last one still had queued.
+    for (const t of pending.current) clearTimeout(t);
+    pending.current = [];
+    const later = (ms: number, fn: () => void) =>
+      pending.current.push(setTimeout(fn, ms));
+    for (const item of items) {
+      later(item.at, () => {
+        if (item.kind === "sting") show(item.sting);
+        else if (item.kind === "replay") onReplayRef.current?.(item);
+        else if (item.kind === "strap") {
+          setAutoStrap({ ...item.strap, durationMs: -1 });
+          later(item.durationMs, () => setAutoStrap(null));
+        } else if (item.kind === "card") {
+          setAutoCard(item.card);
+          later(item.durationMs, () => setAutoCard(null));
+        } else {
+          setAutoView(item.view);
+          later(item.durationMs, () => setAutoView(null));
+        }
+      });
+    }
+  }, [state, show]);
+  useEffect(
+    () => () => {
+      for (const t of pending.current) clearTimeout(t);
+    },
+    [],
+  );
 
   // The lower third: on air until its time is up or it is taken off here.
   const storedStrap = doc?.strap ?? null;
@@ -197,9 +242,13 @@ export function useOverlayLayers({
   return {
     scene,
     sting,
-    // The strap shown keeps its stored timing out of the component's way.
-    strap: strap ? { ...strap, durationMs: -1 } : null,
-    card: scene.card,
+    // The strap shown keeps its stored timing out of the component's way;
+    // an automatic one goes over the producer's while it lasts.
+    strap: autoStrap ?? (strap ? { ...strap, durationMs: -1 } : null),
+    card: autoCard ?? scene.card,
+    view: autoView ?? scene.view,
+    snapshots: doc?.snapshots ?? null,
+    hold: scene.hold,
     dismissSting: useCallback(() => setSting(null), []),
     dismissStrap: useCallback(() => {
       setStrap(null);

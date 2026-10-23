@@ -20,6 +20,7 @@ import {
   teamName,
 } from "~/lib/cricket";
 import { useLiveState } from "~/lib/hooks/useLiveState";
+import { winPredictorFromLive } from "~/lib/win-predictor";
 import type { Innings, Match } from "~/lib/match-types";
 
 /** A ball of `live_state.this_over_balls` ("1", "W", "wd", "2+nb") as a chip. */
@@ -130,6 +131,18 @@ export function MatchLivePanel({ match }: { match: Match }) {
       ? `${live.last_ball_dismissed_player}, ${formatDismissalType(live.last_ball_dismissal_type).toLowerCase()}${live.last_ball_fielder ? ` (${live.last_ball_fielder})` : ""}`
       : null;
   const lastBall = live?.last_ball_commentary || lastWicket;
+  // From the live row already followed: no reads. Always an estimate.
+  const estimate = live
+    ? winPredictorFromLive(live, {
+        ballsPerOver: bpo,
+        wicketsPerInnings: match.wickets_per_innings ?? undefined,
+      })
+    : null;
+  const estimateLine = !estimate
+    ? null
+    : estimate.kind === "chase"
+      ? `${batting} ${estimate.battingPct}% to win`
+      : `${batting} to finish on ${estimate.low} to ${estimate.high}`;
 
   const figures = [
     balls > 0 && (
@@ -214,6 +227,11 @@ export function MatchLivePanel({ match }: { match: Match }) {
             <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
               Target revised by the DLS method: {dls.target_runs}{" "}
               {dls.target_runs === 1 ? "run" : "runs"} in {dls.overs} overs.
+            </p>
+          )}
+          {estimateLine && (
+            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+              <span className="font-medium">Estimate:</span> {estimateLine}
             </p>
           )}
         </Card>

@@ -66,16 +66,24 @@ describe("OverlayStage", () => {
   it("shows who plays before the first ball, not an empty score", () => {
     stage(PRE);
     expect(overlayPhaseOf(PRE)).toBe("pre");
-    expect(screen.getByText(/Royal Challengers/)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(DEMO_MATCH_STATE.team1_name!)),
+    ).toBeInTheDocument();
     expect(screen.queryByText("BAT")).toBeNull();
     expect(screen.queryByText(/won the toss/)).toBeNull();
     expect(screen.queryByText("0/0")).toBeNull();
   });
 
   it("names the toss only when it is recorded", () => {
-    stage({ ...PRE, toss_winner_team_id: "team-csk", toss_decision: "bowl" });
+    stage({
+      ...PRE,
+      toss_winner_team_id: DEMO_MATCH_DETAILS.team2_id,
+      toss_decision: "bowl",
+    });
     expect(
-      screen.getByText("Super Kings won the toss and chose to bowl"),
+      screen.getByText(
+        `${DEMO_MATCH_STATE.team2_name} won the toss and chose to bowl`,
+      ),
     ).toBeInTheDocument();
   });
 
@@ -94,7 +102,9 @@ describe("OverlayStage", () => {
     };
     stage(brk);
     expect(overlayPhaseOf(brk)).toBe("break");
-    expect(screen.getByText("RCB to bat next")).toBeInTheDocument();
+    expect(
+      screen.getByText(`${DEMO_MATCH_STATE.batting_team_short_name} to bat next`),
+    ).toBeInTheDocument();
     expect(screen.getByText("Need 185 from 120 balls")).toBeInTheDocument();
   });
 
@@ -107,13 +117,13 @@ describe("OverlayStage", () => {
       bowling_team_short_name: null,
       runs_needed: null,
       balls_remaining: null,
-      result_description: "Super Kings won by 9 runs",
+      result_description: "Harbour Hawks won by 9 runs",
     };
     stage(done);
     expect(overlayPhaseOf(done)).toBe("done");
-    expect(screen.getByText("Super Kings won by 9 runs")).toBeInTheDocument();
+    expect(screen.getByText("Harbour Hawks won by 9 runs")).toBeInTheDocument();
     // The other side is named even though live_state drops it after play.
-    expect(screen.getByText(/RCB v CSK/)).toBeInTheDocument();
+    expect(screen.getByText(/RIV v HAW/)).toBeInTheDocument();
     // No "Need runs from balls" with the numbers missing.
     expect(screen.queryByText(/Need/)).toBeNull();
   });
@@ -171,21 +181,63 @@ describe("stingFor", () => {
       {
         ...DEMO_MATCH_STATE,
         last_ball_is_wicket: true,
-        last_ball_dismissed_player: "Virat Kohli",
+        last_ball_dismissed_player: "Ravi Iyer",
         last_ball_dismissal_type: "caught",
-        last_ball_fielder: "MS Dhoni",
+        last_ball_fielder: "Noah Pereira",
       },
       "w",
     );
-    expect(out.subtitle).toBe("Virat Kohli out");
-    expect(out.detail).toBe("c MS Dhoni b Ravindra Jadeja");
+    expect(out.subtitle).toBe("Ravi Iyer out");
+    expect(out.detail).toBe(
+      `c Noah Pereira b ${DEMO_MATCH_STATE.current_bowler_name}`,
+    );
   });
 
   it("calls a milestone a fifty or hundred only when it is one", () => {
-    expect(stingFor("milestone", DEMO_MATCH_STATE, "m").title).toBe("Fifty");
+    expect(
+      stingFor("milestone", { ...DEMO_MATCH_STATE, striker_runs: 52 }, "m")
+        .title,
+    ).toBe("Fifty");
     expect(
       stingFor("milestone", { ...DEMO_MATCH_STATE, striker_runs: 23 }, "m")
         .title,
     ).toBe("Milestone");
+  });
+});
+
+describe("OverlayStage with the new graphics", () => {
+  it("draws the theme's score bug, with no-ball byes in this over", () => {
+    stage({ ...DEMO_MATCH_STATE, this_over_balls: "1 nb+2b 4" });
+    expect(screen.getByTestId("score-bug")).toBeInTheDocument();
+    expect(screen.getByText("nb+2b")).toBeInTheDocument();
+  });
+
+  it("marks a free hit on the bar", () => {
+    stage({ ...DEMO_MATCH_STATE, free_hit: true });
+    expect(screen.getByText("Free hit")).toBeInTheDocument();
+  });
+
+  it("shows an automatic view over the producer's scene", () => {
+    stage(DEMO_MATCH_STATE, { view: "14" });
+    expect(screen.getByText(/Innings break/)).toBeInTheDocument();
+    expect(screen.queryByTestId("score-bug")).toBeNull();
+  });
+
+  it("holds: black covers everything, the holding line replaces the bar", () => {
+    const black = stage(DEMO_MATCH_STATE, { hold: "black" });
+    expect(screen.getByLabelText("Holding")).toBeInTheDocument();
+    expect(screen.queryByTestId("score-bug")).toBeNull();
+    black.unmount();
+    stage(DEMO_MATCH_STATE, { hold: "card" });
+    expect(screen.getByText("Score being updated")).toBeInTheDocument();
+    expect(screen.queryByTestId("score-bug")).toBeNull();
+  });
+
+  it("gives the bar's place to a single-line message", () => {
+    stage(DEMO_MATCH_STATE, {
+      strap: { id: "m", type: "message", form: "single", title: "Lunch" },
+    });
+    expect(screen.getByText("Lunch")).toBeInTheDocument();
+    expect(screen.queryByTestId("score-bug")).toBeNull();
   });
 });

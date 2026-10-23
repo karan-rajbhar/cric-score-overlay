@@ -817,6 +817,8 @@ async function finishWithState(
   before: MatchesRow | null,
   changed: Changed,
   lastChange?: LiveStateLastChange,
+  /** A delivery recorded through the full path (live_state events). */
+  delivery = false,
 ): Promise<ScoringState> {
   const after = (await ctx.ds.getById(
     "matches",
@@ -830,6 +832,7 @@ async function finishWithState(
     changed.overs,
     lastChange,
     changed.innings,
+    delivery,
   );
   return recordState(ctx.ds, matchId, after);
 }
@@ -902,6 +905,10 @@ async function stageCurrentLiveState(
     },
     prevLive,
     now,
+    undefined,
+    undefined,
+    undefined,
+    { kind: "crease" },
   );
 }
 
@@ -1040,7 +1047,12 @@ async function recordBallIncremental(
     loadNames(t, ids, prevLive?.refs?.names ?? {}),
     findLastOverBowler(t, currentInnings, bpo, lastBall),
   ]);
-  await stageLiveState(t, liveParts, prevLive, now, header, names, lastChange);
+  await stageLiveState(t, liveParts, prevLive, now, header, names, lastChange, {
+    kind: "delivery",
+    ball,
+    innings: inningsAfter,
+    overBalls,
+  });
 
   const state = composeScoringState({
     match: matchAfter,
@@ -1175,7 +1187,14 @@ export async function recordBall(
     await maybeRecalculateStandings(ctx.ds, before, outcome.after);
     state = outcome.state;
   } else {
-    state = await finishWithState(ctx, matchId, before, overs, lastChange);
+    state = await finishWithState(
+      ctx,
+      matchId,
+      before,
+      overs,
+      lastChange,
+      true,
+    );
   }
   if (state.current_innings !== (before.current_innings ?? 1)) {
     state.innings_break = true;

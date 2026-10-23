@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   applyOverlayPatch,
+  automaticRules,
+  autoRulesIn,
   DEFAULT_AUTO_RULES,
   isAutomatic,
   manualAutoRules,
   overlayPatchOf,
   parseOverlayState,
   sceneOf,
+  snapshotsOf,
   strapOnAir,
   type OverlayStateDoc,
 } from "./overlay-state";
@@ -77,7 +80,7 @@ describe("overlayPatchOf", () => {
 
   it("clears every one-off graphic", () => {
     expect(overlayPatchOf({ type: "PANIC_CLEAR" }, NOW)).toEqual({
-      scene: { view: null, card: "none" },
+      scene: { view: null, card: "none", hold: null },
       strap: null,
       cue: null,
     });
@@ -165,12 +168,14 @@ describe("sceneOf", () => {
       showBug: true,
       sound: false,
     });
+    // Every old theme was a dark bar: Standard.
     expect(
       sceneOf({ layout: "compact", theme: "minimal" }, null),
     ).toMatchObject({
       layout: "compact",
-      theme: "light",
+      theme: "standard",
     });
+    expect(sceneOf({ theme: "light" }, null).theme).toBe("light");
     // The old graphics-suite link shows the suite's scorebar.
     expect(sceneOf({ layout: "broadcast" }, null).view).toBe("1");
     expect(sceneOf({ layout: "compact" }, { layout: "top" }).layout).toBe(
@@ -204,6 +209,22 @@ describe("lower thirds and automatic rules", () => {
     expect(isAutomatic(null)).toBe(true);
     expect(isAutomatic({ ...base, auto: manualAutoRules() })).toBe(false);
     expect(isAutomatic({ ...base, auto: DEFAULT_AUTO_RULES })).toBe(true);
+    // Replays (off until OBS is set up) do not count.
+    expect(
+      isAutomatic({ ...base, auto: automaticRules(manualAutoRules()) }),
+    ).toBe(true);
+    expect(automaticRules(manualAutoRules()).replay_wicket?.on).toBe(false);
+  });
+
+  it("reads rules stored under the old ids", () => {
+    const rules = autoRulesIn({
+      ...base,
+      auto: { wicket: { on: false, seconds: 9 }, milestone: { on: false, seconds: 5 } },
+    });
+    expect(rules.sting_wicket).toEqual({ on: false, seconds: 9 });
+    expect(rules.batter_milestone?.on).toBe(false);
+    expect(rules.hat_trick?.on).toBe(false);
+    expect(rules.sting_six?.on).toBe(true);
   });
 });
 
@@ -224,5 +245,82 @@ describe("Stream Deck commands", () => {
     expect(applyOverlayPatch(once, patch, null, NOW).scene.sponsorIndex).toBe(
       2,
     );
+  });
+});
+
+describe("replays, holds and snapshots", () => {
+  it("names the replay scene and holds the overlay", () => {
+    expect(
+      overlayPatchOf({ type: "SET_REPLAY_SCENE", replayScene: " Replay " }, NOW),
+    ).toEqual({ scene: { replayScene: "Replay" } });
+    expect(overlayPatchOf({ type: "SET_HOLD", hold: "black" }, NOW)).toEqual({
+      scene: { hold: "black" },
+    });
+    expect(overlayPatchOf({ type: "SET_HOLD", hold: null }, NOW)).toEqual({
+      scene: { hold: null },
+    });
+    expect(
+      overlayPatchOf({ type: "SET_HOLD", hold: "grey" as never }, NOW),
+    ).toBeNull();
+    const doc = applyOverlayPatch(
+      null,
+      overlayPatchOf({ type: "SET_HOLD", hold: "card" }, NOW)!,
+      "h",
+      NOW,
+    );
+    expect(parseOverlayState(JSON.parse(JSON.stringify(doc)))?.scene.hold).toBe(
+      "card",
+    );
+  });
+
+  it("takes the new graphics' views, straps and message forms", () => {
+    expect(
+      overlayPatchOf({ type: "SET_BROADCAST_VIEW", broadcastView: "42" }, NOW),
+    ).toEqual({ scene: { view: "42", card: "none" } });
+    const patch = overlayPatchOf(
+      {
+        type: "SHOW_STRAP",
+        strap: { id: "m", type: "message", title: "Lunch", form: "single" },
+      },
+      NOW,
+    );
+    expect(patch?.strap).toMatchObject({ type: "message", form: "single" });
+  });
+
+  it("validates and caps snapshots, and stores them", () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      team: `Team ${i}`,
+      played: 5,
+      won: 3,
+      lost: 2,
+      points: 6,
+      nrr: 0.25,
+    }));
+    const snap = snapshotsOf({
+      pointsTable: { title: "Group A", rows: [...rows, { team: "" }] },
+      leaderboard: {
+        title: "Most runs",
+        metric: "Runs",
+        rows: [{ name: "A", value: 120 }, { name: "", value: 3 }],
+      },
+      nextFixture: { team1: "One", team2: "Two", team1Logo: "javascript:x" },
+      series: { "p-1": { matches: 4, runs: 80, best: "3-12" }, "bad id!": { matches: 1 } },
+    })!;
+    expect(snap.pointsTable?.rows).toHaveLength(16);
+    expect(snap.leaderboard?.rows).toEqual([
+      { name: "A", team: null, value: 120, detail: null, playerId: null },
+    ]);
+    expect(snap.nextFixture?.team1Logo).toBeNull();
+    expect(Object.keys(snap.series ?? {})).toEqual(["p-1"]);
+    const patch = overlayPatchOf({ type: "SET_SNAPSHOTS", snapshots: snap }, NOW)!;
+    const doc = applyOverlayPatch(null, patch, "s", NOW);
+    expect(doc.snapshots?.pointsTable?.title).toBe("Group A");
+    expect(JSON.stringify(doc.snapshots).length).toBeLessThan(16 * 1024);
+    expect(parseOverlayState(JSON.parse(JSON.stringify(doc)))?.snapshots).toEqual(
+      doc.snapshots,
+    );
+    expect(overlayPatchOf({ type: "SET_SNAPSHOTS", snapshots: null }, NOW)).toEqual({
+      snapshots: null,
+    });
   });
 });

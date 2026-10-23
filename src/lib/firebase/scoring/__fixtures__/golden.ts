@@ -14,7 +14,9 @@ import { createHash } from "node:crypto";
 import { inningsSummaryEntry, inningsSummaryOf } from "../../derive.mjs";
 import type { ScoringState } from "~/app/matches/types";
 import type { DataSource, Doc } from "../../datasource";
-import { logicalMatch } from "./legacy";
+import { logicalMatch, OVERLAY_ROW_FIELDS } from "./legacy";
+
+const OVERLAY_FIELDS: ReadonlySet<string> = new Set(OVERLAY_ROW_FIELDS);
 import {
   recomputeInningsRpc,
   recordBall,
@@ -182,6 +184,8 @@ export async function legacySnapshot(
           (k === "last_change" || k === "this_over_runs"))
       )
         continue;
+      // Overlay fields, added after the recording too (live-events.test.ts).
+      if (table === "live_state" && OVERLAY_FIELDS.has(k)) continue;
       // Stage 3 derived match fields (search keys, the innings summary,
       // which incremental.test.ts checks against the innings instead).
       if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;

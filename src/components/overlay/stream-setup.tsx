@@ -7,10 +7,15 @@ import { Card, CardHeader } from "~/components/ds/card";
 import { Button } from "~/components/ui/button";
 import type { Match } from "~/lib/match-types";
 import {
-  DEFAULT_AUTO_RULES,
+  automaticRules,
+  autoRulesIn,
   isAutomatic,
   manualAutoRules,
 } from "~/lib/overlay-state";
+import {
+  OBS_REPLAY_SETUP_STEPS,
+  RECOMMENDED_REPLAY_BUFFER_SECONDS,
+} from "./obs-bridge";
 import { cn } from "~/lib/utils";
 import { ChannelPicker } from "~/components/streaming/channel-picker";
 import { OverlayPreview } from "./overlay-preview";
@@ -391,7 +396,7 @@ export function StreamSetup({
               aria-pressed={automatic}
               onClick={() =>
                 void send(
-                  { type: "SET_AUTO", auto: DEFAULT_AUTO_RULES },
+                  { type: "SET_AUTO", auto: automaticRules(autoRulesIn(doc)) },
                   "Automatic graphics",
                 )
               }
@@ -406,7 +411,8 @@ export function StreamSetup({
                 Automatic (recommended)
               </span>
               <span className="block text-sm text-muted-foreground">
-                Fours, sixes, wickets and fifties get a card by themselves.
+                Fours, sixes, wickets, milestones, new batters and bowlers,
+                the end of each over and the result show by themselves.
                 Nobody needs to watch the overlay.
               </span>
             </button>
@@ -414,7 +420,7 @@ export function StreamSetup({
               href={`/overlay/${matchId}/control`}
               onClick={() =>
                 void send(
-                  { type: "SET_AUTO", auto: manualAutoRules() },
+                  { type: "SET_AUTO", auto: manualAutoRules(autoRulesIn(doc)) },
                   "Manual graphics",
                 )
               }
@@ -441,6 +447,26 @@ export function StreamSetup({
           </p>
         )}
       </Step>
+
+      <Card className="p-4 sm:p-5">
+        <details>
+          <summary className="cursor-pointer text-base font-semibold">
+            Replays (optional, OBS only)
+          </summary>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The overlay can save a clip from OBS after a wicket, six or four
+            and show it in a Replay scene, then cut back. Set OBS up once,
+            then turn on the replay rules in the control room. Keep{" "}
+            {RECOMMENDED_REPLAY_BUFFER_SECONDS} seconds of replay buffer: the
+            scorer records a ball a few seconds after it happens.
+          </p>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm">
+            {OBS_REPLAY_SETUP_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        </details>
+      </Card>
 
       <Card className="p-4 sm:p-5">
         <h2 className="text-base font-semibold">If something looks wrong</h2>

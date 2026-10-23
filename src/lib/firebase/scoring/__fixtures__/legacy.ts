@@ -75,6 +75,35 @@ function ballText(b: BallByBallRow): string {
   return String(runs);
 }
 
+/**
+ * Live row fields added for the overlay after the legacy implementation
+ * (ids, boundaries, maidens, last wicket, powerplay, team colours, events):
+ * left out when comparing with it; `live-events.test.ts` covers them.
+ */
+export const OVERLAY_ROW_FIELDS = [
+  "free_hit",
+  "striker_id",
+  "striker_fours",
+  "striker_sixes",
+  "non_striker_id",
+  "non_striker_fours",
+  "non_striker_sixes",
+  "bowler_id",
+  "bowler_maidens",
+  "last_wicket",
+  "powerplay",
+  "team_colors",
+  "events",
+] as const;
+
+/** `row` without {@link OVERLAY_ROW_FIELDS}, keys in the same order. */
+export function withoutOverlayFields<T extends object | null>(row: T): T {
+  if (!row) return row;
+  const copy: Record<string, unknown> = { ...row };
+  for (const k of OVERLAY_ROW_FIELDS) delete copy[k];
+  return copy as T;
+}
+
 export async function legacyBuildLiveMatchState(
   ds: DataSource,
   matchId: string,

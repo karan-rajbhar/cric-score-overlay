@@ -75,6 +75,7 @@ import {
 } from "./__fixtures__/golden";
 import {
   legacyBuildLiveMatchState,
+  withoutOverlayFields,
   legacyRecordState,
 } from "./__fixtures__/legacy";
 import {
@@ -305,8 +306,10 @@ async function checkInvariants(side: Stage2Side, matchId: string) {
     matchId,
   )) as unknown as LiveStateDoc | null;
   const legacyLive = await legacyBuildLiveMatchState(view, matchId);
-  if (live) expect(liveRowOf(live)).toEqual(legacyLive);
-  expect(await buildLiveMatchState(ds, matchId)).toEqual(legacyLive);
+  if (live) expect(withoutOverlayFields(liveRowOf(live))).toEqual(legacyLive);
+  expect(withoutOverlayFields(await buildLiveMatchState(ds, matchId))).toEqual(
+    legacyLive,
+  );
   if (innings.some((i) => i.innings_number === (match.current_innings ?? 1))) {
     expect(await recordState(ds, matchId)).toEqual(
       await legacyRecordState(view, matchId),

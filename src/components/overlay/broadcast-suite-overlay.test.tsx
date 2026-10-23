@@ -1,157 +1,110 @@
-import React from "react";
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import {
-  BroadcastSuiteOverlay,
+  DEMO_MATCH_DETAILS,
+  DEMO_MATCH_STATE,
+} from "~/app/overlay/[matchId]/demo-data";
+import {
   BROADCAST_VIEW_OPTIONS,
+  BroadcastSuiteOverlay,
+  broadcastViewAvailable,
 } from "./broadcast-suite-overlay";
-import type { LiveMatchState } from "./types";
+import { LEGACY_OVERLAY_THEME_IDS } from "./overlay-themes";
+import type { BroadcastViewId, OverlaySnapshots } from "./types";
 
-const mockState: LiveMatchState = {
-  match_id: "test-match-123",
-  title: "IPL Final 2026",
-  status: "live",
-  match_format: "T20",
-  overs_per_innings: 20,
-  venue: "Wankhede Stadium, Mumbai",
-  current_innings: 1,
-  current_over: 16,
-  current_ball: 2,
-  result_type: null,
-  result_description: null,
-  tournament_name: "Indian Premier League",
-  team1_name: "Mumbai Indians",
-  team1_short_name: "MI",
-  team2_name: "Chennai Super Kings",
-  team2_short_name: "CSK",
-  winning_team_name: null,
-  innings_number: 1,
-  total_runs: 168,
-  total_wickets: 3,
-  total_overs: 16,
-  total_balls: 98,
-  extras_total: 10,
-  innings_completed: false,
-  target_runs: null,
-  batting_team_name: "Mumbai Indians",
-  batting_team_short_name: "MI",
-  bowling_team_name: "Chennai Super Kings",
-  bowling_team_short_name: "CSK",
-  striker_name: "Rohit Sharma",
-  striker_runs: 74,
-  striker_balls: 42,
-  non_striker_name: "Suryakumar Yadav",
-  non_striker_runs: 48,
-  non_striker_balls: 26,
-  current_bowler_name: "Jasprit Bumrah",
-  bowler_balls: 18,
-  bowler_runs: 22,
-  bowler_wickets: 2,
-  partnership_runs: 65,
-  partnership_balls: 34,
-  this_over_balls: "1 4 6 W 0 1",
-  current_run_rate: 10.28,
-  runs_needed: null,
-  balls_remaining: null,
-  required_run_rate: null,
-};
+const S = DEMO_MATCH_STATE;
+const M = DEMO_MATCH_DETAILS;
+
+const show = (view: BroadcastViewId, extra: { snapshots?: OverlaySnapshots } = {}) =>
+  render(<BroadcastSuiteOverlay state={S} match={M} activeView={view} {...extra} />);
 
 describe("BroadcastSuiteOverlay", () => {
-  it("renders the primary ScoreBar (view 1) with runs, wickets, batsmen, and bowler", () => {
-    render(<BroadcastSuiteOverlay state={mockState} activeView="1" />);
-
-    expect(screen.getByText(/Rohit Sharma/i)).toBeDefined();
-    expect(screen.getByText(/Suryakumar Yadav/i)).toBeDefined();
-    expect(screen.getByText(/Jasprit Bumrah/i)).toBeDefined();
-    expect(screen.getByText("168")).toBeDefined();
-    expect(screen.getByText("3")).toBeDefined();
-    expect(screen.getByText("MI")).toBeDefined();
-    expect(screen.getByText("CSK")).toBeDefined();
+  it("draws the score bar", () => {
+    show("1");
+    expect(screen.getByTestId("score-bug")).toBeInTheDocument();
+    expect(screen.getByText(`${S.total_runs}/${S.total_wickets}`)).toBeInTheDocument();
+    expect(screen.getByText(S.striker_name!)).toBeInTheDocument();
+    expect(screen.getByText(S.current_bowler_name!)).toBeInTheDocument();
   });
 
-  it("renders the 29-button switcher dock when showControls is true", () => {
-    const handleSelectView = vi.fn();
+  it("shows each innings' batting and bowling cards", () => {
+    show("2");
+    expect(screen.getByText(`${S.bowling_team_name} batting`)).toBeInTheDocument();
+    show("5");
+    expect(screen.getByText(`${S.bowling_team_name} bowling`)).toBeInTheDocument();
+  });
+
+  it("shows the striker's figures over the score bar", () => {
+    show("16");
+    expect(screen.getByText("On strike")).toBeInTheDocument();
+    expect(screen.getByTestId("score-bug")).toBeInTheDocument();
+  });
+
+  it("invents nothing: views without data render no graphic", () => {
+    for (const view of ["20", "29", "36", "43", "44"] as BroadcastViewId[]) {
+      expect(broadcastViewAvailable(view, { state: S, match: M })).toBe(false);
+    }
+    const { container } = show("20");
+    // Only the score bar stays up.
+    expect(container.querySelector("table")).toBeNull();
+    expect(screen.queryByText(/Standings/)).not.toBeInTheDocument();
+  });
+
+  it("shows the points table the control room sends", () => {
+    const snapshots: OverlaySnapshots = {
+      pointsTable: {
+        title: "Group A",
+        rows: [
+          { team: "Harbour Hawks", played: 5, won: 4, lost: 1, points: 8, nrr: 0.81 },
+          { team: "Riverside Rangers", played: 5, won: 3, lost: 2, points: 6, nrr: -0.12, highlight: true },
+        ],
+      },
+    };
+    expect(broadcastViewAvailable("20", { state: S, match: M, snapshots })).toBe(true);
+    show("20", { snapshots });
+    expect(screen.getByText("Group A")).toBeInTheDocument();
+    expect(screen.getByText("+0.810")).toBeInTheDocument();
+  });
+
+  it("draws the charts from the innings' balls", () => {
+    show("21");
+    expect(screen.getByText("Runs per over")).toBeInTheDocument();
+    show("41");
+    expect(screen.getByText("Powerplay")).toBeInTheDocument();
+  });
+
+  it("labels the win predictor as an estimate", () => {
+    show("42");
+    expect(screen.getByText("Win predictor")).toBeInTheDocument();
+    expect(screen.getAllByText(/Estimate/).length).toBeGreaterThan(0);
+  });
+
+  it("offers every view in the bar, disabling the ones without data", () => {
+    const onSelect = vi.fn();
     render(
       <BroadcastSuiteOverlay
-        state={mockState}
+        state={S}
+        match={M}
         activeView="1"
-        showControls={true}
-        onSelectView={handleSelectView}
+        showControls
+        onSelectView={onSelect}
       />,
     );
-
-    const battingBtn = screen.getByRole("button", {
-      name: "Batting Team 1(I1)",
-    });
-    expect(battingBtn).toBeDefined();
-
-    fireEvent.click(battingBtn);
-    expect(handleSelectView).toHaveBeenCalledWith("2");
+    expect(screen.getAllByRole("button")).toHaveLength(BROADCAST_VIEW_OPTIONS.length);
+    expect(screen.getByRole("button", { name: "Points table" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Batting card, 1st innings" }));
+    expect(onSelect).toHaveBeenCalledWith("2");
   });
 
-  it("renders Batting Team 1 card (view 2) and allows closing back to Scorebar", () => {
-    const handleClose = vi.fn();
-    render(
-      <BroadcastSuiteOverlay
-        state={mockState}
-        activeView="2"
-        onCloseCard={handleClose}
-      />,
-    );
-
-    expect(screen.getByText(/Mumbai Indians · Batting/i)).toBeDefined();
-    const closeBtn = screen.getByRole("button", { name: "Close Card" });
-    fireEvent.click(closeBtn);
-    expect(handleClose).toHaveBeenCalled();
+  it("keeps the old view ids", () => {
+    const ids = BROADCAST_VIEW_OPTIONS.map((o) => o.id);
+    for (const id of ["1", "2", "8", "13", "14", "20", "29", "39"]) {
+      expect(ids).toContain(id);
+    }
   });
 
-  it("renders Bowling Team 1 card (view 3)", () => {
-    render(<BroadcastSuiteOverlay state={mockState} activeView="3" />);
-    expect(screen.getByText(/Chennai Super Kings · Bowling/i)).toBeDefined();
-  });
-
-  it("renders Match Intro splash banner (view 13)", () => {
-    render(<BroadcastSuiteOverlay state={mockState} activeView="13" />);
-    expect(screen.getByText("Indian Premier League")).toBeDefined();
-    expect(screen.getByText("Starting soon")).toBeDefined();
-    expect(screen.getByText("vs")).toBeDefined();
-  });
-
-  it("renders Partnership breakdown card (view 23)", () => {
-    render(<BroadcastSuiteOverlay state={mockState} activeView="23" />);
-    expect(screen.getByText("Current partnership")).toBeDefined();
-  });
-
-  it("has all 29 valid view configurations defined in BROADCAST_VIEW_OPTIONS", () => {
-    expect(BROADCAST_VIEW_OPTIONS.length).toBe(29);
-    expect(BROADCAST_VIEW_OPTIONS.map((o) => o.id)).toContain("1");
-    expect(BROADCAST_VIEW_OPTIONS.map((o) => o.id)).toContain("2");
-    expect(BROADCAST_VIEW_OPTIONS.map((o) => o.id)).toContain("29");
-  });
-
-  it("applies theme data attribute and styling when different broadcast themes are selected", () => {
-    const { container, rerender } = render(
-      <BroadcastSuiteOverlay state={mockState} activeView="1" theme="apex" />,
-    );
-
-    const mainWrap = container.querySelector(".mainWrap");
-    expect(mainWrap?.getAttribute("data-theme")).toBe("apex");
-    expect(mainWrap?.classList.contains("theme-apex")).toBe(true);
-
-    rerender(
-      <BroadcastSuiteOverlay state={mockState} activeView="1" theme="volt" />,
-    );
-    expect(mainWrap?.getAttribute("data-theme")).toBe("volt");
-    expect(mainWrap?.classList.contains("theme-volt")).toBe(true);
-
-    rerender(
-      <BroadcastSuiteOverlay
-        state={mockState}
-        activeView="1"
-        theme="sonysports"
-      />,
-    );
-    expect(mainWrap?.getAttribute("data-theme")).toBe("sonysports");
-    expect(mainWrap?.classList.contains("theme-sonysports")).toBe(true);
+  it.each(LEGACY_OVERLAY_THEME_IDS)("accepts the old %s theme id", (theme) => {
+    render(<BroadcastSuiteOverlay state={S} match={M} activeView="1" theme={theme} />);
+    expect(screen.getByTestId("score-bug")).toBeInTheDocument();
   });
 });

@@ -1,442 +1,632 @@
 "use client";
 
-import "~/styles/broadcast-suite.css";
-import React, { useMemo } from "react";
-import type { BroadcastViewId, LiveMatchState, OverlayTheme } from "./types";
-import type {
-  Match,
-  BattingPerformance,
-  BowlingPerformance,
-  TeamPlayer,
-} from "~/lib/match-types";
-import { X } from "lucide-react";
-import { formatDismissalType } from "~/lib/cricket";
+/**
+ * The broadcast graphics suite: one view at a time, picked by the producer
+ * (`SET_BROADCAST_VIEW`). View ids are kept from the earlier suite so
+ * saved commands still work; their content is rebuilt on the shared
+ * overlay kit and themes.
+ *
+ * Nothing is invented: a view whose data does not exist renders nothing,
+ * and {@link broadcastViewAvailable} tells the control room which views it
+ * can offer. Data comes from the `live_state` row, `live_scorecard` (one
+ * read when a scorecard view shows), career documents and the ball log
+ * (read when shown) and the control room's snapshots (standings,
+ * leaderboards, fixtures, tournament figures).
+ */
 
-export interface BroadcastSuiteOverlayProps {
+import type { ReactNode } from "react";
+import type { Innings, Match } from "~/lib/match-types";
+import { cn } from "~/lib/utils";
+import { ChartCard, chartAvailable } from "./charts-card";
+import { useScorecardInnings } from "./overlay-data";
+import {
+  CardShell,
+  eyebrowOf,
+  FullScreen,
+  OV,
+  OverlayFrame,
+  oversText,
+  TeamMark,
+  teamCode,
+  type OverlayThemeProps,
+} from "./overlay-kit";
+import {
+  playingXi,
+  presentationCardAvailable,
+  tossWinnerName,
+} from "./presentation-cards";
+import {
+  CareerCard,
+  InningsFiguresCard,
+  playerInSlot,
+  SeriesCard,
+  type PlayerSlot,
+} from "./profile-card";
+import { ScoreBug } from "./score-bug";
+import { InningsCard, inningsTeamName, scoreOf } from "./scorecard-cards";
+import {
+  LeaderboardCard,
+  NextFixtureCard,
+  PointsTableCard,
+} from "./standings-cards";
+import type {
+  BroadcastViewId,
+  LiveMatchState,
+  OverlaySnapshots,
+} from "./types";
+import { WagonWheelCard, wagonWheelAvailable } from "./wagon-wheel-card";
+import { WinPredictorCard, winPredictorAvailable } from "./win-predictor-card";
+
+export interface BroadcastSuiteOverlayProps extends OverlayThemeProps {
   state: LiveMatchState;
   match?: Match | null;
   activeView: BroadcastViewId;
   onSelectView?: (view: BroadcastViewId) => void;
+  /** The view bar (for the overlay page's own controls; never on air). */
   showControls?: boolean;
+  /** Kept for callers; views have no on-air close button. */
   onCloseCard?: () => void;
-  theme?: OverlayTheme;
+  /** Standings, leaderboards, fixtures and tournament figures. */
+  snapshots?: OverlaySnapshots | null;
+  /** A sponsor line on the score bar. */
+  sponsor?: string | null;
 }
 
 export const BROADCAST_VIEW_OPTIONS: Array<{
   id: BroadcastViewId;
   label: string;
 }> = [
-  { id: "1", label: "Scorebar" },
-  { id: "2", label: "Batting Team 1(I1)" },
-  { id: "6", label: "Squad Team 1" },
-  { id: "3", label: "Bowling Team 1(I1)" },
-  { id: "4", label: "Batting Team 2(I1)" },
-  { id: "5", label: "Bowling Team 2(I1)" },
-  { id: "7", label: "Squad Team 2" },
-  { id: "13", label: "Intro" },
-  { id: "14", label: "Innings Break" },
-  { id: "15", label: "Drinks Break" },
-  { id: "28", label: "Rain Delay" },
-  { id: "16", label: "Batsman Stats" },
-  { id: "17", label: "Runner Stats" },
-  { id: "18", label: "Bowler Stats" },
-  { id: "19", label: "Out Batsman" },
-  { id: "24", label: "Batsman Career" },
-  { id: "25", label: "Runner Career" },
-  { id: "26", label: "Bowler Career" },
-  { id: "27", label: "Out Batsman Career" },
-  { id: "36", label: "Batsman Series" },
-  { id: "37", label: "Runner Series" },
-  { id: "38", label: "Bowler Series" },
-  { id: "39", label: "Out Batsman Series" },
-  { id: "23", label: "Partnership" },
-  { id: "8", label: "Summary" },
-  { id: "20", label: "Points Table" },
-  { id: "21", label: "Over by Over" },
+  { id: "1", label: "Score bar" },
+  { id: "2", label: "Batting card, 1st innings" },
+  { id: "3", label: "Bowling card, 1st innings" },
+  { id: "4", label: "Batting card, 2nd innings" },
+  { id: "5", label: "Bowling card, 2nd innings" },
+  { id: "6", label: "Playing XI, team 1" },
+  { id: "7", label: "Playing XI, team 2" },
+  { id: "13", label: "Match intro" },
+  { id: "14", label: "Innings break" },
+  { id: "15", label: "Drinks break" },
+  { id: "28", label: "Rain delay" },
+  { id: "16", label: "Striker figures" },
+  { id: "17", label: "Non-striker figures" },
+  { id: "18", label: "Bowler figures" },
+  { id: "19", label: "Last out figures" },
+  { id: "24", label: "Striker career" },
+  { id: "25", label: "Non-striker career" },
+  { id: "26", label: "Bowler career" },
+  { id: "27", label: "Last out career" },
+  { id: "36", label: "Striker this tournament" },
+  { id: "37", label: "Non-striker this tournament" },
+  { id: "38", label: "Bowler this tournament" },
+  { id: "39", label: "Last out this tournament" },
+  { id: "23", label: "Partnership split" },
+  { id: "40", label: "Wagon wheel" },
+  { id: "8", label: "Match summary" },
+  { id: "21", label: "Runs per over" },
   { id: "22", label: "Worm" },
-  { id: "29", label: "Player of the Match" },
+  { id: "41", label: "Run rates" },
+  { id: "42", label: "Win predictor card" },
+  { id: "20", label: "Points table" },
+  { id: "43", label: "Leaderboard" },
+  { id: "44", label: "Next match" },
+  { id: "29", label: "Player of the match" },
 ];
 
-export interface BroadcastThemeConfig {
-  name: string;
-  containerClass: string;
-  containerStyle: React.CSSProperties;
-  scoreTopClass: string;
-  scoreTopStyle?: React.CSSProperties;
-  centerBadgeClass: string;
-  centerBadgeStyle: React.CSSProperties;
-  wingStyle: React.CSSProperties;
-  accentRunsClass: string;
-  accentSecondaryClass: string;
-  bottomBarClass: string;
-  bottomBarStyle?: React.CSSProperties;
-  cardBorderClass: string;
-  cardHeaderClass: string;
-  boundary4Class: string;
-  boundary6Class: string;
-  wicketClass: string;
-  dotBallClass: string;
+const SLOT: Partial<Record<BroadcastViewId, PlayerSlot>> = {
+  "16": "striker",
+  "17": "non_striker",
+  "18": "bowler",
+  "19": "last_out",
+  "24": "striker",
+  "25": "non_striker",
+  "26": "bowler",
+  "27": "last_out",
+  "36": "striker",
+  "37": "non_striker",
+  "38": "bowler",
+  "39": "last_out",
+};
+
+/** Views drawn as a lower third over the score bar. */
+const LOWER_THIRD = new Set<BroadcastViewId>([
+  "15",
+  "16",
+  "17",
+  "18",
+  "19",
+  "24",
+  "25",
+  "26",
+  "27",
+  "28",
+  "29",
+  "36",
+  "37",
+  "38",
+  "39",
+]);
+
+export interface BroadcastViewData {
+  state: LiveMatchState;
+  match?: Match | null;
+  snapshots?: OverlaySnapshots | null;
 }
 
-export const DEFAULT_BROADCAST_THEME: BroadcastThemeConfig = {
-  name: "Star Sports (IPL)",
-  containerClass:
-    "border border-blue-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-  containerStyle: {
-    background: "#050e24",
-    borderColor: "rgba(59, 130, 246, 0.85)",
-  },
-  scoreTopClass: "bg-[#071330]",
-  centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-  centerBadgeStyle: {
-    background: "#1d4ed8",
-    borderColor: "#fbbf24",
-    borderWidth: "2px",
-  },
-  wingStyle: { background: "rgba(251, 191, 36, 0.6)" },
-  accentRunsClass: "text-amber-400 font-bold tabular-nums",
-  accentSecondaryClass: "text-sky-400 font-semibold",
-  bottomBarClass: "bg-[#020713] border-t border-blue-500/30",
-  cardBorderClass:
-    "border border-blue-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-  cardHeaderClass: "bg-blue-900 border-b-2 border-amber-400",
-  boundary4Class: "bg-blue-600 text-white font-semibold border-blue-400",
-  boundary6Class: "bg-amber-500 text-black font-semibold border-yellow-200",
-  wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-  dotBallClass: "bg-white/10 text-slate-400 border-white/15",
-};
+/** Whether a view has the data it shows (the control room disables it otherwise). */
+export function broadcastViewAvailable(
+  view: BroadcastViewId,
+  { state, match, snapshots }: BroadcastViewData,
+): boolean {
+  const innings = state.innings_number ?? 0;
+  const slot = SLOT[view];
+  switch (view) {
+    case "1":
+    case "15":
+    case "28":
+      return true;
+    case "2":
+    case "3":
+    case "8":
+      return innings >= 1;
+    case "4":
+    case "5":
+      return innings >= 2;
+    case "6":
+      return playingXi(match?.team1?.team_players).length > 0;
+    case "7":
+      return playingXi(match?.team2?.team_players).length > 0;
+    case "13":
+      return !!state.team1_name && !!state.team2_name;
+    case "14":
+      return innings >= 2 || !!state.innings_completed;
+    case "16":
+    case "17":
+    case "18":
+    case "19":
+      return !!playerInSlot(state, slot!).name;
+    case "24":
+    case "25":
+    case "26":
+    case "27":
+      return !!playerInSlot(state, slot!).id;
+    case "36":
+    case "37":
+    case "38":
+    case "39": {
+      const id = playerInSlot(state, slot!).id;
+      return !!id && !!snapshots?.series?.[id];
+    }
+    case "20":
+      return !!snapshots?.pointsTable?.rows.length;
+    case "21":
+      return chartAvailable("manhattan", state);
+    case "22":
+      return chartAvailable("worm", state);
+    case "41":
+      return chartAvailable("run_rate", state);
+    case "23":
+      return presentationCardAvailable("partnership", state, match);
+    case "29":
+      return !!match?.player_of_the_match?.full_name;
+    case "40":
+      return wagonWheelAvailable(state);
+    case "42":
+      return winPredictorAvailable(state);
+    case "43":
+      return !!snapshots?.leaderboard?.rows.length;
+    case "44":
+      return !!snapshots?.nextFixture;
+  }
+}
 
-export const BROADCAST_THEME_MAP: Record<string, BroadcastThemeConfig> = {
-  starsports: DEFAULT_BROADCAST_THEME,
-  sonysports: {
-    name: "Sony Sports (LIV)",
-    containerClass:
-      "border border-red-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#101012",
-      borderColor: "rgba(220, 38, 38, 0.9)",
-    },
-    scoreTopClass: "bg-[#18181b]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#dc2626",
-      borderColor: "#fca5a5",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(220, 38, 38, 0.7)" },
-    accentRunsClass: "text-red-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-rose-300 font-semibold",
-    bottomBarClass: "bg-[#09090b] border-t-2 border-red-600",
-    cardBorderClass:
-      "border border-red-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-red-900 border-b-2 border-red-500",
-    boundary4Class: "bg-red-700 text-white font-semibold border-red-400",
-    boundary6Class: "bg-red-600 text-white font-semibold border-rose-300",
-    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-semibold",
-    dotBallClass: "bg-zinc-800 text-zinc-400 border-zinc-700",
-  },
-  foxcricket: {
-    name: "Fox Cricket",
-    containerClass:
-      "border border-orange-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#0c0a09",
-      borderColor: "rgba(249, 115, 22, 0.9)",
-    },
-    scoreTopClass: "bg-[#1c1917]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#ea580c",
-      borderColor: "#fed7aa",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(249, 115, 22, 0.7)" },
-    accentRunsClass: "text-orange-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-amber-300 font-semibold",
-    bottomBarClass: "bg-[#060504] border-t-2 border-orange-500",
-    cardBorderClass:
-      "border border-orange-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-orange-950 border-b-2 border-orange-500",
-    boundary4Class: "bg-orange-600 text-white font-semibold border-orange-400",
-    boundary6Class: "bg-amber-500 text-black font-semibold border-amber-300",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-stone-800 text-stone-400 border-stone-700",
-  },
-  skysports: {
-    name: "Sky Sports (Ashes)",
-    containerClass:
-      "border border-red-700/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#050b1a",
-      borderColor: "rgba(185, 28, 28, 0.85)",
-    },
-    scoreTopClass: "bg-[#091533]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#b91c1c",
-      borderColor: "#fca5a5",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(185, 28, 28, 0.6)" },
-    accentRunsClass: "text-red-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-sky-300 font-semibold",
-    bottomBarClass: "bg-[#030610] border-t border-red-600/40",
-    cardBorderClass:
-      "border border-red-700/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-red-950 border-b-2 border-red-500",
-    boundary4Class: "bg-red-600 text-white font-semibold border-red-400",
-    boundary6Class: "bg-red-600 text-white font-semibold border-amber-300",
-    wicketClass: "bg-black text-red-500 border-2 border-red-500 font-semibold",
-    dotBallClass: "bg-slate-800 text-slate-400 border-slate-700",
-  },
-  apex: {
-    name: "Apex 24K Gold",
-    containerClass:
-      "border border-amber-400/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#0d0c09",
-      borderColor: "rgba(245, 158, 11, 0.9)",
-    },
-    scoreTopClass: "bg-[#17150f]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#d97706",
-      borderColor: "#fde68a",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(245, 158, 11, 0.7)" },
-    accentRunsClass: "text-amber-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-yellow-400 font-semibold",
-    bottomBarClass: "bg-[#070604] border-t-2 border-amber-500",
-    cardBorderClass:
-      "border border-amber-400/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-amber-950 border-b-2 border-amber-400",
-    boundary4Class: "bg-amber-600 text-black font-semibold border-amber-300",
-    boundary6Class: "bg-yellow-300 text-black font-semibold border-yellow-100",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-neutral-800 text-amber-200/50 border-neutral-700",
-  },
-  volt: {
-    name: "Volt Sports-Tech",
-    containerClass:
-      "border border-lime-400/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#040d0a",
-      borderColor: "rgba(163, 230, 53, 0.9)",
-    },
-    scoreTopClass: "bg-[#071a13]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#65a30d",
-      borderColor: "#bef264",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(163, 230, 53, 0.7)" },
-    accentRunsClass: "text-lime-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-emerald-400 font-semibold",
-    bottomBarClass: "bg-[#020705] border-t-2 border-lime-400",
-    cardBorderClass:
-      "border border-lime-400/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-emerald-950 border-b-2 border-lime-400",
-    boundary4Class: "bg-cyan-500 text-black font-semibold border-cyan-300",
-    boundary6Class: "bg-lime-400 text-black font-semibold border-lime-200",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-neutral-900 text-lime-400/50 border-neutral-800",
-  },
-  agni: {
-    name: "Agni Inferno",
-    containerClass:
-      "border border-orange-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#120501",
-      borderColor: "rgba(234, 88, 12, 0.95)",
-    },
-    scoreTopClass: "bg-[#200802]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#c2410c",
-      borderColor: "#ffedd5",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(234, 88, 12, 0.7)" },
-    accentRunsClass: "text-orange-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-amber-400 font-semibold",
-    bottomBarClass: "bg-[#0a0200] border-t-2 border-orange-600",
-    cardBorderClass:
-      "border border-orange-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-orange-950 border-b-2 border-orange-500",
-    boundary4Class: "bg-orange-600 text-white font-semibold border-orange-400",
-    boundary6Class: "bg-amber-400 text-white font-semibold border-yellow-300",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-stone-900 text-orange-400/50 border-stone-800",
-  },
-  thehundred: {
-    name: "The Hundred",
-    containerClass:
-      "border border-pink-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#14031c",
-      borderColor: "rgba(236, 72, 153, 0.9)",
-    },
-    scoreTopClass: "bg-[#240532]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#db2777",
-      borderColor: "#f472b6",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(236, 72, 153, 0.7)" },
-    accentRunsClass: "text-pink-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-cyan-300 font-semibold",
-    bottomBarClass: "bg-[#0a010e] border-t-2 border-cyan-400",
-    cardBorderClass:
-      "border border-pink-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-pink-950 border-b-2 border-pink-400",
-    boundary4Class: "bg-cyan-500 text-black font-semibold border-cyan-300",
-    boundary6Class: "bg-pink-500 text-white font-semibold border-pink-300",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-fuchsia-950 text-pink-300/50 border-fuchsia-900",
-  },
-  dharma: {
-    name: "Dharma Gold",
-    containerClass:
-      "border border-amber-600/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#130a04",
-      borderColor: "rgba(217, 119, 6, 0.9)",
-    },
-    scoreTopClass: "bg-[#231206]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#b45309",
-      borderColor: "#fde68a",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(217, 119, 6, 0.7)" },
-    accentRunsClass: "text-amber-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-yellow-400 font-semibold",
-    bottomBarClass: "bg-[#0a0502] border-t-2 border-amber-600",
-    cardBorderClass:
-      "border border-amber-600/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-amber-950 border-b-2 border-amber-500",
-    boundary4Class: "bg-amber-600 text-black font-semibold border-amber-300",
-    boundary6Class: "bg-yellow-400 text-black font-semibold border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-stone-900 text-amber-300/50 border-stone-800",
-  },
-  thunder: {
-    name: "Thunder Indigo",
-    containerClass:
-      "border border-cyan-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#03071e",
-      borderColor: "rgba(6, 182, 212, 0.9)",
-    },
-    scoreTopClass: "bg-[#091238]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#0891b2",
-      borderColor: "#67e8f9",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(6, 182, 212, 0.7)" },
-    accentRunsClass: "text-cyan-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-sky-400 font-semibold",
-    bottomBarClass: "bg-[#020412] border-t-2 border-cyan-500",
-    cardBorderClass:
-      "border border-cyan-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-cyan-950 border-b-2 border-cyan-400",
-    boundary4Class: "bg-cyan-600 text-white font-semibold border-cyan-300",
-    boundary6Class: "bg-cyan-400 text-black font-semibold border-cyan-100",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-indigo-950 text-cyan-300/50 border-indigo-900",
-  },
-  nakshatra: {
-    name: "Nakshatra Cosmic",
-    containerClass:
-      "border border-purple-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#0e051a",
-      borderColor: "rgba(168, 85, 247, 0.9)",
-    },
-    scoreTopClass: "bg-[#1b0c30]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#7e22ce",
-      borderColor: "#fde047",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(168, 85, 247, 0.7)" },
-    accentRunsClass: "text-amber-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-purple-300 font-semibold",
-    bottomBarClass: "bg-[#06020c] border-t-2 border-purple-500",
-    cardBorderClass:
-      "border border-purple-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-purple-950 border-b-2 border-amber-400",
-    boundary4Class: "bg-purple-600 text-white font-semibold border-purple-300",
-    boundary6Class: "bg-amber-400 text-white font-semibold border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-purple-950 text-purple-300/50 border-purple-900",
-  },
-  emerald: {
-    name: "Emerald Cricket",
-    containerClass:
-      "border border-emerald-500/90 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#04120b",
-      borderColor: "rgba(16, 185, 129, 0.9)",
-    },
-    scoreTopClass: "bg-[#092416]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#059669",
-      borderColor: "#fde047",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(16, 185, 129, 0.7)" },
-    accentRunsClass: "text-amber-300 font-bold tabular-nums",
-    accentSecondaryClass: "text-emerald-300 font-semibold",
-    bottomBarClass: "bg-[#020905] border-t-2 border-emerald-500",
-    cardBorderClass:
-      "border border-emerald-500/80 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-emerald-950 border-b-2 border-emerald-400",
-    boundary4Class:
-      "bg-emerald-600 text-white font-semibold border-emerald-300",
-    boundary6Class: "bg-yellow-400 text-black font-semibold border-yellow-200",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-emerald-950 text-emerald-300/50 border-emerald-900",
-  },
-  dark: {
-    name: "Dark Titanium",
-    containerClass:
-      "border border-white/25 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    containerStyle: {
-      background: "#0a0a0a",
-      borderColor: "rgba(255, 255, 255, 0.25)",
-    },
-    scoreTopClass: "bg-[#171717]",
-    centerBadgeClass: "shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    centerBadgeStyle: {
-      background: "#404040",
-      borderColor: "#ffffff",
-      borderWidth: "2px",
-    },
-    wingStyle: { background: "rgba(255, 255, 255, 0.4)" },
-    accentRunsClass: "text-sky-400 font-bold tabular-nums",
-    accentSecondaryClass: "text-slate-300 font-semibold",
-    bottomBarClass: "bg-[#050505] border-t-2 border-white/20",
-    cardBorderClass:
-      "border border-white/25 shadow-[0_8px_24px_rgba(0,0,0,0.6)]",
-    cardHeaderClass: "bg-neutral-900 border-b-2 border-white/30",
-    boundary4Class: "bg-sky-600 text-white font-semibold border-sky-400",
-    boundary6Class: "bg-white text-black font-semibold border-slate-300",
-    wicketClass: "bg-red-600 text-white font-semibold border-red-400",
-    dotBallClass: "bg-neutral-800 text-neutral-400 border-neutral-700",
-  },
-  broadcast: DEFAULT_BROADCAST_THEME,
-  minimal: DEFAULT_BROADCAST_THEME,
-  custom: DEFAULT_BROADCAST_THEME,
-};
+function inningsNo(innings: Innings[], n: number): Innings | undefined {
+  return innings.find((i) => i.innings_number === n);
+}
+
+function TeamListCard({
+  state,
+  match,
+  side,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+  side: 1 | 2;
+}) {
+  const team = side === 1 ? match?.team1 : match?.team2;
+  const players = playingXi(team?.team_players);
+  if (!players.length) return null;
+  return (
+    <CardShell
+      className="max-w-[44rem]"
+      eyebrow={eyebrowOf(state, "Playing XI")}
+      title={side === 1 ? (state.team1_name ?? "") : (state.team2_name ?? "")}
+    >
+      <ol className="columns-1 space-y-1">
+        {players.map((p, i) => (
+          <li key={p.id} className="flex items-baseline gap-3 text-lg">
+            <span className={cn("w-6 text-right tabular-nums", OV.cardMuted)}>
+              {i + 1}
+            </span>
+            <span className="truncate font-medium">
+              {p.user?.full_name ?? ""}
+              {p.role_in_team === "captain"
+                ? " (c)"
+                : p.role_in_team === "wicket_keeper"
+                  ? " (wk)"
+                  : ""}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </CardShell>
+  );
+}
+
+/** Best batters and bowlers of an innings, for summaries. */
+function Leaders({ innings }: { innings: Innings }) {
+  const bat = [...(innings.batting_performances ?? [])]
+    .filter((b) => b.balls_faced > 0)
+    .sort((a, b) => b.runs_scored - a.runs_scored)
+    .slice(0, 3);
+  const bowl = [...(innings.bowling_performances ?? [])]
+    .filter((b) => b.balls_bowled > 0)
+    .sort((a, b) => b.wickets_taken - a.wickets_taken || a.runs_conceded - b.runs_conceded)
+    .slice(0, 2);
+  return (
+    <div className="grid grid-cols-2 gap-6">
+      <ul className="space-y-1">
+        {bat.map((b) => (
+          <li key={b.id} className="flex items-baseline justify-between gap-3 text-lg">
+            <span className="truncate font-medium">{b.user?.full_name ?? ""}</span>
+            <span className="tabular-nums">
+              <span className="font-bold">{b.runs_scored}</span>
+              {!b.is_out && "*"}{" "}
+              <span className={OV.cardMuted}>({b.balls_faced})</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <ul className="space-y-1">
+        {bowl.map((b) => (
+          <li key={b.id} className="flex items-baseline justify-between gap-3 text-lg">
+            <span className="truncate font-medium">{b.user?.full_name ?? ""}</span>
+            <span className="tabular-nums">
+              <span className="font-bold">
+                {b.wickets_taken}-{b.runs_conceded}
+              </span>{" "}
+              <span className={OV.cardMuted}>({oversText(b.balls_bowled)})</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function InningsSummaryRow({
+  state,
+  match,
+  innings,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+  innings: Innings;
+}) {
+  return (
+    <div className={cn("border-b py-3 last:border-0", OV.cardLine)}>
+      <div className="mb-2 flex items-baseline justify-between gap-4">
+        <span className="truncate text-[1.5rem] font-semibold">
+          {inningsTeamName(state, innings, match?.team1_id)}
+        </span>
+        <span className="text-[1.75rem] font-bold tabular-nums">
+          {scoreOf(innings)}
+          <span className={cn("ml-2 text-lg font-normal", OV.cardMuted)}>
+            ({oversText(innings.total_balls)} ov)
+          </span>
+        </span>
+      </div>
+      <Leaders innings={innings} />
+    </div>
+  );
+}
+
+function SummaryCard({
+  state,
+  match,
+  innings,
+  breakCard,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+  innings: Innings[];
+  breakCard?: boolean;
+}) {
+  const shown = innings.filter((i) => i.innings_number <= (breakCard ? 1 : 2));
+  if (!shown.length) return null;
+  const first = inningsNo(innings, 1);
+  const aside = breakCard
+    ? first && (
+        <span className={cn("text-[1.5rem] font-semibold", OV.accentText)}>
+          Target {first.total_runs + 1}
+        </span>
+      )
+    : state.result_description
+      ? null
+      : state.runs_needed !== null && state.balls_remaining !== null
+        ? (
+            <span className={cn("text-lg tabular-nums", OV.barMuted)}>
+              Need {state.runs_needed} from {state.balls_remaining}
+            </span>
+          )
+        : null;
+  return (
+    <CardShell
+      className="max-w-[72rem]"
+      eyebrow={eyebrowOf(state, breakCard ? "Innings break" : "Match summary")}
+      title={
+        breakCard
+          ? `${inningsTeamName(state, first ?? shown[0]!, match?.team1_id)} ${scoreOf(first ?? shown[0]!)}`
+          : (state.result_description ?? `${state.team1_name} v ${state.team2_name}`)
+      }
+      aside={aside}
+    >
+      {shown.map((inn) => (
+        <InningsSummaryRow key={inn.id} state={state} match={match} innings={inn} />
+      ))}
+    </CardShell>
+  );
+}
+
+function IntroCard({
+  state,
+  match,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+}) {
+  const toss = tossWinnerName(state, match);
+  const sides = [
+    { name: state.team1_name, short: state.team1_short_name, logo: state.team1_logo_url },
+    { name: state.team2_name, short: state.team2_short_name, logo: state.team2_logo_url },
+  ];
+  return (
+    <CardShell
+      className="max-w-[64rem]"
+      eyebrow={state.tournament_name ?? state.match_format ?? undefined}
+      title={state.title ?? `${state.team1_name} v ${state.team2_name}`}
+    >
+      <div className="flex items-center justify-around gap-8 py-4">
+        {sides.map((s, i) => (
+          <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+            <span
+              className={cn(
+                "flex h-28 w-28 items-center justify-center rounded-lg p-4 text-[2rem]",
+                OV.panel,
+              )}
+            >
+              <TeamMark logoUrl={s.logo} code={teamCode(s.short, s.name)} />
+            </span>
+            <span className="max-w-full truncate text-[1.75rem] font-semibold">
+              {s.name}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className={cn("text-center text-lg", OV.cardMuted)}>
+        {[
+          state.venue,
+          toss &&
+            `${toss} won the toss and chose to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+    </CardShell>
+  );
+}
+
+function PartnershipView({ state, innings }: { state: LiveMatchState; innings: Innings[] }) {
+  const current = inningsNo(innings, state.innings_number ?? 0);
+  const stand = current?.partnerships?.find((p) => p.is_current);
+  const row = (id: string | null | undefined, name: string | null) => {
+    const own =
+      stand && id
+        ? stand.batsman1_id === id
+          ? { r: stand.batsman1_runs, b: stand.batsman1_balls }
+          : stand.batsman2_id === id
+            ? { r: stand.batsman2_runs, b: stand.batsman2_balls }
+            : null
+        : null;
+    return { name, own };
+  };
+  const rows = [
+    row(state.striker_id, state.striker_name),
+    row(state.non_striker_id, state.non_striker_name),
+  ];
+  const total = Math.max(1, state.partnership_runs ?? 0);
+  return (
+    <CardShell
+      className="max-w-[56rem]"
+      eyebrow={eyebrowOf(state, "Partnership")}
+      title={`${state.partnership_runs ?? 0} runs`}
+      aside={
+        <span className={cn("text-[1.5rem] tabular-nums", OV.barMuted)}>
+          off {state.partnership_balls ?? 0} balls
+        </span>
+      }
+    >
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={i}>
+            <div className="flex items-baseline justify-between text-lg">
+              <span className="truncate font-medium">{r.name}</span>
+              {r.own?.r !== null && r.own?.r !== undefined && (
+                <span className="tabular-nums">
+                  <span className="font-bold">{r.own.r}</span>{" "}
+                  <span className={OV.cardMuted}>({r.own.b ?? 0})</span>
+                </span>
+              )}
+            </div>
+            {r.own?.r !== null && r.own?.r !== undefined && (
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={i === 0 ? "h-full bg-series-1" : "h-full bg-series-2"}
+                  style={{ width: `${Math.round((r.own.r / total) * 100)}%` }}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </CardShell>
+  );
+}
+
+function StoppageCard({ state, kind }: { state: LiveMatchState; kind: "drinks" | "rain" }) {
+  return (
+    <div
+      className={cn(
+        "flex w-full max-w-[64rem] items-stretch overflow-hidden rounded-lg",
+        OV.bar,
+        OV.shadow,
+      )}
+    >
+      <span className={cn("flex items-center px-6 text-lg font-semibold", OV.accent)}>
+        {kind === "drinks" ? "Drinks" : "Weather"}
+      </span>
+      <span className="flex-1 px-6 py-4 text-[1.75rem] font-semibold">
+        {kind === "drinks" ? "Drinks break" : "Rain stopped play"}
+      </span>
+      {state.total_runs !== null && (
+        <span className={cn("flex items-center px-6 text-[1.75rem] font-bold tabular-nums", OV.panel)}>
+          {teamCode(state.batting_team_short_name, state.batting_team_name)}{" "}
+          {state.total_runs}/{state.total_wickets ?? 0}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PlayerOfTheMatch({
+  state,
+  match,
+  innings,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+  innings: Innings[];
+}) {
+  const potm = match?.player_of_the_match;
+  if (!potm?.full_name) return null;
+  const bat = innings.flatMap((i) => i.batting_performances ?? []).find((b) => b.user_id === potm.id);
+  const bowl = innings.flatMap((i) => i.bowling_performances ?? []).find((b) => b.user_id === potm.id);
+  const figures = [
+    bat && bat.balls_faced > 0 && `${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})`,
+    bowl && bowl.balls_bowled > 0 && `${bowl.wickets_taken}-${bowl.runs_conceded} (${oversText(bowl.balls_bowled)})`,
+  ].filter(Boolean);
+  return (
+    <div className={cn("flex w-full max-w-[64rem] overflow-hidden rounded-lg", OV.shadow)}>
+      <div className={cn("flex-1 px-6 py-3", OV.bar)}>
+        <span className={cn("block text-base font-medium", OV.barMuted)}>
+          {eyebrowOf(state, "Player of the match")}
+        </span>
+        <span className="block truncate text-[2rem] font-semibold">{potm.full_name}</span>
+      </div>
+      {figures.length > 0 && (
+        <div className={cn("flex items-center px-6 text-[1.5rem] font-bold tabular-nums", OV.panel)}>
+          {figures.join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ViewContent({
+  view,
+  state,
+  match,
+  snapshots,
+  innings,
+}: {
+  view: BroadcastViewId;
+  state: LiveMatchState;
+  match?: Match | null;
+  snapshots?: OverlaySnapshots | null;
+  innings: Innings[];
+}): ReactNode {
+  const slot = SLOT[view];
+  switch (view) {
+    case "2":
+    case "3":
+    case "4":
+    case "5": {
+      const inn = inningsNo(innings, view === "2" || view === "3" ? 1 : 2);
+      if (!inn) return null;
+      const batting = view === "2" || view === "4";
+      const battingName = inningsTeamName(state, inn, match?.team1_id);
+      const fieldingName =
+        battingName === state.team1_name ? (state.team2_name ?? "") : (state.team1_name ?? "");
+      return (
+        <InningsCard
+          state={state}
+          innings={inn}
+          teamName={batting ? battingName : fieldingName}
+          kind={batting ? "batting" : "bowling"}
+        />
+      );
+    }
+    case "6":
+    case "7":
+      return <TeamListCard state={state} match={match} side={view === "6" ? 1 : 2} />;
+    case "8":
+      return <SummaryCard state={state} match={match} innings={innings} />;
+    case "13":
+      return <IntroCard state={state} match={match} />;
+    case "14":
+      return <SummaryCard state={state} match={match} innings={innings} breakCard />;
+    case "15":
+      return <StoppageCard state={state} kind="drinks" />;
+    case "28":
+      return <StoppageCard state={state} kind="rain" />;
+    case "16":
+    case "17":
+    case "18":
+    case "19":
+      return <InningsFiguresCard state={state} slot={slot!} />;
+    case "24":
+    case "25":
+    case "26":
+    case "27":
+      return <CareerCard state={state} slot={slot!} />;
+    case "36":
+    case "37":
+    case "38":
+    case "39":
+      return <SeriesCard state={state} slot={slot!} series={snapshots?.series} />;
+    case "20":
+      return <PointsTableCard state={state} table={snapshots?.pointsTable} />;
+    case "21":
+      return <ChartCard state={state} match={match} kind="manhattan" />;
+    case "22":
+      return <ChartCard state={state} match={match} kind="worm" />;
+    case "41":
+      return <ChartCard state={state} match={match} kind="run_rate" />;
+    case "23":
+      return <PartnershipView state={state} innings={innings} />;
+    case "29":
+      return <PlayerOfTheMatch state={state} match={match} innings={innings} />;
+    case "40":
+      return <WagonWheelCard state={state} match={match} />;
+    case "42":
+      return <WinPredictorCard state={state} />;
+    case "43":
+      return <LeaderboardCard state={state} board={snapshots?.leaderboard} />;
+    case "44":
+      return <NextFixtureCard state={state} fixture={snapshots?.nextFixture} />;
+    default:
+      return null;
+  }
+}
 
 export function BroadcastSuiteOverlay({
   state,
@@ -444,1297 +634,82 @@ export function BroadcastSuiteOverlay({
   activeView = "1",
   onSelectView,
   showControls = false,
-  onCloseCard,
-  theme = "starsports",
+  snapshots,
+  sponsor,
+  theme,
+  customColors,
 }: BroadcastSuiteOverlayProps) {
-  const t: BroadcastThemeConfig =
-    theme && BROADCAST_THEME_MAP[theme]
-      ? BROADCAST_THEME_MAP[theme]
-      : DEFAULT_BROADCAST_THEME;
-  // Format overs string e.g. "16.1"
-  const oversFormatted = (balls: number | null) => {
-    if (!balls) return "0.0";
-    return `${Math.floor(balls / 6)}.${balls % 6}`;
-  };
-
-  const team1Name = state.team1_name ?? match?.team1?.name ?? "Team 1";
-  const team1Code =
-    state.team1_short_name ??
-    match?.team1?.short_name ??
-    team1Name.slice(0, 3).toUpperCase();
-  const team2Name = state.team2_name ?? match?.team2?.name ?? "Team 2";
-  const team2Code =
-    state.team2_short_name ??
-    match?.team2?.short_name ??
-    team2Name.slice(0, 3).toUpperCase();
-
-  const isSecondInnings = (state.innings_number ?? 1) >= 2;
-  const battingTeamName = state.batting_team_name ?? team1Name;
-  const isMatchEnded = Boolean(
-    state.result_description || state.status === "completed",
-  );
-
-  // Recent balls list
-  const recentBalls = useMemo(() => {
-    if (!state.this_over_balls) return [];
-    return state.this_over_balls.split(" ").filter(Boolean);
-  }, [state.this_over_balls]);
-
-  // Innings data
-  const inn1 = match?.innings?.[0];
-  const inn2 = match?.innings?.[1];
-
-  const inn1Overs = inn1 ? oversFormatted(inn1.total_balls) : "0.0";
-  const inn2Overs = inn2
-    ? oversFormatted(inn2.total_balls)
-    : oversFormatted(state.total_balls);
-
-  const inn1Total = inn1
-    ? inn1.total_runs
-    : isSecondInnings
-      ? state.target_runs
-        ? state.target_runs - 1
-        : 0
-      : (state.total_runs ?? 0);
-  const inn1Wickets = inn1 ? inn1.total_wickets : 10;
-
-  const inn2Total = inn2
-    ? inn2.total_runs
-    : isSecondInnings
-      ? (state.total_runs ?? 0)
-      : 0;
-  const inn2Wickets = inn2
-    ? inn2.total_wickets
-    : isSecondInnings
-      ? (state.total_wickets ?? 0)
-      : 0;
-
-  // Fallback striker strike rate
-  const strikerSr =
-    state.striker_runs !== null &&
-    state.striker_balls &&
-    state.striker_balls > 0
-      ? ((state.striker_runs * 100) / state.striker_balls).toFixed(1)
-      : "0.0";
-
-  const runnerSr =
-    state.non_striker_runs !== null &&
-    state.non_striker_balls &&
-    state.non_striker_balls > 0
-      ? ((state.non_striker_runs * 100) / state.non_striker_balls).toFixed(1)
-      : "0.0";
-
-  const bowlerEcon =
-    state.bowler_runs !== null && state.bowler_balls && state.bowler_balls > 0
-      ? ((state.bowler_runs * 6) / state.bowler_balls).toFixed(2)
-      : "0.00";
-
-  // Toss text
-  const tossText = state.toss_winner_team_id
-    ? `${state.toss_winner_team_id === match?.team1_id ? team1Name : team2Name} won the toss and elected to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`
-    : `${team1Name} won the toss and elected to bat`;
-
-  // Equation text
-  const equationText =
-    state.runs_needed !== null && state.balls_remaining !== null
-      ? `${state.batting_team_short_name ?? battingTeamName} need ${state.runs_needed} from ${oversFormatted(state.balls_remaining)} overs (RRR ${state.required_run_rate ?? "—"})`
-      : `${team1Name} vs ${team2Name}`;
+  const available = broadcastViewAvailable(activeView, { state, match, snapshots });
+  const { innings } = useScorecardInnings(match);
+  const lowerThird = LOWER_THIRD.has(activeView);
+  const showBug = activeView === "1" || lowerThird || !available;
 
   return (
-    <div
-      className={`mainWrap win select-none font-score theme-${theme}`}
-      data-theme={theme}
+    <OverlayFrame
+      state={state}
+      theme={theme}
+      customColors={customColors}
+      data-view={activeView}
     >
-      {/* ===================================================================== */}
-      {/* 0. Live Broadcast View Switcher Bar (premiumBtns)                 */}
-      {/* ===================================================================== */}
       {showControls && (
-        <div className="pointer-events-auto fixed left-1/2 top-4 z-50 max-w-[96vw] -translate-x-1/2">
-          <div className="premiumBtns" id="premiumBtns">
-            {BROADCAST_VIEW_OPTIONS.map((opt, idx) => (
+        <nav
+          aria-label="Graphics"
+          className="pointer-events-auto fixed left-1/2 top-4 z-50 flex max-w-[96vw] -translate-x-1/2 flex-wrap justify-center gap-1 rounded-lg bg-black/80 p-1.5"
+        >
+          {BROADCAST_VIEW_OPTIONS.map((opt) => {
+            const ok = broadcastViewAvailable(opt.id, { state, match, snapshots });
+            return (
               <button
                 key={opt.id}
-                data-view={opt.id}
+                type="button"
+                disabled={!ok}
+                aria-pressed={activeView === opt.id}
                 onClick={() => onSelectView?.(opt.id)}
-                className={`btn btn-premium switcher ${idx === 0 ? "first" : ""} ${
-                  activeView === opt.id ? "active" : ""
-                }`}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-sans text-sm text-white/80 hover:bg-white/15 disabled:opacity-35",
+                  activeView === opt.id && "bg-white text-black hover:bg-white",
+                )}
               >
                 {opt.label}
               </button>
-            ))}
-            <div className="placeholder" />
-          </div>
-        </div>
+            );
+          })}
+        </nav>
       )}
 
-      {/* ===================================================================== */}
-      {/* 1. SCOREBAR (data-view="1")                                           */}
-      {/* ===================================================================== */}
-      {(activeView === "1" ||
-        activeView === "16" ||
-        activeView === "17" ||
-        activeView === "18" ||
-        activeView === "19" ||
-        activeView === "24" ||
-        activeView === "25" ||
-        activeView === "26" ||
-        activeView === "27" ||
-        activeView === "29" ||
-        activeView === "36" ||
-        activeView === "37" ||
-        activeView === "38" ||
-        activeView === "39") && (
-        <div className="overlayWrap ScoreBar duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none">
-          <div
-            className={`scoreContainer ${t.containerClass}`}
-            style={t.containerStyle}
-          >
-            {/* Match Ended Banner */}
-            {isMatchEnded && (
-              <div className={`matchEnded ${t.cardHeaderClass}`}>
-                <div className="mEnded team1">
-                  <span className="t2Code text-amber-300">{team2Code}</span>
-                  <span className="t2Total">{inn2Total}</span>/
-                  <span className="t2Wickets">{inn2Wickets}</span>
-                  <span className="oversended">ov</span>
-                  <span className="t2Overs">{inn2Overs}</span>
-                </div>
-                <div className="result">
-                  <span>{state.result_description ?? equationText}</span>
-                </div>
-                <div className="mEnded team2">
-                  <span className="t1Code text-sky-300">{team1Code}</span>
-                  <span className="t1Total">{inn1Total}</span>/
-                  <span className="t1Wickets">{inn1Wickets}</span>
-                  <span className="oversended">ov</span>
-                  <span className="t1Overs">{inn1Overs}</span>
-                </div>
-              </div>
-            )}
-
-            {/* ScoreTop: Left Wing (Batsmen) & Right Wing (Bowler) */}
-            <div
-              className={`scoreTop ${t.scoreTopClass}`}
-              style={t.scoreTopStyle}
-            >
-              {/* Left Wing */}
-              <div className="mainLeft">
-                <div
-                  className="team1logo teamlogoscorebar"
-                  style={{
-                    backgroundImage: state.team1_logo_url
-                      ? `url(${state.team1_logo_url})`
-                      : undefined,
-                  }}
-                />
-                <div className="flex flex-col gap-0.5">
-                  <div className="batsman1">
-                    <div className="batsman1Name" id="batsman1Name">
-                      {state.striker_name ?? "Striker"} *
-                    </div>
-                    <div
-                      className={`batsman1Runs ${t.accentRunsClass}`}
-                      id="batsman1Runs"
-                    >
-                      {state.striker_runs ?? 0}
-                    </div>
-                    <div className="batsman1Balls" id="batsman1Balls">
-                      {state.striker_balls ?? 0}
-                    </div>
-                  </div>
-                  <div className="batsman2">
-                    <div className="batsman2Name" id="batsman2Name">
-                      {state.non_striker_name ?? "Non-Striker"}
-                    </div>
-                    <div
-                      className={`batsman2Runs ${t.accentRunsClass}`}
-                      id="batsman2Runs"
-                    >
-                      {state.non_striker_runs ?? 0}
-                    </div>
-                    <div className="batsman2Balls" id="batsman2Balls">
-                      {state.non_striker_balls ?? 0}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Wing */}
-              <div className="mainRight">
-                <div className="innerRightScorebar">
-                  <div className="bowlerStatScore">
-                    <span
-                      className="bowlerName bowlerleftscore"
-                      id="bowlerName"
-                    >
-                      {state.current_bowler_name ?? "Bowler"}
-                    </span>
-                    <span
-                      className={`bowlerRuns ${t.accentRunsClass}`}
-                      id="bowlerRuns"
-                    >
-                      {state.bowler_runs ?? 0}
-                    </span>
-                    <span className="bowlerWickets" id="bowlerWickets">
-                      {state.bowler_wickets ?? 0}
-                    </span>
-                    <span className="overlabelbowler">ov</span>
-                    <span
-                      className={`bowlerOvers ${t.accentSecondaryClass}`}
-                      id="bowlerOvers"
-                    >
-                      {oversFormatted(state.bowler_balls)}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  className="team2logo teamlogoscorebar"
-                  style={{
-                    backgroundImage: state.team2_logo_url
-                      ? `url(${state.team2_logo_url})`
-                      : undefined,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Center Prominent Broadcast 3D Badge */}
-            <div className="mainCenter">
-              <div
-                className={`mainCAbsWrap ${t.centerBadgeClass}`}
-                style={t.centerBadgeStyle}
-              >
-                <div className="mainCenterBL mainCenterB" style={t.wingStyle} />
-                <div className="mainCenterBR mainCenterB" style={t.wingStyle} />
-                <div className="mainCenterTop">
-                  <div className="mainCenterTopLeft t1Code text-sky-400">
-                    {team1Code}
-                  </div>
-                  <div className="text-xs font-semibold text-white/40">vs</div>
-                  <div className="mainCenterTopLeft t2Code text-amber-400">
-                    {team2Code}
-                  </div>
-                  <div className="mainCenterTopRight ml-2">
-                    <span className="tTotal">{state.total_runs ?? 0}</span>
-                    <span className={`tWickets ${t.accentRunsClass}`}>
-                      {state.total_wickets ?? 0}
-                    </span>
-                  </div>
-                </div>
-                <div className="mainCenterBottom">
-                  <div className="mainCenterBottomLeft">
-                    <span>RR</span>
-                    <span className={`runrate ${t.accentSecondaryClass}`}>
-                      {state.current_run_rate ?? "0.00"}
-                    </span>
-                  </div>
-                  <div className="mainCenterBottomRight">
-                    <span>Overs</span>
-                    <span className="overs colorwhite">
-                      {oversFormatted(state.total_balls)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ScoreBottom: Equation & Delivery Matrix */}
-            <div
-              className={`scoreBottom ${t.bottomBarClass}`}
-              style={t.bottomBarStyle}
-            >
-              <div className="scBottomLeft">
-                {!isSecondInnings ? (
-                  <div className="firstIn" id="firstInningButtomTab">
-                    <span className="t1Name text-sky-300">{team1Name}</span>
-                    <span className="colorc1 firstinningvs"> vs </span>
-                    <span className="t2Name text-amber-300">{team2Name}</span>
-                  </div>
-                ) : (
-                  <div className="secondIn">
-                    <div className="bottomLeft">
-                      <span
-                        className="showScoreMsgForOpositTeam text-slate-300"
-                        id="showScoreMsgForOpositTeam"
-                      >
-                        <span className="numberColorClass font-bold">
-                          {team1Code}
-                        </span>{" "}
-                        {inn1Total}/{inn1Wickets}
-                        <span className="numberColorClass"> ov </span>
-                        {inn1Overs}
-                      </span>
-                    </div>
-                    <div className="bottomMed showRunsRequired border-l border-white/10 pl-3">
-                      <div className="need-hide scoreEquation flex items-center gap-1.5">
-                        <span className="colorc1 smallf text-amber-400">
-                          Need
-                        </span>
-                        <span className="requiredRuns">
-                          {state.runs_needed ?? 0}
-                        </span>
-                        <span className="colorc1 smallf text-white/70">of</span>
-                        <span className="remainingBalls">
-                          {state.balls_remaining ?? 0}
-                        </span>
-                        <span className="colorc1 smallf text-white/70">
-                          balls
-                        </span>
-                        <span className="RRR ml-1">
-                          {state.required_run_rate ?? "—"}
-                        </span>
-                        <span className="colorc1 smallf text-amber-400">
-                          RRR
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Delivery Matrix */}
-              <div className="scBottomRight">
-                <div className="ballsMainWrap">
-                  {recentBalls.length > 0 ? (
-                    recentBalls.map((b, idx) => (
-                      <span key={idx} className="currentball dotBall">
-                        <span className="normal_ball">
-                          {b === "0" ? "•" : b}
-                        </span>
-                      </span>
-                    ))
-                  ) : (
-                    <span className="currentball dotBall">
-                      <span className="normal_ball">•</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="mainCenterShadow" />
-          </div>
-        </div>
+      {showBug && (
+        <ScoreBug
+          state={state}
+          match={match}
+          layout="bottom"
+          theme={theme}
+          customColors={customColors}
+          sponsor={sponsor}
+        />
       )}
 
-      {/* ===================================================================== */}
-      {/* 2. BATTING TEAM 1 (I1) (data-view="2") & BATTING TEAM 2 (I1) (data-view="4") */}
-      {/* ===================================================================== */}
-      {(activeView === "2" || activeView === "4") && (
-        <div
-          className={`overlayWrap card ${activeView === "2" ? "Batting1" : "Batting2"} active duration-200 animate-in fade-in motion-reduce:animate-none`}
-        >
-          <div className={`insideWrap relative ${t.cardBorderClass}`}>
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle t1Name">
-                {activeView === "2" ? team1Name : team2Name} · Batting
-              </div>
-            </div>
-            <div className="insideWrapInside battingcard">
-              {((activeView === "2" ? inn1 : inn2)?.batting_performances || [])
-                .length > 0 ? (
-                (
-                  (activeView === "2" ? inn1 : inn2)?.batting_performances || []
-                ).map((bp: BattingPerformance, idx: number) => (
-                  <div key={idx} className="scoreRow">
-                    <div className="name font-bold text-white">
-                      {bp.user?.full_name ?? "Batter"} {!bp.is_out && "*"}
-                    </div>
-                    <div className="status">
-                      {!bp.is_out ? (
-                        <span className="font-bold text-emerald-400">
-                          not out
-                        </span>
-                      ) : (
-                        <span>{formatDismissalType(bp.dismissal_type)}</span>
-                      )}
-                    </div>
-                    <div className="runs">{bp.runs_scored}</div>
-                    <div className="balls">({bp.balls_faced})</div>
-                  </div>
-                ))
-              ) : (
-                <div className="p-8 text-center text-slate-400">
-                  Live scorecard is updating with every delivery.
-                </div>
-              )}
-            </div>
-            <div className="scoreRow total bowling but_batting">
-              <span className="cardlabel colorc1">Overs</span>
-              <span className="t1Overs ml-1 tabular-nums">
-                {activeView === "2" ? inn1Overs : inn2Overs}
-              </span>
-              <span className="cardlabel colorc1 ml-4">RR</span>
-              <span className="t1RR ml-1 tabular-nums">
-                {state.current_run_rate ?? "0.0"}
-              </span>
-              <span className="cardlabel colorc1 ml-4">Extras</span>
-              <span className="t1Extras ml-1 tabular-nums">
-                {(activeView === "2" ? inn1 : inn2)?.extras_total ?? 0}
-              </span>
-              <span className="cardlabel colorc1 ml-4">Total</span>
-              <span className="t1Total ml-1 tabular-nums text-amber-300">
-                {(activeView === "2" ? inn1 : inn2)?.total_runs ??
-                  state.total_runs ??
-                  0}
-                /
-                {(activeView === "2" ? inn1 : inn2)?.total_wickets ??
-                  state.total_wickets ??
-                  0}
-              </span>
-            </div>
-            <div className="scoreRowtotal">
-              <div className="tossWon">{tossText}</div>
-              {isSecondInnings && (
-                <div className="showMsgForScoreNeeded mt-1 font-bold text-amber-300">
-                  {equationText}
-                </div>
-              )}
-            </div>
+      {available && activeView !== "1" &&
+        (lowerThird ? (
+          <div className="pointer-events-none fixed inset-x-0 bottom-[12rem] z-30 flex justify-center px-12">
+            <ViewContent
+              view={activeView}
+              state={state}
+              match={match}
+              snapshots={snapshots}
+              innings={innings}
+            />
           </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 3. BOWLING TEAM 1 (I1) (data-view="3") & BOWLING TEAM 2 (I1) (data-view="5") */}
-      {/* ===================================================================== */}
-      {(activeView === "3" || activeView === "5") && (
-        <div
-          className={`overlayWrap card ${activeView === "3" ? "Bowling1" : "Bowling2"} active duration-200 animate-in fade-in motion-reduce:animate-none`}
-        >
-          <div className={`insideWrap relative ${t.cardBorderClass}`}>
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle t2Name">
-                {activeView === "3" ? team2Name : team1Name} · Bowling
-              </div>
-            </div>
-            <div className="insideWrapInside bowlingcard">
-              {((activeView === "3" ? inn1 : inn2)?.bowling_performances || [])
-                .length > 0 ? (
-                (
-                  (activeView === "3" ? inn1 : inn2)?.bowling_performances || []
-                ).map((bw: BowlingPerformance, idx: number) => {
-                  const ov = `${Math.floor(bw.balls_bowled / 6)}.${bw.balls_bowled % 6}`;
-                  const econ =
-                    bw.balls_bowled > 0
-                      ? ((bw.runs_conceded * 6) / bw.balls_bowled).toFixed(2)
-                      : "0.00";
-                  return (
-                    <div key={idx} className="scoreRow">
-                      <div className="name font-bold text-white">
-                        {bw.user?.full_name ?? "Bowler"}
-                      </div>
-                      <div className="status">
-                        O: <span className="tabular-nums text-white">{ov}</span>{" "}
-                        · M:{" "}
-                        <span className="tabular-nums text-white">
-                          {bw.maidens}
-                        </span>
-                      </div>
-                      <div className="runs text-amber-300">
-                        {bw.wickets_taken}/{bw.runs_conceded}
-                      </div>
-                      <div className="balls text-slate-300">Econ: {econ}</div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="p-8 text-center text-slate-400">
-                  Bowling figures active.
-                </div>
-              )}
-            </div>
-            <div className="scoreRow total bowling powered-wrap">
-              <span className="cardlabel colorc1">Overs</span>
-              <span className="t1Overs ml-1 tabular-nums">
-                {activeView === "3" ? inn1Overs : inn2Overs}
-              </span>
-              <span className="cardlabel colorc1 ml-4">Extras</span>
-              <span className="t1Extras ml-1 tabular-nums">
-                {(activeView === "3" ? inn1 : inn2)?.extras_total ?? 0}
-              </span>
-              <span className="cardlabel colorc1 ml-4">Total</span>
-              <span className="t1Total ml-1 tabular-nums text-amber-300">
-                {(activeView === "3" ? inn1 : inn2)?.total_runs ?? 0}/
-                {(activeView === "3" ? inn1 : inn2)?.total_wickets ?? 0}
-              </span>
-            </div>
-            <div className="scoreRowtotal">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 4. SQUAD TEAM 1 (data-view="6") & SQUAD TEAM 2 (data-view="7")        */}
-      {/* ===================================================================== */}
-      {(activeView === "6" || activeView === "7") && (
-        <div
-          className={`overlayWrap card ${activeView === "6" ? "Squad1" : "Squad2"} duration-200 animate-in fade-in motion-reduce:animate-none`}
-        >
-          <div
-            className={`insideWrap relative ${t.cardBorderClass}`}
-            style={{ width: "800px" }}
-          >
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">
-                {activeView === "6" ? team1Name : team2Name} · Playing XI
-              </div>
-            </div>
-            <div className="insideWrapInside grid grid-cols-2 gap-2 p-4">
-              {(
-                (activeView === "6" ? match?.team1 : match?.team2)
-                  ?.team_players || []
-              ).map((tp: TeamPlayer, idx: number) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between rounded-lg border border-white/5 bg-white/5 px-3 py-2"
-                >
-                  <span className="text-xs font-bold text-white">
-                    {idx + 1}. {tp.user?.full_name ?? "Player"}
-                  </span>
-                  {tp.role_in_team && (
-                    <span className="rounded border border-amber-500/30 bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                      {tp.role_in_team}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 5. MATCH SUMMARY (data-view="8")                                      */}
-      {/* ===================================================================== */}
-      {activeView === "8" && (
-        <div className="overlayWrap card summary duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div
-            className={`insideWrap relative ${t.cardBorderClass}`}
-            style={{ maxWidth: "860px" }}
-          >
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">Match summary</div>
-            </div>
-
-            {/* Team 1 Summary Header & Leaders */}
-            <div className="border-b border-white/10 p-4">
-              <div className="flex items-center justify-between pb-2 text-sm font-semibold text-sky-300">
-                <span>{team1Name}</span>
-                <span className="tabular-nums text-white">
-                  {inn1Total}/{inn1Wickets} ({inn1Overs} ov)
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold text-amber-400">
-                    Top Batters
-                  </span>
-                  {(inn1?.batting_performances || [])
-                    .slice(0, 3)
-                    .map((bp: BattingPerformance, i: number) => (
-                      <div
-                        key={i}
-                        className="flex justify-between py-0.5 text-slate-200"
-                      >
-                        <span>{bp.user?.full_name}</span>
-                        <span className="font-bold tabular-nums text-amber-300">
-                          {bp.runs_scored} ({bp.balls_faced})
-                        </span>
-                      </div>
-                    ))}
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold text-sky-400">
-                    Top Bowlers
-                  </span>
-                  {(inn2?.bowling_performances || [])
-                    .slice(0, 3)
-                    .map((bw: BowlingPerformance, i: number) => (
-                      <div
-                        key={i}
-                        className="flex justify-between py-0.5 text-slate-200"
-                      >
-                        <span>{bw.user?.full_name}</span>
-                        <span className="font-bold tabular-nums text-sky-300">
-                          {bw.wickets_taken}/{bw.runs_conceded}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Team 2 Summary Header & Leaders */}
-            <div className="p-4">
-              <div className="flex items-center justify-between pb-2 text-sm font-semibold text-amber-300">
-                <span>{team2Name}</span>
-                <span className="tabular-nums text-white">
-                  {inn2Total}/{inn2Wickets} ({inn2Overs} ov)
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold text-amber-400">
-                    Top Batters
-                  </span>
-                  {(inn2?.batting_performances || [])
-                    .slice(0, 3)
-                    .map((bp: BattingPerformance, i: number) => (
-                      <div
-                        key={i}
-                        className="flex justify-between py-0.5 text-slate-200"
-                      >
-                        <span>{bp.user?.full_name}</span>
-                        <span className="font-bold tabular-nums text-amber-300">
-                          {bp.runs_scored} ({bp.balls_faced})
-                        </span>
-                      </div>
-                    ))}
-                </div>
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2">
-                  <span className="mb-1 block text-[10px] font-bold text-sky-400">
-                    Top Bowlers
-                  </span>
-                  {(inn1?.bowling_performances || [])
-                    .slice(0, 3)
-                    .map((bw: BowlingPerformance, i: number) => (
-                      <div
-                        key={i}
-                        className="flex justify-between py-0.5 text-slate-200"
-                      >
-                        <span>{bw.user?.full_name}</span>
-                        <span className="font-bold tabular-nums text-sky-300">
-                          {bw.wickets_taken}/{bw.runs_conceded}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="scoreRowtotal summaryend">
-              <div className="tossWon">{tossText}</div>
-              <div className="result mt-1 font-semibold text-amber-300">
-                {equationText}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 6. PARTNERSHIP CARD (data-view="23")                                  */}
-      {/* ===================================================================== */}
-      {activeView === "23" && (
-        <div className="overlayWrap card partnership duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div
-            className={`insideWrap relative ${t.cardBorderClass}`}
-            style={{ width: "800px" }}
-          >
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className="insideWrapInside">
-              <div className={`teaminfo ${t.cardHeaderClass}`}>
-                <div className="teamtitle">Current partnership</div>
-              </div>
-              <div className="part_wrap">
-                <div className="partnership_profiles">
-                  {/* Left Batter */}
-                  <div className="left-sec">
-                    <div className="partnershipScore1 psgroup psgrouptop">
-                      <span className="p1tRuns text-xl font-semibold text-white">
-                        {state.striker_runs ?? 0}
-                      </span>
-                      <span className="p1tBalls ml-1 text-xs text-slate-400">
-                        ({state.striker_balls ?? 0}b)
-                      </span>
-                      <div className="p1pName text_bottom_ps mt-0.5 font-bold text-sky-300">
-                        {state.striker_name ?? "Striker"} *
-                      </div>
-                    </div>
-                    <div className="partnership-bg partnershipImg1" />
-                    <div className="partnershipScore1 psgroup psgroupbottom">
-                      <span className="p1pRuns font-bold tabular-nums text-amber-300">
-                        SR {strikerSr}
-                      </span>
-                      <div className="text_bottom_ps text-[10px] text-slate-400">
-                        Strike Rate
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mid Section: Partnership Runs */}
-                  <div className="mid-sec">
-                    <div className="ptRuns text-5xl font-semibold tabular-nums text-amber-400">
-                      {state.partnership_runs ?? 0}
-                    </div>
-                    <div className="ptballswrap">
-                      FROM{" "}
-                      <span className="ptBalls font-bold text-white">
-                        {state.partnership_balls ?? 0}
-                      </span>{" "}
-                      balls
-                    </div>
-                  </div>
-
-                  {/* Right Batter */}
-                  <div className="right-sec">
-                    <div className="partnershipScore2 psgroup psgrouptop">
-                      <span className="p2tRuns text-xl font-semibold text-white">
-                        {state.non_striker_runs ?? 0}
-                      </span>
-                      <span className="p2tBalls ml-1 text-xs text-slate-400">
-                        ({state.non_striker_balls ?? 0}b)
-                      </span>
-                      <div className="p2pName text_bottom_ps mt-0.5 font-bold text-sky-300">
-                        {state.non_striker_name ?? "Non-Striker"}
-                      </div>
-                    </div>
-                    <div className="partnership-bg partnershipImg2" />
-                    <div className="partnershipScore2 psgroup psgroupbottom">
-                      <span className="p2pRuns font-bold tabular-nums text-amber-300">
-                        SR {runnerSr}
-                      </span>
-                      <div className="text_bottom_ps text-[10px] text-slate-400">
-                        Strike Rate
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 7. SPLASH: INTRO (data-view="13")                                     */}
-      {/* ===================================================================== */}
-      {activeView === "13" && (
-        <div className="overlayWrap card splash matchintro duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div className="insideWrap intrasplash relative max-w-2xl">
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">
-                <div className="scoreRow tournamentName seriesName justify-center">
-                  {state.tournament_name ?? "Live cricket"}
-                </div>
-              </div>
-            </div>
-            <div className="insideWrapInside">
-              <div className="scoreRow player splash_contain justify-center py-6">
-                <div className="splash_center">
-                  <div className="team_detail">
-                    <div
-                      className="intro_team intro_team_1"
-                      style={{
-                        backgroundImage: state.team1_logo_url
-                          ? `url(${state.team1_logo_url})`
-                          : undefined,
-                      }}
-                    />
-                    <div className="versus_intro">vs</div>
-                    <div
-                      className="intro_team intro_team_2"
-                      style={{
-                        backgroundImage: state.team2_logo_url
-                          ? `url(${state.team2_logo_url})`
-                          : undefined,
-                      }}
-                    />
-                  </div>
-                  <div className="splash_type">Starting soon</div>
-                </div>
-              </div>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 8. SPLASH: INNINGS BREAK (data-view="14")                             */}
-      {/* ===================================================================== */}
-      {activeView === "14" && (
-        <div className="overlayWrap splash card inningsbreak duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div className="insideWrap intrasplash relative max-w-2xl">
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">
-                <div className="scoreRow tournamentName seriesName justify-center">
-                  {state.tournament_name ?? "Match update"}
-                </div>
-              </div>
-            </div>
-            <div className="insideWrapInside">
-              <div className="scoreRow player splash_contain justify-center py-6">
-                <div className="splash_center">
-                  <div className="team_detail">
-                    <div>
-                      <div
-                        className="intro_team intro_team_1"
-                        style={{
-                          backgroundImage: state.team1_logo_url
-                            ? `url(${state.team1_logo_url})`
-                            : undefined,
-                        }}
-                      />
-                      <div className="mt-2 text-sm font-semibold text-sky-300">
-                        {team1Code} {inn1Total}/{inn1Wickets}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        Overs {inn1Overs}
-                      </div>
-                    </div>
-                    <div className="versus_intro">vs</div>
-                    <div>
-                      <div
-                        className="intro_team intro_team_2"
-                        style={{
-                          backgroundImage: state.team2_logo_url
-                            ? `url(${state.team2_logo_url})`
-                            : undefined,
-                        }}
-                      />
-                      <div className="mt-2 text-sm font-semibold text-amber-300">
-                        {team2Code}
-                      </div>
-                      <div className="text-xs text-slate-400">
-                        Target: {(inn1Total ?? 0) + 1}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="splash_type text-amber-300">
-                    Innings break
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 9. SPLASH: DRINKS BREAK (data-view="15") & RAIN DELAY (data-view="28")*/}
-      {/* ===================================================================== */}
-      {(activeView === "15" || activeView === "28") && (
-        <div
-          className={`overlayWrap splash card ${activeView === "15" ? "drinksbreak" : "raindelay"} duration-200 animate-in fade-in motion-reduce:animate-none`}
-        >
-          <div className="insideWrap intrasplash relative max-w-xl">
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">
-                {activeView === "15" ? "Drinks break" : "Rain delay"}
-              </div>
-            </div>
-            <div className="insideWrapInside py-8 text-center">
-              <p className="text-2xl font-semibold text-white">
-                {activeView === "15"
-                  ? "Drinks interval"
-                  : "Play suspended due to rain"}
-              </p>
-              <p className="mt-2 text-sm font-bold text-amber-300">
-                {battingTeamName}: {state.total_runs}/{state.total_wickets} in{" "}
-                {oversFormatted(state.total_balls)} overs
-              </p>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 10. LOWER-THIRD: BATSMAN STATS (data-view="16")                       */}
-      {/* ===================================================================== */}
-      {activeView === "16" && (
-        <div className="overlayWrap batsmancurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="insideWrapInside p-0">
-              <div className="flex-row-box">
-                <div className="side-player-img" />
-                <div className="bottomCard_content">
-                  <div className="scoreRow player_stat_box border-0 p-0">
-                    <p className="player_stat_name batsman1Name">
-                      {state.striker_name ?? "Striker"}
-                    </p>
-                    <p className="player_stat_runs">
-                      <span className="batsman1Runs">
-                        {state.striker_runs ?? 0}
-                      </span>{" "}
-                      <span>({state.striker_balls ?? 0})*</span>
-                    </p>
-                  </div>
-                  <div className="scoreRow player player_current mt-1 border-0 p-0">
-                    <div className="stat_type">SR</div>
-                    <div className="stat_data">{strikerSr}</div>
-                    <div className="stat_type ml-3">Fours</div>
-                    <div className="stat_data">0</div>
-                    <div className="stat_type ml-3">Sixes</div>
-                    <div className="stat_data">0</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 11. LOWER-THIRD: RUNNER STATS (data-view="17")                        */}
-      {/* ===================================================================== */}
-      {activeView === "17" && (
-        <div className="overlayWrap runnercurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="flex-row-box">
-              <div className="side-player-img" />
-              <div className="bottomCard_content">
-                <div className="scoreRow player_stat_box border-0 p-0">
-                  <p className="player_stat_name batsman2Name">
-                    {state.non_striker_name ?? "Non-Striker"}
-                  </p>
-                  <p className="player_stat_runs">
-                    <span className="batsman2Runs">
-                      {state.non_striker_runs ?? 0}
-                    </span>{" "}
-                    <span>({state.non_striker_balls ?? 0})*</span>
-                  </p>
-                </div>
-                <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <div className="stat_type">SR</div>
-                  <div className="stat_data">{runnerSr}</div>
-                  <div className="stat_type ml-3">Fours</div>
-                  <div className="stat_data">0</div>
-                  <div className="stat_type ml-3">Sixes</div>
-                  <div className="stat_data">0</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 12. LOWER-THIRD: BOWLER STATS (data-view="18")                        */}
-      {/* ===================================================================== */}
-      {activeView === "18" && (
-        <div className="overlayWrap bowlercurrentcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="flex-row-box">
-              <div className="side-player-img" />
-              <div className="bottomCard_content">
-                <div className="scoreRow player_stat_box border-0 p-0">
-                  <p className="player_stat_name bowlerName">
-                    {state.current_bowler_name ?? "Bowler"}
-                  </p>
-                </div>
-                <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <div className="stat_type">Overs</div>
-                  <div className="stat_data">
-                    {oversFormatted(state.bowler_balls)}
-                  </div>
-                  <div className="stat_type ml-3">Runs</div>
-                  <div className="stat_data">{state.bowler_runs ?? 0}</div>
-                  <div className="stat_type ml-3">Wickets</div>
-                  <div className="stat_data font-bold text-red-400">
-                    {state.bowler_wickets ?? 0}
-                  </div>
-                  <div className="stat_type ml-3">Econ</div>
-                  <div className="stat_data">{bowlerEcon}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 13. LOWER-THIRD: OUT BATSMAN (data-view="19")                         */}
-      {/* ===================================================================== */}
-      {activeView === "19" && (
-        <div className="overlayWrap lastoutcard bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="flex-row-box">
-              <div className="side-player-img" />
-              <div className="bottomCard_content">
-                <div className="scoreRow player_stat_box border-0 p-0">
-                  <p className="player_stat_name lastOutName">
-                    {state.last_ball_dismissed_player ?? "Last Out Batter"}
-                  </p>
-                  <p className="player_stat_name lastOutString mt-0.5 text-xs text-slate-400">
-                    {state.last_ball_dismissal_type
-                      ? formatDismissalType(state.last_ball_dismissal_type)
-                      : "Dismissed"}
-                  </p>
-                </div>
-                <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <span className="text-xs font-semibold text-red-400">
-                    Out
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 14. LOWER-THIRD: PLAYER OF THE MATCH (data-view="29")                 */}
-      {/* ===================================================================== */}
-      {activeView === "29" && (
-        <div className="overlayWrap bottom_card mom duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="flex-row-box">
-              <div className="side-player-img" />
-              <div className="bottomCard_content">
-                <div className="scoreRow player_stat_box border-0 p-0">
-                  <p className="player_stat_name manOfTheMatch text-amber-300">
-                    {match?.player_of_the_match?.full_name ??
-                      state.striker_name ??
-                      "Outstanding Performer"}
-                  </p>
-                </div>
-                <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <div className="stat_type font-bold text-amber-400">
-                    Player of the match
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 15. LOWER-THIRD: CAREER CARDS (data-view="24", 25, 26, 27)            */}
-      {/* ===================================================================== */}
-      {(activeView === "24" ||
-        activeView === "25" ||
-        activeView === "26" ||
-        activeView === "27") && (
-        <div className="overlayWrap careercardofplayerbatsmen bottom_card duration-300 animate-in fade-in slide-in-from-left-4 motion-reduce:animate-none">
-          <div className="insideWrap current_bottom_stat_row">
-            <div className="flex-row-box">
-              <div className="side-player-img" />
-              <div className="bottomCard_content">
-                <div className="scoreRow player_stat_box border-0 p-0">
-                  <p className="player_stat_name careerPlayerName">
-                    {activeView === "24"
-                      ? state.striker_name
-                      : activeView === "25"
-                        ? state.non_striker_name
-                        : state.current_bowler_name}
-                  </p>
-                </div>
-                <div className="scoreRow player player_current mt-1 border-0 p-0">
-                  <div className="stat_type">Career Matches</div>
-                  <div className="stat_data">32</div>
-                  <div className="stat_type ml-3">
-                    {activeView === "26" ? "Wickets" : "Runs"}
-                  </div>
-                  <div className="stat_data text-amber-300">
-                    {activeView === "26" ? "48" : "1240"}
-                  </div>
-                  <div className="stat_type ml-3">
-                    {activeView === "26" ? "Economy" : "Strike Rate"}
-                  </div>
-                  <div className="stat_data">
-                    {activeView === "26" ? "7.24" : "138.2"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 16. CHARTS: OVER BY OVER (data-view="21") & WORM (data-view="22")     */}
-      {/* ===================================================================== */}
-      {(activeView === "21" || activeView === "22") && (
-        <div className="overlayWrap card charts duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div className="insideWrap relative max-w-2xl">
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">
-                {activeView === "21" ? "Over by over" : "Worm"}
-              </div>
-            </div>
-            <div className="p-8 text-center">
-              <div className="mb-4 flex items-center justify-center gap-6">
-                <span className="font-bold text-sky-300">
-                  ● {team1Code}: {inn1Total}/{inn1Wickets}
-                </span>
-                <span className="font-bold text-amber-300">
-                  ● {team2Code}: {inn2Total}/{inn2Wickets}
-                </span>
-              </div>
-              <div className="flex h-40 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xs text-slate-400">
-                {activeView === "21" ? "Over-by-over chart" : "Worm chart"}
-              </div>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* 17. POINTS TABLE (data-view="20")                                     */}
-      {/* ===================================================================== */}
-      {activeView === "20" && (
-        <div className="overlayWrap card pointsTable duration-200 animate-in fade-in motion-reduce:animate-none">
-          <div className="insideWrap relative max-w-2xl">
-            {onCloseCard && (
-              <button
-                onClick={onCloseCard}
-                aria-label="Close Card"
-                className="absolute right-4 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-white/15"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-            <div className={`teaminfo ${t.cardHeaderClass}`}>
-              <div className="teamtitle">Standings</div>
-            </div>
-            <div className="p-4">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-white/10 text-[10px] text-slate-400">
-                    <th className="p-2">Team</th>
-                    <th className="p-2 text-center">P</th>
-                    <th className="p-2 text-center">W</th>
-                    <th className="p-2 text-center">L</th>
-                    <th className="p-2 text-center">NRR</th>
-                    <th className="p-2 text-right">Pts</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 tabular-nums">
-                  <tr className="text-white">
-                    <td className="p-2 font-sans font-bold text-sky-300">
-                      {team1Name}
-                    </td>
-                    <td className="p-2 text-center">5</td>
-                    <td className="p-2 text-center">4</td>
-                    <td className="p-2 text-center">1</td>
-                    <td className="p-2 text-center text-emerald-400">+1.240</td>
-                    <td className="p-2 text-right font-bold text-amber-300">
-                      8
-                    </td>
-                  </tr>
-                  <tr className="text-white">
-                    <td className="p-2 font-sans font-bold text-amber-300">
-                      {team2Name}
-                    </td>
-                    <td className="p-2 text-center">5</td>
-                    <td className="p-2 text-center">3</td>
-                    <td className="p-2 text-center">2</td>
-                    <td className="p-2 text-center text-emerald-400">+0.450</td>
-                    <td className="p-2 text-right font-bold text-amber-300">
-                      6
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="scoreRow total squad powered-wrap">
-              <div className="tossWon">{tossText}</div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <FullScreen>
+            <ViewContent
+              view={activeView}
+              state={state}
+              match={match}
+              snapshots={snapshots}
+              innings={innings}
+            />
+          </FullScreen>
+        ))}
+    </OverlayFrame>
   );
 }
