@@ -69,7 +69,11 @@ export class AdminDataSource implements DataSource {
     let q = this.build(table, filters);
     for (const o of options?.orderBy ?? []) q = q.orderBy(o.field, o.direction);
     if (options?.startAfter && options.orderBy?.length) {
-      q = q.orderBy(FieldPath.documentId()).startAfter(...options.startAfter);
+      // Ties by document id in the last order's direction (Firestore's own).
+      const last = options.orderBy[options.orderBy.length - 1]!;
+      q = q
+        .orderBy(FieldPath.documentId(), last.direction)
+        .startAfter(...options.startAfter);
     }
     if (options?.limit !== undefined) q = q.limit(options.limit);
     const snap = await q.get();

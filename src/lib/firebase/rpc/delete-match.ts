@@ -8,7 +8,8 @@
  * 1. Permission and typed-name checks ({@link canDeleteMatch}, stricter
  *    than scoring: co-scorers in `match_admins` may not delete).
  * 2. Tournament points table recomputed without the match.
- * 3. Owned documents: every `overs` doc, the `innings` docs, the match's
+ * 3. Owned documents: every `overs` doc, the `innings` docs and their
+ *    ball-log archives (`ball_logs`), the match's
  *    Stream Deck tokens (`producer_tokens`), and the id removed from
  *    `invitations.scorer_match_ids` / `streamer_match_ids` (invites stay)
  *    and from the stream channels showing it (`stream_channels.match_id`,
@@ -29,6 +30,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { confirmsMatchDelete } from "../../match-delete";
 import { OVERLAY_STATE_COLLECTION } from "../../overlay-state";
 import type { DataSource } from "../datasource";
+import { BALL_LOGS_COLLECTION } from "../ball-log-archive";
 import { LIVE_SCORECARD_COLLECTION } from "../live-scorecard";
 import { DbQueryError } from "../query-builder";
 import { OVERS_COLLECTION } from "../scorecard";
@@ -117,11 +119,18 @@ async function purge(
     ]);
     for (const o of docs) overIds.add(o.id);
   }
-  const tokens = await ds.query(PRODUCER_TOKENS, [
-    { field: "match_id", op: "==", value: matchId },
+  const [tokens, ballLogs] = await Promise.all([
+    ds.query(PRODUCER_TOKENS, [
+      { field: "match_id", op: "==", value: matchId },
+    ]),
+    // The archived ball logs of its completed innings.
+    ds.query(BALL_LOGS_COLLECTION, [
+      { field: "match_id", op: "==", value: matchId },
+    ]),
   ]);
   await deleteInBatches(ds, db, [
     ...[...overIds].map((id) => ({ table: OVERS_COLLECTION, id })),
+    ...ballLogs.map((b) => ({ table: BALL_LOGS_COLLECTION, id: b.id })),
     ...innings.map((i) => ({ table: "innings", id: i.id })),
     ...tokens.map((t) => ({ table: PRODUCER_TOKENS, id: t.id })),
   ]);
