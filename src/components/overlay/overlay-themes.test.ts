@@ -24,8 +24,10 @@ const pairs = (p: OverlayPalette): Array<[string, string, string]> => [
 const AA = 4.5;
 
 describe("overlay themes", () => {
-  it("lists four themes with labels and descriptions", () => {
-    expect(OVERLAY_THEMES.map((t) => t.id)).toEqual([...OVERLAY_THEME_IDS]);
+  it("lists the four plain themes first, then the broadcast packages, with labels and descriptions", () => {
+    expect(
+      OVERLAY_THEMES.slice(0, OVERLAY_THEME_IDS.length).map((t) => t.id),
+    ).toEqual([...OVERLAY_THEME_IDS]);
     for (const t of OVERLAY_THEMES) {
       expect(t.label).toMatch(/^[A-Z][a-z]/);
       expect(t.description.length).toBeGreaterThan(10);

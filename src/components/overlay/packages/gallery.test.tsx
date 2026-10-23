@@ -1,10 +1,13 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PACKAGE_MANIFEST } from "./manifest";
-import { OverlayGallery } from "./gallery";
+import { GALLERY_STATES, OverlayGallery } from "./gallery";
 import { OVERLAY_ELEMENTS } from "./types";
 
 const builtIn = PACKAGE_MANIFEST.filter((p) => p.kind === "plain").map(
+  (p) => p.id,
+);
+const broadcast = PACKAGE_MANIFEST.filter((p) => p.kind === "broadcast").map(
   (p) => p.id,
 );
 
@@ -26,6 +29,24 @@ describe("overlay gallery", () => {
       unmount();
     }
   });
+
+  it.each(broadcast)(
+    "draws every element of the %s broadcast package in every state",
+    (pkg) => {
+      for (const element of OVERLAY_ELEMENTS) {
+        for (const state of GALLERY_STATES) {
+          const { container, unmount } = render(
+            <OverlayGallery packageId={pkg} element={element} state={state} />,
+          );
+          expect(
+            container.querySelector(`[data-package="${pkg}"]`),
+            `${pkg} ${element} ${state}`,
+          ).not.toBeNull();
+          unmount();
+        }
+      }
+    },
+  );
 
   it("draws the variants, kinds and states it lists", () => {
     const cases: Array<Record<string, string>> = [
