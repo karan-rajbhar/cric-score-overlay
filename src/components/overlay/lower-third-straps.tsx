@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { winPredictorFromLive } from "~/lib/win-predictor";
 import { OV, OverlayFrame, type OverlayThemeProps } from "./overlay-kit";
@@ -24,6 +25,8 @@ export { strapAvailable, strapText };
 interface LowerThirdStrapsProps extends OverlayThemeProps {
   strap: ActiveLowerThirdStrap | null;
   state: LiveMatchState;
+  /** The stage's match (squads with photos, balls per over); no extra read. */
+  match?: Match | null;
   layout: LayoutMode;
   onDismiss: () => void;
 }
@@ -122,6 +125,7 @@ const STRAP_ELEMENTS: readonly OverlayElementId[] = [
 export function LowerThirdStraps({
   strap,
   state,
+  match = null,
   layout,
   onDismiss,
   theme = "standard",
@@ -130,7 +134,7 @@ export function LowerThirdStraps({
   useAutoDismiss(strap, onDismiss);
   const shown = strap && strap.type !== "none" ? strap : null;
   const element = shown ? strapElementOf(shown, state) : null;
-  const base = { state, match: null, snapshots: null, theme, customColors, layout };
+  const base = { state, match, snapshots: null, theme, customColors, layout };
   return (
     <>
       {STRAP_ELEMENTS.map((id) => (

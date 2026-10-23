@@ -19,7 +19,8 @@ const ORDERABLE: Record<string, readonly string[]> = {
   // derived-fields data source and backfilled by migrate-stage3.
   teams: ["name_lower"],
   clubs: ["name_lower"],
-  tournaments: ["name_lower"],
+  // createTournament always writes start_date (null when not given).
+  tournaments: ["name_lower", "start_date"],
   // Only `inviteEmail` creates invites, always with created_at.
   invitations: ["created_at"],
   // Builder inserts get joined_at (TIMESTAMP_DEFAULTS); the only other

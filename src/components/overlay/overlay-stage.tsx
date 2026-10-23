@@ -154,6 +154,7 @@ export function OverlayStage({
           <LowerThirdStraps
             strap={layers.strap}
             state={state}
+            match={match}
             layout={scene.layout}
             onDismiss={onDismissStrap}
             {...theme}

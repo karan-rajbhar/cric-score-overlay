@@ -19,19 +19,20 @@ export default async function TournamentsPage({
 }) {
   const { after } = (await searchParams) ?? {};
   const db = await createServerClient();
-  // A page at a time in name order (keyset: at most 31 reads, no scan).
+  // Latest start first, a page at a time (keyset: at most 31 reads, no
+  // scan); tournaments without a start date come last.
   const cursor = parseCursor(after);
-  let query = db
+  const { data } = await db
     .from("tournaments")
     .select(
-      "id, name, description, status, tournament_format, start_date, end_date, venue, name_lower",
+      "id, name, description, status, tournament_format, start_date, end_date, venue",
     )
-    .order("name_lower");
-  if (cursor) query = query.after(cursor.value, cursor.id);
-  const { data } = await query.limit(PAGE_SIZE + 1);
+    .order("start_date", { ascending: false })
+    .keyset(cursor && { value: cursor.value || null, id: cursor.id })
+    .limit(PAGE_SIZE + 1);
   const { rows: tournaments, next } = keysetPage(
     data ?? [],
-    (t) => t.name_lower ?? "",
+    (t) => t.start_date ?? "",
   );
 
   return (

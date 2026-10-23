@@ -42,6 +42,34 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     kind: "plain",
   },
   {
+    id: "franchise-night",
+    label: "Franchise night",
+    description:
+      "Glossy prime-time franchise-league look: dark glass lit in team colours, gold accents, big figures.",
+    kind: "broadcast",
+  },
+  {
+    id: "hundred-ball",
+    label: "Hundred-ball countdown",
+    description:
+      "Bold, minimal ball-countdown look for short formats: giant runs and balls left, the chase in one line.",
+    kind: "broadcast",
+  },
+  {
+    id: "world-event",
+    label: "World event",
+    description:
+      "Global tournament look with bold, clean data: white and deep indigo panels, each side in its team colour.",
+    kind: "broadcast",
+  },
+  {
+    id: "test-classic",
+    label: "Test classic",
+    description:
+      "Understated heritage look for long-form cricket: navy, ivory and gold leaf, an honours board for milestones.",
+    kind: "broadcast",
+  },
+  {
     id: "summer-bash",
     label: "Summer bash",
     description:
