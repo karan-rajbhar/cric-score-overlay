@@ -3,7 +3,11 @@
  * step is reduced to a hash.
  *
  * `golden.json` holds the hashes recorded with the engine as it was before
- * schema stage 2 (one document per scorecard row and per ball). Replaying
+ * schema stage 2 (one document per scorecard row and per ball), re-recorded
+ * once when a no-ball began to count as a ball faced: each hash that moved
+ * then differs only by batters' balls faced (and live_state's / the
+ * ScoringState's striker_balls / non_striker_balls), one more per no-ball
+ * received; with `noball_counts_as_ball_faced` false the old hashes return. Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball

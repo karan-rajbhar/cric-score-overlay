@@ -232,6 +232,7 @@ type BallMatch = Pick<
   | "wide_runs_to_batsman"
   | "noball_extras_to_batsman"
   | "wide_counts_as_ball_faced"
+  | "noball_counts_as_ball_faced"
   | "last_ball_seq"
 > & { id: string };
 

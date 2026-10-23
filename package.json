@@ -70,6 +70,7 @@
     "eslint-plugin-sonarjs": "^4.2.2",
     "firebase-tools": "^15.34.0",
     "husky": "^9.1.7",
+    "jiti": "^1.21.7",
     "jscpd": "^5.4.1",
     "jsdom": "^29.1.1",
     "lint-staged": "^15.5.2",

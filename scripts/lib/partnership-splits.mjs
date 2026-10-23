@@ -71,7 +71,7 @@ export function ballLogOfOvers(overs) {
  *
  * @param {Record<string, any>} match  its crediting settings
  *   (`wide_runs_to_batsman`, `noball_extras_to_batsman`,
- *   `wide_counts_as_ball_faced`)
+ *   `wide_counts_as_ball_faced`, `noball_counts_as_ball_faced`)
  * @param {Doc[]} stands
  * @param {Doc[]} balls
  * @returns {Doc[] | null}
@@ -106,7 +106,6 @@ export function standsWithSplits(match, stands, balls) {
         rebuilt.push(current);
       }
       current.runs += runs + extras;
-      current.balls += legal ? 1 : 0;
       let credited = runs;
       if (ball.extra_type === "wide" && match.wide_runs_to_batsman)
         credited += extras;
@@ -114,8 +113,12 @@ export function standsWithSplits(match, stands, balls) {
         credited += extras;
       const faced =
         legal ||
+        (ball.extra_type === "no_ball" &&
+          match.noball_counts_as_ball_faced !== false) ||
         (ball.extra_type === "wide" &&
           Boolean(match.wide_counts_as_ball_faced));
+      // The stand's balls are those the pair faced (as the engine counts).
+      current.balls += faced ? 1 : 0;
       const mine = current.share.get(ball.batsman_id);
       if (mine) {
         mine.runs += credited;

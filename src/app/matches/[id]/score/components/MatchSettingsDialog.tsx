@@ -64,6 +64,9 @@ function MatchSettingsForm({
   const [wideCountsAsBallFaced, setWideCountsAsBallFaced] = useState<boolean>(
     Boolean(match.wide_counts_as_ball_faced),
   );
+  // On unless switched off (the Laws' convention; older matches too).
+  const [noBallCountsAsBallFaced, setNoBallCountsAsBallFaced] =
+    useState<boolean>(match.noball_counts_as_ball_faced !== false);
   const [wideRunsToBatsman, setWideRunsToBatsman] = useState<boolean>(
     Boolean(match.wide_runs_to_batsman),
   );
@@ -97,6 +100,7 @@ function MatchSettingsForm({
           ? Number(maxBallsPerOver)
           : null,
       wideCountsAsBallFaced,
+      noBallCountsAsBallFaced,
       wideRunsToBatsman,
       noballExtrasToBatsman,
       targetRuns: targetRuns.trim() !== "" ? Number(targetRuns) : null,
@@ -330,6 +334,28 @@ function MatchSettingsForm({
               type="checkbox"
               checked={wideCountsAsBallFaced}
               onChange={(e) => setWideCountsAsBallFaced(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
+                htmlFor="noball-balls-faced"
+                className="cursor-pointer text-xs font-semibold"
+              >
+                Count no-balls as balls faced
+              </Label>
+              <p className="text-2xs text-muted-foreground">
+                The striker received the ball, as scorecards count it. Switch
+                off only where the format leaves no-balls out.
+              </p>
+            </div>
+            <input
+              id="noball-balls-faced"
+              type="checkbox"
+              checked={noBallCountsAsBallFaced}
+              onChange={(e) => setNoBallCountsAsBallFaced(e.target.checked)}
               className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>
