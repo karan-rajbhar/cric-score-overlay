@@ -10,8 +10,9 @@
  * career / tournament / team1 / team2 / batting / single / double /
  * baseline), `kind` (a sting: four, six, wicket, fifty, hundred,
  * three_for, five_for, hat_trick, free_hit; a break: drinks, rain_delay,
- * timeout, innings_break, powerplay) and `bg=day|night`. Without
- * `element`, an index of links.
+ * timeout, innings_break, powerplay), `layout` (where the score bug sits:
+ * bottom, top, compact, broadcast; lower thirds keep clear of it) and
+ * `bg=day|night`. Without `element`, an index of links.
  */
 
 import Link from "next/link";
@@ -33,6 +34,7 @@ import { inningsTeamName } from "../scorecard-cards";
 import type {
   ActiveEventSting,
   ActiveLowerThirdStrap,
+  LayoutMode,
   LiveMatchState,
 } from "../types";
 import { OverlayElement } from "./element";
@@ -123,6 +125,22 @@ export interface GalleryOptions {
   variant?: string | null;
   kind?: string | null;
   theme: string;
+  /** The score bug's layout (default bottom). */
+  layout?: string | null;
+}
+
+export const GALLERY_LAYOUTS: readonly LayoutMode[] = [
+  "bottom",
+  "top",
+  "compact",
+  "broadcast",
+];
+
+/** A layout from the URL; bottom when absent or unknown. */
+export function galleryLayoutOf(requested?: string | null): LayoutMode {
+  return (GALLERY_LAYOUTS as readonly string[]).includes(requested ?? "")
+    ? (requested as LayoutMode)
+    : "bottom";
 }
 
 /** An element's props from the demo match. */
@@ -139,7 +157,7 @@ export function galleryElementProps<E extends OverlayElementId>(
     snapshots: DEMO_SNAPSHOTS,
     theme: options.theme,
     customColors: DEFAULT_CUSTOM_COLOURS,
-    layout: "bottom",
+    layout: galleryLayoutOf(options.layout),
   };
   const v = options.variant ?? undefined;
   const innings = [...(match.innings ?? [])];
@@ -328,8 +346,8 @@ function GalleryIndex() {
       <p className="mt-1 max-w-3xl text-sm text-[#63667e]">
         Every element of every package from the demo match, at 1920×1080.
         Add <code>state</code> (pre, first, live, break, result),{" "}
-        <code>variant</code>, <code>kind</code> and <code>bg=night</code> to
-        a link.
+        <code>variant</code>, <code>kind</code>, <code>layout</code> (bottom,
+        top, compact, broadcast) and <code>bg=night</code> to a link.
       </p>
       {PACKAGE_MANIFEST.map((pkg) => (
         <section key={pkg.id} className="mt-6">
@@ -360,6 +378,8 @@ export interface OverlayGalleryProps {
   state?: string | null;
   variant?: string | null;
   kind?: string | null;
+  /** The score bug's layout: bottom (default), top, compact, broadcast. */
+  layout?: string | null;
   bg?: string | null;
 }
 
@@ -369,6 +389,7 @@ export function OverlayGallery({
   state,
   variant,
   kind,
+  layout,
   bg,
 }: OverlayGalleryProps) {
   if (!element || !(OVERLAY_ELEMENTS as readonly string[]).includes(element)) {
@@ -381,10 +402,12 @@ export function OverlayGallery({
     variant,
     kind,
     theme: packageId,
+    layout,
   });
   return (
     <div
       data-gallery-element={id}
+      data-layout={props.layout}
       className="fixed inset-0 overflow-hidden"
       style={{ width: 1920, height: 1080 }}
     >

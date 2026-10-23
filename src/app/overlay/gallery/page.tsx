@@ -18,6 +18,7 @@ export default async function OverlayGalleryPage({
       state={one(p.state)}
       variant={one(p.variant)}
       kind={one(p.kind)}
+      layout={one(p.layout)}
       bg={one(p.bg)}
     />
   );

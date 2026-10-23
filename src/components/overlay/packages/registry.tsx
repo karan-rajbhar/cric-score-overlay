@@ -24,6 +24,7 @@ import { StageStyleContext } from "./palette-context";
 import { STANDARD_ELEMENTS } from "./standard";
 import type { BroadcastPackage, PaletteContext } from "./types";
 import type { CustomColours } from "../overlay-themes";
+import { FRANCHISE_NIGHT } from "./franchise-night";
 
 /** The plain packages' palette: the theme's, with this match's team colours. */
 function plainPalette(ctx: PaletteContext) {
@@ -47,6 +48,7 @@ export const OVERLAY_PACKAGES: Record<string, BroadcastPackage> = {
   light: plain("light"),
   team: plain("team"),
   custom: plain("custom"),
+  [FRANCHISE_NIGHT.id]: FRANCHISE_NIGHT,
 };
 
 /** The package a theme id selects (legacy and unknown ids: Standard). */
