@@ -41,6 +41,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     description: "Your primary and accent colours, text picked for contrast.",
     kind: "plain",
   },
+  {
+    id: "hundred-ball",
+    label: "Hundred-ball countdown",
+    description:
+      "Bold, minimal ball-countdown look for short formats: giant runs and balls left, the chase in one line.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
