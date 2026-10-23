@@ -1,45 +1,32 @@
 /**
  * Server-side producer commands for a match's overlay.
  *
- * {@link sendProducerCommand} is the one way server code (the Stream Deck
- * remote route, and the control room route once merged) drives an overlay.
- * Today it does what `POST /api/overlay/command` does: append the command
- * to `broadcasts/overlay_control_{matchId}/messages`, where the overlay
- * listens, with a TTL. Point it at the persistent `overlay_state` writer
- * when that lands; callers do not change.
+ * {@link sendProducerCommand} is the one way server code drives an overlay:
+ * the control room route (`POST /api/overlay/command`) and the Stream Deck
+ * remote route both call it. It merges the command into the match's
+ * `overlay_state/{matchId}` (`~/lib/firebase/overlay-control`), the one
+ * document the overlay and the control room follow.
  */
 
 import "server-only";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import type { ProducerCommand } from "~/components/overlay/types";
-import { getAdminFirestore } from "~/lib/firebase/admin";
-import { BROADCAST_COLLECTION, BROADCAST_TTL_MS } from "~/lib/firebase/config";
+import { publishOverlayCommand } from "~/lib/firebase/overlay-control";
+import type { OverlayCommandInput } from "~/lib/overlay-state";
 
-/**
- * A producer command: the control room's {@link ProducerCommand}, plus
- * `NEXT_SPONSOR` (advance the sponsor rotation now; the overlay handles it
- * once wired, see the streaming notes).
- */
-export type ProducerCommandPayload = Omit<ProducerCommand, "type"> & {
-  type: ProducerCommand["type"] | "NEXT_SPONSOR";
-};
+/** A producer command, `NEXT_SPONSOR` included (the sponsor rotation). */
+export type ProducerCommandPayload = ProducerCommand;
 
 /** Match ids are part of a document path: no "/". */
 const MATCH_ID = /^[\w-]{1,128}$/;
 
+/**
+ * Puts the command on air. False (nothing written) when the overlay does
+ * not know it: callers answer 400.
+ */
 export async function sendProducerCommand(
   matchId: string,
-  payload: ProducerCommandPayload,
-): Promise<void> {
+  payload: ProducerCommandPayload | OverlayCommandInput,
+): Promise<boolean> {
   if (!MATCH_ID.test(matchId)) throw new Error("Invalid match id");
-  await getAdminFirestore()
-    .collection(BROADCAST_COLLECTION)
-    .doc(`overlay_control_${matchId}`)
-    .collection("messages")
-    .add({
-      event: "command",
-      payload,
-      ts: FieldValue.serverTimestamp(),
-      expires_at: Timestamp.fromMillis(Date.now() + BROADCAST_TTL_MS),
-    });
+  return publishOverlayCommand(matchId, payload as OverlayCommandInput);
 }

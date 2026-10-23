@@ -1,22 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
 import { isJsonRequest, isSameOrigin, readCapped } from "~/lib/api-request";
-import { getAdminFirestore } from "~/lib/firebase/admin";
-import {
-  BROADCAST_COLLECTION,
-  BROADCAST_TTL_MS,
-} from "~/lib/firebase/config";
+import { sendProducerCommand } from "~/lib/overlay/commands";
+import { overlayPatchOf, type OverlayCommandInput } from "~/lib/overlay-state";
 import { createServerClient } from "~/lib/firebase/server";
-import { canProduceOverlay } from "~/lib/firebase/permissions"; // streamers
+import { canProduceOverlay } from "~/lib/firebase/permissions";
 
 /**
  * POST /api/overlay/command: a control room command for a match's overlay
- * (`{ matchId, payload: ProducerCommand }`), appended to
- * `broadcasts/overlay_control_{matchId}/messages`, where the overlay
- * listens. Browsers cannot write there (firestore.rules), so only an admin
- * of that match can drive its overlay, as only they can open its control
- * room. Same-origin JSON with the session cookie, like the replay route.
+ * (`{ matchId, payload: ProducerCommand }`), merged into
+ * `overlay_state/{matchId}` (`~/lib/overlay-state`), which the overlay
+ * listens to, through `sendProducerCommand` (as the Stream Deck remote
+ * does). Browsers cannot write there (firestore.rules), so only those who
+ * may run the match's graphics (`canProduceOverlay`: its admins and
+ * streamers) can drive its overlay. Same-origin JSON with the session
+ * cookie, like the replay route.
  */
 
 const MAX_BODY_BYTES = 16 * 1024;
@@ -25,7 +23,13 @@ const NO_STORE = { "Cache-Control": "no-store" };
 const commandSchema = z.object({
   // Part of a document path: no "/".
   matchId: z.string().regex(/^[\w-]{1,128}$/),
-  payload: z.object({ type: z.string().min(1).max(64) }).passthrough(),
+  payload: z
+    .object({
+      type: z.string().min(1).max(64),
+      // Stored as `last_command_id`: the control room's confirmation.
+      id: z.string().max(64).optional(),
+    })
+    .passthrough(),
 });
 
 function fail(status: number, code: string, message: string) {
@@ -53,6 +57,15 @@ export async function POST(request: NextRequest) {
   const parsed = commandSchema.safeParse(body);
   if (!parsed.success) return fail(400, "invalid_command", "Invalid command");
   const { matchId, payload } = parsed.data;
+  // Refuse what the overlay would ignore, so "on air" is never a no-op.
+  const command = payload as OverlayCommandInput;
+  if (!overlayPatchOf(command, Date.now())) {
+    return fail(
+      400,
+      "invalid_command",
+      "The overlay does not know this command",
+    );
+  }
 
   try {
     const db = await createServerClient();
@@ -61,21 +74,22 @@ export async function POST(request: NextRequest) {
     } = await db.auth.getUser();
     if (!user) return fail(401, "not_authenticated", "Sign in again");
     // Admins of the match and its streamers (canProduceOverlay).
-    const isAdmin = await canProduceOverlay(db, matchId, user.id);
-    if (!isAdmin) {
-      return fail(403, "not_authorized", "Not an admin of this match");
+    const mayProduce = await canProduceOverlay(db, matchId, user.id);
+    if (!mayProduce) {
+      return fail(
+        403,
+        "not_authorized",
+        "Not a scorer or streamer of this match",
+      );
     }
 
-    await getAdminFirestore()
-      .collection(BROADCAST_COLLECTION)
-      .doc(`overlay_control_${matchId}`)
-      .collection("messages")
-      .add({
-        event: "command",
-        payload,
-        ts: FieldValue.serverTimestamp(),
-        expires_at: Timestamp.fromMillis(Date.now() + BROADCAST_TTL_MS),
-      });
+    if (!(await sendProducerCommand(matchId, command))) {
+      return fail(
+        400,
+        "invalid_command",
+        "The overlay does not know this command",
+      );
+    }
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (err) {
     console.error("overlay command failed:", err);

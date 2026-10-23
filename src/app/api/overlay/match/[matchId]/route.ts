@@ -9,8 +9,7 @@ import { getLiveMatchState, getMatch } from "~/app/matches/queries";
  * the overlay page does: `live_state` and the match, each cached briefly.
  */
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(
@@ -35,7 +34,8 @@ export async function GET(
     );
   }
   return NextResponse.json(
-    { live: live.data, match: match.data },
+    // The server's clock: the overlay judges stored graphics by it.
+    { live: live.data, match: match.data, serverNow: Date.now() },
     { headers: NO_STORE },
   );
 }

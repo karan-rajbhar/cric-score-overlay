@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { TransparentPage } from "~/components/overlay/transparent-page";
 import { ChannelOverlay } from "./channel-overlay";
 
 /**
@@ -21,19 +22,24 @@ export default async function ChannelOverlayPage({
     theme?: string;
     sponsor?: string;
     safe?: string;
+    delay?: string;
   }>;
 }) {
   const { channelId } = await params;
   const query = await searchParams;
   // Part of a document path: anything else is never on air.
-  if (!/^[\w-]{1,128}$/.test(channelId)) return null;
+  if (!/^[\w-]{1,128}$/.test(channelId)) return <TransparentPage />;
   return (
-    <ChannelOverlay
-      channelId={channelId}
-      layout={query.layout}
-      theme={query.theme}
-      sponsor={query.sponsor}
-      safeZone={query.safe === "true"}
-    />
+    <>
+      <TransparentPage />
+      <ChannelOverlay
+        channelId={channelId}
+        layout={query.layout}
+        theme={query.theme}
+        sponsor={query.sponsor}
+        safeZone={query.safe === "true"}
+        delaySeconds={Number(query.delay ?? 0) || 0}
+      />
+    </>
   );
 }

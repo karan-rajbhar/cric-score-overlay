@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   CalendarClock,
   CloudRain,
   FileJson,
   MoreHorizontal,
+  SlidersHorizontal,
   Trash2,
   Tv,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import {
 import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
+  useCanProduceOverlayQuery,
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
@@ -56,10 +59,11 @@ interface MatchMoreMenuProps {
 }
 
 /**
- * The match page's "More" menu: the tools few people need (the OBS overlay,
- * the DLS calculator while live, a finished match's ball-by-ball data)
- * and, for its organisers (who may delete it), Reschedule before the start
- * and Delete match.
+ * The match page's "More" menu: the tools few people need (streaming the
+ * match with its overlay, the overlay control room for those who run its
+ * graphics, the DLS calculator while live, a finished match's ball-by-ball
+ * data) and, for its organisers (who may delete it), Reschedule before the
+ * start and Delete match.
  */
 export function MatchMoreMenu({
   match,
@@ -76,6 +80,15 @@ export function MatchMoreMenu({
     user?.id,
     isAdmin === true,
   );
+  // Streamers run the graphics without being admins: asked only when a
+  // signed-in non-admin opens the menu.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { data: canStream } = useCanProduceOverlayQuery(
+    match.id,
+    user?.id,
+    menuOpen && isAdmin === false,
+  );
+  const canProduce = isAdmin === true || canStream === true;
   const [showDelete, setShowDelete] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const canReschedule = canDelete === true && match.status === "scheduled";
@@ -87,7 +100,7 @@ export function MatchMoreMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -101,16 +114,25 @@ export function MatchMoreMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem asChild>
-            <a
-              href={`/overlay/${match.id}`}
-              target="_blank"
-              rel="noopener"
+            <Link
+              href={`/matches/${match.id}/stream`}
               className="flex cursor-pointer items-center gap-2"
             >
               <Tv className="h-4 w-4" />
-              <span>OBS overlay</span>
-            </a>
+              <span>Stream this match</span>
+            </Link>
           </DropdownMenuItem>
+          {canProduce && (
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/overlay/${match.id}/control`}
+                className="flex cursor-pointer items-center gap-2"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Overlay control room</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           {dls && (
             <DropdownMenuItem
               onSelect={() => setShowDls(true)}

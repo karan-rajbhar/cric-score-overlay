@@ -95,18 +95,21 @@ describe("remote actions", () => {
   it("maps each action to a producer command", () => {
     expect(isRemoteAction("four")).toBe(true);
     expect(isRemoteAction("drop-tables")).toBe(false);
-    expect(remoteCommandFor("scorebar-hide", null, 1)).toEqual({
+    expect(remoteCommandFor("scorebar-hide", 1)).toEqual({
       type: "TOGGLE_BUG",
       visible: false,
       timestamp: 1,
     });
-    expect(remoteCommandFor("wicket", null, 1)).toMatchObject({
+    expect(remoteCommandFor("wicket", 1)).toMatchObject({
       type: "TRIGGER_STING",
       stingType: "wicket",
     });
-    expect(remoteCommandFor("batting-card", 1).broadcastView).toBe("2");
-    expect(remoteCommandFor("batting-card", 2).broadcastView).toBe("4");
-    expect(remoteCommandFor("bowling-card", 2).broadcastView).toBe("5");
+    expect(remoteCommandFor("batting-card")).toMatchObject({
+      type: "SHOW_CARD",
+      card: "scorecard",
+    });
+    expect(remoteCommandFor("bowling-card").card).toBe("scorecard");
+    expect(remoteCommandFor("partnership").card).toBe("partnership");
     expect(remoteCommandFor("next-sponsor").type).toBe("NEXT_SPONSOR");
     expect(remoteCommandFor("clear").type).toBe("PANIC_CLEAR");
   });

@@ -71,7 +71,14 @@ describe("next.config frame headers", () => {
 
   it("lets streaming tools frame match overlays and channel links", () => {
     expect(framed("/overlay/abc")).toBe(false);
+    expect(framed("/overlay/abc/")).toBe(false);
     expect(framed("/overlay/channel/main-ground")).toBe(false);
     expect(framed("/__/auth/handler")).toBe(false);
+  });
+
+  it("keeps control rooms and the stream setup page unframeable", () => {
+    expect(framed("/overlay/abc/control")).toBeTruthy();
+    expect(framed("/overlay/test/control")).toBeTruthy();
+    expect(framed("/matches/abc/stream")).toBeTruthy();
   });
 });

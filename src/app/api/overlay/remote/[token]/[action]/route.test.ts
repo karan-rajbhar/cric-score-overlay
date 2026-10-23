@@ -10,7 +10,7 @@ const state: { ds: MemoryDataSource } = { ds: new MemoryDataSource() };
 vi.mock("~/lib/firebase/server-ds", () => ({
   serverDataSource: () => state.ds,
 }));
-const sendProducerCommand = vi.fn(async () => undefined);
+const sendProducerCommand = vi.fn(async () => true);
 vi.mock("~/lib/overlay/commands", () => ({
   sendProducerCommand: (...args: unknown[]) =>
     sendProducerCommand(...(args as [])),
@@ -66,17 +66,19 @@ describe("/api/overlay/remote/[token]/[action]", () => {
     expect(sendProducerCommand).toHaveBeenCalledTimes(calls);
   });
 
-  it("picks the card of the innings in play (1 live_state read)", async () => {
+  it("puts up the scorecard card with only the token read", async () => {
     const before = state.ds.billedReads;
     expect((await call("POST", token, "batting-card")).status).toBe(200);
-    expect(state.ds.billedReads - before).toBe(2); // token + live_state
+    expect(state.ds.billedReads - before).toBe(1); // the token
     expect(sendProducerCommand).toHaveBeenCalledWith(
       "m1",
-      expect.objectContaining({
-        type: "SET_BROADCAST_VIEW",
-        broadcastView: "4",
-      }),
+      expect.objectContaining({ type: "SHOW_CARD", card: "scorecard" }),
     );
+  });
+
+  it("answers 400 when the overlay does not take the command", async () => {
+    sendProducerCommand.mockResolvedValueOnce(false);
+    expect((await call("POST", token, "next-sponsor")).status).toBe(400);
   });
 
   it("refuses bad, unknown and revoked tokens", async () => {

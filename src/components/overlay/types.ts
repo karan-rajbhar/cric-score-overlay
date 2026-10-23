@@ -143,6 +143,11 @@ export type BroadcastViewId =
   | "39"; // Out Batsman Series
 
 export interface ProducerCommand {
+  /**
+   * Set by the control room. The server stores it as the overlay state's
+   * `last_command_id`, which is how the control room sees it went on air.
+   */
+  id?: string;
   type:
     | "SHOW_CARD"
     | "HIDE_CARD"
@@ -160,10 +165,13 @@ export interface ProducerCommand {
     | "SET_MARGIN_OFFSET"
     | "TOGGLE_AUDIO"
     | "SET_BROADCAST_VIEW"
+    | "SET_AUTO"
+    | "NEXT_SPONSOR"
     | "PANIC_CLEAR";
   card?: PresentationCardType;
   visible?: boolean;
-  theme?: OverlayTheme;
+  /** A theme id (see `~/components/overlay/overlay-themes`). */
+  theme?: string;
   customColors?: CustomThemeColors;
   layout?: LayoutMode;
   stingType?: "four" | "six" | "wicket" | "milestone" | "free_hit";
@@ -176,6 +184,9 @@ export interface ProducerCommand {
   marginOffsetPx?: number;
   audioEnabled?: boolean;
   audioVolume?: number;
-  broadcastView?: BroadcastViewId;
+  /** null: back to the score bug. */
+  broadcastView?: BroadcastViewId | null;
+  /** SET_AUTO: automatic graphics, by rule id. */
+  auto?: Record<string, { on: boolean; seconds: number }>;
   timestamp: number;
 }

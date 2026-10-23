@@ -29,21 +29,16 @@ export function isRemoteAction(value: string): value is RemoteActionId {
   return IDS.has(value);
 }
 
-/** Actions whose card depends on the innings in play (1 `live_state` read). */
-export function needsInnings(action: RemoteActionId): boolean {
-  return action === "batting-card" || action === "bowling-card";
-}
-
 /**
- * The producer command for `action`. `innings` is the innings in play
- * (from `live_state`), which picks the first- or second-innings card.
+ * The producer command for `action`, in the overlay state's terms
+ * (`~/lib/overlay-state`). The batting and bowling cards are the
+ * scorecard card, which shows the innings in play (batting and bowling) and
+ * stays up until cleared, like the control room's.
  */
 export function remoteCommandFor(
   action: RemoteActionId,
-  innings: number | null = null,
   now = Date.now(),
 ): ProducerCommandPayload {
-  const second = (innings ?? 1) >= 2;
   const base = { timestamp: now };
   switch (action) {
     case "scorebar-show":
@@ -53,19 +48,10 @@ export function remoteCommandFor(
     case "clear":
       return { ...base, type: "PANIC_CLEAR" };
     case "batting-card":
-      return {
-        ...base,
-        type: "SET_BROADCAST_VIEW",
-        broadcastView: second ? "4" : "2",
-      };
     case "bowling-card":
-      return {
-        ...base,
-        type: "SET_BROADCAST_VIEW",
-        broadcastView: second ? "5" : "3",
-      };
+      return { ...base, type: "SHOW_CARD", card: "scorecard" };
     case "partnership":
-      return { ...base, type: "SET_BROADCAST_VIEW", broadcastView: "23" };
+      return { ...base, type: "SHOW_CARD", card: "partnership" };
     case "ticker-on":
       return { ...base, type: "TOGGLE_TICKER", visible: true };
     case "ticker-off":

@@ -106,7 +106,8 @@ const config = {
       ...(process.env.NODE_ENV === "production" ? [] : DEV_NO_CACHE),
       { source: "/:path*", headers: SECURITY_HEADERS },
       // Not on Firebase Auth's proxied helper pages (`/__/`), nor on the
-      // overlays (incl. channel links), which streaming tools may frame.
+      // overlays (`/overlay/<id>`, `/overlay/channel/<id>`), which streaming
+      // tools may frame. Control rooms and setup pages stay unframeable.
       { source: FRAME_HEADERS_SOURCE, headers: FRAME_HEADERS },
       { source: "/sw.js", headers: noStore },
       { source: "/sw-config.json", headers: noStore },
