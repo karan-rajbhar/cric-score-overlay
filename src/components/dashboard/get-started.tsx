@@ -98,7 +98,7 @@ export function GetStarted({ userId }: { userId: string }) {
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground"
+          className="h-10 w-10 shrink-0 text-muted-foreground"
           onClick={dismiss}
           aria-label="Dismiss get started checklist"
         >

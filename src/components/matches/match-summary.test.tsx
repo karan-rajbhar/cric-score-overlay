@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Match } from "~/lib/match-types";
+import { makeInnings, makeMatch } from "~/test/factories";
 
 const liveState = vi.hoisted(() => ({
   current: null as Record<string, unknown> | null,
@@ -280,7 +281,71 @@ describe("MatchSummary - Key Moments", () => {
       within(screen.getByRole("list")).getAllByRole("listitem"),
     ).toHaveLength(4);
     expect(screen.getByText("Partnership")).toBeDefined();
-    expect(screen.getByText("Projected")).toBeDefined();
+    expect(screen.getByText("Projected score")).toBeDefined();
     liveState.current = null;
+  });
+
+  it("says a finished match with no moments has none, not that they are coming", () => {
+    render(
+      <MatchSummary
+        match={{
+          ...baseMatch,
+          status: "abandoned",
+          result_description: "Match abandoned: Rain",
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(/no toss, wickets or milestones were recorded/i),
+    ).toBeDefined();
+  });
+});
+
+describe("MatchLivePanel between and before innings", () => {
+  const first = makeInnings({
+    total_runs: 150,
+    total_balls: 120,
+    total_overs: 20,
+    is_completed: true,
+  });
+  const chase = makeInnings({
+    id: "inn-2",
+    team_id: "t2",
+    innings_number: 2,
+    target_runs: 151,
+  });
+
+  it("calls the wait before the chase an innings break, with the target", () => {
+    render(<MatchSummary match={makeMatch({ innings: [first, chase] })} />);
+    expect(screen.getByText("Innings break.")).toBeDefined();
+    expect(
+      screen.getByText(/Coastal Kings\s+need 151 runs to win/),
+    ).toBeDefined();
+    // No run rate of 0.00 before a ball is bowled.
+    expect(screen.queryByText("Run rate")).toBeNull();
+    expect(screen.getByText("Target")).toBeDefined();
+  });
+
+  it("says who bats first before the first ball", () => {
+    render(<MatchSummary match={makeMatch({ innings: [makeInnings()] })} />);
+    expect(screen.getByText("Yet to start.")).toBeDefined();
+    expect(screen.getByText(/Royal Tigers\s+bat first/)).toBeDefined();
+  });
+
+  it("counts a DLS chase over its revised overs and says so", () => {
+    const revised = { ...chase, target_runs: 98, total_runs: 40, total_balls: 36 };
+    render(
+      <MatchSummary
+        match={makeMatch({
+          innings: [first, revised],
+          dls_revision: { innings_number: 2, target_runs: 98, overs: 12 },
+        })}
+      />,
+    );
+    // 58 needed from 36 balls (12 overs, 6 bowled): 9.67 an over.
+    expect(screen.getByText("9.67")).toBeDefined();
+    expect(
+      screen.getByText("Target revised by the DLS method: 98 runs in 12 overs."),
+    ).toBeDefined();
   });
 });

@@ -109,7 +109,7 @@ export function BowlerDialog({
   const blockedReason = (id: string | null): string | null => {
     if (!id) return null;
     if (lastOverBowlerId && id === lastOverBowlerId)
-      return "This bowler completed the previous over. Please select a different bowler.";
+      return "This bowler bowled the last over. Choose someone else.";
     if (
       id === strikerId ||
       id === nonStrikerId ||
@@ -187,8 +187,10 @@ export function BowlerDialog({
                 className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
               />
               <span>
-                Reassign {currentBall} ball{currentBall > 1 ? "s" : ""} bowled
-                in this over to this bowler (correct wrong bowler selection)
+                Wrong bowler picked: give the {currentBall} ball
+                {currentBall > 1 ? "s" : ""} already bowled in this over to
+                this bowler too. Leave it unticked when this bowler takes
+                over the rest of the over (an injury).
               </span>
             </label>
           )}

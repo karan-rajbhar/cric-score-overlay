@@ -4,6 +4,7 @@
 
 import "server-only";
 import {
+  AggregateField,
   FieldPath,
   type DocumentData,
   type Firestore,
@@ -68,7 +69,11 @@ export class AdminDataSource implements DataSource {
     let q = this.build(table, filters);
     for (const o of options?.orderBy ?? []) q = q.orderBy(o.field, o.direction);
     if (options?.startAfter && options.orderBy?.length) {
-      q = q.orderBy(FieldPath.documentId()).startAfter(...options.startAfter);
+      // Ties by document id in the last order's direction (Firestore's own).
+      const last = options.orderBy[options.orderBy.length - 1]!;
+      q = q
+        .orderBy(FieldPath.documentId(), last.direction)
+        .startAfter(...options.startAfter);
     }
     if (options?.limit !== undefined) q = q.limit(options.limit);
     const snap = await q.get();
@@ -78,6 +83,17 @@ export class AdminDataSource implements DataSource {
   async count(table: string, filters: NativeFilter[]): Promise<number> {
     const snap = await this.build(table, filters).count().get();
     return snap.data().count;
+  }
+
+  async sum(
+    table: string,
+    filters: NativeFilter[],
+    field: string,
+  ): Promise<number> {
+    const snap = await this.build(table, filters)
+      .aggregate({ total: AggregateField.sum(field) })
+      .get();
+    return snap.data().total ?? 0;
   }
 
   async insert(table: string, docs: Doc[]): Promise<void> {

@@ -25,10 +25,31 @@ import {
   canonicalJson,
   inningsSummaryEntry,
   inningsSummaryOf,
+  SUMMARY_TOTAL_FIELDS,
+  summaryTotalsOf,
 } from "./derive.mjs";
 import type { PendingWrite, ScoringTx } from "./scoring/tx";
 
 type Entry = Record<string, unknown>;
+
+/**
+ * The match patch for summary `next`: the summary and its totals
+ * (`summaryTotalsOf`: club milestones), or null when the stored copies
+ * already match. A match whose totals are missing or behind (written before
+ * they existed) gets them with its next summary write.
+ */
+export function inningsSummaryPatch(
+  match: Entry,
+  next: Entry[],
+): Record<string, unknown> | null {
+  const totals: Entry = summaryTotalsOf(next);
+  const same =
+    canonicalJson(match.innings_summary ?? null) === canonicalJson(next) &&
+    SUMMARY_TOTAL_FIELDS.every(
+      (f) => canonicalJson(match[f] ?? null) === canonicalJson(totals[f]),
+    );
+  return same ? null : { innings_summary: next, ...totals };
+}
 
 /**
  * Ids of the summary entries of `match` that may be behind their innings:
@@ -171,9 +192,8 @@ export async function stageInningsSummaries(t: ScoringTx): Promise<void> {
     } else {
       next = sortEntries(next);
     }
-    if (!current || canonicalJson(current) !== canonicalJson(next)) {
-      t.patch("matches", matchId, { innings_summary: next });
-    }
+    const patch = inningsSummaryPatch(match, next);
+    if (patch) t.patch("matches", matchId, patch);
   }
 }
 

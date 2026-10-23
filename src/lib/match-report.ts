@@ -1,10 +1,15 @@
 import type { Match } from "./match-types";
+import { ballFaced, noBallByesOf } from "./firebase/scoring/recompute";
+
+/** The match's balls-faced rules (null: the Laws' convention). */
+type FacedRules = Parameters<typeof ballFaced>[0];
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
-  ballsRemaining,
   bowlerEconomy,
   byBattingOrder,
+  chaseLine,
   dismissalText,
+  displayStatusOf,
   formatBowlerOvers,
   formatDecimalOvers,
   inningsBalls,
@@ -125,7 +130,6 @@ export function matchSituation(match: Match): string {
       (match.status === "abandoned" ? "Match abandoned" : "Match completed")
     );
   }
-  if (match.status === "innings_break") return "Innings break";
   const inn =
     match.innings?.find((i) => i.innings_number === match.current_innings) ??
     match.innings?.at(-1);
@@ -133,16 +137,13 @@ export function matchSituation(match: Match): string {
   const bpo = match.balls_per_over || 6;
   const batting = teamName(match, inn.team_id);
   const balls = inningsBalls(inn, bpo);
-  const need = (inn.target_runs ?? 0) - inn.total_runs;
-  if (inn.target_runs && need > 0) {
-    const runs = `${need} ${need === 1 ? "run" : "runs"}`;
-    const left = match.overs_per_innings
-      ? ballsRemaining(match.overs_per_innings, balls, bpo)
-      : 0;
-    return left > 0
-      ? `${batting} need ${runs} from ${left} ${left === 1 ? "ball" : "balls"}`
-      : `${batting} need ${runs}`;
+  // The chase over the overs it has (a DLS revision's included).
+  const chase = chaseLine(match, inn, batting, bpo);
+  if (displayStatusOf(match) === "innings_break") {
+    return chase ? `Innings break. ${chase}` : "Innings break";
   }
+  if (chase) return chase;
+  if (balls === 0 && inn.total_runs === 0) return `${batting} bat first`;
   return `${batting} batting · run rate ${runRate(inn.total_runs, balls, bpo)}`;
 }
 
@@ -199,7 +200,10 @@ export interface Partnership {
  * and penalty runs to this side. Without a ball log there is nothing to
  * tell who batted together: none.
  */
-function getInningsPartnerships(inn: InningsRow): Partnership[] {
+function getInningsPartnerships(
+  inn: InningsRow,
+  rules: FacedRules = {},
+): Partnership[] {
   const deliveries = (inn.ball_by_ball ?? []).slice().sort((a, b) => {
     const sa = (a as { seq?: number | null }).seq;
     const sb = (b as { seq?: number | null }).seq;
@@ -268,13 +272,13 @@ function getInningsPartnerships(inn: InningsRow): Partnership[] {
     const runs = d.runs_scored ?? 0;
     const extras = d.extras ?? 0;
     current.runs += runs + extras;
-    if (d.extra_type !== "wide" && d.extra_type !== "no_ball" && !penaltyTeam) {
-      current.balls += 1;
-    }
+    // The balls the pair faced: their shares add up to the stand's.
+    const faced = !penaltyTeam && ballFaced(rules, d);
+    if (faced) current.balls += 1;
     const facing = striker ? current.share.get(striker) : undefined;
     if (facing && !penaltyTeam) {
       facing.runs += runs;
-      if (d.extra_type !== "wide") facing.balls += 1;
+      if (faced) facing.balls += 1;
     }
     if (d.is_wicket) {
       // Retired hurt ends the stand but is not a wicket.
@@ -306,7 +310,10 @@ export interface OverData {
   bowlerWickets: number;
 }
 
-function getInningsOverComparison(inn: InningsRow): OverData[] {
+function getInningsOverComparison(
+  inn: InningsRow,
+  rules: FacedRules = {},
+): OverData[] {
   const deliveries = (inn.ball_by_ball ?? []).slice().sort((a, b) => {
     const overDiff = (a.over_number ?? 0) - (b.over_number ?? 0);
     if (overDiff !== 0) return overDiff;
@@ -358,19 +365,21 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
 
       const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
       if (isLegal) overLegalBalls++;
+      // Byes off a no-ball are not the bowler's (only its penalty is).
+      const nbByes = noBallByesOf(d);
       if (
         d.extra_type !== "bye" &&
         d.extra_type !== "leg_bye" &&
         d.extra_type !== "penalty"
       ) {
-        overBowlerRuns += totalBallRuns;
+        overBowlerRuns += totalBallRuns - (nbByes?.runs ?? 0);
       }
 
       if (d.batsman_id) {
         overBattersSet.add(d.batsman_id);
         const bStat = batterStats.get(d.batsman_id) ?? { runs: 0, balls: 0 };
         bStat.runs += runsScored;
-        if (d.extra_type !== "wide") bStat.balls++;
+        if (ballFaced(rules, d)) bStat.balls++;
         batterStats.set(d.batsman_id, bStat);
       }
 
@@ -388,7 +397,7 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
           d.extra_type === "leg_bye" ||
           d.extra_type === "penalty"
             ? 0
-            : totalBallRuns;
+            : totalBallRuns - (nbByes?.runs ?? 0);
         bwStat.runs += bowlerRuns;
         if (isWkt) bwStat.wickets++;
         if (isLegal) bwStat.balls++;
@@ -404,7 +413,11 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
         text = extras > 1 ? `${extras}Wd` : "Wd";
         type = "extra";
       } else if (d.extra_type === "no_ball") {
-        text = runsScored > 0 ? `${runsScored}Nb` : "Nb";
+        text = nbByes?.runs
+          ? `Nb+${nbByes.runs}${nbByes.kind === "bye" ? "b" : "lb"}`
+          : runsScored > 0
+            ? `${runsScored}Nb`
+            : "Nb";
         type = "extra";
       } else if (d.extra_type === "bye") {
         text = `B${extras}`;
@@ -909,6 +922,7 @@ function reportInnings(
   inn: InningsRow,
   heading: string,
   team: Match["team1"] | Match["team2"],
+  rules: FacedRules = {},
 ): ReportInnings {
   const balls = inningsBalls(inn);
   return {
@@ -927,7 +941,7 @@ function reportInnings(
     boundaries: boundariesOf(inn),
     didNotBat: didNotBatOf(inn, team),
     fallOfWickets: fallOfWicketsOf(inn),
-    partnerships: getInningsPartnerships(inn),
+    partnerships: getInningsPartnerships(inn, rules),
     bowlers: reportBowlers(inn),
   };
 }
@@ -947,6 +961,7 @@ export function allInnings(match: Match): ReportInnings[] {
         inn,
         i === 0 ? "1st innings" : i === 1 ? "2nd innings" : "Super over",
         teamOf(inn),
+        match,
       ),
     );
 }
@@ -992,7 +1007,7 @@ function chartsOf(match: Match): MatchReportModel["charts"] {
         key: inn.id,
         label: tagOf(team),
         score: `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0}`,
-        overs: getInningsOverComparison(inn).map((o) => ({
+        overs: getInningsOverComparison(inn, match).map((o) => ({
           over: o.overNumber,
           runs: o.runs,
           wickets: o.wickets,
@@ -1019,8 +1034,8 @@ function oversOf(match: Match): MatchReportModel["overs"] {
   const inn2 =
     match.innings?.find((i) => i.innings_number === 2) ?? match.innings?.[1];
   if (!inn1) return null;
-  const o1 = getInningsOverComparison(inn1);
-  const o2 = inn2 ? getInningsOverComparison(inn2) : [];
+  const o1 = getInningsOverComparison(inn1, match);
+  const o2 = inn2 ? getInningsOverComparison(inn2, match) : [];
   if (o1.length === 0 && o2.length === 0) return null;
   const nameOf = (inn: InningsRow | undefined, fallback: Match["team1"]) =>
     inn

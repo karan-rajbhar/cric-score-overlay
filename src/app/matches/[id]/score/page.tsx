@@ -10,10 +10,18 @@ import { ScoringPanel } from "~/components/matches/scoring-panel";
 import { LiveMatchHUD } from "~/components/matches/live-match-hud";
 import dynamic from "next/dynamic";
 import {
-  ALL_DISMISSAL_TYPES,
   isRetirementType,
+  wicketMissing,
+  type RunsKind,
 } from "./components/WicketDialog";
-import type { DeliveryToEdit } from "./components/EditBallDialog";
+import type {
+  BallCorrection,
+  DeliveryToEdit,
+} from "./components/EditBallDialog";
+import { ConfirmDialog } from "./components/ConfirmDialog";
+import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
+import { describeQueuedAction } from "./describe-action";
+import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
 import { useLiveResync } from "./useLiveResync";
 import type { LiveChanges } from "~/lib/scoring-delta";
@@ -99,6 +107,18 @@ const InviteDialog = dynamic(
   () => import("~/components/invite-dialog").then((m) => m.InviteDialog),
   { ssr: false },
 );
+const EarlierBallsDialog = dynamic(
+  () =>
+    import("./components/EarlierBallsDialog").then((m) => m.EarlierBallsDialog),
+  { ssr: false },
+);
+const UnsavedActionsDialog = dynamic(
+  () =>
+    import("./components/UnsavedActionsDialog").then(
+      (m) => m.UnsavedActionsDialog,
+    ),
+  { ssr: false },
+);
 
 /** Fetches the code of the dialogs above (used before going offline). */
 function preloadScoringDialogs(): Promise<unknown> {
@@ -118,9 +138,17 @@ function preloadScoringDialogs(): Promise<unknown> {
     import("~/components/matches/dls-calculator-modal"),
     import("~/components/matches/match-scorers-dialog"),
     import("~/components/invite-dialog"),
+    import("./components/EarlierBallsDialog"),
+    import("./components/UnsavedActionsDialog"),
   ]);
 }
 import { useScoring } from "./useScoring";
+import {
+  inningsOverNotice,
+  isChaseInnings,
+  limitsOfInnings,
+} from "./innings-notice";
+import { getMatchBallLog } from "../../queries";
 import { isKnownSpectator, resolveScorerAccess } from "./scorer-access";
 import {
   forgetScorer,
@@ -142,7 +170,7 @@ import {
   abandonMatch,
   updateTargetRuns,
 } from "../../mutations";
-import type { ExtraType } from "../../types";
+import type { ExtraType, NoBallRuns } from "../../types";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,6 +209,8 @@ import {
   Share2,
   MessageCircle,
   Trash2,
+  Pencil,
+  Flag,
 } from "lucide-react";
 import { economyRate } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
@@ -202,6 +232,21 @@ import {
   whatsappShareUrl,
 } from "~/lib/share-match";
 import { LiveIndicator } from "~/components/matches/live-indicator";
+
+/**
+ * Calls a server action that may get no answer (no signal at the ground):
+ * a network failure becomes an error the scorer can read, not a silent
+ * rejection that leaves a dialog waiting.
+ */
+async function callServer<T extends { error?: string | null }>(
+  run: () => Promise<T>,
+): Promise<T | { error: string }> {
+  try {
+    return await run();
+  } catch {
+    return { error: "No connection: nothing was saved. Try again." };
+  }
+}
 
 /**
  * The scoring screen's state, handlers and derived values (everything the
@@ -316,8 +361,13 @@ function useScoringScreen() {
     isOffline,
     pendingCount,
     deadLetterCount,
+    deadLetters,
+    refusedHead,
+    awaitingServer,
     flushOfflineQueue,
     handleSkipHeadAction,
+    handleResendDeadLetters,
+    handleDiscardDeadLetter,
     handleStartMatch,
     handleScore,
     handleUndo,
@@ -437,6 +487,16 @@ function useScoringScreen() {
     null,
   );
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  /** The list of this innings' balls, to correct one in any over. */
+  const [showEarlierBalls, setShowEarlierBalls] = useState(false);
+  /** The actions kept after the server refused them, under review. */
+  const [showUnsaved, setShowUnsaved] = useState(false);
+  /** Asking before the refused action at the head of the queue is dropped. */
+  const [confirmSkip, setConfirmSkip] = useState(false);
+  /** Asking before a super over starts (it reopens a finished match). */
+  const [confirmSuperOver, setConfirmSuperOver] = useState(false);
+  /** What a run out's completed runs were (the wicket dialog's toggle). */
+  const [wicketRunsKind, setWicketRunsKind] = useState<RunsKind>("bat");
 
   const currentInnings = match?.innings?.find(
     (i) => i.innings_number === match?.current_innings,
@@ -446,7 +506,10 @@ function useScoringScreen() {
   const overBalls = rawDeliveries.filter(
     (d) => !(d.is_wicket && isRetirementType(d.dismissal_type)),
   );
-  const isFreeHit = overBalls.at(-1)?.extra_type === "no_ball";
+  // The ball after a no-ball, while the match plays free hits; it carries
+  // on through a wide or another no-ball.
+  const isFreeHit = nextIsFreeHit(rawDeliveries, freeHitsOn(match));
+  const isChase = isChaseInnings(match?.current_innings);
   const battingTeam = currentInnings
     ? currentInnings.team_id === match?.team1_id
       ? match?.team1
@@ -487,6 +550,10 @@ function useScoringScreen() {
     Boolean(retireTarget) ||
     showShortcuts ||
     showInviteDialog ||
+    showEarlierBalls ||
+    showUnsaved ||
+    confirmSkip ||
+    confirmSuperOver ||
     actionsMenuOpen;
 
   const dismissedPlayerIds = useMemo(
@@ -718,17 +785,19 @@ function useScoringScreen() {
     const inn = currentInnings;
     if (!inn) return false;
 
+    // The engine's limits (a super over: one over, two wickets).
+    const innings = match.current_innings ?? 1;
+    const limits = limitsOfInnings(match, innings);
     // Check all out
-    const wicketsLimit = match.wickets_per_innings ?? 10;
-    if ((inn.total_wickets ?? 0) >= wicketsLimit) return true;
+    if ((inn.total_wickets ?? 0) >= limits.wicketsCap) return true;
 
     // Check overs limit
-    const oversLimit = match.overs_per_innings;
-    const bpo = match.balls_per_over || 6;
+    const oversLimit = limits.maxBalls / limits.ballsPerOver;
     if (
-      oversLimit > 0 &&
-      ((inn.total_balls ?? 0) >= oversLimit * bpo ||
-        ((match.current_over ?? 0) >= oversLimit &&
+      limits.maxBalls > 0 &&
+      ((inn.total_balls ?? 0) >= limits.maxBalls ||
+        (!isSuperOverInnings(innings) &&
+          (match.current_over ?? 0) >= oversLimit &&
           (match.current_ball ?? 0) === 0))
     ) {
       return true;
@@ -769,12 +838,12 @@ function useScoringScreen() {
 
   const onScore = async (
     runs: number,
-    extra?: { type: string; runs: number },
+    extra?: { type: string; runs: number; noBallRuns?: NoBallRuns },
     shotZone?: string,
   ) => {
     if (match?.status === "scheduled") {
       setTossDialogDismissed(false);
-      toast.info("Please record the toss to start the match");
+      toast.info("Record the toss to start the match");
       return;
     }
     if (!currentBowlerId || !strikerId || !nonStrikerId) {
@@ -787,6 +856,12 @@ function useScoringScreen() {
       extras: extra?.runs ?? 0,
       extraType: extra?.type as never,
       shotZone: shotZone ?? null,
+      // Byes / leg byes off a no-ball (absent: off the bat).
+      ...(extra?.type === "no_ball" &&
+      extra.noBallRuns &&
+      extra.noBallRuns !== "bat"
+        ? { noBallRuns: extra.noBallRuns }
+        : {}),
     });
     if (res?.data) {
       if (res.data.over_completed || res.data.needs_bowler) {
@@ -798,16 +873,15 @@ function useScoringScreen() {
   };
 
   const openWicketDialog = (extraType?: string | null) => {
-    setWicketExtraType(extraType ?? null);
+    // A bye or leg bye armed first is what a run out's runs were.
+    const byes = extraType === "bye" || extraType === "leg_bye";
+    setWicketExtraType(byes ? null : (extraType ?? null));
+    setWicketRunsKind(byes ? (extraType as RunsKind) : "bat");
     setDismissedPlayerId(strikerId);
     setRunsCompletedBeforeRunOut(0);
-    if (extraType === "no_ball") {
-      setDismissalType("run_out");
-    } else if (extraType === "wide") {
-      setDismissalType("stumped");
-    } else {
-      setDismissalType("bowled");
-    }
+    setFielderId("");
+    // Nothing preselected: a wrong default would be a wrong scorecard.
+    setDismissalType("");
     setShowWicketDialog(true);
   };
 
@@ -825,50 +899,37 @@ function useScoringScreen() {
       return;
     }
     if (!currentBowlerId) return;
-    const selectedDismissal = ALL_DISMISSAL_TYPES.find(
-      (d) => d.value === dismissalType,
-    );
-    if (selectedDismissal?.needsFielder && !fielderId) {
-      toast.error("Select a fielder");
-      return;
-    }
+    // The dialog's Confirm says what is missing; nothing to record yet.
+    if (wicketMissing(dismissalType, fielderId)) return;
 
     let runsScored = 0;
     let extras = 0;
     let extraType: ExtraType | undefined = undefined;
+    let noBallRuns: NoBallRuns | undefined = undefined;
+    const runs = dismissalType === "run_out" ? runsCompletedBeforeRunOut : 0;
+    const byes = wicketRunsKind !== "bat" && runs > 0;
 
     if (wicketExtraType === "wide") {
+      // Runs completed on a wide are wides.
       runsScored = 0;
-      extras = 1 + runsCompletedBeforeRunOut;
+      extras = 1 + runs;
       extraType = "wide";
     } else if (wicketExtraType === "no_ball") {
-      runsScored = runsCompletedBeforeRunOut;
-      extras = 1;
       extraType = "no_ball";
-    } else if (dismissalType === "run_out") {
-      if (
-        wicketExtraType === "bye" ||
-        wicketExtraType === "leg_bye" ||
-        wicketExtraType === "penalty"
-      ) {
-        // Completed runs are byes, not batter runs; bowler concedes 0.
-        runsScored = 0;
-        extras = runsCompletedBeforeRunOut;
-        extraType = wicketExtraType;
+      if (byes) {
+        // Not hit: the runs completed are byes / leg byes off the no-ball.
+        extras = 1 + runs;
+        noBallRuns = wicketRunsKind;
       } else {
-        runsScored = runsCompletedBeforeRunOut;
-        extras = 0;
+        runsScored = runs;
+        extras = 1;
       }
-    } else if (
-      wicketExtraType === "bye" ||
-      wicketExtraType === "leg_bye" ||
-      wicketExtraType === "penalty"
-    ) {
-      // Non-run-out dismissal on a bye ball: carry the extra type so the
-      // bowler isn't charged.
-      runsScored = 0;
-      extras = 0;
-      extraType = wicketExtraType;
+    } else if (byes) {
+      // Completed runs are byes, not the batter's; the bowler concedes 0.
+      extras = runs;
+      extraType = wicketRunsKind as ExtraType;
+    } else {
+      runsScored = runs;
     }
 
     const res = await handleScore(currentBowlerId, strikerId, nonStrikerId, {
@@ -879,10 +940,14 @@ function useScoringScreen() {
       dismissalType,
       fielderId: fielderId || null,
       dismissedPlayerId: dismissedPlayerId || strikerId,
+      ...(noBallRuns ? { noBallRuns } : {}),
     });
+    // Refused: the dialog stays open with the scorer's picks.
+    if (res?.error) return;
     setShowWicketDialog(false);
     setFielderId("");
     setWicketExtraType(null);
+    setWicketRunsKind("bat");
     setRunsCompletedBeforeRunOut(0);
 
     if (res?.data) {
@@ -957,37 +1022,56 @@ function useScoringScreen() {
     }
   };
 
+  const teamNameOf = (id: string | null | undefined) =>
+    id === match?.team1?.id
+      ? match?.team1?.name
+      : id === match?.team2?.id
+        ? match?.team2?.name
+        : null;
+
+  /** False when nothing was recorded (the dialog stays open). */
   const handleAwardPenaltyConfirm = async (params: {
     teamId: string;
     runs: number;
     reason: string;
     type: "penalty" | "bonus";
   }) => {
-    if (!match) return;
+    if (!match) return false;
     const res = await handleAwardPenalty(params);
     if (res.error) {
       toast.error(res.error);
-    } else if (!res.queued) {
+      return false;
+    }
+    if (!res.queued) {
       toast.success(
-        `${params.type === "penalty" ? "Penalty" : "Bonus"} of ${params.runs} runs recorded`,
+        `${params.runs} ${params.type === "penalty" ? "penalty" : "bonus"} run${params.runs === 1 ? "" : "s"} to ${teamNameOf(params.teamId) ?? "the team"}`,
       );
     }
+    return true;
   };
 
+  /** False when nothing was saved (the dialog stays open). */
   const handleAbandonMatchConfirm = async (params: {
     reason: string;
     resultType: "abandoned" | "no_result" | "win";
     winningTeamId?: string | null;
     notes?: string | null;
   }) => {
-    if (!match) return;
-    const res = await abandonMatch(match.id, params);
+    if (!match) return false;
+    const res = await callServer(() => abandonMatch(match.id, params));
     if (res.error) {
       toast.error(res.error);
-    } else {
-      toast.success("Match marked as abandoned");
-      await syncFromDb();
+      return false;
     }
+    toast.success(
+      params.resultType === "win"
+        ? `Match awarded to ${teamNameOf(params.winningTeamId) ?? "the winners"}`
+        : params.resultType === "no_result"
+          ? "Match ended: no result"
+          : "Match abandoned",
+    );
+    await syncFromDb();
+    return true;
   };
 
   const handleReviseTargetConfirm = async (params: {
@@ -995,17 +1079,68 @@ function useScoringScreen() {
     overs?: number | null;
   }) => {
     if (!match) return;
-    const res = await updateTargetRuns(match.id, params);
+    const res = await callServer(() => updateTargetRuns(match.id, params));
     if (res.error) {
       toast.error(res.error);
     } else {
-      toast.success("Target updated successfully");
+      toast.success("Target updated");
       await syncFromDb();
     }
   };
 
+  /** Correct a ball (any over); the error is shown in the dialog. */
+  const handleCorrectBall = async (params: BallCorrection) => {
+    const res = await handleUpdateBall(params);
+    return { error: res?.error ?? null };
+  };
+
+  const loadBallLog = useCallback(async () => {
+    const res = await getMatchBallLog(matchId);
+    if (res.error) throw new Error(res.error);
+    return (res.data ?? []) as unknown as DeliveryToEdit[];
+  }, [matchId]);
+
+  /** The queue's actions in the scorer's words (names from both squads). */
+  const nameOfPlayer = (id: string | null | undefined) =>
+    (id
+      ? [...battingTeamPlayers, ...bowlingTeamPlayers].find(
+          (p) => p.user_id === id,
+        )?.user?.full_name
+      : null) ??
+    teamNameOf(id) ??
+    null;
+  const unsavedItems = deadLetters.map((d) => ({
+    id: d.action.queueId,
+    description: describeQueuedAction(d.action, nameOfPlayer),
+    error: d.error.startsWith("Not sent")
+      ? "Not sent: an earlier action was refused"
+      : `Refused: ${d.error}`,
+  }));
+  const refusedHeadText = refusedHead
+    ? describeQueuedAction(refusedHead, nameOfPlayer)
+    : null;
+
   return {
     addPlayerDisabledReason,
+    awaitingServer,
+    confirmSkip,
+    confirmSuperOver,
+    handleCorrectBall,
+    handleDiscardDeadLetter,
+    handleResendDeadLetters,
+    isChase,
+    loadBallLog,
+    refusedHead,
+    refusedHeadText,
+    setConfirmSkip,
+    setConfirmSuperOver,
+    setShowEarlierBalls,
+    setShowUnsaved,
+    setWicketRunsKind,
+    showEarlierBalls,
+    showUnsaved,
+    unsavedItems,
+    wicketRunsKind,
     findPlayers,
     authLoading,
     batsmenFocus,
@@ -1172,7 +1307,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
           <button
             type="button"
             onClick={() => void flushOfflineQueue()}
-            title="Some changes have not reached the server yet. Tap to retry."
+            title="Some changes have not reached the server yet. Tap to send them again."
             className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-semibold text-warning"
           >
             <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -1207,7 +1342,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
       {isOffline && (
         <span
           role="status"
-          title="Working offline — changes saved locally"
+          title="Offline: changes are kept on this device"
           className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-bold text-warning"
         >
           <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -1272,6 +1407,8 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setShowShortcuts,
     canDeleteMatch,
     setShowDeleteMatchDialog,
+    setShowEarlierBalls,
+    setShowAbandonMatchDialog,
   } = s;
   return (
     <>
@@ -1282,7 +1419,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             variant="outline"
             size="sm"
             className={cn(
-              "h-8 gap-1.5 rounded-lg px-2 text-xs font-medium sm:px-2.5",
+              "h-10 gap-1.5 rounded-lg px-2.5 text-xs font-medium sm:h-8",
               sunlightMode && "border-2 border-black font-bold",
             )}
             aria-label="Match actions and scoring options"
@@ -1305,6 +1442,15 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             >
               <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
               <span>Match rules & settings</span>
+            </DropdownMenuItem>
+          )}
+          {match.status === "live" && isScorer && (
+            <DropdownMenuItem
+              onSelect={() => setShowEarlierBalls(true)}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <Pencil className="h-4 w-4 text-muted-foreground" />
+              <span>Correct a ball</span>
             </DropdownMenuItem>
           )}
           {match.status === "live" && isScorer && (
@@ -1365,6 +1511,16 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
               }
             />
           )}
+          {(match.status === "live" || match.status === "scheduled") &&
+            isScorer && (
+              <DropdownMenuItem
+                onSelect={() => setShowAbandonMatchDialog(true)}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+              >
+                <Flag className="h-4 w-4 text-muted-foreground" />
+                <span>End the match early (rain, walkover)</span>
+              </DropdownMenuItem>
+            )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => setShowAddPlayerDialog(true)}
@@ -1389,6 +1545,18 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
           <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
             Share
           </DropdownMenuLabel>
+          {/* The overlay's header button is hidden on phones: it is here */}
+          <DropdownMenuItem asChild className="sm:hidden">
+            <Link
+              href={`/overlay/${match.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <Tv className="h-4 w-4 text-muted-foreground" />
+              <span>Open the broadcast overlay</span>
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onPointerDown={matchShare.prepare}
             onSelect={() => void matchShare.share()}
@@ -1490,7 +1658,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
               asChild
             >
               <Link
@@ -1532,7 +1700,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 rounded-lg lg:hidden"
+              className="h-10 w-10 rounded-lg sm:h-8 sm:w-8 lg:hidden"
               onClick={() => setShowAddPlayerDialog(true)}
               aria-label="Open squads"
               title="Squads"
@@ -1549,7 +1717,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
               onPointerDown={matchShare.prepare}
               onClick={() => void matchShare.share()}
               aria-label="Share live score"
-              className="h-8 w-8 rounded-lg p-0 sm:w-auto sm:px-2.5"
+              className="h-10 w-10 rounded-lg p-0 sm:h-8 sm:w-auto sm:px-2.5"
             >
               {matchShare.busy ? (
                 <Loader2 className="animate-spin" />
@@ -1563,7 +1731,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 rounded-lg"
+              className="hidden h-8 w-8 rounded-lg sm:inline-flex"
               asChild
               title="Open broadcast overlay in new tab"
             >
@@ -1585,7 +1753,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
   );
 }
 
-/** Offline / unsynced actions banner. */
+/** Offline / unsynced actions banner, and the actions the server refused. */
 function SyncBanner({ s }: { s: LoadedScreen }) {
   const {
     isOffline,
@@ -1594,8 +1762,12 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
     deadLetterCount,
     isProcessing,
     flushOfflineQueue,
-    handleSkipHeadAction,
+    refusedHead,
+    refusedHeadText,
+    setConfirmSkip,
+    setShowUnsaved,
   } = s;
+  const changes = (n: number) => `${n} change${n === 1 ? "" : "s"}`;
   return (
     <>
       {/* Offline Alert & Sync Banner (not for instant saves in progress) */}
@@ -1610,7 +1782,7 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
               : "border-primary/40 bg-primary/10 text-primary dark:bg-primary/20",
           )}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <span
               className={cn(
                 "h-2 w-2 shrink-0 rounded-full",
@@ -1621,58 +1793,86 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
             <span>
               {isOffline ? (
                 <>
-                  <strong className="font-semibold">Offline:</strong> Scoring is
-                  active. Deliveries are saved locally.
+                  <strong className="font-semibold">Offline:</strong> keep
+                  scoring.{" "}
+                  {pendingCount > 0
+                    ? `${changes(pendingCount)} kept on this device, sent when you are back online.`
+                    : "Changes are kept on this device."}
+                </>
+              ) : refusedHead ? (
+                <>
+                  <strong className="font-semibold">Not saved:</strong> the
+                  server refused “{refusedHeadText}”
+                  {refusedHead.lastError ? ` (${refusedHead.lastError})` : ""}.
+                  {pendingCount > 1
+                    ? ` ${changes(pendingCount - 1)} after it wait${pendingCount - 1 === 1 ? "s" : ""}.`
+                    : ""}
                 </>
               ) : (
                 <>
                   <strong className="font-semibold">Not saved yet:</strong>{" "}
-                  {pendingCount} update(s) are kept on this device and will sync
-                  when the server can be reached.
+                  {changes(pendingCount)} kept on this device. No answer from
+                  the server; they are sent again shortly.
                 </>
               )}
             </span>
-            {pendingCount > 0 && (
-              <span className="rounded-full bg-background/80 px-2 py-0.5 text-[0.625rem] font-bold">
-                {pendingCount} queued
-              </span>
-            )}
-            {deadLetterCount > 0 && (
-              <span
-                className="rounded-full bg-destructive/15 px-2 py-0.5 text-[0.625rem] font-bold text-destructive"
-                title="Items that failed server validation were moved to Dead Letter Queue to unblock scoring"
-              >
-                {deadLetterCount} rejected
-              </span>
-            )}
           </div>
           {!isOffline && pendingCount > 0 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              {/* Only an action the server refused may be dropped: one that
+                  went unanswered may yet be saved. */}
+              {refusedHead && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={isProcessing}
+                  onClick={() => setConfirmSkip(true)}
+                  className="h-9 px-2.5 text-xs font-semibold text-muted-foreground hover:text-destructive"
+                >
+                  Discard it
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
                 disabled={isProcessing}
                 onClick={() => flushOfflineQueue()}
-                className="h-7 gap-1 px-2 text-2xs font-semibold"
+                className="h-9 gap-1 px-2.5 text-xs font-semibold"
               >
                 <RefreshCw
-                  className={cn("h-3 w-3", isProcessing && "animate-spin")}
+                  className={cn("h-3.5 w-3.5", isProcessing && "animate-spin")}
                   aria-hidden="true"
                 />
-                {isProcessing ? "Syncing..." : "Sync now"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={isProcessing}
-                onClick={() => handleSkipHeadAction()}
-                className="h-7 px-2 text-2xs font-semibold text-muted-foreground hover:text-destructive"
-                title="Discard the current head item from queue if it is failing validation or causing a deadlock"
-              >
-                Skip stuck item
+                {isProcessing ? "Sending…" : "Send now"}
               </Button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Lasting until reviewed: what the server refused */}
+      {deadLetterCount > 0 && (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive sm:px-6"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              {deadLetterCount === 1
+                ? "1 action not saved"
+                : `${deadLetterCount} actions not saved`}
+              : not on the scorecard.
+            </span>
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowUnsaved(true)}
+            className="h-9 shrink-0 px-2.5 text-xs font-semibold"
+          >
+            Review
+          </Button>
         </div>
       )}
     </>
@@ -1751,8 +1951,8 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
               </div>
               <p className="truncate text-2xs text-muted-foreground sm:text-xs">
                 {user
-                  ? "You are viewing as a guest. Scoring keypad is locked to match administrators."
-                  : "Sign in with scorer credentials to record deliveries and manage match state."}
+                  ? "Only this match's scorers can score it."
+                  : "Scorers invited to this match can sign in to score."}
               </p>
             </div>
           </div>
@@ -1818,7 +2018,12 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
         match={match}
         currentInnings={currentInnings}
         battingTeamName={battingTeam?.name}
-        onEndInnings={isScorer ? () => void handleEndInnings() : undefined}
+        onEndInnings={
+          // Once the innings is over, its banner says what happens next.
+          isScorer && !s.isInningsComplete
+            ? () => void handleEndInnings()
+            : undefined
+        }
         isProcessing={isProcessing}
         striker={strikerDisplay}
         nonStriker={nonStrikerDisplay}
@@ -1839,7 +2044,7 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
             ? () => {
                 if (match.status === "scheduled") {
                   setTossDialogDismissed(false);
-                  toast.info("Please record the toss to start the match");
+                  toast.info("Record the toss to start the match");
                   return;
                 }
                 setBatsmenFocus("striker");
@@ -1852,7 +2057,7 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
             ? () => {
                 if (match.status === "scheduled") {
                   setTossDialogDismissed(false);
-                  toast.info("Please record the toss to start the match");
+                  toast.info("Record the toss to start the match");
                   return;
                 }
                 setBatsmenFocus("nonStriker");
@@ -1865,7 +2070,7 @@ function Scoreboard({ s }: { s: LoadedScreen }) {
             ? () => {
                 if (match.status === "scheduled") {
                   setTossDialogDismissed(false);
-                  toast.info("Please record the toss to start the match");
+                  toast.info("Record the toss to start the match");
                   return;
                 }
                 setShowSelectBowler(true);
@@ -1891,45 +2096,57 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
     strikerId,
     nonStrikerId,
     setShowSelectBatsmen,
+    currentInnings,
+    isChase,
+    isOffline,
+    awaitingServer,
   } = s;
+  const notice = inningsOverNotice({ isChase, isOffline, awaitingServer });
+  // Nothing bowled yet: the openers and the opening bowler come first.
+  const inningsStart = (currentInnings?.total_balls ?? 0) === 0;
+  const oneEmpty = Boolean(strikerId) !== Boolean(nonStrikerId);
   return (
     <>
       {/* Innings Complete Banner */}
       {isInningsComplete && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4">
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4"
+        >
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-              Innings complete
+              {notice.title}
             </p>
             <p className="text-2xs text-muted-foreground sm:text-xs">
-              {match.current_innings === 1
-                ? "1st Innings has concluded. End innings to switch sides and set 2nd innings target."
-                : "Match has reached target or overs limit."}
+              {notice.text}
             </p>
           </div>
-          {match.current_innings === 1 && isScorer && (
+          {notice.action && isScorer && (
             <Button
               size="sm"
               onClick={() => void handleEndInnings()}
               disabled={isProcessing}
-              className="h-8 text-xs font-semibold"
+              className="h-10 text-xs font-semibold"
             >
-              End innings & switch sides
+              {notice.action === "finish" ? "Finish the match" : "End innings"}
             </Button>
           )}
         </div>
       )}
 
-      {/* Over Complete — Select Bowler Banner */}
+      {/* Choose the bowler: the opening one, or after an over */}
       {isOverComplete && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-primary/10 p-3 text-primary dark:bg-primary/20 sm:p-4">
           <div className="space-y-0.5">
             <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-              Over {match.current_over} complete
+              {inningsStart
+                ? "Choose the opening bowler"
+                : `Over ${match.current_over} complete`}
             </p>
             <p className="text-2xs text-muted-foreground sm:text-xs">
-              Select the bowler for over {match.current_over + 1} to resume
-              scoring.
+              {inningsStart
+                ? "Pick who bowls the first over to start scoring."
+                : `Choose the bowler for over ${match.current_over + 1}.`}
             </p>
           </div>
           {isScorer && (
@@ -1937,25 +2154,31 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
               size="sm"
               onClick={() => setShowSelectBowler(true)}
               disabled={isProcessing}
-              className="h-8 text-xs font-bold"
+              className="h-10 text-xs font-bold"
             >
-              Select bowler
+              Choose bowler
             </Button>
           )}
         </div>
       )}
 
-      {/* Select Batsmen Banner */}
+      {/* Choose the batters: the openers, or after a wicket */}
       {match.status === "live" &&
         (!strikerId || !nonStrikerId) &&
         !isInningsComplete && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-warning dark:bg-warning/20 sm:p-4">
             <div className="space-y-0.5">
               <p className="flex items-center gap-1.5 text-xs font-bold sm:text-sm">
-                Select batters to continue
+                {oneEmpty
+                  ? "Choose the new batter"
+                  : inningsStart
+                    ? "Choose the opening batters"
+                    : "Choose the batters"}
               </p>
               <p className="text-2xs text-muted-foreground sm:text-xs">
-                A wicket has fallen or batsmen need to be set to resume scoring.
+                {oneEmpty
+                  ? "A batter is out or has retired: who comes in?"
+                  : "Scoring starts once both batters are in."}
               </p>
             </div>
             {isScorer && (
@@ -1963,9 +2186,9 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
                 size="sm"
                 onClick={() => setShowSelectBatsmen(true)}
                 disabled={isProcessing}
-                className="h-8 text-xs font-bold"
+                className="h-10 text-xs font-bold"
               >
-                Select batters
+                {oneEmpty ? "Choose batter" : "Choose batters"}
               </Button>
             )}
           </div>
@@ -2006,7 +2229,20 @@ function Console({ s }: { s: LoadedScreen }) {
     wagonWheelPrompt,
     showShortcuts,
     setShowShortcuts,
+    awaitingServer,
+    isInningsComplete,
+    isChase,
+    setShowEarlierBalls,
   } = s;
+  // Waiting for the server's answer (a ball that ends the innings, a
+  // correction): say why the keypad does not respond.
+  const waitingNote = awaitingServer
+    ? isInningsComplete
+      ? isChase
+        ? "Saving the last ball. The result follows."
+        : "Saving the last ball. The next innings opens after it."
+      : "Saving. Scoring goes on once the server answers."
+    : null;
   return (
     <>
       {!isScorer ? (
@@ -2173,6 +2409,11 @@ function Console({ s }: { s: LoadedScreen }) {
               setShowEditBallDialog(true);
             }
           }}
+          onEditBalls={
+            match.status === "live" ? () => setShowEarlierBalls(true) : undefined
+          }
+          waitingNote={waitingNote}
+          freeHitsOn={freeHitsOn(match)}
           currentOver={match.current_over}
           currentBall={match.current_ball}
           lastBalls={lastBalls}
@@ -2198,29 +2439,48 @@ function Console({ s }: { s: LoadedScreen }) {
 
 /** Super over after a tie. */
 function TieActions({ s }: { s: LoadedScreen }) {
-  const { match, isScorer, handleStartSuperOver, isProcessing } = s;
+  const {
+    match,
+    isScorer,
+    handleStartSuperOver,
+    isProcessing,
+    confirmSuperOver,
+    setConfirmSuperOver,
+  } = s;
+  const tied =
+    match.result_type === "tie" ||
+    Boolean(match.result_description?.toLowerCase().includes("tie"));
   return (
     <>
-      {match.status === "completed" &&
-        match.result_description?.toLowerCase().includes("tie") &&
-        isScorer && (
-          <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-center">
-            <h4 className="text-base font-bold text-warning">
-              Match tied
-            </h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Scores are level. You can initiate a Super Over tiebreaker
-              according to tournament rules.
-            </p>
-            <Button
-              className="mt-3 gap-2"
-              onClick={() => void handleStartSuperOver()}
-              disabled={isProcessing}
-            >
-              Start Super Over
-            </Button>
-          </div>
-        )}
+      {match.status === "completed" && tied && isScorer && (
+        <div className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-center">
+          <h4 className="text-base font-semibold text-warning">Match tied</h4>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Scores are level. If the competition settles ties with a super
+            over, start one here.
+          </p>
+          <Button
+            className="mt-3 min-h-11 gap-2"
+            onClick={() => setConfirmSuperOver(true)}
+            disabled={isProcessing}
+          >
+            Start super over
+          </Button>
+          <ConfirmDialog
+            open={confirmSuperOver}
+            onOpenChange={setConfirmSuperOver}
+            title="Start a super over?"
+            description="The match goes live again for one over and two wickets a side. The super over's result replaces the tie."
+            confirmLabel="Start super over"
+            cancelLabel="Not now"
+            busy={isProcessing}
+            onConfirm={() => {
+              setConfirmSuperOver(false);
+              void handleStartSuperOver();
+            }}
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -2436,8 +2696,6 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     showEditBallDialog,
     setShowEditBallDialog,
     editingDelivery,
-    params,
-    handleUpdateBall,
     showPotmDialog,
     setShowPotmDialog,
     matchId,
@@ -2460,6 +2718,25 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     showReviseTargetDialog,
     setShowReviseTargetDialog,
     handleReviseTargetConfirm,
+    wicketRunsKind,
+    setWicketRunsKind,
+    handleCorrectBall,
+    showEarlierBalls,
+    setShowEarlierBalls,
+    loadBallLog,
+    pendingCount,
+    showUnsaved,
+    setShowUnsaved,
+    unsavedItems,
+    handleResendDeadLetters,
+    handleDiscardDeadLetter,
+    isProcessing: busy,
+    confirmSkip,
+    setConfirmSkip,
+    refusedHead,
+    refusedHeadText,
+    handleSkipHeadAction,
+    setEditingDelivery,
   } = s;
   return (
     <>
@@ -2657,6 +2934,8 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         extraType={wicketExtraType}
         runsCompleted={runsCompletedBeforeRunOut}
         onRunsCompletedChange={setRunsCompletedBeforeRunOut}
+        runsKind={wicketRunsKind}
+        onRunsKindChange={setWicketRunsKind}
         onConfirm={() => void onWicketConfirm()}
         isProcessing={isProcessing}
         isFreeHit={isFreeHit}
@@ -2668,10 +2947,55 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         delivery={editingDelivery}
         battingTeamPlayers={battingTeamPlayers}
         bowlingTeamPlayers={bowlingTeamPlayers}
-        onSave={async (params) => {
-          await handleUpdateBall(params);
-        }}
+        onSave={handleCorrectBall}
         isProcessing={isProcessing}
+      />
+
+      <EarlierBallsDialog
+        open={showEarlierBalls}
+        onOpenChange={setShowEarlierBalls}
+        inningsId={currentInnings?.id ?? null}
+        loadBalls={loadBallLog}
+        offline={isOffline}
+        unsaved={pendingCount}
+        onPick={(ball) => {
+          setShowEarlierBalls(false);
+          setEditingDelivery(ball);
+          setShowEditBallDialog(true);
+        }}
+      />
+
+      <UnsavedActionsDialog
+        open={showUnsaved}
+        onOpenChange={setShowUnsaved}
+        items={unsavedItems}
+        busy={busy}
+        offline={isOffline}
+        onResend={() => {
+          setShowUnsaved(false);
+          void handleResendDeadLetters();
+        }}
+        onDiscard={(id) => {
+          handleDiscardDeadLetter(id);
+          if (!id) setShowUnsaved(false);
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmSkip && Boolean(refusedHead)}
+        onOpenChange={setConfirmSkip}
+        title="Discard this action?"
+        description={`The server refused “${refusedHeadText ?? "this action"}”${
+          refusedHead?.lastError ? ` (${refusedHead.lastError})` : ""
+        }. Discarding it lets the changes after it be sent. It is kept under “not saved” until you discard it there too.`}
+        confirmLabel="Discard and go on"
+        cancelLabel="Keep it"
+        destructive
+        busy={busy}
+        onConfirm={() => {
+          setConfirmSkip(false);
+          void handleSkipHeadAction();
+        }}
       />
 
       <PotmDialog
@@ -2701,7 +3025,9 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         onOpenChange={setShowMatchSettingsDialog}
         match={match}
         onSave={async (settings) => {
-          const res = await updateMatchSettings(match.id, settings);
+          const res = await callServer(() =>
+            updateMatchSettings(match.id, settings),
+          );
           if (res.error) {
             toast.error(res.error);
           } else {

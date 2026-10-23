@@ -56,6 +56,24 @@ export interface LiveScorecardDoc {
   names: (string | null)[];
   /** In innings_number order. */
   innings: LiveScorecardInnings[];
+  /**
+   * A copy of `live_state/{matchId}` as written in the same transaction
+   * (without its server-only `refs`), so a viewer that follows this doc
+   * needs no `live_state` listener as well: one read per change instead of
+   * two. Missing on a doc built before it existed (viewers then follow
+   * `live_state`).
+   */
+  live?: Record<string, unknown> | null;
+}
+
+/** `live_state` as copied into {@link LiveScorecardDoc.live}. */
+export function liveCopyOf(
+  liveState: Record<string, unknown>,
+): Record<string, unknown> {
+  const copy = { ...liveState };
+  delete copy.refs;
+  delete copy.id;
+  return copy;
 }
 
 /** An innings document with its stage 2 scorecard arrays. */
@@ -329,19 +347,17 @@ export function decodeLiveScorecard(doc: LiveScorecardDoc): {
 }
 
 // ---------------------------------------------------------------------------
-// Rows as the match page receives them from `getMatch` / `getPartnerships`
+// Rows as the match page receives them from `getMatch`
 // ---------------------------------------------------------------------------
 
 export interface LiveScorecardView {
   /** Innings with `batting_performances` / `bowling_performances` / `fall_of_wickets`. */
   innings: Array<Record<string, unknown>>;
-  /** `getPartnerships` rows. */
-  partnerships: Array<Record<string, unknown>>;
 }
 
 /**
  * The doc as the rows `getMatch` embeds in `innings(...)` (same ids, same
- * user embeds) and the rows `getPartnerships` returns.
+ * user embeds).
  */
 export function liveScorecardView(doc: LiveScorecardDoc): LiveScorecardView {
   const { innings, names } = decodeLiveScorecard(doc);
@@ -356,18 +372,8 @@ export function liveScorecardView(doc: LiveScorecardDoc): LiveScorecardView {
     const n = name(id);
     return n === null ? null : { full_name: n };
   };
-  const partnerships: Array<Record<string, unknown>> = [];
   const out = innings.map((inn) => {
     const base = { match_id: matchId, innings_id: inn.id };
-    (inn.partnerships ?? []).forEach((p, i) =>
-      partnerships.push({
-        ...p,
-        id: `${inn.id}_p${i + 1}`,
-        ...base,
-        batsman1: nameOnly(p.batsman1_id),
-        batsman2: nameOnly(p.batsman2_id),
-      }),
-    );
     const totals: Record<string, unknown> = { ...inn };
     delete totals.batting;
     delete totals.bowling;
@@ -401,5 +407,5 @@ export function liveScorecardView(doc: LiveScorecardDoc): LiveScorecardView {
       })),
     };
   });
-  return { innings: out, partnerships };
+  return { innings: out };
 }

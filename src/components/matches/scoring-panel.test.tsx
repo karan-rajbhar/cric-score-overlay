@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ScoringPanel } from "./scoring-panel";
+import { ScoringPanel, readBallLabel } from "./scoring-panel";
 
 describe("ScoringPanel with Wagon Wheel selection", () => {
   const defaultProps = {
@@ -156,7 +156,7 @@ describe("ScoringPanel with Wagon Wheel selection", () => {
     const moreBtn = screen.getByRole("button", { name: /more run options/i });
     fireEvent.click(moreBtn);
 
-    expect(screen.getByText(/high runs \/ extras/i)).toBeInTheDocument();
+    expect(screen.getByText(/^more runs$/i)).toBeInTheDocument();
     const sevenBtn = screen.getByRole("button", { name: "7" });
     fireEvent.click(sevenBtn);
 
@@ -434,5 +434,107 @@ describe("ScoringPanel's This over", () => {
     expect(onSelectBall).toHaveBeenCalledWith(3);
     // 1 + (1 + 4) + 1 runs, and retired hurt is not a wicket.
     expect(screen.getByText("7r")).toBeInTheDocument();
+  });
+});
+
+describe("ScoringPanel: byes off a no-ball and other prompts", () => {
+  const props = {
+    onScore: vi.fn(),
+    onWicket: vi.fn(),
+    onUndo: vi.fn(),
+    currentOver: 4,
+    currentBall: 2,
+    lastBalls: ["1"],
+    wagonWheelPrompt: false,
+  };
+
+  it("asks under an armed no-ball whether the runs were off the bat or byes", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...props} onScore={onScore} />);
+    expect(screen.queryByRole("radiogroup", { name: /no-ball were/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "No ball" }));
+    const group = screen.getByRole("radiogroup", {
+      name: "The runs off this no-ball were",
+    });
+    // Off the bat unless the scorer says otherwise.
+    expect(
+      screen.getByRole("radio", { name: "Off the bat" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(group).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Byes" }));
+    expect(screen.getByText(/tap the byes they ran/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 runs" }));
+    expect(onScore).toHaveBeenCalledWith(
+      0,
+      { type: "no_ball", runs: 3, noBallRuns: "bye" },
+      undefined,
+    );
+    // The next no-ball starts again from off the bat.
+    fireEvent.click(screen.getByRole("button", { name: "No ball" }));
+    expect(
+      screen.getByRole("radio", { name: "Off the bat" }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "4 runs (four)" }));
+    expect(onScore).toHaveBeenLastCalledWith(
+      4,
+      { type: "no_ball", runs: 1 },
+      undefined,
+    );
+  });
+
+  it("does not take 0 as a bye", () => {
+    const onScore = vi.fn();
+    render(<ScoringPanel {...props} onScore={onScore} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bye" }));
+    expect(screen.getByRole("button", { name: "0 runs (dot ball)" })).toBeDisabled();
+    fireEvent.keyDown(window, { key: "0" });
+    expect(onScore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "1 run" }));
+    expect(onScore).toHaveBeenCalledWith(0, { type: "bye", runs: 1 }, undefined);
+  });
+
+  it("says why the keypad waits, and offers to correct any ball", () => {
+    const onEditBalls = vi.fn();
+    render(
+      <ScoringPanel
+        {...props}
+        disabled
+        waitingNote="Saving the last ball. The next innings opens after it."
+        onEditBalls={onEditBalls}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Saving the last ball. The next innings opens after it.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Correct a ball" }));
+    expect(onEditBalls).toHaveBeenCalled();
+  });
+
+  it("explains a free hit without law numbers", () => {
+    render(<ScoringPanel {...props} isFreeHit />);
+    expect(
+      screen.getByText(/Free hit: the batter can be out only run out/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Law/)).toBeNull();
+  });
+});
+
+describe("readBallLabel", () => {
+  it("reads byes off a no-ball, counting them in the over", () => {
+    expect(readBallLabel("nb+2b")).toMatchObject({
+      kind: "extra",
+      spoken: "No ball + 2 byes",
+      runs: 3,
+    });
+    expect(readBallLabel("nb+1lb")).toMatchObject({
+      spoken: "No ball + 1 leg bye",
+      runs: 2,
+    });
+    expect(readBallLabel("nb+4")).toMatchObject({
+      spoken: "No ball + 4 runs",
+      runs: 5,
+    });
   });
 });

@@ -1,214 +1,225 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+/**
+ * The lower third on air: which package element draws it (by strap type),
+ * and its timer. Also the hold screen and the held-score hook.
+ */
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { Match } from "~/lib/match-types";
+import { cn } from "~/lib/utils";
+import { winPredictorFromLive } from "~/lib/win-predictor";
+import { OV, OverlayFrame, type OverlayThemeProps } from "./overlay-kit";
+import { OverlayElement } from "./packages/element";
+import type { BreakKind, OverlayElementId } from "./packages/types";
+import { strapAvailable, strapText } from "./strap-views";
 import type {
   ActiveLowerThirdStrap,
   LayoutMode,
   LiveMatchState,
   LowerThirdStrapType,
-  OverlayTheme,
 } from "./types";
-import { THEME_ACCENT } from "./theme-accent";
 
-interface LowerThirdStrapsProps {
+export { strapAvailable, strapText };
+
+interface LowerThirdStrapsProps extends OverlayThemeProps {
   strap: ActiveLowerThirdStrap | null;
   state: LiveMatchState;
+  /** The stage's match (squads with photos, balls per over); no extra read. */
+  match?: Match | null;
   layout: LayoutMode;
   onDismiss: () => void;
-  theme?: OverlayTheme;
 }
 
-interface StrapText {
-  badge: string;
-  title: string;
-  subtitle: string;
-  detail: string;
-}
-
-const teamOf = (state: LiveMatchState, fallback: string) =>
-  state.batting_team_short_name ?? state.batting_team_name ?? fallback;
-
-/** Each strap type's text when the producer gives none, from the live score. */
-const STRAP_DEFAULTS: Partial<
-  Record<LowerThirdStrapType, (state: LiveMatchState) => StrapText>
-> = {
-  batsman: (state) => {
-    const sr =
-      state.striker_runs && state.striker_balls && state.striker_balls > 0
-        ? ((state.striker_runs / state.striker_balls) * 100).toFixed(1)
-        : "0.0";
-    return {
-      badge: "Batsman innings",
-      title: state.striker_name || "Striker",
-      subtitle: `${state.striker_runs ?? 0} runs off ${state.striker_balls ?? 0} balls`,
-      detail: `Strike rate: ${sr} · Batting for ${teamOf(state, "Team")}`,
-    };
-  },
-  bowler: (state) => {
-    const balls = state.bowler_balls ?? 0;
-    const econ =
-      state.bowler_runs !== null && state.bowler_runs !== undefined && balls > 0
-        ? (state.bowler_runs / (balls / 6)).toFixed(2)
-        : "0.00";
-    return {
-      badge: "Current spell",
-      title: state.current_bowler_name || "Bowler",
-      subtitle: `${state.bowler_wickets ?? 0} wickets for ${state.bowler_runs ?? 0} runs`,
-      detail: `Overs: ${Math.floor(balls / 6)}.${balls % 6} · Economy: ${econ}`,
-    };
-  },
-  partnership: (state) => ({
-    badge: "Partnership",
-    title: "Current partnership",
-    subtitle: `${state.partnership_runs ?? 0} runs off ${state.partnership_balls ?? 0} balls`,
-    detail: `${state.striker_name ?? "Batter 1"}: ${state.striker_runs ?? 0}* · ${state.non_striker_name ?? "Batter 2"}: ${state.non_striker_runs ?? 0}*`,
-  }),
-  target: (state) => ({
-    badge: "Chase equation",
-    title: `Target: ${state.target_runs ?? "—"} runs`,
-    subtitle:
-      state.runs_needed !== null
-        ? `Need ${state.runs_needed} runs from ${state.balls_remaining} deliveries`
-        : "Chasing target",
-    detail: `Required RR: ${state.required_run_rate ?? "—"} · Current RR: ${state.current_run_rate ?? "—"}`,
-  }),
-  powerplay: () => ({
-    badge: "Powerplay 1",
-    title: "Fielding restrictions",
-    subtitle: "Overs 1 to 6",
-    detail: "Maximum 2 fielders outside the 30-yard circle",
-  }),
-  drinks: (state) => ({
-    badge: "Interval",
-    title: "Drinks break",
-    subtitle: "Scheduled drinks break",
-    detail: `${teamOf(state, "Batting")}: ${state.total_runs ?? 0}/${state.total_wickets ?? 0}`,
-  }),
-  timeout: () => ({
-    badge: "Strategic timeout",
-    title: "Strategic timeout (2:30)",
-    subtitle: "Teams in discussion",
-    detail: "Play resumes shortly",
-  }),
-  rain_delay: () => ({
-    badge: "Weather delay",
-    title: "Rain stopped play",
-    subtitle: "Covers are on",
-    detail: "Awaiting an inspection by the umpires",
-  }),
-  innings_break: (state) => ({
-    badge: "Interval",
-    title: "Innings break",
-    subtitle: `${state.bowling_team_name ?? "Bowling team"} to chase next`,
-    detail: `Target: ${state.target_runs ?? (state.total_runs ? state.total_runs + 1 : "—")} runs to win`,
-  }),
+const BREAKS: Partial<Record<LowerThirdStrapType, BreakKind>> = {
+  drinks: "drinks",
+  rain_delay: "rain_delay",
+  timeout: "timeout",
+  innings_break: "innings_break",
+  powerplay: "powerplay",
 };
 
-/** The strap's text: what the producer set, else its type's default. */
-export function strapText(
+/** The package element that draws a strap type. */
+export function strapElementOf(
   strap: ActiveLowerThirdStrap,
   state: LiveMatchState,
-): StrapText {
-  if (strap.type === "custom") {
-    return {
-      badge: strap.badge || "Match alert",
-      title: strap.title || "Notice",
-      subtitle: strap.customText || strap.subtitle || "",
-      detail: strap.detail || "",
-    };
+): OverlayElementId {
+  switch (strap.type) {
+    case "batsman":
+    case "last_wicket":
+      return "batterLowerThird";
+    case "bowler":
+      return "bowlerLowerThird";
+    case "new_batter":
+      return "newBatter";
+    case "new_bowler":
+      return "newBowler";
+    case "partnership":
+      return "partnership";
+    case "target":
+      return "chase";
+    case "over_end":
+      return "thisOver";
+    case "win_predictor":
+      return winPredictorFromLive(state)?.kind === "projection"
+        ? "projectedScore"
+        : "winPredictor";
+    default:
+      return BREAKS[strap.type] ? "breakStrap" : "message";
   }
-  const defaults = STRAP_DEFAULTS[strap.type]?.(state);
+}
+
+/** The element's props for a strap (`layout` and the rest come from the stage). */
+function strapProps(strap: ActiveLowerThirdStrap) {
   return {
-    badge: strap.badge ?? defaults?.badge ?? "Match notice",
-    title: strap.title || defaults?.title || strap.title,
-    subtitle: strap.subtitle || defaults?.subtitle || "",
-    detail: strap.detail || defaults?.detail || "",
+    strap,
+    slot: strap.type === "last_wicket" ? ("last_out" as const) : ("striker" as const),
+    variant: "strap" as const,
+    kind: BREAKS[strap.type] ?? ("drinks" as BreakKind),
   };
 }
 
-const POSITION_CLASS: Partial<Record<LayoutMode, string>> = {
-  top: "top-24 left-1/2 -translate-x-1/2",
-  compact: "bottom-52 left-6",
-};
+/**
+ * A "single" message replaces the score bar while it is up. Wiring
+ * (overlay-client): `showBug && !strapHidesScoreBug(activeStrap)`.
+ */
+export function strapHidesScoreBug(
+  strap: ActiveLowerThirdStrap | null,
+): boolean {
+  return strap?.type === "message" && strap.form === "single";
+}
 
-export function LowerThirdStraps({
-  strap,
-  state,
-  layout,
-  onDismiss,
-  theme = "starsports",
-}: LowerThirdStrapsProps) {
+function useAutoDismiss(
+  strap: ActiveLowerThirdStrap | null,
+  onDismiss: () => void,
+) {
   const onDismissRef = useRef(onDismiss);
   useEffect(() => {
     onDismissRef.current = onDismiss;
   });
-
   const strapId = strap?.id;
   const isInfinite = strap?.durationMs === -1 || strap?.durationMs === 0;
   const duration =
     strap?.durationMs && strap.durationMs > 0 ? strap.durationMs : 8000;
-
   useEffect(() => {
-    if (!strapId || strap?.type === "none" || isInfinite) return;
-
-    const timer = setTimeout(() => {
-      onDismissRef.current();
-    }, duration);
-
+    if (!strapId || isInfinite) return;
+    const timer = setTimeout(() => onDismissRef.current(), duration);
     return () => clearTimeout(timer);
-  }, [strapId, strap?.type, duration, isInfinite]);
+  }, [strapId, duration, isInfinite]);
+}
 
-  if (!strap || strap.type === "none") return null;
+const STRAP_ELEMENTS: readonly OverlayElementId[] = [
+  "batterLowerThird",
+  "bowlerLowerThird",
+  "newBatter",
+  "newBowler",
+  "partnership",
+  "chase",
+  "thisOver",
+  "winPredictor",
+  "projectedScore",
+  "breakStrap",
+  "message",
+];
 
-  const { badge, title, subtitle, detail } = strapText(strap, state);
-
-  // Positioning relative to the layout mode
-  const positionClass =
-    POSITION_CLASS[layout] ?? "bottom-32 left-1/2 -translate-x-1/2";
-
-  const accent = THEME_ACCENT[theme] ?? THEME_ACCENT.starsports;
-  const source = state.tournament_name ?? state.title;
-
+export function LowerThirdStraps({
+  strap,
+  state,
+  match = null,
+  layout,
+  onDismiss,
+  theme = "standard",
+  customColors = null,
+}: LowerThirdStrapsProps) {
+  useAutoDismiss(strap, onDismiss);
+  const shown = strap && strap.type !== "none" ? strap : null;
+  const element = shown ? strapElementOf(shown, state) : null;
+  const base = { state, match, snapshots: null, theme, customColors, layout };
   return (
-    <div
-      className={`pointer-events-none fixed z-30 w-full max-w-3xl select-none px-4 font-score ${positionClass} duration-300 animate-in fade-in slide-in-from-bottom-4 motion-reduce:animate-none`}
-    >
-      <div
-        data-theme={theme}
-        className="flex items-stretch overflow-hidden rounded-md border border-white/10 bg-[#0b0f17]/95 text-white shadow-[0_8px_24px_rgba(0,0,0,0.6)]"
-      >
-        <div
-          aria-hidden="true"
-          className="w-1.5 shrink-0"
-          style={{ background: accent }}
+    <>
+      {STRAP_ELEMENTS.map((id) => (
+        <OverlayElement
+          key={id}
+          id={id}
+          present={element === id}
+          motionKey={shown?.id}
+          props={
+            element === id && shown
+              ? ({ ...base, ...strapProps(shown) } as never)
+              : undefined
+          }
         />
-
-        <div className="flex shrink-0 flex-col justify-center border-r border-white/10 px-5 py-3 leading-tight">
-          <span className="text-sm font-semibold text-white">{badge}</span>
-          {source && (
-            <span className="mt-0.5 max-w-[180px] truncate text-xs text-white/60">
-              {source}
-            </span>
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col justify-center px-5 py-2.5">
-          <h3 className="truncate text-xl font-semibold leading-tight text-white">
-            {title}
-          </h3>
-          <p className="text-base font-medium tabular-nums leading-tight text-white/80">
-            {subtitle}
-          </p>
-        </div>
-
-        {detail && (
-          <div className="flex shrink-0 items-center border-l border-white/10 bg-black/30 px-5 py-2.5 text-right">
-            <p className="max-w-[240px] text-sm tabular-nums text-white/70">
-              {detail}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+      ))}
+    </>
   );
 }
+
+// ---- holding the overlay during a correction -------------------------------
+
+export type HoldMode = "black" | "clean" | "card";
+
+/**
+ * While a scorer corrects the score (NV Play's holding options): "black"
+ * covers the picture, "clean" shows no graphics, "card" shows a holding
+ * card over the picture. Wiring (overlay-client): render `<HoldScreen>`
+ * when `overlay_state.hold` is set and skip every other graphic for
+ * "black" / "clean"; pass graphics `useHeldState(state, hold)` so the
+ * score stays as it was until the hold ends.
+ */
+export function HoldScreen({
+  mode,
+  message = "Score being updated",
+  theme,
+  customColors,
+}: OverlayThemeProps & { mode: HoldMode | null; message?: string }) {
+  if (!mode || mode === "clean") return null;
+  if (mode === "black") {
+    return (
+      <div
+        aria-label="Holding"
+        className="pointer-events-none fixed inset-0 z-[60] bg-black"
+      />
+    );
+  }
+  return (
+    <OverlayFrame
+      state={null}
+      theme={theme}
+      customColors={customColors}
+      className="pointer-events-none fixed inset-x-0 bottom-[40px] z-[60] flex justify-center px-12"
+    >
+      <div
+        className={cn(
+          "flex h-[5.5rem] w-full max-w-[110rem] items-center rounded-lg px-8 text-[2rem] font-semibold",
+          OV.bar,
+          OV.shadow,
+        )}
+      >
+        {message}
+      </div>
+    </OverlayFrame>
+  );
+}
+
+/** The live row frozen while `held` (graphics keep showing the old score). */
+export function useHeldState<T>(state: T, held: boolean): T {
+  const [frozen, setFrozen] = useState<T>(state);
+  if (!held && frozen !== state) setFrozen(state);
+  return held ? frozen : state;
+}
+
+/** Strap types the producer can pick, with labels (control room). */
+export const STRAP_OPTIONS: Array<{ type: LowerThirdStrapType; label: ReactNode }> = [
+  { type: "batsman", label: "Striker" },
+  { type: "bowler", label: "Bowler" },
+  { type: "partnership", label: "Partnership" },
+  { type: "target", label: "Chase" },
+  { type: "last_wicket", label: "Last wicket" },
+  { type: "powerplay", label: "Powerplay" },
+  { type: "win_predictor", label: "Win predictor" },
+  { type: "commentary", label: "Commentary" },
+  { type: "drinks", label: "Drinks" },
+  { type: "timeout", label: "Timeout" },
+  { type: "rain_delay", label: "Rain" },
+  { type: "innings_break", label: "Innings break" },
+];

@@ -72,7 +72,7 @@ describe("BowlerDialog", () => {
 
     expect(
       screen.getByText(
-        /This bowler completed the previous over. Please select a different bowler./i,
+        /This bowler bowled the last over. Choose someone else./i,
       ),
     ).toBeInTheDocument();
 
@@ -248,7 +248,7 @@ describe("BowlerDialog", () => {
     const checkbox = screen.getByRole("checkbox");
     expect(checkbox).toBeInTheDocument();
     expect(
-      screen.getByText(/Correct wrong bowler selection/i),
+      screen.getByText(/Wrong bowler picked/i),
     ).toBeInTheDocument();
 
     fireEvent.click(checkbox);

@@ -309,6 +309,17 @@ export class LegacyRowsDataSource implements DataSource {
     return (await this.query(table, filters)).length;
   }
 
+  async sum(
+    table: string,
+    filters: NativeFilter[],
+    field: string,
+  ): Promise<number> {
+    if (isLegacyRowTable(table) || !this.inner.sum) {
+      throw unsupported(table, "summing");
+    }
+    return this.inner.sum(table, filters, field);
+  }
+
   async insert(table: string, docs: Doc[]): Promise<void> {
     if (isLegacyRowTable(table)) throw unsupported(table, "writing");
     return this.inner.insert(table, docs);

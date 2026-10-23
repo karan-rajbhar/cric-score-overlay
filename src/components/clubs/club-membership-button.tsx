@@ -27,7 +27,7 @@ export function ClubMembershipButton({
       <Button variant="outline" size="sm" asChild className="gap-1.5">
         <Link href={`/auth/login?redirect=/clubs/${clubId}`}>
           <UserPlus className="h-4 w-4" />
-          Join club
+          Sign in to join
         </Link>
       </Button>
     );

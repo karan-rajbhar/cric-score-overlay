@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { removePlayerFromTeam, searchUsers } from "~/app/teams/actions";
 import type { TeamPlayer } from "~/lib/match-types";
 import { roleLabel } from "./player-rows";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export interface SquadTeam {
   id: string;
@@ -83,6 +84,11 @@ function SquadPanel({
   const [results, setResults] = useState<FoundUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The player the scorer asked to remove (removal waits for a confirm). */
+  const [removing, setRemoving] = useState<{
+    userId: string;
+    name: string;
+  } | null>(null);
 
   const rosterIds = useMemo(
     () => new Set(team.players.map((p) => p.user_id)),
@@ -138,15 +144,22 @@ function SquadPanel({
     }
   };
 
+  // Squads are the teams' rosters: removing a player takes them off the
+  // team itself, for its other matches too.
   const remove = async (userId: string, name: string) => {
     setBusyId(userId);
-    const res = await removePlayerFromTeam(team.id, userId);
-    if (res.error) toast.error(res.error);
-    else {
-      toast.success(`${name} removed from squad`);
-      await onChanged();
+    try {
+      const res = await removePlayerFromTeam(team.id, userId);
+      if (res.error) toast.error(res.error);
+      else {
+        toast.success(`${name} removed from ${team.name}`);
+        await onChanged();
+      }
+    } catch {
+      toast.error(`No connection: ${name} is still in ${team.name}.`);
+    } finally {
+      setBusyId(null);
     }
-    setBusyId(null);
   };
 
   const createNew = async () => {
@@ -198,10 +211,10 @@ function SquadPanel({
             variant="ghost"
             size="icon"
             className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
-            aria-label={`Remove ${name} from squad`}
-            title="Remove from squad"
+            aria-label={`Remove ${name} from ${team.name}`}
+            title={`Remove from ${team.name}`}
             disabled={busyId === p.user_id || isProcessing || isOffline}
-            onClick={() => void remove(p.user_id, name)}
+            onClick={() => setRemoving({ userId: p.user_id, name })}
           >
             {busyId === p.user_id ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -216,6 +229,23 @@ function SquadPanel({
 
   return (
     <div className="space-y-3">
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(null);
+        }}
+        title={`Remove ${removing?.name ?? "this player"} from ${team.name}?`}
+        description={`They leave the team, not just this match: they will not be in ${team.name}'s squad for its other matches either. A team admin can add them back.`}
+        confirmLabel="Remove from team"
+        cancelLabel="Keep"
+        destructive
+        busy={busyId !== null}
+        onConfirm={() => {
+          const who = removing;
+          setRemoving(null);
+          if (who) void remove(who.userId, who.name);
+        }}
+      />
       <div className="relative">
         <Search
           className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"

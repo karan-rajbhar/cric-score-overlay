@@ -36,6 +36,30 @@ describe("POST /api/vitals", () => {
     expect((await post({ name: "XSS", value: 1, rating: "good" })).status).toBe(400);
     expect((await post({ name: "LCP", value: "1", rating: "good" })).status).toBe(400);
     expect((await post("not json")).status).toBe(400);
-    expect((await post("x".repeat(4000))).status).toBe(413);
+    expect((await post("x".repeat(5000))).status).toBe(413);
+  });
+
+  it("logs each metric of a visit sent together, skipping unknown ones", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const metric = (name: string) => ({
+      name,
+      value: 1.5,
+      rating: "good",
+      path: "/matches/m1",
+      navigationType: "navigate",
+    });
+    const res = await post({
+      metrics: [metric("FCP"), metric("XSS"), metric("LCP")],
+    });
+    expect(res.status).toBe(204);
+    expect(
+      info.mock.calls.map((c) => JSON.parse(String(c[0])).metric),
+    ).toEqual(["FCP", "LCP"]);
+    info.mockRestore();
+    expect((await post({ metrics: [metric("XSS")] })).status).toBe(400);
+    expect(
+      (await post({ metrics: Array.from({ length: 11 }, () => metric("CLS")) }))
+        .status,
+    ).toBe(400);
   });
 });

@@ -18,6 +18,7 @@ import {
   planPartnershipSplits,
   standsWithSplits,
 } from "../../../scripts/lib/partnership-splits.mjs";
+import { hasNoBall } from "./noball-faced";
 import type { Doc } from "./datasource";
 import {
   GoldenReplay,
@@ -112,8 +113,14 @@ describe("partnership splits plan", () => {
       innings: data.innings!,
       overs: data.overs!,
     });
-    expect(plan.mismatched).toEqual([]);
-    expect(plan.updates.length).toBeGreaterThan(0);
+    // A stand's balls now count the no-balls its batters faced, which the
+    // seed (recorded before) does not: such stands are left to the no-ball
+    // migration (noball-faced.ts), which fills their shares too.
+    const withNoBall = new Set(
+      data.innings!.filter((i) => hasNoBall(i as never)).map((i) => i.id),
+    );
+    expect(plan.mismatched.length).toBeGreaterThan(0);
+    for (const id of plan.mismatched) expect(withNoBall.has(id)).toBe(true);
     for (const { partnerships } of plan.updates) {
       for (const p of partnerships) {
         // The shares and the extras make up the stand.

@@ -50,6 +50,12 @@ export interface UsersRow {
   location: string | null;
   username: string | null;
   is_active: boolean | null;
+  /**
+   * A player added to a squad who has not signed in yet (no account).
+   * Cleared when someone signs in with the email the profile holds and
+   * takes it over (`ensureOwnProfile`).
+   */
+  is_placeholder?: boolean | null;
   /** Search keys (stage 3, `derive.mjs`); maintained on every write. */
   name_lower?: string;
   search_prefixes?: string[];
@@ -70,6 +76,20 @@ export interface UsersPrivateRow {
   updated_at: string | null;
 }
 
+/** Where a sponsor logo may appear on the overlay. */
+export type SponsorSlot = "corner" | "break" | "over_end";
+
+/**
+ * A sponsor logo a club or tournament uploaded once (`sponsor-logos/`
+ * in Storage) and reuses on every stream (`~/lib/overlay/sponsors`).
+ */
+export interface Sponsor {
+  id: string;
+  name: string;
+  logo_url: string;
+  slots: SponsorSlot[];
+}
+
 export interface ClubsRow {
   id: string;
   name: string;
@@ -86,8 +106,12 @@ export interface ClubsRow {
   founded_year: number | null;
   owner_id: string;
   social_links: Json | null;
+  /** Overlay sponsor logos, in display order. */
+  sponsors?: Sponsor[] | null;
   name_lower?: string;
   search_prefixes?: string[];
+  /** Teams in the club (`club-team-count.ts`). */
+  team_count?: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -127,6 +151,8 @@ export interface InvitationsRow {
   accepted_by: string | null;
   /** Matches the invitee becomes a scorer for when they first sign in. */
   scorer_match_ids?: string[] | null;
+  /** Matches the invitee becomes a streamer for (overlay graphics only). */
+  streamer_match_ids?: string[] | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -161,6 +187,9 @@ export interface TeamsRow {
   short_name: string | null;
   description: string | null;
   logo_url: string | null;
+  /** "#rrggbb" or null; copied onto the match snapshots. */
+  primary_color?: string | null;
+  secondary_color?: string | null;
   club_id: string | null;
   captain_id: string | null;
   vice_captain_id: string | null;
@@ -194,6 +223,21 @@ export interface TeamSnapshot {
   name: string;
   short_name: string | null;
   logo_url: string | null;
+  /** "#rrggbb" or null (older snapshots: missing until the team's next edit). */
+  primary_color?: string | null;
+  secondary_color?: string | null;
+}
+
+/**
+ * A chase target revised by the DLS method (`matches.dls_revision`): the
+ * innings it applies to, the revised target and the overs that innings now
+ * has. The target is also the innings' `target_runs`; the overs replace
+ * `overs_per_innings` for that innings (`inningsLimits`).
+ */
+export interface DlsRevision {
+  innings_number: number;
+  target_runs: number;
+  overs: number;
 }
 
 export interface TeamPlayersRow {
@@ -232,6 +276,8 @@ export interface TournamentsRow {
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
   created_by: string;
+  /** Overlay sponsor logos, in display order (ahead of the club's). */
+  sponsors?: Sponsor[] | null;
   name_lower?: string;
   search_prefixes?: string[];
   created_at: string | null;
@@ -283,6 +329,11 @@ export interface MatchesRow {
   wide_counts_as_ball_faced: boolean | null;
   wide_runs_to_batsman: boolean | null;
   noball_extras_to_batsman: boolean | null;
+  /**
+   * A no-ball counts as a ball faced by the striker (the Laws' scoring
+   * convention). Null or absent: on; false for formats that leave it out.
+   */
+  noball_counts_as_ball_faced?: boolean | null;
   team1_id: string;
   team2_id: string;
   /**
@@ -314,6 +365,8 @@ export interface MatchesRow {
   win_margin_type: string | null;
   win_margin: number | null;
   result_description: string | null;
+  /** The chase target revised by DLS, if any (cleared by a manual target). */
+  dls_revision?: DlsRevision | null;
   umpire1_name: string | null;
   umpire2_name: string | null;
   third_umpire_name: string | null;
@@ -321,12 +374,28 @@ export interface MatchesRow {
   tournament_id: string | null;
   club_id: string | null;
   season_id: string | null;
+  /** Tournament stage ("group", "knockout"; null: league or friendly). */
+  stage?: string | null;
+  /** Knockout round (1 = first round) or group-stage round. */
+  round?: number | null;
+  /** Group of a group-stage match ("A", "B", ...). */
+  group_name?: string | null;
   created_by: string;
   match_admins: string[] | null;
+  /**
+   * Streamers: may run the overlay graphics (`canProduceOverlay`) but not
+   * score; never match admins.
+   */
+  match_streamers?: string[] | null;
   player_of_the_match_id: string | null;
   wickets_per_innings: number | null;
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
+  /**
+   * The ball after a no-ball is a free hit (shown on the scoring screen,
+   * which then offers only the dismissals allowed). Null or absent: on.
+   */
+  free_hit?: boolean | null;
   /**
    * Legacy home of the ball `seq` counter, no longer written: the counter
    * lives on the current innings (`InningsRow.last_ball_seq`); readers take
@@ -342,6 +411,16 @@ export interface MatchesRow {
   recent_client_actions?: string[] | null;
   /** Score line of each innings (stage 3, see `innings-summary.ts`). */
   innings_summary?: InningsSummaryEntry[] | null;
+  /** Totals of `innings_summary` (`summaryTotalsOf`): club milestones. */
+  summary_runs?: number | null;
+  summary_wickets?: number | null;
+  best_innings?: {
+    runs: number;
+    wickets: number;
+    overs: number;
+    team_id: string | null;
+  } | null;
+  best_innings_runs?: number | null;
   /** Display copies of the tournament / club (`match-snapshots.ts`). */
   tournament_snapshot?: {
     id: string;
@@ -487,6 +566,13 @@ export interface BallByBallRow {
    * bats; absent on every other ball.
    */
   penalty_team_id?: string | null;
+  /**
+   * On a no-ball: what the runs the batters completed were. Absent (or
+   * null): off the bat, in `runs_scored`. "bye" / "leg_bye": the ball was
+   * not hit, and `extras` holds the 1-run no-ball penalty plus those byes
+   * (or leg byes), which count to neither the striker nor the bowler.
+   */
+  no_ball_runs?: "bye" | "leg_bye" | null;
   seq: number;
   created_at: string | null;
 }
@@ -573,6 +659,68 @@ export interface LeaderboardsRow {
   updated_at: string | null;
 }
 
+/** The latest dismissal of the current innings (`live_state.last_wicket`). */
+export interface LiveLastWicket {
+  player_id: string;
+  name: string | null;
+  runs: number;
+  balls: number;
+  dismissal_type: string | null;
+  /** The bowler credited with it (null for run outs and the like). */
+  bowler_name: string | null;
+  wicket_number: number;
+  /** Team score when it fell: `score`/`wicket_number`. */
+  score: number;
+  /** Overs at the fall, as stored (e.g. 11.2). */
+  overs: number;
+}
+
+/** A team's colours ("#rrggbb"), when it has them. */
+export interface LiveTeamColours {
+  primary: string | null;
+  secondary: string | null;
+}
+
+/** The powerplay in progress (`live_state.powerplay`). */
+export interface LivePowerplay {
+  /** Its last over (1-based): overs 1 to `end_over`. */
+  end_over: number;
+}
+
+export type LiveEventType =
+  | "four"
+  | "six"
+  | "wicket"
+  | "batter_milestone"
+  | "bowler_milestone"
+  | "hat_trick"
+  | "partnership_milestone"
+  | "over_end"
+  | "innings_end"
+  | "match_end"
+  | "new_batter"
+  | "new_bowler"
+  | "free_hit";
+
+/**
+ * Something the change behind a `live_state` version did, for overlays to
+ * react to (`live_state.events`, see `live-events.ts`). Every key is
+ * present (null when it does not apply): Firestore stores no undefined.
+ */
+export interface LiveEvent {
+  type: LiveEventType;
+  /** The batter or bowler it is about. */
+  player_id: string | null;
+  name: string | null;
+  /** The milestone: 50 / 100 runs, 3 / 5 wickets, a 50-run stand. */
+  value: number | null;
+  runs: number | null;
+  balls: number | null;
+  wickets: number | null;
+  /** over_end: the over completed (1-based); innings_end: the innings. */
+  number: number | null;
+}
+
 /** Denormalised read model for overlays and live pages (computed, not stored). */
 export interface LiveMatchStateRow {
   match_id: string | null;
@@ -638,6 +786,34 @@ export interface LiveMatchStateRow {
   last_ball_fielder: string | null;
   last_ball_commentary: string | null;
   last_ball_seq: number | null;
+  /**
+   * Overs of the current innings after a DLS revision (its target is
+   * `target_runs`); absent when the innings has none.
+   */
+  dls_overs?: number | null;
+  // Overlay fields (optional: documents written before they existed).
+  /** The next delivery is a free hit (`~/lib/free-hit`). */
+  free_hit?: boolean | null;
+  striker_id?: string | null;
+  striker_fours?: number | null;
+  striker_sixes?: number | null;
+  non_striker_id?: string | null;
+  non_striker_fours?: number | null;
+  non_striker_sixes?: number | null;
+  bowler_id?: string | null;
+  bowler_maidens?: number | null;
+  last_wicket?: LiveLastWicket | null;
+  powerplay?: LivePowerplay | null;
+  /**
+   * Team colours from the match's team snapshots; null when neither team
+   * has any (one small key per ball: live_state is read on every ball).
+   */
+  team_colors?: {
+    team1: LiveTeamColours | null;
+    team2: LiveTeamColours | null;
+  } | null;
+  /** What the change behind this version did (empty for undo / edits). */
+  events?: LiveEvent[];
 }
 
 /** Per-over rollup for Manhattan / over-comparison charts (computed). */
@@ -653,6 +829,37 @@ export interface MatchOverSummariesRow {
   no_balls: number | null;
   legal_deliveries: number | null;
   bowler_id: string | null;
+}
+
+/**
+ * A fixed overlay link (`/overlay/channel/{id}`) for a club's ground or
+ * camera position, or a clubless user's own. Whatever match it points at
+ * is on air there (`~/lib/overlay/channels`).
+ */
+export interface StreamChannelsRow {
+  id: string;
+  /** Owning club; null for a personal channel. */
+  club_id: string | null;
+  /** Owning user of a personal channel (no club); null for a club's. */
+  owner_id: string | null;
+  name: string;
+  match_id: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/**
+ * Server-only (rules deny clients): a match's remote-control token for
+ * Stream Deck / Companion, stored as a SHA-256 hash of its secret
+ * (`~/lib/overlay/remote-token`). The document id is the token's public id.
+ */
+export interface ProducerTokensRow {
+  id: string;
+  match_id: string;
+  secret_hash: string;
+  created_by: string | null;
+  created_at: string | null;
 }
 
 export interface Database {
@@ -680,6 +887,8 @@ export interface Database {
   player_matches: PlayerMatchesRow;
   player_career_stats: PlayerCareerStatsRow;
   leaderboards: LeaderboardsRow;
+  stream_channels: StreamChannelsRow;
+  producer_tokens: ProducerTokensRow;
 }
 
 export interface Views {

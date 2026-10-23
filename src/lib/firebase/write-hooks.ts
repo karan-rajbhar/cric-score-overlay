@@ -4,6 +4,7 @@
  */
 
 import type { Firestore } from "firebase-admin/firestore";
+import { syncClubTeamCounts } from "./club-team-count";
 import type { DataSource } from "./datasource";
 import {
   refreshInningsSummary,
@@ -36,6 +37,7 @@ export async function runWriteHooks(
   if (event.table === "matches" || event.table === "teams") {
     await syncTeamSnapshots(ds, event);
   }
+  if (event.table === "teams") await syncClubTeamCounts(ds, event);
   if (
     event.table === "matches" ||
     event.table === "tournaments" ||

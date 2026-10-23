@@ -3,6 +3,7 @@
  */
 
 import type { LiveMatchStateRow } from "~/lib/firebase/types";
+import type { StingKind } from "./packages/types";
 
 /**
  * Fields an overlay may get without: documents written before they existed,
@@ -38,23 +39,11 @@ export type LiveMatchState = Omit<
   Partial<Pick<LiveMatchStateRow, OptionalLiveFields>> & { match_id: string };
 
 export type LayoutMode = "bottom" | "top" | "compact" | "broadcast";
-export type OverlayTheme =
-  | "starsports"
-  | "sonysports"
-  | "foxcricket"
-  | "skysports"
-  | "thehundred"
-  | "apex"
-  | "volt"
-  | "agni"
-  | "dharma"
-  | "thunder"
-  | "nakshatra"
-  | "broadcast"
-  | "dark"
-  | "emerald"
-  | "minimal"
-  | "custom";
+/**
+ * A theme id as URLs, commands and stored settings carry it: a package id
+ * (`packages/manifest.ts`), or a legacy id `resolveOverlayTheme` maps.
+ */
+export type OverlayTheme = string;
 
 export interface CustomThemeColors {
   primary: string; // e.g. "#1e3a8a"
@@ -73,6 +62,8 @@ export type PresentationCardType =
 export interface ActiveEventSting {
   id: string;
   type: "four" | "six" | "wicket" | "milestone" | "free_hit";
+  /** What it celebrates exactly (fifty, five-for...), when known. */
+  kind?: StingKind;
   title: string;
   subtitle?: string;
   detail?: string;
@@ -91,7 +82,16 @@ export type LowerThirdStrapType =
   | "timeout"
   | "rain_delay"
   | "innings_break"
-  | "custom";
+  | "custom"
+  // Automatic straps (`auto-graphics.ts`) and producer extras.
+  | "new_batter"
+  | "new_bowler"
+  | "over_end"
+  | "last_wicket"
+  | "win_predictor"
+  | "commentary"
+  /** A producer message: see `ActiveLowerThirdStrap.form`. */
+  | "message";
 
 export interface ActiveLowerThirdStrap {
   id: string;
@@ -102,6 +102,12 @@ export interface ActiveLowerThirdStrap {
   badge?: string;
   customText?: string;
   durationMs?: number;
+  /**
+   * A message's shape (NV Play's three): "single" replaces the score bar
+   * with one line, "double" is a title and body card, "baseline" a thin
+   * line under the score bar.
+   */
+  form?: "single" | "double" | "baseline";
 }
 
 export interface SponsorItem {
@@ -140,9 +146,20 @@ export type BroadcastViewId =
   | "36" // Batsman Series
   | "37" // Runner Series
   | "38" // Bowler Series
-  | "39"; // Out Batsman Series
+  | "39" // Out Batsman Series
+  | "40" // Wagon wheel (striker)
+  | "41" // Run rate
+  | "42" // Win predictor
+  | "43" // Leaderboard
+  | "44" // Next fixture
+  | "45"; // Fall of wickets
 
 export interface ProducerCommand {
+  /**
+   * Set by the control room. The server stores it as the overlay state's
+   * `last_command_id`, which is how the control room sees it went on air.
+   */
+  id?: string;
   type:
     | "SHOW_CARD"
     | "HIDE_CARD"
@@ -160,10 +177,16 @@ export interface ProducerCommand {
     | "SET_MARGIN_OFFSET"
     | "TOGGLE_AUDIO"
     | "SET_BROADCAST_VIEW"
+    | "SET_AUTO"
+    | "NEXT_SPONSOR"
+    | "SET_REPLAY_SCENE"
+    | "SET_HOLD"
+    | "SET_SNAPSHOTS"
     | "PANIC_CLEAR";
   card?: PresentationCardType;
   visible?: boolean;
-  theme?: OverlayTheme;
+  /** A theme id (see `~/components/overlay/overlay-themes`). */
+  theme?: string;
   customColors?: CustomThemeColors;
   layout?: LayoutMode;
   stingType?: "four" | "six" | "wicket" | "milestone" | "free_hit";
@@ -176,6 +199,87 @@ export interface ProducerCommand {
   marginOffsetPx?: number;
   audioEnabled?: boolean;
   audioVolume?: number;
-  broadcastView?: BroadcastViewId;
+  /** null: back to the score bug. */
+  broadcastView?: BroadcastViewId | null;
+  /** SET_AUTO: automatic graphics, by rule id. */
+  auto?: Record<string, { on: boolean; seconds: number }>;
+  /** SET_REPLAY_SCENE: the OBS scene that plays replays ("" saves only). */
+  replayScene?: string;
+  /** SET_HOLD: hold the overlay while the score is corrected; null ends it. */
+  hold?: "black" | "clean" | "card" | null;
+  /** SET_SNAPSHOTS: standings, leaders, next match, tournament figures. */
+  snapshots?: OverlaySnapshots | null;
   timestamp: number;
+}
+
+// ---- snapshots the control room sends (no overlay reads) -----------------
+
+/** A points table (`standings-cards.tsx`): the producer's tournament view. */
+export interface PointsTableSnapshot {
+  /** "Group A", "Points table". */
+  title: string;
+  rows: Array<{
+    team: string;
+    short?: string | null;
+    played: number;
+    won: number;
+    lost: number;
+    tied?: number | null;
+    noResult?: number | null;
+    points: number;
+    nrr?: number | null;
+    /** The teams in this match. */
+    highlight?: boolean;
+  }>;
+}
+
+/** A tournament leaderboard: "Most runs", "Most wickets". */
+export interface LeaderboardSnapshot {
+  title: string;
+  /** Column heading of the value: "Runs", "Wkts". */
+  metric: string;
+  rows: Array<{
+    name: string;
+    team?: string | null;
+    value: number | string;
+    /** "8 inns · SR 141.2". */
+    detail?: string | null;
+    playerId?: string | null;
+  }>;
+}
+
+/** The next fixture of the tournament or club. */
+export interface FixtureSnapshot {
+  title?: string | null;
+  team1: string;
+  team1Short?: string | null;
+  team1Logo?: string | null;
+  team2: string;
+  team2Short?: string | null;
+  team2Logo?: string | null;
+  /** ISO start time. */
+  startsAt?: string | null;
+  venue?: string | null;
+  round?: string | null;
+}
+
+/** A player's figures in this tournament (the "series" lower thirds). */
+export interface SeriesFigures {
+  matches: number;
+  runs?: number | null;
+  highest?: string | null;
+  average?: number | null;
+  strikeRate?: number | null;
+  wickets?: number | null;
+  economy?: number | null;
+  best?: string | null;
+}
+
+/** Everything the control room may hand the overlay for its cards. */
+export interface OverlaySnapshots {
+  pointsTable?: PointsTableSnapshot | null;
+  leaderboard?: LeaderboardSnapshot | null;
+  nextFixture?: FixtureSnapshot | null;
+  /** Tournament figures by player id. */
+  series?: Record<string, SeriesFigures> | null;
 }

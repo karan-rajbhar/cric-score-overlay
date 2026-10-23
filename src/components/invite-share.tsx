@@ -23,12 +23,25 @@ export function inviteMessage(
 ): string {
   const who = inviter?.trim() || "Someone";
   const what = scoreMatchId
-    ? "to help score a match on CricScore 🏏"
-    : "to CricScore 🏏";
+    ? "to help score a match on CricScore"
+    : "to CricScore";
   const next = scoreMatchId ? `/matches/${scoreMatchId}/score` : undefined;
   return (
     `${who} invited you ${what}\n` +
     `Open ${inviteLink(email, next)} and sign in with Google using ${email}.`
+  );
+}
+
+/** The sign-in message for a club invite: they land on the club's page. */
+export function clubInviteMessage(
+  inviter: string | undefined,
+  email: string,
+  club: { id: string; name: string },
+): string {
+  const who = inviter?.trim() || "Someone";
+  return (
+    `${who} invited you to join ${club.name} on CricScore\n` +
+    `Open ${inviteLink(email, `/clubs/${club.id}`)} and sign in with Google using ${email}.`
   );
 }
 

@@ -1,1396 +1,153 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { firebase } from "~/lib/firebase";
+import { useEffect, useMemo, useState } from "react";
+import { createObsBridge } from "~/components/overlay/obs-bridge";
+import { useStageMatch } from "~/components/overlay/overlay-data";
+import { OverlayStage } from "~/components/overlay/overlay-stage";
+import type { LiveMatchState } from "~/components/overlay/types";
 import {
-  Settings,
-  X,
-  Copy,
-  Check,
-  Palette,
-  Eye,
-  EyeOff,
-  Radio,
-  ExternalLink,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
-import { formatDismissalType, formatStatus } from "~/lib/cricket";
-import type {
-  LiveMatchState,
-  LayoutMode,
-  OverlayTheme,
-  PresentationCardType,
-  ActiveEventSting,
-  ProducerCommand,
-  ActiveLowerThirdStrap,
-  SponsorItem,
-  CustomThemeColors,
-  BroadcastViewId,
-} from "~/components/overlay/types";
-import type { Match } from "~/lib/match-types";
-import { EventStings } from "~/components/overlay/event-stings";
-import { PresentationCards } from "~/components/overlay/presentation-cards";
-import { LowerThirdStraps } from "~/components/overlay/lower-third-straps";
-import { CornerWatermark } from "~/components/overlay/corner-watermark";
-import { NewsTicker } from "~/components/overlay/news-ticker";
-import { BroadcastSuiteOverlay } from "~/components/overlay/broadcast-suite-overlay";
-import {
-  playFourFanfare,
-  playSixExplosion,
-  playWicketTone,
-  playMilestoneFanfare,
-  playFreeHitAlert,
-} from "~/components/overlay/sound-effects";
-import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
+  useOverlayLayers,
+  useOverlayStateDoc,
+  type ReplayRequest,
+} from "~/components/overlay/use-overlay-state";
 import { useLiveState } from "~/lib/hooks/useLiveState";
+import type { Match } from "~/lib/match-types";
+import type { SceneUrlParams } from "~/lib/overlay-state";
 
-export type { LiveMatchState, LayoutMode, OverlayTheme };
+export type { LiveMatchState };
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Longest wait for the producer state before drawing from the link alone. */
+const STATE_WAIT_MS = 3000;
+
+/** Longest `?delay=` (seconds). */
+export const MAX_DELAY_SECONDS = 120;
 
 interface OverlayClientProps {
   matchId: string;
   initial: LiveMatchState | null;
   match?: Match | null;
-  initialLayout?: string;
-  initialTheme?: string;
-  initialControls?: boolean;
-  initialSponsor?: string;
-  initialSafeZone?: boolean;
+  /** The link's starting settings (`?theme=&layout=&sponsor=`). */
+  params?: SceneUrlParams;
+  /** Server clock when the page was rendered (ms). */
+  serverNow?: number;
+  /** Seconds to hold each score change (`?delay=`), when the video lags. */
+  delaySeconds?: number;
+  /** Safe-zone guides (`?safe=true`); G toggles them. */
+  showSafeZone?: boolean;
+  /** The link names no match. */
+  notFound?: boolean;
 }
 
-import { oversText, BallChip, THEME_STYLES } from "./theme-styles";
+/**
+ * `value`, each change shown `delayMs` later (the first one at once). For a
+ * stream whose video runs behind the scoring.
+ */
+export function useDelayed<T>(value: T, delayMs: number): T {
+  const [shown, setShown] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setShown(value), Math.max(0, delayMs));
+    return () => {
+      // Each change gets its own timer: none is dropped by the next one.
+      if (delayMs <= 0) clearTimeout(id);
+    };
+  }, [value, delayMs]);
+  return delayMs > 0 ? shown : value;
+}
 
+/**
+ * The OBS browser source: a transparent 1920x1080 page with the match's
+ * score and what the control room puts on air. It follows two documents,
+ * 1 read each per change: `live_state/{matchId}` (every ball) and
+ * `overlay_state/{matchId}` (every producer command), plus the live
+ * scorecard only while a scorecard is on screen. Nothing on it is a
+ * control: setting up and producing happen on the match page and in the
+ * control room.
+ */
 export function OverlayClient({
   matchId,
   initial,
-  match: initialMatch = null,
-  initialLayout = "bottom",
-  initialTheme = "starsports",
-  initialControls = true,
-  initialSponsor = "",
-  initialSafeZone = false,
+  match = null,
+  params,
+  serverNow,
+  delaySeconds = 0,
+  showSafeZone: initialSafeZone = false,
+  notFound = false,
 }: OverlayClientProps) {
-  const [matchData] = useState<Match | null>(initialMatch);
+  const isRealMatch = UUID_REGEX.test(matchId);
 
-  // Customization & Producer states
-  const [layout, setLayout] = useState<LayoutMode>(
-    initialLayout === "top" || initialLayout === "compact"
-      ? initialLayout
-      : "bottom",
-  );
-  const [theme, setTheme] = useState<OverlayTheme>(
-    initialTheme in THEME_STYLES
-      ? (initialTheme as OverlayTheme)
-      : "starsports",
-  );
-  const [customColors, setCustomColors] = useState<CustomThemeColors>({
-    primary: "#1e3a8a",
-    accent: "#f59e0b",
-  });
-  const [marginOffsetPx, setMarginOffsetPx] = useState<number>(0);
-  const [showBalls] = useState(true);
-  const [showBug, setShowBug] = useState(true);
-  const [showWatermark] = useState(true);
-  const [showTicker, setShowTicker] = useState(false);
-  const [tickerText, setTickerText] = useState(
-    "Live Match Broadcast · Streaming in Full HD · Real-time score & commentary powered by CricScore Overlay",
-  );
-  const [sponsor, setSponsor] = useState(initialSponsor);
-  const [sponsorsList, setSponsorsList] = useState<SponsorItem[]>([]);
-  const {
-    soundEffectsEnabled: audioEnabled,
-    soundVolume: audioVolume,
-    setSoundEnabled: setAudioEnabled,
-    setVolume: setAudioVolume,
-    toggleSound,
-  } = usePreferencesStore();
-  const [showSafeZone, setShowSafeZone] = useState(initialSafeZone);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  // Broadcast graphics states
-  const [activeCard, setActiveCard] = useState<PresentationCardType>("none");
-  const [activeSting, setActiveSting] = useState<ActiveEventSting | null>(null);
-  const [activeStrap, setActiveStrap] = useState<ActiveLowerThirdStrap | null>(
-    null,
-  );
-  const [autoStingsEnabled] = useState(true);
-
-  // Broadcast Suite overlay views state (29-view switcher dock)
-  const [broadcastView, setBroadcastView] = useState<BroadcastViewId | null>(
-    initialLayout === "broadcast" ? "1" : null,
-  );
-  const [showBroadcastDock, setShowBroadcastDock] = useState(false);
-
-  // Micro-animations & Stat Carousel states
-  const [scorePulsing, setScorePulsing] = useState(false);
-  const [carouselIdx, setCarouselIdx] = useState(0);
-
-  // References for tracking state changes
-  const prevBallSeq = useRef<number | null>(initial?.last_ball_seq ?? null);
-  const prevRuns = useRef<number | null>(initial?.total_runs ?? null);
-  const prevWickets = useRef<number | null>(initial?.total_wickets ?? null);
-  const celebratedMilestones = useRef<Set<string>>(new Set());
-
-  const isRealUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      matchId,
-    );
-
-  // One listener on live_state/{matchId}: 1 read per ball. Never paused,
-  // since OBS may report the source hidden while it is still on air.
+  // Never paused: OBS may report a source on air as hidden.
   const live = useLiveState(matchId, {
-    enabled: isRealUuid,
+    enabled: isRealMatch,
     pauseWhenHidden: false,
   });
-  const isConnected = matchId === "test" || live.status === "connected";
-  const state: LiveMatchState | null = live.state ?? initial;
-
-  // Stat Carousel rotator (every 8s)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCarouselIdx((prev) => (prev + 1) % 4);
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Score change pulse animation trigger
-  useEffect(() => {
-    if (!state) return;
-    if (
-      (prevRuns.current !== null && state.total_runs !== prevRuns.current) ||
-      (prevWickets.current !== null &&
-        state.total_wickets !== prevWickets.current)
-    ) {
-      setScorePulsing(true);
-      const t = setTimeout(() => setScorePulsing(false), 600);
-      prevRuns.current = state.total_runs;
-      prevWickets.current = state.total_wickets;
-      return () => clearTimeout(t);
-    }
-    prevRuns.current = state.total_runs;
-    prevWickets.current = state.total_wickets;
-  }, [state]);
-
-  // Delivery Event Detector: Triggers animated stings & SFX audio
-  useEffect(() => {
-    if (!state) return;
-    const currentSeq = state.last_ball_seq;
-    if (currentSeq === undefined || currentSeq === null) return;
-
-    if (prevBallSeq.current === null) {
-      prevBallSeq.current = currentSeq;
-      return;
-    }
-
-    if (currentSeq > prevBallSeq.current && autoStingsEnabled) {
-      prevBallSeq.current = currentSeq;
-
-      const triggerAutoSting = (sting: ActiveEventSting) => {
-        setTimeout(() => setActiveSting(sting), 0);
-      };
-
-      // 1. Wicket Event
-      if (state.last_ball_is_wicket) {
-        if (audioEnabled) playWicketTone(audioVolume);
-        triggerAutoSting({
-          id: `wkt-${currentSeq}`,
-          type: "wicket",
-          title: "Wicket",
-          subtitle: state.last_ball_dismissed_player
-            ? `${state.last_ball_dismissed_player} out`
-            : "Batter out",
-          detail: [
-            state.last_ball_dismissal_type
-              ? formatDismissalType(state.last_ball_dismissal_type)
-              : null,
-            state.last_ball_fielder ? `c ${state.last_ball_fielder}` : null,
-            state.current_bowler_name ? `b ${state.current_bowler_name}` : null,
-          ]
-            .filter(Boolean)
-            .join(" "),
-          durationMs: 4500,
-        });
-      }
-      // 2. Six / Maximum Event
-      else if (state.last_ball_runs === 6) {
-        if (audioEnabled) playSixExplosion(audioVolume);
-        triggerAutoSting({
-          id: `six-${currentSeq}`,
-          type: "six",
-          title: "Six",
-          subtitle: `${state.striker_name ?? "Batter"}`,
-          detail: `${state.striker_runs ?? 0}* off ${state.striker_balls ?? 0} balls`,
-          durationMs: 4200,
-        });
-      }
-      // 3. Four Event
-      else if (state.last_ball_runs === 4) {
-        if (audioEnabled) playFourFanfare(audioVolume);
-        triggerAutoSting({
-          id: `four-${currentSeq}`,
-          type: "four",
-          title: "Four",
-          subtitle: `${state.striker_name ?? "Batter"}`,
-          detail: `${state.striker_runs ?? 0}* (${state.striker_balls ?? 0}b)`,
-          durationMs: 3800,
-        });
-      }
-      // 4. Free Hit Event (No Ball)
-      else if (state.last_ball_extra_type === "no_ball") {
-        if (audioEnabled) playFreeHitAlert(audioVolume);
-        triggerAutoSting({
-          id: `freehit-${currentSeq}`,
-          type: "free_hit",
-          title: "Free hit",
-          subtitle: "No-ball called",
-          detail: "Next delivery is a free hit",
-          durationMs: 4000,
-        });
-      }
-
-      // 5. Milestone Check (50 / 100)
-      if (state.striker_name && state.striker_runs) {
-        if (
-          state.striker_runs >= 50 &&
-          state.striker_runs < 55 &&
-          !celebratedMilestones.current.has(`${state.striker_name}-50`)
-        ) {
-          celebratedMilestones.current.add(`${state.striker_name}-50`);
-          if (audioEnabled) playMilestoneFanfare(audioVolume);
-          triggerAutoSting({
-            id: `fifty-${currentSeq}`,
-            type: "milestone",
-            title: "Fifty",
-            subtitle: `${state.striker_name} · 50 runs`,
-            detail: `Off ${state.striker_balls} balls`,
-            durationMs: 5000,
-          });
-        } else if (
-          state.striker_runs >= 100 &&
-          state.striker_runs < 105 &&
-          !celebratedMilestones.current.has(`${state.striker_name}-100`)
-        ) {
-          celebratedMilestones.current.add(`${state.striker_name}-100`);
-          if (audioEnabled) playMilestoneFanfare(audioVolume);
-          triggerAutoSting({
-            id: `century-${currentSeq}`,
-            type: "milestone",
-            title: "Hundred",
-            subtitle: `${state.striker_name} · 100 runs`,
-            detail: `Off ${state.striker_balls} balls`,
-            durationMs: 5500,
-          });
-        }
-      }
-    } else {
-      prevBallSeq.current = currentSeq;
-    }
-  }, [state, autoStingsEnabled, audioEnabled, audioVolume]);
-
-  const triggerManualSting = useCallback(
-    (type: "four" | "six" | "wicket" | "milestone" | "free_hit") => {
-      if (type === "four") {
-        if (audioEnabled) playFourFanfare(audioVolume);
-        setActiveSting({
-          id: `manual-4-${Date.now()}`,
-          type: "four",
-          title: "Four",
-          subtitle: `${state?.striker_name ?? "Batter"}`,
-          detail: `${state?.striker_runs ?? 0}* (${state?.striker_balls ?? 0}b)`,
-          durationMs: 4000,
-        });
-      } else if (type === "six") {
-        if (audioEnabled) playSixExplosion(audioVolume);
-        setActiveSting({
-          id: `manual-6-${Date.now()}`,
-          type: "six",
-          title: "Six",
-          subtitle: `${state?.striker_name ?? "Batter"}`,
-          detail: `${state?.striker_runs ?? 0}* (${state?.striker_balls ?? 0}b)`,
-          durationMs: 4500,
-        });
-      } else if (type === "wicket") {
-        if (audioEnabled) playWicketTone(audioVolume);
-        setActiveSting({
-          id: `manual-w-${Date.now()}`,
-          type: "wicket",
-          title: "Wicket",
-          subtitle: `${state?.striker_name ?? "Batter"} out`,
-          detail: state?.current_bowler_name
-            ? `b ${state.current_bowler_name}`
-            : "Wicket",
-          durationMs: 4500,
-        });
-      } else if (type === "milestone") {
-        if (audioEnabled) playMilestoneFanfare(audioVolume);
-        setActiveSting({
-          id: `manual-m-${Date.now()}`,
-          type: "milestone",
-          title: "Fifty",
-          subtitle: `${state?.striker_name ?? "Batter"} · 50 runs`,
-          detail: `Off ${state?.striker_balls ?? 0} balls`,
-          durationMs: 4500,
-        });
-      } else if (type === "free_hit") {
-        if (audioEnabled) playFreeHitAlert(audioVolume);
-        setActiveSting({
-          id: `manual-fh-${Date.now()}`,
-          type: "free_hit",
-          title: "Free hit",
-          subtitle: "No-ball called",
-          detail: "Next delivery is a free hit",
-          durationMs: 4000,
-        });
-      }
-    },
-    [audioEnabled, audioVolume, state],
+  const delayMs = Math.min(Math.max(delaySeconds, 0), MAX_DELAY_SECONDS) * 1000;
+  const state = useDelayed<LiveMatchState | null>(
+    live.state ?? initial,
+    delayMs,
   );
 
-  const triggerStrap = useCallback((type: ActiveLowerThirdStrap["type"]) => {
-    setActiveStrap({
-      id: `strap-${Date.now()}`,
-      type,
-      title: "",
-      durationMs: 8000,
-    });
+  const producer = useOverlayStateDoc(matchId, isRealMatch);
+  // Replays through OBS (the browser source's API; nothing elsewhere).
+  const replayScene = producer.doc?.scene.replayScene;
+  const bridge = useMemo(
+    () => createObsBridge({ replayScene: replayScene ?? "Replay" }),
+    [replayScene],
+  );
+  useEffect(() => () => bridge.dispose(), [bridge]);
+  const layers = useOverlayLayers({
+    doc: producer.doc,
+    loaded: !isRealMatch || producer.loaded,
+    params,
+    state,
+    serverNow,
+    onReplay: (item: ReplayRequest) =>
+      void bridge.replay({ seconds: item.durationMs / 1000 }),
+  });
+
+  // Draw once the producer state is known (no flash of the wrong theme),
+  // or after a short wait if it is slow to come.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setWaited(true), STATE_WAIT_MS);
+    return () => clearTimeout(id);
   }, []);
+  const ready = !isRealMatch || producer.loaded || waited;
 
-  const handleDismissSting = useCallback(() => setActiveSting(null), []);
-  const handleDismissStrap = useCallback(() => setActiveStrap(null), []);
-  const handleDismissCard = useCallback(() => setActiveCard("none"), []);
+  // Scorecards follow the live scorecard while one is on air.
+  const currentMatch = useStageMatch(matchId, match, {
+    view: layers.view,
+    card: layers.card,
+  });
 
-  // Keyboard Shortcuts (Numpad 1-9, B, T, S, Space/Escape)
+  // Interact (OBS) or keyboard: Escape takes one-off graphics off here, G
+  // shows the safe-zone guides for lining the source up.
+  const [showSafeZone, setShowSafeZone] = useState(initialSafeZone);
+  const { dismissSting, dismissStrap } = layers;
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept typing in inputs
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
-
-      if (e.key === " " || e.key === "Escape") {
-        e.preventDefault();
-        setActiveCard("none");
-        setActiveSting(null);
-        setActiveStrap(null);
-        return;
-      }
-
-      if (e.key === "s" || e.key === "S") {
-        setDrawerOpen((prev) => !prev);
-      } else if (e.key === "b" || e.key === "B") {
-        setShowBug((prev) => !prev);
-      } else if (e.key === "c" || e.key === "C") {
-        setBroadcastView((prev) => (prev ? null : "1"));
-      } else if (e.key === "d" || e.key === "D") {
-        setShowBroadcastDock((prev) => !prev);
-      } else if (e.key === "t" || e.key === "T") {
-        setShowTicker((prev) => !prev);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        dismissSting();
+        dismissStrap();
       } else if (e.key === "g" || e.key === "G") {
-        setShowSafeZone((prev) => !prev);
-      } else if (e.code === "Numpad1" || e.key === "1") {
-        triggerManualSting("four");
-      } else if (e.code === "Numpad2" || e.key === "2") {
-        triggerManualSting("six");
-      } else if (e.code === "Numpad3" || e.key === "3") {
-        triggerManualSting("wicket");
-      } else if (e.code === "Numpad4" || e.key === "4") {
-        triggerStrap("batsman");
-      } else if (e.code === "Numpad5" || e.key === "5") {
-        triggerStrap("bowler");
-      } else if (e.code === "Numpad6" || e.key === "6") {
-        triggerStrap("partnership");
-      } else if (e.code === "Numpad7" || e.key === "7") {
-        triggerStrap("target");
-      } else if (e.code === "Numpad8" || e.key === "8") {
-        triggerStrap("powerplay");
+        setShowSafeZone((v) => !v);
       }
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [triggerManualSting, triggerStrap]);
-
-  // Handlers change with every ball; the producer channel reads them
-  // through a ref so it subscribes once per match, not once per ball.
-  const triggerManualStingRef = useRef(triggerManualSting);
-  useEffect(() => {
-    triggerManualStingRef.current = triggerManualSting;
-  }, [triggerManualSting]);
-
-  // Remote producer channel (control room commands). Scores come from the
-  // live_state listener above.
-  useEffect(() => {
-    const controlChannel = firebase
-      .channel(`overlay_control_${matchId}`)
-      .on(
-        "broadcast",
-        { event: "command" },
-        ({ payload }: { payload: ProducerCommand }) => {
-          if (!payload) return;
-          if (payload.type === "SHOW_CARD" && payload.card) {
-            setActiveCard(payload.card);
-            if (payload.durationMs && payload.durationMs > 0) {
-              setTimeout(() => {
-                setActiveCard((curr) =>
-                  curr === payload.card ? "none" : curr,
-                );
-              }, payload.durationMs);
-            }
-          } else if (payload.type === "HIDE_CARD") {
-            setActiveCard("none");
-          } else if (payload.type === "TOGGLE_BUG") {
-            setShowBug((prev) =>
-              payload.visible !== undefined ? payload.visible : !prev,
-            );
-          } else if (payload.type === "SET_THEME" && payload.theme) {
-            setTheme(payload.theme);
-          } else if (payload.type === "SET_LAYOUT" && payload.layout) {
-            setLayout(payload.layout);
-          } else if (
-            payload.type === "SET_SPONSOR" &&
-            payload.sponsorText !== undefined
-          ) {
-            setSponsor(payload.sponsorText);
-          } else if (payload.type === "TRIGGER_STING" && payload.stingType) {
-            triggerManualStingRef.current(payload.stingType);
-          } else if (payload.type === "SHOW_STRAP" && payload.strap) {
-            setActiveStrap(payload.strap);
-          } else if (payload.type === "HIDE_STRAP") {
-            setActiveStrap(null);
-          } else if (payload.type === "TOGGLE_TICKER") {
-            setShowTicker((prev) =>
-              payload.visible !== undefined ? payload.visible : !prev,
-            );
-            if (payload.tickerText) setTickerText(payload.tickerText);
-          } else if (payload.type === "SET_TICKER_TEXT" && payload.tickerText) {
-            setTickerText(payload.tickerText);
-          } else if (payload.type === "SET_SPONSORS" && payload.sponsors) {
-            setSponsorsList(payload.sponsors);
-          } else if (
-            payload.type === "SET_CUSTOM_COLORS" &&
-            payload.customColors
-          ) {
-            setCustomColors(payload.customColors);
-          } else if (
-            payload.type === "SET_MARGIN_OFFSET" &&
-            payload.marginOffsetPx !== undefined
-          ) {
-            setMarginOffsetPx(payload.marginOffsetPx);
-          } else if (payload.type === "TOGGLE_AUDIO") {
-            if (payload.audioEnabled !== undefined)
-              setAudioEnabled(payload.audioEnabled);
-            if (payload.audioVolume !== undefined)
-              setAudioVolume(payload.audioVolume);
-          } else if (
-            payload.type === "SET_BROADCAST_VIEW" &&
-            payload.broadcastView
-          ) {
-            setBroadcastView(payload.broadcastView);
-          } else if (payload.type === "PANIC_CLEAR") {
-            setActiveCard("none");
-            setActiveSting(null);
-            setActiveStrap(null);
-            setBroadcastView(null);
-          }
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void firebase.removeChannel(controlChannel);
-    };
-  }, [matchId, setAudioEnabled, setAudioVolume]);
-
-  const copyObsUrl = () => {
-    if (typeof window === "undefined") return;
-    const origin = window.location.origin;
-    const params = new URLSearchParams();
-    if (layout !== "bottom") params.set("layout", layout);
-    if (theme !== "starsports") params.set("theme", theme);
-    if (sponsor.trim()) params.set("sponsor", sponsor.trim());
-    params.set("controls", "false");
-
-    const url = `${origin}/overlay/${matchId}?${params.toString()}`;
-    void navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  if (!state) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center font-sans">
-        <div className="rounded-lg border border-white/10 bg-black/90 px-6 py-4 text-base font-medium text-white">
-          Loading match…
-        </div>
-      </div>
-    );
-  }
-
-  const isLive = state.status === "live";
-  const isComplete = state.status === "completed";
-  const thisOverBalls = (state.this_over_balls ?? "")
-    .split(" ")
-    .filter(Boolean);
-  const themeStyle = THEME_STYLES[theme] || THEME_STYLES.starsports;
-  const isFreeHit = state.last_ball_extra_type === "no_ball";
-
-  // Dynamic strike rate calculation
-  const strikerSr =
-    state.striker_runs && state.striker_balls && state.striker_balls > 0
-      ? ((state.striker_runs / state.striker_balls) * 100).toFixed(1)
-      : null;
-
-  const bowlerBalls = state.bowler_balls ?? 0;
-  const bowlerEcon =
-    bowlerBalls > 0 && state.bowler_runs !== null
-      ? (state.bowler_runs / (bowlerBalls / 6)).toFixed(1)
-      : "—";
-
-  // Custom margin offset applied to the persistent bug container
-  const bottomOffsetStyle = {
-    bottom: `${20 + marginOffsetPx}px`,
-  };
-
-  const battingTeamShort =
-    state.batting_team_short_name ??
-    (state.batting_team_name
-      ? state.batting_team_name.substring(0, 3).toUpperCase()
-      : "BAT");
-
-  const bowlingTeamShort =
-    state.bowling_team_short_name ??
-    (state.bowling_team_name
-      ? state.bowling_team_name.substring(0, 3).toUpperCase()
-      : "BWL");
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dismissSting, dismissStrap]);
 
   return (
-    <div
-      style={
-        {
-          "--overlay-custom-primary": customColors.primary,
-          "--overlay-custom-accent": customColors.accent,
-        } as React.CSSProperties
-      }
-      className="pointer-events-none fixed inset-0 select-none bg-transparent p-6 font-sans"
-    >
-      {/* 1. BROADCAST EVENT STINGS ANIMATION LAYER */}
-      <EventStings
-        sting={activeSting}
-        theme={theme}
-        onDismiss={handleDismissSting}
-      />
-
-      {/* 2. FULL-SCREEN PRESENTATION CARDS */}
-      <PresentationCards
-        card={activeCard}
-        state={state}
-        match={matchData}
-        theme={theme}
-        onClose={handleDismissCard}
-      />
-
-      {/* 3. IN-PLAY LOWER-THIRD STRAPS */}
-      <LowerThirdStraps
-        strap={activeStrap}
-        state={state}
-        layout={layout}
-        theme={theme}
-        onDismiss={handleDismissStrap}
-      />
-
-      {/* 4. CORNER WATERMARK & ROTATING SPONSORS */}
-      <CornerWatermark
-        title={state.tournament_name ?? state.title}
-        logoUrl={state.team1_logo_url}
-        sponsors={sponsorsList}
-        visible={showWatermark}
-      />
-
-      {/* 5. BOTTOM BROADCAST NEWS CRAWLER / TICKER */}
-      <NewsTicker text={tickerText} visible={showTicker} />
-
-      {/* 6. SAFE-ZONE GUIDE OVERLAY (CALIBRATION) */}
-      {showSafeZone && (
-        <div
-          className="pointer-events-none fixed inset-0 z-50"
-          role="img"
-          aria-label="Broadcast safe-zone guides: action safe 90 percent, title safe 80 percent, 1920 by 1080 canvas"
-        >
-          <div className="absolute inset-[5%] border border-dashed border-amber-400/50 p-2 font-mono text-2xs text-amber-300">
-            Action safe (90%) · 1920×1080
-          </div>
-          <div className="absolute inset-[10%] border border-dashed border-sky-400/50 p-2 font-mono text-2xs text-sky-300">
-            Title safe (80%) · keep score bug inside
-          </div>
-        </div>
-      )}
-
-      {/* Live / Offline feed indicator */}
-      <div className="absolute right-5 top-5 flex items-center gap-2 rounded-md border border-white/10 bg-black/80 px-3 py-1.5">
-        <span
-          className={`h-2 w-2 rounded-full ${
-            isConnected ? "bg-emerald-400" : "bg-red-500"
-          }`}
-        />
-        <span className="font-score text-xs font-medium text-white">
-          {isConnected ? "Connected" : "Offline"}
-        </span>
-      </div>
-
-      {/* Match status badge */}
-      <div className="absolute left-5 top-5 flex items-center gap-2">
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-1 font-score text-xs font-semibold text-white ${
-            isComplete ? "bg-emerald-700" : "bg-black/80"
-          }`}
-        >
-          {isLive && (
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
-          )}
-          {formatStatus(state.status)}
-        </span>
-
-        {isFreeHit && (
-          <span className="inline-flex items-center rounded-md bg-amber-400 px-2.5 py-1 font-score text-xs font-semibold text-black">
-            Free hit
-          </span>
-        )}
-      </div>
-
-      {/* Streamer Settings Toggle Button */}
-      {initialControls && (
-        <button
-          onClick={() => setDrawerOpen((prev) => !prev)}
-          className="pointer-events-auto fixed bottom-4 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/85 text-white transition-colors hover:bg-white/15"
-          title="Overlay Producer Deck (Press S)"
-          aria-label="Toggle Overlay Settings"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
-      )}
-
-      {/* Settings Drawer */}
-      {drawerOpen && (
-        <div className="pointer-events-auto fixed bottom-16 right-4 z-50 max-h-[85vh] w-[420px] overflow-y-auto rounded-xl border border-white/10 bg-zinc-950 p-6 text-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <h3 className="text-base font-semibold">Overlay settings</h3>
-            <button
-              onClick={() => setDrawerOpen(false)}
-              className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="mt-4 space-y-4 text-xs">
-            <div className="rounded-lg border border-white/10 p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-white/80">Control room</span>
-                <a
-                  href={`/overlay/${matchId}/control`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-xs font-medium text-black transition-colors hover:bg-white/90"
-                >
-                  <span>Open</span>
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setShowBug((v) => !v)}
-                className={`flex items-center justify-center gap-1.5 rounded-md border p-2.5 font-medium transition-colors ${
-                  showBug
-                    ? "border-white/30 bg-white/10 text-white"
-                    : "border-white/10 bg-white/5 text-white/60"
-                }`}
-              >
-                {showBug ? (
-                  <Eye className="h-4 w-4" />
-                ) : (
-                  <EyeOff className="h-4 w-4" />
-                )}
-                <span>
-                  {showBug ? "Score bug visible (B)" : "Score bug hidden (B)"}
-                </span>
-              </button>
-
-              <button
-                onClick={toggleSound}
-                className={`flex items-center justify-center gap-1.5 rounded-md border p-2.5 font-medium transition-colors ${
-                  audioEnabled
-                    ? "border-white/30 bg-white/10 text-white"
-                    : "border-white/10 bg-white/5 text-white/60"
-                }`}
-              >
-                {audioEnabled ? (
-                  <Volume2 className="h-4 w-4" />
-                ) : (
-                  <VolumeX className="h-4 w-4" />
-                )}
-                <span>{audioEnabled ? "Sound on" : "Sound off"}</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowSafeZone((v) => !v)}
-              aria-pressed={showSafeZone}
-              className={`flex w-full items-center justify-center gap-1.5 rounded-md border p-2.5 font-medium transition-colors ${
-                showSafeZone
-                  ? "border-white/30 bg-white/10 text-white"
-                  : "border-white/10 bg-white/5 text-white/60"
-              }`}
-              title="Toggle 1920×1080 safe-zone guides (G)"
-            >
-              <span>
-                {showSafeZone
-                  ? "Safe guides on (G) · 1920×1080"
-                  : "Safe guides off (G)"}
-              </span>
-            </button>
-
-            {/* Broadcast Theme Selector */}
-            <div>
-              <label className="mb-1.5 flex items-center gap-1.5 font-medium text-white/80">
-                <Palette className="h-3.5 w-3.5" /> Theme
-              </label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { id: "apex", label: "Apex" },
-                  { id: "volt", label: "Volt" },
-                  { id: "agni", label: "Agni" },
-                  { id: "thunder", label: "Thunder" },
-                  { id: "dharma", label: "Dharma" },
-                  { id: "nakshatra", label: "Nakshatra" },
-                  { id: "starsports", label: "Star Sports" },
-                  { id: "sonysports", label: "Sony Sports" },
-                  { id: "foxcricket", label: "Fox Cricket" },
-                  { id: "skysports", label: "Sky Sports" },
-                  { id: "thehundred", label: "The Hundred" },
-                  { id: "broadcast", label: "Gold" },
-                  { id: "emerald", label: "Emerald" },
-                  { id: "dark", label: "Dark" },
-                  { id: "minimal", label: "Minimal" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => setTheme(t.id as OverlayTheme)}
-                    className={`rounded-md border px-2 py-1.5 text-center font-medium transition-colors ${
-                      theme === t.id
-                        ? "border-white/40 bg-white/15 text-white"
-                        : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Live Broadcast Suite Mode */}
-            <div className="border-t border-white/10 pt-3">
-              <label className="mb-1.5 flex items-center justify-between font-medium text-white/80">
-                <span className="flex items-center gap-1.5">
-                  <Radio className="h-3.5 w-3.5" /> Graphics suite
-                </span>
-                <span className="text-xs text-white/50">29 views</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setBroadcastView((v) => (v ? null : "1"))}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border p-2.5 font-medium transition-colors ${
-                    broadcastView !== null
-                      ? "border-white/30 bg-white/10 text-white"
-                      : "border-white/10 bg-white/5 text-white/60"
-                  }`}
-                >
-                  <span>
-                    {broadcastView !== null
-                      ? "Graphics suite on (C)"
-                      : "Standard score bug"}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setShowBroadcastDock((v) => !v)}
-                  className={`flex items-center justify-center gap-1.5 rounded-md border p-2.5 font-medium transition-colors ${
-                    showBroadcastDock
-                      ? "border-white/30 bg-white/10 text-white"
-                      : "border-white/10 bg-white/5 text-white/60"
-                  }`}
-                >
-                  <span>
-                    {showBroadcastDock
-                      ? "Hide view bar (D)"
-                      : "Show view bar (D)"}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Copy OBS URL */}
-            <div className="border-t border-white/10 pt-3">
-              <button
-                onClick={copyObsUrl}
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-white py-2.5 font-medium text-black transition-colors hover:bg-white/90"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4" />
-                    <span>Copy OBS browser URL</span>
-                  </>
-                )}
-              </button>
-              <p className="mt-1 text-center text-xs text-white/40">
-                1920×1080, transparent background
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 7. Broadcast suite and score bug */}
-      {/* ========================================================= */}
-      {showBug && (
-        <>
-          {/* BROADCAST SUITE (29 LIVE VIEWS) */}
-          {(broadcastView !== null || layout === "broadcast") && (
-            <BroadcastSuiteOverlay
-              state={state}
-              match={matchData}
-              activeView={broadcastView ?? "1"}
-              onSelectView={setBroadcastView}
-              showControls={showBroadcastDock}
-              onCloseCard={() => setBroadcastView("1")}
-              theme={theme}
-            />
-          )}
-
-          {/* STANDARD CUSTOMIZABLE SCOREBUGS (BOTTOM / TOP / COMPACT) */}
-          {broadcastView === null && layout !== "broadcast" && (
-            <>
-              {/* 1. LOWER-THIRD INTEGRATED BROADCAST BAR (DEFAULT) */}
-              {layout === "bottom" && (
-                <div
-                  style={bottomOffsetStyle}
-                  className="absolute left-1/2 w-full max-w-5xl -translate-x-1/2 select-none font-score transition-colors duration-300"
-                >
-                  {/* TOP HEADER SUB-STRIP: TOURNAMENT & MATCH PACE */}
-                  <div className="flex items-center justify-between border-x border-t border-white/20 bg-black/95 px-3.5 py-1 font-score text-2xs font-semibold text-slate-300">
-                    <div className="flex items-center gap-2.5">
-                      <span className="font-semibold text-amber-400">
-                        {state.tournament_name ?? state.title}
-                      </span>
-                      <span className="text-white/30">|</span>
-                      <span className="text-white/80">
-                        {battingTeamShort} v {bowlingTeamShort} ·{" "}
-                        {state.venue ?? state.match_format}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {sponsor && (
-                        <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-2xs font-medium text-white/80">
-                          {sponsor}
-                        </span>
-                      )}
-                      <span className="rounded border border-white/15 bg-white/5 px-2 py-0.5 text-2xs font-medium text-white/80">
-                        CRR {state.current_run_rate ?? "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* MAIN HORIZONTAL SEGMENTED SCORE BAR */}
-                  <div
-                    className={`relative flex items-stretch border border-white/20 ${themeStyle.mainBarBg} ${themeStyle.outerBorder}`}
-                  >
-                    {/* 1. TEAM BLOCK (ANGLED TRAPEZOID BADGE) */}
-                    <div
-                      className={`flex shrink-0 items-center gap-3 px-5 py-2 ${themeStyle.teamBadge}`}
-                    >
-                      {state.team1_logo_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={state.team1_logo_url}
-                          alt="Logo"
-                          className="h-8 w-8 object-contain"
-                        />
-                      )}
-                      <div className="text-left leading-none">
-                        <span className="block font-score text-3xl font-bold">
-                          {battingTeamShort}
-                        </span>
-                        <span className="mt-0.5 block font-score text-[10px] font-semibold opacity-90">
-                          {state.innings_number === 2 ? "2nd inn" : "1st inn"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 2. CORE SCORE & OVERS BLOCK */}
-                    <div className="flex items-center gap-3 border-r border-white/15 bg-black/40 px-4 py-1.5">
-                      <div className="flex items-baseline gap-1">
-                        <span
-                          className={`font-score text-4xl font-bold tabular-nums leading-none transition-colors duration-300 ${
-                            scorePulsing ? "text-amber-300" : "text-white"
-                          }`}
-                        >
-                          {state.total_runs ?? 0}
-                        </span>
-                        <span className="font-score text-2xl font-bold tabular-nums leading-none text-amber-400">
-                          /{state.total_wickets ?? 0}
-                        </span>
-                      </div>
-
-                      <div className="border-l border-white/10 pl-2.5 text-right leading-tight">
-                        <span className="block font-score text-base font-bold tabular-nums text-white">
-                          {oversText(state.total_balls)}
-                        </span>
-                        <span className="block font-score text-[10px] font-bold text-slate-400">
-                          / {state.overs_per_innings} ov
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. BATSMEN PANEL (STRIKER & NON-STRIKER) */}
-                    <div className="flex items-center divide-x divide-white/10 border-r border-white/15">
-                      {/* Striker */}
-                      {state.striker_name && (
-                        <div className="px-4 py-1.5 leading-tight">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-xs font-semibold ${themeStyle.strikeChevron}`}
-                            >
-                              ▶
-                            </span>
-                            <span className="font-score text-sm font-semibold text-white">
-                              {state.striker_name} *
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-2">
-                            <span className="font-score text-base font-bold tabular-nums text-amber-300">
-                              {state.striker_runs ?? 0}
-                            </span>
-                            <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
-                              ({state.striker_balls ?? 0}b)
-                            </span>
-                            {strikerSr && (
-                              <span className="rounded bg-white/10 px-1.5 py-0.5 font-score text-[10px] font-medium tabular-nums text-white/70">
-                                SR {strikerSr}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Non-Striker */}
-                      {state.non_striker_name && (
-                        <div className="px-4 py-1.5 leading-tight">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-slate-500">•</span>
-                            <span className="font-score text-sm font-bold text-slate-300">
-                              {state.non_striker_name}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex items-center gap-1.5">
-                            <span className="font-score text-base font-bold tabular-nums text-slate-200">
-                              {state.non_striker_runs ?? 0}
-                            </span>
-                            <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
-                              ({state.non_striker_balls ?? 0}b)
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 4. CURRENT BOWLER PANEL */}
-                    {state.current_bowler_name && (
-                      <div className="border-r border-white/15 px-4 py-1.5 leading-tight">
-                        <div className="flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full bg-sky-400" />
-                          <span className="font-score text-sm font-semibold text-white">
-                            {state.current_bowler_name}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 flex items-center gap-2">
-                          <span className="font-score text-base font-bold tabular-nums text-sky-300">
-                            {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
-                          </span>
-                          <span className="font-score text-2xs font-medium tabular-nums text-slate-400">
-                            ({oversText(state.bowler_balls)})
-                          </span>
-                          <span className="rounded bg-white/10 px-1.5 py-0.5 font-score text-[10px] font-medium tabular-nums text-white/70">
-                            Econ {bowlerEcon}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 5. OVER BALL-BY-BALL CHIP TRAY */}
-                    {showBalls && (
-                      <div className="flex flex-1 items-center justify-end gap-1 px-4 py-1.5">
-                        {thisOverBalls.length > 0 ? (
-                          <>
-                            {thisOverBalls.map((b, idx) => (
-                              <BallChip key={idx} label={b} />
-                            ))}
-                            {Array.from({
-                              length: Math.max(0, 6 - thisOverBalls.length),
-                            }).map((_, i) => (
-                              <span
-                                key={`empty-${i}`}
-                                className="inline-flex h-6 w-[24px] items-center justify-center rounded border border-dashed border-white/20 bg-white/5 opacity-50"
-                              />
-                            ))}
-                          </>
-                        ) : (
-                          <span className="font-score text-2xs font-bold text-slate-500">
-                            Over in progress
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* LOWER SUB-BAR: DYNAMIC ROTATING BROADCAST RIBBON */}
-                  <div
-                    className={`overflow-hidden px-4 py-1.5 ${themeStyle.subBarBg} font-score text-xs font-semibold`}
-                  >
-                    <div
-                      key={carouselIdx}
-                      className="flex items-center justify-between duration-300 animate-in fade-in motion-reduce:animate-none"
-                    >
-                      {/* Slide 0: Target / Chase Equation or Projected Score */}
-                      {carouselIdx === 0 && (
-                        <>
-                          {state.target_runs !== null ? (
-                            <div className="flex items-center gap-3">
-                              <span className="rounded bg-amber-400 px-2 py-0.5 text-2xs font-semibold text-black">
-                                Target {state.target_runs}
-                              </span>
-                              <span className="text-white">
-                                Need {state.runs_needed} runs from{" "}
-                                {state.balls_remaining} balls
-                              </span>
-                              <span className="text-white/30">|</span>
-                              <span className="text-amber-300">
-                                Req. RR: {state.required_run_rate ?? "—"}
-                              </span>
-                              <span className="text-white/30">|</span>
-                              <span className="text-emerald-300">
-                                Curr. RR: {state.current_run_rate ?? "—"}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <span className="text-amber-400">
-                                vs{" "}
-                                {state.bowling_team_name ??
-                                  state.bowling_team_short_name}
-                              </span>
-                              <span className="text-white/30">|</span>
-                              <span className="text-white">
-                                Projected score:{" "}
-                                {state.current_run_rate
-                                  ? Math.round(
-                                      state.current_run_rate *
-                                        (state.overs_per_innings ?? 20),
-                                    )
-                                  : "—"}{" "}
-                                runs
-                              </span>
-                              <span className="text-white/30">|</span>
-                              <span className="text-slate-300">
-                                Extras: {state.extras_total ?? 0}
-                              </span>
-                            </div>
-                          )}
-                          {state.partnership_runs !== null &&
-                            state.partnership_runs > 0 && (
-                              <div className="font-bold text-slate-300">
-                                Partnership {state.partnership_runs} (
-                                {state.partnership_balls}b)
-                              </div>
-                            )}
-                        </>
-                      )}
-
-                      {/* Slide 1: Partnership Analysis with Visual Progress Bar */}
-                      {carouselIdx === 1 && (
-                        <>
-                          <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/15 px-2 py-0.5 text-2xs font-semibold text-white">
-                              Partnership
-                            </span>
-                            <span className="text-white">
-                              {state.partnership_runs ?? 0} runs off{" "}
-                              {state.partnership_balls ?? 0} balls
-                            </span>
-                            {state.striker_name &&
-                              state.non_striker_name &&
-                              state.partnership_runs &&
-                              state.partnership_runs > 0 && (
-                                <div className="ml-2 flex items-center gap-1.5">
-                                  <span className="text-[10px] font-bold text-amber-300">
-                                    {state.striker_name.split(" ").pop()} (
-                                    {state.striker_runs ?? 0})
-                                  </span>
-                                  <div className="flex h-2 w-24 overflow-hidden rounded-full border border-white/20 bg-slate-800">
-                                    <div
-                                      style={{
-                                        width: `${Math.min(
-                                          100,
-                                          Math.max(
-                                            10,
-                                            ((state.striker_runs ?? 0) /
-                                              Math.max(
-                                                1,
-                                                (state.striker_runs ?? 0) +
-                                                  (state.non_striker_runs ?? 0),
-                                              )) *
-                                              100,
-                                          ),
-                                        )}%`,
-                                      }}
-                                      className="h-full bg-amber-400"
-                                    />
-                                    <div className="h-full flex-1 bg-sky-400" />
-                                  </div>
-                                  <span className="text-[10px] font-bold text-sky-300">
-                                    ({state.non_striker_runs ?? 0}){" "}
-                                    {state.non_striker_name.split(" ").pop()}
-                                  </span>
-                                </div>
-                              )}
-                          </div>
-                          <div className="font-bold text-emerald-300">
-                            Run rate:{" "}
-                            {state.partnership_balls &&
-                            state.partnership_balls > 0
-                              ? (
-                                  ((state.partnership_runs ?? 0) /
-                                    state.partnership_balls) *
-                                  6
-                                ).toFixed(2)
-                              : "—"}
-                          </div>
-                        </>
-                      )}
-
-                      {/* Slide 2: Bowler Spell & Over Summary */}
-                      {carouselIdx === 2 && (
-                        <>
-                          <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/15 px-2 py-0.5 text-2xs font-semibold text-white">
-                              Bowler
-                            </span>
-                            <span className="text-white">
-                              {state.current_bowler_name}:{" "}
-                              {state.bowler_wickets ?? 0}-
-                              {state.bowler_runs ?? 0} (
-                              {oversText(state.bowler_balls)} ov)
-                            </span>
-                            <span className="text-white/30">|</span>
-                            <span className="text-sky-300">
-                              Economy: {bowlerEcon}
-                            </span>
-                          </div>
-                          <div className="font-bold text-amber-300">
-                            {state.overs_per_innings
-                              ? `${state.overs_per_innings}-over match`
-                              : "T20"}
-                          </div>
-                        </>
-                      )}
-
-                      {/* Slide 3: Tournament & Venue Match Info */}
-                      {carouselIdx === 3 && (
-                        <>
-                          <div className="flex items-center gap-3">
-                            <span className="rounded bg-white/20 px-2 py-0.5 text-2xs font-semibold text-white">
-                              Match
-                            </span>
-                            <span className="text-white">
-                              {state.tournament_name ?? state.title}
-                            </span>
-                            <span className="text-white/30">|</span>
-                            <span className="text-slate-300">
-                              {state.venue ?? ""}
-                            </span>
-                          </div>
-                          <div className="font-semibold text-amber-400">
-                            {state.toss_decision
-                              ? `Toss: elected to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`
-                              : "Match underway"}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 2. TOP TICKER LAYOUT */}
-              {layout === "top" && (
-                <div className="absolute left-1/2 top-4 w-full max-w-5xl -translate-x-1/2 select-none font-score transition-colors duration-300">
-                  <div
-                    className={`flex items-stretch border border-white/20 ${themeStyle.mainBarBg} ${themeStyle.outerBorder}`}
-                  >
-                    <div
-                      className={`flex items-center gap-2 px-5 py-2 ${themeStyle.teamBadge} font-semibold`}
-                    >
-                      <span className="font-score text-2xl font-semibold">
-                        {battingTeamShort}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 border-r border-white/15 bg-black/40 px-4">
-                      <span
-                        className={`font-score text-3xl font-bold tabular-nums ${
-                          scorePulsing ? "text-amber-300" : "text-white"
-                        }`}
-                      >
-                        {state.total_runs ?? 0}/{state.total_wickets ?? 0}
-                      </span>
-                      <span className="text-xs font-bold text-slate-300">
-                        ({oversText(state.total_balls)} ov)
-                      </span>
-                    </div>
-
-                    {state.striker_name && (
-                      <div className="flex items-center gap-2 border-r border-white/15 px-4">
-                        <span className="text-xs font-semibold text-emerald-400">
-                          ▶
-                        </span>
-                        <span className="text-sm font-bold text-white">
-                          {state.striker_name}
-                        </span>
-                        <span className="text-sm font-semibold text-amber-300">
-                          {state.striker_runs ?? 0}*
-                        </span>
-                      </div>
-                    )}
-
-                    {state.current_bowler_name && (
-                      <div className="flex items-center gap-2 border-r border-white/15 px-4">
-                        <span className="text-xs font-bold text-slate-300">
-                          {state.current_bowler_name}
-                        </span>
-                        <span className="text-xs font-semibold text-sky-300">
-                          {state.bowler_wickets ?? 0}-{state.bowler_runs ?? 0}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Over Tray */}
-                    {showBalls && (
-                      <div className="flex flex-1 items-center justify-end gap-1 px-4">
-                        {thisOverBalls.slice(-6).map((b, idx) => (
-                          <BallChip key={idx} label={b} />
-                        ))}
-                      </div>
-                    )}
-
-                    {state.target_runs !== null && (
-                      <div className="border-l border-white/15 bg-black/40 px-4 py-2 text-right">
-                        <span className="block text-xs font-semibold text-amber-300">
-                          Need {state.runs_needed} off {state.balls_remaining}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 3. COMPACT CORNER BUG LAYOUT */}
-              {layout === "compact" && (
-                <div className="absolute bottom-6 left-6 w-[350px] select-none font-score transition-colors duration-300">
-                  <div
-                    className={`border border-white/20 ${themeStyle.mainBarBg} ${themeStyle.outerBorder} overflow-hidden`}
-                  >
-                    <div className="flex items-center justify-between border-b border-white/15 bg-black/80 px-3 py-1.5">
-                      <span className="truncate text-xs font-semibold text-amber-400">
-                        {state.tournament_name ?? state.title}
-                      </span>
-                      <span className="rounded bg-white/10 px-1.5 py-0.5 text-2xs font-medium text-white/80">
-                        CRR {state.current_run_rate ?? "—"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3.5">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`rounded px-3.5 py-1.5 text-2xl font-semibold ${themeStyle.teamBadge} shadow`}
-                        >
-                          {battingTeamShort}
-                        </div>
-                        <div>
-                          <p
-                            className={`font-score text-3xl font-bold leading-none ${
-                              scorePulsing ? "text-amber-300" : "text-white"
-                            }`}
-                          >
-                            {state.total_runs ?? 0}/{state.total_wickets ?? 0}
-                          </p>
-                          <span className="mt-0.5 block text-2xs font-bold text-slate-300">
-                            {oversText(state.total_balls)} /{" "}
-                            {state.overs_per_innings} ov
-                          </span>
-                        </div>
-                      </div>
-
-                      {state.target_runs !== null && (
-                        <div className="text-right">
-                          <span className="block text-[10px] font-bold text-slate-400">
-                            Target {state.target_runs}
-                          </span>
-                          <span className="block text-xs font-semibold text-amber-300">
-                            Need {state.runs_needed}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Striker & Bowler */}
-                    <div className="flex items-center justify-between border-t border-white/10 bg-black/50 px-3 py-2 text-xs">
-                      <span className="max-w-[150px] truncate font-bold text-white">
-                        <span className="mr-1 font-semibold text-emerald-400">
-                          ▶
-                        </span>
-                        {state.striker_name} * ({state.striker_runs ?? 0})
-                      </span>
-                      <span className="font-bold tabular-nums text-sky-300">
-                        {state.current_bowler_name}: {state.bowler_wickets ?? 0}
-                        -{state.bowler_runs ?? 0}
-                      </span>
-                    </div>
-
-                    {/* Balls */}
-                    {showBalls && thisOverBalls.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 border-t border-white/10 bg-black/70 px-3 py-1.5">
-                        {thisOverBalls.map((b, idx) => (
-                          <BallChip key={idx} label={b} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
+    <OverlayStage
+      state={ready ? state : null}
+      match={currentMatch}
+      layers={layers}
+      notFound={notFound && !state}
+      showSafeZone={showSafeZone}
+      onDismissSting={dismissSting}
+      onDismissStrap={dismissStrap}
+    />
   );
 }

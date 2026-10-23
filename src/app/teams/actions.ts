@@ -1,27 +1,30 @@
 "use server";
 
 import type { Doc } from "~/lib/firebase/datasource";
-import {
-  INFIX_LEN,
-  isInfixQuery,
-  matchesSearch,
-  normalizeText,
-  searchKey,
-} from "~/lib/firebase/derive.mjs";
+import { matchesSearch, searchKey } from "~/lib/firebase/derive.mjs";
 import { sortRows } from "~/lib/firebase/filters";
 import { prefixSearch } from "~/lib/firebase/search";
+import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 import { createServerClient } from "~/lib/firebase/server";
 import { canManageTeam } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { parseTeamColor } from "~/lib/team-colors";
+import { maskEmail } from "~/lib/mask-email";
+import {
+  isPlaceholderProfile,
+  PLACEHOLDER_EMAIL_DOMAIN,
+} from "~/lib/squad-claims";
 
 export async function getTeams(filters?: {
   search?: string;
   type?: "club" | "match" | "tournament";
   /** Only return teams the current user has a stake in. */
   mine?: boolean;
+  /** Keyset cursor of the "all teams" page (`~/lib/keyset`). */
+  after?: string;
 }) {
   const db = await createServerClient();
 
@@ -37,6 +40,7 @@ export async function getTeams(filters?: {
   // snapshots then answer the captain lookup without a profile read.
   const SELECT = `
       *,
+      name_lower,
       _count:team_players(count),
       captain:users!teams_captain_id_fkey(full_name)
     `;
@@ -46,6 +50,7 @@ export async function getTeams(filters?: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- rows are loosely typed (see ResultRow)
   let data: any[] | null = null;
   let error: { message: string } | null = null;
+  let next: string | null = null;
   if (user && filters?.mine) {
     // "mine" shows only teams the user has a stake in (created, lead, or
     // squad member): one indexed query per kind of stake instead of reading
@@ -92,30 +97,34 @@ export async function getTeams(filters?: {
         .sort((a, b) => (String(a.id) < String(b.id) ? -1 : 1)) as Doc[],
       [{ field: "created_at", ascending: false, nullsFirst: true }],
     );
+  } else if (filters?.search) {
+    // Word-prefix match on name / short name: one page, in name order.
+    const found = await prefixSearch(
+      db,
+      "teams",
+      filters.search,
+      SELECT,
+      PAGE_SIZE,
+    );
+    data = found.data.filter(
+      (t) => !filters.type || t.team_type === filters.type,
+    );
+    error = found.error ? { message: found.error } : null;
   } else {
-    let query = db.from("teams").select(SELECT);
-    // A one-word query of 4+ characters looks up its first trigram (every
-    // name containing the query, at a word start or inside a word, has it)
-    // and is confirmed in memory, as are queries longer than the stored keys.
-    const norm = filters?.search ? normalizeText(filters.search) : "";
-    const key =
-      searchFor && isInfixQuery(norm) && norm.length > INFIX_LEN
-        ? norm.slice(0, INFIX_LEN)
-        : searchFor;
-    if (key) {
-      // Native search_prefixes match instead of a scan.
-      query = query.contains("search_prefixes", [key]);
-    }
-    if (filters?.type) {
-      query = query.eq("team_type", filters.type);
-    }
-    const res = await query.order("created_at", { ascending: false });
-    data = res.data;
+    // Every team, a page at a time in name order (keyset, no scan).
+    const cursor = parseCursor(filters?.after);
+    let query = db.from("teams").select(SELECT).order("name_lower");
+    if (filters?.type) query = query.eq("team_type", filters.type);
+    if (cursor) query = query.after(cursor.value, cursor.id);
+    const res = await query.limit(PAGE_SIZE + 1);
     error = res.error;
-    if (data && key && key !== norm) {
-      data = data.filter((t) =>
-        matchesSearch(filters!.search, [t.name, t.short_name]),
+    if (res.data) {
+      const page = keysetPage(
+        res.data as Array<{ id: string; name_lower?: string | null }>,
+        (t) => t.name_lower ?? "",
       );
+      data = page.rows;
+      next = page.next;
     }
   }
 
@@ -134,7 +143,7 @@ export async function getTeams(filters?: {
         : 0,
   }));
 
-  return { data: teamsWithCount, error: null };
+  return { data: teamsWithCount, error: null, next };
 }
 
 export async function getTeam(id: string) {
@@ -181,6 +190,11 @@ export async function createTeam(formData: FormData) {
   const club_id = (formData.get("club_id") as string) || null;
   const team_type =
     (formData.get("team_type") as "club" | "match" | "tournament") || "club";
+  // "I play for this team" (on by default): the creator joins the squad as
+  // captain. Unticked (an organiser setting up a side), they only manage it.
+  const joinsSquad = formData.get("join_squad") !== "false";
+  const primary = parseTeamColor(formData.get("primary_color"));
+  const secondary = parseTeamColor(formData.get("secondary_color"));
 
   const {
     data: { user },
@@ -195,6 +209,8 @@ export async function createTeam(formData: FormData) {
   if (!name) {
     return { error: "Team name is required" };
   }
+  if (!primary.ok) return { error: primary.error };
+  if (!secondary.ok) return { error: secondary.error };
 
   if (club_id) {
     const { data: club } = await db
@@ -234,7 +250,9 @@ export async function createTeam(formData: FormData) {
       description,
       club_id,
       team_type,
-      captain_id: user.id,
+      primary_color: primary.value,
+      secondary_color: secondary.value,
+      captain_id: joinsSquad ? user.id : null,
       created_by: user.id,
     })
     .select()
@@ -245,20 +263,230 @@ export async function createTeam(formData: FormData) {
     return { error: error.message };
   }
 
-  // Auto-add creator as playing squad captain
-  await db.from("team_players").insert({
-    team_id: data.id,
-    user_id: user.id,
-    role_in_team: "captain",
-    is_playing_xi: true,
-    added_by: user.id,
-  });
+  if (joinsSquad) {
+    // The creator plays for the team, as its captain.
+    const { error: squadError } = await db.from("team_players").insert({
+      team_id: data.id,
+      user_id: user.id,
+      role_in_team: "captain",
+      is_playing_xi: true,
+      added_by: user.id,
+    });
+    if (squadError) console.error("Error adding the creator:", squadError);
+  }
 
   revalidatePath("/teams");
   if (club_id) {
     revalidatePath(`/clubs/${club_id}`);
   }
   redirect(`/teams/${data.id}`);
+}
+
+/** Longest short name: what the scoreboard and overlay have room for. */
+const SHORT_NAME_MAX = 5;
+
+/**
+ * Edits a team's name, short name and description. Allowed for those who
+ * manage the team (`canManageTeam`: creator, captain, vice-captain, club
+ * admins); the matches' team snapshots follow through the write hook.
+ */
+export async function updateTeam(
+  teamId: string,
+  input: {
+    name: string;
+    shortName?: string | null;
+    description?: string | null;
+    /** "#rrggbb", null to clear, undefined to leave as it is. */
+    primaryColor?: string | null;
+    secondaryColor?: string | null;
+  },
+): Promise<{ error: string | null }> {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+
+  if (!(await canManageTeam(db, teamId, user.id))) {
+    return {
+      error:
+        "Only the team's creator, captain, vice-captain or a club admin can edit it",
+    };
+  }
+
+  const name = (input.name ?? "").trim();
+  if (!name) return { error: "Team name is required" };
+  if (name.length > 60) return { error: "Keep the team name to 60 characters" };
+  const shortName = (input.shortName ?? "").trim().toUpperCase() || null;
+  const colors: Record<string, string | null> = {};
+  for (const [field, value] of [
+    ["primary_color", input.primaryColor],
+    ["secondary_color", input.secondaryColor],
+  ] as const) {
+    if (value === undefined) continue;
+    const parsed = parseTeamColor(value);
+    if (!parsed.ok) return { error: parsed.error };
+    colors[field] = parsed.value;
+  }
+
+  const { data: team } = await db
+    .from("teams")
+    .select("short_name, club_id")
+    .eq("id", teamId)
+    .maybeSingle();
+  if (!team) return { error: "Team no longer exists" };
+  // Older teams may keep a longer short name; a new one must fit.
+  if (
+    shortName &&
+    shortName.length > SHORT_NAME_MAX &&
+    shortName !== team.short_name
+  ) {
+    return { error: `Short name: up to ${SHORT_NAME_MAX} letters` };
+  }
+
+  const { error } = await db
+    .from("teams")
+    .update({
+      name,
+      short_name: shortName,
+      description: (input.description ?? "").trim() || null,
+      ...colors,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", teamId);
+  if (error) {
+    console.error("Error updating team:", error);
+    return { error: error.message };
+  }
+
+  // Live matches of this team show its name: tell their viewers now.
+  await refreshLiveMatchesFor(db, { teamId });
+  revalidatePath(`/teams/${teamId}`);
+  revalidatePath("/teams");
+  if (team.club_id) revalidatePath(`/clubs/${team.club_id}`);
+  return { error: null };
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PLACEHOLDER_DOMAIN = PLACEHOLDER_EMAIL_DOMAIN;
+
+/**
+ * "Invite to claim": a team admin gives a squad player who has no account
+ * (a placeholder profile) their real Google email, or removes it again
+ * (`email` null). The email is stored only in server-only users_private;
+ * when that person first signs in with it, the profile sync re-maps this
+ * profile, with its matches, onto their account (`ensureOwnProfile`).
+ * Refused when another profile already holds the email (merging two
+ * existing profiles is out of scope).
+ */
+export async function setPlayerClaimEmail(
+  teamId: string,
+  playerId: string,
+  email: string | null,
+): Promise<
+  | { error: string }
+  | { error: null; maskedEmail: string | null; shareEmail: string | null }
+> {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "You must be logged in" };
+
+  if (!(await canManageTeam(db, teamId, user.id))) {
+    return {
+      error:
+        "Only the team's creator, captain, vice-captain or a club admin can invite its players",
+    };
+  }
+
+  const { data: entry } = await db
+    .from("team_players")
+    .select("id")
+    .eq("team_id", teamId)
+    .eq("user_id", playerId)
+    .maybeSingle();
+  if (!entry) return { error: "That player is not in this team's squad" };
+
+  const [{ data: profile }, { data: priv }] = await Promise.all([
+    db
+      .from("users")
+      .select("id, full_name, is_placeholder")
+      .eq("id", playerId)
+      .maybeSingle(),
+    db
+      .from("users_private")
+      .select("id, email")
+      .eq("id", playerId)
+      .maybeSingle(),
+  ]);
+  if (!profile) return { error: "That player no longer exists" };
+  const currentEmail = (priv?.email as string | null | undefined) ?? null;
+  if (!isPlaceholderProfile(profile.is_placeholder, currentEmail)) {
+    return {
+      error: `${profile.full_name ?? "This player"} already has a CricScore account`,
+    };
+  }
+
+  const clean = (email ?? "").trim().toLowerCase();
+  let stored: string;
+  if (!clean) {
+    // Back to a placeholder address nobody can sign in with.
+    const slug =
+      String(profile.full_name ?? "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "") || "player";
+    stored = `player.${slug}.${playerId.slice(0, 8)}${PLACEHOLDER_DOMAIN}`;
+  } else {
+    if (!EMAIL_PATTERN.test(clean) || clean.endsWith(PLACEHOLDER_DOMAIN)) {
+      return { error: "Enter a valid email address" };
+    }
+    const { data: holders } = await db
+      .from("users_private")
+      .select("id")
+      .eq("email", clean);
+    const other = (holders ?? []).find((h) => h.id !== playerId);
+    if (other) {
+      const { data: owner } = await db
+        .from("users")
+        .select("full_name")
+        .eq("id", other.id)
+        .maybeSingle();
+      return {
+        error: `That email is already on CricScore as ${owner?.full_name ?? "another player"}`,
+      };
+    }
+    stored = clean;
+  }
+
+  const now = new Date().toISOString();
+  const { error } = priv
+    ? await db
+        .from("users_private")
+        .update({ email: stored, updated_at: now })
+        .eq("id", playerId)
+    : await db.from("users_private").insert({
+        id: playerId,
+        email: stored,
+        phone: null,
+        created_at: now,
+        updated_at: now,
+      });
+  if (error) {
+    console.error("setPlayerClaimEmail error:", error);
+    return { error: error.message };
+  }
+  if (profile.is_placeholder !== true) {
+    await db
+      .from("users")
+      .update({ is_placeholder: true, updated_at: now })
+      .eq("id", playerId);
+  }
+
+  revalidatePath(`/teams/${teamId}`);
+  return clean
+    ? { error: null, maskedEmail: maskEmail(clean), shareEmail: clean }
+    : { error: null, maskedEmail: null, shareEmail: null };
 }
 
 /**
@@ -622,7 +850,12 @@ export async function updateTeamLogo(teamId: string, file: File) {
 
   const { error: uploadError } = await db.storage
     .from("team-logos")
-    .upload(path, file, { contentType: file.type, upsert: true });
+    .upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+      // A new path per upload: the file at it never changes.
+      immutable: true,
+    });
 
   if (uploadError) {
     console.error("Logo upload failed:", uploadError);

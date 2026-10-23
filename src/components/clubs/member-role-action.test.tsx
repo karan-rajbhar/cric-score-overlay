@@ -67,7 +67,7 @@ describe("MemberRoleAction Component", () => {
     expect(confirmSpy).toHaveBeenCalledWith("Promote Bob to club admin?");
     await waitFor(() => {
       expect(updateMemberRole).toHaveBeenCalledWith("club-1", "mem-1", "admin");
-      expect(toast.success).toHaveBeenCalledWith("Bob is now a club admin!");
+      expect(toast.success).toHaveBeenCalledWith("Bob is now a club admin");
     });
   });
 
@@ -111,7 +111,7 @@ describe("MemberRoleAction Component", () => {
     expect(confirmSpy).toHaveBeenCalledWith("Demote Charlie to regular member?");
     await waitFor(() => {
       expect(updateMemberRole).toHaveBeenCalledWith("club-1", "mem-2", "member");
-      expect(toast.success).toHaveBeenCalledWith("Charlie is now a club member!");
+      expect(toast.success).toHaveBeenCalledWith("Charlie is now a club member");
     });
   });
 

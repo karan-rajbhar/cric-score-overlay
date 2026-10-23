@@ -123,7 +123,7 @@ describe("MatchScorecard", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
     expect(
       screen.getByRole("rowheader", { name: "Total" }).closest("tr"),
-    ).toHaveTextContent("165/4 (20.0 ov)RR 8.25");
+    ).toHaveTextContent("165/4 (20.0 ov)Run rate 8.25");
   });
 
   const inningsOf = (over: Partial<Innings>): Innings => ({
@@ -297,7 +297,7 @@ describe("MatchScorecard", () => {
     expect(tabs[1]!.className).toContain("data-[state=active]:bg-primary");
     // The tab carries the score; the innings repeats only its run rate.
     expect(screen.queryByText("Target 61")).not.toBeInTheDocument();
-    expect(screen.getByText("RR 7.50")).toBeInTheDocument();
+    expect(screen.getByText("Run rate 7.50")).toBeInTheDocument();
   });
 
   it("shows the batting card, then the bowling card", () => {
@@ -332,5 +332,13 @@ describe("MatchScorecard", () => {
       within(bowling!).getByRole("columnheader", { name: "Bowler" }),
     ).toBeInTheDocument();
     expect(within(bowling!).getByText("Jasprit Bumrah")).toBeInTheDocument();
+    // Short headings are read out in full, and spelled out on hover.
+    expect(
+      within(batting!).getByRole("columnheader", { name: "Strike rate" }),
+    ).toBeInTheDocument();
+    expect(
+      within(bowling!).getByRole("columnheader", { name: "Economy" }),
+    ).toBeInTheDocument();
+    expect(within(bowling!).getByTitle("Maidens")).toHaveTextContent("M");
   });
 });

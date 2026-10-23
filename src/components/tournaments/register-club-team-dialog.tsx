@@ -82,7 +82,7 @@ export function RegisterClubTeamDialog({
         toast.error(res.error);
       } else {
         toast.success(
-          `Enrolled "${team?.name ?? "Squad"}" into ${tournament.name}!`,
+          `Enrolled "${team?.name ?? "Squad"}" into ${tournament.name}`,
         );
         setOpen(false);
         setSelectedTeamId("");

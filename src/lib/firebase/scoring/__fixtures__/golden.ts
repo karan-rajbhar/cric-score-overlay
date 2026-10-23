@@ -3,7 +3,11 @@
  * step is reduced to a hash.
  *
  * `golden.json` holds the hashes recorded with the engine as it was before
- * schema stage 2 (one document per scorecard row and per ball). Replaying
+ * schema stage 2 (one document per scorecard row and per ball), re-recorded
+ * once when a no-ball began to count as a ball faced: each hash that moved
+ * then differs only by batters' balls faced (and live_state's / the
+ * ScoringState's striker_balls / non_striker_balls), one more per no-ball
+ * received; with `noball_counts_as_ball_faced` false the old hashes return. Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball
@@ -14,7 +18,9 @@ import { createHash } from "node:crypto";
 import { inningsSummaryEntry, inningsSummaryOf } from "../../derive.mjs";
 import type { ScoringState } from "~/app/matches/types";
 import type { DataSource, Doc } from "../../datasource";
-import { logicalMatch } from "./legacy";
+import { logicalMatch, OVERLAY_ROW_FIELDS } from "./legacy";
+
+const OVERLAY_FIELDS: ReadonlySet<string> = new Set(OVERLAY_ROW_FIELDS);
 import {
   recomputeInningsRpc,
   recordBall,
@@ -138,6 +144,10 @@ export const PARTNERSHIP_SPLIT_FIELDS = new Set([
 /** Fields stage 3 added to match documents (not part of the legacy row). */
 export const STAGE3_MATCH_FIELDS = new Set([
   "innings_summary",
+  "summary_runs",
+  "summary_wickets",
+  "best_innings",
+  "best_innings_runs",
   "title_lower",
   "search_prefixes",
   "tournament_snapshot",
@@ -182,6 +192,8 @@ export async function legacySnapshot(
           (k === "last_change" || k === "this_over_runs"))
       )
         continue;
+      // Overlay fields, added after the recording too (live-events.test.ts).
+      if (table === "live_state" && OVERLAY_FIELDS.has(k)) continue;
       // Stage 3 derived match fields (search keys, the innings summary,
       // which incremental.test.ts checks against the innings instead).
       if (table === "matches" && STAGE3_MATCH_FIELDS.has(k)) continue;

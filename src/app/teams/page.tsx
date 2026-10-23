@@ -9,6 +9,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { createServerClient } from "~/lib/firebase/server";
 import { PageContainer, PageHeader } from "~/components/layout/page";
+import { Pager } from "~/components/layout/pager";
 import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
 
 export const metadata = { title: "Teams" };
@@ -20,6 +21,7 @@ export default async function TeamsPage({
     search?: string;
     type?: "club" | "match" | "tournament";
     view?: "mine" | "all";
+    after?: string;
   }>;
 }) {
   const db = await createServerClient();
@@ -30,7 +32,11 @@ export default async function TeamsPage({
   const resolvedParams = await searchParams;
   const defaultView = user ? "mine" : "all";
   const view = resolvedParams?.view ?? defaultView;
-  const { data: teams, error } = await getTeams({
+  const {
+    data: teams,
+    error,
+    next,
+  } = await getTeams({
     ...resolvedParams,
     mine: view === "mine",
   });
@@ -148,7 +154,39 @@ export default async function TeamsPage({
           </div>
         </Suspense>
       )}
+      {view === "all" && !resolvedParams?.search && (
+        <TeamsPager
+          type={resolvedParams?.type}
+          after={resolvedParams?.after}
+          next={next ?? null}
+        />
+      )}
     </PageContainer>
+  );
+}
+
+/** "All teams" comes a page at a time (name order). */
+function TeamsPager({
+  type,
+  after,
+  next,
+}: {
+  type?: string;
+  after?: string;
+  next: string | null;
+}) {
+  const pageHref = (cursor: string | null) => {
+    const params = new URLSearchParams({ view: "all" });
+    if (type) params.set("type", type);
+    if (cursor) params.set("after", cursor);
+    return `/teams?${params}`;
+  };
+  return (
+    <Pager
+      label="Teams pages"
+      firstHref={after ? pageHref(null) : null}
+      nextHref={next ? pageHref(next) : null}
+    />
   );
 }
 

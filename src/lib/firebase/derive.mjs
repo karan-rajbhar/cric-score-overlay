@@ -292,6 +292,50 @@ export function inningsSummaryOf(innings) {
     .map(inningsSummaryEntry);
 }
 
+/**
+ * Match fields derived from its innings summary, written with it, so a
+ * club's milestones are aggregations (count / sum / top innings) instead
+ * of reading every match: the runs and wickets of all its innings and its
+ * highest innings (the first of equal ones, in innings order).
+ * @param {Record<string, any>[] | null | undefined} entries
+ */
+export function summaryTotalsOf(entries) {
+  let runs = 0;
+  let wickets = 0;
+  /** @type {{ runs: number, wickets: number, overs: number, team_id: string | null } | null} */
+  let best = null;
+  for (const e of entries ?? []) {
+    const line = {
+      runs: count(e.total_runs),
+      wickets: count(e.total_wickets),
+      overs: count(e.total_overs),
+      team_id: typeof e.team_id === "string" ? e.team_id : null,
+    };
+    runs += line.runs;
+    wickets += line.wickets;
+    if (!best || line.runs > best.runs) best = line;
+  }
+  return {
+    summary_runs: runs,
+    summary_wickets: wickets,
+    best_innings: best,
+    best_innings_runs: best ? best.runs : null,
+  };
+}
+
+/** @param {unknown} value a stored figure (0 when missing) */
+function count(value) {
+  return Number(value) || 0;
+}
+
+/** The fields {@link summaryTotalsOf} writes on a match. */
+export const SUMMARY_TOTAL_FIELDS = /** @type {const} */ ([
+  "summary_runs",
+  "summary_wickets",
+  "best_innings",
+  "best_innings_runs",
+]);
+
 /** @param {unknown} value */
 export function canonicalJson(value) {
   return JSON.stringify(value, (_k, v) => {

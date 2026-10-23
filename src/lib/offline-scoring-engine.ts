@@ -32,6 +32,12 @@ export interface LocalScoringContext {
   oversPerInnings: number;
   wicketsPerInnings: number;
   targetRuns: number | null;
+  /**
+   * The match's balls-faced rules (as the server's engine applies them):
+   * a no-ball is faced unless switched off; a wide only when switched on.
+   */
+  noBallCountsAsFaced?: boolean;
+  wideCountsAsFaced?: boolean;
 }
 
 /**
@@ -56,6 +62,8 @@ export interface BallInput {
   isWicket?: boolean;
   dismissalType?: string | null;
   dismissedPlayerId?: string | null;
+  /** On a no-ball: the runs completed were byes / leg byes (in `extras`). */
+  noBallRuns?: 'bat' | 'bye' | 'leg_bye' | null;
 }
 
 /**
@@ -68,6 +76,8 @@ export interface MatchLike {
   overs_per_innings: number;
   balls_per_over?: number | null;
   wickets_per_innings?: number | null;
+  noball_counts_as_ball_faced?: boolean | null;
+  wide_counts_as_ball_faced?: boolean | null;
   innings?: Array<{
     innings_number: number;
     total_runs: number;
@@ -148,14 +158,24 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
     isLegal = false;
     runsToTotal = extras;
     runsToBowler = extras;
-    ballsToBatsman = 0;
-    // Strike does not change on wides.
+    ballsToBatsman = ctx.wideCountsAsFaced ? 1 : 0;
+    // The runs they ran on a wide (after the 1-run penalty) cross them
+    // when odd, as the server's engine has it.
+    const ran = runsScored > 0 ? runsScored : Math.max(0, extras - 1);
+    if (ran % 2 !== 0) swapStrike = true;
   } else if (ball.extraType === 'no_ball') {
     isLegal = false;
+    // Byes off a no-ball: in `extras` after the penalty, not the bowler's.
+    const byes =
+      ball.noBallRuns === 'bye' || ball.noBallRuns === 'leg_bye'
+        ? Math.max(0, extras - 1)
+        : 0;
     runsToTotal = extras + runsScored;
-    runsToBowler = extras + runsScored;
+    runsToBowler = extras - byes + runsScored;
     runsToBatsman = runsScored;
-    if (runsScored % 2 !== 0) swapStrike = true;
+    // The striker received it (unless the match leaves no-balls out).
+    ballsToBatsman = ctx.noBallCountsAsFaced === false ? 0 : 1;
+    if ((runsScored + byes) % 2 !== 0) swapStrike = true;
   } else if (ball.extraType === 'bye' || ball.extraType === 'leg_bye') {
     isLegal = true;
     runsToTotal = extras;
@@ -382,6 +402,8 @@ export function buildContextFromMatch(
       match.current_innings && match.current_innings > 2
         ? 2
         : (match.wickets_per_innings || 10),
+    noBallCountsAsFaced: match.noball_counts_as_ball_faced !== false,
+    wideCountsAsFaced: Boolean(match.wide_counts_as_ball_faced),
     targetRuns: innings?.target_runs || null
   };
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "~/lib/utils";
+import { OV, OverlayFrame, type OverlayThemeProps } from "./overlay-kit";
 import type { SponsorItem } from "./types";
 
-interface CornerWatermarkProps {
+interface CornerWatermarkProps extends OverlayThemeProps {
   title?: string | null;
   logoUrl?: string | null;
   sponsors?: SponsorItem[];
@@ -11,80 +13,87 @@ interface CornerWatermarkProps {
   visible?: boolean;
 }
 
+/**
+ * Top-right corner: the competition (logo and name) and, under it, the
+ * sponsors one at a time (every `intervalSecs`, at least 5 s).
+ */
 export function CornerWatermark({
-  title = "Cricket Live",
+  title,
   logoUrl,
   sponsors = [],
   intervalSecs = 20,
   visible = true,
+  theme,
+  customColors,
 }: CornerWatermarkProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [fade, setFade] = useState(true);
-
-  const sponsorsLength = sponsors?.length ?? 0;
+  const sponsorsLength = sponsors.length;
 
   useEffect(() => {
     if (sponsorsLength <= 1) return;
-
     const timer = setInterval(
-      () => {
-        setFade(false);
-        setTimeout(() => {
-          setCurrentIndex((prev) => (prev + 1) % sponsorsLength);
-          setFade(true);
-        }, 300);
-      },
+      () => setCurrentIndex((prev) => (prev + 1) % sponsorsLength),
       Math.max(intervalSecs, 5) * 1000,
     );
-
     return () => clearInterval(timer);
   }, [sponsorsLength, intervalSecs]);
 
-  if (!visible) return null;
-
-  const currentSponsor =
-    sponsors && sponsors.length > 0 ? sponsors[currentIndex] : null;
+  if (!visible || (!title && sponsorsLength === 0)) return null;
+  const sponsor = sponsorsLength
+    ? sponsors[currentIndex % sponsorsLength]
+    : null;
 
   return (
-    <div className="pointer-events-none fixed right-6 top-16 z-20 flex select-none flex-col items-end gap-1.5 font-sans">
-      {/* 1. Station / League Watermark */}
-      <div className="flex items-center gap-2 rounded-md border border-white/10 bg-[#0b0f17]/90 px-3 py-1.5">
-        {logoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="Logo" className="h-5 w-5 object-contain" />
-        )}
-        <span className="text-xs font-semibold text-white/90">
-          {title ?? "Live"}
-        </span>
-      </div>
-
-      {/* 2. Rotating Sponsor Carousel */}
-      {currentSponsor && (
+    <OverlayFrame
+      state={null}
+      theme={theme}
+      customColors={customColors}
+      className="pointer-events-none fixed right-12 top-10 z-20 flex flex-col items-end gap-2"
+    >
+      {title && (
         <div
-          className={`flex items-center gap-2 rounded-md border border-white/10 bg-[#0b0f17]/90 px-2.5 py-1 transition-opacity duration-300 ${
-            fade ? "opacity-100" : "opacity-0"
-          }`}
+          className={cn(
+            "flex max-w-[26rem] items-center gap-2.5 rounded-md px-3.5 py-2",
+            OV.bar,
+            OV.shadow,
+          )}
         >
-          {currentSponsor.logoUrl ? (
+          {logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={currentSponsor.logoUrl}
-              alt={currentSponsor.name}
-              className="h-4 w-4 object-contain"
-            />
-          ) : null}
-          <div className="text-right">
-            <span className="block text-[11px] font-semibold leading-tight text-white">
-              {currentSponsor.name}
-            </span>
-            {currentSponsor.tagline && (
-              <span className="block text-[9px] leading-tight text-white/60">
-                {currentSponsor.tagline}
-              </span>
-            )}
-          </div>
+            <img src={logoUrl} alt="" className="h-6 w-6 object-contain" />
+          )}
+          <span className="truncate text-lg font-medium">{title}</span>
         </div>
       )}
-    </div>
+      {sponsor && (
+        <div
+          key={sponsor.id}
+          className={cn(
+            "flex max-w-[22rem] items-center gap-2.5 rounded-md px-3 py-1.5 duration-300 animate-in fade-in motion-reduce:animate-none",
+            OV.card,
+            OV.shadow,
+          )}
+        >
+          {sponsor.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={sponsor.logoUrl}
+              alt={sponsor.name}
+              className="h-7 max-w-[6rem] object-contain"
+            />
+          )}
+          <span className="min-w-0 text-right leading-tight">
+            <span className="block truncate text-base font-semibold">
+              {sponsor.name}
+            </span>
+            {sponsor.tagline && (
+              <span className={cn("block truncate text-sm", OV.cardMuted)}>
+                {sponsor.tagline}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+    </OverlayFrame>
   );
 }

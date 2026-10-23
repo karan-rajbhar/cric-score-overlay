@@ -355,6 +355,8 @@ describe("match-report export helpers", () => {
               del(2, "b", "a", { runs_scored: 0, is_wicket: true, dismissal_type: "retired_hurt", dismissed_player_id: "a" }),
               del(3, "b", "c", { runs_scored: 4 }),
               del(4, "c", "b", { runs_scored: 0, extras: 1, extra_type: "wide" }),
+              // A no-ball is a ball faced: Charlie's, and the stand's.
+              del(5, "c", "b", { runs_scored: 2, extras: 1, extra_type: "no_ball" }),
             ] as never,
           },
         ],
@@ -372,9 +374,10 @@ describe("match-report export helpers", () => {
         batter2: { name: "Bravo", runs: 0, balls: 1 },
       });
       expect(stands[1]).toMatchObject({
-        runs: 5,
+        runs: 8,
+        balls: 2,
         batter1: { name: "Bravo", runs: 4, balls: 1 },
-        batter2: { name: "Charlie", runs: 0, balls: 0 },
+        batter2: { name: "Charlie", runs: 2, balls: 1 },
       });
     });
 

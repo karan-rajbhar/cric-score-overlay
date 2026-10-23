@@ -2,80 +2,99 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { InviteMemberDialog } from "./invite-member-dialog";
 import { inviteClubMember } from "~/app/clubs/actions";
-import { toast } from "sonner";
 
 vi.mock("~/app/clubs/actions", () => ({
   inviteClubMember: vi.fn(),
 }));
-
-vi.mock("sonner", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("~/lib/auth", () => ({
+  useAuth: () => ({ user: { user_metadata: { full_name: "Asha K" } } }),
 }));
 
-describe("InviteMemberDialog Component", () => {
+function openAndInvite(email: string) {
+  render(<InviteMemberDialog clubId="club-1" clubName="Riverside CC" />);
+  fireEvent.click(screen.getByRole("button", { name: /invite member/i }));
+  fireEvent.change(screen.getByLabelText(/google email/i), {
+    target: { value: email },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /create invite/i }));
+}
+
+describe("InviteMemberDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders Invite Member trigger button", () => {
-    render(<InviteMemberDialog clubId="club-1" />);
-    expect(
-      screen.getByRole("button", { name: /invite member/i })
-    ).toBeInTheDocument();
-  });
-
-  it("opens modal dialog on trigger click", () => {
-    render(<InviteMemberDialog clubId="club-1" />);
+  it("explains that they join the club when they sign in", () => {
+    render(<InviteMemberDialog clubId="club-1" clubName="Riverside CC" />);
     fireEvent.click(screen.getByRole("button", { name: /invite member/i }));
-
     expect(
-      screen.getByRole("heading", { name: /invite player or staff/i })
+      screen.getByRole("heading", { name: "Invite to Riverside CC" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+    expect(screen.getByText(/join the club as a member/i)).toBeInTheDocument();
   });
 
-  it("submits valid email and shows success toast", async () => {
-    vi.mocked(inviteClubMember).mockResolvedValueOnce({ success: true } as never);
-
-    render(<InviteMemberDialog clubId="club-1" />);
-    fireEvent.click(screen.getByRole("button", { name: /invite member/i }));
-
-    const input = screen.getByLabelText(/email address/i);
-    fireEvent.change(input, { target: { value: "allrounder@cricket.org" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /send invitation/i }));
-
-    await waitFor(() => {
-      expect(inviteClubMember).toHaveBeenCalledWith(
-        "club-1",
-        "allrounder@cricket.org"
-      );
-      expect(toast.success).toHaveBeenCalledWith(
-        "Invitation recorded for allrounder@cricket.org!"
-      );
-    });
-  });
-
-  it("handles error response from server action", async () => {
+  it("gives a share message with a sign-in link to the club", async () => {
     vi.mocked(inviteClubMember).mockResolvedValueOnce({
-      error: "This user is already an active member of the club",
-    } as never);
-
-    render(<InviteMemberDialog clubId="club-1" />);
-    fireEvent.click(screen.getByRole("button", { name: /invite member/i }));
-
-    const input = screen.getByLabelText(/email address/i);
-    fireEvent.change(input, { target: { value: "existing@cricket.org" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /send invitation/i }));
-
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(
-        "This user is already an active member of the club"
-      );
+      success: true,
+      status: "invited",
+      message: "Invite saved. Send them the message below.",
+      shareEmail: "new@gmail.com",
     });
+    openAndInvite("New@Gmail.com");
+
+    const message = (await screen.findByLabelText(
+      /invite message/i,
+    )) as HTMLTextAreaElement;
+    expect(inviteClubMember).toHaveBeenCalledWith("club-1", "New@Gmail.com");
+    expect(message.value).toContain(
+      "Asha K invited you to join Riverside CC on CricScore",
+    );
+    expect(message.value).toContain(
+      `/auth/login?invite=new@gmail.com&next=${encodeURIComponent("/clubs/club-1")}`,
+    );
+    expect(
+      screen.getByRole("link", { name: /share on whatsapp/i }),
+    ).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("needs no message for someone already on CricScore", async () => {
+    vi.mocked(inviteClubMember).mockResolvedValueOnce({
+      success: true,
+      status: "added",
+      message: "Ravi is now a member of the club.",
+      shareEmail: null,
+    });
+    openAndInvite("ravi@gmail.com");
+    expect(
+      await screen.findByText("Ravi is now a member of the club."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/invite message/i)).toBeNull();
+  });
+
+  it("shows the server's error, and a network failure, without getting stuck", async () => {
+    vi.mocked(inviteClubMember).mockResolvedValueOnce({
+      error: "You are not authorized to invite members to this club",
+    });
+    openAndInvite("x@gmail.com");
+    expect(
+      await screen.findByText(
+        "You are not authorized to invite members to this club",
+      ),
+    ).toBeInTheDocument();
+
+    vi.mocked(inviteClubMember).mockRejectedValueOnce(new TypeError("fetch"));
+    fireEvent.change(screen.getByLabelText(/google email/i), {
+      target: { value: "x@gmail.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create invite/i }));
+    expect(
+      await screen.findByText("Could not reach the server. Try again."),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /create invite/i })).toBeEnabled(),
+    );
   });
 });

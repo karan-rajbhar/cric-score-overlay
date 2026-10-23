@@ -21,12 +21,13 @@ import {
 import { Plus, Search, Radio, RotateCcw } from "lucide-react";
 import { useAuth } from "~/lib/auth";
 import type { Match } from "~/lib/match-types";
+import { matchGroupsOf } from "~/lib/match-groups";
 
 const statusOptions = [
   { value: "all", label: "All matches" },
   { value: "live", label: "Live now" },
   { value: "scheduled", label: "Upcoming" },
-  { value: "completed", label: "Completed" },
+  { value: "completed", label: "Results" },
 ] as const;
 
 export default function MatchesPage() {
@@ -66,16 +67,16 @@ export default function MatchesPage() {
   });
 
   // Group by status for sectioned display.
-  const liveMatches = filteredMatches.filter((m) => m.status === "live");
-  const scheduledMatches = filteredMatches.filter(
-    (m) => m.status === "scheduled",
-  );
-  const completedMatches = filteredMatches.filter(
-    (m) => m.status === "completed",
-  );
-  const otherMatches = filteredMatches.filter(
-    (m) => !["live", "scheduled", "completed"].includes(m.status),
-  );
+  const {
+    live: liveMatches,
+    upcoming: scheduledMatches,
+    results: completedMatches,
+    noResult: noResultMatches,
+  } = matchGroupsOf(filteredMatches);
+  // The list holds the latest matches only; older ones are a search away.
+  const searchAll = searchQuery.trim()
+    ? `/search?q=${encodeURIComponent(searchQuery.trim())}`
+    : null;
 
   const renderSection = (title: string, items: Match[], live = false) =>
     items.length > 0 && (
@@ -126,8 +127,8 @@ export default function MatchesPage() {
             autoCorrect="off"
             autoCapitalize="none"
             spellCheck={false}
-            aria-label="Search matches"
-            placeholder="Search teams, titles or venues…"
+            aria-label="Filter these matches"
+            placeholder="Filter by team, title or venue…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-9 w-full pl-9"
@@ -172,8 +173,8 @@ export default function MatchesPage() {
             icon={Radio}
             title="No matches found"
             description={
-              searchQuery
-                ? `No fixtures match "${searchQuery}". Try a different search or clear the status filter.`
+              searchAll
+                ? `None of the latest matches match "${searchQuery.trim()}". Search all matches to look further back.`
                 : statusFilter === "live"
                   ? "No matches are being scored right now."
                   : statusFilter === "scheduled"
@@ -181,24 +182,37 @@ export default function MatchesPage() {
                     : "No matches match the selected criteria."
             }
             primaryAction={
-              user
-                ? {
-                    label: "New match",
-                    href: "/matches/create",
-                    icon: Plus,
-                  }
-                : {
-                    label: "Sign in",
-                    href: "/auth/login",
-                  }
+              searchAll
+                ? { label: "Search all matches", href: searchAll, icon: Search }
+                : user
+                  ? {
+                      label: "New match",
+                      href: "/matches/create",
+                      icon: Plus,
+                    }
+                  : {
+                      label: "Sign in",
+                      href: "/auth/login",
+                    }
             }
           />
         ) : (
           <>
             {renderSection("Live matches", liveMatches, true)}
             {renderSection("Upcoming fixtures", scheduledMatches)}
-            {renderSection("Completed results", completedMatches)}
-            {renderSection("Other fixtures", otherMatches)}
+            {renderSection("Results", completedMatches)}
+            {renderSection("No result", noResultMatches)}
+            {searchAll && (
+              <p className="text-center text-sm text-muted-foreground">
+                Only the latest matches are listed here.{" "}
+                <Link
+                  href={searchAll}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Search all matches for {`"${searchQuery.trim()}"`}
+                </Link>
+              </p>
+            )}
           </>
         )}
       </div>

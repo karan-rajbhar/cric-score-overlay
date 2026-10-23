@@ -87,7 +87,10 @@ export const OVER_DELIVERY_FIELDS = [
   "dismissal_type",
   "bowler_id",
   "batsman_id",
+  "non_striker_id",
   "dismissed_player_id",
+  "fielder_id",
+  "no_ball_runs",
 ] as const;
 
 /** The current innings' crease and the over shown, as `getScoringState` derives them. */

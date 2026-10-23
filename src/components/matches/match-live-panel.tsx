@@ -9,14 +9,18 @@ import {
 } from "~/components/ds/scorecard";
 import {
   bowlerEconomy,
+  dlsRevisionFor,
   formatBowlerOvers,
   formatDismissalType,
   inningsBalls,
+  inningsOvers,
   runRate,
   requiredRunRate,
   strikeRate,
+  teamName,
 } from "~/lib/cricket";
 import { useLiveState } from "~/lib/hooks/useLiveState";
+import { winPredictorFromLive } from "~/lib/win-predictor";
 import type { Innings, Match } from "~/lib/match-types";
 
 /** A ball of `live_state.this_over_balls` ("1", "W", "wd", "2+nb") as a chip. */
@@ -111,19 +115,85 @@ export function MatchLivePanel({ match }: { match: Match }) {
   const stand = inn.partnerships?.find((p) => p.is_current);
   const standRuns = stand?.runs ?? live?.partnership_runs;
   const standBalls = stand?.balls ?? live?.partnership_balls;
-  const maxBalls = match.overs_per_innings ? match.overs_per_innings * bpo : 0;
+  // The overs this innings has: a DLS revision's when there is one.
+  const overs = inningsOvers(match, inn.innings_number);
+  const dls = dlsRevisionFor(match, inn.innings_number);
+  const maxBalls = overs ? overs * bpo : 0;
   const left = Math.max(0, maxBalls - balls);
   const target = inn.target_runs;
   const need = target ? Math.max(0, target - runs) : 0;
+  const batting = teamName(match, inn.team_id);
+  // Nobody out yet and no ball bowled: before the start, or between innings.
+  const waiting = balls === 0 && runs === 0 && batters.length === 0 && !bowler;
 
   const lastWicket =
     live?.last_ball_is_wicket && live.last_ball_dismissed_player
       ? `${live.last_ball_dismissed_player}, ${formatDismissalType(live.last_ball_dismissal_type).toLowerCase()}${live.last_ball_fielder ? ` (${live.last_ball_fielder})` : ""}`
       : null;
   const lastBall = live?.last_ball_commentary || lastWicket;
+  // From the live row already followed: no reads. Always an estimate.
+  const estimate = live
+    ? winPredictorFromLive(live, {
+        ballsPerOver: bpo,
+        wicketsPerInnings: match.wickets_per_innings ?? undefined,
+      })
+    : null;
+  const estimateLine = !estimate
+    ? null
+    : estimate.kind === "chase"
+      ? `${batting} ${estimate.battingPct}% to win`
+      : `${batting} to finish on ${estimate.low} to ${estimate.high}`;
+
+  const figures = [
+    balls > 0 && (
+      <Figure key="rr" label="Run rate" value={runRate(runs, balls, bpo)} />
+    ),
+    target && <Figure key="target" label="Target" value={target} />,
+    target && (
+      <Figure
+        key="rrr"
+        label="Required rate"
+        value={requiredRunRate(need, left, bpo)}
+      />
+    ),
+    !target && maxBalls > 0 && balls > 0 && (
+      <Figure
+        key="proj"
+        label="Projected score"
+        value={Math.round(runs + (runs / balls) * left)}
+      />
+    ),
+    standRuns != null && balls > 0 && (
+      <Figure
+        key="stand"
+        label="Partnership"
+        value={standRuns}
+        detail={standBalls != null ? `(${standBalls})` : undefined}
+      />
+    ),
+  ].filter(Boolean);
 
   return (
     <div className="space-y-4">
+      {waiting && (
+        <Card className="p-4 text-sm text-foreground">
+          {inn.innings_number > 1 && target ? (
+            <p>
+              <span className="font-semibold">Innings break.</span> {batting}{" "}
+              need {target} {target === 1 ? "run" : "runs"} to win
+              {dls ? ` in ${dls.overs} overs` : ""}.
+            </p>
+          ) : (
+            <p>
+              <span className="font-semibold">Yet to start.</span> {batting}{" "}
+              bat first.
+            </p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            The batters, bowler and this over appear here from the first ball.
+          </p>
+        </Card>
+      )}
       {(batters.length > 0 || bowler) && (
         <Card className="overflow-hidden">
           <CreaseTable
@@ -150,32 +220,22 @@ export function MatchLivePanel({ match }: { match: Match }) {
           )}
         </Card>
       )}
-      <Card className="p-4">
-        <dl className="grid grid-cols-3 gap-3">
-          <Figure label="Run rate" value={runRate(runs, balls, bpo)} />
-          {target ? (
-            <Figure
-              label="Required rate"
-              value={requiredRunRate(need, left, bpo)}
-            />
-          ) : (
-            maxBalls > 0 &&
-            balls > 0 && (
-              <Figure
-                label="Projected"
-                value={Math.round(runs + (runs / balls) * left)}
-              />
-            )
+      {figures.length > 0 && (
+        <Card className="p-4">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">{figures}</dl>
+          {dls && (
+            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+              Target revised by the DLS method: {dls.target_runs}{" "}
+              {dls.target_runs === 1 ? "run" : "runs"} in {dls.overs} overs.
+            </p>
           )}
-          {standRuns != null && (
-            <Figure
-              label="Partnership"
-              value={standRuns}
-              detail={standBalls != null ? `(${standBalls})` : undefined}
-            />
+          {estimateLine && (
+            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+              <span className="font-medium">Estimate:</span> {estimateLine}
+            </p>
           )}
-        </dl>
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }

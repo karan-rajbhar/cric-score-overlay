@@ -129,7 +129,7 @@ describe("RegisterClubTeamDialog Component", () => {
         "team-2",
       );
       expect(toast.success).toHaveBeenCalledWith(
-        'Enrolled "Tigers XI" into Club Super League!',
+        'Enrolled "Tigers XI" into Club Super League',
       );
     });
   });

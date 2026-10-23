@@ -76,8 +76,8 @@ export function OtherScorerNotice({
       className="flex min-w-0 items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground transition-colors hover:bg-muted/70 sm:text-xs"
     >
       <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
-      <span className="max-w-[5rem] truncate sm:max-w-[14rem]">
-        <span className="sm:hidden">{name.split(" ")[0]}</span>
+      <span className="max-w-[8rem] truncate sm:max-w-[14rem]">
+        <span className="sm:hidden">{name.split(" ")[0]} also scoring</span>
         <span className="hidden sm:inline">{name} is also scoring</span>
       </span>
       <X className="h-3 w-3 shrink-0" aria-hidden="true" />

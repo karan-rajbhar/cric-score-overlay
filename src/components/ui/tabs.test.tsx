@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { createPortal } from "react-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 
 describe("Tabs UI Primitives", () => {
@@ -153,6 +153,85 @@ describe("Tabs UI Primitives", () => {
       );
       flick(screen.getByText("Panel A"), 300, 100);
       expect(active()).toEqual(["A"]);
+    });
+  });
+
+  describe("a tab bar that scrolls", () => {
+    /** Give the bar a 300px window onto 600px of tabs. */
+    function overflow(list: HTMLElement, scrollLeft = 0) {
+      Object.defineProperty(list, "scrollWidth", {
+        configurable: true,
+        value: 600,
+      });
+      Object.defineProperty(list, "clientWidth", {
+        configurable: true,
+        value: 300,
+      });
+      list.scrollLeft = scrollLeft;
+    }
+
+    function Bar() {
+      return (
+        <Tabs defaultValue="summary">
+          <TabsList data-testid="bar">
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+            <TabsTrigger value="info">Info</TabsTrigger>
+          </TabsList>
+          <TabsContent value="summary">Summary panel</TabsContent>
+          <TabsContent value="info">Info panel</TabsContent>
+        </Tabs>
+      );
+    }
+
+    it("fades the edges that have tabs beyond them", () => {
+      render(<Bar />);
+      const bar = screen.getByTestId("bar");
+      // Nothing overflows (jsdom lays nothing out): no fade.
+      expect(bar).not.toHaveAttribute("data-fade-start");
+      expect(bar).not.toHaveAttribute("data-fade-end");
+      expect(bar.className).toContain("tabs-fade");
+
+      overflow(bar, 0);
+      fireEvent.scroll(bar);
+      expect(bar).not.toHaveAttribute("data-fade-start");
+      expect(bar).toHaveAttribute("data-fade-end");
+
+      overflow(bar, 150);
+      fireEvent.scroll(bar);
+      expect(bar).toHaveAttribute("data-fade-start");
+      expect(bar).toHaveAttribute("data-fade-end");
+
+      // Scrolled to the end: that fade goes.
+      overflow(bar, 300);
+      fireEvent.scroll(bar);
+      expect(bar).toHaveAttribute("data-fade-start");
+      expect(bar).not.toHaveAttribute("data-fade-end");
+    });
+
+    it("scrolls the bar (not the page) to a tab chosen out of view", async () => {
+      render(<Bar />);
+      const bar = screen.getByTestId("bar");
+      overflow(bar, 0);
+      const scrollTo = vi.fn();
+      bar.scrollTo = scrollTo as never;
+      bar.getBoundingClientRect = () =>
+        ({ left: 0, right: 300, width: 300 }) as DOMRect;
+      const info = screen.getByRole("tab", { name: "Info" });
+      info.getBoundingClientRect = () =>
+        ({ left: 400, right: 480, width: 80 }) as DOMRect;
+
+      fireEvent.mouseDown(info, { button: 0 });
+      fireEvent.click(info);
+      // Radix selects on mouse down; keyboard selection is the same path.
+      fireEvent.keyDown(info, { key: "Enter" });
+      expect(screen.getByText("Info panel")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(scrollTo).toHaveBeenCalledWith(
+          // Its centre (440) to the bar's (150).
+          expect.objectContaining({ left: 290 }),
+        ),
+      );
     });
   });
 });

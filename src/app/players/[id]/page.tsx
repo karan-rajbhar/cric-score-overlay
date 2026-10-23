@@ -35,11 +35,18 @@ import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
+import { PlayerMilestones } from "~/components/players/player-milestones";
+import { EntityActions } from "~/components/follow/entity-actions";
 import { liveScorecardInnings } from "~/lib/firebase/live-innings";
 import { livePerformanceOf } from "~/lib/firebase/live-player";
 import type { LiveScorecardDoc } from "~/lib/firebase/live-scorecard";
 
 export const dynamic = "force-dynamic";
+
+/** Upcoming fixtures of the player's teams listed (per side). */
+const UPCOMING_FIXTURES = 20;
+/** Teams of the player whose fixtures are listed (one `in` query). */
+const IN_LIMIT = 30;
 
 /** Live matches checked for in-progress figures (1 read each). */
 const MAX_LIVE_MATCHES = 3;
@@ -138,8 +145,9 @@ export default async function PlayerPage({
   const records = (recordsData ?? []) as unknown as PlayerMatchesRow[];
   const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
 
-  // Matches: the player's teams' fixtures plus any other match they have a
-  // record in (indexed queries, each match read once).
+  // Matches: every match the player has a record in, plus their teams'
+  // live and next fixtures (indexed, bounded queries: not every fixture
+  // their teams ever played).
   const teamIds = Array.from(
     new Set(teams.map((tp) => tp.team?.id).filter(Boolean)),
   ) as string[];
@@ -152,25 +160,30 @@ export default async function PlayerPage({
         innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
       `;
   const byMatchId = new Map<string, Record<string, unknown>>();
-  if (teamIds.length > 0) {
-    const sides = await Promise.all(
-      (["team1_id", "team2_id"] as const).map((field) =>
-        db.from("matches").select(matchColumns).in(field, teamIds),
-      ),
-    );
-    for (const { data } of sides) {
-      for (const m of (data ?? []) as Record<string, unknown>[]) {
-        byMatchId.set(String(m.id), m);
-      }
-    }
-  }
+  const fixtureTeams = teamIds.slice(0, IN_LIMIT);
   const recordMatchIds = Array.from(new Set(records.map((r) => r.match_id)));
-  const otherIds = recordMatchIds.filter((mid) => !byMatchId.has(mid));
-  if (otherIds.length > 0) {
-    const { data } = await db
-      .from("matches")
-      .select(matchColumns)
-      .in("id", otherIds);
+  const results = await Promise.all([
+    recordMatchIds.length
+      ? db.from("matches").select(matchColumns).in("id", recordMatchIds)
+      : Promise.resolve({ data: [] }),
+    ...(fixtureTeams.length
+      ? (["team1_id", "team2_id"] as const).flatMap((field) => [
+          db
+            .from("matches")
+            .select(matchColumns)
+            .in(field, fixtureTeams)
+            .eq("status", "live"),
+          db
+            .from("matches")
+            .select(matchColumns)
+            .in(field, fixtureTeams)
+            .eq("status", "scheduled")
+            .order("scheduled_at", { ascending: true })
+            .limit(UPCOMING_FIXTURES),
+        ])
+      : []),
+  ]);
+  for (const { data } of results) {
     for (const m of (data ?? []) as Record<string, unknown>[]) {
       byMatchId.set(String(m.id), m);
     }
@@ -196,9 +209,18 @@ export default async function PlayerPage({
     ) as unknown as T[];
   const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
   const bowlingRows = byNewest(records.flatMap(bowlingRowsOfPlayerMatch));
+  // Only the rosters of the matches with a bowler or fielder to name, not
+  // of every fixture listed.
+  const dismissalMatchIds = new Set(
+    battingRows
+      .filter((b) => b.bowler_id || b.fielder_id)
+      .map((b) => b.match_id),
+  );
   const names = await playerDirectory(
     db,
-    matchesData.flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+    matchesData
+      .filter((m) => dismissalMatchIds.has(String(m.id)))
+      .flatMap((m) => [m.team1_id as string, m.team2_id as string]),
     battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
   );
   const nameOf = (uid: string | null) => {
@@ -320,7 +342,7 @@ export default async function PlayerPage({
   }
 
   let backHref = "/players";
-  let backLabel = "Back to Players";
+  let backLabel = "Back to players";
   if (teamInfo) {
     const q = new URLSearchParams();
     if (tournamentId) q.set("tournamentId", tournamentId);
@@ -333,7 +355,7 @@ export default async function PlayerPage({
     backLabel = `Back to ${tournamentInfo.name}`;
   } else if (matchId) {
     backHref = `/matches/${matchId}`;
-    backLabel = "Back to Match";
+    backLabel = "Back to match";
   }
 
   const matchesList: PlayerMatchItem[] = matchesData.map((m) => {
@@ -497,6 +519,7 @@ export default async function PlayerPage({
           }
         />
         <ProfileTeams teams={teams} tournamentId={tournamentId} />
+        {!isSelf && <EntityActions kind="player" id={user.id} name={user.full_name} className="" />}
       </div>
 
       {/* Career figures first, then the innings, matches and teams. */}
@@ -542,6 +565,7 @@ export default async function PlayerPage({
                   ["Run outs", stats?.total_run_outs ?? 0],
                 ]}
               />
+              <PlayerMilestones batting={batting} bowling={bowling} />
             </>
           }
         />

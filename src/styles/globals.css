@@ -407,4 +407,33 @@
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
   }
+  /* A tab bar with tabs scrolled out of view fades out at that edge
+     (TabsList sets data-fade-start / data-fade-end). */
+  .tabs-fade {
+    --tabs-fade-start: 0px;
+    --tabs-fade-end: 0px;
+  }
+  .tabs-fade[data-fade-start] {
+    --tabs-fade-start: 1.5rem;
+  }
+  .tabs-fade[data-fade-end] {
+    --tabs-fade-end: 1.5rem;
+  }
+  .tabs-fade[data-fade-start],
+  .tabs-fade[data-fade-end] {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--tabs-fade-start),
+      #000 calc(100% - var(--tabs-fade-end)),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--tabs-fade-start),
+      #000 calc(100% - var(--tabs-fade-end)),
+      transparent
+    );
+  }
 }

@@ -271,6 +271,7 @@ describe("PlayerActivityTabs", () => {
       />,
     );
 
-    expect(screen.getByText("Scheduled")).toBeInTheDocument();
+    // The same status chip as the match cards.
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
   });
 });

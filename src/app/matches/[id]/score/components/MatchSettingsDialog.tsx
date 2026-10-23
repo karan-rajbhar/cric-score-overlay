@@ -64,6 +64,9 @@ function MatchSettingsForm({
   const [wideCountsAsBallFaced, setWideCountsAsBallFaced] = useState<boolean>(
     Boolean(match.wide_counts_as_ball_faced),
   );
+  // On unless switched off (the Laws' convention; older matches too).
+  const [noBallCountsAsBallFaced, setNoBallCountsAsBallFaced] =
+    useState<boolean>(match.noball_counts_as_ball_faced !== false);
   const [wideRunsToBatsman, setWideRunsToBatsman] = useState<boolean>(
     Boolean(match.wide_runs_to_batsman),
   );
@@ -82,6 +85,8 @@ function MatchSettingsForm({
   const [goldenBall, setGoldenBall] = useState<boolean>(
     Boolean(match.golden_ball),
   );
+  // On unless switched off (matches made before the setting play them).
+  const [freeHit, setFreeHit] = useState<boolean>(match.free_hit !== false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,12 +100,14 @@ function MatchSettingsForm({
           ? Number(maxBallsPerOver)
           : null,
       wideCountsAsBallFaced,
+      noBallCountsAsBallFaced,
       wideRunsToBatsman,
       noballExtrasToBatsman,
       targetRuns: targetRuns.trim() !== "" ? Number(targetRuns) : null,
       wicketsPerInnings: Number(wicketsPerInnings) || 10,
       lastManStands,
       goldenBall,
+      freeHit,
     };
     await onSave(updatePayload);
   };
@@ -316,10 +323,10 @@ function MatchSettingsForm({
                 htmlFor="wide-balls-faced"
                 className="cursor-pointer text-xs font-semibold"
               >
-                Add wide balls to batsman
+                Count wides as balls faced
               </Label>
               <p className="text-2xs text-muted-foreground">
-                Count wide deliveries towards batsman&apos;s balls faced tally.
+                A wide counts as a ball faced by the striker.
               </p>
             </div>
             <input
@@ -334,13 +341,35 @@ function MatchSettingsForm({
           <div className="flex items-center justify-between gap-2">
             <div>
               <Label
+                htmlFor="noball-balls-faced"
+                className="cursor-pointer text-xs font-semibold"
+              >
+                Count no-balls as balls faced
+              </Label>
+              <p className="text-2xs text-muted-foreground">
+                The striker received the ball, as scorecards count it. Switch
+                off only where the format leaves no-balls out.
+              </p>
+            </div>
+            <input
+              id="noball-balls-faced"
+              type="checkbox"
+              checked={noBallCountsAsBallFaced}
+              onChange={(e) => setNoBallCountsAsBallFaced(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
                 htmlFor="wide-runs-batsman"
                 className="cursor-pointer text-xs font-semibold"
               >
-                Add wide runs to batsman
+                Give wide runs to the batter
               </Label>
               <p className="text-2xs text-muted-foreground">
-                Credit wide extra runs to the individual batsman&apos;s score.
+                Runs from wides count to the striker&apos;s score.
               </p>
             </div>
             <input
@@ -358,10 +387,10 @@ function MatchSettingsForm({
                 htmlFor="noball-extras-batsman"
                 className="cursor-pointer text-xs font-semibold"
               >
-                Add no ball extras to batsman
+                Give no-ball runs to the batter
               </Label>
               <p className="text-2xs text-muted-foreground">
-                Credit the 1-run no ball penalty to the individual batsman&apos;s score.
+                The no-ball penalty counts to the striker&apos;s score.
               </p>
             </div>
             <input
@@ -418,6 +447,29 @@ function MatchSettingsForm({
               type="checkbox"
               checked={goldenBall}
               onChange={(e) => setGoldenBall(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label
+                htmlFor="free-hit"
+                className="cursor-pointer text-xs font-semibold"
+              >
+                Free hit after a no-ball
+              </Label>
+              <p className="text-2xs text-muted-foreground">
+                On the ball after a no-ball the batter can be out only run out
+                or obstructing the field. Switch off where the competition has
+                no free hits.
+              </p>
+            </div>
+            <input
+              id="free-hit"
+              type="checkbox"
+              checked={freeHit}
+              onChange={(e) => setFreeHit(e.target.checked)}
               className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
             />
           </div>

@@ -6,6 +6,7 @@
  */
 
 import type { Match, BallEvent } from "./match-types";
+import { noBallByesOf } from "./firebase/scoring/recompute";
 
 export interface CricsheetDelivery {
   batter: string;
@@ -334,6 +335,14 @@ const CRICSHEET_EXTRAS = new Map<
 function extrasOf(b: BallEvent): CricsheetDelivery["extras"] {
   const runs = b.extras ?? 0;
   if (!b.extra_type || runs <= 0) return undefined;
+  // Byes off a no-ball: the penalty is a no-ball, the rest byes.
+  const nbByes = noBallByesOf(b);
+  if (nbByes?.runs) {
+    return {
+      noballs: runs - nbByes.runs,
+      [nbByes.kind === "bye" ? "byes" : "legbyes"]: nbByes.runs,
+    };
+  }
   const field = CRICSHEET_EXTRAS.get(b.extra_type);
   return field ? { [field]: runs } : {};
 }

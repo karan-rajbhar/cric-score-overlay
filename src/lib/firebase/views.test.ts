@@ -10,6 +10,7 @@ import {
   countingDataSource,
   legacyBuildLiveMatchState,
   legacyRecordState,
+  withoutOverlayFields,
 } from "./scoring/__fixtures__/legacy";
 import { buildLiveMatchState, buildOverSummaries } from "./views";
 
@@ -45,7 +46,9 @@ describe("buildLiveMatchState (targeted reads)", () => {
       const expected = await legacyBuildLiveMatchState(legacyView(ds), id);
       const { ds: counted, stats } = countingDataSource(ds);
       const actual = await buildLiveMatchState(counted, id);
-      expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+      expect(JSON.stringify(withoutOverlayFields(actual))).toBe(
+        JSON.stringify(expected),
+      );
       // Match, tournament, current innings (scorecard + last ball), current
       // over and the names shown. Before stage 2: 12-18 documents.
       expect(stats.reads).toBeLessThanOrEqual(10);
@@ -55,10 +58,33 @@ describe("buildLiveMatchState (targeted reads)", () => {
   it("falls back to the over documents for innings without the caches", async () => {
     const ds = new MemoryDataSource(withoutInningsCaches());
     for (const id of matchIds) {
-      expect(await buildLiveMatchState(ds, id)).toEqual(
+      expect(withoutOverlayFields(await buildLiveMatchState(ds, id))).toEqual(
         await legacyBuildLiveMatchState(legacyView(ds), id),
       );
     }
+  });
+
+  it("counts a DLS chase's revised overs and says so (dls_overs)", async () => {
+    // A seed chase: 82 balls bowled of 20 overs, target 147.
+    const id = "950e8400-e29b-41d4-a716-446655440003";
+    const before = await buildLiveMatchState(new MemoryDataSource(seed), id);
+    expect(before).not.toHaveProperty("dls_overs");
+    const revised = {
+      ...seed,
+      matches: seed.matches!.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              dls_revision: { innings_number: 2, target_runs: 120, overs: 16 },
+            }
+          : m,
+      ),
+    };
+    const state = await buildLiveMatchState(new MemoryDataSource(revised), id);
+    expect(state).toMatchObject({
+      dls_overs: 16,
+      balls_remaining: 16 * 6 - 82,
+    });
   });
 
   it("returns null for a missing match", async () => {
@@ -126,7 +152,7 @@ describe("writeLiveState", () => {
     )) as unknown as LiveStateDoc | null;
     expect(stored?.version).toBe(2);
     expect(typeof stored?.updated_at).toBe("string");
-    expect(liveRowOf(stored!)).toEqual(
+    expect(withoutOverlayFields(liveRowOf(stored!))).toEqual(
       await legacyBuildLiveMatchState(legacyView(ds), id),
     );
   });

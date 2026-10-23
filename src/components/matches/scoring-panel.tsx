@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Compass,
   Keyboard,
+  Pencil,
+  Loader2,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { cn } from "~/lib/utils";
@@ -49,13 +51,19 @@ export function readBallLabel(ball: string): {
     return { kind: "retired", spoken: "Retired hurt", runs: 0, wicket: false };
   if (ball === "ro")
     return { kind: "retired", spoken: "Retired out", runs: 0, wicket: true };
-  const extra = /^(wd|nb)(?:\+(\d+))?$/.exec(ball);
+  const extra = /^(wd|nb)(?:\+(\d+)(b|lb)?)?$/.exec(ball);
   if (extra) {
     const more = Number(extra[2] ?? 0);
     const name = extra[1] === "wd" ? "Wide" : "No ball";
+    const what =
+      extra[3] === "b"
+        ? plural(more, "bye", "byes")
+        : extra[3] === "lb"
+          ? plural(more, "leg bye", "leg byes")
+          : plural(more, "run", "runs");
     return {
       kind: "extra",
-      spoken: more ? `${name} + ${plural(more, "run", "runs")}` : name,
+      spoken: more ? `${name} + ${what}` : name,
       runs: 1 + more,
       wicket: false,
     };
@@ -91,17 +99,31 @@ export function readBallLabel(ball: string): {
 import { announceDelivery, announceUndo } from "~/lib/speech";
 import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 
+/** What a no-ball's completed runs were (absent: off the bat). */
+export type NoBallRunsKind = "bat" | "bye" | "leg_bye";
+
+/** The extra a delivery carries, as the keypad sends it. */
+export interface KeypadExtra {
+  type: string;
+  runs: number;
+  /** On a no-ball: byes / leg byes rather than runs off the bat. */
+  noBallRuns?: NoBallRunsKind;
+}
+
 interface ScoringPanelProps {
-  onScore: (
-    runs: number,
-    extras?: { type: string; runs: number },
-    shotZone?: string,
-  ) => void;
+  onScore: (runs: number, extras?: KeypadExtra, shotZone?: string) => void;
   onWicket: (extraType?: string | null) => void;
   onUndo?: () => void;
   onEditLastBall?: () => void;
   onSwapStriker?: () => void;
   onSelectBall?: (index: number) => void;
+  /** Opens the list of this innings' balls to correct one (any over). */
+  onEditBalls?: () => void;
+  /**
+   * Shown while scoring waits for the server (a ball that ends the
+   * innings, an edit): why the keypad does not respond.
+   */
+  waitingNote?: string | null;
   currentOver: number;
   currentBall: number;
   lastBalls: string[];
@@ -130,6 +152,8 @@ interface ScoringPanelProps {
   /** Ignore scoring hotkeys while a dialog/menu owns the keyboard. */
   keyboardSuppressed?: boolean;
   isFreeHit?: boolean;
+  /** The match plays free hits (the no-ball prompt mentions the next one). */
+  freeHitsOn?: boolean;
   sunlightMode?: boolean;
   wagonWheelPrompt?: boolean;
   /** Controlled visibility of the keyboard shortcuts sheet (the `?` key toggles it too). */
@@ -178,6 +202,9 @@ export function ScoringPanel({
   onRedo,
   keyboardSuppressed = false,
   isFreeHit = false,
+  freeHitsOn = true,
+  onEditBalls,
+  waitingNote = null,
   sunlightMode: propSunlightMode,
   wagonWheelPrompt: propWagonWheelPrompt,
   shortcutsOpen,
@@ -199,7 +226,18 @@ export function ScoringPanel({
     [onShortcutsOpenChange],
   );
 
-  const [selectedExtra, setSelectedExtra] = useState<string | null>(null);
+  const [selectedExtra, setSelectedExtraState] = useState<string | null>(null);
+  /** Under an armed no-ball: what the runs the scorer taps will be. */
+  const [noBallRuns, setNoBallRuns] = useState<NoBallRunsKind>("bat");
+  // Arming or clearing an extra starts the no-ball's runs as off the bat.
+  const setSelectedExtra = useCallback(
+    (next: string | null | ((prev: string | null) => string | null)) => {
+      setSelectedExtraState(next);
+      setNoBallRuns("bat");
+    },
+    [],
+  );
+  const noBallByes = selectedExtra === "no_ball" && noBallRuns !== "bat";
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [isWagonWheelModalOpen, setIsWagonWheelModalOpen] = useState(false);
   const [pendingScore, setPendingScore] = useState<{
@@ -228,13 +266,17 @@ export function ScoringPanel({
       return runs === 0 ? "1 Wd" : `${1 + runs} Wd`;
     }
     if (selectedExtra === "no_ball") {
-      return runs === 0 ? "1 Nb" : `${runs}+1 (${runs + 1})`;
+      if (runs === 0) return "1 Nb";
+      if (noBallRuns === "bye") return `${runs}b+1 (${runs + 1})`;
+      if (noBallRuns === "leg_bye") return `${runs}lb+1 (${runs + 1})`;
+      return `${runs}+1 (${runs + 1})`;
     }
+    // A bye needs a run: 0 is not offered.
     if (selectedExtra === "bye") {
-      return runs === 0 ? "1 Bye" : `${runs} Byes`;
+      return runs === 0 ? "—" : runs === 1 ? "1 bye" : `${runs} byes`;
     }
     if (selectedExtra === "leg_bye") {
-      return runs === 0 ? "1 Lb" : `${runs} Lb`;
+      return runs === 0 ? "—" : runs === 1 ? "1 leg bye" : `${runs} leg byes`;
     }
     if (runs === 0) return "Dot";
     if (runs === 4) return "Four";
@@ -250,7 +292,12 @@ export function ScoringPanel({
       return "Wide selected: tap the runs (0 for just the wide)";
     }
     if (selectedExtra === "no_ball") {
-      return "No ball selected: tap the runs off the bat. Free hit next";
+      const next = freeHitsOn ? ". Free hit next" : "";
+      if (noBallRuns === "bye") return `No ball: tap the byes they ran${next}`;
+      if (noBallRuns === "leg_bye") {
+        return `No ball: tap the leg byes they ran${next}`;
+      }
+      return `No ball: tap the runs off the bat${next}`;
     }
     if (selectedExtra === "bye") {
       return "Byes selected: tap the runs taken";
@@ -267,39 +314,57 @@ export function ScoringPanel({
     (runs: number, extraType: string | null) => {
       if (!wagonWheelPrompt || wagonWheelMode === "off") return false;
       const offTheBat =
-        extraType !== "wide" && extraType !== "bye" && extraType !== "leg_bye";
+        extraType !== "wide" &&
+        extraType !== "bye" &&
+        extraType !== "leg_bye" &&
+        !(extraType === "no_ball" && noBallByes);
       if (!offTheBat || runs <= 0) return false;
       if (wagonWheelMode === "boundaries") return runs === 4 || runs === 6;
       return true;
     },
-    [wagonWheelPrompt, wagonWheelMode],
+    [wagonWheelPrompt, wagonWheelMode, noBallByes],
   );
 
-  const calculateScorePayload = (runs: number, extraType: string | null) => {
-    let effectiveRuns = runs;
-    let extra: { type: string; runs: number } | undefined = undefined;
+  const calculateScorePayload = useCallback(
+    (runs: number, extraType: string | null) => {
+      let effectiveRuns = runs;
+      let extra: KeypadExtra | undefined = undefined;
 
-    if (extraType) {
-      if (extraType === "wide") {
-        effectiveRuns = 0;
-        extra = { type: "wide", runs: 1 + runs };
-      } else if (extraType === "no_ball") {
-        effectiveRuns = runs;
-        extra = { type: "no_ball", runs: 1 };
-      } else if (extraType === "bye" || extraType === "leg_bye") {
-        effectiveRuns = 0;
-        extra = { type: extraType, runs: runs === 0 ? 1 : runs };
-      } else {
-        effectiveRuns = runs === 0 ? 0 : runs;
-        extra = { type: extraType, runs: runs === 0 ? 1 : runs };
+      if (extraType) {
+        if (extraType === "wide") {
+          effectiveRuns = 0;
+          extra = { type: "wide", runs: 1 + runs };
+        } else if (extraType === "no_ball" && noBallByes && runs > 0) {
+          // Not hit: the runs they completed are byes (or leg byes), held
+          // with the penalty in the extras.
+          effectiveRuns = 0;
+          extra = { type: "no_ball", runs: 1 + runs, noBallRuns };
+        } else if (extraType === "no_ball") {
+          effectiveRuns = runs;
+          extra = { type: "no_ball", runs: 1 };
+        } else if (extraType === "bye" || extraType === "leg_bye") {
+          effectiveRuns = 0;
+          extra = { type: extraType, runs: runs === 0 ? 1 : runs };
+        } else {
+          effectiveRuns = runs === 0 ? 0 : runs;
+          extra = { type: extraType, runs: runs === 0 ? 1 : runs };
+        }
       }
-    }
 
-    return { effectiveRuns, extra };
-  };
+      return { effectiveRuns, extra };
+    },
+    [noBallByes, noBallRuns],
+  );
 
   const handleRunClick = useCallback(
     (runs: number) => {
+      // Byes and leg byes need at least one run.
+      if (
+        runs === 0 &&
+        (selectedExtra === "bye" || selectedExtra === "leg_bye")
+      ) {
+        return;
+      }
       if (runs === 4 || runs === 6) {
         hapticBoundary();
       } else {
@@ -329,7 +394,14 @@ export function ScoringPanel({
         setSelectedZone(null);
       }
     },
-    [selectedExtra, shouldPromptWagonWheel, selectedZone, onScore],
+    [
+      selectedExtra,
+      shouldPromptWagonWheel,
+      selectedZone,
+      onScore,
+      calculateScorePayload,
+      setSelectedExtra,
+    ],
   );
 
   // Keyboard-first scoring: 0-6 score, . dot, W wicket, U undo, E edit, S swap strike, D wide, N noball, B bye, L legbye, ? help.
@@ -407,6 +479,7 @@ export function ScoringPanel({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    setSelectedExtra,
     isWagonWheelModalOpen,
     showShortcutsHelp,
     setShowShortcutsHelp,
@@ -565,11 +638,39 @@ export function ScoringPanel({
                 </span>
             </>
           ) : (
-            <span className="truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
+            <span className="min-w-0 flex-1 truncate text-2xs font-medium text-muted-foreground/80 sm:text-xs">
               New over · awaiting first ball
             </span>
           )}
+          {onEditBalls && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onEditBalls}
+              aria-label="Correct a ball"
+              title="Correct a ball (any over)"
+              className="h-9 shrink-0 gap-1 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Correct a ball</span>
+            </Button>
+          )}
         </div>
+
+        {/* Waiting for the server: say why the keypad does not respond */}
+        {waitingNote && (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-xl border border-border bg-muted/60 px-3 py-1.5 text-xs font-medium text-foreground"
+          >
+            <Loader2
+              className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+            {waitingNote}
+          </p>
+        )}
 
         {/* What the last undo took back, in words, with a way to put it back */}
         {undoNotice && (
@@ -632,7 +733,7 @@ export function ScoringPanel({
           </div>
         )}
 
-        {/* Free Hit Delivery Banner (MCC Law 21.19) */}
+        {/* Free hit (when the match plays them) */}
         {isFreeHit && (
           <div
             className={cn(
@@ -643,7 +744,8 @@ export function ScoringPanel({
             )}
           >
             <span className="text-xs font-semibold">
-              Free hit: batter can only be run out (MCC Law 21.19)
+              Free hit: the batter can be out only run out or obstructing the
+              field
             </span>
           </div>
         )}
@@ -692,6 +794,46 @@ export function ScoringPanel({
           </div>
         )}
 
+        {/* Under an armed no-ball: were the runs off the bat, or byes? */}
+        {selectedExtra === "no_ball" && (
+          <div
+            role="radiogroup"
+            aria-label="The runs off this no-ball were"
+            className="grid grid-cols-3 gap-1.5"
+          >
+            {(
+              [
+                ["bat", "Off the bat"],
+                ["bye", "Byes"],
+                ["leg_bye", "Leg byes"],
+              ] as const
+            ).map(([kind, label]) => {
+              const checked = noBallRuns === kind;
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  role="radio"
+                  aria-checked={checked}
+                  onClick={() => setNoBallRuns(kind)}
+                  className={cn(
+                    "h-10 rounded-lg border text-xs font-semibold transition-colors",
+                    sunlightMode
+                      ? checked
+                        ? "border-2 border-black bg-black text-white"
+                        : "border-2 border-black bg-white text-black"
+                      : checked
+                        ? "border-transparent bg-primary text-primary-foreground"
+                        : "border-border bg-background text-foreground hover:bg-muted",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Run keypad: 4 columns on phones (two rows that grow to fill the screen), one row from sm up */}
         <div
           className="grid grid-cols-4 gap-1.5 max-sm:flex-1 max-sm:auto-rows-fr sm:grid-cols-8 sm:gap-2.5"
@@ -704,11 +846,14 @@ export function ScoringPanel({
             const isFive = runs === 5;
             const isDot = runs === 0;
             const subLabel = getRunSubLabel(runs);
+            // Byes need a run: 0 is not a bye.
+            const noRun =
+              isDot && (selectedExtra === "bye" || selectedExtra === "leg_bye");
             return (
               <button
                 key={runs}
                 type="button"
-                disabled={disabled}
+                disabled={disabled || noRun}
                 aria-label={
                   isDot
                     ? "0 runs (dot ball)"
@@ -821,13 +966,14 @@ export function ScoringPanel({
           <div className="space-y-2.5 rounded-2xl border border-border/80 bg-muted/40 p-3 dark:bg-card/90">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-foreground">
-                High runs / extras (7 to 13+)
+                More runs
               </span>
               <button
                 type="button"
                 onClick={() => setShowMoreRuns(false)}
                 className="rounded-full p-1 text-muted-foreground hover:bg-muted"
-                title="Close high runs"
+                title="Close more runs"
+                aria-label="Close more runs"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -944,7 +1090,7 @@ export function ScoringPanel({
             aria-label="Wicket dismissal"
             title={
               isFreeHit
-                ? "Wicket dismissal (W) — Run Out Only on Free Hit"
+                ? "Wicket (W): free hit, run out or obstructing only"
                 : "Wicket dismissal (W)"
             }
           >
@@ -952,7 +1098,7 @@ export function ScoringPanel({
               Wicket<span className="hidden sm:inline"> (W)</span>
               {isFreeHit && (
                 <span className="ml-1 text-[0.625rem] font-bold tracking-normal text-destructive-foreground/85">
-                  (Run Out)
+                  (free hit)
                 </span>
               )}
             </span>

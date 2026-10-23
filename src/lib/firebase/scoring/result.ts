@@ -165,8 +165,14 @@ export function inningsLimits(match: MatchesRow, inningsNumber: number) {
   if (isSuperOverInnings(inningsNumber)) {
     return { maxBalls: bpo, wicketsCap: 2, ballsPerOver: bpo };
   }
+  // A chase cut short by DLS has the revised overs.
+  const dls = match.dls_revision;
+  const overs =
+    dls && dls.innings_number === inningsNumber && dls.overs > 0
+      ? dls.overs
+      : (match.overs_per_innings ?? 20);
   return {
-    maxBalls: (match.overs_per_innings ?? 20) * bpo,
+    maxBalls: overs * bpo,
     wicketsCap: match.wickets_per_innings ?? 10,
     ballsPerOver: bpo,
   };

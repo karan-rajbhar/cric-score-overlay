@@ -170,25 +170,6 @@ function LoginPageInner() {
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">
-            By signing in, you agree to our{" "}
-            <Link
-              href="#"
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link
-              href="#"
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              Privacy Policy
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );

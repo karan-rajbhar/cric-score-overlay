@@ -42,9 +42,3 @@ export const useFirebaseEmulators =
  */
 export const firebaseEmulatorHost =
   env.NEXT_PUBLIC_FIREBASE_EMULATOR_HOST ?? "127.0.0.1";
-
-/** Firestore collection that carries realtime broadcast messages. */
-export const BROADCAST_COLLECTION = "broadcasts";
-
-/** How long a broadcast message is kept before Firestore TTL removes it. */
-export const BROADCAST_TTL_MS = 10 * 60 * 1000;

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 import { Avatar } from "~/components/ds/avatar";
@@ -7,20 +6,12 @@ import { Input } from "~/components/ui/input";
 import { Search, UserX } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageContainer, PageHeader } from "~/components/layout/page";
+import { Pager } from "~/components/layout/pager";
+import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 
 export const metadata = { title: "Players" };
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 30;
-
-/** `after` cursor: the last row's lower-cased name and id. */
-function parseCursor(raw: string | undefined): { name: string; id: string } | null {
-  if (!raw) return null;
-  const cut = raw.lastIndexOf("~");
-  if (cut < 0) return null;
-  return { name: raw.slice(0, cut), id: raw.slice(cut + 1) };
-}
 
 type PlayerRow = {
   id: string;
@@ -58,25 +49,21 @@ export default async function PlayersPage({
       .from("users")
       .select("id, full_name, avatar_url, username, name_lower")
       .order("name_lower");
-    if (cursor) query = query.after(cursor.name, cursor.id);
+    if (cursor) query = query.after(cursor.value, cursor.id);
     const { data } = await query.limit(PAGE_SIZE + 1);
-    const rows = (data ?? []) as PlayerRow[];
-    players = rows.slice(0, PAGE_SIZE);
-    const last = players[players.length - 1];
-    if (rows.length > PAGE_SIZE && last) {
-      nextCursor = `${last.name_lower ?? ""}~${last.id}`;
-    }
+    const page = keysetPage(
+      (data ?? []) as PlayerRow[],
+      (p) => p.name_lower ?? "",
+    );
+    players = page.rows;
+    nextCursor = page.next;
   }
 
   return (
     <PageContainer>
       <PageHeader title="Players" description="All players on the platform" />
 
-      <form
-        action="/players"
-        method="GET"
-        className="relative w-full max-w-md"
-      >
+      <form action="/players" method="GET" className="relative w-full max-w-md">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           autoCorrect="off"
@@ -125,28 +112,15 @@ export default async function PlayersPage({
         />
       )}
 
-      {(after || nextCursor) && (
-        <nav aria-label="Players pages" className="flex justify-between gap-3">
-          {after ? (
-            <Link
-              href="/players"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              First page
-            </Link>
-          ) : (
-            <span />
-          )}
-          {nextCursor && (
-            <Link
-              href={`/players?${new URLSearchParams({ after: nextCursor })}`}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Next page
-            </Link>
-          )}
-        </nav>
-      )}
+      <Pager
+        label="Players pages"
+        firstHref={after ? "/players" : null}
+        nextHref={
+          nextCursor
+            ? `/players?${new URLSearchParams({ after: nextCursor })}`
+            : null
+        }
+      />
     </PageContainer>
   );
 }

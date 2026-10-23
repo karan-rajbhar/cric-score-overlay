@@ -175,13 +175,13 @@ export function MatchStats({ match }: MatchStatsProps) {
                       </span>
                     </div>
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Last 5 ov</span>
+                      <span className="text-muted-foreground block text-2xs">Last 5 overs</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {last5.runs}/{last5.wickets}
                       </span>
                     </div>
                     <div className="rounded-xl bg-muted p-2.5">
-                      <span className="text-muted-foreground block text-2xs">Extras</span>
+                      <span className="text-muted-foreground block text-2xs">Extras (runs)</span>
                       <span className="font-semibold tabular-nums text-foreground">
                         {extrasSplit(innings).total}
                       </span>
@@ -271,8 +271,8 @@ export function MatchStats({ match }: MatchStatsProps) {
                     ? [{ label: "5s", count: fives, cls: "bg-four/60" }]
                     : []),
                   { label: "6s", count: sixes, cls: "bg-six" },
-                  { label: "Ex", count: extras, cls: "bg-extra" },
-                  { label: "Wk", count: wickets, cls: "bg-wicket" },
+                  { label: "Balls with extras", count: extras, cls: "bg-extra" },
+                  { label: "Wickets", count: wickets, cls: "bg-wicket" },
                 ];
 
               return (
@@ -293,7 +293,9 @@ export function MatchStats({ match }: MatchStatsProps) {
                           ["Threes", threes, "bg-muted-foreground", ""],
                           ["Fours", fours, "bg-four", "text-four"],
                           ["Sixes", sixes, "bg-six", "text-six"],
-                          ["Extras", extras, "bg-extra", "text-extra"],
+                          // Deliveries, like the tiles beside it (the
+                          // extras' runs are the chips below).
+                          ["Balls with extras", extras, "bg-extra", "text-extra"],
                           ["Wickets", wickets, "bg-wicket", "text-wicket"],
                         ] as const
                       ).map(([label, count, swatch, tone]) => (
@@ -359,20 +361,20 @@ export function MatchStats({ match }: MatchStatsProps) {
 
                     <div className="mt-4 flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
-                        Wd {ex.wides}
+                        Wides {ex.wides}
                       </span>
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
-                        Nb {ex.noBalls}
+                        No-balls {ex.noBalls}
                       </span>
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
-                        B {ex.byes}
+                        Byes {ex.byes}
                       </span>
                       <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
-                        Lb {ex.legByes}
+                        Leg byes {ex.legByes}
                       </span>
                       {ex.penalties > 0 && (
                         <span className="rounded-full bg-muted px-2 py-0.5 tabular-nums">
-                          Pen {ex.penalties}
+                          Penalty runs {ex.penalties}
                         </span>
                       )}
                     </div>

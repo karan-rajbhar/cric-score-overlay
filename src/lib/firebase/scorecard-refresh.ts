@@ -10,7 +10,8 @@
 
 import type { Firestore } from "firebase-admin/firestore";
 import type { DataSource } from "./datasource";
-import { canonicalJson, inningsSummaryOf } from "./derive.mjs";
+import { inningsSummaryOf } from "./derive.mjs";
+import { inningsSummaryPatch } from "./innings-summary";
 import {
   LIVE_SCORECARD_COLLECTION,
   type LiveScorecardDoc,
@@ -29,10 +30,8 @@ export async function refreshInningsSummary(
       t.query("innings", [{ field: "match_id", op: "==", value: matchId }]),
     ]);
     if (!match) return;
-    const next = inningsSummaryOf(innings);
-    if (canonicalJson(match.innings_summary ?? null) !== canonicalJson(next)) {
-      t.patch("matches", matchId, { innings_summary: next });
-    }
+    const patch = inningsSummaryPatch(match, inningsSummaryOf(innings));
+    if (patch) t.patch("matches", matchId, patch);
   });
 }
 

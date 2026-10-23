@@ -126,3 +126,27 @@ describe("last-used setup", () => {
     spy.mockRestore();
   });
 });
+
+describe("tournamentRules", () => {
+  it("uses the tournament's overs, then its format's, then the legacy field", async () => {
+    const { tournamentRules } = await import("./match-setup");
+    expect(
+      tournamentRules({ match_format: "Custom", overs_per_innings: 16, wickets_per_innings: 8 }),
+    ).toEqual({ format: "Custom", overs: 16, wickets: 8 });
+    expect(tournamentRules({ match_format: "ODI" })).toEqual({
+      format: "ODI",
+      overs: 50,
+    });
+    expect(tournamentRules({ match_format: "T10", overs_per_innings: 10 })).toEqual({
+      format: "T10",
+      overs: 10,
+    });
+    expect(tournamentRules({ match_format: "Custom", custom_overs: 12 })).toEqual({
+      format: "Custom",
+      overs: 12,
+    });
+    expect(tournamentRules({ match_format: "Custom", overs_per_innings: 90 })).toEqual(
+      {},
+    );
+  });
+});

@@ -1,4 +1,4 @@
-import { appRewrites } from "./src/lib/next-rewrites.mjs";
+import { appRewrites, FRAME_HEADERS_SOURCE } from "./src/lib/next-rewrites.mjs";
 
 /**
  * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
@@ -106,8 +106,9 @@ const config = {
       ...(process.env.NODE_ENV === "production" ? [] : DEV_NO_CACHE),
       { source: "/:path*", headers: SECURITY_HEADERS },
       // Not on Firebase Auth's proxied helper pages (`/__/`), nor on the
-      // overlays, which web-based streaming tools may embed in a frame.
-      { source: "/:path((?!__/|overlay/).*)", headers: FRAME_HEADERS },
+      // overlays (`/overlay/<id>`, `/overlay/channel/<id>`), which streaming
+      // tools may frame. Control rooms and setup pages stay unframeable.
+      { source: FRAME_HEADERS_SOURCE, headers: FRAME_HEADERS },
       { source: "/sw.js", headers: noStore },
       { source: "/sw-config.json", headers: noStore },
       {

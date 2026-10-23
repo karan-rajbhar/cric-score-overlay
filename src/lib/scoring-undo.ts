@@ -173,6 +173,8 @@ export function undoneBallOf(b: LastBall): UndoneBall {
         : {}),
       ...(b.commentary ? { commentary: b.commentary } : {}),
       ...(b.shot_zone ? { shotZone: b.shot_zone } : {}),
+      // Restoring the ball keeps byes off a no-ball as byes.
+      ...(b.no_ball_runs ? { noBallRuns: b.no_ball_runs } : {}),
     },
   };
 }

@@ -17,6 +17,11 @@ import {
   updateClubBanner,
   removeClubBanner,
 } from "~/app/clubs/actions";
+import {
+  BANNER_MAX_PX,
+  LOGO_MAX_PX,
+  resizeImageFile,
+} from "~/lib/image-resize";
 import { toast } from "sonner";
 import { Camera, Image as ImageIcon, Loader2, Trash2, Upload } from "lucide-react";
 
@@ -54,7 +59,10 @@ export function ClubMediaDialog({
 
     setUploadingLogo(true);
     try {
-      const res = await updateClubLogo(clubId, file);
+      const res = await updateClubLogo(
+        clubId,
+        await resizeImageFile(file, LOGO_MAX_PX),
+      );
       if (res.error || !res.data) {
         toast.error(res.error ?? "Failed to upload club logo");
       } else {
@@ -92,7 +100,10 @@ export function ClubMediaDialog({
 
     setUploadingBanner(true);
     try {
-      const res = await updateClubBanner(clubId, file);
+      const res = await updateClubBanner(
+        clubId,
+        await resizeImageFile(file, BANNER_MAX_PX),
+      );
       if (res.error || !res.data) {
         toast.error(res.error ?? "Failed to upload banner image");
       } else {

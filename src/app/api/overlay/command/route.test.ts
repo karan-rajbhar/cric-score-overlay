@@ -10,15 +10,14 @@ vi.mock("~/lib/firebase/server", () => ({
   createServerClient: vi.fn(async () => ({ auth: { getUser }, rpc })),
 }));
 
-const add = vi.fn();
-const docIds: string[] = [];
+/** Writes to `overlay_state/{id}`: (collection, id, data, options). */
+const set = vi.fn();
 vi.mock("~/lib/firebase/admin", () => ({
   getAdminFirestore: () => ({
-    collection: () => ({
-      doc: (id: string) => {
-        docIds.push(id);
-        return { collection: () => ({ add }) };
-      },
+    collection: (name: string) => ({
+      doc: (id: string) => ({
+        set: (data: unknown, options: unknown) => set(name, id, data, options),
+      }),
     }),
   }),
 }));
@@ -52,25 +51,82 @@ const command = { matchId: "match-1", payload: { type: "PANIC_CLEAR" } };
 describe("POST /api/overlay/command", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    docIds.length = 0;
     getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
     rpc.mockResolvedValue({ data: true, error: null });
   });
 
-  it("appends a match admin's command to that match's overlay channel", async () => {
+  it("merges a match admin's command into that match's overlay state", async () => {
     const res = await POST(request(command));
     expect(res.status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith("is_match_admin", {
+    expect(rpc).toHaveBeenCalledWith("can_produce_overlay", {
       p_match_id: "match-1",
       p_user_id: "u1",
     });
-    expect(docIds).toEqual(["overlay_control_match-1"]);
-    expect(add).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: "command",
-        payload: { type: "PANIC_CLEAR" },
+    expect(set).toHaveBeenCalledTimes(1);
+    const [collection, id, data, options] = set.mock.calls[0]!;
+    expect([collection, id]).toEqual(["overlay_state", "match-1"]);
+    // Clearing takes the cards, the lower third and the event card off.
+    expect(data).toMatchObject({
+      match_id: "match-1",
+      scene: { view: null, card: "none" },
+      strap: null,
+      cue: null,
+    });
+    // No id: the control room's last confirmation stays as it was.
+    expect(options.mergeFields).not.toContain("last_command_id");
+    expect(options.mergeFields).toEqual(
+      expect.arrayContaining([
+        "version",
+        "scene.view",
+        "scene.card",
+        "strap",
+        "cue",
+      ]),
+    );
+  });
+
+  it("changes only what the command sets, and names it for the control room", async () => {
+    const res = await POST(
+      request({
+        matchId: "match-1",
+        payload: { type: "SET_THEME", theme: "standard", id: "c1" },
       }),
     );
+    expect(res.status).toBe(200);
+    const [, , data, options] = set.mock.calls[0]!;
+    expect(data).toMatchObject({
+      last_command_id: "c1",
+      scene: { theme: "standard" },
+    });
+    // The layout, colours... stay as they were.
+    expect(options.mergeFields).toContain("scene.theme");
+    expect(options.mergeFields).toContain("last_command_id");
+    expect(options.mergeFields).not.toContain("scene");
+    expect(options.mergeFields).not.toContain("strap");
+
+    // An event card becomes the cue, stamped with the server's time.
+    set.mockClear();
+    await POST(
+      request({
+        matchId: "match-1",
+        payload: { type: "TRIGGER_STING", stingType: "six", id: "c2" },
+      }),
+    );
+    expect(set.mock.calls[0]![2]).toMatchObject({
+      cue: { id: "c2", kind: "six", at: expect.any(Number) },
+    });
+  });
+
+  it("refuses commands the overlay would ignore", async () => {
+    for (const payload of [
+      { type: "TRIGGER_STING", stingType: "<script>" },
+      { type: "SHOW_STRAP", strap: { type: "nonsense" } },
+      { type: "MADE_UP" },
+    ]) {
+      const res = await POST(request({ matchId: "match-1", payload }));
+      expect(res.status).toBe(400);
+    }
+    expect(set).not.toHaveBeenCalled();
   });
 
   it("refuses anyone who is not an admin of the match", async () => {
@@ -78,7 +134,7 @@ describe("POST /api/overlay/command", () => {
     expect((await POST(request(command))).status).toBe(403);
     getUser.mockResolvedValue({ data: { user: null } });
     expect((await POST(request(command))).status).toBe(401);
-    expect(add).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
   });
 
   it("refuses cross-origin, non-JSON and malformed requests", async () => {
@@ -89,9 +145,9 @@ describe("POST /api/overlay/command", () => {
       (await POST(request(command, { "Content-Type": "text/plain" }))).status,
     ).toBe(415);
     // A match id that would leave the document path.
-    expect(
-      (await POST(request({ ...command, matchId: "a/b" }))).status,
-    ).toBe(400);
-    expect(add).not.toHaveBeenCalled();
+    expect((await POST(request({ ...command, matchId: "a/b" }))).status).toBe(
+      400,
+    );
+    expect(set).not.toHaveBeenCalled();
   });
 });

@@ -48,9 +48,48 @@ export function TableCard({
   );
 }
 
-const BATTING_COLUMNS = ["Batter", "R", "B", "4s", "6s", "SR"] as const;
-const BOWLING_COLUMNS = ["Bowler", "O", "M", "R", "W", "Econ"] as const;
-const BOWLING_DETAIL_COLUMNS = ["0s", "4s", "6s", "Wd", "Nb"] as const;
+/** A column heading: its short form, and what it stands for. */
+export type Column = readonly [short: string, full?: string];
+
+const BATTING_COLUMNS: readonly Column[] = [
+  ["Batter"],
+  ["R", "Runs"],
+  ["B", "Balls"],
+  ["4s", "Fours"],
+  ["6s", "Sixes"],
+  ["SR", "Strike rate"],
+];
+const BOWLING_COLUMNS: readonly Column[] = [
+  ["Bowler"],
+  ["O", "Overs"],
+  ["M", "Maidens"],
+  ["R", "Runs"],
+  ["W", "Wickets"],
+  ["Econ", "Economy"],
+];
+const BOWLING_DETAIL_COLUMNS: readonly Column[] = [
+  ["0s", "Dot balls"],
+  ["4s", "Fours"],
+  ["6s", "Sixes"],
+  ["Wd", "Wides"],
+  ["Nb", "No-balls"],
+];
+
+/**
+ * A short heading ("SR") that screen readers read in full ("Strike rate")
+ * and a pointer shows on hover.
+ */
+export function Abbr({ short, full }: { short: string; full?: string }) {
+  if (!full) return <>{short}</>;
+  return (
+    <>
+      <abbr title={full} aria-hidden="true" className="no-underline">
+        {short}
+      </abbr>
+      <span className="sr-only">{full}</span>
+    </>
+  );
+}
 
 /**
  * A figure that reached a milestone (50 / 100 runs, 3 / 5 wickets) on a
@@ -84,14 +123,14 @@ function HeadRow({
   columns,
   className,
 }: {
-  columns: readonly string[];
+  columns: readonly Column[];
   className?: string;
 }) {
   return (
     <tr className={className}>
-      {columns.map((c) => (
-        <th key={c} scope="col" className={figHead}>
-          {c}
+      {columns.map(([short, full], i) => (
+        <th key={`${short}-${i}`} scope="col" className={figHead}>
+          <Abbr short={short} full={full} />
         </th>
       ))}
     </tr>
@@ -253,7 +292,7 @@ function BattingTotals({
         <td colSpan={5} className={cn(figCell, "text-foreground")}>
           <span className="font-semibold">{total.label}</span>
           <span className="ml-2 text-xs text-muted-foreground">
-            RR {total.runRate}
+            Run rate {total.runRate}
           </span>
         </td>
       </tr>

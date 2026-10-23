@@ -11,12 +11,14 @@ import type { DataSource } from "../datasource";
 import { DbQueryError } from "../query-builder";
 import {
   canDeleteMatch,
+  canProduceOverlay,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
 import { inviteEmail, revokeInvitation } from "./access";
+import { inviteStreamerEmail } from "./streamers";
 import { deleteMatch } from "./delete-match";
 import {
   addTeamPlayer,
@@ -45,6 +47,8 @@ import {
 import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
 import { ensureLiveScorecard } from "../scorecard-refresh";
+import { clubMilestoneAggregates } from "../club-milestones";
+import { matchBallLog } from "../match-ball-log";
 
 export interface RpcContext {
   db: Firestore | null;
@@ -173,6 +177,23 @@ export async function callRpc(
       // The match's `live_scorecard` doc, built once for matches that
       // predate it (viewers then listen to it directly).
       return ensureLiveScorecard(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "match_ball_log":
+      // Server-only: a match's ball log, completed innings from their
+      // archives (built here the first time; see ball-log-archive.ts).
+      return matchBallLog(
+        { ds: ctx.ds, db: ctx.db },
+        str(args, "p_match_id"),
+      );
+    case "club_milestones": {
+      // Server-only: the club page's milestone aggregates (a few reads
+      // instead of every club match).
+      const live = Number(args.p_live_count ?? 0);
+      return clubMilestoneAggregates(
+        ctx.ds,
+        str(args, "p_club_id"),
+        Number.isFinite(live) && live > 0 ? Math.floor(live) : 0,
+      );
+    }
     case "recalculate_tournament_standings":
       await recalculateTournamentStandings(
         ctx.ds,
@@ -187,6 +208,13 @@ export async function callRpc(
         ctx.uid,
         str(args, "p_email"),
         optStr(args, "p_match_id"),
+      );
+    case "invite_streamer":
+      return inviteStreamerEmail(
+        ctx.ds,
+        ctx.uid,
+        str(args, "p_email"),
+        str(args, "p_match_id"),
       );
     case "revoke_invitation":
       return revokeInvitation(ctx.ds, ctx.uid, str(args, "p_invitation_id"));
@@ -229,6 +257,12 @@ export async function callRpc(
       );
     case "is_match_admin":
       return isMatchAdmin(
+        ctx.ds,
+        optStr(args, "p_match_id"),
+        optStr(args, "p_user_id") ?? ctx.uid,
+      );
+    case "can_produce_overlay":
+      return canProduceOverlay(
         ctx.ds,
         optStr(args, "p_match_id"),
         optStr(args, "p_user_id") ?? ctx.uid,

@@ -32,6 +32,7 @@ export interface RecomputeInput {
     | "wide_runs_to_batsman"
     | "noball_extras_to_batsman"
     | "wide_counts_as_ball_faced"
+    | "noball_counts_as_ball_faced"
   >;
   innings: Pick<InningsRow, "id" | "match_id"> &
     Partial<Pick<InningsRow, "team_id">>;
@@ -113,9 +114,10 @@ export function oversFromBalls(balls: number, ballsPerOver: number): number {
   return Math.round((Math.floor(balls / bpo) + (balls % bpo) / 10) * 10) / 10;
 }
 
-export function isLegalDelivery(
-  ball: Pick<BallInput, "bowler_id" | "extra_type">,
-): boolean {
+export function isLegalDelivery(ball: {
+  bowler_id?: string | null;
+  extra_type?: string | null;
+}): boolean {
   if (!ball.bowler_id) return false;
   const t = ball.extra_type;
   return !(t === "wide" || t === "no_ball" || t === "penalty" || t === "bonus");
@@ -134,6 +136,45 @@ export function penaltyCountsFor(
   return !!ball.penalty_team_id && ball.penalty_team_id === innings.team_id;
 }
 
+/** The no-ball penalty, in `extras` of a no-ball (the rest are its byes). */
+export const NO_BALL_PENALTY = 1;
+
+/**
+ * The byes or leg byes completed off a no-ball the bat did not touch
+ * (`no_ball_runs`), held in its `extras` after the penalty; null for any
+ * other ball, and for a no-ball whose runs were off the bat.
+ */
+export function noBallByesOf(ball: {
+  extra_type?: string | null;
+  extras?: number | null;
+  no_ball_runs?: string | null;
+}): { kind: "bye" | "leg_bye"; runs: number } | null {
+  if (ball.extra_type !== "no_ball") return null;
+  const kind = ball.no_ball_runs;
+  if (kind !== "bye" && kind !== "leg_bye") return null;
+  return { kind, runs: Math.max(0, (ball.extras ?? 0) - NO_BALL_PENALTY) };
+}
+
+/** The wide penalty, in `extras` of a wide (the rest the batters ran). */
+export const WIDE_PENALTY = 1;
+
+/**
+ * The runs the batters ran (or the boundary) on a wide, held in its
+ * `extras` after the penalty (as the scoring screen records a wide). They
+ * count as wides, but an odd number of them crosses the batters like any
+ * other runs (a boundary, four, does not). A wide that carries runs in
+ * `runs_scored` (older and imported balls) has its penalty alone in
+ * `extras`: those runs already decide the crossing.
+ */
+export function wideRunsOf(ball: {
+  extra_type?: string | null;
+  extras?: number | null;
+  runs_scored?: number | null;
+}): number {
+  if (ball.extra_type !== "wide" || (ball.runs_scored ?? 0) > 0) return 0;
+  return Math.max(0, (ball.extras ?? 0) - WIDE_PENALTY);
+}
+
 /** What the bowler is charged for `ball` (not byes, leg byes or penalties). */
 export function bowlerConcedes(ball: BallInput): number {
   const runs = ball.runs_scored ?? 0;
@@ -141,7 +182,9 @@ export function bowlerConcedes(ball: BallInput): number {
   const t = ball.extra_type;
   if (t === "bye" || t === "leg_bye" || t === "penalty" || t === "bonus")
     return runs;
-  return runs + extras;
+  // Byes off a no-ball are not the bowler's: only the penalty is.
+  const byes = noBallByesOf(ball);
+  return runs + extras - (byes?.runs ?? 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +200,36 @@ export interface BatterCredit {
   faced: boolean;
 }
 
+/**
+ * Whether a no-ball counts as a ball the striker faced: it does (the
+ * striker receives it and may score off it; a wide they cannot), unless the
+ * match switched it off (`noball_counts_as_ball_faced` false: some junior
+ * and pairs formats). Null or absent: on.
+ */
+export function noBallCountsAsFaced(match: {
+  noball_counts_as_ball_faced?: boolean | null;
+}): boolean {
+  return match.noball_counts_as_ball_faced !== false;
+}
+
+/**
+ * Whether the striker faced `ball`: a legal delivery or a no-ball (unless
+ * the match leaves no-balls out), a wide only when the match counts them.
+ * Events between balls (no bowler) never.
+ */
+export function ballFaced(
+  match: {
+    noball_counts_as_ball_faced?: boolean | null;
+    wide_counts_as_ball_faced?: boolean | null;
+  },
+  ball: { bowler_id?: string | null; extra_type?: string | null },
+): boolean {
+  if (!ball.bowler_id) return false;
+  if (ball.extra_type === "no_ball") return noBallCountsAsFaced(match);
+  if (ball.extra_type === "wide") return Boolean(match.wide_counts_as_ball_faced);
+  return isLegalDelivery(ball);
+}
+
 export function batterCreditOf(
   match: MatchRules,
   ball: BallInput,
@@ -164,11 +237,13 @@ export function batterCreditOf(
   const extrasToBatter =
     (ball.extra_type === "wide" && match.wide_runs_to_batsman) ||
     (ball.extra_type === "no_ball" && match.noball_extras_to_batsman);
+  // Byes off a no-ball are never the striker's runs.
+  const byes = noBallByesOf(ball);
   return {
-    runs: (ball.runs_scored ?? 0) + (extrasToBatter ? (ball.extras ?? 0) : 0),
-    faced:
-      isLegalDelivery(ball) ||
-      (ball.extra_type === "wide" && Boolean(match.wide_counts_as_ball_faced)),
+    runs:
+      (ball.runs_scored ?? 0) +
+      (extrasToBatter ? (ball.extras ?? 0) - (byes?.runs ?? 0) : 0),
+    faced: ballFaced(match, ball),
   };
 }
 
@@ -223,6 +298,13 @@ const EXTRAS_FIELD = new Map<string, keyof InningsTotals>([
 export function addToTotals(totals: InningsTotals, ball: BallInput): void {
   const extras = ball.extras ?? 0;
   totals.runs += (ball.runs_scored ?? 0) + extras;
+  const byes = noBallByesOf(ball);
+  if (byes) {
+    // The penalty is a no-ball extra; the runs completed are byes.
+    totals.noBalls += extras - byes.runs;
+    totals[byes.kind === "bye" ? "byes" : "legByes"] += byes.runs;
+    return;
+  }
   const field = EXTRAS_FIELD.get(ball.extra_type ?? "");
   if (field) totals[field] += extras;
 }
@@ -310,7 +392,8 @@ export function addToStand(
   credit: BatterCredit,
 ): void {
   stand.runs = (stand.runs ?? 0) + (ball.runs_scored ?? 0) + (ball.extras ?? 0);
-  stand.balls = (stand.balls ?? 0) + (isLegalDelivery(ball) ? 1 : 0);
+  // The balls the pair faced (as their shares count them).
+  stand.balls = (stand.balls ?? 0) + (credit.faced ? 1 : 0);
   creditStand(stand, ball.batsman_id, credit.runs, credit.faced);
 }
 
@@ -366,10 +449,12 @@ export function endsAfterBall(
   ball: BallInput,
   dismissedId: string | null,
 ): Ends {
+  // Runs the batters ran that are not off the bat: byes and leg byes
+  // (off a no-ball too) and the runs on a wide.
   const byeRuns =
     ball.extra_type === "bye" || ball.extra_type === "leg_bye"
       ? (ball.extras ?? 0)
-      : 0;
+      : (noBallByesOf(ball)?.runs ?? 0) + wideRunsOf(ball);
   const swap = ((ball.runs_scored ?? 0) + byeRuns) % 2 === 1;
   const batter = ball.batsman_id;
   const partner = ball.non_striker_id ?? null;

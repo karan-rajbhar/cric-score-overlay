@@ -27,11 +27,18 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { DataSource } from "./datasource";
 import { canonicalJson } from "./derive.mjs";
+import { nextWicketStreaks } from "./live-events";
 import { stageFullLiveScorecard } from "./live-scorecard-sync";
 import { OVERS_COLLECTION } from "./scorecard";
+import { inningsLimits } from "./scoring/result";
 import type { DocReader, ScoringTx } from "./scoring/tx";
 import { runScoringTransaction } from "./scoring/tx";
-import type { LiveMatchStateRow, MatchesRow } from "./types";
+import type {
+  BallByBallRow,
+  InningsRow,
+  LiveMatchStateRow,
+  MatchesRow,
+} from "./types";
 import {
   composeLiveMatchState,
   liveStateUserIds,
@@ -52,7 +59,27 @@ export interface LiveStateRefs {
   tournament_id: string | null;
   /** Display names of players seen in this match, by user id. */
   names: Record<string, string | null>;
+  /**
+   * Each bowler's run of consecutive wicket-taking deliveries (hat-trick
+   * memory for `events`), kept by deliveries and crease changes; a rebuild
+   * (undo, edits) drops it rather than risk a false hat-trick.
+   */
+  wicket_streaks?: Record<string, number>;
 }
+
+/**
+ * What a staged live_state write publishes as `events`: the delivery a
+ * `record_ball` committed (its innings after the ball and its over's
+ * balls), or a crease / bowler change.
+ */
+export type LiveStateChange =
+  | {
+      kind: "delivery";
+      ball: BallByBallRow;
+      innings: InningsRow;
+      overBalls: BallByBallRow[] | null;
+    }
+  | { kind: "crease" };
 
 /** Who made the latest ball-log change (record / undo / edit), and when. */
 export interface LiveStateLastChange {
@@ -99,6 +126,10 @@ const PER_BALL_MATCH_FIELDS = new Set([
   "last_ball_seq",
   "recent_client_actions",
   "innings_summary",
+  "summary_runs",
+  "summary_wickets",
+  "best_innings",
+  "best_innings_runs",
 ]);
 
 /**
@@ -138,6 +169,7 @@ export function stagedIds(t: ScoringTx, table: string): string[] {
 function refsFor(
   match: MatchesRow,
   names: Record<string, string | null>,
+  streaks: Record<string, number> = {},
 ): LiveStateRefs {
   return {
     team1_id: match.team1_id ?? null,
@@ -145,6 +177,43 @@ function refsFor(
     winning_team_id: match.winning_team_id ?? null,
     tournament_id: match.tournament_id ?? null,
     names,
+    ...(Object.keys(streaks).length ? { wicket_streaks: streaks } : {}),
+  };
+}
+
+/**
+ * The `change` composeLiveMatchState turns into `events`, with the
+ * hat-trick memory after it.
+ */
+function changeFor(
+  match: MatchesRow,
+  prev: LiveStateDoc | null,
+  change: LiveStateChange | null | undefined,
+): {
+  change: LiveStateParts["change"];
+  streaks: Record<string, number>;
+} {
+  const kept = prev?.refs?.wicket_streaks ?? {};
+  if (!change) return { change: null, streaks: {} };
+  if (change.kind === "crease") {
+    return { change: { kind: "crease", prev }, streaks: kept };
+  }
+  const streaks = nextWicketStreaks(kept, change.ball);
+  const bowler = change.ball.bowler_id;
+  return {
+    change: {
+      kind: "delivery",
+      prev,
+      delivery: {
+        ball: change.ball,
+        innings: change.innings,
+        overBalls: change.overBalls,
+        ballsPerOver: inningsLimits(match, change.innings.innings_number)
+          .ballsPerOver,
+        wicketStreak: bowler ? (streaks[bowler] ?? 0) : 0,
+      },
+    },
+    streaks,
   };
 }
 
@@ -176,11 +245,15 @@ export async function headerFromCache(
     name: prev.team1_name ?? null,
     short_name: prev.team1_short_name ?? null,
     logo_url: prev.team1_logo_url ?? null,
+    primary_color: prev.team_colors?.team1?.primary ?? null,
+    secondary_color: prev.team_colors?.team1?.secondary ?? null,
   });
   teams.set(match.team2_id, {
     name: prev.team2_name ?? null,
     short_name: prev.team2_short_name ?? null,
     logo_url: prev.team2_logo_url ?? null,
+    primary_color: prev.team_colors?.team2?.primary ?? null,
+    secondary_color: prev.team_colors?.team2?.secondary ?? null,
   });
   return { teams, tournamentName: prev.tournament_name ?? null };
 }
@@ -188,32 +261,41 @@ export async function headerFromCache(
 /**
  * Compose the live row from parts computed inside a scoring transaction and
  * stage the `live_state` write on it. Reads at most the previous live doc
- * plus any player names / team fields not in its cache.
+ * plus any player names / team fields not in its cache. `change` says what
+ * the row publishes as `events` (a delivery, a crease change; none when
+ * omitted).
  */
 export async function stageLiveState(
   t: ScoringTx,
-  parts: Omit<LiveStateParts, "nameOf" | "teams" | "tournamentName">,
+  parts: Omit<
+    LiveStateParts,
+    "nameOf" | "teams" | "tournamentName" | "change"
+  >,
   prev: LiveStateDoc | null,
   now: string,
   header?: { teams: Map<string, LiveStateTeam>; tournamentName: string | null },
   preloadedNames?: Record<string, string | null>,
   lastChange?: LiveStateLastChange | null,
+  change?: LiveStateChange | null,
 ): Promise<LiveStateDoc> {
   const head = header ?? (await headerFromCache(t, parts.match, prev));
   const known = prev?.refs?.names ?? {};
   const names =
     preloadedNames ?? (await loadNames(t, liveStateUserIds(parts), known));
+  const events = changeFor(parts.match, prev, change);
   const row = composeLiveMatchState({
     ...parts,
     teams: head.teams,
     tournamentName: head.tournamentName,
-    nameOf: nameLookup(names),
+    // Cached names too: the last wicket's batter, bowler and fielder.
+    nameOf: nameLookup({ ...known, ...names }),
+    change: events.change,
   });
   const doc: LiveStateDoc = {
     ...row,
     updated_at: now,
     version: (prev?.version ?? 0) + 1,
-    refs: refsFor(parts.match, { ...known, ...names }),
+    refs: refsFor(parts.match, { ...known, ...names }, events.streaks),
     overs_changed: stagedOverIds(t),
     innings_changed: stagedIds(t, "innings"),
     match_rev: matchRevOf(parts.match),
@@ -233,6 +315,12 @@ export async function stageLiveState(
  * `inningsChanged` its `innings` documents (null: not known). The live
  * scorecard is rebuilt from the stored innings in the same transaction
  * (written only when it differs).
+ *
+ * `delivery` marks a rebuild that publishes a delivery `record_ball` took
+ * through its full path: its `events` are those of the stored last ball
+ * when it is newer than the previous row's (none once the innings moved on;
+ * no `over_end`, whose over is not read here). Every other rebuild (undo,
+ * edits, structural changes) publishes no events.
  */
 export async function writeLiveState(
   ds: DataSource,
@@ -241,21 +329,38 @@ export async function writeLiveState(
   oversChanged: string[] = [],
   lastChange?: LiveStateLastChange | null,
   inningsChanged: string[] | null = null,
+  delivery = false,
 ): Promise<LiveStateDoc | null> {
   const loaded = await loadLiveStateParts(ds, matchId);
   if (!loaded) return null;
-  const row = composeLiveMatchState(loaded.parts);
   const now = new Date().toISOString();
   return runScoringTransaction({ db, ds }, async (t) => {
     const prev = await t.doc<LiveStateDoc>(LIVE_STATE_COLLECTION, matchId);
+    const names = { ...(prev?.refs?.names ?? {}), ...loaded.names };
+    const { innings, lastBall } = loaded.parts;
+    const newBall =
+      delivery &&
+      innings &&
+      lastBall &&
+      (prev?.innings_number ?? null) === innings.innings_number &&
+      (lastBall.seq ?? 0) > (prev?.last_ball_seq ?? 0);
+    const events = changeFor(
+      loaded.parts.match,
+      prev,
+      newBall
+        ? { kind: "delivery", ball: lastBall, innings, overBalls: null }
+        : null,
+    );
+    const row = composeLiveMatchState({
+      ...loaded.parts,
+      nameOf: nameLookup(names),
+      change: events.change,
+    });
     const doc: LiveStateDoc = {
       ...row,
       updated_at: now,
       version: (prev?.version ?? 0) + 1,
-      refs: refsFor(loaded.parts.match, {
-        ...(prev?.refs?.names ?? {}),
-        ...loaded.names,
-      }),
+      refs: refsFor(loaded.parts.match, names, events.streaks),
       overs_changed: [...oversChanged].sort(),
       innings_changed: inningsChanged ? [...inningsChanged].sort() : null,
       match_rev: matchRevOf(loaded.parts.match),

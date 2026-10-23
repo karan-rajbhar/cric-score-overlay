@@ -1,0 +1,809 @@
+/*
+ * Summer bash: surfaces and motion. Base styles are each element's
+ * resting state; animations only bring it there (fill "both"), so with
+ * motion off (`.still`, a preview under reduced motion) everything shows
+ * settled.
+ */
+
+/* ---- type ------------------------------------------------------------- */
+
+.display {
+  font-family: var(--pkg-font-display);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.text {
+  font-family: var(--pkg-font-text);
+}
+
+.figures {
+  font-family: var(--pkg-font-figures);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Archivo's width axis: names that must fit, labels that shout. */
+.cond {
+  font-stretch: 70%;
+}
+
+.semi {
+  font-stretch: 86%;
+}
+
+.wide {
+  font-stretch: 118%;
+}
+
+.caps {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.label {
+  font-family: var(--pkg-font-text);
+  font-stretch: 112%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ---- surfaces --------------------------------------------------------- */
+
+/* Positioned for their lit edges; zero specificity, so a utility class
+   (absolute, fixed) still places them. */
+:where(.glass, .well, .team, .neon, .card) {
+  position: relative;
+}
+
+/* Deep violet glass: lit top edge, shade at the foot, a faint sheen. */
+.glass {
+  color: #fff;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.03) 36%,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, 0.28) 100%
+    ),
+    linear-gradient(180deg, #2c1670 0%, #1b0d47 52%, #120830 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* The deepest tone: table bodies, wells. */
+.well {
+  color: #fff;
+  background: linear-gradient(180deg, #160a3a 0%, #0f0629 100%);
+}
+
+/* A team plate: the side's colour, lit from above, with racing stripes. */
+.team {
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.26) 0%,
+      rgba(255, 255, 255, 0.04) 44%,
+      rgba(0, 0, 0, 0) 60%,
+      rgba(0, 0, 0, 0.22) 100%
+    ),
+    var(--plate);
+  color: var(--plate-text);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+
+.team::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.11) 0 9px,
+    rgba(255, 255, 255, 0) 9px 24px
+  );
+  pointer-events: none;
+}
+
+/* Bright neon plates carry night ink. */
+.neon {
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.38) 0%,
+      rgba(255, 255, 255, 0.06) 48%,
+      rgba(0, 0, 0, 0.12) 100%
+    ),
+    var(--neon, #ff2ea6);
+  color: #0b0620;
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* A lit edge along the top of a panel, in `--edge`. */
+.edgeTop::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--edge, #ff2ea6) 18%,
+    var(--edge, #ff2ea6) 82%,
+    transparent
+  );
+  box-shadow: 0 0 12px var(--edge, #ff2ea6);
+  pointer-events: none;
+}
+
+.edgeBottom::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--edge, #ff2ea6);
+  box-shadow: 0 0 12px var(--edge, #ff2ea6);
+  pointer-events: none;
+}
+
+/* Glow and drop for a group of clipped shapes. */
+.lift {
+  filter: drop-shadow(0 0 1.5px var(--glow, rgba(255, 46, 166, 0.9)))
+    drop-shadow(0 0 14px var(--haze, rgba(255, 46, 166, 0.35)))
+    drop-shadow(0 10px 18px rgba(4, 1, 16, 0.55));
+}
+
+/* Parallelograms (`--k`: the slant). */
+.slant {
+  clip-path: polygon(
+    var(--k, 22px) 0,
+    100% 0,
+    calc(100% - var(--k, 22px)) 100%,
+    0 100%
+  );
+}
+
+.slantStart {
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--k, 22px)) 100%, 0 100%);
+}
+
+.slantEnd {
+  clip-path: polygon(var(--k, 22px) 0, 100% 0, 100% 100%, 0 100%);
+}
+
+/* A card: glass with a neon frame and a soft halo. */
+.card {
+  color: #fff;
+  border-radius: 6px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0) 30%
+    ),
+    linear-gradient(180deg, #1d0e4c 0%, #140a36 60%, #0f0629 100%);
+  box-shadow:
+    0 0 0 2px var(--frame, #ff2ea6),
+    0 0 28px var(--frame-haze, rgba(255, 46, 166, 0.4)),
+    0 24px 48px rgba(4, 1, 16, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Table rows: a faint band on every other row. */
+.rows > :nth-child(even) {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+/* ---- light ---------------------------------------------------------- */
+
+/* A diagonal light bar that sweeps once over its parent (overflow hidden). */
+.streak {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 26%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-140%) skewX(-22deg);
+  opacity: 0;
+  animation: sb-streak 900ms cubic-bezier(0.3, 0.6, 0.2, 1) var(--d, 350ms) both;
+  mix-blend-mode: overlay;
+}
+
+/* The same bar every nine seconds (a resting score bug). */
+.sheen {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 30%;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-140%) skewX(-22deg);
+  animation: sb-sheen 9s ease-in-out 2.4s infinite;
+  mix-blend-mode: overlay;
+}
+
+@keyframes sb-streak {
+  0% {
+    transform: translateX(-140%) skewX(-22deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(480%) skewX(-22deg);
+    opacity: 1;
+  }
+}
+
+@keyframes sb-sheen {
+  0%,
+  86% {
+    transform: translateX(-140%) skewX(-22deg);
+  }
+  100% {
+    transform: translateX(480%) skewX(-22deg);
+  }
+}
+
+/* ---- entrances (staggered with --d) ---------------------------------- */
+
+.inLeft {
+  animation: sb-in-left 520ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms) both;
+}
+
+.inRight {
+  animation: sb-in-right 520ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms)
+    both;
+}
+
+.rise {
+  animation: sb-rise 460ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms) both;
+}
+
+.pop {
+  animation: sb-pop 560ms cubic-bezier(0.34, 1.56, 0.64, 1) var(--d, 0ms)
+    both;
+}
+
+.growX {
+  transform-origin: left center;
+  animation: sb-grow-x 700ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms) both;
+}
+
+.growXEnd {
+  transform-origin: right center;
+  animation: sb-grow-x 700ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms) both;
+}
+
+.growY {
+  transform-origin: center bottom;
+  animation: sb-grow-y 620ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms) both;
+}
+
+.draw {
+  stroke-dasharray: var(--len, 2000);
+  stroke-dashoffset: 0;
+  animation: sb-draw 1100ms cubic-bezier(0.45, 0, 0.2, 1) var(--d, 0ms) both;
+}
+
+@keyframes sb-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-44px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sb-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(44px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sb-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sb-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes sb-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes sb-draw {
+  from {
+    stroke-dashoffset: var(--len, 2000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- stings ---------------------------------------------------------- */
+
+.flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 52%,
+    var(--burst-a, #fff) 0%,
+    rgba(255, 255, 255, 0) 62%
+  );
+  opacity: 0;
+  animation: sb-flash 650ms ease-out both;
+}
+
+@keyframes sb-flash {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Light rays behind the word: a burst (scale) holding a slow spin. */
+.burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1500px;
+  height: 1500px;
+  margin: -750px 0 0 -750px;
+  pointer-events: none;
+  animation: sb-burst-in 900ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms)
+    both;
+}
+
+.rays {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    var(--burst-a, #ff2ea6) 0deg 7deg,
+    rgba(0, 0, 0, 0) 7deg 18deg
+  );
+  -webkit-mask: radial-gradient(
+    circle,
+    #000 8%,
+    rgba(0, 0, 0, 0.55) 30%,
+    transparent 64%
+  );
+  mask: radial-gradient(circle, #000 8%, rgba(0, 0, 0, 0.55) 30%, transparent 64%);
+  opacity: 0.42;
+  animation: sb-spin 24s linear infinite;
+}
+
+.raysAlt {
+  background: repeating-conic-gradient(
+    from 9deg,
+    var(--burst-b, #1fe5ff) 0deg 3deg,
+    rgba(0, 0, 0, 0) 3deg 18deg
+  );
+  opacity: 0.5;
+  animation: sb-spin-back 30s linear infinite;
+}
+
+@keyframes sb-burst-in {
+  from {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes sb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sb-spin-back {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* A shock ring. */
+.ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
+  border-radius: 50%;
+  border: 10px solid var(--burst-a, #ff2ea6);
+  box-shadow:
+    0 0 30px var(--burst-a, #ff2ea6),
+    inset 0 0 30px var(--burst-a, #ff2ea6);
+  opacity: 0;
+  pointer-events: none;
+  animation: sb-ring 1200ms cubic-bezier(0.2, 0.7, 0.3, 1) var(--d, 0ms) both;
+}
+
+@keyframes sb-ring {
+  0% {
+    transform: scale(0.15);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* The word: slams in from the camera and settles. */
+.slam {
+  animation: sb-slam 760ms cubic-bezier(0.2, 0.9, 0.25, 1) var(--d, 60ms) both;
+}
+
+@keyframes sb-slam {
+  0% {
+    opacity: 0;
+    transform: scale(3) rotate(-6deg);
+    filter: blur(16px);
+  }
+  42% {
+    opacity: 1;
+    transform: scale(0.92) rotate(0deg);
+    filter: blur(0);
+  }
+  64% {
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Horizontal light streaks crossing the frame behind the word. */
+.speed {
+  position: absolute;
+  left: 0;
+  height: var(--h, 10px);
+  width: 46%;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    var(--c, #fff) 70%,
+    #fff
+  );
+  box-shadow: 0 0 18px var(--c, #fff);
+  opacity: 0;
+  animation: sb-speed 900ms cubic-bezier(0.5, 0, 0.3, 1) var(--d, 0ms) both;
+}
+
+@keyframes sb-speed {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(260%);
+    opacity: 0;
+  }
+}
+
+/* Sparks thrown out from the centre (`--a` angle, `--r` reach). */
+.spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--w, 34px);
+  height: 6px;
+  margin: -3px 0 0 0;
+  border-radius: 999px;
+  background: var(--c, #fff);
+  box-shadow: 0 0 12px var(--c, #fff);
+  transform-origin: 0 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: sb-spark 1100ms cubic-bezier(0.1, 0.8, 0.3, 1) var(--d, 120ms)
+    both;
+}
+
+@keyframes sb-spark {
+  0% {
+    transform: rotate(var(--a)) translateX(40px) scaleX(0.4);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--a)) translateX(var(--r, 520px)) scaleX(1);
+    opacity: 0;
+  }
+}
+
+/* Confetti for milestones. */
+.confetti {
+  position: absolute;
+  top: -40px;
+  left: var(--x, 50%);
+  width: 14px;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--c, #ffe23d);
+  opacity: 0;
+  pointer-events: none;
+  animation: sb-confetti var(--t, 2600ms) cubic-bezier(0.3, 0.4, 0.5, 1)
+    var(--d, 0ms) both;
+}
+
+@keyframes sb-confetti {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--dx, 0px), 1140px, 0) rotate(var(--rot, 540deg));
+    opacity: 0;
+  }
+}
+
+/* Stumps that flash red, then burn (a broken wicket, lit). */
+.stump {
+  position: relative;
+  width: 22px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(90deg, #ff9aaa, #ff3355 45%, #b3002a);
+  box-shadow:
+    0 0 18px #ff3355,
+    0 0 42px rgba(255, 51, 85, 0.75);
+  animation: sb-stump 1200ms steps(1, end) 120ms both;
+}
+
+@keyframes sb-stump {
+  0%,
+  33%,
+  66% {
+    filter: brightness(1.8);
+  }
+  16%,
+  50%,
+  83% {
+    filter: brightness(0.55);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+.flame {
+  position: absolute;
+  bottom: -14px;
+  width: 64px;
+  height: 150px;
+  border-radius: 50% 50% 45% 45% / 62% 62% 38% 38%;
+  background: radial-gradient(
+    ellipse at 50% 78%,
+    #fff6c2 0%,
+    #ffd23d 24%,
+    #ff8a1f 48%,
+    rgba(255, 51, 85, 0.85) 70%,
+    rgba(255, 51, 85, 0) 100%
+  );
+  filter: blur(1.5px);
+  transform-origin: 50% 100%;
+  animation:
+    sb-flame-in 500ms ease-out var(--d, 700ms) both,
+    sb-flicker 340ms ease-in-out calc(var(--d, 700ms) + 500ms) infinite
+      alternate;
+}
+
+@keyframes sb-flame-in {
+  from {
+    transform: scale(0.2, 0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1, 1);
+    opacity: 1;
+  }
+}
+
+@keyframes sb-flicker {
+  0% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  50% {
+    transform: scale(0.92, 1.08) skewX(-4deg);
+  }
+  100% {
+    transform: scale(1.05, 0.94) skewX(3deg);
+  }
+}
+
+/* The bails, knocked off the top of the stumps. */
+.bail {
+  position: absolute;
+  top: -16px;
+  width: 58px;
+  height: 11px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #ffd0d8, #ff3355);
+  box-shadow: 0 0 14px #ff3355;
+  transform: translate(var(--bx, 60px), -80px) rotate(var(--br, 60deg));
+  opacity: 0;
+  animation: sb-bail 900ms cubic-bezier(0.2, 0.7, 0.3, 1) 160ms both;
+}
+
+@keyframes sb-bail {
+  0% {
+    transform: none;
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--bx, 60px), -80px) rotate(var(--br, 60deg));
+    opacity: 0;
+  }
+}
+
+/* Hazard stripes that run (free hit, powerplay). */
+.hazard {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--c1, #ffe23d) 0 22px,
+    var(--c2, #0b0620) 22px 44px
+  );
+  background-size: 62.2px 62.2px;
+  animation: sb-hazard 900ms linear infinite;
+}
+
+@keyframes sb-hazard {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 62.2px 0;
+  }
+}
+
+/* Chevrons that chase each other. */
+.chev {
+  animation: sb-chev 900ms ease-in-out var(--d, 0ms) infinite;
+}
+
+@keyframes sb-chev {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A slow glow breath for live chips and the striker marker. */
+.breathe {
+  animation: sb-breathe 1800ms ease-in-out infinite;
+}
+
+@keyframes sb-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* The ticker's crawl. */
+.crawl {
+  animation: sb-crawl 32s linear infinite;
+}
+
+@keyframes sb-crawl {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* A preview under reduced motion: everything settled. */
+.still,
+.still *,
+.still *::before,
+.still *::after {
+  animation: none !important;
+}

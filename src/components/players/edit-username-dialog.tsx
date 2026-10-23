@@ -110,7 +110,7 @@ export function EditUsernameDialog({
     startTransition(async () => {
       const res = await updateUsername(cleaned);
       if (res.success && res.username) {
-        toast.success(`Your handle is now @${res.username}!`);
+        toast.success(`Your handle is now @${res.username}`);
         setOpen(false);
         onSuccess?.(res.username);
         router.refresh();

@@ -23,12 +23,12 @@ describe("Advanced Scoring Dialogs", () => {
       );
 
       expect(
-        screen.getByRole("heading", { name: /abandon match/i }),
+        screen.getByRole("heading", { name: /end the match early/i }),
       ).toBeInTheDocument();
       const notesInput = screen.getByPlaceholderText(/thunderstorm/i);
       fireEvent.change(notesInput, { target: { value: "Waterlogged pitch after torrential rain" } });
 
-      const confirmButton = screen.getByRole("button", { name: /confirm abandon match/i });
+      const confirmButton = screen.getByRole("button", { name: "Abandon match" });
       fireEvent.click(confirmButton);
 
       expect(onConfirm).toHaveBeenCalledWith(
@@ -42,12 +42,13 @@ describe("Advanced Scoring Dialogs", () => {
   });
 
   describe("PenaltyBonusDialog", () => {
-    it("renders and awards penalty runs to fielding or batting team", () => {
+    it("preselects no team and names the team on the button", async () => {
       const onConfirm = vi.fn();
+      const onOpenChange = vi.fn();
       render(
         <PenaltyBonusDialog
           open={true}
-          onOpenChange={vi.fn()}
+          onOpenChange={onOpenChange}
           battingTeam={team1}
           bowlingTeam={team2}
           onConfirm={onConfirm}
@@ -57,49 +58,86 @@ describe("Advanced Scoring Dialogs", () => {
       expect(
         screen.getByRole("heading", { name: /award penalty or bonus runs/i }),
       ).toBeInTheDocument();
+      // Nobody preselected: the scorer taps the team.
+      expect(screen.getByRole("button", { name: "Choose a team" })).toBeDisabled();
+      expect(screen.getByRole("radio", { name: /Lions/ })).toHaveAttribute(
+        "aria-checked",
+        "false",
+      );
 
-      // Change runs
-      const runsInput = screen.getByRole("spinbutton");
-      fireEvent.change(runsInput, { target: { value: "5" } });
+      fireEvent.click(screen.getByRole("radio", { name: /Tigers/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Award 5 runs to Tigers" }),
+      );
 
-      const submitButton = screen.getByRole("button", { name: /award \+5 runs/i });
-      fireEvent.click(submitButton);
+      await waitFor(() =>
+        expect(onConfirm).toHaveBeenCalledWith(
+          expect.objectContaining({ teamId: "t-2", runs: 5, type: "penalty" }),
+        ),
+      );
+      await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    });
 
-      expect(onConfirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          teamId: "t-1",
-          runs: 5,
-          type: "penalty",
-        }),
+    it("forgets the last team when it opens again (a new innings)", () => {
+      const props = {
+        onOpenChange: vi.fn(),
+        onConfirm: vi.fn(),
+      };
+      const { rerender } = render(
+        <PenaltyBonusDialog
+          open={true}
+          battingTeam={team1}
+          bowlingTeam={team2}
+          {...props}
+        />,
+      );
+      fireEvent.click(screen.getByRole("radio", { name: /Lions/ }));
+      rerender(
+        <PenaltyBonusDialog
+          open={false}
+          battingTeam={team1}
+          bowlingTeam={team2}
+          {...props}
+        />,
+      );
+      // Second innings: the sides have swapped.
+      rerender(
+        <PenaltyBonusDialog
+          open={true}
+          battingTeam={team2}
+          bowlingTeam={team1}
+          {...props}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Choose a team" })).toBeDisabled();
+      expect(screen.getByRole("radio", { name: /Lions/ })).toHaveTextContent(
+        "Fielding now",
       );
     });
 
-    it("allows switching to bonus runs mode", () => {
-      const onConfirm = vi.fn();
+    it("stays open when nothing was recorded", async () => {
+      const onConfirm = vi.fn().mockResolvedValue(false);
+      const onOpenChange = vi.fn();
       render(
         <PenaltyBonusDialog
           open={true}
-          onOpenChange={vi.fn()}
+          onOpenChange={onOpenChange}
           battingTeam={team1}
           bowlingTeam={team2}
           onConfirm={onConfirm}
         />,
       );
-
-      // Click Bonus Runs button
-      const bonusTab = screen.getByRole("button", { name: /bonus runs/i });
-      fireEvent.click(bonusTab);
-
-      // By default clicking bonus sets runs to 1
-      const submitButton = screen.getByRole("button", { name: /award \+1 runs/i });
-      fireEvent.click(submitButton);
-
-      expect(onConfirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "bonus",
-          runs: 1,
-        }),
+      fireEvent.click(screen.getByRole("radio", { name: /Lions/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Bonus runs/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Award 1 run to Lions" }),
       );
+      await waitFor(() =>
+        expect(onConfirm).toHaveBeenCalledWith(
+          expect.objectContaining({ type: "bonus", runs: 1, teamId: "t-1" }),
+        ),
+      );
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
     });
   });
 

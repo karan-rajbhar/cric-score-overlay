@@ -15,7 +15,12 @@
  * - {@link applyLiveState} patches a fetched match with the live totals so
  *   headers stay current without refetching the scorecard.
  * - {@link useLiveScorecard} follows `live_scorecard/{matchId}` (every
- *   innings' scorecard, ~4 KB) on the tabs that render it.
+ *   innings' scorecard, ~5 KB) on the tabs that render it. That doc
+ *   carries a copy of the live_state written in the same commit (`live`),
+ *   so while a spectator page follows it the live_state listener is
+ *   dropped and fed from the copy: one read per change, not two. Pages
+ *   that keep their listener when hidden (overlay, control room) always
+ *   follow live_state itself.
  * - {@link overChangesBetween} lists the `overs` docs changed between two
  *   versions (from each snapshot's `overs_changed`), so the ball log can
  *   re-read just those; {@link liveChangesBetween} adds the `innings` docs
@@ -74,6 +79,8 @@ export interface LiveSnapshot {
   matchRev: string | null;
   /** `live_state.last_change`: who made the latest ball-log change, when. */
   lastChange: LiveLastChange | null;
+  /** `live_state.updated_at` (ISO): when the scoreboard last changed. */
+  updatedAt: string | null;
 }
 
 /** Mirrors `LiveStateLastChange` in `~/lib/firebase/live-state` (server). */
@@ -102,6 +109,7 @@ const IDLE: LiveSnapshot = {
   status: "idle",
   matchRev: null,
   lastChange: null,
+  updatedAt: null,
 };
 
 const CONNECTING: LiveSnapshot = { ...IDLE, status: "connecting" };
@@ -116,7 +124,25 @@ interface Entry<S> {
   releaseTimer: ReturnType<typeof setTimeout> | null;
 }
 
-const entries = new Map<string, Entry<LiveSnapshot>>();
+interface LiveEntry extends Entry<LiveSnapshot> {
+  /** Start this entry's own live_state listener (no-op when running). */
+  watch: () => void;
+  /** Stop it (the entry stays, fed from a followed scorecard). */
+  unwatch: () => void;
+  /** Take a live_state doc from the scorecard's copy. */
+  feed: (data: Record<string, unknown>, status: LiveStatus) => void;
+}
+
+const entries = new Map<string, LiveEntry>();
+
+/**
+ * The latest `live` copy of each followed live scorecard (spectator pages):
+ * what a live_state entry of that match shows instead of listening.
+ */
+const cardCopies = new Map<
+  string,
+  { data: Record<string, unknown>; status: LiveStatus }
+>();
 
 /** live_state's doc-only fields (not part of the scoreboard row). */
 const DOC_ONLY_FIELDS = [
@@ -216,6 +242,10 @@ function startEntry<S>(
   onData: (data: Record<string, unknown> | null) => Partial<S>,
   statusOf: (snap: S) => LiveStatus,
   staleCheck?: DocWatchOptions<Record<string, unknown>>["staleCheck"],
+  hooks: {
+    onStatus?: (status: LiveStatus) => void;
+    onStop?: () => void;
+  } = {},
 ): Entry<S> {
   const existing = map.get(key);
   if (existing) return existing;
@@ -239,6 +269,7 @@ function startEntry<S>(
       status: (status) => {
         if (status !== statusOf(entry.snap))
           emit({ status } as unknown as Partial<S>);
+        hooks.onStatus?.(status);
       },
     },
     { pauseWhenHiddenMs: pause ? SPECTATOR_PAUSE_MS : null, staleCheck },
@@ -246,35 +277,127 @@ function startEntry<S>(
   entry.stop = () => {
     stop();
     map.delete(key);
+    hooks.onStop?.();
   };
   return entry;
 }
 
-/** Get or start the shared listener for a match. Called from subscribe only. */
-function entryFor(matchId: string, pause: boolean): Entry<LiveSnapshot> {
-  return startEntry(
-    entries,
-    keyOf(matchId, pause),
-    CONNECTING,
-    LIVE_STATE_COLLECTION,
-    matchId,
-    pause,
-    (data) => {
-      record(matchId, data);
-      return {
-        state: data ? rowOf(data) : null,
-        version: typeof data?.version === "number" ? data.version : null,
-        matchRev: typeof data?.match_rev === "string" ? data.match_rev : null,
-        lastChange: lastChangeOf(data?.last_change),
-        loaded: true,
-      };
+/** A live_state doc as snapshot fields (recorded in the change journal). */
+function liveFieldsOf(
+  matchId: string,
+  data: Record<string, unknown> | null,
+): Partial<LiveSnapshot> {
+  record(matchId, data);
+  return {
+    state: data ? rowOf(data) : null,
+    version: typeof data?.version === "number" ? data.version : null,
+    matchRev: typeof data?.match_rev === "string" ? data.match_rev : null,
+    lastChange: lastChangeOf(data?.last_change),
+    updatedAt: typeof data?.updated_at === "string" ? data.updated_at : null,
+    loaded: true,
+  };
+}
+
+/** Stale-listener check for a live match's doc. */
+const LIVE_STALE_CHECK = {
+  afterMs: LIVE_STALE_CHECK_MS,
+  when: (data: Record<string, unknown> | null) => data?.status === "live",
+};
+
+/**
+ * Get or start the shared live_state entry for a match. Called from
+ * subscribe only. A spectator entry whose match's scorecard is followed
+ * takes the scorecard's copy instead of listening itself.
+ */
+function entryFor(matchId: string, pause: boolean): LiveEntry {
+  const key = keyOf(matchId, pause);
+  const existing = entries.get(key);
+  if (existing) return existing;
+  let stopWatch: (() => void) | null = null;
+  const emit = (patch: Partial<LiveSnapshot>) => {
+    entry.snap = { ...entry.snap, ...patch };
+    for (const listener of entry.listeners) listener();
+  };
+  const entry: LiveEntry = {
+    snap: CONNECTING,
+    listeners: new Set(),
+    stop: null,
+    releaseTimer: null,
+    watch: () => {
+      if (stopWatch) return;
+      stopWatch = watchDoc<Record<string, unknown>>(
+        getFirebaseDb(),
+        LIVE_STATE_COLLECTION,
+        matchId,
+        {
+          next: (data) => emit(liveFieldsOf(matchId, data)),
+          status: (status) => {
+            if (status !== entry.snap.status) emit({ status });
+          },
+        },
+        {
+          pauseWhenHiddenMs: pause ? SPECTATOR_PAUSE_MS : null,
+          staleCheck: LIVE_STALE_CHECK,
+        },
+      );
     },
-    (snap) => snap.status,
-    {
-      afterMs: LIVE_STALE_CHECK_MS,
-      when: (data) => data?.status === "live",
+    unwatch: () => {
+      stopWatch?.();
+      stopWatch = null;
     },
-  );
+    feed: (data, status) => {
+      // Listener deliveries of two docs may cross: never go back.
+      const version = typeof data.version === "number" ? data.version : null;
+      const current = entry.snap.version;
+      if (version !== null && current !== null && version < current) {
+        if (status !== entry.snap.status) emit({ status });
+        return;
+      }
+      emit({ ...liveFieldsOf(matchId, data), status });
+    },
+  };
+  entries.set(key, entry);
+  entry.stop = () => {
+    entry.unwatch();
+    entries.delete(key);
+  };
+  const copy = pause ? cardCopies.get(matchId) : undefined;
+  if (copy) entry.feed(copy.data, copy.status);
+  else entry.watch();
+  return entry;
+}
+
+/**
+ * A followed scorecard's snapshot (or status): its `live` copy feeds the
+ * match's spectator live_state entry, whose own listener stops; without a
+ * copy (a doc that predates it, an error) the entry listens again.
+ */
+function followCard(
+  matchId: string,
+  data: Record<string, unknown> | null | undefined,
+  status: LiveStatus,
+): void {
+  const entry = entries.get(keyOf(matchId, true));
+  const live =
+    status !== "error" && data && data.live && typeof data.live === "object"
+      ? (data.live as Record<string, unknown>)
+      : null;
+  if (!live) {
+    cardCopies.delete(matchId);
+    entry?.watch();
+    return;
+  }
+  cardCopies.set(matchId, { data: live, status });
+  if (entry) {
+    entry.unwatch();
+    entry.feed(live, status);
+  }
+}
+
+/** The scorecard is no longer followed: its live_state entry listens. */
+function unfollowCard(matchId: string): void {
+  cardCopies.delete(matchId);
+  entries.get(keyOf(matchId, true))?.watch();
 }
 
 function subscribe<S>(entry: Entry<S>, listener: () => void): () => void {
@@ -364,11 +487,32 @@ export function useLiveScorecard(
                 LIVE_SCORECARD_COLLECTION,
                 id,
                 true,
-                (data) => ({
-                  doc: data as unknown as LiveScorecardDoc | null,
-                  loaded: true,
-                }),
+                (data) => {
+                  followCard(id, data, "connected");
+                  return {
+                    doc: data as unknown as LiveScorecardDoc | null,
+                    loaded: true,
+                  };
+                },
                 (snap) => snap.status,
+                {
+                  afterMs: LIVE_STALE_CHECK_MS,
+                  when: (data) =>
+                    (data?.live as { status?: unknown } | undefined)
+                      ?.status === "live",
+                },
+                {
+                  // The entry it feeds shows its status too.
+                  onStatus: (status) =>
+                    followCard(
+                      id,
+                      (scorecards.get(id)?.snap.doc ?? null) as unknown as
+                        | Record<string, unknown>
+                        | null,
+                      status,
+                    ),
+                  onStop: () => unfollowCard(id),
+                },
               ),
               listener,
             )
@@ -462,6 +606,18 @@ export function applyLiveState(
     result_type: live.result_type ?? match.result_type,
     result_description: live.result_description ?? match.result_description,
   };
+  // A DLS revision of the innings in play (lists may not carry the field).
+  if (
+    live.dls_overs != null &&
+    live.innings_number != null &&
+    live.target_runs != null
+  ) {
+    patched.dls_revision = {
+      innings_number: live.innings_number,
+      target_runs: live.target_runs,
+      overs: live.dls_overs,
+    };
+  }
   if (live.innings_number == null || !match.innings) return patched;
   let changed = false;
   const innings = match.innings.map((inn) => {
