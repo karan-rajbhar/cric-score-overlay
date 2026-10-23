@@ -16,6 +16,7 @@ import type {
   Transaction,
 } from "firebase-admin/firestore";
 import type { DataSource, Doc, NativeFilter } from "../datasource";
+import { stageBallLogInvalidations } from "../ball-log-archive";
 import { stageInningsSummaries } from "../innings-summary";
 import { stageLiveCopies, stageLiveScorecards } from "../live-scorecard-sync";
 
@@ -272,8 +273,10 @@ async function finalize(t: ScoringTx): Promise<void> {
   await stageInningsSummaries(t);
   await stageLiveScorecards(t);
   await t.runCommitHooks();
-  // Last: the scorecard's copy of the live_state this commit writes.
+  // Last: the scorecard's copy of the live_state this commit writes, and
+  // the ball-log archives of completed innings whose overs it changes.
   await stageLiveCopies(t);
+  stageBallLogInvalidations(t);
 }
 
 /**

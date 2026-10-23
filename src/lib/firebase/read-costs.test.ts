@@ -132,7 +132,20 @@ describe("billed reads per page on the seed data", () => {
       await getLiveMatchState(liveMatch.id, { skipCache: true });
     });
     results.scoringState = await cost(() => getScoringState(liveMatch.id));
-    results.ballLog = await cost(() => getMatchBallLog(completedMatch.id));
+    // A finished match's ball log: the first view archives each innings
+    // (one document per innings, built on the server), later views read
+    // the archives instead of every over.
+    let firstLog: unknown = null;
+    const writesBefore = ds.writes;
+    results.ballLog = await cost(async () => {
+      firstLog = (await getMatchBallLog(completedMatch.id)).data;
+    });
+    expect(ds.writes - writesBefore).toBe(2);
+    let archivedLog: unknown = null;
+    results.ballLogArchived = await cost(async () => {
+      archivedLog = (await getMatchBallLog(completedMatch.id)).data;
+    });
+    expect(archivedLog).toEqual(firstLog);
     // Info tab (browser query, same builder): the two pairings only.
     results.headToHead = await cost(() =>
       fetchHeadToHead(
@@ -294,7 +307,10 @@ describe("billed reads per page on the seed data", () => {
       viewerPerBallSummary: 1,
       viewerPerBallBalls: 2,
       viewerPerBallStats: 2,
-      ballLog: 45,
+      // Every over of the match (45 before the archives): once, then
+      // innings + archives + the rosters for names.
+      ballLog: 50,
+      ballLogArchived: 7,
       // Was every completed match (4 on the seed, unbounded in production):
       // now 2 equality queries for the two pairings (an empty one bills 1).
       headToHead: 3,
