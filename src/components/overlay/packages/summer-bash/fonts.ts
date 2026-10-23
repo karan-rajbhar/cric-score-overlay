@@ -1,13 +1,13 @@
 /**
  * Summer bash type: Unbounded (a wide, heavy, rounded display face: the
- * loud, playful headline and score figures) and Archivo (a grotesque with
+ * loud, playful headlines and score figures) and Archivo (a grotesque with
  * a width axis: condensed for names that must fit, expanded black for
- * labels and table figures). Google Fonts through `next/font`, not
- * preloaded: only an overlay showing this package fetches them.
+ * labels). Google Fonts through `next/font`, not preloaded: only an
+ * overlay showing this package fetches them.
  */
 
-import "./font-loader-shim";
 import { Archivo, Unbounded } from "next/font/google";
+import { packageFonts } from "../shared";
 
 const display = Unbounded({
   subsets: ["latin"],
@@ -25,9 +25,7 @@ const text = Archivo({
   preload: false,
 });
 
-export const SUMMER_BASH_FONTS = {
-  className: [display.variable, text.variable].filter(Boolean).join(" "),
-  display: "var(--sb-font-display), 'Arial Black', system-ui, sans-serif",
-  text: "var(--sb-font-text), 'Arial Narrow', system-ui, sans-serif",
-  figures: "var(--sb-font-display), 'Arial Black', system-ui, sans-serif",
-};
+export const SUMMER_BASH_FONTS = packageFonts(
+  { display, text, figures: display },
+  "'Arial Black', system-ui, sans-serif",
+);

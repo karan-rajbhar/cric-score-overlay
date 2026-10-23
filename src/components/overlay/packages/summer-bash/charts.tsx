@@ -8,19 +8,24 @@
  */
 
 import { useMemo, type CSSProperties } from "react";
-import { phaseBoundaries } from "~/lib/match-report";
-import { buildOverTable, type OverPoint } from "~/lib/match-charts";
 import type { Innings, Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
+import { eyebrowOf } from "../../overlay-kit";
+import { scoreOf } from "../../scorecard-cards";
+import type { LiveMatchState } from "../../types";
 import {
+  axisMax,
+  chartOvers,
   describeDonutSegment,
+  phaseRates,
   polarToCartesian,
   SECTORS,
-} from "~/lib/wagon-wheel-utils";
-import { useInningsBallLog, useScorecardInnings } from "../../overlay-data";
-import { eyebrowOf, teamCode } from "../../overlay-kit";
-import { inningsTeamName, scoreOf } from "../../scorecard-cards";
-import type { LiveMatchState } from "../../types";
+  sectorTotals,
+  teamCode,
+  useBatterShots,
+  useInningsSeries,
+  type OverPoint,
+} from "../shared";
 import type { OverlayElementProps } from "../types";
 import { Card, CardPlace, delay, s, sideOfName, sideStyle, Tag, type SideKey } from "./kit";
 
@@ -32,19 +37,18 @@ interface Series {
   table: OverPoint[];
 }
 
+/** The shared ball-log series with this package's side keys and codes. */
 function useSeries(state: LiveMatchState, match: Match | null | undefined): Series[] | null {
-  const { innings } = useScorecardInnings(match);
-  const main = useMemo(() => innings.filter((i) => i.innings_number <= 2), [innings]);
-  const log = useInningsBallLog(state, main, true);
-  return useMemo(() => {
-    if (!log) return null;
-    return main.map((inn) => {
-      const name = inningsTeamName(state, inn, match?.team1_id);
-      const side = sideOfName(state, name) ?? "t1";
-      const short = side === "t2" ? state.team2_short_name : state.team1_short_name;
-      return { innings: inn, name, code: teamCode(short, name), side, table: buildOverTable(log.get(inn.id) ?? []) };
-    });
-  }, [main, log, match, state]);
+  const series = useInningsSeries(state, match);
+  return useMemo(
+    () =>
+      series?.map((sr) => {
+        const side: SideKey = sr.side === 2 ? "t2" : "t1";
+        const short = side === "t2" ? state.team2_short_name : state.team1_short_name;
+        return { innings: sr.innings, name: sr.name, code: teamCode(short, sr.name), side, table: sr.table };
+      }) ?? null,
+    [series, state],
+  );
 }
 
 /** A legend: each side's code and score in its colour. */
@@ -68,9 +72,7 @@ const W = 1420;
 const H = 430;
 const PAD = { l: 64, r: 16, t: 20, b: 46 };
 
-function niceMax(v: number, step: number): number {
-  return Math.max(step, Math.ceil(v / step) * step);
-}
+const niceMax = axisMax;
 
 /** Axes: gridlines with run labels and the over numbers. */
 function Axes({ maxY, step, overs }: { maxY: number; step: number; overs: number }) {
@@ -103,7 +105,7 @@ function Axes({ maxY, step, overs }: { maxY: number; step: number; overs: number
 }
 
 function maxOversOf(state: LiveMatchState, series: Series[]): number {
-  return Math.max(state.overs_per_innings ?? 20, ...series.map((sr) => sr.table.length), 1);
+  return chartOvers(state.overs_per_innings, series.map((sr) => sr.table));
 }
 
 function RunsPerOver(p: OverlayElementProps["runsPerOver"]) {
@@ -208,22 +210,16 @@ function RunRates(p: OverlayElementProps["runRates"]) {
   if (!series || !series.some((sr) => sr.table.length > 0)) return null;
   const shown = series.slice(0, 2);
   const overs = maxOversOf(p.state, shown);
-  const bounds = phaseBoundaries(overs);
-  const phases = bounds
-    ? [
-        { label: "Powerplay", from: 1, to: bounds.ppEnd },
-        { label: "Middle overs", from: bounds.ppEnd + 1, to: bounds.midEnd },
-        { label: "Death overs", from: bounds.midEnd + 1, to: overs },
-      ]
-    : [{ label: "Innings", from: 1, to: overs }];
-  const rate = (sr: Series, from: number, to: number) => {
-    const o = sr.table.filter((x) => x.overNumber >= from && x.overNumber <= to);
-    if (!o.length) return null;
-    const runs = o.reduce((n, x) => n + x.runs, 0);
-    const wkts = o.reduce((n, x) => n + x.wickets, 0);
-    return { rr: runs / o.length, runs, wkts };
+  // Each side's phases, from the shared phase maths.
+  const bySide = new Map(shown.map((sr) => [sr.innings.id, phaseRates(sr.table, overs)]));
+  const phases = phaseRates([], overs);
+  const rate = (sr: Series, index: number) => {
+    const ph = bySide.get(sr.innings.id)?.[index];
+    return ph && ph.runRate !== null
+      ? { rr: ph.runRate, runs: ph.runs, wkts: ph.wickets }
+      : null;
   };
-  const all = phases.flatMap((ph) => shown.map((sr) => rate(sr, ph.from, ph.to)?.rr ?? 0));
+  const all = phases.flatMap((_, i) => shown.map((sr) => rate(sr, i)?.rr ?? 0));
   const top = Math.max(12, ...all);
   return (
     <CardPlace state={p.state}>
@@ -240,7 +236,7 @@ function RunRates(p: OverlayElementProps["runRates"]) {
               </span>
               <div className="space-y-2">
                 {shown.map((sr) => {
-                  const r = rate(sr, ph.from, ph.to);
+                  const r = rate(sr, pi);
                   return (
                     <div key={sr.innings.id} className="flex items-center gap-4" style={sideStyle(sr.side)}>
                       <span className={cn(s.display, "w-20 text-[1.25rem]")}>{sr.code}</span>
@@ -287,7 +283,6 @@ const R_GRASS = 172;
 const R_30YD = 116;
 const R_TEXT = (R_OUTER + R_GRASS) / 2;
 const BATTER_Y = CY - 16;
-const DISTANCE: Record<number, number> = { 1: 0.46, 2: 0.62, 3: 0.76, 4: 0.92, 6: 0.98 };
 
 function shotColour(runs: number): string {
   if (runs >= 6) return "var(--sb-magenta)";
@@ -298,26 +293,17 @@ function shotColour(runs: number): string {
 
 function WagonWheel(p: OverlayElementProps["wagonWheel"]) {
   const { state, match, batterId } = p;
-  const id = batterId ?? state.striker_id ?? null;
-  const name = id && id === state.non_striker_id ? state.non_striker_name : state.striker_name;
-  const { innings } = useScorecardInnings(match);
-  const current = useMemo(() => innings.filter((i) => i.innings_number === state.innings_number), [innings, state.innings_number]);
-  const log = useInningsBallLog(state, current, true);
-  const shots = useMemo(() => {
-    const balls = id && current[0] ? (log?.get(current[0].id) ?? []).filter((b) => b.batsman_id === id) : [];
-    return balls.flatMap((b, i) => {
-      const sector = SECTORS.find((sc) => sc.id === b.shot_zone);
-      if (!sector || (b.runs_scored ?? 0) <= 0) return [];
-      const spread = ((i * 17) % 28) - 14;
-      const angle = (sector.midAngle + spread + 360) % 360;
-      const runs = b.runs_scored ?? 0;
-      const end = polarToCartesian(CX, CY, R_GRASS * (DISTANCE[runs] ?? 0.46), angle);
-      return [{ key: b.id, runs, end, sector: sector.id }];
-    });
-  }, [log, current, id]);
-  if (!log || shots.length === 0) return null;
-  const bySector = new Map<string, number>();
-  for (const sh of shots) bySector.set(sh.sector, (bySector.get(sh.sector) ?? 0) + sh.runs);
+  const { name, shots: placed, loaded } = useBatterShots(state, match, batterId);
+  const shots = useMemo(
+    () =>
+      placed.map((sh) => ({
+        ...sh,
+        end: polarToCartesian(CX, CY, R_GRASS * sh.reach, sh.angle),
+      })),
+    [placed],
+  );
+  if (!loaded || shots.length === 0) return null;
+  const bySector = new Map(sectorTotals(placed).map((t) => [t.id, t.runs]));
   const runs = shots.reduce((n, sh) => n + sh.runs, 0);
   const fours = shots.filter((sh) => sh.runs === 4).length;
   const sixes = shots.filter((sh) => sh.runs === 6).length;

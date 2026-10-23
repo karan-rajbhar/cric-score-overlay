@@ -8,11 +8,11 @@
  */
 
 import type { PlayerCareerStatsRow } from "~/lib/firebase/types";
-import type { Match } from "~/lib/match-types";
 import { oversText } from "../../overlay-kit";
 import { usePlayerProfile } from "../../overlay-data";
 import { playerInSlot } from "../../profile-card";
 import type { SeriesFigures } from "../../types";
+import { avatarOf, playerTeamOf } from "../shared";
 import type { OverlayElementProps } from "../types";
 import { sideOfName, type SideKey } from "./kit";
 import { batKey, bowlKey, Lower, PlayerStrap } from "./straps";
@@ -71,7 +71,7 @@ function CareerProfile(p: OverlayElementProps["playerProfile"]) {
         tag="Career"
         tagNeon={who.bowler ? "cyan" : "magenta"}
         name={who.name}
-        photo={profile.avatarUrl}
+        photo={profile.avatarUrl ?? avatarOf(p.match, who.id)}
         tiles={careerTiles(profile.career, who.bowler)}
       />
     </Lower>
@@ -100,23 +100,14 @@ export function PlayerProfile(p: OverlayElementProps["playerProfile"]) {
   return p.mode === "career" ? <CareerProfile {...p} /> : <SeriesProfile {...p} />;
 }
 
-/** The side a player is in, from the match's squads. */
-function squadSide(
-  state: OverlayElementProps["playerOfTheMatch"]["state"],
-  match: Match | null,
-  id: string,
-): SideKey {
-  const inTeam = (players: { user_id: string }[] | undefined) =>
-    !!players?.some((p) => p.user_id === id);
-  if (inTeam(match?.team1?.team_players)) return "t1";
-  if (inTeam(match?.team2?.team_players)) return "t2";
-  return sideOfName(state, state.winning_team_name) ?? "t1";
-}
 
 export function PlayerOfTheMatch(p: OverlayElementProps["playerOfTheMatch"]) {
   const { state, match, innings, layout } = p;
   const potm = match?.player_of_the_match;
   if (!potm?.full_name) return null;
+  const team = playerTeamOf(match, potm.id);
+  const potmSide: SideKey =
+    team === 2 ? "t2" : team === 1 ? "t1" : (sideOfName(state, state.winning_team_name) ?? "t1");
   const bat = innings
     .flatMap((i) => i.batting_performances ?? [])
     .find((b) => b.user_id === potm.id && b.balls_faced > 0);
@@ -136,11 +127,11 @@ export function PlayerOfTheMatch(p: OverlayElementProps["playerOfTheMatch"]) {
   return (
     <Lower state={state} layout={layout} type="potm">
       <PlayerStrap
-        side={squadSide(state, match, potm.id)}
+        side={potmSide}
         tag="Player of the match"
         tagNeon="yellow"
         name={potm.full_name}
-        photo={potm.avatar_url}
+        photo={potm.avatar_url ?? avatarOf(match, potm.id)}
         tiles={tiles.length ? tiles : undefined}
         details={tiles.length ? undefined : [state.result_description]}
       />

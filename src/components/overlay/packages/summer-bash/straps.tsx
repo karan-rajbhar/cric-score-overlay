@@ -26,6 +26,7 @@ import type {
   LayoutMode,
   LiveMatchState,
 } from "../../types";
+import { avatarOf } from "../shared";
 import type { BreakKind, OverlayElementProps } from "../types";
 import {
   BallChips,
@@ -386,6 +387,7 @@ export function BatterLowerThird(p: OverlayElementProps["batterLowerThird"]) {
           tag={tag}
           tagNeon={p.slot === "last_out" ? "red" : "magenta"}
           name={who.name}
+          photo={avatarOf(p.match, who.id)}
           figure={<Num value={runs} />}
           note={balls}
           tiles={figures.stats.map((st) => ({ label: st.label, value: st.value }))}
@@ -425,6 +427,7 @@ export function BatterLowerThird(p: OverlayElementProps["batterLowerThird"]) {
         tag={text.badge || (lastOut ? "Last wicket" : "Batting")}
         tagNeon={lastOut ? "red" : "magenta"}
         name={text.title}
+        photo={avatarOf(p.match, own ? state.striker_id : ownOut ? w?.player_id : null)}
         figure={
           own ? (
             <Num value={state.striker_runs ?? 0} />
@@ -452,6 +455,7 @@ export function BowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
           tag="Bowling"
           tagNeon="cyan"
           name={who.name}
+          photo={avatarOf(p.match, who.id)}
           figure={<Num value={figures.headline} />}
           figureNeon="cyan"
           tiles={figures.stats.map((st) => ({ label: st.label, value: st.value }))}
@@ -470,6 +474,7 @@ export function BowlerLowerThird(p: OverlayElementProps["bowlerLowerThird"]) {
         tag={text.badge || "Bowling"}
         tagNeon="cyan"
         name={text.title}
+        photo={avatarOf(p.match, own ? state.bowler_id : null)}
         figure={own ? <Num value={`${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0}`} /> : undefined}
         figureNeon="cyan"
         details={
@@ -496,6 +501,7 @@ export function NewBatter(p: OverlayElementProps["newBatter"]) {
         tag={text.badge || "New batter"}
         tagNeon="lime"
         name={text.title}
+        photo={avatarOf(p.match, text.title === p.state.striker_name ? p.state.striker_id : null)}
         details={[text.subtitle, text.detail].filter(Boolean)}
       />
     </Lower>
@@ -512,6 +518,10 @@ export function NewBowler(p: OverlayElementProps["newBowler"]) {
         tag={text.badge || "Into the attack"}
         tagNeon="cyan"
         name={text.title}
+        photo={avatarOf(
+          p.match,
+          text.title === p.state.current_bowler_name ? p.state.bowler_id : null,
+        )}
         details={[text.subtitle, text.detail].filter(Boolean)}
       />
     </Lower>

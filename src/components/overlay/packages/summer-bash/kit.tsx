@@ -9,7 +9,6 @@
 
 import {
   useContext,
-  useState,
   useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
@@ -18,19 +17,21 @@ import { cn } from "~/lib/utils";
 import { OverlayFrame } from "../../overlay-kit";
 import type { LayoutMode, LiveMatchState } from "../../types";
 import { AnimatedNumber, MotionPreferenceContext } from "../motion";
+import { AvatarSlot, CrestSlot, lowerThirdBottom, SAFE } from "../shared";
 import s from "./summer-bash.module.css";
 
 export { s };
 
 // ---- canvas grid -------------------------------------------------------------
 
-/** Title-safe inset (5% of 1920 x 1080). */
-export const SAFE_X = 96;
-export const SAFE_Y = 54;
+/** Title-safe inset (the shared 5% of 1920 x 1080). */
+export const SAFE_X = SAFE.x;
+export const SAFE_Y = SAFE.y;
 /** The bottom score bug: main row and ribbon. */
 export const BUG_ROW = 96;
 export const BUG_RIBBON = 44;
 export const BUG_GAP = 8;
+export const BUG_HEIGHT = BUG_ROW + BUG_GAP + BUG_RIBBON;
 /** The compact score bug's width. */
 export const COMPACT_W = 468;
 
@@ -43,7 +44,7 @@ export function lowerThirdPlace(layout: LayoutMode): {
   if (layout === "compact") {
     return { bottom: SAFE_Y, left: SAFE_X + COMPACT_W + 28 };
   }
-  return { bottom: SAFE_Y + BUG_ROW + BUG_GAP + BUG_RIBBON + 26, left: SAFE_X };
+  return { bottom: lowerThirdBottom(BUG_HEIGHT, 26), left: SAFE_X };
 }
 
 // ---- motion preference -----------------------------------------------------
@@ -150,14 +151,7 @@ export const delay = (ms: number): CSSProperties =>
 
 // ---- names and figures -----------------------------------------------------
 
-export function initialsOf(name: string | null | undefined): string {
-  return (name ?? "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]!.toUpperCase())
-    .join("");
-}
+export { initialsOf } from "../shared";
 
 /** Name size for the plate: long names step down before they truncate. */
 export function nameSize(name: string, base = 46): number {
@@ -181,35 +175,9 @@ export function Num({
 
 // ---- crests and photos -------------------------------------------------------
 
-/** A picture that falls back to `fallback` when it has no URL or fails. */
-function Picture({
-  url,
-  fallback,
-  fit,
-}: {
-  url: string | null | undefined;
-  fallback: ReactNode;
-  fit: "contain" | "cover";
-}) {
-  const [failed, setFailed] = useState<string | null>(null);
-  if (!url || failed === url) return <>{fallback}</>;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url}
-      alt=""
-      onError={() => setFailed(url)}
-      className={cn(
-        "h-full w-full",
-        fit === "cover" ? "object-cover" : "object-contain",
-      )}
-    />
-  );
-}
-
 /**
- * A team's crest: its logo on a lit disc, else its code, in the side's
- * colour with a neon ring.
+ * A team's crest: its logo on a lit disc, else the initials of its name
+ * (else its code), in the side's colour with a neon ring.
  */
 export function Crest({
   side,
@@ -221,20 +189,16 @@ export function Crest({
 }: {
   side: SideKey;
   code: string;
-  /** The team's name: its initials stand in for a missing logo. */
   name?: string | null;
   logo?: string | null;
   size?: number;
   className?: string;
 }) {
-  const mark = initialsOf(name) || code;
+  const inset = Math.max(3, size * 0.06);
   return (
     <span
       style={{ ...sideStyle(side), width: size, height: size }}
-      className={cn(
-        "relative flex shrink-0 items-center justify-center rounded-full",
-        className,
-      )}
+      className={cn("relative flex shrink-0 items-center justify-center rounded-full", className)}
     >
       <span
         aria-hidden="true"
@@ -245,26 +209,16 @@ export function Crest({
           boxShadow: "0 0 18px var(--haze)",
         }}
       />
-      <span
-        className={cn(
-          s.team,
-          "absolute flex items-center justify-center overflow-hidden rounded-full",
-        )}
-        style={{ inset: Math.max(3, size * 0.06) }}
-      >
-        <Picture
-          url={logo}
-          fit="contain"
-          fallback={
-            <span
-              className={cn(s.display, "relative z-10 leading-none")}
-              style={{ fontSize: size * (mark.length > 3 ? 0.2 : mark.length > 2 ? 0.25 : 0.32) }}
-            >
-              {mark}
-            </span>
-          }
-        />
-      </span>
+      <CrestSlot
+        logo={logo}
+        name={name}
+        code={code}
+        className={cn(s.team, "absolute flex items-center justify-center overflow-hidden rounded-full")}
+        style={{ inset }}
+        imgClassName="relative z-10 h-full w-full object-contain"
+        textClassName={cn(s.display, "relative z-10 leading-none")}
+        textStyle={{ fontSize: size * 0.25 }}
+      />
     </span>
   );
 }
@@ -297,23 +251,15 @@ export function Photo({
         className="absolute inset-0"
         style={{ clipPath: clip, background: "var(--glow)" }}
       />
-      <span
-        className={cn(s.team, "absolute flex items-end justify-center")}
+      <AvatarSlot
+        url={url}
+        name={name}
+        className={cn(s.team, "absolute flex items-center justify-center")}
         style={{ inset: 4, clipPath: clip }}
-      >
-        <Picture
-          url={url}
-          fit="cover"
-          fallback={
-            <span
-              className={cn(s.display, "relative z-10 self-center leading-none")}
-              style={{ fontSize: size * 0.34 }}
-            >
-              {initialsOf(name)}
-            </span>
-          }
-        />
-      </span>
+        imgClassName="relative z-10 h-full w-full object-cover"
+        textClassName={cn(s.display, "relative z-10 leading-none")}
+        textStyle={{ fontSize: size * 0.34 }}
+      />
     </span>
   );
 }

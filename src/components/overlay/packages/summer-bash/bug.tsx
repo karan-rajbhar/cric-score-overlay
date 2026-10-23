@@ -21,6 +21,7 @@ import {
 } from "../../score-bug";
 import { inningsTeamName, scoreOf } from "../../scorecard-cards";
 import type { LiveMatchState } from "../../types";
+import { chaseLine } from "../shared";
 import type { OverlayElementProps } from "../types";
 import {
   BallChips,
@@ -62,26 +63,16 @@ function battingLogo(state: LiveMatchState): string | null {
     : (state.team1_logo_url ?? null);
 }
 
-/** The chase, when there is one to show. */
+/** The chase, when there is one to show (the shared chase line). */
 export function chaseOf(state: LiveMatchState): {
   need: number;
   balls: number;
   target: number;
 } | null {
-  if (
-    state.target_runs === null ||
-    state.runs_needed === null ||
-    state.balls_remaining === null ||
-    state.innings_completed ||
-    (state.runs_needed ?? 0) <= 0
-  ) {
-    return null;
-  }
-  return {
-    need: state.runs_needed,
-    balls: state.balls_remaining,
-    target: state.target_runs,
-  };
+  const chase = chaseLine(state);
+  return chase
+    ? { need: chase.runsNeeded, balls: chase.ballsRemaining, target: chase.target }
+    : null;
 }
 
 /** Local start time, formatted after hydration (the server has no zone). */
