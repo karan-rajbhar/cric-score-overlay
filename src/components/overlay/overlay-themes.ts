@@ -20,39 +20,28 @@
  */
 
 import type { CSSProperties } from "react";
+import { isPackageId, PACKAGE_MANIFEST } from "./packages/manifest";
 
+/** The plain themes (palettes of the Standard components). */
 export const OVERLAY_THEME_IDS = ["standard", "light", "team", "custom"] as const;
 export type OverlayThemeId = (typeof OVERLAY_THEME_IDS)[number];
 
 export interface OverlayThemeOption {
-  id: OverlayThemeId;
+  id: string;
   label: string;
   description: string;
 }
 
-/** The themes a producer can pick, in display order. */
-export const OVERLAY_THEMES: readonly OverlayThemeOption[] = [
-  {
-    id: "standard",
-    label: "Standard",
-    description: "Navy bar, white figures. Reads over grass and dark footage.",
-  },
-  {
-    id: "light",
-    label: "Light",
-    description: "White bar, navy figures. For night or dark footage.",
-  },
-  {
-    id: "team",
-    label: "Team colours",
-    description: "Each side in its team colour, Standard where a team has none.",
-  },
-  {
-    id: "custom",
-    label: "Custom",
-    description: "Your primary and accent colours, text picked for contrast.",
-  },
-];
+/**
+ * The themes a producer can pick, in display order: every package
+ * (`packages/manifest.ts`), the plain ones first.
+ */
+export const OVERLAY_THEMES: readonly OverlayThemeOption[] =
+  PACKAGE_MANIFEST.map(({ id, label, description }) => ({
+    id,
+    label,
+    description,
+  }));
 
 /**
  * Ids of the themes this set replaced. Saved OBS URLs and stored settings
@@ -80,15 +69,14 @@ const LEGACY_THEME_MAP: Record<string, OverlayThemeId> = Object.fromEntries(
   LEGACY_OVERLAY_THEME_IDS.map((id) => [id, "standard" as const]),
 );
 
-/** A theme id from a URL, a command or storage: current, legacy or unknown. */
-export function resolveOverlayTheme(
-  id: string | null | undefined,
-): OverlayThemeId {
+/**
+ * A theme id from a URL, a command or storage (current, legacy or
+ * unknown) as a package id.
+ */
+export function resolveOverlayTheme(id: string | null | undefined): string {
   if (!id) return "standard";
   const key = id.trim().toLowerCase();
-  if ((OVERLAY_THEME_IDS as readonly string[]).includes(key)) {
-    return key as OverlayThemeId;
-  }
+  if (isPackageId(key)) return key;
   return LEGACY_THEME_MAP[key] ?? "standard";
 }
 

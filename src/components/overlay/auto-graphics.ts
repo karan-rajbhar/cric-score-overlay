@@ -229,6 +229,7 @@ function stingFor(
         sting: {
           id,
           type: e.type,
+          kind: e.type,
           title: e.type === "four" ? "Four" : "Six",
           subtitle: name,
           detail: batterFigures(state, e.player_id) ?? undefined,
@@ -240,6 +241,7 @@ function stingFor(
         sting: {
           id,
           type: "wicket",
+          kind: "wicket",
           title: "Wicket",
           subtitle: name,
           detail: wicketDetail(state, e) || undefined,
@@ -251,6 +253,7 @@ function stingFor(
         sting: {
           id,
           type: "milestone",
+          kind: (e.value ?? 0) >= 100 ? "hundred" : "fifty",
           title: MILESTONE_TITLE[e.value ?? 0] ?? `${e.value}`,
           subtitle: name,
           detail: `${e.runs ?? e.value} (${e.balls ?? 0})`,
@@ -262,6 +265,7 @@ function stingFor(
         sting: {
           id,
           type: "milestone",
+          kind: e.value === 5 ? "five_for" : "three_for",
           title: e.value === 5 ? "Five wickets" : "Three wickets",
           subtitle: name,
           detail: `${e.wickets ?? e.value}-${e.runs ?? 0}`,
@@ -273,6 +277,7 @@ function stingFor(
         sting: {
           id,
           type: "free_hit",
+          kind: "free_hit",
           title: "Free hit",
           subtitle: "No-ball called",
           detail: "Next delivery is a free hit",
@@ -284,6 +289,7 @@ function stingFor(
         sting: {
           id,
           type: "milestone",
+          kind: "hat_trick",
           title: "Hat-trick",
           subtitle: name,
           detail: `${e.wickets ?? 3}-${e.runs ?? 0}`,

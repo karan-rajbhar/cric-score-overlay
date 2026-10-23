@@ -77,6 +77,7 @@ export function OverlayPreview({
             layers={layers}
             onDismissSting={onDismissSting}
             onDismissStrap={onDismissStrap}
+            preview
           />
         </div>
       )}

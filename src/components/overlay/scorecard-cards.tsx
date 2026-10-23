@@ -213,3 +213,53 @@ export function InningsCard({
     </CardShell>
   );
 }
+
+/** The fall of wickets on a card of its own. */
+export function FallOfWicketsCard({
+  state,
+  innings,
+  teamName,
+}: {
+  state: LiveMatchState;
+  innings: Innings;
+  teamName: string;
+}) {
+  const fow = [...(innings.fall_of_wickets ?? [])].sort(
+    (a, b) => a.wicket_number - b.wicket_number,
+  );
+  if (!fow.length) return null;
+  return (
+    <CardShell
+      className="max-w-[56rem]"
+      eyebrow={eyebrowOf(state, inningsLabel(innings.innings_number))}
+      title={`${teamName} fall of wickets`}
+      aside={
+        <span className="text-[2.5rem] font-bold tabular-nums">
+          {scoreOf(innings)}
+        </span>
+      }
+    >
+      <ol className="space-y-1">
+        {fow.map((f) => (
+          <li
+            key={f.wicket_number}
+            className={cn(
+              "flex items-baseline gap-4 border-b py-1.5 text-lg last:border-0",
+              OV.cardLine,
+            )}
+          >
+            <span className="w-20 font-bold tabular-nums">
+              {f.runs_at_fall}/{f.wicket_number}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">
+              {f.batsman?.full_name ?? ""}
+            </span>
+            <span className={cn("tabular-nums", OV.cardMuted)}>
+              {formatFowOvers(f.overs_at_fall)} ov
+            </span>
+          </li>
+        ))}
+      </ol>
+    </CardShell>
+  );
+}

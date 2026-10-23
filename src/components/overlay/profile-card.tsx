@@ -9,7 +9,7 @@
 import type { ReactNode } from "react";
 import type { PlayerCareerStatsRow } from "~/lib/firebase/types";
 import { cn } from "~/lib/utils";
-import { usePlayerProfile } from "./overlay-data";
+import { usePlayerProfile, type PlayerProfile } from "./overlay-data";
 import {
   economyText,
   OV,
@@ -201,14 +201,24 @@ function careerStats(c: PlayerCareerStatsRow, bowler: boolean): Stat[] {
   ];
 }
 
-/** Career figures and photo (2 reads when shown; nothing without a record). */
+/**
+ * Career figures and photo (2 reads when shown; nothing without a record).
+ * `profile` given (the gallery's demo) reads nothing.
+ */
 export function CareerCard({
   state,
   slot,
-}: OverlayThemeProps & { state: LiveMatchState; slot: PlayerSlot }) {
+  profile: given,
+}: OverlayThemeProps & {
+  state: LiveMatchState;
+  slot: PlayerSlot;
+  profile?: PlayerProfile | null;
+}) {
   const who = playerInSlot(state, slot);
-  const { profile, loaded } = usePlayerProfile(state, who.id, true);
-  if (!who.name || !loaded || !profile.career) return null;
+  const read = usePlayerProfile(state, given === undefined ? who.id : null, true);
+  const profile = given ?? read.profile;
+  const loaded = given !== undefined || read.loaded;
+  if (!who.name || !loaded || !profile?.career) return null;
   return (
     <LowerThird
       name={who.name}

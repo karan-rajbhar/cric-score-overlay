@@ -147,7 +147,7 @@ const LAYOUTS: Array<{ id: SceneLayout; label: string }> = [
 
 /** The graphics-suite views by what they show. */
 const VIEW_GROUPS: Array<{ title: string; views: BroadcastViewId[] }> = [
-  { title: "Scorecards", views: ["2", "3", "4", "5", "8", "14"] },
+  { title: "Scorecards", views: ["2", "3", "4", "5", "45", "8", "14"] },
   { title: "This innings", views: ["16", "17", "18", "19", "23", "40"] },
   { title: "Careers", views: ["24", "25", "26", "27"] },
   {

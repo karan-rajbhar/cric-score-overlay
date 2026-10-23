@@ -208,6 +208,7 @@ const VIEW_IDS: readonly BroadcastViewId[] = [
   "42",
   "43",
   "44",
+  "45",
 ];
 
 const CARDS: readonly PresentationCardType[] = [
