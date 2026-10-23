@@ -175,7 +175,10 @@ export function applyQueryOptions(
         if (c !== 0) return orders[i]!.direction === "desc" ? c < 0 : c > 0;
       }
       const id = String(cursor[orders.length] ?? "");
-      return doc.id > id;
+      // Ties continue in the last order's direction, as the sort above.
+      return orders[orders.length - 1]!.direction === "desc"
+        ? doc.id < id
+        : doc.id > id;
     };
     out = out.filter(after);
   }

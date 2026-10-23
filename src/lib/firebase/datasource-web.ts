@@ -72,8 +72,10 @@ export class WebDataSource implements DataSource {
       constraints.push(orderBy(o.field, o.direction));
     }
     if (options?.startAfter && options.orderBy?.length) {
+      // Ties by document id in the last order's direction (Firestore's own).
+      const last = options.orderBy[options.orderBy.length - 1]!;
       constraints.push(
-        orderBy(documentId()),
+        orderBy(documentId(), last.direction),
         startAfter(...options.startAfter),
       );
     }
