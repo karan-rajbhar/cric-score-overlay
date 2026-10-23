@@ -55,6 +55,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
       "Bold, minimal ball-countdown look for short formats: giant runs and balls left, the chase in one line.",
     kind: "broadcast",
   },
+  {
+    id: "world-event",
+    label: "World event",
+    description:
+      "Global tournament look with bold, clean data: white and deep indigo panels, each side in its team colour.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
