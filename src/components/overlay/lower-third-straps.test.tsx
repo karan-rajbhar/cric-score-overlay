@@ -1,6 +1,10 @@
 import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { DEMO_MATCH_STATE } from "~/app/overlay/[matchId]/demo-data";
+import {
+  DEMO_MATCH_DETAILS,
+  DEMO_MATCH_STATE,
+} from "~/app/overlay/[matchId]/demo-data";
+import type { Match } from "~/lib/match-types";
 import {
   HoldScreen,
   LowerThirdStraps,
@@ -8,6 +12,7 @@ import {
   strapHidesScoreBug,
   useHeldState,
 } from "./lower-third-straps";
+import { OverlayPackageScope } from "./packages/registry";
 import type { ActiveLowerThirdStrap, LiveMatchState } from "./types";
 
 const S = DEMO_MATCH_STATE;
@@ -29,6 +34,46 @@ describe("LowerThirdStraps", () => {
       <LowerThirdStraps strap={null} state={S} layout="bottom" onDismiss={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it("hands the match to the package, so its lower third shows the player's photo", () => {
+    const url = "https://example.com/striker.png";
+    const match = {
+      ...DEMO_MATCH_DETAILS,
+      player_of_the_match: {
+        id: S.striker_id!,
+        full_name: S.striker_name!,
+        avatar_url: url,
+      },
+    } as Match;
+    const strap = { id: "x", type: "batsman", title: "", durationMs: 5000 } as const;
+    const { container, rerender } = render(
+      <OverlayPackageScope theme="franchise-night" customColors={null} state={S}>
+        <LowerThirdStraps
+          strap={strap}
+          state={S}
+          match={match}
+          layout="bottom"
+          onDismiss={vi.fn()}
+          theme="franchise-night"
+        />
+      </OverlayPackageScope>,
+    );
+    expect(container.querySelector(`img[src="${url}"]`)).not.toBeNull();
+
+    // Without the match there is no photo to show.
+    rerender(
+      <OverlayPackageScope theme="franchise-night" customColors={null} state={S}>
+        <LowerThirdStraps
+          strap={strap}
+          state={S}
+          layout="bottom"
+          onDismiss={vi.fn()}
+          theme="franchise-night"
+        />
+      </OverlayPackageScope>,
+    );
+    expect(container.querySelector(`img[src="${url}"]`)).toBeNull();
   });
 
   it("shows the striker's innings with boundaries and strike rate", () => {
