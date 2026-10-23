@@ -63,12 +63,12 @@ describe("SquadManagerDialog", () => {
     expect(played).toHaveTextContent("Out");
     expect(
       screen.getByRole("button", {
-        name: "Remove Cheteshwar Pujara from squad",
+        name: "Remove Cheteshwar Pujara from Mumbai",
       }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
-        name: "Remove Ajinkya Rahane from squad",
+        name: "Remove Ajinkya Rahane from Mumbai",
       }),
     ).not.toBeInTheDocument();
   });
@@ -103,7 +103,7 @@ describe("SquadManagerDialog", () => {
     renderDialog({ isOffline: true });
     expect(
       screen.getByRole("button", {
-        name: "Remove Cheteshwar Pujara from squad",
+        name: "Remove Cheteshwar Pujara from Mumbai",
       }),
     ).toBeDisabled();
     fireEvent.change(screen.getByRole("searchbox"), {
@@ -114,6 +114,33 @@ describe("SquadManagerDialog", () => {
       screen.getByText("Changing squads needs a connection."),
     ).toBeInTheDocument();
     expect(actions.searchUsers).not.toHaveBeenCalled();
+  });
+
+  it("asks before removing a player from the team, and says it is the team", async () => {
+    const props = renderDialog();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Cheteshwar Pujara from Mumbai" }),
+    );
+    // Nothing is removed until the scorer confirms.
+    expect(actions.removePlayerFromTeam).not.toHaveBeenCalled();
+    const confirm = await screen.findByRole("dialog", {
+      name: "Remove Cheteshwar Pujara from Mumbai?",
+    });
+    expect(confirm).toHaveTextContent("not just this match");
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    expect(actions.removePlayerFromTeam).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove Cheteshwar Pujara from Mumbai" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove from team" }),
+    );
+    await waitFor(() =>
+      expect(actions.removePlayerFromTeam).toHaveBeenCalledWith("t1", "c"),
+    );
+    await waitFor(() => expect(props.onChanged).toHaveBeenCalled());
   });
 
   it("adds a registered player through the scorer's add", async () => {

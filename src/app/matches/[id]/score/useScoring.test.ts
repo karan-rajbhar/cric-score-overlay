@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { useScoring } from "./useScoring";
+import { NO_CONNECTION_TOSS, useScoring } from "./useScoring";
 import { getScoringState, getTeamPlayers } from "../../queries";
 import {
+  startMatch,
   recordBall,
   retirePlayer,
   setCurrentBatsmen,
@@ -355,7 +356,7 @@ describe("useScoring", () => {
 
     // Score without batsmen
     const resNoBatsman = await result.current.handleScore("u3", "", "", { runsScored: 1 });
-    expect(resNoBatsman.error).toMatch(/batsm/i);
+    expect(resNoBatsman.error).toMatch(/batter/i);
   });
 
   it("does not leak previous over deliveries into new bowler's over when syncing from DB", async () => {
@@ -790,6 +791,104 @@ describe("useScoring", () => {
     const left = getPendingActions(matchId);
     expect(left.map((a) => a.type)).toEqual(["setBatsmen", "endInnings"]);
     expect(left[0]).toMatchObject({ retryCount: 1, lastError: "Server busy" });
+  });
+
+  it("lets the scorer skip only an action the server refused, then shows what it has", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    enqueueAction(matchId, "setBatsmen", { strikerId: "u1", nonStrikerId: "u2" });
+    enqueueAction(matchId, "endInnings", {} as Record<string, never>);
+
+    // No answer at all: nothing to skip (the server may yet apply it).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(result.current.refusedHead).toBeNull();
+    await act(async () => {
+      expect(await result.current.handleSkipHeadAction()).toBeNull();
+    });
+    expect(getPendingActions(matchId)).toHaveLength(2);
+
+    // Refused by the server: it may be skipped.
+    const batches = mockReplayRoute((a) =>
+      a.type === "setBatsmen"
+        ? { status: "failed", error: "Server busy" }
+        : { status: "applied" },
+    );
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(result.current.refusedHead?.type).toBe("setBatsmen");
+    const reads = vi.mocked(getScoringState).mock.calls.length;
+    await act(async () => {
+      await result.current.handleSkipHeadAction();
+    });
+    // Kept for review; the rest went on, and the screen re-read.
+    expect(result.current.deadLetters.map((d) => d.action.type)).toEqual([
+      "setBatsmen",
+    ]);
+    expect(batches.at(-1)!.actions.map((a) => a.type)).toEqual(["endInnings"]);
+    expect(getPendingActions(matchId)).toHaveLength(0);
+    expect(vi.mocked(getScoringState).mock.calls.length).toBeGreaterThan(reads);
+    expect(result.current.refusedHead).toBeNull();
+  });
+
+  it("frees the screen when the toss gets no answer", async () => {
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    vi.mocked(startMatch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    let res: { error: string | null } | undefined;
+    await act(async () => {
+      res = await result.current.handleStartMatch("team-1", "bat");
+    });
+    expect(res?.error).toBe(NO_CONNECTION_TOSS);
+    expect(result.current.isProcessing).toBe(false);
+  });
+
+  it("offline, ends a chase without opening a third innings", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    vi.mocked(getScoringState).mockResolvedValueOnce({
+      base: null,
+      data: {
+        ...mockScoringState,
+        match: {
+          ...mockScoringState.match,
+          current_innings: 2,
+          innings: [
+            { innings_number: 1, team_id: "team-1", is_completed: true },
+            { innings_number: 2, team_id: "team-2" },
+          ],
+        },
+      },
+      error: null,
+    });
+    const onNeedsBatsman = vi.fn();
+    const { result } = renderHook(() => useScoring(matchId, { onNeedsBatsman }));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    onNeedsBatsman.mockClear();
+    await act(async () => {
+      await result.current.handleEndInnings();
+    });
+    expect(result.current.match?.current_innings).toBe(2);
+    expect(
+      result.current.match?.innings?.find((i) => i.innings_number === 2)
+        ?.is_completed,
+    ).toBe(true);
+    expect(onNeedsBatsman).not.toHaveBeenCalled();
+    expect(getPendingActions(matchId).map((a) => a.type)).toEqual(["endInnings"]);
   });
 
   it("queues a ball whose reply was lost under the id it was sent with", async () => {

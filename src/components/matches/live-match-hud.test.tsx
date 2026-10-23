@@ -307,7 +307,7 @@ function renderHud(innings_number = 1) {
 describe("LiveMatchHUD end innings", () => {
   it("asks for confirmation and can be cancelled", async () => {
     const { onEndInnings, user } = renderHud();
-    await user.click(screen.getByRole("button", { name: "End inns" }));
+    await user.click(screen.getByRole("button", { name: "End innings" }));
 
     const dialog = await screen.findByRole("dialog", {
       name: "End this innings?",
@@ -322,7 +322,7 @@ describe("LiveMatchHUD end innings", () => {
 
   it("closes on Escape without ending the innings", async () => {
     const { onEndInnings, user } = renderHud();
-    await user.click(screen.getByRole("button", { name: "End inns" }));
+    await user.click(screen.getByRole("button", { name: "End innings" }));
     await screen.findByRole("dialog");
 
     await user.keyboard("{Escape}");
@@ -332,12 +332,78 @@ describe("LiveMatchHUD end innings", () => {
 
   it("ends the innings once when confirmed", async () => {
     const { onEndInnings, user } = renderHud(2);
-    await user.click(screen.getByRole("button", { name: "End inns" }));
+    await user.click(screen.getByRole("button", { name: "End innings" }));
     const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveTextContent("No more balls can be scored");
+    expect(dialog).toHaveTextContent("This ends the match");
 
     await user.click(screen.getByRole("button", { name: "End innings" }));
     expect(onEndInnings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("LiveMatchHUD super over", () => {
+  const superOverMatch = (innings_number: number) =>
+    ({
+      id: "m1",
+      title: "Test match",
+      status: "live",
+      current_innings: innings_number,
+      overs_per_innings: 20,
+      wickets_per_innings: 10,
+      balls_per_over: 6,
+      innings: [],
+    }) as unknown as Match;
+
+  it("shows one over and two wickets, not the match's limits", () => {
+    render(
+      <LiveMatchHUD
+        match={superOverMatch(3)}
+        currentInnings={
+          {
+            id: "inn-3",
+            innings_number: 3,
+            total_runs: 7,
+            total_wickets: 0,
+            total_balls: 2,
+            fall_of_wickets: [],
+          } as unknown as Innings
+        }
+        striker={null}
+        nonStriker={null}
+        bowler={null}
+        lastBalls={[]}
+      />,
+    );
+    expect(screen.getByText(/Super over · 1st innings/)).toBeInTheDocument();
+    expect(screen.getByText(/4 balls remaining/)).toBeInTheDocument();
+    expect(screen.queryByText(/1st innings ·/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the chase in the super over's second innings", () => {
+    render(
+      <LiveMatchHUD
+        match={superOverMatch(4)}
+        currentInnings={
+          {
+            id: "inn-4",
+            innings_number: 4,
+            total_runs: 5,
+            total_wickets: 1,
+            total_balls: 3,
+            target_runs: 12,
+            fall_of_wickets: [],
+          } as unknown as Innings
+        }
+        striker={null}
+        nonStriker={null}
+        bowler={null}
+        lastBalls={[]}
+      />,
+    );
+    expect(screen.getByTestId("chase-equation-title")).toHaveTextContent(
+      "Need 7 runs from 3 balls",
+    );
+    expect(screen.getByText(/Super over · 2nd innings/)).toBeInTheDocument();
   });
 });

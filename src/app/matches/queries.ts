@@ -326,7 +326,10 @@ export async function getScoringState(matchId: string) {
       dismissal_type?: string | null;
       bowler_id?: string | null;
       batsman_id?: string | null;
+      non_striker_id?: string | null;
       dismissed_player_id?: string | null;
+      fielder_id?: string | null;
+      no_ball_runs?: string | null;
     }> = [];
     let lastOverBowlerId: string | null = null;
     let displayOverDoc: OversRow | null = null;

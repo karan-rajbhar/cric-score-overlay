@@ -1,4 +1,5 @@
 import type { Match } from "./match-types";
+import { noBallByesOf } from "./firebase/scoring/recompute";
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
   bowlerEconomy,
@@ -355,12 +356,14 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
 
       const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
       if (isLegal) overLegalBalls++;
+      // Byes off a no-ball are not the bowler's (only its penalty is).
+      const nbByes = noBallByesOf(d);
       if (
         d.extra_type !== "bye" &&
         d.extra_type !== "leg_bye" &&
         d.extra_type !== "penalty"
       ) {
-        overBowlerRuns += totalBallRuns;
+        overBowlerRuns += totalBallRuns - (nbByes?.runs ?? 0);
       }
 
       if (d.batsman_id) {
@@ -385,7 +388,7 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
           d.extra_type === "leg_bye" ||
           d.extra_type === "penalty"
             ? 0
-            : totalBallRuns;
+            : totalBallRuns - (nbByes?.runs ?? 0);
         bwStat.runs += bowlerRuns;
         if (isWkt) bwStat.wickets++;
         if (isLegal) bwStat.balls++;
@@ -401,7 +404,11 @@ function getInningsOverComparison(inn: InningsRow): OverData[] {
         text = extras > 1 ? `${extras}Wd` : "Wd";
         type = "extra";
       } else if (d.extra_type === "no_ball") {
-        text = runsScored > 0 ? `${runsScored}Nb` : "Nb";
+        text = nbByes?.runs
+          ? `Nb+${nbByes.runs}${nbByes.kind === "bye" ? "b" : "lb"}`
+          : runsScored > 0
+            ? `${runsScored}Nb`
+            : "Nb";
         type = "extra";
       } else if (d.extra_type === "bye") {
         text = `B${extras}`;

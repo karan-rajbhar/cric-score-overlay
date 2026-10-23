@@ -21,31 +21,38 @@ import {
 } from "~/components/ui/select";
 import { ShieldAlert, Award } from "lucide-react";
 import type { Team } from "~/lib/match-types";
+import { cn } from "~/lib/utils";
 
 interface PenaltyBonusDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   battingTeam?: Team | null;
   bowlingTeam?: Team | null;
+  /** Resolves false when nothing was recorded (the dialog stays open). */
   onConfirm: (params: {
     teamId: string;
     runs: number;
     reason: string;
     type: "penalty" | "bonus";
-  }) => Promise<void> | void;
+  }) => Promise<boolean | void> | boolean | void;
   isProcessing?: boolean;
 }
 
 const COMMON_REASONS = [
-  "Ball hit helmet on ground (Law 28.3)",
-  "Fake fielding / unfair play (Law 41)",
-  "Running on pitch danger area (Law 41)",
-  "Player misconduct / Level 1/2 (Law 42)",
-  "Slow over rate penalty",
-  "Target bonus / powerplay bonus",
-  "Other infraction",
+  "Ball hit a fielder's helmet on the ground",
+  "Fake fielding or deliberate distraction",
+  "Running on the protected area of the pitch",
+  "Player misconduct",
+  "Slow over rate",
+  "Target or powerplay bonus",
+  "Other",
 ];
 
+/**
+ * Penalty or bonus runs to either side, logged between balls. Nothing is
+ * preselected for the side: runs to the wrong team change the result, so
+ * the scorer taps the team each time the dialog opens.
+ */
 export function PenaltyBonusDialog({
   open,
   onOpenChange,
@@ -55,28 +62,45 @@ export function PenaltyBonusDialog({
   isProcessing = false,
 }: PenaltyBonusDialogProps) {
   const [awardType, setAwardType] = useState<"penalty" | "bonus">("penalty");
-  const [targetTeamId, setTargetTeamId] = useState<string>(
-    battingTeam?.id ?? "",
-  );
+  const [targetTeamId, setTargetTeamId] = useState<string | null>(null);
   const [runs, setRuns] = useState<number>(5);
   const [reason, setReason] = useState<string>(COMMON_REASONS[0]!);
   const [customReason, setCustomReason] = useState("");
 
+  // A fresh form each time it opens (the dialog stays mounted across
+  // innings, when the batting side changes).
+  const [seen, setSeen] = useState(open);
+  if (seen !== open) {
+    setSeen(open);
+    if (open) {
+      setAwardType("penalty");
+      setTargetTeamId(null);
+      setRuns(5);
+      setReason(COMMON_REASONS[0]!);
+      setCustomReason("");
+    }
+  }
+
+  const teams = [
+    battingTeam ? { team: battingTeam, side: "batting" } : null,
+    bowlingTeam ? { team: bowlingTeam, side: "fielding" } : null,
+  ].filter((t): t is { team: Team; side: string } => t !== null);
+  const target = teams.find((t) => t.team.id === targetTeamId)?.team ?? null;
+  const runsLabel = `${runs} run${runs === 1 ? "" : "s"}`;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetTeamId) return;
+    if (!target || !runs) return;
     const finalReason =
-      reason === "Other infraction" && customReason.trim()
-        ? customReason.trim()
-        : reason;
+      reason === "Other" && customReason.trim() ? customReason.trim() : reason;
 
-    await onConfirm({
-      teamId: targetTeamId,
+    const done = await onConfirm({
+      teamId: target.id,
       runs: Math.max(1, runs),
       reason: finalReason,
       type: awardType,
     });
-    onOpenChange(false);
+    if (done !== false) onOpenChange(false);
   };
 
   const runPresets = [1, 2, 3, 5, 10];
@@ -89,9 +113,9 @@ export function PenaltyBonusDialog({
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-destructive/10 text-destructive">
                 {awardType === "penalty" ? (
-                  <ShieldAlert className="h-4 w-4" />
+                  <ShieldAlert className="h-4 w-4" aria-hidden="true" />
                 ) : (
-                  <Award className="h-4 w-4" />
+                  <Award className="h-4 w-4" aria-hidden="true" />
                 )}
               </span>
               <DialogTitle className="text-lg font-semibold">
@@ -99,7 +123,7 @@ export function PenaltyBonusDialog({
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground">
-              Award penalty runs (MCC Law 41/42) or bonus runs to either team.
+              Runs to either side, recorded between balls (not a delivery).
             </DialogDescription>
           </DialogHeader>
 
@@ -118,7 +142,8 @@ export function PenaltyBonusDialog({
                   type="button"
                   variant={awardType === "penalty" ? "default" : "outline"}
                   size="sm"
-                  className="h-9 font-semibold"
+                  aria-pressed={awardType === "penalty"}
+                  className="min-h-11 font-semibold"
                   onClick={() => {
                     setAwardType("penalty");
                     setRuns(5);
@@ -130,7 +155,8 @@ export function PenaltyBonusDialog({
                   type="button"
                   variant={awardType === "bonus" ? "default" : "outline"}
                   size="sm"
-                  className="h-9 font-semibold"
+                  aria-pressed={awardType === "bonus"}
+                  className="min-h-11 font-semibold"
                   onClick={() => {
                     setAwardType("bonus");
                     setRuns(1);
@@ -141,34 +167,42 @@ export function PenaltyBonusDialog({
               </div>
             </div>
 
-            {/* Recipient Team */}
+            {/* Recipient team: nobody preselected */}
             <div className="space-y-1.5">
-              <Label htmlFor="recipient-team" className="text-xs font-semibold">
-                Award runs to
-              </Label>
-              <Select
-                value={targetTeamId || battingTeam?.id || ""}
-                onValueChange={setTargetTeamId}
-              >
-                <SelectTrigger id="recipient-team" className="h-9 text-xs font-semibold">
-                  <SelectValue placeholder="Select team" />
-                </SelectTrigger>
-                <SelectContent>
-                  {battingTeam && (
-                    <SelectItem value={battingTeam.id}>
-                      {battingTeam.name} (Batting Team)
-                    </SelectItem>
-                  )}
-                  {bowlingTeam && (
-                    <SelectItem value={bowlingTeam.id}>
-                      {bowlingTeam.name} (Fielding / Bowling Team)
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              <p className="text-2xs text-muted-foreground">
-                Under MCC Law 41/42, penalty runs can be awarded to either team.
+              <p id="recipient-team-label" className="text-xs font-semibold">
+                Award the runs to
               </p>
+              <div
+                role="radiogroup"
+                aria-labelledby="recipient-team-label"
+                className="grid grid-cols-2 gap-2"
+              >
+                {teams.map(({ team, side }) => {
+                  const checked = team.id === targetTeamId;
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => setTargetTeamId(team.id)}
+                      className={cn(
+                        "flex min-h-14 min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors",
+                        checked
+                          ? "border-primary bg-primary/10"
+                          : "border-border/70 bg-background hover:bg-muted",
+                      )}
+                    >
+                      <span className="w-full truncate text-sm font-medium">
+                        {team.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {side === "batting" ? "Batting now" : "Fielding now"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Run Presets & Input */}
@@ -178,18 +212,19 @@ export function PenaltyBonusDialog({
                   Number of runs
                 </Label>
                 <span className="text-2xs text-muted-foreground">
-                  Standard Law 41/42 is 5 runs
+                  A penalty is usually 5 runs
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <Input
                   id="penalty-runs"
                   type="number"
+                  inputMode="numeric"
                   min={1}
                   max={50}
                   value={runs}
                   onChange={(e) => setRuns(Number(e.target.value))}
-                  className="h-9 w-20 text-xs font-semibold"
+                  className="h-11 w-20 text-sm font-semibold tabular-nums"
                   required
                 />
                 <div className="flex flex-wrap gap-1">
@@ -199,10 +234,11 @@ export function PenaltyBonusDialog({
                       type="button"
                       variant={runs === r ? "default" : "outline"}
                       size="sm"
+                      aria-pressed={runs === r}
                       onClick={() => setRuns(r)}
-                      className="h-8 px-2 text-xs font-semibold"
+                      className="h-11 min-w-11 px-2 text-xs font-semibold tabular-nums"
                     >
-                      +{r}
+                      {r}
                     </Button>
                   ))}
                 </div>
@@ -212,10 +248,10 @@ export function PenaltyBonusDialog({
             {/* Reason */}
             <div className="space-y-1.5">
               <Label htmlFor="penalty-reason" className="text-xs font-semibold">
-                Reason / violation
+                Reason
               </Label>
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger id="penalty-reason" className="h-9 text-xs">
+                <SelectTrigger id="penalty-reason" className="h-11 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -228,17 +264,17 @@ export function PenaltyBonusDialog({
               </Select>
             </div>
 
-            {reason === "Other infraction" && (
+            {reason === "Other" && (
               <div className="space-y-1.5">
                 <Label htmlFor="custom-reason" className="text-xs font-semibold">
-                  Specify reason
+                  What happened
                 </Label>
                 <Input
                   id="custom-reason"
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
-                  placeholder="Enter details..."
-                  className="h-9 text-xs"
+                  placeholder="Enter details"
+                  className="h-11 text-xs"
                   required
                 />
               </div>
@@ -249,7 +285,7 @@ export function PenaltyBonusDialog({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              className="min-h-11"
               onClick={() => onOpenChange(false)}
               disabled={isProcessing}
             >
@@ -257,11 +293,14 @@ export function PenaltyBonusDialog({
             </Button>
             <Button
               type="submit"
-              size="sm"
-              disabled={isProcessing || !runs}
-              className="bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
+              disabled={isProcessing || !runs || !target}
+              className="min-h-11 bg-destructive font-semibold text-destructive-foreground hover:bg-destructive"
             >
-              {isProcessing ? "Awarding..." : `Award +${runs} Runs`}
+              {isProcessing
+                ? "Awarding…"
+                : target
+                  ? `Award ${runsLabel} to ${target.name}`
+                  : "Choose a team"}
             </Button>
           </DialogFooter>
         </form>

@@ -201,6 +201,7 @@ export function deliveryLabel(b: {
   extra_type?: string | null;
   is_wicket?: boolean | null;
   dismissal_type?: string | null;
+  no_ball_runs?: string | null;
 }): string {
   if (b.is_wicket && b.dismissal_type === "retired_hurt") return "rh";
   if (b.is_wicket && b.dismissal_type === "retired_out") return "ro";
@@ -208,9 +209,17 @@ export function deliveryLabel(b: {
   switch (b.extra_type) {
     case "wide":
       return `wd${(b.extras ?? 0) > 1 ? `+${(b.extras ?? 0) - 1}` : ""}`;
-    case "no_ball":
+    case "no_ball": {
+      // Byes / leg byes off it: in extras after the 1-run penalty ("nb+2b").
+      if (b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye") {
+        const byes = Math.max(0, (b.extras ?? 0) - 1);
+        return byes > 0
+          ? `nb+${byes}${b.no_ball_runs === "bye" ? "b" : "lb"}`
+          : "nb";
+      }
       // Scorer payload: runs_scored = bat runs, extras = 1 (the no-ball).
       return `nb${(b.runs_scored ?? 0) > 0 ? `+${b.runs_scored}` : ""}`;
+    }
     case "bye":
       return `b${b.extras ?? 0}`;
     case "leg_bye":

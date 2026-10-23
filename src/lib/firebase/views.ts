@@ -78,7 +78,15 @@ function ballText(b: BallByBallRow): string {
   const runs = b.runs_scored ?? 0;
   if (b.is_wicket) return "W";
   if (b.extra_type === "wide") return runs ? `${runs}+wd` : "wd";
-  if (b.extra_type === "no_ball") return runs ? `${runs}+nb` : "nb";
+  if (b.extra_type === "no_ball") {
+    // Byes / leg byes off it ride in extras after the 1-run penalty.
+    const byes =
+      b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye"
+        ? Math.max(0, (b.extras ?? 0) - 1)
+        : 0;
+    if (byes) return `nb+${byes}${b.no_ball_runs === "bye" ? "b" : "lb"}`;
+    return runs ? `${runs}+nb` : "nb";
+  }
   return String(runs);
 }
 

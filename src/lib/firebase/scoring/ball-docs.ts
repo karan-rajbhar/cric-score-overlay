@@ -81,13 +81,36 @@ export interface RecordBallArgs {
   p_commentary?: string | null;
   p_dismissed_player_id?: string | null;
   p_shot_zone?: string | null;
+  /**
+   * On a no-ball: what the completed runs were (`no_ball_runs`). Absent,
+   * null or "bat": off the bat, as before the field existed.
+   */
+  p_no_ball_runs?: string | null;
 }
+
+/** What a no-ball's completed runs may be besides off the bat. */
+export const NO_BALL_RUNS = new Set(["bye", "leg_bye"]);
 
 export interface CheckedBall {
   extraType: string | null;
   isWicket: boolean;
   dismissalType: string | null;
   dismissedId: string | null;
+  /** Byes or leg byes off a no-ball; null: off the bat (or not a no-ball). */
+  noBallRuns?: "bye" | "leg_bye" | null;
+}
+
+/**
+ * A no-ball's `no_ball_runs` from its arguments: null unless the ball is a
+ * no-ball whose runs were byes or leg byes. Undefined: an unknown value.
+ */
+export function noBallRunsOf(
+  extraType: string | null,
+  value: string | null | undefined,
+): "bye" | "leg_bye" | null | undefined {
+  if (value == null || value === "bat") return null;
+  if (!NO_BALL_RUNS.has(value)) return undefined;
+  return extraType === "no_ball" ? (value as "bye" | "leg_bye") : null;
 }
 
 /**
@@ -105,6 +128,8 @@ export function checkBallArgs(
   if (isWicket && dismissalType && !DISMISSAL_TYPES.has(dismissalType)) {
     return { ok: false, code: "invalid_input" };
   }
+  const noBallRuns = noBallRunsOf(extraType, args.p_no_ball_runs);
+  if (noBallRuns === undefined) return { ok: false, code: "invalid_input" };
   let dismissedId: string | null = null;
   if (isWicket) {
     dismissedId = args.p_dismissed_player_id ?? args.p_batsman_id;
@@ -117,7 +142,7 @@ export function checkBallArgs(
   }
   return {
     ok: true,
-    checked: { extraType, isWicket, dismissalType, dismissedId },
+    checked: { extraType, isWicket, dismissalType, dismissedId, noBallRuns },
   };
 }
 
@@ -151,6 +176,8 @@ export function newBall(
     dismissed_player_id: checked.dismissedId,
     commentary: args.p_commentary ?? null,
     shot_zone: args.p_shot_zone ?? null,
+    // Only on a no-ball the bat did not touch: other balls stay as before.
+    ...(checked.noBallRuns ? { no_ball_runs: checked.noBallRuns } : {}),
     seq,
     created_at: now,
   };

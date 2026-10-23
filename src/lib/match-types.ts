@@ -136,6 +136,8 @@ export interface BallEvent {
   dismissed_player?: UserRef | null;
   commentary?: string | null;
   shot_zone?: string | null;
+  /** On a no-ball: its completed runs were byes / leg byes (in extras). */
+  no_ball_runs?: "bye" | "leg_bye" | null;
   seq?: number;
 }
 
@@ -208,6 +210,8 @@ export interface Match {
   wickets_per_innings?: number | null;
   last_man_stands?: boolean | null;
   golden_ball?: boolean | null;
+  /** Free hit after a no-ball; null or absent: on. */
+  free_hit?: boolean | null;
   club_id?: string | null;
   tournament_id?: string | null;
   season_id?: string | null;

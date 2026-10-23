@@ -379,6 +379,11 @@ export interface MatchesRow {
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
   /**
+   * The ball after a no-ball is a free hit (shown on the scoring screen,
+   * which then offers only the dismissals allowed). Null or absent: on.
+   */
+  free_hit?: boolean | null;
+  /**
    * Legacy home of the ball `seq` counter, no longer written: the counter
    * lives on the current innings (`InningsRow.last_ball_seq`); readers take
    * the larger of the two (`seqCounterOf` in `rpc/scoring.ts`).
@@ -538,6 +543,13 @@ export interface BallByBallRow {
    * bats; absent on every other ball.
    */
   penalty_team_id?: string | null;
+  /**
+   * On a no-ball: what the runs the batters completed were. Absent (or
+   * null): off the bat, in `runs_scored`. "bye" / "leg_bye": the ball was
+   * not hit, and `extras` holds the 1-run no-ball penalty plus those byes
+   * (or leg byes), which count to neither the striker nor the bowler.
+   */
+  no_ball_runs?: "bye" | "leg_bye" | null;
   seq: number;
   created_at: string | null;
 }
