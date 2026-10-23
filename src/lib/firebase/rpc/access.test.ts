@@ -354,3 +354,62 @@ describe("revokeInvitation", () => {
     );
   });
 });
+
+describe("acceptInvitations: club invites", () => {
+  it("makes the invited email a club member on first sign-in", async () => {
+    const ds = new MemoryDataSource({
+      users: [{ id: "new-uid", full_name: "Kiran" }],
+      club_invitations: [
+        { id: "ci1", club_id: "c1", email: "kiran@gmail.com", status: "pending" },
+        {
+          id: "ci2",
+          club_id: "c2",
+          email: "kiran@gmail.com",
+          status: "pending",
+          expires_at: "2000-01-01T00:00:00.000Z",
+        },
+        { id: "ci3", club_id: "c3", email: "kiran@gmail.com", status: "revoked" },
+      ],
+    });
+    await acceptInvitations(ds, "Kiran@Gmail.com", "new-uid");
+
+    const memberships = await ds.query("club_memberships", [
+      { field: "user_id", op: "==", value: "new-uid" },
+    ]);
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0]).toMatchObject({
+      club_id: "c1",
+      role: "member",
+      status: "active",
+      user_snapshot: { full_name: "Kiran" },
+    });
+    expect(await ds.getById("club_invitations", "ci1")).toMatchObject({
+      status: "accepted",
+      user_id: "new-uid",
+    });
+    // Expired and revoked invites stay as they are.
+    expect(await ds.getById("club_invitations", "ci2")).toMatchObject({
+      status: "pending",
+    });
+  });
+
+  it("keeps an existing membership's role and reactivates a left one", async () => {
+    const ds = new MemoryDataSource({
+      club_memberships: [
+        { id: "m1", club_id: "c1", user_id: "u1", role: "admin", status: "inactive" },
+      ],
+      club_invitations: [
+        { id: "ci1", club_id: "c1", email: "a@gmail.com", status: "pending" },
+      ],
+    });
+    await acceptInvitations(ds, "a@gmail.com", "u1");
+    expect(await ds.getById("club_memberships", "m1")).toMatchObject({
+      role: "admin",
+      status: "active",
+    });
+    const all = await ds.query("club_memberships", [
+      { field: "club_id", op: "==", value: "c1" },
+    ]);
+    expect(all).toHaveLength(1);
+  });
+});

@@ -33,7 +33,8 @@ import {
 import { PlayerList } from "~/components/teams/player-list";
 import { AddPlayerDialog } from "~/components/teams/add-player-dialog";
 import { formatTeamType } from "~/lib/cricket";
-import { TeamLogoEditor } from "~/components/teams/team-logo-editor";
+import { EditTeamDialog } from "~/components/teams/edit-team-dialog";
+import { squadClaims, type PlayerClaim } from "~/lib/squad-claims";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
 import {
@@ -62,7 +63,11 @@ export default async function TeamDetailsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tournamentId?: string; clubId?: string }>;
+  searchParams?: Promise<{
+    tournamentId?: string;
+    clubId?: string;
+    tab?: string;
+  }>;
 }) {
   const { id } = await params;
   if (
@@ -71,7 +76,7 @@ export default async function TeamDetailsPage({
     notFound();
   }
   const resolvedSearchParams = await searchParams;
-  const { tournamentId, clubId } = resolvedSearchParams ?? {};
+  const { tournamentId, clubId, tab } = resolvedSearchParams ?? {};
 
   const { data: team, error } = await loadTeam(id);
 
@@ -136,8 +141,6 @@ export default async function TeamDetailsPage({
       team?.created_by === user.id ||
       isClubAdmin);
 
-  const canEditLogo = canManageTeam;
-
   let backHref = "/teams";
   let backLabel = "Back to teams";
   if (tournamentInfo) {
@@ -179,6 +182,22 @@ export default async function TeamDetailsPage({
         avatar_url?: string;
       };
     }> | null) || [];
+
+  // Team admins see who in the squad has no account yet ("Not on
+  // CricScore") or was invited to claim their profile (masked email; the
+  // address itself stays on the server). Viewers pay no extra reads.
+  let claims: Record<string, PlayerClaim> = {};
+  const squadIds = [...new Set(players.map((p) => p.user_id).filter(Boolean))];
+  if (canManageTeam && squadIds.length > 0) {
+    const [{ data: profiles }, { data: privates }] = await Promise.all([
+      db.from("users").select("id, is_placeholder").in("id", squadIds),
+      db.from("users_private").select("id, email").in("id", squadIds),
+    ]);
+    claims = squadClaims(
+      (profiles ?? []) as { id: string; is_placeholder?: boolean | null }[],
+      (privates ?? []) as { id: string; email?: string | null }[],
+    );
+  }
 
   // Fetch all matches for this team: one indexed query per side (an `or`
   // would read every match), merged in the order the `or` query returned.
@@ -315,22 +334,28 @@ export default async function TeamDetailsPage({
       <ProfileHeader
         name={team.name}
         crest={
-          canEditLogo ? (
-            <TeamLogoEditor
-              teamId={team.id}
-              teamName={team.name}
-              shortName={team.short_name}
-              logoUrl={team.logo_url}
+          <TeamCrest
+            name={team.name}
+            shortName={team.short_name}
+            logoUrl={team.logo_url}
+            size="xl"
+            className="shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
+          />
+        }
+        actions={
+          canManageTeam ? (
+            <EditTeamDialog
+              team={{
+                id: team.id,
+                name: team.name,
+                short_name: team.short_name,
+                description: team.description,
+                logo_url: team.logo_url,
+                primary_color: team.primary_color,
+                secondary_color: team.secondary_color,
+              }}
             />
-          ) : (
-            <TeamCrest
-              name={team.name}
-              shortName={team.short_name}
-              logoUrl={team.logo_url}
-              size="xl"
-              className="shadow-soft ring-4 ring-card sm:h-24 sm:w-24 sm:text-2xl"
-            />
-          )
+          ) : undefined
         }
         labels={
           <>
@@ -382,7 +407,7 @@ export default async function TeamDetailsPage({
         {/* Matches and squad */}
         <div>
           <Tabs
-            defaultValue={tournamentId ? "matches" : "matches"}
+            defaultValue={tab === "squad" ? "squad" : "matches"}
             className="w-full"
           >
             <div className="flex items-center justify-between">
@@ -411,7 +436,7 @@ export default async function TeamDetailsPage({
             <TabsContent value="squad" className="mt-4 space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
-                  Squad roster
+                  Squad
                 </h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <TeamSquadShare
@@ -430,7 +455,9 @@ export default async function TeamDetailsPage({
 
               <PlayerList
                 teamId={team.id}
+                teamName={team.name}
                 players={players}
+                claims={claims}
                 allowEdit={canManageTeam}
                 tournamentId={tournamentId}
                 clubId={targetClubId}

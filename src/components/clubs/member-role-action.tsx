@@ -38,7 +38,7 @@ export function MemberRoleAction({
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success(`${userName} is now a club ${targetRole}!`);
+        toast.success(`${userName} is now a club ${targetRole}`);
       }
     } catch (err) {
       console.error("Failed to update role:", err);

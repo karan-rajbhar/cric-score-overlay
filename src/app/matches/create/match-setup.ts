@@ -37,11 +37,46 @@ export const LIMITS = {
   ballsPerOver: { min: 2, max: 12 },
 } as const;
 
+const inRange = (n: number, r: { min: number; max: number }) =>
+  Number.isInteger(n) && n >= r.min && n <= r.max;
+
 /** Format that matches a number of overs (Custom when no preset does). */
 export function formatForOvers(overs: number): MatchFormat {
   return (
     FORMAT_PRESETS.find((p) => p.overs === overs)?.format ?? "Custom"
   );
+}
+
+/** What a tournament stores about its matches' rules. */
+export interface TournamentRulesSource {
+  match_format?: string | null;
+  overs_per_innings?: number | null;
+  /** Legacy field, read when `overs_per_innings` is not set. */
+  custom_overs?: number | null;
+  wickets_per_innings?: number | null;
+}
+
+/**
+ * The format, overs and wickets a tournament sets for its matches; a field
+ * is missing when the tournament does not set it (or sets it out of range).
+ */
+export function tournamentRules(t: TournamentRulesSource): {
+  format?: MatchFormat;
+  overs?: number;
+  wickets?: number;
+} {
+  const preset = FORMAT_PRESETS.find((p) => p.format === t.match_format);
+  const overs = t.overs_per_innings ?? preset?.overs ?? t.custom_overs ?? null;
+  const rules: { format?: MatchFormat; overs?: number; wickets?: number } = {};
+  if (overs !== null && inRange(overs, LIMITS.overs)) {
+    rules.overs = overs;
+    rules.format = formatForOvers(overs);
+  }
+  const wickets = t.wickets_per_innings;
+  if (typeof wickets === "number" && inRange(wickets, LIMITS.wickets)) {
+    rules.wickets = wickets;
+  }
+  return rules;
 }
 
 export function defaultTitle(team1?: SetupTeam, team2?: SetupTeam) {
@@ -207,8 +242,6 @@ export interface SetupValues {
   scheduledAt: string;
 }
 
-const inRange = (n: number, r: { min: number; max: number }) =>
-  Number.isInteger(n) && n >= r.min && n <= r.max;
 
 const FIELD_NAMES = {
   overs: "Overs",

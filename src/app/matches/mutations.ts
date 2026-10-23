@@ -73,7 +73,7 @@ export async function createMatch(formData: MatchFormData) {
     db
       .from("teams")
       .select(
-        "id, name, short_name, logo_url, created_by, captain_id, vice_captain_id, club_id",
+        "id, name, short_name, logo_url, primary_color, secondary_color, created_by, captain_id, vice_captain_id, club_id",
       )
       .in("id", [formData.team1Id, formData.team2Id]),
     formData.tournamentId
@@ -91,7 +91,7 @@ export async function createMatch(formData: MatchFormData) {
     formData.tournamentId
       ? db
           .from("tournament_registrations")
-          .select("team_id")
+          .select("team_id, status")
           .eq("tournament_id", formData.tournamentId)
           .in("team_id", [formData.team1Id, formData.team2Id])
       : Promise.resolve({ data: null, error: null }),
@@ -189,8 +189,11 @@ export async function createMatch(formData: MatchFormData) {
       return { data: null, error: "Selected tournament does not exist" };
     }
 
+    // Only confirmed teams play: a request still waiting does not count.
     const registeredTeamIds = new Set(
-      (tournRegsRes.data ?? []).map((r) => r.team_id),
+      (tournRegsRes.data ?? [])
+        .filter((r) => r.status === "confirmed")
+        .map((r) => r.team_id),
     );
 
     if (
@@ -1665,28 +1668,56 @@ export interface MatchScorerUser {
   id: string;
   full_name: string;
   avatar_url: string | null;
+  username?: string | null;
 }
 
-const SCORER_FIELDS = "id, full_name, avatar_url";
+const SCORER_FIELDS = "id, full_name, avatar_url, username";
+/** Candidates also bring the placeholder flag, to leave those players out. */
+const CANDIDATE_FIELDS = `${SCORER_FIELDS}, is_placeholder`;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Firebase Auth uids (28 letters and digits) and similar opaque ids. */
+const OPAQUE_ID_RE = /^[A-Za-z0-9]{20,40}$/;
+
+type Candidate = MatchScorerUser & { is_placeholder?: boolean | null };
+
+/**
+ * Players with an account: a squad player who has never signed in (a
+ * placeholder) cannot score, so the picker does not offer them.
+ */
+function withAccounts(rows: unknown[] | null | undefined): MatchScorerUser[] {
+  return ((rows ?? []) as Candidate[])
+    .filter((u) => u.is_placeholder !== true)
+    .map((u) => ({
+      id: u.id,
+      full_name: u.full_name,
+      avatar_url: u.avatar_url,
+      username: u.username ?? null,
+    }));
+}
 
 /**
  * Finds registered players for the scorer picker: by id, by exact email
  * (looked up in server-only users_private, never returned) or by name.
+ * Placeholder players (no account) are left out.
  */
 async function findScorerCandidates(
   db: Awaited<ReturnType<typeof createServerClient>>,
   target: string,
   limit: number,
 ): Promise<{ data: MatchScorerUser[]; error: string | null }> {
-  if (UUID_RE.test(target)) {
+  if (UUID_RE.test(target) || OPAQUE_ID_RE.test(target)) {
+    // A picked search result sends its id (a UUID, or a Firebase uid).
     const { data, error } = await db
       .from("users")
-      .select(SCORER_FIELDS)
+      .select(CANDIDATE_FIELDS)
       .eq("id", target)
       .limit(limit);
-    return { data: (data ?? []) as MatchScorerUser[], error: error?.message ?? null };
+    if (error) return { data: [], error: error.message };
+    if ((data ?? []).length > 0 || UUID_RE.test(target)) {
+      return { data: withAccounts(data), error: null };
+    }
+    // Not an id after all: a long one-word name.
   }
   if (target.includes("@")) {
     const { data: matches, error } = await db
@@ -1699,10 +1730,10 @@ async function findScorerCandidates(
     if (ids.length === 0) return { data: [], error: null };
     const { data, error: usersError } = await db
       .from("users")
-      .select(SCORER_FIELDS)
+      .select(CANDIDATE_FIELDS)
       .in("id", ids);
     return {
-      data: (data ?? []) as MatchScorerUser[],
+      data: withAccounts(data),
       error: usersError?.message ?? null,
     };
   }
@@ -1711,10 +1742,10 @@ async function findScorerCandidates(
     db,
     "users",
     target,
-    SCORER_FIELDS,
+    CANDIDATE_FIELDS,
     limit,
   );
-  return { data: data as unknown as MatchScorerUser[], error };
+  return { data: withAccounts(data as unknown[]), error };
 }
 
 export async function getMatchScorers(matchId: string): Promise<{

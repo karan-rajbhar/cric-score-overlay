@@ -37,7 +37,7 @@ export function onboardingSteps(p: OnboardingProgress): OnboardingStep[] {
       id: "players",
       label: "Add players",
       description: "Add your squad so you can pick batters and bowlers.",
-      href: p.teamId ? `/teams/${p.teamId}` : null,
+      href: p.teamId ? `/teams/${p.teamId}?tab=squad` : null,
       done: p.hasPlayers,
       optional: false,
     },

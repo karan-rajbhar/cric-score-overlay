@@ -50,6 +50,12 @@ export interface UsersRow {
   location: string | null;
   username: string | null;
   is_active: boolean | null;
+  /**
+   * A player added to a squad who has not signed in yet (no account).
+   * Cleared when someone signs in with the email the profile holds and
+   * takes it over (`ensureOwnProfile`).
+   */
+  is_placeholder?: boolean | null;
   /** Search keys (stage 3, `derive.mjs`); maintained on every write. */
   name_lower?: string;
   search_prefixes?: string[];
@@ -161,6 +167,9 @@ export interface TeamsRow {
   short_name: string | null;
   description: string | null;
   logo_url: string | null;
+  /** "#rrggbb" or null; copied onto the match snapshots. */
+  primary_color?: string | null;
+  secondary_color?: string | null;
   club_id: string | null;
   captain_id: string | null;
   vice_captain_id: string | null;
@@ -194,6 +203,9 @@ export interface TeamSnapshot {
   name: string;
   short_name: string | null;
   logo_url: string | null;
+  /** "#rrggbb" or null (older snapshots: missing until the team's next edit). */
+  primary_color?: string | null;
+  secondary_color?: string | null;
 }
 
 /**

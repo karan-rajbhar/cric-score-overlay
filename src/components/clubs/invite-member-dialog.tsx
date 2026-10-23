@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
@@ -15,98 +15,134 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { UserPlus, Loader2 } from "lucide-react";
 import { inviteClubMember } from "~/app/clubs/actions";
-import { toast } from "sonner";
+import { InviteShare, clubInviteMessage } from "~/components/invite-share";
+import { useAuth } from "~/lib/auth";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 interface InviteMemberDialogProps {
   clubId: string;
+  clubName: string;
 }
 
-export function InviteMemberDialog({ clubId }: InviteMemberDialogProps) {
+/**
+ * Invites someone to the club by their Google email. No email is sent: the
+ * admin shares the sign-in message (WhatsApp or copy). Someone already on
+ * CricScore joins straight away; anyone else becomes a member when they
+ * first sign in with that email.
+ */
+export function InviteMemberDialog({ clubId, clubName }: InviteMemberDialogProps) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const inputId = useId();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
+  const [shareText, setShareText] = useState<string | null>(null);
+
+  const reset = () => {
+    setResult(null);
+    setShareText(null);
+    setPending(false);
+  };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !cleanEmail.includes("@")) {
-      toast.error("Please enter a valid email address");
+    reset();
+    setPending(true);
+    let res: Awaited<ReturnType<typeof inviteClubMember>>;
+    try {
+      res = await inviteClubMember(clubId, email);
+    } catch {
+      setResult({ ok: false, text: NETWORK_ERROR_MESSAGE });
+      return;
+    } finally {
+      setPending(false);
+    }
+    if ("error" in res) {
+      setResult({ ok: false, text: res.error });
       return;
     }
-
-    setLoading(true);
-    try {
-      const res = await inviteClubMember(clubId, cleanEmail);
-      if (res?.error) {
-        toast.error(res.error);
-      } else {
-        toast.success(`Invitation recorded for ${cleanEmail}!`);
-        setEmail("");
-        setOpen(false);
-      }
-    } catch (err) {
-      console.error("Error inviting club member:", err);
-      toast.error("Failed to send club invitation");
-    } finally {
-      setLoading(false);
+    setResult({ ok: true, text: res.message });
+    if (res.shareEmail) {
+      const name =
+        typeof user?.user_metadata?.full_name === "string"
+          ? user.user_metadata.full_name
+          : undefined;
+      setShareText(
+        clubInviteMessage(name, res.shareEmail, { id: clubId, name: clubName }),
+      );
     }
+    setEmail("");
+    // The members list and the pending invites change.
+    router.refresh();
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) reset();
+      }}
+    >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
-          <UserPlus className="h-3.5 w-3.5" />
-          <span>Invite member</span>
+        <Button variant="outline" size="sm" className="h-10 gap-1.5">
+          <UserPlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+          Invite member
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl">Invite player or staff</DialogTitle>
+          <DialogTitle className="text-balance">Invite to {clubName}</DialogTitle>
           <DialogDescription>
-            Send a club invitation to a cricketer, scorer, or coach by their
-            email address.
+            They sign in with the Google account for this email and join the
+            club as a member. You send them the invite message yourself.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleInvite} className="space-y-4 py-2">
+        <form onSubmit={handleInvite} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="invite-email">Email address</Label>
+            <Label htmlFor={inputId}>Google email</Label>
             <Input
-              id="invite-email"
+              id={inputId}
               type="email"
+              inputMode="email"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="player@example.com"
+              placeholder="name@gmail.com"
               required
             />
           </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
+          {result && (
+            <p
+              role="status"
+              className={
+                result.ok
+                  ? "text-sm text-muted-foreground"
+                  : "text-sm text-destructive"
+              }
             >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading || !email.trim()}
-              className="h-10 min-h-[40px] sm:h-9 text-sm font-semibold"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  Inviting...
-                </>
-              ) : (
-                "Send Invitation"
-              )}
-            </Button>
-          </DialogFooter>
+              {result.text}
+            </p>
+          )}
+          <Button
+            type="submit"
+            disabled={pending || !email.trim()}
+            className="w-full"
+          >
+            {pending && (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            )}
+            {pending ? "Saving…" : "Create invite"}
+          </Button>
         </form>
+        {shareText && <InviteShare id={`${inputId}-message`} text={shareText} />}
       </DialogContent>
     </Dialog>
   );

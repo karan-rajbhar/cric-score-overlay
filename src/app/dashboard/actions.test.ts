@@ -11,7 +11,7 @@ vi.mock("~/lib/firebase/server", () => ({
 import type { AppUser } from "~/lib/firebase/auth-types";
 import { MemoryDataSource, type Doc } from "~/lib/firebase/datasource";
 import { serverClientFor } from "~/lib/firebase/server-client";
-import { getOnboardingProgress } from "./actions";
+import { getMyUpcomingMatches, getOnboardingProgress } from "./actions";
 import { onboardingComplete } from "./onboarding";
 
 const seed = JSON.parse(
@@ -56,8 +56,9 @@ describe("getOnboardingProgress", () => {
     await ds.update("teams", "t1", {
       roster: [{ user_id: "u1" }, { user_id: "u2" }],
     });
+    // createMatch lists the creator among the scorers.
     await ds.insert("matches", [
-      { id: "m1", created_by: "u1", match_admins: [] },
+      { id: "m1", created_by: "u1", match_admins: ["u1"] },
     ]);
     p = (await getOnboardingProgress())!;
     expect(p).toMatchObject({ hasPlayers: true, matchId: "m1" });
@@ -65,7 +66,7 @@ describe("getOnboardingProgress", () => {
     // Inviting a co-scorer is optional.
     expect(onboardingComplete(p)).toBe(true);
 
-    await ds.update("matches", "m1", { match_admins: ["u3"] });
+    await ds.update("matches", "m1", { match_admins: ["u1", "u3"] });
     expect((await getOnboardingProgress())!.hasCoScorer).toBe(true);
   });
 
@@ -82,5 +83,45 @@ describe("getOnboardingProgress", () => {
   it("returns null when signed out", async () => {
     signIn(new MemoryDataSource(), null);
     expect(await getOnboardingProgress()).toBeNull();
+  });
+});
+
+describe("getMyUpcomingMatches", () => {
+  const match = (id: string, fields: Record<string, unknown>) => ({
+    id,
+    status: "scheduled",
+    match_admins: [],
+    created_by: "someone",
+    team1_id: "x1",
+    team2_id: "x2",
+    ...fields,
+  });
+
+  it("lists the matches you score or play in, soonest first", async () => {
+    const ds = new MemoryDataSource({
+      team_players: [{ id: "tp", team_id: "mine", user_id: "u1" }],
+      matches: [
+        match("later", { scheduled_at: "2026-12-01T10:00:00.000Z", match_admins: ["u1"] }),
+        match("soon", { scheduled_at: "2026-11-01T10:00:00.000Z", team2_id: "mine" }),
+        match("old-created", { scheduled_at: "2026-11-15T10:00:00.000Z", created_by: "u1" }),
+        match("others", { scheduled_at: "2026-10-25T10:00:00.000Z" }),
+        match("done", { status: "completed", match_admins: ["u1"], scheduled_at: "2026-10-01T10:00:00.000Z" }),
+      ],
+    });
+    signIn(ds, "u1");
+    const mine = (await getMyUpcomingMatches())!;
+    expect(mine.map((m) => m.id)).toEqual(["soon", "old-created", "later"]);
+  });
+
+  it("stays bounded on the seed and is null when signed out", async () => {
+    const ds = new MemoryDataSource(seed);
+    const owner = String(seed.matches![0]!.created_by);
+    signIn(ds, owner);
+    const before = ds.billedReads;
+    await getMyUpcomingMatches();
+    // 5 queries of at most 6 matches, plus the user's squad entries.
+    expect(ds.billedReads - before).toBeLessThanOrEqual(40);
+    signIn(new MemoryDataSource(), null);
+    expect(await getMyUpcomingMatches()).toBeNull();
   });
 });

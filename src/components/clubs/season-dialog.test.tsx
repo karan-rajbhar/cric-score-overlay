@@ -75,7 +75,7 @@ describe("SeasonDialog Component", () => {
         "2026-09-30",
         false
       );
-      expect(toast.success).toHaveBeenCalledWith("Created season Premier League 2026!");
+      expect(toast.success).toHaveBeenCalledWith("Created season Premier League 2026");
     });
   });
 

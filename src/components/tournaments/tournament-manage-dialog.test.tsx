@@ -63,7 +63,7 @@ describe("TournamentManageDialog Component", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /manage tournament: summer championship 2026/i,
+        name: /manage summer championship 2026/i,
       }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/tournament name \*/i)).toHaveValue(
@@ -170,9 +170,57 @@ describe("TournamentManageDialog Component", () => {
 
     await waitFor(() => {
       expect(deleteTournament).toHaveBeenCalledWith("tourn-1");
-      expect(toast.success).toHaveBeenCalledWith(
-        "Tournament deleted successfully",
-      );
+      expect(toast.success).toHaveBeenCalledWith("Tournament deleted");
     });
+  });
+
+  it("sends the status, overs and wickets, keeping the format in step with the overs", async () => {
+    vi.mocked(updateTournament).mockResolvedValueOnce({ success: true } as never);
+    render(
+      <TournamentManageDialog
+        tournament={{ ...dummyTournament, status: "ongoing", wickets_per_innings: 8 }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /manage tournament settings/i }),
+    );
+    expect(screen.getByLabelText("Status")).toHaveTextContent("Ongoing");
+    fireEvent.change(screen.getByLabelText("Overs per innings"), {
+      target: { value: "10" },
+    });
+    fireEvent.submit(screen.getByTestId("tournament-manage-form"));
+
+    await waitFor(() => expect(updateTournament).toHaveBeenCalled());
+    const fd = vi.mocked(updateTournament).mock.calls[0]![1];
+    expect(fd.get("status")).toBe("ongoing");
+    expect(fd.get("overs_per_innings")).toBe("10");
+    expect(fd.get("match_format")).toBe("T10");
+    expect(fd.get("wickets_per_innings")).toBe("8");
+  });
+
+  it("starts from the format's overs when the tournament stores none", () => {
+    render(
+      <TournamentManageDialog
+        tournament={{ ...dummyTournament, match_format: "ODI", overs_per_innings: null }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /manage tournament settings/i }),
+    );
+    expect(screen.getByLabelText("Overs per innings")).toHaveValue(50);
+  });
+
+  it("says so when the server cannot be reached", async () => {
+    vi.mocked(updateTournament).mockRejectedValueOnce(new TypeError("fetch"));
+    render(<TournamentManageDialog tournament={dummyTournament} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /manage tournament settings/i }),
+    );
+    fireEvent.submit(screen.getByTestId("tournament-manage-form"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not reach the server. Try again.",
+      ),
+    );
   });
 });

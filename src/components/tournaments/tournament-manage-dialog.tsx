@@ -35,6 +35,26 @@ import {
   deleteTournament,
 } from "~/app/tournaments/actions";
 import { toast } from "sonner";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import {
+  FORMAT_PRESETS,
+  formatForOvers,
+} from "~/app/matches/create/match-setup";
+
+const STATUSES = [
+  { value: "upcoming", label: "Upcoming" },
+  { value: "ongoing", label: "Ongoing" },
+  { value: "completed", label: "Completed" },
+] as const;
+
+/** Overs to show for a tournament: its own, else its format's. */
+function oversOf(t: TournamentManageData): number {
+  return (
+    t.overs_per_innings ??
+    FORMAT_PRESETS.find((p) => p.format === t.match_format)?.overs ??
+    20
+  );
+}
 
 export interface TournamentManageData {
   id: string;
@@ -43,6 +63,8 @@ export interface TournamentManageData {
   tournament_format?: string | null;
   match_format?: string | null;
   overs_per_innings?: number | null;
+  wickets_per_innings?: number | null;
+  status?: string | null;
   venue?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -56,6 +78,8 @@ interface TournamentManageDialogProps {
   trigger?: React.ReactNode;
   onSuccess?: () => void;
   onDeleted?: () => void;
+  /** Where to go after deleting (the tournament's own page is gone). */
+  afterDeleteHref?: string;
 }
 
 export function TournamentManageDialog({
@@ -64,6 +88,7 @@ export function TournamentManageDialog({
   trigger,
   onSuccess,
   onDeleted,
+  afterDeleteHref,
 }: TournamentManageDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -78,9 +103,11 @@ export function TournamentManageDialog({
   const [matchFormat, setMatchFormat] = useState(
     tournament.match_format ?? "T20",
   );
-  const [overs, setOvers] = useState(
-    String(tournament.overs_per_innings ?? 20),
+  const [overs, setOvers] = useState(String(oversOf(tournament)));
+  const [wickets, setWickets] = useState(
+    String(tournament.wickets_per_innings ?? 10),
   );
+  const [status, setStatus] = useState(tournament.status ?? "upcoming");
   const [venue, setVenue] = useState(tournament.venue ?? "");
   const [startDate, setStartDate] = useState(tournament.start_date ?? "");
   const [endDate, setEndDate] = useState(tournament.end_date ?? "");
@@ -98,7 +125,9 @@ export function TournamentManageDialog({
       setDescription(tournament.description ?? "");
       setTournamentFormat(tournament.tournament_format ?? "league");
       setMatchFormat(tournament.match_format ?? "T20");
-      setOvers(String(tournament.overs_per_innings ?? 20));
+      setOvers(String(oversOf(tournament)));
+      setWickets(String(tournament.wickets_per_innings ?? 10));
+      setStatus(tournament.status ?? "upcoming");
       setVenue(tournament.venue ?? "");
       setStartDate(tournament.start_date ?? "");
       setEndDate(tournament.end_date ?? "");
@@ -122,6 +151,8 @@ export function TournamentManageDialog({
     formData.set("tournament_format", tournamentFormat);
     formData.set("match_format", matchFormat);
     formData.set("overs_per_innings", overs);
+    formData.set("wickets_per_innings", wickets);
+    formData.set("status", status);
     formData.set("venue", venue.trim());
     if (startDate) formData.set("start_date", startDate);
     if (endDate) formData.set("end_date", endDate);
@@ -132,7 +163,13 @@ export function TournamentManageDialog({
     }
 
     startUpdateTransition(async () => {
-      const res = await updateTournament(tournament.id, formData);
+      let res: Awaited<ReturnType<typeof updateTournament>>;
+      try {
+        res = await updateTournament(tournament.id, formData);
+      } catch {
+        toast.error(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (res.error) {
         toast.error(res.error);
       } else {
@@ -151,13 +188,20 @@ export function TournamentManageDialog({
     }
 
     startDeleteTransition(async () => {
-      const res = await deleteTournament(tournament.id);
+      let res: Awaited<ReturnType<typeof deleteTournament>>;
+      try {
+        res = await deleteTournament(tournament.id);
+      } catch {
+        toast.error(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success("Tournament deleted successfully");
+        toast.success("Tournament deleted");
         setOpen(false);
-        router.refresh();
+        if (afterDeleteHref) router.push(afterDeleteHref);
+        else router.refresh();
         onDeleted?.();
       }
     });
@@ -184,7 +228,7 @@ export function TournamentManageDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <Settings2 className="h-4 w-4 text-primary" />
-            Manage Tournament: {tournament.name}
+            Manage {tournament.name}
           </DialogTitle>
           <DialogDescription className="text-xs">
             Edit tournament settings, season association, or delete this tournament.
@@ -261,14 +305,23 @@ export function TournamentManageDialog({
                   <Label htmlFor="match-format" className="text-xs font-semibold">
                     Match format
                   </Label>
-                  <Select value={matchFormat} onValueChange={setMatchFormat}>
+                  <Select
+                    value={matchFormat}
+                    onValueChange={(v) => {
+                      setMatchFormat(v);
+                      const preset = FORMAT_PRESETS.find((p) => p.format === v);
+                      if (preset?.overs) setOvers(String(preset.overs));
+                    }}
+                  >
                     <SelectTrigger id="match-format">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="T20">T20</SelectItem>
-                      <SelectItem value="ODI">ODI</SelectItem>
-                      <SelectItem value="Custom">Custom</SelectItem>
+                      {FORMAT_PRESETS.map((p) => (
+                        <SelectItem key={p.format} value={p.format}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -282,11 +335,53 @@ export function TournamentManageDialog({
                   <Input
                     id="tourn-overs"
                     type="number"
+                    inputMode="numeric"
                     min="1"
-                    max="100"
+                    max="50"
                     value={overs}
-                    onChange={(e) => setOvers(e.target.value)}
+                    onChange={(e) => {
+                      setOvers(e.target.value);
+                      const n = Number(e.target.value);
+                      if (Number.isInteger(n) && n > 0) {
+                        setMatchFormat(formatForOvers(n));
+                      }
+                    }}
+                    className="tabular-nums"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="tourn-wickets" className="text-xs font-semibold">
+                    Wickets per innings
+                  </Label>
+                  <Input
+                    id="tourn-wickets"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="15"
+                    value={wickets}
+                    onChange={(e) => setWickets(e.target.value)}
+                    className="tabular-nums"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="tourn-status" className="text-xs font-semibold">
+                    Status
+                  </Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger id="tourn-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map((st) => (
+                        <SelectItem key={st.value} value={st.value}>
+                          {st.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-1.5">
@@ -377,10 +472,10 @@ export function TournamentManageDialog({
                   {isUpdating ? (
                     <>
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                      Saving...
+                      Saving…
                     </>
                   ) : (
-                    "Save Changes"
+                    "Save changes"
                   )}
                 </Button>
               </DialogFooter>

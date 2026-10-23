@@ -71,3 +71,26 @@ describe("InviteDialog", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("InviteDialog when the server cannot be reached", () => {
+  beforeEach(() => inviteToApp.mockReset());
+
+  it("says so and lets the user try again", async () => {
+    inviteToApp.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const user = await invite("friend@gmail.com");
+
+    expect(
+      await screen.findByText("Could not reach the server. Try again."),
+    ).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: /create invite/i });
+    expect(submit).toBeEnabled();
+
+    inviteToApp.mockResolvedValueOnce({
+      success: true,
+      message: "Invite saved. Send them the message below.",
+      shareEmail: "friend@gmail.com",
+    });
+    await user.click(submit);
+    expect(await screen.findByLabelText(/invite message/i)).toBeInTheDocument();
+  });
+});

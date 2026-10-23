@@ -5,8 +5,9 @@
  *
  * - Written when a match is created (callers pass `matchTeamSnapshots`; the
  *   server write hook fills any that are missing).
- * - Refreshed by the server write hook whenever a team's name, short name
- *   or logo changes, or a match's team ids change.
+ * - Refreshed by the server write hook whenever a team's name, short name,
+ *   logo or colours change, or a match's team ids change. Matches created
+ *   before colours existed get them at the team's next edit.
  * - Readers call {@link attachMatchTeams}, which uses the snapshot and only
  *   reads `teams` for matches that predate it.
  */
@@ -16,17 +17,34 @@ import type { QueryBuilder, WriteEvent } from "./query-builder";
 import type { MatchesRow, TeamSnapshot, TeamsRow } from "./types";
 
 /** Team fields copied onto matches. */
-export const SNAPSHOT_FIELDS = ["name", "short_name", "logo_url"] as const;
+export const SNAPSHOT_FIELDS = [
+  "name",
+  "short_name",
+  "logo_url",
+  "primary_color",
+  "secondary_color",
+] as const;
+
+/** The team columns {@link teamSnapshot} needs, for selects. */
+export const TEAM_SNAPSHOT_COLUMNS =
+  "id, name, short_name, logo_url, primary_color, secondary_color";
 
 export function teamSnapshot(
   team: Pick<TeamsRow, "id" | "name"> &
-    Partial<Pick<TeamsRow, "short_name" | "logo_url">>,
+    Partial<
+      Pick<
+        TeamsRow,
+        "short_name" | "logo_url" | "primary_color" | "secondary_color"
+      >
+    >,
 ): TeamSnapshot {
   return {
     id: team.id,
     name: team.name,
     short_name: team.short_name ?? null,
     logo_url: team.logo_url ?? null,
+    primary_color: team.primary_color ?? null,
+    secondary_color: team.secondary_color ?? null,
   };
 }
 
@@ -39,7 +57,9 @@ function sameSnapshot(
     a.id === b.id &&
     a.name === b.name &&
     (a.short_name ?? null) === b.short_name &&
-    (a.logo_url ?? null) === b.logo_url
+    (a.logo_url ?? null) === b.logo_url &&
+    (a.primary_color ?? null) === (b.primary_color ?? null) &&
+    (a.secondary_color ?? null) === (b.secondary_color ?? null)
   );
 }
 
@@ -150,7 +170,7 @@ export const MATCH_TEAM_COLUMNS =
   "team1_id, team2_id, team1_snapshot, team2_snapshot";
 
 /**
- * Sets `team1` / `team2` ({ id, name, short_name, logo_url }) on each match
+ * Sets `team1` / `team2` ({ id, name, short_name, logo_url, colours }) on each match
  * from its snapshot. Matches without one (created before snapshots) fall
  * back to one batched `teams` read, so nothing breaks before migration.
  * Mutates and returns `rows`.
@@ -169,7 +189,7 @@ export async function attachMatchTeams<T extends MatchTeamFields>(
   if (missing.size) {
     const { data } = await db
       .from("teams")
-      .select("id, name, short_name, logo_url")
+      .select(TEAM_SNAPSHOT_COLUMNS)
       .in("id", Array.from(missing));
     for (const team of (data ?? []) as TeamsRow[]) {
       fetched.set(team.id, teamSnapshot(team));

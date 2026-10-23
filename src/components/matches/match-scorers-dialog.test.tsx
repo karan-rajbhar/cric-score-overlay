@@ -81,7 +81,7 @@ describe("MatchScorersDialog Component", () => {
       expect(screen.getByText("Lead Scorer")).toBeInTheDocument();
       expect(screen.getByText("Assistant Scorer")).toBeInTheDocument();
       expect(screen.getByText("Creator")).toBeInTheDocument();
-      expect(screen.getByText("Co-Scorer")).toBeInTheDocument();
+      expect(screen.getByText("Co-scorer")).toBeInTheDocument();
     });
   });
 
@@ -122,7 +122,7 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    const input = screen.getByLabelText(/add scorer by name or email/i);
     fireEvent.change(input, { target: { value: "new@test.com" } });
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -147,7 +147,7 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    const input = screen.getByLabelText(/add scorer by name or email/i);
     fireEvent.change(input, { target: { value: "friend@gmail.com" } });
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -173,7 +173,7 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    const input = screen.getByLabelText(/add scorer by name or email/i);
     fireEvent.change(input, { target: { value: "x@test.com" } });
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -193,7 +193,7 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    const input = screen.getByLabelText(/add scorer by name or email/i);
     fireEvent.change(input, { target: { value: "Virat" } });
     fireEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
@@ -228,14 +228,14 @@ describe("MatchScorersDialog Component", () => {
     render(<MatchScorersDialog matchId="match-1" />);
     fireEvent.click(screen.getByRole("button", { name: /invite scorer/i }));
 
-    const input = screen.getByPlaceholderText(/search registered player or enter email/i);
+    const input = screen.getByLabelText(/add scorer by name or email/i);
     fireEvent.change(input, { target: { value: "virat" } });
 
     await waitFor(() => {
       expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
     });
 
-    const addQuickBtn = screen.getByRole("button", { name: /\+ add/i });
+    const addQuickBtn = screen.getByRole("button", { name: /add virat kohli as a scorer/i });
     fireEvent.click(addQuickBtn);
 
     await waitFor(() => {
