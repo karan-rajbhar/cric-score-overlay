@@ -62,6 +62,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
       "Global tournament look with bold, clean data: white and deep indigo panels, each side in its team colour.",
     kind: "broadcast",
   },
+  {
+    id: "test-classic",
+    label: "Test classic",
+    description:
+      "Understated heritage look for long-form cricket: navy, ivory and gold leaf, an honours board for milestones.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
