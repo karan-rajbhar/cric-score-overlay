@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,41 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { CloudRain, Calculator, ArrowRight, Check } from "lucide-react";
+import { CloudRain, Check } from "lucide-react";
 import { calculateDlsTarget, calculateDlsParScore } from "~/lib/dls";
+import { ballsFromOvers, dlsRevisionFor, oversFromBalls } from "~/lib/cricket";
 import type { Match } from "~/lib/match-types";
 import { updateDlsTarget } from "~/app/matches/mutations";
 import { toast } from "sonner";
+
+/**
+ * Where the chase stood when play stopped, from the form's fields: balls
+ * bowled (none: before it started), wickets down (none before a ball), the
+ * decimal overs left and the fewest overs the chase can be cut to (it must
+ * leave at least part of an over to bowl).
+ */
+function stoppageOf(
+  oversBowled: string,
+  wicketsDown: number,
+  oversPerSide: number,
+  ballsPerOver: number,
+) {
+  const fullBalls = oversPerSide * ballsPerOver;
+  const bowledBalls = Math.min(
+    Math.max(0, ballsFromOvers(Number(oversBowled) || 0, ballsPerOver)),
+    Math.max(0, fullBalls - 1),
+  );
+  return {
+    bowledBalls,
+    wickets:
+      bowledBalls > 0 ? Math.min(9, Math.max(0, Math.floor(wicketsDown))) : 0,
+    oversLeft: (fullBalls - bowledBalls) / ballsPerOver,
+    minOvers: Math.min(
+      oversPerSide,
+      Math.floor(bowledBalls / ballsPerOver) + 1,
+    ),
+  };
+}
 
 interface DlsCalculatorModalProps {
   match: Match;
@@ -46,48 +76,41 @@ export function DlsCalculatorModal({
   // Pre-fill values from current match state
   const inn1 = match.innings?.find((i) => i.innings_number === 1);
   const inn2 = match.innings?.find((i) => i.innings_number === 2);
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  const defaultOvers = match.overs_per_innings ?? 20;
 
-  const defaultTotalOvers = match.overs_per_innings ?? 20;
-  const defaultT1Runs = inn1?.total_runs ?? 150;
-  const defaultT1Overs = defaultTotalOvers;
-  const defaultT2Overs = Math.max(
-    5,
-    Math.min(
-      defaultT1Overs,
-      inn2?.total_overs ? Math.ceil(inn2.total_overs) : defaultT1Overs - 5,
-    ),
+  const [t1Runs, setT1Runs] = useState<number>(inn1?.total_runs ?? 150);
+  const [t1Overs, setT1Overs] = useState<number>(defaultOvers);
+  const [oversBowled, setOversBowled] = useState<string>(
+    oversFromBalls(inn2?.total_balls ?? 0, bpo),
   );
-
-  const [t1Runs, setT1Runs] = useState<number>(defaultT1Runs);
-  const [t1Overs, setT1Overs] = useState<number>(defaultT1Overs);
-  const [t2Overs, setT2Overs] = useState<number>(defaultT2Overs);
   const [wicketsLost, setWicketsLost] = useState<number>(
     inn2?.total_wickets ?? 0,
   );
-  const [currentOversBowled, setCurrentOversBowled] = useState<number>(
-    inn2?.total_overs ? Math.floor(inn2.total_overs) : 0,
+  const [t2Choice, setT2Overs] = useState<number>(
+    Math.max(1, defaultOvers - 5),
   );
 
-  const calculation = useMemo(() => {
-    return calculateDlsTarget({
-      team1Runs: t1Runs,
-      team1OversScheduled: t1Overs,
-      team2OversScheduled: t1Overs,
-      team2OversAvailable: t2Overs,
-      format: t1Overs <= 20 ? "T20" : "ODI",
-    });
-  }, [t1Runs, t1Overs, t2Overs]);
+  const stop = stoppageOf(oversBowled, wicketsLost, t1Overs, bpo);
+  const t2Overs = Math.min(t1Overs, Math.max(stop.minOvers, t2Choice));
+  const earlierRevision = dlsRevisionFor(match, 2);
 
-  const parScore = useMemo(() => {
-    const oversLeft = Math.max(0, t2Overs - currentOversBowled);
-    return calculateDlsParScore(
-      t1Runs,
-      t1Overs,
-      t2Overs,
-      oversLeft,
-      wicketsLost,
-    );
-  }, [t1Runs, t1Overs, t2Overs, currentOversBowled, wicketsLost]);
+  const calculation = calculateDlsTarget({
+    team1Runs: t1Runs,
+    team1OversScheduled: t1Overs,
+    team2OversScheduled: t1Overs,
+    team2OversAvailable: t2Overs,
+    interruptionOversRemaining: stop.oversLeft,
+    interruptionWicketsLost: stop.wickets,
+  });
+  const parScore = calculateDlsParScore(
+    t1Runs,
+    t1Overs,
+    t1Overs,
+    stop.oversLeft,
+    stop.wickets,
+  );
 
   const handleApplyTarget = async () => {
     if (!inn2) {
@@ -130,7 +153,7 @@ export function DlsCalculatorModal({
             <Button
               variant="outline"
               size="sm"
-              className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
+              className="h-10 min-h-[36px] gap-1.5 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
             >
               <CloudRain className="h-4 w-4 shrink-0 text-primary" />
               <span className="hidden sm:inline">DLS calculator</span>
@@ -141,20 +164,18 @@ export function DlsCalculatorModal({
       )}
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5 text-primary" />
-            DLS calculator
-          </DialogTitle>
+          <DialogTitle>DLS calculator</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Works out a new chase target with the Duckworth-Lewis-Stern
-            resource tables when rain or another stoppage shortens the second
-            innings.
+            Uses the DLS Standard Edition, the published table for matches
+            without the DLS software, whose targets can differ. It covers one
+            stoppage in the second innings, before the chase starts or during
+            it.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="dls-t1-runs" className="text-xs font-semibold">
                 First innings runs
               </Label>
@@ -168,68 +189,36 @@ export function DlsCalculatorModal({
                 onChange={(e) => setT1Runs(Number(e.target.value) || 0)}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="dls-t1-overs" className="text-xs font-semibold">
-                First innings overs
+                Overs per side
               </Label>
               <Input
                 id="dls-t1-overs"
                 name="t1Overs"
                 type="number"
                 inputMode="numeric"
-                min={5}
+                min={1}
                 max={50}
                 value={t1Overs}
                 onChange={(e) => setT1Overs(Number(e.target.value) || 20)}
+                aria-describedby="dls-t1-overs-hint"
               />
             </div>
           </div>
+          <p
+            id="dls-t1-overs-hint"
+            className="-mt-2 text-2xs text-muted-foreground"
+          >
+            As scheduled at the start, even if the first innings was all out.
+          </p>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="dls-t2-overs" className="text-xs font-semibold">
-                Second innings overs
-              </Label>
-              <span className="text-xs font-medium text-primary">
-                {t2Overs} overs available
-              </span>
-            </div>
-            <input
-              id="dls-t2-overs"
-              type="range"
-              min={5}
-              max={t1Overs}
-              value={t2Overs}
-              onChange={(e) => setT2Overs(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-          </div>
-
-          {/* Target Result Box */}
-          <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-center">
-            <p className="text-xs font-medium text-primary">
-              Revised DLS target
-            </p>
-            <div className="mt-1 flex items-center justify-center gap-2">
-              <span className="text-4xl font-semibold tabular-nums text-foreground">
-                {calculation.targetRuns}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                runs in {t2Overs} ov
-              </span>
-            </div>
-            <div className="mt-3 flex items-center justify-center gap-4 border-t border-border/40 pt-2 text-xs text-muted-foreground">
-              <span>First innings resources {calculation.team1Resource}%</span>
-              <ArrowRight className="h-3 w-3" aria-hidden="true" />
-              <span>Second innings resources {calculation.team2Resource}%</span>
-            </div>
-          </div>
-
-          {/* Par Score Calculator */}
-          <div className="space-y-2 rounded-lg border p-3">
-            <p className="text-xs font-semibold">Live par score checker</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-semibold">
+              When play stopped in the chase
+            </legend>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="min-w-0 space-y-1.5">
                 <Label
                   htmlFor="dls-overs-bowled"
                   className="text-2xs text-muted-foreground"
@@ -238,49 +227,105 @@ export function DlsCalculatorModal({
                 </Label>
                 <Input
                   id="dls-overs-bowled"
+                  name="oversBowled"
                   type="number"
                   inputMode="decimal"
                   min={0}
-                  max={t2Overs}
-                  value={currentOversBowled}
-                  onChange={(e) =>
-                    setCurrentOversBowled(Number(e.target.value) || 0)
-                  }
-                  className="h-8 text-xs"
+                  step={0.1}
+                  value={oversBowled}
+                  onChange={(e) => setOversBowled(e.target.value)}
+                  aria-describedby="dls-stop-hint"
+                  className="h-10 text-base sm:h-9 sm:text-xs"
                 />
               </div>
-              <div>
+              <div className="min-w-0 space-y-1.5">
                 <Label
                   htmlFor="dls-wickets-lost"
                   className="text-2xs text-muted-foreground"
                 >
-                  Wickets lost
+                  Wickets down
                 </Label>
                 <Input
                   id="dls-wickets-lost"
+                  name="wicketsLost"
                   type="number"
                   inputMode="numeric"
                   min={0}
                   max={9}
                   value={wicketsLost}
                   onChange={(e) => setWicketsLost(Number(e.target.value) || 0)}
-                  className="h-10 sm:h-9 text-base sm:text-xs"
+                  className="h-10 text-base sm:h-9 sm:text-xs"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between pt-1 text-xs font-medium">
-              <span className="text-muted-foreground">
-                Par score now
-              </span>
-              <span className="text-sm font-semibold text-foreground">
-                {parScore} runs
+            <p id="dls-stop-hint" className="text-2xs text-muted-foreground">
+              Leave both at 0 if the chase had not started.
+            </p>
+          </fieldset>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="dls-t2-overs" className="text-xs font-semibold">
+                Second innings overs
+              </Label>
+              <span className="text-xs font-medium tabular-nums text-primary">
+                {t2Overs} overs
               </span>
             </div>
+            <input
+              id="dls-t2-overs"
+              type="range"
+              min={stop.minOvers}
+              max={t1Overs}
+              value={t2Overs}
+              onChange={(e) => setT2Overs(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
           </div>
+
+          <div className="rounded-xl border border-primary/30 bg-primary/10 p-4 text-center">
+            <p className="text-xs font-medium text-primary">Revised target</p>
+            <div className="mt-1 flex items-baseline justify-center gap-2">
+              <span className="font-score text-4xl font-semibold tabular-nums text-foreground">
+                {calculation.targetRuns}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                runs in {t2Overs} overs
+              </span>
+            </div>
+            <p className="mt-3 border-t border-border/40 pt-2 text-xs tabular-nums text-muted-foreground">
+              Resources: first innings {calculation.team1Resource}%, second
+              innings {calculation.team2Resource}%
+            </p>
+          </div>
+
+          {stop.bowledBalls > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold">
+                  Par score if play does not resume
+                </p>
+                <p className="text-2xs text-muted-foreground">
+                  The chasing side wins above par and ties on it.
+                </p>
+              </div>
+              <span className="font-score text-lg font-semibold tabular-nums text-foreground">
+                {parScore}
+              </span>
+            </div>
+          )}
+
+          {earlierRevision && (
+            <p className="text-xs text-muted-foreground">
+              This chase already has a revised target. The calculator covers a
+              single stoppage, so a second revision has to be worked out by
+              hand.
+            </p>
+          )}
 
           {canEdit && inn2 && (
             <Button
-              className="w-full gap-2 h-11 min-h-[44px] text-sm font-semibold"
+              className="h-11 min-h-[44px] w-full gap-2 text-sm font-semibold"
               onClick={() => void handleApplyTarget()}
               disabled={isApplying}
             >
