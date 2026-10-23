@@ -6,7 +6,6 @@ import {
 import type { FallOfWicket, Innings, Match } from "~/lib/match-types";
 import type { LiveMatchState } from "../../types";
 import {
-  ballToken,
   bowlingFigures,
   earlierInningsOf,
   fallOfWickets,
@@ -16,14 +15,12 @@ import {
   matchYear,
   milestoneHeading,
   ordinal,
-  overRunsOf,
   oversLimitOf,
   partnershipRows,
   playerNames,
   scoreText,
   standingOf,
   surname,
-  thisOverRuns,
   yetToBat,
 } from "./logic";
 import { teamStripe } from "./index";
@@ -197,25 +194,6 @@ describe("scorecard lines", () => {
     const names = playerNames(inn, DEMO_MATCH_DETAILS);
     const bowler = inn.bowling_performances![0]!;
     expect(names.get(bowler.user_id)).toBe(bowler.user?.full_name);
-  });
-});
-
-describe("this over", () => {
-  it("reads the tray's tokens", () => {
-    expect(ballToken("0")).toEqual({ tone: "dot", label: "•" });
-    expect(ballToken("4").tone).toBe("four");
-    expect(ballToken("6").tone).toBe("six");
-    expect(ballToken("W").tone).toBe("wicket");
-    expect(ballToken("1wd").tone).toBe("extra");
-    expect(ballToken("2").tone).toBe("run");
-  });
-
-  it("adds up the over from its tokens, else keeps the stored figure", () => {
-    expect(overRunsOf(["1", "4", "W", "1wd", "2nb", "0"])).toBe(8);
-    expect(overRunsOf(["rh"])).toBeNull();
-    expect(thisOverRuns(["1", "1"], 4)).toBe(2);
-    expect(thisOverRuns(["rh"], 4)).toBe(4);
-    expect(thisOverRuns([], 7)).toBe(7);
   });
 });
 

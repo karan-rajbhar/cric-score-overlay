@@ -11,11 +11,10 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { cn } from "~/lib/utils";
-import { strapText, type StrapText } from "../../strap-views";
 import type { ActiveLowerThirdStrap, LayoutMode, LiveMatchState } from "../../types";
+import { AvatarSlot, lowerThirdAnchor, strapText, type OverBall } from "../shared";
 import {
   BallTray,
-  Crest,
   delay,
   DROP_FILTER,
   Fig,
@@ -33,14 +32,21 @@ import {
   TcRoot,
 } from "./kit";
 
-/** Bottom edge of the score bug's tab (bottom layout): 54 + 152. */
-const BUG_TOP = 206;
+/** The bottom score bug's height: tab 38, bar 76, strip 40. */
+export const BUG_HEIGHT = 154;
 
-/** Where a lower third sits for the score bug's layout. */
+/** The compact bug's height (a corner card). */
+const COMPACT_HEIGHT = 302;
+
+/**
+ * Where a lower third sits for the score bug's layout: above the bug at
+ * the bottom or in the corner; at the foot of the screen when the bug is
+ * at the top.
+ */
 export function strapPosition(layout: LayoutMode): CSSProperties {
   if (layout === "top") return { left: SAFE.x, bottom: SAFE.y + 18 };
-  if (layout === "compact") return { left: SAFE.x, bottom: 376 };
-  return { left: SAFE.x, bottom: BUG_TOP + 20 };
+  if (layout === "compact") return lowerThirdAnchor(COMPACT_HEIGHT, 20);
+  return lowerThirdAnchor(BUG_HEIGHT, 20);
 }
 
 export interface Cell {
@@ -182,7 +188,7 @@ export function sideColour(state: LiveMatchState, batting: boolean): string {
   return which === 2 ? "var(--tc-team2)" : "var(--tc-team1)";
 }
 
-/** "Ravi Iyer" -> "RI" in a portrait well. */
+/** A player's photo in a gilt frame, their initials when the match has none. */
 export function Portrait({
   name,
   url,
@@ -192,12 +198,6 @@ export function Portrait({
   url?: string | null;
   size?: number;
 }) {
-  const initials = (name ?? "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
   return (
     <span
       aria-hidden="true"
@@ -210,22 +210,15 @@ export function Portrait({
           "linear-gradient(135deg, #8a6a28, #f2dea0 40%, #b48d3c 70%, #e6cb84)",
       }}
     >
-      <span
+      <AvatarSlot
+        url={url}
+        name={name}
         className="flex h-full w-full items-center justify-center overflow-hidden"
         style={{ ...NAVY_DEEP, borderRadius: RADIUS - 1 }}
-      >
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span
-            className="font-bold"
-            style={{ fontFamily: SERIF, fontSize: size * 0.36, color: TC.goldText }}
-          >
-            {initials}
-          </span>
-        )}
-      </span>
+        imgClassName="h-full w-full object-cover"
+        textClassName="font-bold"
+        textStyle={{ fontFamily: SERIF, fontSize: size * 0.36, color: TC.goldText }}
+      />
     </span>
   );
 }
@@ -269,29 +262,12 @@ export function TextStrap({
   );
 }
 
-export type { StrapText };
-
-/** "Crest" for a lower third: the side's crest at strap size. */
-export function StrapCrest({
-  logo,
-  code,
-  name,
-  colour,
-}: {
-  logo?: string | null;
-  code?: string | null;
-  name?: string | null;
-  colour?: string;
-}) {
-  return <Crest logoUrl={logo} code={code} name={name} size={64} colour={colour} />;
-}
-
 /** This over in a strap body, on ivory. */
-export function OverRow({ tokens, slots }: { tokens: string[]; slots: number }) {
+export function OverRow({ balls, ballsPerOver }: { balls: OverBall[]; ballsPerOver: number }) {
   return (
     <div className="tc-a-fade mt-1 flex items-center gap-5" style={delay(300)}>
       <Label style={{ color: TC.inkMuted }}>This over</Label>
-      <BallTray tokens={tokens} slots={slots} size={36} light />
+      <BallTray balls={balls} ballsPerOver={ballsPerOver} size={36} light />
     </div>
   );
 }

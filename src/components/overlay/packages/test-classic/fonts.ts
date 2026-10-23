@@ -6,13 +6,11 @@
  *   English book face, sturdy enough for 1080p after compression).
  * - Fira Sans Condensed: names, labels and tables (a humanist condensed
  *   sans that keeps long names on one line).
- *
- * Loaded lazily by `use-fonts.ts`, never imported statically: next/font
- * calls only work under Next's compiler, and the registry (imported by
- * many tests) must not evaluate them.
  */
 
 import { Fira_Sans_Condensed, Libre_Baskerville } from "next/font/google";
+import { packageFonts } from "../shared/fonts";
+import type { PackageFonts } from "../types";
 
 const serif = Libre_Baskerville({
   subsets: ["latin"],
@@ -30,5 +28,11 @@ const sans = Fira_Sans_Condensed({
   preload: false,
 });
 
-/** The classes that define `--tc-font-serif` and `--tc-font-sans`. */
-export const TEST_CLASSIC_FONT_CLASS = `${serif.variable} ${sans.variable}`;
+const SERIF_FALLBACK = 'Baskerville, "Baskerville Old Face", Georgia, serif';
+const SANS_FALLBACK = '"Arial Narrow", "Roboto Condensed", sans-serif';
+
+/** Serif for display and figures, the condensed sans for text. */
+export const TEST_CLASSIC_FONTS: PackageFonts = {
+  ...packageFonts({ display: serif, text: sans, figures: serif }, SERIF_FALLBACK),
+  text: `${sans.style.fontFamily}, ${SANS_FALLBACK}`,
+};

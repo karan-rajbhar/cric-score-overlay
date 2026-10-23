@@ -14,9 +14,8 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import type { Match } from "~/lib/match-types";
-import { ballsPerOverOf } from "../../score-bug";
-import { oversText } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
+import { ballsPerOverOf, batterNow, bowlerNow } from "../shared";
 import type { OverlayElementProps, StingKind } from "../types";
 import {
   delay,
@@ -79,25 +78,22 @@ function figuresFor(
   match: Match | null,
 ): { big: string; note: string | null } | null {
   if (!state || !name) return null;
-  const bpo = ballsPerOverOf(match);
   if (bowling) {
-    if (name !== state.current_bowler_name) return null;
+    const b = bowlerNow(state, ballsPerOverOf(match));
+    if (!b || b.name !== name) return null;
     return {
-      big: `${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0}`,
-      note: `${oversText(state.bowler_balls, bpo)} overs${state.bowler_maidens ? ` · ${plural(state.bowler_maidens, "maiden")}` : ""}`,
+      big: b.figures,
+      note: `${b.overs} overs${b.maidens ? ` · ${plural(b.maidens, "maiden")}` : ""}`,
     };
   }
-  const striker = name === state.striker_name;
-  const non = name === state.non_striker_name;
-  if (!striker && !non) return null;
-  const runs = (striker ? state.striker_runs : state.non_striker_runs) ?? 0;
-  const balls = (striker ? state.striker_balls : state.non_striker_balls) ?? 0;
-  const fours = striker ? state.striker_fours : state.non_striker_fours;
-  const sixes = striker ? state.striker_sixes : state.non_striker_sixes;
-  const parts = [plural(balls, "ball")];
-  if (fours !== null && fours !== undefined) parts.push(plural(fours, "four"));
-  if (sixes !== null && sixes !== undefined) parts.push(plural(sixes, "six", "sixes"));
-  return { big: String(runs), note: parts.join(" · ") };
+  const bat = [batterNow(state, "striker"), batterNow(state, "non_striker")].find(
+    (x) => x?.name === name,
+  );
+  if (!bat) return null;
+  const parts = [plural(bat.balls, "ball")];
+  if (bat.fours !== null) parts.push(plural(bat.fours, "four"));
+  if (bat.sixes !== null) parts.push(plural(bat.sixes, "six", "sixes"));
+  return { big: String(bat.runs), note: parts.join(" · ") };
 }
 
 function Band({ p }: { p: StingProps }) {

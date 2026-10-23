@@ -49,12 +49,14 @@ const CASES: Partial<Record<OverlayElementId, Array<{ variant?: string; kind?: s
 
 /**
  * Where Standard draws a card with nothing to say (a "0 runs" partnership
- * before the first ball, an empty over between innings, a result card
+ * with nobody at the crease, an empty over between innings, a result card
  * with no result) and this package, by design, draws nothing.
  */
 const STANDARD_WITHOUT_DATA = new Set([
   'partnership pre {"variant":"card"}',
   'partnership pre {"variant":"split"}',
+  'partnership break {"variant":"card"}',
+  'partnership break {"variant":"split"}',
   'thisOver break {"variant":"card"}',
   "result pre {}",
   "result first {}",
@@ -107,7 +109,9 @@ describe("the Test classic package", () => {
     const vars = testClassicPackage.vars!(ctx);
     expect(vars["--tc-team1"]).toBe(DEMO_MATCH_STATE.team_colors!.team1!.primary);
     expect(vars["--tc-team2"]).toBe(DEMO_MATCH_STATE.team_colors!.team2!.primary);
-    expect(testClassicPackage.fonts?.display).toContain("--tc-font-serif");
+    expect(testClassicPackage.fonts?.display).toContain("Libre Baskerville");
+    expect(testClassicPackage.fonts?.text).toContain("Fira Sans Condensed");
+    expect(testClassicPackage.fonts?.figures).toContain("Libre Baskerville");
   });
 });
 

@@ -7,7 +7,7 @@
  * - Deep navy bars with a lit bevel, ivory cards, gold-leaf rules and a
  *   varnished-wood honours board for hundreds and five-fors.
  * - Libre Baskerville for titles and big figures, Fira Sans Condensed for
- *   names and tables (`fonts.ts`, loaded lazily: `use-fonts.ts`).
+ *   names and tables (`fonts.ts`).
  * - Calm, precise motion: wipes and gold rules drawn from the left,
  *   staggered rows, scoreboard flips on the figures, one sheen across the
  *   gold on a milestone.
@@ -20,7 +20,7 @@
 import { contrastRatio, overlayPalette, parseHex, withAlpha } from "../../overlay-themes";
 import type { OverlayPalette } from "../../overlay-themes";
 import type { BroadcastPackage, MotionSpec, PaletteContext } from "../types";
-import { FONT_STACKS } from "./use-fonts";
+import { TEST_CLASSIC_FONTS } from "./fonts";
 import { TC } from "./kit";
 import { TEST_CLASSIC_ELEMENTS } from "./elements";
 
@@ -122,13 +122,7 @@ export const testClassicPackage: BroadcastPackage = {
   kind: "broadcast",
   palette,
   vars,
-  // The faces load lazily (see use-fonts.ts): no class on the stage root;
-  // every element applies them itself.
-  fonts: {
-    display: FONT_STACKS.serif,
-    text: FONT_STACKS.sans,
-    figures: FONT_STACKS.serif,
-  },
+  fonts: TEST_CLASSIC_FONTS,
   motion: {
     scoreBug: { enter: settleIn(300), exit: sinkOut(380, 24) },
     batterLowerThird: strap,

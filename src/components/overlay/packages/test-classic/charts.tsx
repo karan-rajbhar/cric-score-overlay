@@ -9,19 +9,25 @@
  * same reads as Standard's charts; the demo match carries its balls).
  */
 
-import { useMemo, type ReactNode } from "react";
-import { phaseBoundaries } from "~/lib/match-report";
-import { buildOverTable, type OverPoint } from "~/lib/match-charts";
-import type { Innings, Match } from "~/lib/match-types";
-import {
-  describeDonutSegment,
-  polarToCartesian,
-  SECTORS,
-} from "~/lib/wagon-wheel-utils";
-import { useInningsBallLog, useScorecardInnings } from "../../overlay-data";
+import type { ReactNode } from "react";
 import { eyebrowOf } from "../../overlay-kit";
-import { inningsTeamName } from "../../scorecard-cards";
 import type { LiveMatchState } from "../../types";
+import {
+  axisMax,
+  chartOvers,
+  describeDonutSegment,
+  phaseRates,
+  polarToCartesian,
+  runsPerOver,
+  sectorTotals,
+  SECTORS,
+  strikeRateText,
+  useBatterShots,
+  useInningsSeries,
+  wormSeries,
+  wormWickets,
+  type InningsSeries,
+} from "../shared";
 import type { OverlayElementProps } from "../types";
 import {
   CardShell,
@@ -35,33 +41,11 @@ import {
   TC,
   TcRoot,
 } from "./kit";
-import { isMultiInnings, plural, scoreText, strikeRate } from "./logic";
+import { plural, scoreText } from "./logic";
 
 type P<E extends keyof OverlayElementProps> = OverlayElementProps[E];
 
-interface Series {
-  innings: Innings;
-  name: string;
-  table: OverPoint[];
-}
-
-/** The two innings the charts compare (the last two of a multi-innings match). */
-function useSeries(state: LiveMatchState, match: Match | null): Series[] | null {
-  const { innings } = useScorecardInnings(match);
-  const shown = useMemo(() => {
-    const multi = isMultiInnings(state.match_format ?? match?.match_format);
-    return multi ? innings.slice(-2) : innings.filter((i) => i.innings_number <= 2);
-  }, [innings, state.match_format, match?.match_format]);
-  const log = useInningsBallLog(state, shown, true);
-  return useMemo(() => {
-    if (!log) return null;
-    return shown.map((inn) => ({
-      innings: inn,
-      name: inningsTeamName(state, inn, match?.team1_id),
-      table: buildOverTable(log.get(inn.id) ?? []),
-    }));
-  }, [shown, log, match, state]);
-}
+type Series = InningsSeries;
 
 const SERIES_FILL = [
   `url(#tc-navy)`,
@@ -193,19 +177,18 @@ function ChartShell({
 }
 
 function maxOversOf(state: LiveMatchState, series: Series[]): number {
-  const played = Math.max(1, ...series.map((s) => s.table.length));
-  if (isMultiInnings(state.match_format)) return played;
-  return Math.max(state.overs_per_innings ?? 20, played);
+  return chartOvers(state.overs_per_innings, series.map((s) => s.table));
 }
 
 export function RunsPerOver(p: P<"runsPerOver">) {
-  const series = useSeries(p.state, p.match);
+  const series = useInningsSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
   const shown = series.slice(0, 2);
   const maxOvers = maxOversOf(p.state, shown);
-  const maxRuns = Math.max(6, ...shown.flatMap((s) => s.table.map((o) => o.runs)));
+  const bars = shown.map((s) => runsPerOver(s.table));
+  const maxRuns = Math.max(6, ...bars.flat().map((o) => o.runs));
   const step = niceStep(maxRuns);
-  const maxY = Math.ceil((maxRuns + 2) / step) * step;
+  const maxY = axisMax(maxRuns + 2, step);
   const iw = W - PAD.l - PAD.r;
   const ih = H - PAD.t - PAD.b;
   const slot = iw / maxOvers;
@@ -222,12 +205,12 @@ export function RunsPerOver(p: P<"runsPerOver">) {
         <Defs />
         <Axes maxY={maxY} maxOvers={maxOvers} step={step} />
         {shown.map((s, si) =>
-          s.table.map((o, i) => {
-            const x = PAD.l + (o.overNumber - 1) * slot + slot * 0.11 + si * barW;
+          bars[si]!.map((o, i) => {
+            const x = PAD.l + (o.over - 1) * slot + slot * 0.11 + si * barW;
             const h = (o.runs / maxY) * ih;
             const y = PAD.t + ih - h;
             return (
-              <g key={`${s.innings.id}-${o.overNumber}`}>
+              <g key={`${s.innings.id}-${o.over}`}>
                 <rect
                   className="tc-a-grow-y"
                   x={x}
@@ -263,13 +246,14 @@ export function RunsPerOver(p: P<"runsPerOver">) {
 }
 
 export function Worm(p: P<"worm">) {
-  const series = useSeries(p.state, p.match);
+  const series = useInningsSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
   const shown = series.slice(0, 2);
   const maxOvers = maxOversOf(p.state, shown);
-  const maxRuns = Math.max(10, ...shown.flatMap((s) => s.table.map((o) => o.cumulativeRuns)));
+  const worms = shown.map((s) => wormSeries(s.table));
+  const maxRuns = Math.max(10, ...worms.flat().map((pt) => pt.runs));
   const step = niceStep(maxRuns);
-  const maxY = Math.ceil((maxRuns + 1) / step) * step;
+  const maxY = axisMax(maxRuns + 1, step);
   const iw = W - PAD.l - PAD.r;
   const ih = H - PAD.t - PAD.b;
   const x = (over: number) => PAD.l + (over / maxOvers) * iw;
@@ -286,7 +270,7 @@ export function Worm(p: P<"worm">) {
         <Defs />
         <Axes maxY={maxY} maxOvers={maxOvers} step={step} />
         {shown.map((s, si) => {
-          const pts = [{ over: 0, runs: 0 }, ...s.table.map((o) => ({ over: o.overNumber, runs: o.cumulativeRuns }))];
+          const pts = worms[si]!;
           const d = pts.map((pt, i) => `${i ? "L" : "M"} ${x(pt.over).toFixed(1)} ${y(pt.runs).toFixed(1)}`).join(" ");
           return (
             <g key={s.innings.id}>
@@ -301,13 +285,13 @@ export function Worm(p: P<"worm">) {
                 strokeLinecap="round"
                 style={delay(250 + si * 200)}
               />
-              {s.table.flatMap((o) =>
+              {wormWickets(pts).flatMap((o) =>
                 Array.from({ length: o.wickets }, (_, k) => (
                   <circle
-                    key={`${o.overNumber}-${k}`}
+                    key={`${o.over}-${k}`}
                     className="tc-a-fade"
-                    cx={x(o.overNumber)}
-                    cy={y(o.cumulativeRuns) - k * 16}
+                    cx={x(o.over)}
+                    cy={y(o.runs) - k * 16}
                     r="8"
                     fill="url(#tc-ball)"
                     stroke="#fdf9ef"
@@ -325,27 +309,17 @@ export function Worm(p: P<"worm">) {
 }
 
 export function RunRates(p: P<"runRates">) {
-  const series = useSeries(p.state, p.match);
+  const series = useInningsSeries(p.state, p.match);
   if (!series || !series.some((s) => s.table.length)) return null;
   const shown = series.slice(0, 2);
   const maxOvers = maxOversOf(p.state, shown);
-  const bounds = isMultiInnings(p.state.match_format) ? null : phaseBoundaries(maxOvers);
-  const phases = bounds
-    ? [
-        { label: "Powerplay", from: 1, to: bounds.ppEnd },
-        { label: "Middle overs", from: bounds.ppEnd + 1, to: bounds.midEnd },
-        { label: "Death overs", from: bounds.midEnd + 1, to: maxOvers },
-      ]
-    : [{ label: "Innings", from: 1, to: maxOvers }];
-  const rate = (s: Series, from: number, to: number) => {
-    const overs = s.table.filter((o) => o.overNumber >= from && o.overNumber <= to);
-    if (!overs.length) return null;
-    const runs = overs.reduce((n, o) => n + o.runs, 0);
-    const wkts = overs.reduce((n, o) => n + o.wickets, 0);
-    return { rr: runs / overs.length, runs, wkts };
+  const rates = shown.map((s) => phaseRates(s.table, maxOvers));
+  const phases = rates[0]!;
+  const rate = (si: number, pi: number) => {
+    const r = rates[si]?.[pi];
+    return r && r.runRate !== null ? { rr: r.runRate, runs: r.runs, wkts: r.wickets } : null;
   };
-  const all = phases.flatMap((ph) => shown.map((s) => rate(s, ph.from, ph.to)?.rr ?? 0));
-  const maxRr = Math.max(6, ...all);
+  const maxRr = Math.max(6, ...rates.flat().map((r) => r.runRate ?? 0));
   return (
     <ChartShell state={p.state} title="Run rates" label="run-rates">
       <Legend series={shown} />
@@ -362,7 +336,7 @@ export function RunRates(p: P<"runRates">) {
             </div>
             <div className="space-y-2.5">
               {shown.map((s, si) => {
-                const r = rate(s, ph.from, ph.to);
+                const r = rate(si, pi);
                 return (
                   <div key={s.innings.id} className="flex items-center gap-5">
                     <div className="h-7 flex-1 overflow-hidden rounded-[2px]" style={{ background: "rgba(110,90,50,0.08)" }}>
@@ -408,7 +382,6 @@ const R_RIM = 250;
 const R_ROPE = 196;
 const R_IN = 128;
 const BATTER_Y = CY - 16;
-const DISTANCE: Record<number, number> = { 1: 0.46, 2: 0.62, 3: 0.76, 4: 0.97, 6: 1.04 };
 
 function shotStroke(runs: number): { stroke: string; width: number } {
   if (runs >= 6) return { stroke: "#ffffff", width: 4 };
@@ -419,38 +392,12 @@ function shotStroke(runs: number): { stroke: string; width: number } {
 export function WagonWheel(p: P<"wagonWheel">) {
   const { state, match } = p;
   const id = p.batterId ?? state.striker_id ?? null;
-  const name = id && id === state.non_striker_id ? state.non_striker_name : state.striker_name;
-  const { innings } = useScorecardInnings(match);
-  const current = useMemo(
-    () => innings.filter((i) => i.innings_number === state.innings_number),
-    [innings, state.innings_number],
-  );
-  const log = useInningsBallLog(state, current, true);
-  const balls = useMemo(
-    () =>
-      id && current[0]
-        ? (log?.get(current[0].id) ?? []).filter((b) => b.batsman_id === id)
-        : [],
-    [log, current, id],
-  );
-  const shots = useMemo(
-    () =>
-      balls.flatMap((b, i) => {
-        const sector = SECTORS.find((s) => s.id === b.shot_zone);
-        if (!sector || (b.runs_scored ?? 0) <= 0) return [];
-        const spread = ((i * 17) % 28) - 14;
-        const angle = (sector.midAngle + spread + 360) % 360;
-        const runs = b.runs_scored ?? 0;
-        const end = polarToCartesian(CX, CY, R_ROPE * (DISTANCE[runs] ?? 0.46), angle);
-        return [{ key: b.id, runs, end, sector }];
-      }),
-    [balls],
-  );
-  if (!log || !shots.length) return null;
-  const bySector = new Map<string, number>();
-  for (const s of shots) bySector.set(s.sector.id, (bySector.get(s.sector.id) ?? 0) + s.runs);
+  const { name, shots, loaded } = useBatterShots(state, match, p.batterId);
+  if (!loaded || !shots.length) return null;
+  const bySector = new Map(sectorTotals(shots).map((t) => [t.id, t.runs]));
+  const offSide = new Set(SECTORS.filter((s) => s.side === "off").map((s) => s.id));
   const runs = shots.reduce((n, s) => n + s.runs, 0);
-  const off = shots.filter((s) => s.sector.side === "off").reduce((n, s) => n + s.runs, 0);
+  const off = shots.filter((s) => offSide.has(s.sectorId)).reduce((n, s) => n + s.runs, 0);
   const leg = runs - off;
   const fours = shots.filter((s) => s.runs === 4).length;
   const sixes = shots.filter((s) => s.runs >= 6).length;
@@ -514,6 +461,7 @@ export function WagonWheel(p: P<"wagonWheel">) {
             })}
             {shots.map((s, i) => {
               const st = shotStroke(s.runs);
+              const end = polarToCartesian(CX, CY, R_ROPE * s.reach, s.angle);
               return (
                 <line
                   key={s.key}
@@ -521,8 +469,8 @@ export function WagonWheel(p: P<"wagonWheel">) {
                   pathLength={1}
                   x1={CX}
                   y1={BATTER_Y}
-                  x2={s.end.x}
-                  y2={s.end.y}
+                  x2={end.x}
+                  y2={end.y}
                   stroke={st.stroke}
                   strokeWidth={st.width}
                   strokeLinecap="round"
@@ -552,7 +500,7 @@ export function WagonWheel(p: P<"wagonWheel">) {
             </dl>
             {total !== null && total !== undefined && faced ? (
               <p className="tc-a-fade text-[1.375rem]" style={{ color: TC.ink, ...FIGS, ...delay(700) }}>
-                Strike rate <strong>{strikeRate(total, faced)}</strong>
+                Strike rate <strong>{strikeRateText(total, faced)}</strong>
               </p>
             ) : null}
             <ul className="flex items-center gap-6 border-t pt-5 text-[1.125rem]" style={{ borderColor: TC.ivoryLine, color: TC.inkMuted }}>

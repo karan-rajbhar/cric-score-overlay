@@ -20,8 +20,10 @@ import {
 } from "react";
 import { cn } from "~/lib/utils";
 import { MotionPreferenceContext } from "../motion";
-import { ballToken, type BallTone } from "./logic";
-import { FONT_STACKS, useTestClassicFonts } from "./use-fonts";
+import { CrestSlot, overSlotsLeft, type DeliveryKind, type OverBall } from "../shared";
+import { SAFE } from "../shared/layout";
+
+export { SAFE };
 
 // ---- palette -------------------------------------------------------------
 
@@ -101,16 +103,15 @@ export const WOOD: CSSProperties = {
   color: TC.goldText,
 };
 
-export const SERIF = FONT_STACKS.serif;
-export const SANS = FONT_STACKS.sans;
+/** The package's faces (set on the stage root from `fonts.ts`), with fallbacks. */
+export const SERIF = 'var(--pkg-font-display, Baskerville, Georgia, serif)';
+export const SANS = 'var(--pkg-font-text, "Arial Narrow", sans-serif)';
 
 /** Lining, tabular figures. */
 export const FIGS: CSSProperties = {
   fontVariantNumeric: "lining-nums tabular-nums",
 };
 
-/** The canvas's title-safe inset. */
-export const SAFE = { x: 96, y: 54 } as const;
 
 // ---- motion ----------------------------------------------------------------
 
@@ -171,14 +172,13 @@ export function TcRoot({
   style,
   ...rest
 }: React.HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
-  const fonts = useTestClassicFonts();
   const { respectReducedMotion } = useContext(MotionPreferenceContext);
   return (
     <div
       {...rest}
       data-tc-root=""
       data-tc-preview={respectReducedMotion ? "" : undefined}
-      className={cn("pointer-events-none select-none", fonts, className)}
+      className={cn("pointer-events-none select-none", className)}
       style={{ fontFamily: SANS, ...style }}
     >
       <style href="tc-keyframes" precedence="tc">
@@ -301,18 +301,9 @@ export function Fig({
   );
 }
 
-function initialsOf(name: string | null | undefined): string {
-  return (name ?? "")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("");
-}
-
 /**
- * A team's crest in a gold-ringed roundel: the match's own logo, else its
- * short code (or initials) in the serif.
+ * A team's crest in a gold-ringed roundel: the match's own logo, else a
+ * monogram in the serif (the shared crest slot's fallback).
  */
 export function Crest({
   logoUrl,
@@ -328,7 +319,6 @@ export function Crest({
   /** The team colour, as the roundel's field. */
   colour?: string;
 }) {
-  const text = code || initialsOf(name);
   return (
     <span
       aria-hidden="true"
@@ -341,7 +331,10 @@ export function Crest({
         boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
       }}
     >
-      <span
+      <CrestSlot
+        logo={logoUrl}
+        name={name}
+        code={code || (name ?? "").slice(0, 3).toUpperCase()}
         className="flex h-full w-full items-center justify-center overflow-hidden rounded-full"
         style={{
           background: logoUrl
@@ -349,29 +342,20 @@ export function Crest({
             : `radial-gradient(circle at 35% 30%, ${colour ?? TC.navyHi} 0%, ${TC.navyLo} 100%)`,
           boxShadow: "inset 0 1px 2px rgba(0,0,0,0.35)",
         }}
-      >
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="" className="h-[78%] w-[78%] object-contain" />
-        ) : (
-          <span
-            className="font-bold leading-none"
-            style={{
-              fontFamily: SERIF,
-              color: TC.ivoryHi,
-              fontSize: Math.round(size * (text.length > 2 ? 0.3 : 0.38)),
-              letterSpacing: "0.02em",
-            }}
-          >
-            {text}
-          </span>
-        )}
-      </span>
+        imgClassName="h-[78%] w-[78%] object-contain"
+        textClassName="font-bold leading-none"
+        textStyle={{
+          fontFamily: SERIF,
+          color: TC.ivoryHi,
+          fontSize: Math.round(size * 0.34),
+          letterSpacing: "0.02em",
+        }}
+      />
     </span>
   );
 }
 
-const BALL_STYLE: Record<BallTone, CSSProperties> = {
+const BALL_STYLE: Record<DeliveryKind, CSSProperties> = {
   dot: {
     background: "rgba(243, 236, 218, 0.14)",
     color: TC.ivory,
@@ -399,44 +383,46 @@ const BALL_STYLE: Record<BallTone, CSSProperties> = {
     background: "rgba(243, 236, 218, 0.92)",
     color: TC.claret,
   },
+  event: {
+    background: "transparent",
+    color: TC.ivory,
+    boxShadow: "inset 0 0 0 1.5px rgba(243, 236, 218, 0.4)",
+  },
 };
 
 /**
  * This over's deliveries as roundels: dots as a quiet ring, fours in
- * green, sixes in gold, wickets in claret, extras named. Empty slots to
- * the over's length as faint rings. A new ball drops in.
+ * green, sixes in gold, wickets in claret, extras and events named.
+ * Empty slots for the legal balls still to come as faint rings. A new
+ * ball drops in.
  */
 export function BallTray({
-  tokens,
-  slots = 6,
+  balls,
+  ballsPerOver = 6,
   size = 34,
   className,
   light = false,
 }: {
-  tokens: readonly string[];
-  slots?: number;
+  balls: readonly OverBall[];
+  ballsPerOver?: number;
   size?: number;
   className?: string;
-  /** On an ivory ground: dots and empty slots in ink. */
+  /** On an ivory ground: dots, runs, extras and empty slots in ink. */
   light?: boolean;
 }) {
-  const empty = Math.max(0, slots - tokens.length);
+  const empty = overSlotsLeft(balls, ballsPerOver);
   return (
     <ol aria-label="This over" className={cn("flex items-center gap-2", className)}>
-      {tokens.map((t, i) => {
-        const b = ballToken(t);
+      {balls.map((b, i) => {
+        const label = b.kind === "dot" ? "•" : b.label;
         const style: CSSProperties =
-          light && b.tone === "dot"
-            ? {
-                background: "transparent",
-                color: TC.ink,
-                boxShadow: `inset 0 0 0 1.5px ${TC.inkMuted}`,
-              }
-            : light && b.tone === "extra"
+          light && (b.kind === "dot" || b.kind === "event")
+            ? { background: "transparent", color: TC.ink, boxShadow: `inset 0 0 0 1.5px ${TC.inkMuted}` }
+            : light && b.kind === "extra"
               ? { background: TC.claret, color: "#ffffff" }
-              : light && b.tone === "run"
+              : light && b.kind === "run"
                 ? { background: TC.navy, color: TC.ivoryHi }
-                : BALL_STYLE[b.tone];
+                : BALL_STYLE[b.kind];
         return (
           <li
             key={i}
@@ -444,15 +430,15 @@ export function BallTray({
             style={{
               height: size,
               minWidth: size,
-              padding: b.label.length > 1 ? "0 8px" : 0,
-              fontSize: b.label.length > 1 ? size * 0.44 : size * 0.52,
+              padding: label.length > 1 ? "0 8px" : 0,
+              fontSize: label.length > 1 ? size * 0.44 : size * 0.52,
               ...FIGS,
               ...style,
               ...delay(i * 50),
             }}
           >
-            <span aria-hidden="true">{b.label}</span>
-            <span className="sr-only">{spoken(b.tone, t)}</span>
+            <span aria-hidden="true">{label}</span>
+            <span className="sr-only">{spoken(b)}</span>
           </li>
         );
       })}
@@ -472,18 +458,16 @@ export function BallTray({
   );
 }
 
-function spoken(tone: BallTone, token: string): string {
-  switch (tone) {
+function spoken(b: OverBall): string {
+  switch (b.kind) {
     case "dot":
       return "dot ball";
     case "four":
-      return "four";
     case "six":
-      return "six";
     case "wicket":
-      return "wicket";
+      return b.kind;
     default:
-      return token;
+      return b.token;
   }
 }
 

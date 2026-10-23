@@ -15,19 +15,24 @@
  * until `live_state` carries one.
  */
 
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { Match } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
 import { AnimatedNumber } from "../motion";
-import { battingSide, oversText, overTokens, teamCode } from "../../overlay-kit";
+import { battingSide } from "../../overlay-kit";
 import { inningsTeamName } from "../../scorecard-cards";
+import type { LiveMatchState } from "../../types";
 import {
   ballsPerOverOf,
+  oversText,
+  scoreBugAnchor,
+  shortName,
   sidesOf,
+  teamCode,
+  thisOverBalls,
   tossLineOf,
   type OverlayPhase,
-} from "../../score-bug";
-import type { LayoutMode, LiveMatchState } from "../../types";
+} from "../shared";
 import type { OverlayElementProps } from "../types";
 import {
   BallTray,
@@ -43,7 +48,6 @@ import {
   NAVY,
   NAVY_DEEP,
   RADIUS,
-  SAFE,
   SERIF,
   Stripe,
   TC,
@@ -58,7 +62,6 @@ import {
   previousInnings,
   scoreText,
   standingOf,
-  thisOverRuns,
   type Standing,
 } from "./logic";
 
@@ -130,7 +133,7 @@ function BatterRow({
         )}
         style={{ color: striker ? TC.ivoryHi : "rgba(243,236,218,0.88)" }}
       >
-        {name}
+        {shortName(name, lg ? 22 : 18)}
         {striker && <span className="sr-only"> on strike</span>}
       </span>
       <Fig className={lg ? "text-[1.75rem]" : "text-[1.5rem]"}>
@@ -459,19 +462,19 @@ function ScoreBlock({
 }
 
 function OverTray({ state, bpo, size = 34 }: { state: LiveMatchState; bpo: number; size?: number }) {
-  const tokens = overTokens(state);
-  const runs = thisOverRuns(tokens, state.this_over_runs);
+  const balls = thisOverBalls(state);
+  const runs = state.this_over_runs ?? null;
   return (
     <div className="flex min-w-0 flex-col items-end justify-center gap-2">
       <span className="flex items-baseline gap-2.5">
         <Label style={{ color: TC.goldText }}>This over</Label>
-        {tokens.length > 0 && runs !== null && (
+        {balls.length > 0 && runs !== null && (
           <span className="text-[1.125rem] font-semibold leading-none" style={{ ...FIGS, color: "rgba(243,236,218,0.85)" }}>
             {runs}
           </span>
         )}
       </span>
-      <BallTray tokens={tokens} slots={bpo} size={size} />
+      <BallTray balls={balls} ballsPerOver={bpo} size={size} />
     </div>
   );
 }
@@ -577,7 +580,7 @@ function TopInPlay({ state, match, bpo, sponsor }: PlayProps) {
         )}
         <Divider />
         <div className="flex min-w-0 flex-1 items-center justify-end px-5">
-          <BallTray tokens={overTokens(state)} slots={bpo} size={30} />
+          <BallTray balls={thisOverBalls(state)} ballsPerOver={bpo} size={30} />
         </div>
       </div>
       <Strip left={left} right={sponsor ? [<SponsorItem key="s" sponsor={sponsor} />] : []} className="h-9" />
@@ -625,7 +628,7 @@ function CompactInPlay({ state, match, bpo }: PlayProps) {
             </div>
           )}
           <div className="flex justify-end pt-1.5">
-            <BallTray tokens={overTokens(state)} slots={bpo} size={28} />
+            <BallTray balls={thisOverBalls(state)} ballsPerOver={bpo} size={28} />
           </div>
         </div>
       </div>
@@ -827,12 +830,6 @@ function ResultBar({ state, match, slim }: { state: LiveMatchState; match: Match
 
 // ---- the element -----------------------------------------------------------
 
-function position(layout: LayoutMode, offset: number): CSSProperties {
-  if (layout === "top") return { top: SAFE.y, left: SAFE.x, right: SAFE.x };
-  if (layout === "compact") return { bottom: SAFE.y + offset, left: SAFE.x };
-  return { bottom: SAFE.y + offset, left: SAFE.x, right: SAFE.x };
-}
-
 export function TestClassicScoreBug(p: BugProps) {
   const { state, match, layout, sponsor, marginOffsetPx, phase } = p;
   const bpo = ballsPerOverOf(match);
@@ -845,7 +842,7 @@ export function TestClassicScoreBug(p: BugProps) {
       data-layout={layout}
       data-phase={effective}
       className="fixed z-20"
-      style={{ ...position(layout, marginOffsetPx), filter: DROP_FILTER }}
+      style={{ ...scoreBugAnchor(layout, marginOffsetPx), filter: DROP_FILTER }}
     >
       <div className={layout === "compact" && effective !== "live" ? "w-[44rem]" : undefined}>
         {effective === "pre" ? (

@@ -18,8 +18,8 @@ import type {
   InningsPartnership,
   Match,
 } from "~/lib/match-types";
-import { oversText } from "../../overlay-kit";
 import type { LiveMatchState } from "../../types";
+import { ballsPerOverOf, chaseLine, oversText } from "../shared/derive";
 
 /** "1st", "2nd", "3rd", "4th", "11th", "21st". */
 export function ordinal(n: number): string {
@@ -69,25 +69,6 @@ export function bowlingFigures(
   return `${oversText(balls, ballsPerOver)}-${maidens ?? 0}-${runs ?? 0}-${wickets ?? 0}`;
 }
 
-/** Strike rate to one decimal, or null before a ball is faced. */
-export function strikeRate(
-  runs: number | null | undefined,
-  balls: number | null | undefined,
-): string | null {
-  return balls && balls > 0 ? (((runs ?? 0) * 100) / balls).toFixed(1) : null;
-}
-
-/** Economy to two decimals, or null before a ball is bowled. */
-export function economy(
-  runs: number | null | undefined,
-  balls: number | null | undefined,
-  ballsPerOver = 6,
-): string | null {
-  return balls && balls > 0
-    ? (((runs ?? 0) * ballsPerOver) / balls).toFixed(2)
-    : null;
-}
-
 /** "1 four", "9 fours". */
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
@@ -121,25 +102,26 @@ export function standingOf(
 ): Standing | null {
   const multi = isMultiInnings(state.match_format ?? match?.match_format);
   const n = state.innings_number ?? 0;
-  const target = state.target_runs;
-  const need = state.runs_needed;
-  // A chase: the limited-overs second innings, or a Test's fourth.
-  if (target && need !== null && need !== undefined && !state.innings_completed) {
-    if (need <= 0) return null;
-    const limited = !multi && state.balls_remaining !== null;
-    const balls = limited ? (state.balls_remaining ?? null) : null;
-    return {
-      kind: "chase",
-      need,
-      balls,
-      target,
-      text:
-        balls !== null
-          ? `Need ${need} from ${plural(balls, "ball")}`
-          : `Need ${need} to win`,
-    };
+  if (!multi) {
+    const chase = chaseLine(state, ballsPerOverOf(match));
+    return chase
+      ? {
+          kind: "chase",
+          need: chase.runsNeeded,
+          balls: chase.ballsRemaining,
+          target: chase.target,
+          text: chase.text,
+        }
+      : null;
   }
-  if (!multi || n < 2 || !match?.innings?.length) return null;
+  // A Test's fourth innings: a target and no ball limit.
+  const target = state.target_runs;
+  if (target && !state.innings_completed) {
+    const need = state.runs_needed ?? target - (state.total_runs ?? 0);
+    if (need <= 0) return null;
+    return { kind: "chase", need, balls: null, target, text: `Need ${need} to win` };
+  }
+  if (n < 2 || !match?.innings?.length) return null;
   const battingId = battingTeamIdOf(state, match);
   if (!battingId) return null;
   let ours = 0;
@@ -422,64 +404,6 @@ export function partnershipRows(innings: Innings): StandRow[] {
       },
     };
   });
-}
-
-/** The stand at the crease, by the batters' ids (each one's share). */
-export function currentStand(
-  state: LiveMatchState,
-  match: Match | null | undefined,
-): StandRow | null {
-  const innings = match?.innings?.find(
-    (i) => i.innings_number === state.innings_number,
-  );
-  if (!innings) return null;
-  const rows = partnershipRows(innings);
-  const open = [...rows].reverse().find((r) => r.current);
-  if (!open) return null;
-  // Order the pair as the bug does: striker first.
-  const strikerName = state.striker_name;
-  return strikerName && open.b.name === strikerName
-    ? { ...open, a: open.b, b: open.a }
-    : open;
-}
-
-// ---- this over ---------------------------------------------------------------
-
-export type BallTone = "dot" | "run" | "four" | "six" | "wicket" | "extra";
-
-/** A "this over" token ("0", "1", "4", "W", "1wd", "2nb") as the tray shows it. */
-export function ballToken(token: string): { tone: BallTone; label: string } {
-  if (token === "W" || /^W/.test(token)) return { tone: "wicket", label: "W" };
-  if (/wd|nb|lb|b$/.test(token)) return { tone: "extra", label: token };
-  if (token === "4") return { tone: "four", label: "4" };
-  if (token === "6") return { tone: "six", label: "6" };
-  if (token === "0") return { tone: "dot", label: "•" };
-  return { tone: "run", label: token };
-}
-
-/**
- * The runs of this over's deliveries as the tray shows them ("1wd" is 1,
- * "W" is 0); null when a token cannot be read (then the live row's
- * `this_over_runs` stands).
- */
-export function overRunsOf(tokens: readonly string[]): number | null {
-  let total = 0;
-  for (const t of tokens) {
-    if (t === "W") continue;
-    const m = /^(\d+)(wd|nb|lb|b)?$/.exec(t);
-    if (!m) return null;
-    total += Number(m[1]);
-  }
-  return total;
-}
-
-/** This over's runs: from the tray's own tokens, else the live row's. */
-export function thisOverRuns(
-  tokens: readonly string[],
-  stored: number | null | undefined,
-): number | null {
-  if (!tokens.length) return stored ?? null;
-  return overRunsOf(tokens) ?? stored ?? null;
 }
 
 // ---- milestones --------------------------------------------------------------

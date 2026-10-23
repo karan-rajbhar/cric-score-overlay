@@ -10,13 +10,24 @@
 import type { ReactNode } from "react";
 import { formatDismissalType, formatFowOvers } from "~/lib/cricket";
 import type { PlayerCareerStatsRow } from "~/lib/firebase/types";
-import { winPredictorFromLive } from "~/lib/win-predictor";
 import { usePlayerProfile } from "../../overlay-data";
-import { oversText, overTokens, teamCode } from "../../overlay-kit";
 import { playerInSlot } from "../../profile-card";
-import { ballsPerOverOf, sidesOf } from "../../score-bug";
-import { strapText } from "../../strap-views";
 import type { LiveMatchState } from "../../types";
+import {
+  avatarOf,
+  ballsPerOverOf,
+  batterNow,
+  bowlerNow,
+  economyText,
+  estimateOf,
+  oversText,
+  partnershipOf,
+  sidesOf,
+  strapText,
+  strikeRateText,
+  teamCode,
+  thisOverBalls,
+} from "../shared";
 import type { OverlayElementProps } from "../types";
 import {
   delay,
@@ -33,17 +44,7 @@ import {
   TC,
   TcRoot,
 } from "./kit";
-import {
-  bowlingFigures,
-  currentStand,
-  economy,
-  ordinal,
-  plural,
-  scoreText,
-  standingOf,
-  strikeRate,
-  thisOverRuns,
-} from "./logic";
+import { bowlingFigures, ordinal, plural, scoreText, standingOf } from "./logic";
 import {
   NameStrap,
   OverRow,
@@ -57,18 +58,13 @@ type P<E extends keyof OverlayElementProps> = OverlayElementProps[E];
 
 // ---- batter --------------------------------------------------------------
 
-function batterFigures(state: LiveMatchState, striker: boolean) {
-  const name = striker ? state.striker_name : state.non_striker_name;
-  if (!name) return null;
-  const runs = (striker ? state.striker_runs : state.non_striker_runs) ?? 0;
-  const balls = (striker ? state.striker_balls : state.non_striker_balls) ?? 0;
-  const fours = striker ? state.striker_fours : state.non_striker_fours;
-  const sixes = striker ? state.striker_sixes : state.non_striker_sixes;
-  const cells: Cell[] = [{ label: "Balls", value: balls }];
-  if (fours !== null && fours !== undefined) cells.push({ label: "Fours", value: fours });
-  if (sixes !== null && sixes !== undefined) cells.push({ label: "Sixes", value: sixes });
-  cells.push({ label: "Strike rate", value: strikeRate(runs, balls) ?? "–" });
-  return { name, runs, balls, cells };
+/** A batter's figures row: balls, fours, sixes (when the row has them), strike rate. */
+function batterCells(b: NonNullable<ReturnType<typeof batterNow>>): Cell[] {
+  const cells: Cell[] = [{ label: "Balls", value: b.balls }];
+  if (b.fours !== null) cells.push({ label: "Fours", value: b.fours });
+  if (b.sixes !== null) cells.push({ label: "Sixes", value: b.sixes });
+  cells.push({ label: "Strike rate", value: b.strikeRate ?? "–" });
+  return cells;
 }
 
 function LastOut({
@@ -97,8 +93,8 @@ function LastOut({
       headlineNote={`${plural(w.balls, "ball")} · ${formatFowOvers(w.overs)} ov`}
       cells={cells}
       sub={
-        figures && strikeRate(w.runs, w.balls)
-          ? `Strike rate ${strikeRate(w.runs, w.balls)}`
+        figures && strikeRateText(w.runs, w.balls)
+          ? `Strike rate ${strikeRateText(w.runs, w.balls)}`
           : undefined
       }
       stripe={TC.claret}
@@ -118,15 +114,12 @@ export function BatterLowerThird(p: P<"batterLowerThird">) {
     return <TextStrap strap={p.strap} state={state} layout={layout} stripe={sideColour(state, true)} />;
   }
   const striker = p.slot === "striker";
-  const f = batterFigures(state, striker);
+  const f = batterNow(state, p.slot);
   if (!f) return null;
-  const stand = p.variant === "figures" ? currentStand(state, p.match) : null;
-  const share =
-    stand && stand.a.name === f.name
-      ? stand.a
-      : stand && stand.b.name === f.name
-        ? stand.b
-        : null;
+  const stand =
+    p.variant === "figures" ? partnershipOf(state, p.match?.innings ?? []) : null;
+  const share = stand?.split ? stand.batters[striker ? 0 : 1] : null;
+  const partner = stand?.batters[striker ? 1 : 0]?.name;
   const { batting } = sidesOf(state);
   return (
     <NameStrap
@@ -146,17 +139,19 @@ export function BatterLowerThird(p: P<"batterLowerThird">) {
         </>
       }
       headlineNote={`${plural(f.balls, "ball")}, not out`}
-      cells={f.cells}
+      cells={batterCells(f)}
       sub={
         share && share.runs !== null && stand
-          ? `${share.runs} of the ${stand.runs}-run stand with ${share === stand.a ? stand.b.name : stand.a.name}`
-          : p.variant === "figures" && state.partnership_runs !== null && state.partnership_runs !== undefined
-            ? `Partnership ${state.partnership_runs} (${state.partnership_balls ?? 0})`
+          ? `${share.runs} of the ${stand.runs}-run stand with ${partner}`
+          : stand
+            ? `Partnership ${stand.runs} (${stand.balls})`
             : undefined
       }
       stripe={sideColour(state, true)}
       lead={
-        p.variant === "figures" ? <Portrait name={f.name} size={76} /> : undefined
+        p.variant === "figures" ? (
+          <Portrait name={f.name} url={avatarOf(p.match, f.id)} size={76} />
+        ) : undefined
       }
     />
   );
@@ -169,8 +164,9 @@ export function BowlerLowerThird(p: P<"bowlerLowerThird">) {
   if (p.variant === "strap" && p.strap?.title) {
     return <TextStrap strap={p.strap} state={state} layout={layout} stripe={sideColour(state, false)} />;
   }
-  if (!state.current_bowler_name) return null;
   const bpo = ballsPerOverOf(match);
+  const b = bowlerNow(state, bpo);
+  if (!b) return null;
   const row =
     p.variant === "figures"
       ? match?.innings
@@ -178,11 +174,11 @@ export function BowlerLowerThird(p: P<"bowlerLowerThird">) {
           ?.bowling_performances?.find((b) => b.user_id === state.bowler_id)
       : undefined;
   const cells: Cell[] = [
-    { label: "Overs", value: oversText(state.bowler_balls, bpo) },
-    { label: "Maidens", value: state.bowler_maidens ?? 0 },
-    { label: "Runs", value: state.bowler_runs ?? 0 },
-    { label: "Wkts", value: state.bowler_wickets ?? 0 },
-    { label: "Econ", value: economy(state.bowler_runs, state.bowler_balls, bpo) ?? "–" },
+    { label: "Overs", value: b.overs },
+    { label: "Maidens", value: b.maidens ?? 0 },
+    { label: "Runs", value: b.runs },
+    { label: "Wkts", value: b.wickets },
+    { label: "Econ", value: b.economy ?? "–" },
   ];
   if (row) {
     cells.push({ label: "Wd", value: row.wides }, { label: "Nb", value: row.no_balls });
@@ -193,14 +189,14 @@ export function BowlerLowerThird(p: P<"bowlerLowerThird">) {
       testId={p.variant === "strap" ? "bowler" : "bowler-figures"}
       layout={layout}
       label={[bowling.name, "Bowling"].filter(Boolean).join(" · ")}
-      name={state.current_bowler_name}
-      headline={`${state.bowler_wickets ?? 0}-${state.bowler_runs ?? 0}`}
-      headlineNote={`${oversText(state.bowler_balls, bpo)} overs`}
+      name={b.name}
+      headline={b.figures}
+      headlineNote={`${b.overs} overs`}
       cells={cells}
       stripe={sideColour(state, false)}
       lead={
         p.variant === "figures" ? (
-          <Portrait name={state.current_bowler_name} size={76} />
+          <Portrait name={b.name} url={avatarOf(match, b.id)} size={76} />
         ) : undefined
       }
       width={p.variant === "figures" ? 1180 : 1040}
@@ -273,7 +269,7 @@ export function PartnershipStrap(p: P<"partnership">) {
     { label: "Runs", value: state.partnership_runs },
     { label: "Balls", value: balls },
   ];
-  const rate = economy(state.partnership_runs, balls);
+  const rate = economyText(state.partnership_runs, balls);
   if (rate) cells.push({ label: "Run rate", value: rate });
   return (
     <NameStrap
@@ -325,15 +321,15 @@ export function ThisOverStrap(p: P<"thisOver">) {
   const { state } = p;
   const strap = p.strap ?? { id: "tc-over", type: "over_end" as const, title: "" };
   const text = strapText(strap, state);
-  const tokens = overTokens(state);
-  if (!text?.title && !tokens.length) return null;
+  const balls = thisOverBalls(state);
+  if (!text?.title && !balls.length) return null;
   const bpo = ballsPerOverOf(p.match);
-  const runs = thisOverRuns(tokens, state.this_over_runs);
+  const runs = state.this_over_runs ?? null;
   return (
     <NameStrap
       testId="over_end"
       layout={p.layout}
-      label={text?.badge || `Over ${(state.current_over ?? 0) + (tokens.length ? 1 : 0)}`}
+      label={text?.badge || `Over ${(state.current_over ?? 0) + (balls.length ? 1 : 0)}`}
       name={text?.title || (runs !== null ? plural(runs, "run") : "This over")}
       headline={scoreText(state.total_runs, state.total_wickets)}
       headlineNote={`${oversText(state.total_balls, bpo)} overs`}
@@ -344,7 +340,7 @@ export function ThisOverStrap(p: P<"thisOver">) {
           : undefined
       }
     >
-      {tokens.length > 0 && <OverRow tokens={tokens} slots={bpo} />}
+      {balls.length > 0 && <OverRow balls={balls} ballsPerOver={bpo} />}
     </NameStrap>
   );
 }
@@ -377,7 +373,7 @@ export function ChanceBar({
 
 export function WinPredictorStrap(p: P<"winPredictor">) {
   const { state } = p;
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est || est.kind !== "chase") return null;
   const bat = teamCode(state.batting_team_short_name, state.batting_team_name);
   const bowl = teamCode(state.bowling_team_short_name, state.bowling_team_name);
@@ -406,7 +402,7 @@ export function WinPredictorStrap(p: P<"winPredictor">) {
 
 export function ProjectedStrap(p: P<"projectedScore">) {
   const { state } = p;
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est || est.kind !== "projection") return null;
   return (
     <NameStrap

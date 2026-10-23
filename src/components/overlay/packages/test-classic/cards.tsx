@@ -12,13 +12,24 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Innings, Match, TeamPlayer } from "~/lib/match-types";
 import { cn } from "~/lib/utils";
-import { winPredictorFromLive } from "~/lib/win-predictor";
-import { eyebrowOf, oversText, overTokens, teamCode } from "../../overlay-kit";
+import { eyebrowOf } from "../../overlay-kit";
 import { playingXi, tossWinnerName } from "../../presentation-card-views";
-import { ballsPerOverOf, sidesOf } from "../../score-bug";
 import { inningsTeamName } from "../../scorecard-cards";
-import { strapText } from "../../strap-views";
 import type { LiveMatchState } from "../../types";
+import {
+  ballsPerOverOf,
+  economyText,
+  estimateOf,
+  inningsLeaders,
+  oversText,
+  partnershipOf,
+  roleMark,
+  sidesOf,
+  strapText,
+  strikeRateText,
+  teamCode,
+  thisOverBalls,
+} from "../shared";
 import type { OverlayElementProps } from "../types";
 import {
   BallTray,
@@ -42,8 +53,6 @@ import {
 import {
   battingRows,
   bowlingFigures,
-  currentStand,
-  economy,
   extrasParts,
   fallOfWickets,
   howOut,
@@ -54,13 +63,10 @@ import {
   plural,
   scoreText,
   standingOf,
-  strikeRate,
   playerNames,
   surname,
-  thisOverRuns,
   totalDetail,
   yetToBat,
-  type StandRow,
 } from "./logic";
 import { ChanceBar } from "./strap-elements";
 
@@ -198,7 +204,7 @@ function BattingTable({
               <td className={TD} style={FIGS}>{b.fours}</td>
               <td className={TD} style={FIGS}>{b.sixes}</td>
               <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>
-                {strikeRate(b.runs_scored, b.balls_faced) ?? "–"}
+                {strikeRateText(b.runs_scored, b.balls_faced) ?? "–"}
               </td>
             </tr>
           );
@@ -261,7 +267,7 @@ function BowlingTable({ innings, bpo }: { innings: Innings; bpo: number }) {
               <Fig className="text-[1.5rem]">{b.wickets_taken}</Fig>
             </td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>
-              {economy(b.runs_conceded, b.balls_bowled, bpo) ?? "–"}
+              {economyText(b.runs_conceded, b.balls_bowled) ?? "–"}
             </td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>{b.wides}</td>
             <td className={cn(TD, "font-medium")} style={{ ...FIGS, color: TC.inkMuted }}>{b.no_balls}</td>
@@ -462,9 +468,7 @@ export function FallOfWicketsCard(p: P<"fallOfWickets">) {
 // ---- partnerships ----------------------------------------------------------------
 
 /** The stand split between its batters, from the centre outwards. */
-function SplitBar({ stand, height = 18, d = 400 }: { stand: StandRow; height?: number; d?: number }) {
-  const a = stand.a.runs ?? 0;
-  const b = stand.b.runs ?? 0;
+function SplitBar({ a, b, height = 18, d = 400 }: { a: number; b: number; height?: number; d?: number }) {
   const max = Math.max(a, b, 1);
   return (
     <div className="flex items-center gap-1" aria-hidden="true">
@@ -513,18 +517,14 @@ function StandHalf({
 
 export function PartnershipCard(p: P<"partnership">) {
   const { state, match } = p;
-  const stand = currentStand(state, match);
-  if (!stand && (state.partnership_runs === null || state.partnership_runs === undefined)) {
-    return null;
-  }
-  const runs = stand?.runs ?? state.partnership_runs ?? 0;
-  const balls = stand?.balls ?? state.partnership_balls ?? 0;
+  const stand = partnershipOf(state, match?.innings ?? []);
+  if (!stand) return null;
+  const { runs, balls } = stand;
   const innings = match?.innings?.find((i) => i.innings_number === state.innings_number);
   const all = p.variant === "card" && innings ? partnershipRows(innings) : [];
   const maxRuns = Math.max(1, ...all.map((r) => r.runs));
   const wicket = (state.total_wickets ?? 0) + 1;
-  const a = stand?.a ?? { name: state.striker_name ?? "", runs: null, balls: null };
-  const b = stand?.b ?? { name: state.non_striker_name ?? "", runs: null, balls: null };
+  const [a, b] = stand.batters;
   return (
     <Card label="partnership">
       <CardShell
@@ -536,21 +536,21 @@ export function PartnershipCard(p: P<"partnership">) {
           <span className="flex flex-col items-end gap-2">
             <Label style={{ color: TC.goldText }}>Run rate</Label>
             <Fig className="text-[2.25rem]" style={{ color: TC.ivoryHi }}>
-              {economy(runs, balls) ?? "–"}
+              {stand.runRate?.toFixed(2) ?? "–"}
             </Fig>
           </span>
         }
       >
         <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-8">
-          <StandHalf name={a.name} runs={a.runs} balls={a.balls} align="left" />
+          <StandHalf name={a.name ?? ""} runs={a.runs} balls={a.balls} align="left" />
           <span className="pb-2 text-[1.5rem] italic" style={{ fontFamily: SERIF, color: TC.inkMuted }}>
             and
           </span>
-          <StandHalf name={b.name} runs={b.runs} balls={b.balls} align="right" />
+          <StandHalf name={b.name ?? ""} runs={b.runs} balls={b.balls} align="right" />
         </div>
-        {stand && (stand.a.runs !== null || stand.b.runs !== null) && (
+        {stand.split && (
           <div className="mt-5">
-            <SplitBar stand={stand} />
+            <SplitBar a={a.runs ?? 0} b={b.runs ?? 0} />
           </div>
         )}
         {all.length > 1 && (
@@ -599,11 +599,11 @@ export function PartnershipCard(p: P<"partnership">) {
 
 export function ThisOverCard(p: P<"thisOver">) {
   const { state, match } = p;
-  const tokens = overTokens(state);
-  if (!tokens.length && state.this_over_runs === null) return null;
+  const balls = thisOverBalls(state);
+  if (!balls.length && state.this_over_runs === null) return null;
   const bpo = ballsPerOverOf(match);
-  const over = (state.current_over ?? 0) + (tokens.length ? 1 : 0);
-  const runs = thisOverRuns(tokens, state.this_over_runs) ?? 0;
+  const over = (state.current_over ?? 0) + (balls.length ? 1 : 0);
+  const runs = state.this_over_runs ?? 0;
   return (
     <Card label="this-over">
       <CardShell
@@ -623,7 +623,7 @@ export function ThisOverCard(p: P<"thisOver">) {
         }
       >
         <div className="flex justify-center py-3">
-          <BallTray tokens={tokens} slots={bpo} size={72} light className="gap-4" />
+          <BallTray balls={balls} ballsPerOver={bpo} size={72} light className="gap-4" />
         </div>
         {state.current_bowler_name && (
           <div className="mt-6 flex items-baseline justify-between border-t pt-5" style={{ borderColor: TC.ivoryLine }}>
@@ -792,12 +792,6 @@ export function MatchIntroCard(p: P<"matchIntro">) {
       </CardShell>
     </Card>
   );
-}
-
-function roleMark(role: string | null | undefined): string {
-  if (role === "captain") return " (c)";
-  if (role === "wicket_keeper") return " (wk)";
-  return "";
 }
 
 function XiList({ players, d = 300, big = false }: { players: TeamPlayer[]; d?: number; big?: boolean }) {
@@ -1067,14 +1061,7 @@ function sideLines(state: LiveMatchState, match: Match | null, innings: Innings[
 }
 
 function Leaders({ innings, d = 400 }: { innings: Innings; d?: number }) {
-  const bat = [...(innings.batting_performances ?? [])]
-    .filter((b) => b.balls_faced > 0)
-    .sort((a, b) => b.runs_scored - a.runs_scored)
-    .slice(0, 3);
-  const bowl = [...(innings.bowling_performances ?? [])]
-    .filter((b) => b.balls_bowled > 0)
-    .sort((a, b) => b.wickets_taken - a.wickets_taken || a.runs_conceded - b.runs_conceded)
-    .slice(0, 3);
+  const { batters: bat, bowlers: bowl } = inningsLeaders(innings, 3, 3);
   const line = (key: string, name: string, fig: ReactNode, note: string, i: number) => (
     <li
       key={key}
@@ -1291,7 +1278,7 @@ export function InningsBreakCard(p: P<"inningsBreak">) {
 
 export function WinPredictorCard(p: P<"winPredictor">) {
   const { state } = p;
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est || est.kind !== "chase") return null;
   const bat = state.batting_team_name ?? "Batting side";
   const bowl = state.bowling_team_name ?? "Bowling side";
@@ -1331,7 +1318,7 @@ export function WinPredictorCard(p: P<"winPredictor">) {
 
 export function ProjectedCard(p: P<"projectedScore">) {
   const { state } = p;
-  const est = winPredictorFromLive(state);
+  const est = estimateOf(state);
   if (!est || est.kind !== "projection") return null;
   const lo = Math.min(est.low, state.total_runs ?? est.low);
   const span = Math.max(1, est.high - lo);
