@@ -60,6 +60,11 @@ export interface DataSource {
   ): Promise<Doc[]>;
   /** Count matching documents (Firestore `count()` aggregation). */
   count(table: string, filters: NativeFilter[]): Promise<number>;
+  /**
+   * Sum a numeric field over matching documents (Firestore `sum()`
+   * aggregation; documents without a number there add nothing).
+   */
+  sum?(table: string, filters: NativeFilter[], field: string): Promise<number>;
   insert(table: string, docs: Doc[]): Promise<void>;
   update(
     table: string,
@@ -267,6 +272,22 @@ export class MemoryDataSource implements DataSource {
     this.countQueries++;
     this.billRead(table, 1);
     return this.match(table, filters).length;
+  }
+
+  async sum(
+    table: string,
+    filters: NativeFilter[],
+    field: string,
+  ): Promise<number> {
+    this.queryCount++;
+    this.countQueries++;
+    this.billRead(table, 1);
+    let total = 0;
+    for (const doc of this.match(table, filters)) {
+      const value = doc[field];
+      if (typeof value === "number" && Number.isFinite(value)) total += value;
+    }
+    return total;
   }
 
   private match(table: string, filters: NativeFilter[]): Doc[] {

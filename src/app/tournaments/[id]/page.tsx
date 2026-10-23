@@ -264,10 +264,9 @@ export default async function TournamentPage({
   let allTeams: Array<{ id: string; name: string; short_name: string | null }> =
     [];
   const myTeamIds = new Set<string>();
-  if (user && isTournamentAdmin) {
-    const { data } = await db.from("teams").select(TEAM_COLUMNS).order("name");
-    allTeams = data ?? [];
-  } else if (user) {
+  // Organisers may register any team: their dialog reads the list when it
+  // opens (`getRegistrableTeams`), not with every view of this page.
+  if (user && !isTournamentAdmin) {
     const [clubMemsRes, clubsRes] = await Promise.all([
       db
         .from("club_memberships")
@@ -321,10 +320,8 @@ export default async function TournamentPage({
     );
   }
 
-  const availableTeams = (
-    isTournamentAdmin
-      ? allTeams
-      : allTeams.filter((t: { id: string }) => myTeamIds.has(t.id))
+  const availableTeams = allTeams.filter((t: { id: string }) =>
+    myTeamIds.has(t.id),
   ) as Array<{
     id: string;
     name: string;
@@ -499,7 +496,9 @@ export default async function TournamentPage({
             {canRegisterTeams && (
               <RegisterTeamDialog
                 tournamentId={tournament.id}
-                availableTeams={availableTeams}
+                availableTeams={
+                  isTournamentAdmin ? undefined : availableTeams
+                }
                 registeredTeamIds={registeredTeamIds}
                 isOrganiser={isTournamentAdmin}
               />
@@ -608,7 +607,9 @@ export default async function TournamentPage({
                 <div className="flex justify-center">
                   <RegisterTeamDialog
                     tournamentId={tournament.id}
-                    availableTeams={availableTeams}
+                    availableTeams={
+                      isTournamentAdmin ? undefined : availableTeams
+                    }
                     registeredTeamIds={registeredTeamIds}
                     isOrganiser={isTournamentAdmin}
                   />
@@ -790,7 +791,9 @@ export default async function TournamentPage({
             <div className="flex justify-end">
               <RegisterTeamDialog
                 tournamentId={tournament.id}
-                availableTeams={availableTeams}
+                availableTeams={
+                  isTournamentAdmin ? undefined : availableTeams
+                }
                 registeredTeamIds={registeredTeamIds}
                 isOrganiser={isTournamentAdmin}
               />

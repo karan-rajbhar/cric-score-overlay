@@ -12,6 +12,8 @@ import {
   PageHeader,
   SectionHeader,
 } from "~/components/layout/page";
+import { Pager } from "~/components/layout/pager";
+import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 
 export const metadata = { title: "Clubs" };
 
@@ -25,11 +27,38 @@ interface ClubRow {
   club_type: string | null;
   logo_url?: string | null;
   is_public: boolean | null;
-  teams: { count: number }[];
+  /** Teams in the club, kept by the teams write hook (see withTeamCounts). */
+  team_count?: number | null;
+  name_lower?: string;
+}
+
+const CLUB_COLUMNS =
+  "id, name, short_name, location, club_type, logo_url, is_public, team_count, name_lower";
+
+type CountClient = Awaited<ReturnType<typeof createServerClient>>;
+
+/**
+ * Each club's team count: the stored `team_count`, or a count() of its
+ * teams for a club that has none yet (before the backfill).
+ */
+async function withTeamCounts(
+  db: CountClient,
+  clubs: ClubRow[],
+): Promise<ClubRow[]> {
+  return Promise.all(
+    clubs.map(async (club) => {
+      if (typeof club.team_count === "number") return club;
+      const { count } = await db
+        .from("teams")
+        .select("id", { count: "exact", head: true })
+        .eq("club_id", club.id);
+      return { ...club, team_count: count ?? 0 };
+    }),
+  );
 }
 
 function ClubCard({ club }: { club: ClubRow }) {
-  const teamCount = club.teams?.[0]?.count ?? 0;
+  const teamCount = club.team_count ?? 0;
   return (
     <Link href={`/clubs/${club.id}`} className="group">
       <Card className="h-full transition-colors group-hover:border-primary/40">
@@ -60,7 +89,8 @@ function ClubCard({ club }: { club: ClubRow }) {
               <Badge variant="outline">{formatClubType(club.club_type)}</Badge>
             )}
             <span>
-              <span className="tabular-nums">{teamCount}</span> {teamCount === 1 ? "team" : "teams"}
+              <span className="tabular-nums">{teamCount}</span>{" "}
+              {teamCount === 1 ? "team" : "teams"}
             </span>
           </div>
         </CardContent>
@@ -69,7 +99,12 @@ function ClubCard({ club }: { club: ClubRow }) {
   );
 }
 
-export default async function ClubsPage() {
+export default async function ClubsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ after?: string }>;
+}) {
+  const { after } = (await searchParams) ?? {};
   const db = await createServerClient();
   const {
     data: { user },
@@ -79,10 +114,7 @@ export default async function ClubsPage() {
   let myClubIds: string[] = [];
   if (user) {
     const [{ data: mems }, { data: owned }] = await Promise.all([
-      db
-        .from("club_memberships")
-        .select("club_id")
-        .eq("user_id", user.id),
+      db.from("club_memberships").select("club_id").eq("user_id", user.id),
       db.from("clubs").select("id").eq("owner_id", user.id),
     ]);
     myClubIds = Array.from(
@@ -95,27 +127,46 @@ export default async function ClubsPage() {
 
   const myClubs =
     myClubIds.length > 0
-      ? ((await db
-          .from("clubs")
-          .select(
-            "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",
-          )
-          .in("id", myClubIds)
-          .order("name")
-          .then((r) => r.data)) as ClubRow[] | null)
+      ? await withTeamCounts(
+          db,
+          ((
+            await db
+              .from("clubs")
+              .select(CLUB_COLUMNS)
+              .in("id", myClubIds)
+              .order("name")
+          ).data ?? []) as ClubRow[],
+        )
       : null;
 
-  // Public directory, excluding clubs already shown above.
-  const { data: publicClubs } = (await db
+  // Public directory, a page at a time in name order (keyset, no scan),
+  // excluding clubs already shown above.
+  const cursor = parseCursor(after);
+  let publicQuery = db
     .from("clubs")
-    .select(
-      "id, name, short_name, location, club_type, logo_url, is_public, teams(count)",
-    )
+    .select(CLUB_COLUMNS)
     .eq("is_public", true)
-    .order("name")) as { data: ClubRow[] | null };
+    .order("name_lower");
+  if (cursor) publicQuery = publicQuery.after(cursor.value, cursor.id);
+  const [{ data: publicRows }, { count: publicTotal }] = await Promise.all([
+    publicQuery.limit(PAGE_SIZE + 1),
+    db
+      .from("clubs")
+      .select("id", { count: "exact", head: true })
+      .eq("is_public", true),
+  ]);
+  const page = keysetPage(
+    (publicRows ?? []) as ClubRow[],
+    (c) => c.name_lower ?? "",
+  );
 
   const myIds = new Set((myClubs ?? []).map((c) => c.id));
-  const explore = (publicClubs ?? []).filter((c) => !myIds.has(c.id));
+  const explore = await withTeamCounts(
+    db,
+    page.rows.filter((c) => !myIds.has(c.id)),
+  );
+  const myPublic = (myClubs ?? []).filter((c) => c.is_public === true).length;
+  const exploreTotal = Math.max(0, (publicTotal ?? 0) - myPublic);
 
   return (
     <PageContainer>
@@ -162,7 +213,7 @@ export default async function ClubsPage() {
         {(!user || explore.length > 0) && (
           <SectionHeader
             title="Public clubs"
-            count={explore.length || undefined}
+            count={exploreTotal || undefined}
           />
         )}
         {explore.length ? (
@@ -184,6 +235,15 @@ export default async function ClubsPage() {
             />
           )
         )}
+        <Pager
+          label="Public clubs pages"
+          firstHref={after ? "/clubs" : null}
+          nextHref={
+            page.next
+              ? `/clubs?${new URLSearchParams({ after: page.next })}`
+              : null
+          }
+        />
       </section>
     </PageContainer>
   );

@@ -14,6 +14,12 @@ import {
   getMatch,
 } from "~/app/matches/queries";
 import { fetchMatchList } from "~/app/matches/match-list";
+import {
+  fetchWizardBase,
+  fetchWizardScope,
+  type MatchWizardData,
+  type WizardScope,
+} from "~/app/matches/create/wizard-data";
 import { ballEventsOfOver, ballLogContext, mergeOvers } from "~/lib/ball-log";
 import { sortRows } from "~/lib/firebase/filters";
 import { readDoc } from "~/lib/firebase/realtime";
@@ -95,122 +101,49 @@ function useLiveScorecardWhileLive(
 /** Matches whose live scorecard this page has asked the server to build. */
 const ensured = new Set<string>();
 
-export interface WizardTeam {
-  id: string;
-  name: string;
-  short_name?: string | null;
-  club_id?: string | null;
-  created_by?: string | null;
-  captain_id?: string | null;
-  vice_captain_id?: string | null;
-  /** Squad size from the team's roster copy; null when it has none. */
-  player_count?: number | null;
-}
-
-export interface WizardTournament {
-  id: string;
-  name: string;
-  match_format: string;
-  overs_per_innings?: number | null;
-  wickets_per_innings?: number | null;
-  custom_overs?: number | null;
-  created_by?: string | null;
-  club_id?: string | null;
-}
-
-export interface WizardClub {
-  id: string;
-  name: string;
-  short_name?: string | null;
-  owner_id?: string | null;
-}
-
-export interface MatchWizardData {
-  teams: WizardTeam[];
-  tournaments: WizardTournament[];
-  clubs: WizardClub[];
-  playerTeamIds: string[];
-  clubAdminIds: string[];
-  error: string | null;
-}
+export type {
+  MatchWizardData,
+  WizardClub,
+  WizardTeam,
+  WizardTournament,
+} from "~/app/matches/create/wizard-data";
 
 /**
- * High-performance TanStack Query hook for Match Creation Wizard.
- * Fetches directly via the browser Firestore client to bypass Next.js Server Action serialization,
- * and caches data for 5 minutes.
+ * The match wizard's own teams, tournaments and clubs (indexed queries
+ * from the browser Firestore client, `fetchWizardBase`), cached for 5
+ * minutes.
  */
 export function useMatchWizardDataQuery(userId?: string | null) {
   return useQuery<MatchWizardData>({
     queryKey: ["matchWizardData", userId ?? "anon"],
-    queryFn: async () => {
-      const db = createClient();
-      const [teamRes, tournRes, clubRes, myPlayersRes, myClubAdminRes] =
-        await Promise.all([
-          db
-            .from("teams")
-            .select(
-              "id, name, short_name, club_id, created_by, captain_id, vice_captain_id, roster",
-            )
-            .order("name"),
-          db
-            .from("tournaments")
-            .select(
-              "id, name, match_format, overs_per_innings, wickets_per_innings, custom_overs, created_by, club_id",
-            )
-            .order("created_at", { ascending: false }),
-          db
-            .from("clubs")
-            .select("id, name, short_name, owner_id")
-            .order("name"),
-          userId
-            ? db
-                .from("team_players")
-                .select("team_id")
-                .eq("user_id", userId)
-            : Promise.resolve({ data: [] }),
-          userId
-            ? db
-                .from("club_memberships")
-                .select("club_id")
-                .eq("user_id", userId)
-                .in("role", ["owner", "admin"])
-                .eq("status", "active")
-            : Promise.resolve({ data: [] }),
-        ]);
-
-      const playerTeamIds = (myPlayersRes.data ?? [])
-        .map((r: { team_id: string | null }) => r.team_id)
-        .filter((id): id is string => Boolean(id));
-
-      const clubAdminIds = (myClubAdminRes.data ?? [])
-        .map((r: { club_id: string | null }) => r.club_id)
-        .filter((id): id is string => Boolean(id));
-
-      if (clubRes.data && userId) {
-        for (const c of clubRes.data) {
-          if (c.owner_id === userId) {
-            clubAdminIds.push(c.id);
-          }
-        }
-      }
-
-      return {
-        // Squad size from `roster`, on the team doc already read.
-        teams: (teamRes.data ?? []).map((row) => {
-          const { roster, ...team } = row as WizardTeam & { roster?: unknown };
-          return {
-            ...team,
-            player_count: Array.isArray(roster) ? roster.length : null,
-          };
-        }),
-        tournaments: (tournRes.data ?? []) as WizardTournament[],
-        clubs: (clubRes.data ?? []) as WizardClub[],
-        playerTeamIds,
-        clubAdminIds,
-        error: teamRes.error?.message || null,
-      };
-    },
+    queryFn: () => fetchWizardBase(createClient(), userId),
     staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+/**
+ * What the wizard's current picks add (`fetchWizardScope`): the selected
+ * tournament's teams, the selected club's teams and the tournament / clubs
+ * they name.
+ */
+export function useMatchWizardScopeQuery(scope: WizardScope) {
+  const key = {
+    tournamentId: scope.tournamentId ?? "",
+    clubId: scope.clubId ?? "",
+    tournamentTeamIds: [...(scope.tournamentTeamIds ?? [])].sort(),
+    clubIds: [...new Set(scope.clubIds ?? [])].filter(Boolean).sort(),
+  };
+  return useQuery({
+    queryKey: ["matchWizardScope", key],
+    queryFn: () => fetchWizardScope(createClient(), key),
+    enabled: Boolean(
+      key.tournamentId ||
+        key.clubId ||
+        key.tournamentTeamIds.length ||
+        key.clubIds.length,
+    ),
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 }

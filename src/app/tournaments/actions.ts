@@ -108,6 +108,38 @@ async function checkTournamentAdminAuth(
   return isClubAdminOf(db, tournament.club_id, userId);
 }
 
+/**
+ * Every team, for an organiser's "Register team" dialog: read when the
+ * dialog opens, not with every view of the tournament page. Anyone else
+ * gets none (their own teams come with the page).
+ */
+export async function getRegistrableTeams(tournamentId: string): Promise<{
+  data: Array<{ id: string; name: string; short_name: string | null }>;
+  error: string | null;
+}> {
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { data: [], error: "You must be signed in" };
+  if (!(await checkTournamentAdminAuth(db, tournamentId, user.id))) {
+    return { data: [], error: null };
+  }
+  const { data, error } = await db
+    .from("teams")
+    .select("id, name, short_name")
+    .order("name");
+  if (error) return { data: [], error: error.message };
+  return {
+    data: (data ?? []) as Array<{
+      id: string;
+      name: string;
+      short_name: string | null;
+    }>,
+    error: null,
+  };
+}
+
 export async function registerTeamForTournament(
   tournamentId: string,
   teamId: string,

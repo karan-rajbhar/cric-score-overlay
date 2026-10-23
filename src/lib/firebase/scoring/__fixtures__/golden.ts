@@ -138,6 +138,10 @@ export const PARTNERSHIP_SPLIT_FIELDS = new Set([
 /** Fields stage 3 added to match documents (not part of the legacy row). */
 export const STAGE3_MATCH_FIELDS = new Set([
   "innings_summary",
+  "summary_runs",
+  "summary_wickets",
+  "best_innings",
+  "best_innings_runs",
   "title_lower",
   "search_prefixes",
   "tournament_snapshot",

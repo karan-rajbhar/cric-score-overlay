@@ -34,6 +34,7 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
     refetch: vi.fn(),
   }),
   useTournamentRegistrationsQuery: () => ({ data: undefined }),
+  useMatchWizardScopeQuery: () => ({ data: undefined }),
 }));
 vi.mock("../mutations", () => ({ createMatch: vi.fn() }));
 vi.mock("../../teams/actions", () => ({

@@ -30,3 +30,27 @@ export function teamRecordOf(
     winRate: decided > 0 ? Math.round((won / decided) * 100) : null,
   };
 }
+
+/** Match statuses that count as played (see {@link teamRecordOf}). */
+export const FINISHED_STATUSES = ["completed", "abandoned", "cancelled"];
+
+/**
+ * {@link teamRecordOf} from counts (the team page counts its matches
+ * instead of reading them all): finished matches, those this team won and
+ * those with any winner.
+ */
+export function teamRecordFromCounts(counts: {
+  played: number;
+  won: number;
+  decided: number;
+}) {
+  const { played, won, decided } = counts;
+  const lost = decided - won;
+  return {
+    played,
+    won,
+    lost,
+    noWinner: played - won - lost,
+    winRate: decided > 0 ? Math.round((won / decided) * 100) : null,
+  };
+}

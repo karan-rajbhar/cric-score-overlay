@@ -48,6 +48,11 @@ export class DerivedFieldsDataSource implements DataSource {
     return this.inner.count(table, filters);
   }
 
+  sum(table: string, filters: NativeFilter[], field: string) {
+    if (!this.inner.sum) throw new Error("sum() is not supported here");
+    return this.inner.sum(table, filters, field);
+  }
+
   /** Profile snapshots for the given user ids (one batched read). */
   private async snapshots(ids: unknown[]): Promise<Map<string, Doc>> {
     const wanted = Array.from(

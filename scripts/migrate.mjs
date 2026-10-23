@@ -33,6 +33,8 @@ const MIGRATIONS = [
   "per-ball-fields",
   "partnership-splits",
   "placeholder-flag",
+  "club-team-counts",
+  "match-summary-totals",
 ];
 // Not listed: migrate-storage-cache-headers.mjs (Storage metadata) needs the
 // CI service account to update Storage objects; run it by hand once.

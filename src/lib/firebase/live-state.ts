@@ -99,6 +99,10 @@ const PER_BALL_MATCH_FIELDS = new Set([
   "last_ball_seq",
   "recent_client_actions",
   "innings_summary",
+  "summary_runs",
+  "summary_wickets",
+  "best_innings",
+  "best_innings_runs",
 ]);
 
 /**

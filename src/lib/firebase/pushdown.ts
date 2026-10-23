@@ -22,6 +22,9 @@ const ORDERABLE: Record<string, readonly string[]> = {
   tournaments: ["name_lower"],
   // Only `inviteEmail` creates invites, always with created_at.
   invitations: ["created_at"],
+  // Builder inserts get joined_at (TIMESTAMP_DEFAULTS); the only other
+  // writer, acceptClubInvitations (rpc/access.ts), sets it too.
+  club_memberships: ["joined_at"],
 };
 
 /**
@@ -35,6 +38,7 @@ const NON_NULL: Record<string, readonly string[]> = {
   clubs: ["name_lower"],
   tournaments: ["name_lower"],
   invitations: ["created_at"],
+  club_memberships: ["joined_at"],
 };
 
 export function isOrderable(table: string, field: string): boolean {

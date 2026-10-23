@@ -110,6 +110,8 @@ export interface ClubsRow {
   sponsors?: Sponsor[] | null;
   name_lower?: string;
   search_prefixes?: string[];
+  /** Teams in the club (`club-team-count.ts`). */
+  team_count?: number | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -404,6 +406,16 @@ export interface MatchesRow {
   recent_client_actions?: string[] | null;
   /** Score line of each innings (stage 3, see `innings-summary.ts`). */
   innings_summary?: InningsSummaryEntry[] | null;
+  /** Totals of `innings_summary` (`summaryTotalsOf`): club milestones. */
+  summary_runs?: number | null;
+  summary_wickets?: number | null;
+  best_innings?: {
+    runs: number;
+    wickets: number;
+    overs: number;
+    team_id: string | null;
+  } | null;
+  best_innings_runs?: number | null;
   /** Display copies of the tournament / club (`match-snapshots.ts`). */
   tournament_snapshot?: {
     id: string;
