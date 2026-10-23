@@ -36,6 +36,7 @@ import { staleSummaryInnings } from "../innings-summary";
 import {
   buildLiveScorecard,
   LIVE_SCORECARD_COLLECTION,
+  liveCopyOf,
   liveScorecardView,
   type LiveScorecardDoc,
   type ScorecardSource,
@@ -189,6 +190,10 @@ async function checkLiveScorecard(
   });
   const stored: Record<string, unknown> = { ...card };
   delete stored.id;
+  // It carries the live_state of the same commit (stageLiveCopies).
+  const live = await ds.getById("live_state", matchId);
+  expect(stored.live ?? null).toEqual(live ? liveCopyOf(live) : null);
+  delete stored.live;
   expect(stored).toEqual(fresh);
 
   const client = serverClientFor({ ds, db: null, getUser: async () => null });

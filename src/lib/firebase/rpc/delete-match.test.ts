@@ -53,6 +53,13 @@ function setup() {
   ];
   tables.live_state = [{ id: MATCH, version: 3 }];
   tables[LIVE_SCORECARD_COLLECTION] = [{ id: MATCH, version: 2 }];
+  // Ball-log archives of its innings, and of another match.
+  tables.ball_logs = [
+    ...tables
+      .innings!.filter((i) => i.match_id === MATCH)
+      .map((i) => ({ id: i.id, match_id: MATCH, stamp: "s", overs: [] })),
+    { id: "other-inn", match_id: "other-match", stamp: "s", overs: [] },
+  ];
   tables.overlay_state = [{ id: MATCH, version: 5 }];
   tables.producer_tokens = [
     { id: "tok", match_id: MATCH, secret_hash: "h" },
@@ -88,6 +95,8 @@ function owned(memory: MemoryDataSource, matchId: string) {
     live_scorecard: memory
       .all(LIVE_SCORECARD_COLLECTION)
       .filter((d) => d.id === matchId).length,
+    ball_logs: memory.all("ball_logs").filter((d) => d.match_id === matchId)
+      .length,
     overlay_state: memory.all("overlay_state").filter((d) => d.id === matchId)
       .length,
     producer_tokens: memory
@@ -249,10 +258,13 @@ describe("delete_match cascade", () => {
       player_matches: 0,
       live_state: 0,
       live_scorecard: 0,
+      ball_logs: 0,
       overlay_state: 0,
       producer_tokens: 0,
       channels_on_air: 0,
     });
+    expect(before.ball_logs).toBeGreaterThan(0);
+    expect(memory.all("ball_logs").map((b) => b.id)).toEqual(["other-inn"]);
     // Other matches keep their token and channel.
     expect(memory.all("producer_tokens").map((t) => t.id)).toEqual([
       "other-tok",

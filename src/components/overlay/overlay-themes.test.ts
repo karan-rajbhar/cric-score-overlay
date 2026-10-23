@@ -24,10 +24,12 @@ const pairs = (p: OverlayPalette): Array<[string, string, string]> => [
 const AA = 4.5;
 
 describe("overlay themes", () => {
-  it("lists the four plain themes first, then the broadcast packages, with labels and descriptions", () => {
-    expect(
-      OVERLAY_THEMES.slice(0, OVERLAY_THEME_IDS.length).map((t) => t.id),
-    ).toEqual([...OVERLAY_THEME_IDS]);
+  it("lists the four plain themes first, every theme with a label and description", () => {
+    // Broadcast packages follow the plain ones (packages/manifest.ts).
+    expect(OVERLAY_THEMES.slice(0, OVERLAY_THEME_IDS.length).map((t) => t.id)).toEqual([
+      ...OVERLAY_THEME_IDS,
+    ]);
+    expect(new Set(OVERLAY_THEMES.map((t) => t.id)).size).toBe(OVERLAY_THEMES.length);
     for (const t of OVERLAY_THEMES) {
       expect(t.label).toMatch(/^[A-Z][a-z]/);
       expect(t.description.length).toBeGreaterThan(10);

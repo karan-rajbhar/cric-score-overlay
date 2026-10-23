@@ -457,11 +457,13 @@ export async function getTeamPlayers(teamId: string) {
 export async function getMatchBallLog(matchId: string) {
   try {
     const db = await createServerClient();
-    const { data, error } = await db
-      .from("ball_by_ball")
-      .select(`*, innings(innings_number, team_id)`)
-      .eq("match_id", matchId)
-      .order("seq");
+    // `ball_by_ball` rows with `innings(innings_number, team_id)`, in seq
+    // order: a completed innings from its archive (1 read instead of one
+    // per over), the innings in play from its over documents.
+    const { data, error } = await db.rpc<Record<string, unknown>[]>(
+      "match_ball_log",
+      { p_match_id: matchId },
+    );
     if (error) {
       console.error("Error fetching ball log:", error);
       return { data: null, error: error.message };

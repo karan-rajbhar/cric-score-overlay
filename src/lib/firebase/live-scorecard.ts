@@ -56,6 +56,24 @@ export interface LiveScorecardDoc {
   names: (string | null)[];
   /** In innings_number order. */
   innings: LiveScorecardInnings[];
+  /**
+   * A copy of `live_state/{matchId}` as written in the same transaction
+   * (without its server-only `refs`), so a viewer that follows this doc
+   * needs no `live_state` listener as well: one read per change instead of
+   * two. Missing on a doc built before it existed (viewers then follow
+   * `live_state`).
+   */
+  live?: Record<string, unknown> | null;
+}
+
+/** `live_state` as copied into {@link LiveScorecardDoc.live}. */
+export function liveCopyOf(
+  liveState: Record<string, unknown>,
+): Record<string, unknown> {
+  const copy = { ...liveState };
+  delete copy.refs;
+  delete copy.id;
+  return copy;
 }
 
 /** An innings document with its stage 2 scorecard arrays. */

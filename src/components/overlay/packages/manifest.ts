@@ -42,6 +42,13 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     kind: "plain",
   },
   {
+    id: "franchise-night",
+    label: "Franchise night",
+    description:
+      "Glossy prime-time franchise-league look: dark glass lit in team colours, gold accents, big figures.",
+    kind: "broadcast",
+  },
+  {
     id: "hundred-ball",
     label: "Hundred-ball countdown",
     description:

@@ -288,6 +288,43 @@ const CASES: [string, string, Chain][] = [
   ],
 ];
 
+describe("descending keyset pages", () => {
+  it("walk every row once: latest first, ties by id, nulls last", async () => {
+    const { on, off, fast } = clients();
+    const expected = [...seed().matches!]
+      .sort((a, b) => {
+        const x = a.scheduled_at as string | null;
+        const y = b.scheduled_at as string | null;
+        if (x !== y) {
+          if (x === null) return 1;
+          if (y === null) return -1;
+          return x < y ? 1 : -1;
+        }
+        return a.id < b.id ? 1 : -1;
+      })
+      .map((m) => m.id);
+    for (const client of [on, off]) {
+      const seen: string[] = [];
+      let cursor: { value: unknown; id: string } | null = null;
+      for (let page = 0; page < 20; page += 1) {
+        const { data } = await client("matches")
+          .select("id, scheduled_at")
+          .order("scheduled_at", { ascending: false })
+          .keyset(cursor)
+          .limit(6);
+        const rows = (data ?? []) as Doc[];
+        if (!rows.length) break;
+        seen.push(...rows.map((r) => r.id));
+        const last = rows[rows.length - 1]!;
+        cursor = { value: last.scheduled_at, id: last.id };
+      }
+      expect(seen).toEqual(expected);
+    }
+    // One native page per call, each of at most 6 documents.
+    expect(fast.calls.every((c) => c.options?.limit === 6)).toBe(true);
+  });
+});
+
 describe("query pushdown", () => {
   it.each(CASES)(
     "%s returns the same result as the fallback",

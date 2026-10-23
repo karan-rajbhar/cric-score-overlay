@@ -587,6 +587,7 @@ export const TABLE_DEFAULTS: Partial<
   teams: { team_type: "club", is_template: false, roster: [] },
   team_players: { is_playing_xi: false },
   tournaments: {
+    start_date: null,
     tournament_format: "league",
     match_format: "T20",
     status: "upcoming",

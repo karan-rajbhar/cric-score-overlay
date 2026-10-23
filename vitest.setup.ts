@@ -7,26 +7,25 @@ afterEach(() => {
 });
 
 /**
- * `next/font/google` is a build-time transform (its runtime module is
- * empty), and overlay packages load their fonts with it: in tests every
- * font function returns stand-in class names.
+ * next/font exists only in Next's compiler (its runtime module is empty),
+ * so a module declaring fonts (an overlay package) would fail to load in
+ * tests. Every family returns an empty class and its own name as the
+ * font family.
  */
-const isFontName = (key: string | symbol): key is string =>
-  typeof key === "string" && /^[A-Z]/.test(key);
-
-vi.mock("next/font/google", () =>
-  new Proxy(
+vi.mock("next/font/google", () => {
+  const family = (name: string) => () => ({
+    className: "",
+    variable: "",
+    style: { fontFamily: `'${name.replace(/_/g, " ")}'` },
+  });
+  return new Proxy(
     {},
     {
-      has: (_target, key) => isFontName(key),
       get: (_target, key) =>
-        isFontName(key)
-          ? () => ({
-              className: `font-${key}`,
-              variable: `font-var-${key}`,
-              style: { fontFamily: key },
-            })
+        typeof key === "string" && key !== "then" && key !== "__esModule"
+          ? family(key)
           : undefined,
+      has: (_target, key) => typeof key === "string" && key !== "then",
     },
-  ),
-);
+  );
+});
