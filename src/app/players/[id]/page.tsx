@@ -35,6 +35,8 @@ import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
+import { PlayerMilestones } from "~/components/players/player-milestones";
+import { EntityActions } from "~/components/follow/entity-actions";
 import { liveScorecardInnings } from "~/lib/firebase/live-innings";
 import { livePerformanceOf } from "~/lib/firebase/live-player";
 import type { LiveScorecardDoc } from "~/lib/firebase/live-scorecard";
@@ -497,6 +499,7 @@ export default async function PlayerPage({
           }
         />
         <ProfileTeams teams={teams} tournamentId={tournamentId} />
+        {!isSelf && <EntityActions kind="player" id={user.id} name={user.full_name} className="" />}
       </div>
 
       {/* Career figures first, then the innings, matches and teams. */}
@@ -542,6 +545,7 @@ export default async function PlayerPage({
                   ["Run outs", stats?.total_run_outs ?? 0],
                 ]}
               />
+              <PlayerMilestones batting={batting} bowling={bowling} />
             </>
           }
         />

@@ -22,6 +22,7 @@ import { getFirebaseAuth, toAppUser } from "~/lib/firebase/client";
 import { clearAppCaches } from "~/lib/pwa/service-worker";
 import { clearScorerData } from "~/lib/offline-match-cache";
 import { matchesWithPendingActions } from "~/lib/offline-queue";
+import { removeDevicePush } from "~/lib/push/client";
 import {
   toAuthError,
   type AppUser,
@@ -293,6 +294,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    // While the session still exists: this device stops getting this
+    // user's notifications.
+    await removeDevicePush();
     try {
       await firebaseSignOut(getFirebaseAuth());
     } catch (err) {

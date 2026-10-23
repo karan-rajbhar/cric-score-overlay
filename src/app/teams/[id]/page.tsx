@@ -42,6 +42,7 @@ import {
 } from "~/components/teams/team-matches-view";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
+import { EntityActions } from "~/components/follow/entity-actions";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -349,6 +350,7 @@ export default async function TeamDetailsPage({
           </>
         }
         description={team.description}
+        actions={<EntityActions kind="team" id={team.id} name={team.name} />}
         meta={
           <>
             <MetaItem icon={Users}>

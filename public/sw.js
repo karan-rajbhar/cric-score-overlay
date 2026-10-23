@@ -13,6 +13,10 @@
  * - Everything else (POST / server actions, RSC fetches, /api, /__/auth,
  *   /__/firebase, cross-origin Firestore / Google APIs) is never touched.
  *
+ * Push notifications (matches the user follows, see ~/lib/push): `push`
+ * shows the message's title and body, one notification per match (tag);
+ * a click opens the match on this origin.
+ *
  * The build version comes from the registration URL (`/sw.js?v=<build>`), so
  * every deploy installs a new worker with fresh caches. Kill switch: set
  * `"disabled": true` in /sw-config.json (see AGENTS.md, Deploys).
@@ -100,9 +104,43 @@ function isCacheable(res) {
   return Boolean(res) && res.ok && res.status === 200 && res.type === "basic" && !res.redirected;
 }
 
+/** A same-origin URL to open for a notification (else the home page). */
+function notificationUrl(value, origin) {
+  try {
+    const u = new URL(typeof value === "string" ? value : "/", origin);
+    return u.origin === origin ? u.href : origin + "/";
+  } catch {
+    return origin + "/";
+  }
+}
+
+/**
+ * The notification for a push message's JSON ({ title, body, url, tag }),
+ * or null when it has no title.
+ */
+function notificationFromPush(data, origin) {
+  if (!data || typeof data !== "object") return null;
+  const title = typeof data.title === "string" ? data.title.slice(0, 120) : "";
+  if (!title) return null;
+  const tag = typeof data.tag === "string" && data.tag ? data.tag.slice(0, 64) : undefined;
+  return {
+    title,
+    options: {
+      body: typeof data.body === "string" ? data.body.slice(0, 300) : "",
+      icon: "/icon-192.png",
+      tag,
+      // A later message for the same match replaces the last one and alerts again.
+      renotify: Boolean(tag),
+      data: { url: notificationUrl(data.url, origin) },
+    },
+  };
+}
+
 // --- Exports for tests (no `module` inside a real worker) ---------------
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    notificationFromPush,
+    notificationUrl,
     classifyRequest,
     pageCacheKey,
     staleCaches,
@@ -249,6 +287,41 @@ if (typeof self !== "undefined" && typeof self.addEventListener === "function" &
       }),
     );
   };
+
+  self.addEventListener("push", (event) => {
+    if (disabled) return;
+    let data = null;
+    try {
+      data = event.data ? event.data.json() : null;
+    } catch {
+      data = null;
+    }
+    const note = notificationFromPush(data, self.location.origin);
+    if (!note) return;
+    event.waitUntil(
+      Promise.all([
+        self.registration.showNotification(note.title, note.options),
+        checkConfig(false),
+      ]),
+    );
+  });
+
+  self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    const url = notificationUrl(
+      event.notification.data && event.notification.data.url,
+      self.location.origin,
+    );
+    event.waitUntil(
+      (async () => {
+        const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        const open = windows.find((c) => c.url === url);
+        if (open && "focus" in open) return open.focus();
+        if (self.clients.openWindow) return self.clients.openWindow(url);
+        return undefined;
+      })(),
+    );
+  });
 
   self.addEventListener("message", (event) => {
     const data = event.data || {};

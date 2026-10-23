@@ -5,6 +5,7 @@ import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 import { isClubAdminOf } from "~/lib/firebase/permissions";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
+import { matchEventOf, notifyFollowersAfter } from "~/lib/push/notify";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { invalidateMatchCache } from "~/lib/match-cache";
@@ -411,6 +412,7 @@ export async function startMatch(
     return { data: null, error: inningsError.message };
   }
   await refreshLiveState(db, matchId);
+  notifyFollowersAfter(matchId, "started");
   invalidateMatchCache(matchId);
   revalidatePath(`/matches/${matchId}`);
   return { data: { match, innings }, error: null };
@@ -468,6 +470,7 @@ export async function recordBall(params: {
       return { data: null, error: friendlyError(error.message) };
     }
     const data = reply?.result ?? null;
+    notifyFollowersAfter(params.matchId, matchEventOf(data), data);
     invalidateMatchCache(params.matchId);
     revalidatePath(`/matches/${params.matchId}`);
 
@@ -690,6 +693,7 @@ export async function endInnings(
       console.error("end_innings failed:", error);
       return { data: null, error: friendlyError(error.message) };
     }
+    notifyFollowersAfter(matchId, matchEventOf(data as ScoringState), data as ScoringState);
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
@@ -1176,6 +1180,7 @@ export async function abandonMatch(
       .eq("match_id", matchId);
 
     await refreshLiveState(db, matchId);
+    notifyFollowersAfter(matchId, "abandoned");
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
