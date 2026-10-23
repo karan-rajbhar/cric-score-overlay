@@ -10,12 +10,12 @@ import { useEffect, useMemo, useRef } from "react";
 import { createClient, getFirebaseDb } from "~/lib/firebase/client";
 import {
   ensureLiveScorecard,
-  getPartnerships,
   getMatchBallLog,
-  getMatches,
   getMatch,
 } from "~/app/matches/queries";
+import { fetchMatchList } from "~/app/matches/match-list";
 import { ballEventsOfOver, ballLogContext, mergeOvers } from "~/lib/ball-log";
+import { sortRows } from "~/lib/firebase/filters";
 import { readDoc } from "~/lib/firebase/realtime";
 import { OVERS_COLLECTION, type OversRow } from "~/lib/firebase/scorecard";
 import { overSummariesOf } from "~/lib/firebase/views";
@@ -111,6 +111,8 @@ export interface WizardTournament {
   id: string;
   name: string;
   match_format: string;
+  overs_per_innings?: number | null;
+  wickets_per_innings?: number | null;
   custom_overs?: number | null;
   created_by?: string | null;
   club_id?: string | null;
@@ -152,7 +154,9 @@ export function useMatchWizardDataQuery(userId?: string | null) {
             .order("name"),
           db
             .from("tournaments")
-            .select("id, name, match_format, custom_overs, created_by, club_id")
+            .select(
+              "id, name, match_format, overs_per_innings, wickets_per_innings, custom_overs, created_by, club_id",
+            )
             .order("created_at", { ascending: false }),
           db
             .from("clubs")
@@ -209,39 +213,6 @@ export function useMatchWizardDataQuery(userId?: string | null) {
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,
   });
-}
-
-/**
- * TanStack Query hook for Match Partnerships with Realtime Invalidation
- */
-export function usePartnershipsQuery(matchId: string) {
-  // While live, from the live scorecard (no server request per ball).
-  const live = useLiveState(isMatchId(matchId) ? matchId : null);
-  const card = useLiveScorecardWhileLive(matchId, true, live.state?.status);
-  const query = useQuery({
-    queryKey: ["matchPartnerships", matchId],
-    queryFn: async () => {
-      const res = await getPartnerships(matchId);
-      if (res.error) throw new Error(res.error);
-      return res.data ?? [];
-    },
-    enabled: Boolean(matchId) && !card,
-    staleTime: 15 * 1000,
-  });
-
-  useRefetchOnLiveChange(matchId, ["matchPartnerships", matchId], !card);
-
-  const livePartnerships = useMemo(
-    () => (card ? liveScorecardViewOf(card).partnerships : null),
-    [card],
-  );
-  if (!livePartnerships) return query;
-  return {
-    ...query,
-    data: livePartnerships as unknown as typeof query.data,
-    error: null,
-    isLoading: false,
-  };
 }
 
 /**
@@ -410,11 +381,10 @@ export function useMatchesQuery(filters?: {
 }) {
   return useQuery<Match[]>({
     queryKey: ["matches", filters?.status, filters?.limit, filters?.clubId],
-    queryFn: async () => {
-      const res = await getMatches(filters);
-      if (res.error) throw new Error(res.error);
-      return (res.data ?? []) as unknown as Match[];
-    },
+    // Straight from Firestore (public read): the same reads as the
+    // `getMatches` server action, without a server request.
+    queryFn: async () =>
+      (await fetchMatchList(createClient(), filters)) as unknown as Match[],
     staleTime: 30 * 1000, // 30 seconds
     // No listeners here: a live-matches query listener would bill a read
     // for every ball of every live match. Refetch on return instead.
@@ -570,6 +540,59 @@ export interface HistoricalMatchSummary {
   }>;
 }
 
+const HEAD_TO_HEAD_SELECT = `
+  id,
+  title,
+  scheduled_at,
+  venue,
+  winning_team_id,
+  result_type,
+  result_description,
+  team1_id,
+  team2_id,
+  innings(team_id, total_runs, total_wickets, total_overs)
+`;
+
+/**
+ * The two teams' completed meetings, the latest first. One equality query
+ * per home / away pairing (no composite index needed), so it reads only
+ * these matches rather than every completed match.
+ */
+export async function fetchHeadToHead(
+  db: Pick<ReturnType<typeof createClient>, "from">,
+  team1Id: string,
+  team2Id: string,
+  currentMatchId: string,
+): Promise<HistoricalMatchSummary[]> {
+  const pairing = (home: string, away: string) =>
+    db
+      .from("matches")
+      .select(HEAD_TO_HEAD_SELECT)
+      .eq("status", "completed")
+      .eq("team1_id", home)
+      .eq("team2_id", away);
+  const results = await Promise.all(
+    team1Id === team2Id
+      ? [pairing(team1Id, team2Id)]
+      : [pairing(team1Id, team2Id), pairing(team2Id, team1Id)],
+  );
+  const rows: Array<HistoricalMatchSummary & Record<string, unknown>> = [];
+  for (const { data, error } of results) {
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as unknown as Array<
+      HistoricalMatchSummary & Record<string, unknown>
+    >) {
+      if (row.id !== currentMatchId) rows.push(row);
+    }
+  }
+  // As `.order("scheduled_at", { ascending: false })` (nulls first) over
+  // rows in id order.
+  rows.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return sortRows(rows, [
+    { field: "scheduled_at", ascending: false, nullsFirst: true },
+  ]);
+}
+
 /**
  * TanStack Query hook for Head-to-Head historical matches
  */
@@ -580,34 +603,8 @@ export function useHeadToHeadQuery(
 ) {
   return useQuery<HistoricalMatchSummary[]>({
     queryKey: ["headToHead", team1Id, team2Id, currentMatchId],
-    queryFn: async () => {
-      const db = createClient();
-      const { data, error } = await db
-        .from("matches")
-        .select(
-          `
-          id,
-          title,
-          scheduled_at,
-          venue,
-          winning_team_id,
-          result_type,
-          result_description,
-          team1_id,
-          team2_id,
-          innings(team_id, total_runs, total_wickets, total_overs)
-        `,
-        )
-        .eq("status", "completed")
-        .neq("id", currentMatchId)
-        .or(
-          `and(team1_id.eq.${team1Id},team2_id.eq.${team2Id}),and(team1_id.eq.${team2Id},team2_id.eq.${team1Id})`,
-        )
-        .order("scheduled_at", { ascending: false });
-
-      if (error) throw new Error(error.message);
-      return (data ?? []) as unknown as HistoricalMatchSummary[];
-    },
+    queryFn: () =>
+      fetchHeadToHead(createClient(), team1Id, team2Id, currentMatchId),
     enabled: Boolean(team1Id && team2Id),
     staleTime: 5 * 60 * 1000,
   });
@@ -624,12 +621,14 @@ export function useTournamentRegistrationsQuery(tournamentId?: string | null) {
       const db = createClient();
       const { data, error } = await db
         .from("tournament_registrations")
-        .select("team_id")
+        .select("team_id, status")
         .eq("tournament_id", tournamentId);
 
       if (error) throw new Error(error.message);
+      // Requests the organisers have not confirmed cannot be picked.
       return new Set(
         (data ?? [])
+          .filter((r) => r.status === "confirmed")
           .map((r) => r.team_id)
           .filter((id): id is string => Boolean(id)),
       );

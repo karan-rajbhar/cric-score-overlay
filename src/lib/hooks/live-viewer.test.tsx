@@ -46,14 +46,12 @@ vi.mock("~/lib/firebase/realtime", () => ({
 const server = {
   getMatch: vi.fn(),
   getMatchBallLog: vi.fn(),
-  getPartnerships: vi.fn(),
   ensureLiveScorecard: vi.fn(),
   getMatches: vi.fn(),
 };
 vi.mock("~/app/matches/queries", () => ({
   getMatch: (...a: unknown[]) => server.getMatch(...a),
   getMatchBallLog: (...a: unknown[]) => server.getMatchBallLog(...a),
-  getPartnerships: (...a: unknown[]) => server.getPartnerships(...a),
   ensureLiveScorecard: (...a: unknown[]) => server.ensureLiveScorecard(...a),
   getMatches: (...a: unknown[]) => server.getMatches(...a),
 }));
@@ -62,7 +60,6 @@ import { useLiveState } from "./useLiveState";
 import {
   useMatchBallLogQuery,
   useMatchDetailQuery,
-  usePartnershipsQuery,
 } from "./useMatchQueries";
 
 let seq = 0;
@@ -327,37 +324,6 @@ describe("Summary / Scorecard / Top performers while live", () => {
       expect(server.ensureLiveScorecard).toHaveBeenCalledTimes(1),
     );
     expect(server.ensureLiveScorecard).toHaveBeenCalledWith(id);
-  });
-
-  it("serves Stats partnerships from the live scorecard", async () => {
-    const id = newMatchId();
-    const { result } = renderHook(() => usePartnershipsQuery(id), {
-      wrapper: wrapper(newClient()),
-    });
-    act(() => listeners("live_state", id)[0]!.next(liveDoc(id, 1)));
-    await vi.waitFor(() =>
-      expect(listeners("live_scorecard", id)).toHaveLength(1),
-    );
-    act(() =>
-      listeners("live_scorecard", id)[0]!.next(scorecard(id, 9, 1) as never),
-    );
-    await vi.waitFor(() => expect(result.current.data).toBeTruthy());
-    // (At most the first load, before the match was known to be live.)
-    const loads = server.getPartnerships.mock.calls.length;
-    expect(result.current.data).toEqual([
-      expect.objectContaining({
-        id: `${id}-i1_p1`,
-        runs: 9,
-        is_current: true,
-        batsman1: { full_name: "Name a1" },
-      }),
-    ]);
-    act(() => listeners("live_state", id)[0]!.next(liveDoc(id, 2)));
-    await act(async () => {
-      vi.advanceTimersByTime(3000);
-    });
-    expect(server.getPartnerships).toHaveBeenCalledTimes(loads);
-    expect(loads).toBeLessThanOrEqual(1);
   });
 });
 

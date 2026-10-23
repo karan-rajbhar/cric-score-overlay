@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace, push: vi.fn() }),
 }));
 vi.mock("~/app/matches/mutations", () => ({ deleteMatch: vi.fn() }));
+vi.mock("~/app/matches/reschedule", () => ({ rescheduleMatch: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let user: { id: string } | null = { id: "u1" };

@@ -6,16 +6,17 @@ import { Button } from "~/components/ui/button";
 import { matchShareUrl, shareMatch } from "~/lib/share-match";
 
 /**
- * Shares the match page link: the system share sheet where available
- * (phones), else copies the link, else opens WhatsApp with it. Crawlers
- * build the rich preview from the page's Open Graph metadata.
+ * Shares the match page link, with `text` (the score so far) when given:
+ * the system share sheet where available (phones), else copies both, else
+ * opens WhatsApp with them. Crawlers build the rich preview from the
+ * page's Open Graph metadata.
  */
 export function ShareMatchButton({
   matchId,
   title,
   text,
   className,
-  label = "Share match",
+  label = "Share link",
 }: {
   matchId: string;
   title: string;
@@ -44,7 +45,7 @@ export function ShareMatchButton({
       className={className}
     >
       {copied ? <Check /> : <Share2 />}
-      <span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span>
+      <span className="hidden sm:inline">{copied ? "Copied" : label}</span>
       <span role="status" className="sr-only">
         {copied ? "Link copied" : ""}
       </span>

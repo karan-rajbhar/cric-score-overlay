@@ -31,7 +31,7 @@ describe("ClubMembershipButton Component", () => {
       />
     );
 
-    const link = screen.getByRole("link", { name: /join club/i });
+    const link = screen.getByRole("link", { name: /sign in to join/i });
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute("href", "/auth/login?redirect=/clubs/club-123");
   });

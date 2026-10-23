@@ -74,6 +74,8 @@ export interface LiveSnapshot {
   matchRev: string | null;
   /** `live_state.last_change`: who made the latest ball-log change, when. */
   lastChange: LiveLastChange | null;
+  /** `live_state.updated_at` (ISO): when the scoreboard last changed. */
+  updatedAt: string | null;
 }
 
 /** Mirrors `LiveStateLastChange` in `~/lib/firebase/live-state` (server). */
@@ -102,6 +104,7 @@ const IDLE: LiveSnapshot = {
   status: "idle",
   matchRev: null,
   lastChange: null,
+  updatedAt: null,
 };
 
 const CONNECTING: LiveSnapshot = { ...IDLE, status: "connecting" };
@@ -266,6 +269,8 @@ function entryFor(matchId: string, pause: boolean): Entry<LiveSnapshot> {
         version: typeof data?.version === "number" ? data.version : null,
         matchRev: typeof data?.match_rev === "string" ? data.match_rev : null,
         lastChange: lastChangeOf(data?.last_change),
+        updatedAt:
+          typeof data?.updated_at === "string" ? data.updated_at : null,
         loaded: true,
       };
     },
@@ -462,6 +467,18 @@ export function applyLiveState(
     result_type: live.result_type ?? match.result_type,
     result_description: live.result_description ?? match.result_description,
   };
+  // A DLS revision of the innings in play (lists may not carry the field).
+  if (
+    live.dls_overs != null &&
+    live.innings_number != null &&
+    live.target_runs != null
+  ) {
+    patched.dls_revision = {
+      innings_number: live.innings_number,
+      target_runs: live.target_runs,
+      overs: live.dls_overs,
+    };
+  }
   if (live.innings_number == null || !match.innings) return patched;
   let changed = false;
   const innings = match.innings.map((inn) => {

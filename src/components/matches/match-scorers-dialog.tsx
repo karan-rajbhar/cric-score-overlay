@@ -34,7 +34,9 @@ import {
 import { toast } from "sonner";
 import { inviteToApp } from "~/app/invitations/actions";
 import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { MatchStreamersSection } from "~/components/matches/match-streamers-section";
 import { useAuth } from "~/lib/auth";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -117,8 +119,10 @@ export function MatchScorersDialog({
         if (res.data) {
           setSearchResults(res.data);
         }
+        if (res.error) toast.error(res.error);
       } catch (err) {
         console.error("Search error:", err);
+        toast.error(NETWORK_ERROR_MESSAGE);
       } finally {
         setSearching(false);
       }
@@ -178,7 +182,7 @@ export function MatchScorersDialog({
       }
     } catch (err) {
       console.error("Error adding match scorer:", err);
-      toast.error("An unexpected error occurred");
+      toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
       setSubmitting(false);
     }
@@ -289,8 +293,8 @@ export function MatchScorersDialog({
           </div>
           <DialogTitle className="text-xl">Match scorers</DialogTitle>
           <DialogDescription>
-            Authorize multiple scorers (home & away scorers, substitute scorers)
-            to record balls and edit events live.
+            Co-scorers can record balls and fix mistakes, like you. Only the
+            match&apos;s creator can remove them.
           </DialogDescription>
         </DialogHeader>
 
@@ -359,7 +363,7 @@ export function MatchScorersDialog({
                 id="scorer-search-input"
                 value={query}
                 onChange={(e) => handleQueryChange(e.target.value)}
-                placeholder="Search registered player or enter email..."
+                placeholder="Name or Google email"
                 className="text-sm pl-8"
                 disabled={submitting}
                 autoComplete="off"
@@ -404,6 +408,11 @@ export function MatchScorersDialog({
                         <div className="truncate font-semibold text-foreground">
                           {user.full_name}
                         </div>
+                        {user.username && (
+                          <div className="truncate text-muted-foreground">
+                            @{user.username}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {isAlreadyScorer ? (
@@ -417,9 +426,10 @@ export function MatchScorersDialog({
                         variant="secondary"
                         disabled={submitting}
                         onClick={() => handleAddScorerTarget(user.id)}
-                        className="h-8 min-h-[32px] text-xs px-2.5 shrink-0"
+                        className="h-10 shrink-0 px-3 text-xs"
+                        aria-label={`Add ${user.full_name} as a scorer`}
                       >
-                        + Add
+                        Add
                       </Button>
                     )}
                   </div>
@@ -483,7 +493,7 @@ export function MatchScorersDialog({
 
                   <div className="flex items-center gap-2 shrink-0">
                     <Badge variant="outline" className="text-xs">
-                      Co-Scorer
+                      Co-scorer
                     </Badge>
                     {isCreator && (
                       <Button
@@ -492,8 +502,9 @@ export function MatchScorersDialog({
                         onClick={() =>
                           handleRemoveScorer(admin.id, admin.full_name)
                         }
-                        className="h-8 w-8 min-h-[32px] min-w-[32px] flex items-center justify-center text-muted-foreground hover:text-destructive"
+                        className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-destructive"
                         title="Remove scorer"
+                        aria-label={`Remove ${admin.full_name} as a scorer`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -510,6 +521,8 @@ export function MatchScorersDialog({
             </div>
           )}
         </div>
+
+        <MatchStreamersSection matchId={matchId} />
       </DialogContent>
     </Dialog>
   );

@@ -11,12 +11,14 @@ import type { DataSource } from "../datasource";
 import { DbQueryError } from "../query-builder";
 import {
   canDeleteMatch,
+  canProduceOverlay,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
   isTeamMember,
 } from "./auth-helpers";
 import { inviteEmail, revokeInvitation } from "./access";
+import { inviteStreamerEmail } from "./streamers";
 import { deleteMatch } from "./delete-match";
 import {
   addTeamPlayer,
@@ -188,6 +190,13 @@ export async function callRpc(
         str(args, "p_email"),
         optStr(args, "p_match_id"),
       );
+    case "invite_streamer":
+      return inviteStreamerEmail(
+        ctx.ds,
+        ctx.uid,
+        str(args, "p_email"),
+        str(args, "p_match_id"),
+      );
     case "revoke_invitation":
       return revokeInvitation(ctx.ds, ctx.uid, str(args, "p_invitation_id"));
     case "update_own_username":
@@ -229,6 +238,12 @@ export async function callRpc(
       );
     case "is_match_admin":
       return isMatchAdmin(
+        ctx.ds,
+        optStr(args, "p_match_id"),
+        optStr(args, "p_user_id") ?? ctx.uid,
+      );
+    case "can_produce_overlay":
+      return canProduceOverlay(
         ctx.ds,
         optStr(args, "p_match_id"),
         optStr(args, "p_user_id") ?? ctx.uid,

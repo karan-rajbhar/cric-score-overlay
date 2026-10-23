@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MatchStats } from "./match-stats";
 import type { Match } from "~/lib/match-types";
+import { makeInnings } from "~/test/factories";
 
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchBallLogQuery: () => ({
@@ -53,5 +54,30 @@ describe("MatchStats stacked layout", () => {
     expect(wormIdx).toBeGreaterThan(wagonIdx);
     expect(manhattanIdx).toBeGreaterThan(wormIdx);
     expect(breakdownIdx).toBeGreaterThan(manhattanIdx);
+  });
+
+  it("tells balls with extras apart from runs from extras", () => {
+    render(
+      <MatchStats
+        match={{
+          ...dummyMatch,
+          innings: [
+            makeInnings({
+              id: "i1",
+              team_id: "team-a",
+              total_runs: 40,
+              extras_total: 6,
+              extras_wides: 4,
+              extras_byes: 2,
+            }),
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("Balls with extras")).toBeInTheDocument();
+    expect(screen.getByText("Extras (runs)")).toBeInTheDocument();
+    // The extras' runs, in words.
+    expect(screen.getByText("Wides 4")).toBeInTheDocument();
+    expect(screen.getByText("Leg byes 0")).toBeInTheDocument();
   });
 });

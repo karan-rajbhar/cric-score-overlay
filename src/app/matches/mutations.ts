@@ -73,7 +73,7 @@ export async function createMatch(formData: MatchFormData) {
     db
       .from("teams")
       .select(
-        "id, name, short_name, logo_url, created_by, captain_id, vice_captain_id, club_id",
+        "id, name, short_name, logo_url, primary_color, secondary_color, created_by, captain_id, vice_captain_id, club_id",
       )
       .in("id", [formData.team1Id, formData.team2Id]),
     formData.tournamentId
@@ -91,7 +91,7 @@ export async function createMatch(formData: MatchFormData) {
     formData.tournamentId
       ? db
           .from("tournament_registrations")
-          .select("team_id")
+          .select("team_id, status")
           .eq("tournament_id", formData.tournamentId)
           .in("team_id", [formData.team1Id, formData.team2Id])
       : Promise.resolve({ data: null, error: null }),
@@ -189,8 +189,11 @@ export async function createMatch(formData: MatchFormData) {
       return { data: null, error: "Selected tournament does not exist" };
     }
 
+    // Only confirmed teams play: a request still waiting does not count.
     const registeredTeamIds = new Set(
-      (tournRegsRes.data ?? []).map((r) => r.team_id),
+      (tournRegsRes.data ?? [])
+        .filter((r) => r.status === "confirmed")
+        .map((r) => r.team_id),
     );
 
     if (
@@ -823,10 +826,17 @@ export async function autoAssignPlayerOfTheMatch(
   }
 }
 
+/**
+ * Sets a chase's DLS target and the overs it now has: the target on the
+ * innings (the engine plays to it), both on `matches.dls_revision` so
+ * viewers see the target was revised and the chase counts the new overs
+ * (the engine ends the innings there too, `inningsLimits`).
+ */
 export async function updateDlsTarget(
   matchId: string,
   inningsId: string,
   targetRuns: number,
+  revisedOvers: number,
 ): Promise<{ success: boolean; error: string | null }> {
   const db = await createServerClient();
   const {
@@ -845,6 +855,44 @@ export async function updateDlsTarget(
     };
   }
 
+  if (!Number.isInteger(targetRuns) || targetRuns < 1) {
+    return { success: false, error: "The target must be at least 1 run" };
+  }
+  const [{ data: match }, { data: innings }] = await Promise.all([
+    db
+      .from("matches")
+      .select("overs_per_innings, balls_per_over")
+      .eq("id", matchId)
+      .single(),
+    db
+      .from("innings")
+      .select("match_id, innings_number, total_balls")
+      .eq("id", inningsId)
+      .single(),
+  ]);
+  if (!match || !innings || innings.match_id !== matchId) {
+    return { success: false, error: "That innings is not part of this match" };
+  }
+  const fullOvers = match.overs_per_innings ?? 20;
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  if (
+    !Number.isInteger(revisedOvers) ||
+    revisedOvers < 1 ||
+    revisedOvers > fullOvers
+  ) {
+    return {
+      success: false,
+      error: `The revised overs must be a whole number from 1 to ${fullOvers}`,
+    };
+  }
+  if (revisedOvers * bpo <= (innings.total_balls ?? 0)) {
+    return {
+      success: false,
+      error: "The revised overs must be more than the overs already bowled",
+    };
+  }
+
   const { error } = await db
     .from("innings")
     .update({ target_runs: targetRuns })
@@ -854,6 +902,21 @@ export async function updateDlsTarget(
   if (error) {
     console.error("updateDlsTarget failed:", error);
     return { success: false, error: friendlyError(error.message) };
+  }
+
+  const { error: matchErr } = await db
+    .from("matches")
+    .update({
+      dls_revision: {
+        innings_number: innings.innings_number,
+        target_runs: targetRuns,
+        overs: revisedOvers,
+      },
+    })
+    .eq("id", matchId);
+  if (matchErr) {
+    console.error("updateDlsTarget failed on the match:", matchErr);
+    return { success: false, error: friendlyError(matchErr.message) };
   }
 
   await refreshLiveState(db, matchId);
@@ -1067,6 +1130,8 @@ export async function updateMatchSettings(
       matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
     if (settings.noballExtrasToBatsman !== undefined)
       matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
+    // A target set by hand replaces any DLS revision.
+    if (settings.targetRuns !== undefined) matchUpdates.dls_revision = null;
 
     if (Object.keys(matchUpdates).length > 0) {
       const { error: matchErr } = await db
@@ -1463,12 +1528,12 @@ export async function updateTargetRuns(
       return { success: false, error: friendlyError(innErr.message) };
     }
 
+    // A target set by hand replaces any DLS revision.
+    const matchPatch: Record<string, unknown> = { dls_revision: null };
     if (params.overs !== undefined && params.overs !== null && params.overs > 0) {
-      await db
-        .from("matches")
-        .update({ overs_per_innings: params.overs })
-        .eq("id", matchId);
+      matchPatch.overs_per_innings = params.overs;
     }
+    await db.from("matches").update(matchPatch).eq("id", matchId);
 
     await refreshLiveState(db, matchId);
     invalidateMatchCache(matchId);
@@ -1603,28 +1668,56 @@ export interface MatchScorerUser {
   id: string;
   full_name: string;
   avatar_url: string | null;
+  username?: string | null;
 }
 
-const SCORER_FIELDS = "id, full_name, avatar_url";
+const SCORER_FIELDS = "id, full_name, avatar_url, username";
+/** Candidates also bring the placeholder flag, to leave those players out. */
+const CANDIDATE_FIELDS = `${SCORER_FIELDS}, is_placeholder`;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Firebase Auth uids (28 letters and digits) and similar opaque ids. */
+const OPAQUE_ID_RE = /^[A-Za-z0-9]{20,40}$/;
+
+type Candidate = MatchScorerUser & { is_placeholder?: boolean | null };
+
+/**
+ * Players with an account: a squad player who has never signed in (a
+ * placeholder) cannot score, so the picker does not offer them.
+ */
+function withAccounts(rows: unknown[] | null | undefined): MatchScorerUser[] {
+  return ((rows ?? []) as Candidate[])
+    .filter((u) => u.is_placeholder !== true)
+    .map((u) => ({
+      id: u.id,
+      full_name: u.full_name,
+      avatar_url: u.avatar_url,
+      username: u.username ?? null,
+    }));
+}
 
 /**
  * Finds registered players for the scorer picker: by id, by exact email
  * (looked up in server-only users_private, never returned) or by name.
+ * Placeholder players (no account) are left out.
  */
 async function findScorerCandidates(
   db: Awaited<ReturnType<typeof createServerClient>>,
   target: string,
   limit: number,
 ): Promise<{ data: MatchScorerUser[]; error: string | null }> {
-  if (UUID_RE.test(target)) {
+  if (UUID_RE.test(target) || OPAQUE_ID_RE.test(target)) {
+    // A picked search result sends its id (a UUID, or a Firebase uid).
     const { data, error } = await db
       .from("users")
-      .select(SCORER_FIELDS)
+      .select(CANDIDATE_FIELDS)
       .eq("id", target)
       .limit(limit);
-    return { data: (data ?? []) as MatchScorerUser[], error: error?.message ?? null };
+    if (error) return { data: [], error: error.message };
+    if ((data ?? []).length > 0 || UUID_RE.test(target)) {
+      return { data: withAccounts(data), error: null };
+    }
+    // Not an id after all: a long one-word name.
   }
   if (target.includes("@")) {
     const { data: matches, error } = await db
@@ -1637,10 +1730,10 @@ async function findScorerCandidates(
     if (ids.length === 0) return { data: [], error: null };
     const { data, error: usersError } = await db
       .from("users")
-      .select(SCORER_FIELDS)
+      .select(CANDIDATE_FIELDS)
       .in("id", ids);
     return {
-      data: (data ?? []) as MatchScorerUser[],
+      data: withAccounts(data),
       error: usersError?.message ?? null,
     };
   }
@@ -1649,10 +1742,10 @@ async function findScorerCandidates(
     db,
     "users",
     target,
-    SCORER_FIELDS,
+    CANDIDATE_FIELDS,
     limit,
   );
-  return { data: data as unknown as MatchScorerUser[], error };
+  return { data: withAccounts(data as unknown[]), error };
 }
 
 export async function getMatchScorers(matchId: string): Promise<{

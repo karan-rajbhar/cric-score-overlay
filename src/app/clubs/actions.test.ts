@@ -442,6 +442,12 @@ describe("Clubs Server Actions", () => {
       const res = await updateClubLogo("club-1", fakeLogo);
       expect(res.error).toBeNull();
       expect(res.data).toBe("https://example.com/club-assets/club-1/logo.png");
+      // A fresh path per upload, cached for a year.
+      expect(mockUpload).toHaveBeenCalledWith(
+        expect.stringMatching(/^club-1\/logo-\d+\.png$/),
+        fakeLogo,
+        expect.objectContaining({ immutable: true }),
+      );
     });
 
     it("removes club logo successfully for authorized admin", async () => {

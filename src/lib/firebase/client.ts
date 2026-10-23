@@ -32,6 +32,7 @@ import { expandEmbedded, legacyRowsDataSource } from "./legacy-rows";
 import { QueryBuilder, type BuilderContext } from "./query-builder";
 import {
   canDeleteMatch,
+  canProduceOverlay,
   isClubAdmin,
   isClubMember,
   isMatchAdmin,
@@ -138,6 +139,15 @@ export class BrowserClient {
             data: (await isClubAdmin(
               this.ds,
               String(args.p_club_id ?? ""),
+              userArg,
+            )) as T,
+            error: null,
+          };
+        case "can_produce_overlay":
+          return {
+            data: (await canProduceOverlay(
+              this.ds,
+              String(args.p_match_id ?? ""),
               userArg,
             )) as T,
             error: null,

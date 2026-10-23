@@ -47,7 +47,7 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
       if (res.error) {
         toast.error(res.error);
       } else {
-        toast.success(`Created season ${name}!`);
+        toast.success(`Created season ${name}`);
         setOpen(false);
         setName("");
         setStartDate("");

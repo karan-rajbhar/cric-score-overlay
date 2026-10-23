@@ -4,6 +4,7 @@ import { isJsonRequest, isSameOrigin, readCapped } from "~/lib/api-request";
 import { publishOverlayCommand } from "~/lib/firebase/overlay-control";
 import { overlayPatchOf, type OverlayCommandInput } from "~/lib/overlay-state";
 import { createServerClient } from "~/lib/firebase/server";
+import { canProduceOverlay } from "~/lib/firebase/permissions"; // streamers
 
 /**
  * POST /api/overlay/command: a control room command for a match's overlay
@@ -70,10 +71,8 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await db.auth.getUser();
     if (!user) return fail(401, "not_authenticated", "Sign in again");
-    const { data: isAdmin } = await db.rpc("is_match_admin", {
-      p_match_id: matchId,
-      p_user_id: user.id,
-    });
+    // Admins of the match and its streamers (canProduceOverlay).
+    const isAdmin = await canProduceOverlay(db, matchId, user.id);
     if (!isAdmin) {
       return fail(403, "not_authorized", "Not an admin of this match");
     }

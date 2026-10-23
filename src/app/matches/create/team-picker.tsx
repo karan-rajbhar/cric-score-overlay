@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog";
 import { cn, deriveShortName } from "~/lib/utils";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import {
   matchesTeamQuery,
   sortByRecent,
@@ -44,6 +45,8 @@ interface TeamPickerProps {
   onCreate?: (name: string, shortName: string) => Promise<CreateTeamResult>;
   /** Shown when no team can be picked. */
   emptyMessage: string;
+  /** Why some teams are not listed, shown under the list. */
+  hint?: string;
   disabled?: boolean;
 }
 
@@ -57,6 +60,7 @@ export function TeamPicker({
   onChange,
   onCreate,
   emptyMessage,
+  hint,
   disabled,
 }: TeamPickerProps) {
   const labelId = useId();
@@ -144,6 +148,7 @@ export function TeamPicker({
               value={value}
               onChoose={choose}
               emptyMessage={emptyMessage}
+              hint={hint}
               onNew={onCreate ? () => setMode("create") : undefined}
             />
           ) : (
@@ -171,6 +176,7 @@ function TeamList({
   value,
   onChoose,
   emptyMessage,
+  hint,
   onNew,
 }: {
   query: string;
@@ -180,6 +186,7 @@ function TeamList({
   value: string;
   onChoose: (id: string) => void;
   emptyMessage: string;
+  hint?: string;
   onNew?: () => void;
 }) {
   const searchId = useId();
@@ -310,6 +317,8 @@ function TeamList({
         )}
       </div>
 
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+
       {onNew && (
         <Button
           type="button"
@@ -354,11 +363,15 @@ function NewTeamForm({
     }
     setSaving(true);
     setError(null);
-    const failure = await onCreate(name.trim(), effectiveShort.trim());
-    if (failure) {
-      setError(failure);
+    let failure: string | null;
+    try {
+      failure = await onCreate(name.trim(), effectiveShort.trim());
+    } catch {
+      failure = NETWORK_ERROR_MESSAGE;
+    } finally {
       setSaving(false);
     }
+    if (failure) setError(failure);
   };
 
   return (

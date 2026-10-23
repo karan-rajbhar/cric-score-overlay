@@ -19,9 +19,11 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Label } from "~/components/ui/label";
+import Link from "next/link";
 import { Plus, Loader2 } from "lucide-react";
 import { registerTeamForTournament } from "~/app/tournaments/actions";
 import { toast } from "sonner";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 interface TeamOption {
   id: string;
@@ -33,12 +35,15 @@ interface RegisterTeamDialogProps {
   tournamentId: string;
   availableTeams: TeamOption[];
   registeredTeamIds: string[];
+  /** Organisers add teams directly; anyone else sends a request. */
+  isOrganiser?: boolean;
 }
 
 export function RegisterTeamDialog({
   tournamentId,
   availableTeams,
   registeredTeamIds,
+  isOrganiser = false,
 }: RegisterTeamDialogProps) {
   const [open, setOpen] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
@@ -52,11 +57,21 @@ export function RegisterTeamDialog({
     if (!selectedTeamId) return;
 
     startTransition(async () => {
-      const res = await registerTeamForTournament(tournamentId, selectedTeamId);
+      let res: Awaited<ReturnType<typeof registerTeamForTournament>>;
+      try {
+        res = await registerTeamForTournament(tournamentId, selectedTeamId);
+      } catch {
+        toast.error(NETWORK_ERROR_MESSAGE);
+        return;
+      }
       if (res?.error) {
         toast.error(res.error);
       } else {
-        toast.success("Team registered for tournament");
+        toast.success(
+          "status" in res && res.status === "pending"
+            ? "Request sent. The organisers confirm it before the team joins the points table."
+            : "Team added to the tournament",
+        );
         setOpen(false);
         setSelectedTeamId("");
       }
@@ -73,23 +88,37 @@ export function RegisterTeamDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Register team for tournament</DialogTitle>
+          <DialogTitle>Register a team</DialogTitle>
           <DialogDescription>
-            Select a team to add to the tournament fixtures and points table.
+            {isOrganiser
+              ? "The team joins the fixtures and points table straight away."
+              : "The organisers confirm your request before the team joins the fixtures and points table."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-3">
-          {unregisteredTeams.length === 0 ? (
+          {availableTeams.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              All available teams are already registered in this tournament.
+              There are no teams to register yet.{" "}
+              <Link
+                href={`/teams/create?tournamentId=${tournamentId}`}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Create a team
+              </Link>
+            </p>
+          ) : unregisteredTeams.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {isOrganiser
+                ? "Every team is already registered in this tournament."
+                : "Your teams are already registered or waiting for the organisers."}
             </p>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="team-select">Select team</Label>
               <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                 <SelectTrigger id="team-select">
-                  <SelectValue placeholder="Choose a team..." />
+                  <SelectValue placeholder="Choose a team" />
                 </SelectTrigger>
                 <SelectContent>
                   {unregisteredTeams.map((team) => (
@@ -119,10 +148,12 @@ export function RegisterTeamDialog({
             {isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Registering...
+                Registering…
               </>
+            ) : isOrganiser ? (
+              "Add team"
             ) : (
-              "Confirm Registration"
+              "Send request"
             )}
           </Button>
         </DialogFooter>

@@ -21,7 +21,6 @@ vi.mock("~/app/matches/queries", () => ({
   getMatches: (...a: unknown[]) => getMatches(...a),
   getMatch: vi.fn(),
   getMatchBallLog: vi.fn(),
-  getPartnerships: vi.fn(),
   ensureLiveScorecard: vi.fn(),
 }));
 
@@ -85,8 +84,69 @@ describe("MatchCard scoring actions", () => {
   it("opens the match from the card", () => {
     renderCard(<MatchCard match={liveMatch} contextQuery="from=matches" />);
     expect(
-      screen.getByRole("link", { name: "Royal Tigers versus Coastal Kings" }),
+      screen.getByRole("link", { name: /^Royal Tigers versus Coastal Kings/ }),
     ).toHaveAttribute("href", `/matches/${liveMatch.id}?from=matches`);
+  });
+
+  it("names the card link with the status, scores and result", () => {
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          status: "completed",
+          result_description: "Royal Tigers won by 18 runs",
+          winning_team_id: "t1",
+          innings: [
+            { ...liveMatch.innings![0]!, is_completed: true },
+            {
+              ...liveMatch.innings![0]!,
+              id: "i2",
+              innings_number: 2,
+              team_id: "t2",
+              total_runs: 80,
+              total_wickets: 10,
+              total_balls: 60,
+              total_overs: 10,
+              is_completed: true,
+            },
+          ],
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("link", {
+        name:
+          "Royal Tigers versus Coastal Kings, completed. " +
+          "Royal Tigers 98 for 3 (10.2 overs), Coastal Kings 80 for 10 (10.0 overs). " +
+          "Royal Tigers won by 18 runs",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("calls the wait before the chase an innings break", () => {
+    renderCard(
+      <MatchCard
+        match={makeMatch({
+          innings: [
+            { ...liveMatch.innings![0]!, is_completed: true },
+            {
+              ...liveMatch.innings![0]!,
+              id: "i2",
+              innings_number: 2,
+              team_id: "t2",
+              total_runs: 0,
+              total_wickets: 0,
+              total_balls: 0,
+              total_overs: 0,
+              target_runs: 99,
+            },
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Innings break")).toBeInTheDocument();
+    expect(
+      screen.getByText("Coastal Kings need 99 runs from 120 balls"),
+    ).toBeInTheDocument();
   });
 
   it("shows an upcoming match as a fixture with its start time", () => {

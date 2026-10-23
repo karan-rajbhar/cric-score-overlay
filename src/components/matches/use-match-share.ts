@@ -10,6 +10,15 @@ import {
   shareImage,
 } from "~/lib/share-match";
 
+/** Copies `text`; false when the browser has no clipboard or refuses. */
+async function copyText(text: string): Promise<boolean> {
+  if (!navigator.clipboard?.writeText) return false;
+  return navigator.clipboard.writeText(text).then(
+    () => true,
+    () => false,
+  );
+}
+
 /**
  * Sharing a match as its summary image with a message
  * (`matchShareMessage`): the share sheet on phones and tablets, a download
@@ -59,10 +68,12 @@ export function useMatchShare(
         // The message alone, with its link.
         if (typeof navigator.share === "function") {
           await navigator.share({ text }).catch(() => undefined);
-        } else {
-          await navigator.clipboard?.writeText(text);
-          toast.success("Message copied");
+          return;
         }
+        // Say it was copied only once it was.
+        const copied = await copyText(text);
+        if (copied) toast.success("Message copied");
+        else toast.error("Could not share the image or copy the message");
         return;
       }
       const outcome = await shareImage(file, text);
@@ -74,12 +85,7 @@ export function useMatchShare(
           },
         });
       } else if (outcome === "downloaded") {
-        const copied =
-          copyMessage &&
-          (await navigator.clipboard?.writeText(text).then(
-            () => true,
-            () => false,
-          ));
+        const copied = copyMessage && (await copyText(text));
         toast.success(
           copied
             ? "Summary image downloaded and message copied"

@@ -5,21 +5,20 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
-import { StatusBadge } from "~/components/ui/status-badge";
+import { MatchStatusChip } from "~/components/ds/chip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
 import { MatchScorecard } from "~/components/matches/match-scorecard";
 import { MatchBalls } from "~/components/matches/match-balls";
-import { MatchPartnerships } from "~/components/matches/match-partnerships";
 import { MatchInfo } from "~/components/matches/match-info";
+import { LiveFreshness } from "~/components/matches/live-freshness";
 import {
   useMatchDetailQuery,
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
-import {
-  sidesInBattingOrder,
-} from "~/lib/cricket";
+import { displayStatusOf, sidesInBattingOrder } from "~/lib/cricket";
+import { matchShareMessage } from "~/lib/share-match";
 import { useAuth } from "~/lib/auth";
 import { MatchHero } from "~/components/matches/match-hero";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
@@ -102,7 +101,6 @@ function MatchDetailsPageContent() {
     isLoading: loading,
     error: matchQueryError,
     refetch: refetchQuery,
-    isConnected,
   } = useMatchDetailQuery(matchId, {
     // Only these tabs show per-player figures; the header and the other
     // tabs run off the live totals or their own (ball log) queries.
@@ -138,6 +136,7 @@ function MatchDetailsPageContent() {
   }>({});
 
   useEffect(() => {
+    if (!match) return; // Names show with the match, which usually has them.
     let cancelled = false;
     async function resolveContext() {
       const updates: typeof contextNames = {};
@@ -234,7 +233,7 @@ function MatchDetailsPageContent() {
             "This match could not be found or may have been removed from the tournament schedule."
           }
           primaryAction={{
-            label: "Back to Matches",
+            label: "Back to matches",
             href: "/matches",
             icon: ChevronLeft,
           }}
@@ -252,6 +251,10 @@ function MatchDetailsPageContent() {
   const [side1, side2] = sidesInBattingOrder(match);
   // While live the first tab is the live view (crease, this over).
   const inPlay = match.status === "live" || match.status === "innings_break";
+  const status = displayStatusOf(match);
+  // A link share sends the score so far with the link.
+  const shareTitle = `${match.team1?.name ?? "Team 1"} vs ${match.team2?.name ?? "Team 2"}`;
+  const shareText = matchShareMessage(match);
   const isScorer =
     (!!user &&
       (match.created_by === user.id ||
@@ -259,7 +262,7 @@ function MatchDetailsPageContent() {
     isScorerRole;
 
   let matchBackHref = "/matches";
-  let matchBackLabel = "Back to Matches";
+  let matchBackLabel = "Back to matches";
   const breadcrumbItems: Array<{ label: string; href: string }> = [];
 
   if (clubId) {
@@ -352,19 +355,19 @@ function MatchDetailsPageContent() {
     );
   } else if (fromParam === "dashboard") {
     matchBackHref = "/dashboard";
-    matchBackLabel = "Back to Dashboard";
+    matchBackLabel = "Back to dashboard";
     breadcrumbItems.push(
       { label: "Dashboard", href: "/dashboard" },
       { label: "Matches", href: "/matches" },
     );
   } else if (fromParam === "search") {
     matchBackHref = "/search";
-    matchBackLabel = "Back to Search";
+    matchBackLabel = "Back to search";
     breadcrumbItems.push({ label: "Search", href: "/search" });
   } else {
     // Default fallback: return to general matches list
     matchBackHref = "/matches";
-    matchBackLabel = "Back to Matches";
+    matchBackLabel = "Back to matches";
     breadcrumbItems.push({ label: "Matches", href: "/matches" });
   }
 
@@ -435,29 +438,12 @@ function MatchDetailsPageContent() {
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              {match.status === "live" && (
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1 text-xs font-medium sm:px-2.5"
-                  title={
-                    isConnected ? "Realtime sync connected" : "Connecting..."
-                  }
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      isConnected
-                        ? "bg-success"
-                        : "bg-muted-foreground/50"
-                    }`}
-                  />
-                  <span className="hidden text-xs font-medium text-muted-foreground sm:inline">
-                    {isConnected ? "Realtime sync" : "Connecting"}
-                  </span>
-                </span>
-              )}
-              {match.status !== "live" && <StatusBadge status={match.status} />}
+              {/* The same chip as the score below and the match cards. */}
+              <MatchStatusChip status={status} />
               <ShareMatchButton
                 matchId={match.id}
-                title={`${match.team1?.name ?? "Team 1"} vs ${match.team2?.name ?? "Team 2"}`}
+                title={shareTitle}
+                text={shareText}
                 className="h-8 px-2 sm:px-3"
               />
               <Badge variant="outline" className="hidden sm:inline-flex">
@@ -518,7 +504,8 @@ function MatchDetailsPageContent() {
               <>
                 <ShareMatchButton
                   matchId={match.id}
-                  title={`${match.team1?.name ?? "Team 1"} vs ${match.team2?.name ?? "Team 2"}`}
+                  title={shareTitle}
+                  text={shareText}
                   className={screenAction}
                 />
                 <MatchMoreMenu
@@ -534,6 +521,11 @@ function MatchDetailsPageContent() {
             {match.title}
           </h1>
           <MatchHero match={match} sides={[side1, side2]}>
+            {/* While live: when the score last changed, or that the live
+                connection is down (phones have no header). */}
+            {match.status === "live" && (
+              <LiveFreshness matchId={match.id} className="-mt-2 mb-3" />
+            )}
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
               {isScorer &&
@@ -625,9 +617,9 @@ function MatchDetailsPageContent() {
             <MatchSuperstars match={match} />
           </TabsContent>
 
+          {/* Partnerships are on the Scorecard. */}
           <TabsContent value="stats" className="space-y-6">
             <MatchStats match={match} />
-            <MatchPartnerships match={match} />
           </TabsContent>
 
           <TabsContent value="balls">

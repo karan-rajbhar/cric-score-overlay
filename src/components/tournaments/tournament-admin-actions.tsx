@@ -1,7 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import {
+  localDateTimeToIso,
+  todayLocalDateInput,
+} from "~/lib/local-datetime";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import {
   SlidersHorizontal,
   Calculator,
@@ -85,42 +102,129 @@ export function QualificationCalculatorButton({
   );
 }
 
+/**
+ * Round-robin fixtures for every confirmed team: one round a day from the
+ * first match's day and time (in the organiser's own time zone), each match
+ * reschedulable afterwards.
+ */
 export function GenerateFixturesButton({
   tournamentId,
+  startDate,
 }: {
   tournamentId: string;
+  /** The tournament's start date ("2026-11-01"), the first day offered. */
+  startDate?: string | null;
 }) {
+  const router = useRouter();
+  const ids = { day: useId(), time: useId(), error: useId() };
+  const [open, setOpen] = useState(false);
+  const [day, setDay] = useState("");
+  const [time, setTime] = useState("10:00");
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleGenerate = async () => {
-    if (!confirm("Generate round-robin fixtures for all confirmed teams?"))
+  const openDialog = (next: boolean) => {
+    if (loading) return;
+    if (next) {
+      setDay(startDate || todayLocalDateInput());
+      setTime("10:00");
+      setError(null);
+    }
+    setOpen(next);
+  };
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const firstMatchAt = localDateTimeToIso(day, time);
+    if (!firstMatchAt) {
+      setError("Pick the first match's day and time");
       return;
+    }
     setLoading(true);
+    setError(null);
     try {
-      const res = await generateTournamentFixtures(tournamentId);
+      const res = await generateTournamentFixtures(tournamentId, firstMatchAt);
       if (res.error) {
-        toast.error(res.error);
-      } else {
-        toast.success(`Generated ${res.count} tournament matches!`);
+        setError(res.error);
+        return;
       }
-    } catch (err) {
-      console.error("Failed to generate fixtures:", err);
-      toast.error("Failed to generate fixtures");
+      toast.success(`Generated ${res.count} matches`);
+      setOpen(false);
+      router.refresh();
+    } catch {
+      setError(NETWORK_ERROR_MESSAGE);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Button
-      size="sm"
-      onClick={handleGenerate}
-      disabled={loading}
-      className="gap-1.5 bg-primary font-semibold text-primary-foreground"
-    >
-      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-      Generate round-robin fixtures
-    </Button>
+    <Dialog open={open} onOpenChange={openDialog}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="gap-1.5">
+          Generate round-robin fixtures
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <form onSubmit={handleGenerate} className="space-y-4" noValidate>
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-balance">
+              Generate round-robin fixtures
+            </DialogTitle>
+            <DialogDescription>
+              Every confirmed team plays every other team once, one round a
+              day from the first match. You can reschedule any match
+              afterwards.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor={ids.day}>First match day</Label>
+              <Input
+                id={ids.day}
+                type="date"
+                value={day}
+                onChange={(e) => setDay(e.target.value)}
+                className="mt-1.5"
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor={ids.time}>Start time</Label>
+              <Input
+                id={ids.time}
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="mt-1.5"
+                required
+              />
+            </div>
+          </div>
+          {error && (
+            <p id={ids.error} role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openDialog(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Generate
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

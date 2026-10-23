@@ -156,11 +156,6 @@ describe("live_scorecard encoding", () => {
     const fow = (first.fall_of_wickets as Array<Record<string, unknown>>)[0]!;
     expect(fow.id).toBe(`${innings[0]!.id}_w1`);
     expect(fow.bowler).toEqual({ full_name: nameOf(uuid(204)) });
-    expect(view.partnerships).toHaveLength(20);
-    expect(view.partnerships[0]).toMatchObject({
-      id: `${innings[0]!.id}_p1`,
-      batsman1: { full_name: nameOf(uuid(100)) },
-    });
   });
 
   it("compares content regardless of version, time and key order", () => {

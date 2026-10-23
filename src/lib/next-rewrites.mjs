@@ -32,6 +32,17 @@ export function firebaseAuthProxyRewrites() {
 }
 
 /**
+ * Source of the anti-framing headers (`X-Frame-Options`, CSP
+ * `frame-ancestors`): every path except Firebase Auth's proxied helper
+ * pages (`/__/`) and the overlays themselves (`/overlay/{matchId}` and the
+ * stream channel links `/overlay/channel/{id}`), which web-based streaming
+ * tools may embed in a frame. Their control rooms (`/overlay/{id}/control`)
+ * stay unframeable: they act for a signed-in producer.
+ */
+export const FRAME_HEADERS_SOURCE =
+  "/:path((?!__/|overlay/(?:channel/)?[^/]+/?$).*)";
+
+/**
  * Every rewrite, by phase.
  *
  * @returns {{

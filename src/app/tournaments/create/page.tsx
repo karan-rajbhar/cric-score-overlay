@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -20,6 +20,13 @@ import { useAuth } from "~/lib/auth";
 import { useUserManagedClubsQuery } from "~/lib/hooks/useMatchQueries";
 import { ChevronLeft, Loader2, Shield } from "lucide-react";
 import { PageContainer } from "~/components/layout/page";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import {
+  FORMAT_PRESETS,
+  formatForOvers,
+  LIMITS,
+} from "~/app/matches/create/match-setup";
+import type { MatchFormat } from "~/app/matches/types";
 
 function CreateTournamentForm() {
   const searchParams = useSearchParams();
@@ -33,19 +40,50 @@ function CreateTournamentForm() {
   );
   const clubs = clubsData ?? [];
   const [selectedClubId, setSelectedClubId] = useState<string>(prefilledClubId);
+  const [matchFormat, setMatchFormat] = useState<MatchFormat>("T20");
+  const [overs, setOvers] = useState("20");
+
+  const pickFormat = (format: MatchFormat) => {
+    setMatchFormat(format);
+    const preset = FORMAT_PRESETS.find((p) => p.format === format);
+    if (preset?.overs) setOvers(String(preset.overs));
+  };
+
+  const changeOvers = (value: string) => {
+    setOvers(value);
+    const n = Number(value);
+    if (Number.isInteger(n) && n > 0) setMatchFormat(formatForOvers(n));
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const res = await createTournament(fd);
-    if (res?.error) {
-      setError(res.error);
+    try {
+      // On success the action redirects to the new tournament.
+      const res = await createTournament(fd);
+      if (res?.error) {
+        setError(res.error);
+        setSaving(false);
+      }
+    } catch (err) {
+      unstable_rethrow(err);
+      setError(NETWORK_ERROR_MESSAGE);
       setSaving(false);
     }
-    // on success, server action redirects
   };
+
+  const oversNum = Number(overs);
+  const oversError =
+    overs !== "" &&
+    !(
+      Number.isInteger(oversNum) &&
+      oversNum >= LIMITS.overs.min &&
+      oversNum <= LIMITS.overs.max
+    )
+      ? `Overs must be between ${LIMITS.overs.min} and ${LIMITS.overs.max}`
+      : null;
 
   return (
     <Card>
@@ -58,14 +96,14 @@ function CreateTournamentForm() {
 
           {clubs.length > 0 && (
             <div>
-              <Label htmlFor="club_id">Hosting club (optional)</Label>
+              <Label htmlFor="tournament-club">Hosting club (optional)</Label>
               <Select
                 value={selectedClubId || "none"}
                 onValueChange={(val) =>
                   setSelectedClubId(val === "none" ? "" : val)
                 }
               >
-                <SelectTrigger className="mt-2">
+                <SelectTrigger id="tournament-club" className="mt-2">
                   <SelectValue placeholder="Select club (or none for independent)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -93,7 +131,7 @@ function CreateTournamentForm() {
               id="name"
               name="name"
               required
-              placeholder="e.g., Summer Cup 2026"
+              placeholder="e.g. Summer Cup 2026"
               className="mt-2"
             />
           </div>
@@ -117,26 +155,60 @@ function CreateTournamentForm() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="league">League</SelectItem>
+                  <SelectItem value="league">League (round robin)</SelectItem>
                   <SelectItem value="knockout">Knockout</SelectItem>
-                  <SelectItem value="mixed">Mixed</SelectItem>
-                  <SelectItem value="round_robin">Round robin</SelectItem>
+                  <SelectItem value="mixed">Mixed / groups</SelectItem>
+                  <SelectItem value="round_robin">Double round robin</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label htmlFor="tournament-match-format">Match format</Label>
-              <Select name="match_format" defaultValue="T20">
+              <Select
+                name="match_format"
+                value={matchFormat}
+                onValueChange={(v) => pickFormat(v as MatchFormat)}
+              >
                 <SelectTrigger id="tournament-match-format" className="mt-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="T20">T20 (20 ov)</SelectItem>
-                  <SelectItem value="ODI">ODI (50 ov)</SelectItem>
-                  <SelectItem value="Custom">Custom</SelectItem>
+                  {FORMAT_PRESETS.map((p) => (
+                    <SelectItem key={p.format} value={p.format}>
+                      {p.overs ? `${p.label} (${p.overs} overs)` : p.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="tournament-overs">Overs per side</Label>
+            <Input
+              id="tournament-overs"
+              name="overs_per_innings"
+              type="number"
+              inputMode="numeric"
+              min={LIMITS.overs.min}
+              max={LIMITS.overs.max}
+              value={overs}
+              onChange={(e) => changeOvers(e.target.value)}
+              aria-invalid={Boolean(oversError) || undefined}
+              aria-describedby="tournament-overs-hint"
+              className="mt-2 w-24 tabular-nums"
+              required
+            />
+            <p
+              id="tournament-overs-hint"
+              className={
+                oversError
+                  ? "mt-1 text-xs text-destructive"
+                  : "mt-1 text-xs text-muted-foreground"
+              }
+            >
+              {oversError ?? "New matches in the tournament start with these overs."}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
@@ -165,22 +237,29 @@ function CreateTournamentForm() {
             <Input
               id="venue"
               name="venue"
-              placeholder="e.g., Lord's Cricket Ground"
+              placeholder="e.g. Lord's Cricket Ground"
               className="mt-2"
             />
           </div>
 
           {error && (
-            <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+            <div
+              role="alert"
+              className="rounded-md bg-destructive/15 p-3 text-sm text-destructive"
+            >
               {error}
             </div>
           )}
 
-          <Button type="submit" disabled={saving} className="h-11 min-h-[44px] w-full">
+          <Button
+            type="submit"
+            disabled={saving || Boolean(oversError) || overs === ""}
+            className="h-11 min-h-[44px] w-full"
+          >
             {saving ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />
-                Creating tournament...
+                Creating tournament…
               </>
             ) : (
               "Create tournament"
@@ -224,8 +303,10 @@ export default function CreateTournamentPage() {
       <div className="flex min-h-screen items-center justify-center">
         <Card className="mx-4 w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <h2 className="mb-2 text-lg font-semibold">Sign in required</h2>
-            <p className="mb-4">Sign in to create a tournament</p>
+            <h1 className="mb-2 text-lg font-semibold">Sign in required</h1>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Sign in to create a tournament.
+            </p>
             <Button asChild>
               <Link href="/auth/login?redirect=/tournaments/create">
                 Sign in

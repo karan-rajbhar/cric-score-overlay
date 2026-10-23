@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { createPlayerQuick } from "../../teams/actions";
+import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
 /**
  * Inline "add players" for a team with a short squad, so a new side can
@@ -62,8 +63,15 @@ export function QuickPlayers({
     }
     setSaving(true);
     setError(null);
-    const res = await createPlayerQuick(teamId, trimmed);
-    setSaving(false);
+    let res: Awaited<ReturnType<typeof createPlayerQuick>>;
+    try {
+      res = await createPlayerQuick(teamId, trimmed);
+    } catch {
+      setError(NETWORK_ERROR_MESSAGE);
+      return;
+    } finally {
+      setSaving(false);
+    }
     if (res.error || !res.data) {
       setError(res.error ?? "The player could not be added");
       return;

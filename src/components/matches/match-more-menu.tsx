@@ -4,7 +4,9 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
+  CalendarClock,
   CloudRain,
+  FileJson,
   MoreHorizontal,
   SlidersHorizontal,
   Trash2,
@@ -25,6 +27,7 @@ import {
 } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
 import { DeleteMatchDialog } from "./delete-match-dialog";
+import { RescheduleMatchDialog } from "./reschedule-match-dialog";
 
 const DlsCalculatorModal = dynamic(
   () => import("./dls-calculator-modal").then((m) => m.DlsCalculatorModal),
@@ -39,8 +42,15 @@ interface MatchMoreMenuProps {
     overs_per_innings?: number | null;
     tournament_id?: string | null;
     club_id?: string | null;
+    scheduled_at?: string | null;
+    venue?: string | null;
+    umpire1_name?: string | null;
+    umpire2_name?: string | null;
   };
-  /** The full match, for the DLS calculator's defaults (live matches). */
+  /**
+   * The full match: the DLS calculator's defaults (live matches), the
+   * ball-by-ball download (finished ones).
+   */
   dlsMatch?: Match;
   /** Whether the DLS calculator may set the target (scorers). */
   canEditDls?: boolean;
@@ -49,8 +59,10 @@ interface MatchMoreMenuProps {
 
 /**
  * The match page's "More" menu: the tools few people need (streaming the
- * match with its overlay, the overlay control room for its scorers, the DLS
- * calculator while live) and, for those who may, Delete match.
+ * match with its overlay, the overlay control room for those who run its
+ * graphics, the DLS calculator while live, a finished match's ball-by-ball
+ * data) and, for its organisers (who may delete it), Reschedule before the
+ * start and Delete match.
  */
 export function MatchMoreMenu({
   match,
@@ -68,6 +80,8 @@ export function MatchMoreMenu({
     isAdmin === true,
   );
   const [showDelete, setShowDelete] = useState(false);
+  const [showReschedule, setShowReschedule] = useState(false);
+  const canReschedule = canDelete === true && match.status === "scheduled";
   const [showDls, setShowDls] = useState(false);
   const dls =
     dlsMatch &&
@@ -118,9 +132,33 @@ export function MatchMoreMenu({
               <span>DLS calculator</span>
             </DropdownMenuItem>
           )}
+          {dlsMatch && dlsMatch.status === "completed" && (
+            <DropdownMenuItem
+              // Loaded on demand: the Cricsheet builder and the export
+              // query are needed by few.
+              onSelect={() =>
+                void import("./cricsheet-export").then((m) =>
+                  m.exportCricsheet(dlsMatch),
+                )
+              }
+              className="flex cursor-pointer items-center gap-2"
+            >
+              <FileJson className="h-4 w-4" aria-hidden="true" />
+              <span>Download ball-by-ball data (Cricsheet)</span>
+            </DropdownMenuItem>
+          )}
           {canDelete && (
             <>
               <DropdownMenuSeparator />
+              {canReschedule && (
+                <DropdownMenuItem
+                  onSelect={() => setShowReschedule(true)}
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  <span>Reschedule</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={() => setShowDelete(true)}
                 className="flex cursor-pointer items-center gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
@@ -137,6 +175,13 @@ export function MatchMoreMenu({
         onOpenChange={setShowDelete}
         match={match}
       />
+      {canReschedule && (
+        <RescheduleMatchDialog
+          open={showReschedule}
+          onOpenChange={setShowReschedule}
+          match={match}
+        />
+      )}
       {dls && showDls && (
         <DlsCalculatorModal
           match={dlsMatch}

@@ -294,6 +294,8 @@ function profilePatch(
 export async function ensureOwnProfile(
   ds: DataSource,
   user: AppUser | null,
+  /** The account's `users` document, when the caller has just read it. */
+  known?: UsersRow | null,
 ): Promise<{
   ok: boolean;
   user_id: string;
@@ -321,7 +323,7 @@ export async function ensureOwnProfile(
 
   // A: profile already keyed by the auth uid.
   const [existing, existingPrivate] = (await Promise.all([
-    ds.getById("users", uid),
+    known === undefined ? ds.getById("users", uid) : known,
     getUserPrivate(ds, uid),
   ])) as [UsersRow | null, Awaited<ReturnType<typeof getUserPrivate>>];
   if (existing) {
@@ -351,8 +353,16 @@ export async function ensureOwnProfile(
       match.username ??
       (await generateUniqueUsername(ds, fullName, email, uid));
     const patch = profilePatch(match, { fullName, avatarUrl, username });
-    if (patch)
+    // A squad player claimed by the person signing in has an account now.
+    if (match.is_placeholder) {
+      await ds.update("users", match.id, {
+        ...patch,
+        is_placeholder: false,
+        updated_at: now,
+      });
+    } else if (patch) {
       await ds.update("users", match.id, { ...patch, updated_at: now });
+    }
     await upsertUserPrivate(ds, match.id, contact);
     await remapUserId(ds, match.id, uid);
     return { ok: true, user_id: uid, username, action: "remapped" };
@@ -451,7 +461,12 @@ export async function createTeamPlayer(
   const userId = newId();
   const now = new Date().toISOString();
   await ds.insert("users", [
-    buildUserDoc({ id: userId, full_name: name, username }),
+    buildUserDoc({
+      id: userId,
+      full_name: name,
+      username,
+      is_placeholder: true,
+    }),
   ]);
   await upsertUserPrivate(
     ds,
