@@ -367,6 +367,12 @@ export interface MatchesRow {
   tournament_id: string | null;
   club_id: string | null;
   season_id: string | null;
+  /** Tournament stage ("group", "knockout"; null: league or friendly). */
+  stage?: string | null;
+  /** Knockout round (1 = first round) or group-stage round. */
+  round?: number | null;
+  /** Group of a group-stage match ("A", "B", ...). */
+  group_name?: string | null;
   created_by: string;
   match_admins: string[] | null;
   /**

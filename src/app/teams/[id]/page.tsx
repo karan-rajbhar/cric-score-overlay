@@ -44,6 +44,7 @@ import {
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { teamRecordOf } from "~/lib/team-record";
+import { EntityActions } from "~/components/follow/entity-actions";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -343,19 +344,22 @@ export default async function TeamDetailsPage({
           />
         }
         actions={
-          canManageTeam ? (
-            <EditTeamDialog
-              team={{
-                id: team.id,
-                name: team.name,
-                short_name: team.short_name,
-                description: team.description,
-                logo_url: team.logo_url,
-                primary_color: team.primary_color,
-                secondary_color: team.secondary_color,
-              }}
-            />
-          ) : undefined
+          <>
+            <EntityActions kind="team" id={team.id} name={team.name} />
+            {canManageTeam && (
+              <EditTeamDialog
+                team={{
+                  id: team.id,
+                  name: team.name,
+                  short_name: team.short_name,
+                  description: team.description,
+                  logo_url: team.logo_url,
+                  primary_color: team.primary_color,
+                  secondary_color: team.secondary_color,
+                }}
+              />
+            )}
+          </>
         }
         labels={
           <>
@@ -383,89 +387,81 @@ export default async function TeamDetailsPage({
       />
 
       <ContentSheet className="mt-6 sm:mt-8">
-      <StatGrid>
-        <StatTile
-          icon={Swords}
-          label="Played"
-          value={record.played}
-          hint={
-            record.noWinner > 0
-              ? `${record.noWinner} tied or no result`
-              : undefined
-          }
-        />
-        <StatTile icon={Trophy} label="Won" value={record.won} />
-        <StatTile icon={X} label="Lost" value={record.lost} />
-        <StatTile
-          icon={Percent}
-          label="Win rate"
-          value={record.winRate !== null ? `${record.winRate}%` : "–"}
-        />
-      </StatGrid>
+        <StatGrid>
+          <StatTile
+            icon={Swords}
+            label="Played"
+            value={record.played}
+            hint={
+              record.noWinner > 0
+                ? `${record.noWinner} tied or no result`
+                : undefined
+            }
+          />
+          <StatTile icon={Trophy} label="Won" value={record.won} />
+          <StatTile icon={X} label="Lost" value={record.lost} />
+          <StatTile
+            icon={Percent}
+            label="Win rate"
+            value={record.winRate !== null ? `${record.winRate}%` : "–"}
+          />
+        </StatGrid>
 
-      <div className="mt-6 space-y-6 sm:mt-8">
-        {/* Matches and squad */}
-        <div>
-          <Tabs
-            defaultValue={tab === "squad" ? "squad" : "matches"}
-            className="w-full"
-          >
-            <div className="flex items-center justify-between">
-              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
-                <TabsTrigger
-                  value="matches"
-                >
-                  Matches
-                </TabsTrigger>
-                <TabsTrigger
-                  value="squad"
-                >
-                  Squad
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            <TabsContent value="matches" className="mt-4">
-              <TeamMatchesView
-                currentTeamId={team.id}
-                matches={teamMatches}
-                tournamentInfo={tournamentInfo}
-              />
-            </TabsContent>
-
-            <TabsContent value="squad" className="mt-4 space-y-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
-                  Squad
-                </h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <TeamSquadShare
-                    teamId={team.id}
-                    teamName={team.name}
-                    shortName={team.short_name}
-                    players={players.map((p) => ({
-                      full_name: p.user?.full_name ?? "Unknown",
-                      role_in_team: p.role_in_team,
-                      jersey_number: p.jersey_number,
-                    }))}
-                  />
-                  {canManageTeam && <AddPlayerDialog teamId={team.id} />}
-                </div>
+        <div className="mt-6 space-y-6 sm:mt-8">
+          {/* Matches and squad */}
+          <div>
+            <Tabs
+              defaultValue={tab === "squad" ? "squad" : "matches"}
+              className="w-full"
+            >
+              <div className="flex items-center justify-between">
+                <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
+                  <TabsTrigger value="matches">Matches</TabsTrigger>
+                  <TabsTrigger value="squad">Squad</TabsTrigger>
+                </TabsList>
               </div>
 
-              <PlayerList
-                teamId={team.id}
-                teamName={team.name}
-                players={players}
-                claims={claims}
-                allowEdit={canManageTeam}
-                tournamentId={tournamentId}
-                clubId={targetClubId}
-              />
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="matches" className="mt-4">
+                <TeamMatchesView
+                  currentTeamId={team.id}
+                  matches={teamMatches}
+                  tournamentInfo={tournamentInfo}
+                />
+              </TabsContent>
+
+              <TabsContent value="squad" className="mt-4 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-lg font-semibold tracking-tight sm:text-xl">
+                    Squad
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <TeamSquadShare
+                      teamId={team.id}
+                      teamName={team.name}
+                      shortName={team.short_name}
+                      players={players.map((p) => ({
+                        full_name: p.user?.full_name ?? "Unknown",
+                        role_in_team: p.role_in_team,
+                        jersey_number: p.jersey_number,
+                      }))}
+                    />
+                    {canManageTeam && <AddPlayerDialog teamId={team.id} />}
+                  </div>
+                </div>
+
+                <PlayerList
+                  teamId={team.id}
+                  teamName={team.name}
+                  players={players}
+                  claims={claims}
+                  allowEdit={canManageTeam}
+                  tournamentId={tournamentId}
+                  clubId={targetClubId}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
-      </div>
       </ContentSheet>
     </PageContainer>
   );

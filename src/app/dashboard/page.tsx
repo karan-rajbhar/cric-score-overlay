@@ -22,6 +22,7 @@ import {
 import { MatchCardSkeleton } from "~/components/ui/skeleton";
 import { EmptyState } from "~/components/ui/empty-state";
 import { GetStarted } from "~/components/dashboard/get-started";
+import { FollowingMatches } from "~/components/follow/following-matches";
 import { PageContainer } from "~/components/layout/page";
 import type { Match } from "~/lib/match-types";
 
@@ -191,6 +192,7 @@ export default function Dashboard() {
           <UpcomingGroups matches={myUpcoming} />
         </section>
       )}
+      <FollowingMatches />
 
       {upcoming.length > 0 && (
         <section className="space-y-4">

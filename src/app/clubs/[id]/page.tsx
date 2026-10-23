@@ -14,6 +14,7 @@ import { Chip } from "~/components/ds/chip";
 import { Avatar, TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
+import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -494,6 +495,7 @@ export default async function ClubPage({
             {isAdmin && <ClubSettingsDialog club={club} />}
             {isAdmin && <ClubStreamingDialog clubId={club.id} />}
             {isAdmin && <SeasonDialog clubId={club.id} />}
+            <EntityActions kind="club" id={club.id} name={club.name} />
             <ClubMembershipButton
               clubId={club.id}
               isMember={isMember}

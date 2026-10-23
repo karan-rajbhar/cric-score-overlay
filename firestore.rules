@@ -47,6 +47,12 @@ service cloud.firestore {
     // Contact details (email, phone) keyed by user id: Admin SDK only.
     match /users_private/{id}            { allow read, write: if false; }
     match /invitations/{id}              { allow read, write: if false; }
+    // What each user follows (follows/{uid}), their devices' push
+    // subscriptions (capability URLs) and the notifications already sent per
+    // match: private, read and written only by server actions / routes.
+    match /follows/{id}                  { allow read, write: if false; }
+    match /push_subscriptions/{id}       { allow read, write: if false; }
+    match /push_log/{id}                 { allow read, write: if false; }
 
     // Fixed overlay links: the channel overlay (an unauthenticated OBS
     // source) listens to its channel doc for the match on air there.

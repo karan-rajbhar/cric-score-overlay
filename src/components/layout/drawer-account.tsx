@@ -16,6 +16,7 @@ import {
 import { Avatar } from "~/components/ds/avatar";
 import { Segmented } from "~/components/ds/tabs";
 import { InviteDialog } from "~/components/invite-dialog";
+import { DrawerNotifications } from "~/components/follow/push-settings";
 import { useInstallApp } from "~/components/pwa/install-app";
 import { Button } from "~/components/ui/button";
 import { useAuth } from "~/lib/auth";
@@ -138,6 +139,7 @@ export function DrawerActions({ onNavigate }: { onNavigate: () => void }) {
           </button>
         )}
       </div>
+      <DrawerNotifications />
       <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </>
   );

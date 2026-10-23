@@ -172,12 +172,28 @@ public reads the app needs.
 - **Migrations.** Add `scripts/migrate-<name>.mjs` (idempotent, `--project` and
   `--dry-run`, emulator by default) and append its name to `MIGRATIONS` in
   `scripts/migrate.mjs`.
+- **Push notifications (optional).** Off unless both
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY` (build and runtime; public) and
+  `VAPID_PRIVATE_KEY` (runtime; a Secret Manager secret) are set;
+  `VAPID_SUBJECT` (`mailto:` or `https:`) is optional. Generate a pair with
+  `node scripts/generate-vapid-keys.mjs` and keep it: a new pair invalidates
+  every device's subscription. Followers of a match, its teams or its
+  tournament get a notification when it starts, at the innings break and with
+  the result. Push needs the service worker, so it only works in production
+  over https, and on iPhone and iPad only in the app added to the Home Screen.
 - **Monitoring.** A Cloud Monitoring uptime check on `/api/health`, with alerts
   for downtime and for logged errors. Browser errors reach the log through
   `/api/client-error`.
 
 The `Dockerfile`, `docker-compose.yml` and `Caddyfile` remain for self-hosting
 on any Docker host; production does not use them.
+
+## Calendar feeds
+
+`/api/calendar/<team|tournament|club>/<id>.ics` serves that team's,
+tournament's or club's fixtures from 30 days back as an iCalendar feed (the
+"Add to calendar" menu on those pages links to it as `webcal://`). Responses
+are cached for 15 minutes (`s-maxage`, and per server instance).
 
 ## OBS overlay
 

@@ -71,6 +71,7 @@ import {
   Shield,
 } from "lucide-react";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
+import { EntityActions } from "~/components/follow/entity-actions";
 
 /** The round white buttons of the phone screen bar. */
 const screenAction =
@@ -548,6 +549,7 @@ function MatchDetailsPageContent() {
               {match.status === "completed" && (
                 <MatchExportButtons match={match} />
               )}
+              {match.status !== "completed" && match.status !== "abandoned" && <EntityActions kind="match" id={match.id} name={match.title} />}
               {isScorer && (
                 <MatchScorersDialog
                   matchId={match.id}

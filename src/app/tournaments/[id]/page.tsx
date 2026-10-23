@@ -51,6 +51,8 @@ import { Chip } from "~/components/ds/chip";
 import { ListCard, ListRow, MetaItem } from "~/components/ds/list";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ProfileHeader } from "~/components/ds/player-header";
+import { EntityActions } from "~/components/follow/entity-actions";
+import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-round-dialog";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
@@ -493,6 +495,7 @@ export default async function TournamentPage({
         }
         actions={
           <>
+            <EntityActions kind="tournament" id={tournament.id} name={tournament.name} />
             {canRegisterTeams && (
               <RegisterTeamDialog
                 tournamentId={tournament.id}
@@ -666,12 +669,14 @@ export default async function TournamentPage({
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
           {isTournamentAdmin && (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {typedMatches.length === 0 && (
+              {typedMatches.length === 0 &&
+                !isBracketFormat(tournament.tournament_format) && (
                 <GenerateFixturesButton
                   tournamentId={tournament.id}
                   startDate={tournament.start_date}
                 />
               )}
+              {isBracketFormat(tournament.tournament_format) && <NextRoundDialog tournamentId={tournament.id} />}
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />
