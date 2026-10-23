@@ -14,6 +14,7 @@
 
 import {
   chunk,
+  firestoreCompare,
   IN_CHUNK_SIZE,
   type DataSource,
   type Doc,
@@ -129,6 +130,8 @@ interface PushdownSpec {
    * (ascending) query supplies the rows Postgres would place first.
    */
   splitNulls: "first" | "last" | null;
+  /** A keyset page: rows stay in Firestore's order (see `keyset()`). */
+  keyset?: boolean;
 }
 
 const RANGE_OPS = { gt: ">", gte: ">=", lt: "<", lte: "<=" } as const;
@@ -142,6 +145,14 @@ function isPushableRangeValue(value: unknown): boolean {
 
 function byId(a: Doc, b: Doc): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** Firestore's order on one field (nulls lowest, ties by id alike). */
+function keysetOrder(rows: Doc[], field: string, ascending: boolean): Doc[] {
+  const dir = ascending ? 1 : -1;
+  return rows
+    .filter((row) => row[field] !== undefined)
+    .sort((a, b) => dir * (firestoreCompare(a[field], b[field]) || byId(a, b)));
 }
 
 export class DbQueryError extends Error implements DbError {
@@ -212,6 +223,7 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
   private headOnly = false;
   private upsertConflict: string[] | null = null;
   private cursor: { value: unknown; id: string } | null = null;
+  private keysetMode = false;
   /** Per-execution memo of id lookups made while hydrating relations. */
   private docCache = new Map<string, Map<string, Doc | null>>();
   /** Per-execution partial documents (see {@link SnapshotDocs}). */
@@ -401,11 +413,23 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
 
   /**
    * Keyset pagination: rows strictly after (`value`, `id`) in the single
-   * ascending `order()` column (ties broken by document id), e.g. the last
-   * row of the previous page. Pushed to Firestore with the order + limit.
+   * `order()` column (ties broken by document id), e.g. the last row of the
+   * previous page. Pushed to Firestore with the order + limit.
    */
   after(value: unknown, id: string): this {
-    this.cursor = { value, id };
+    return this.keyset({ value, id });
+  }
+
+  /**
+   * A keyset page (`cursor`: the previous page's last row, or null for the
+   * first page), in Firestore's order on the single `order()` column:
+   * nulls lowest (first ascending, last descending), ties by document id in
+   * the same direction, so every page continues exactly where the previous
+   * one stopped. A descending column may hold nulls.
+   */
+  keyset(cursor: { value: unknown; id: string } | null): this {
+    this.keysetMode = true;
+    this.cursor = cursor;
     return this;
   }
 
@@ -557,24 +581,32 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     if (!this.pushdownEnabled || !plan.exact) return null;
     const limit = this.effectiveLimit();
     if (limit === null) return null;
-    if (this.cursor) {
-      // Keyset pages need the native order (no null splitting, ascending).
+    if (this.keysetMode) {
+      // Keyset pages keep the native order (nulls lowest, ties by id in the
+      // order's direction): no null splitting, no re-sort.
       const order = this.orders[0];
       if (
         this.orders.length !== 1 ||
-        !order!.ascending ||
         plan.inFilter ||
         (plan.rangeField && plan.rangeField !== order!.field) ||
         (!plan.rangeField &&
-          !(isOrderable(table, order!.field) && isNonNull(table, order!.field)))
+          !(
+            isOrderable(table, order!.field) &&
+            (!order!.ascending || isNonNull(table, order!.field))
+          ))
       ) {
         return null;
       }
       return {
-        orderBy: [{ field: order!.field, direction: "asc" }],
+        orderBy: [
+          { field: order!.field, direction: order!.ascending ? "asc" : "desc" },
+        ],
         limit,
         splitNulls: null,
-        startAfter: [this.cursor.value, this.cursor.id],
+        keyset: true,
+        ...(this.cursor
+          ? { startAfter: [this.cursor.value, this.cursor.id] }
+          : {}),
       };
     }
     if (plan.inFilter && plan.inFilter.values.length > IN_CHUNK_SIZE) {
@@ -660,6 +692,7 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
     }
     // The fallback path sees documents in id order before its stable sort;
     // match that so ties come out the same way.
+    if (spec.keyset) return rows;
     return spec.orderBy.length ? rows.sort(byId) : rows;
   }
 
@@ -829,16 +862,21 @@ export class QueryBuilder<T extends SourceName, R = ResultRow<T>[]>
   }
 
   private applyOrderAndLimit(rows: Doc[]): Doc[] {
-    let out = sortRows(rows, this.orders);
-    const cursor = this.cursor;
     const order = this.orders[0];
+    let out =
+      this.keysetMode && order
+        ? keysetOrder(rows, order.field, order.ascending)
+        : sortRows(rows, this.orders);
+    const cursor = this.cursor;
     if (cursor && order) {
-      // Same rows as the native keyset page (ascending, ties by id).
+      // Same rows as the native keyset page.
+      const dir = order.ascending ? 1 : -1;
       const after = (row: Doc) => {
         const v = row[order.field];
-        if (v === undefined || v === null) return false;
-        if (v === cursor.value) return row.id > cursor.id;
-        return (v as string | number) > (cursor.value as string | number);
+        if (v === undefined) return false;
+        const c = firestoreCompare(v, cursor.value);
+        if (c !== 0) return c * dir > 0;
+        return (row.id > cursor.id ? 1 : row.id < cursor.id ? -1 : 0) * dir > 0;
       };
       out = out.filter(after);
     }

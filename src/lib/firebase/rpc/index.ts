@@ -48,6 +48,7 @@ import { recalculateTournamentStandings } from "./standings";
 import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
 import { ensureLiveScorecard } from "../scorecard-refresh";
 import { clubMilestoneAggregates } from "../club-milestones";
+import { matchBallLog } from "../match-ball-log";
 
 export interface RpcContext {
   db: Firestore | null;
@@ -176,6 +177,13 @@ export async function callRpc(
       // The match's `live_scorecard` doc, built once for matches that
       // predate it (viewers then listen to it directly).
       return ensureLiveScorecard(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "match_ball_log":
+      // Server-only: a match's ball log, completed innings from their
+      // archives (built here the first time; see ball-log-archive.ts).
+      return matchBallLog(
+        { ds: ctx.ds, db: ctx.db },
+        str(args, "p_match_id"),
+      );
     case "club_milestones": {
       // Server-only: the club page's milestone aggregates (a few reads
       // instead of every club match).
