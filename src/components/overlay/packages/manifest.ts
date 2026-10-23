@@ -41,6 +41,12 @@ export const PACKAGE_MANIFEST: readonly PackageManifestEntry[] = [
     description: "Your primary and accent colours, text picked for contrast.",
     kind: "plain",
   },
+  {
+    id: "world-event",
+    label: "World event",
+    description: "Global tournament look: bold, clean figures, team colours on each side.",
+    kind: "broadcast",
+  },
 ];
 
 /** Whether `id` names a package. */
