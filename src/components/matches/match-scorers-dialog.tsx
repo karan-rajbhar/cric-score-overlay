@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { inviteToApp } from "~/app/invitations/actions";
 import { InviteShare, inviteMessage } from "~/components/invite-share";
+import { MatchStreamersSection } from "~/components/matches/match-streamers-section";
 import { useAuth } from "~/lib/auth";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -510,6 +511,8 @@ export function MatchScorersDialog({
             </div>
           )}
         </div>
+
+        <MatchStreamersSection matchId={matchId} />
       </DialogContent>
     </Dialog>
   );

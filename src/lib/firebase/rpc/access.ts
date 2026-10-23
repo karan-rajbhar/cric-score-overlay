@@ -16,6 +16,7 @@ import type {
 } from "../types";
 import { normaliseEmail, userIdsByEmail } from "../user-private";
 import { isMatchAdmin } from "./auth-helpers";
+import { addStreamerToMatch } from "./streamers";
 
 /** Comma-separated emails that may always sign in (the first admins). */
 export function allowedEmails(): Set<string> {
@@ -85,7 +86,8 @@ async function addScorer(
 
 /**
  * Marks the email's pending app invites as used by `uid` and makes them a
- * scorer for any matches they were invited to score.
+ * scorer for any matches they were invited to score (and a streamer for any
+ * they were invited to stream).
  */
 export async function acceptInvitations(
   ds: DataSource,
@@ -101,6 +103,10 @@ export async function acceptInvitations(
   for (const invite of invites.filter((i) => i.status === "pending")) {
     for (const matchId of invite.scorer_match_ids ?? []) {
       await addScorer(ds, matchId, uid);
+    }
+    // Streamer invites (overlay graphics only, see ./streamers).
+    for (const matchId of invite.streamer_match_ids ?? []) {
+      await addStreamerToMatch(ds, matchId, uid);
     }
     await ds.update("invitations", invite.id, {
       status: "accepted",
@@ -214,7 +220,10 @@ export async function revokeInvitation(
   if (!invite) throw new DbQueryError("Invite not found", "P0002");
 
   let allowed = invite.invited_by === callerId;
-  const matchIds = invite.scorer_match_ids ?? [];
+  const matchIds = [
+    ...(invite.scorer_match_ids ?? []),
+    ...(invite.streamer_match_ids ?? []),
+  ];
   if (!allowed && matchIds.length > 0) {
     allowed = true;
     for (const matchId of matchIds) {

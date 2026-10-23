@@ -60,7 +60,7 @@ describe("POST /api/overlay/command", () => {
   it("appends a match admin's command to that match's overlay channel", async () => {
     const res = await POST(request(command));
     expect(res.status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith("is_match_admin", {
+    expect(rpc).toHaveBeenCalledWith("can_produce_overlay", {
       p_match_id: "match-1",
       p_user_id: "u1",
     });

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { appRewrites, firebaseAuthProxyRewrites } from "./lib/next-rewrites.mjs";
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match";
+import {
+  appRewrites,
+  FRAME_HEADERS_SOURCE,
+  firebaseAuthProxyRewrites,
+} from "./lib/next-rewrites.mjs";
 
 // Not next.config.mjs itself: App Hosting replaces it at build time with a
 // wrapper exporting only the default config (see next-rewrites.mjs).
@@ -52,5 +57,21 @@ describe("next.config rewrites", () => {
         destination: "/players/:handle",
       },
     ]);
+  });
+});
+
+describe("next.config frame headers", () => {
+  // Compiled the way Next.js matches a header `source`.
+  const framed = getPathMatch(FRAME_HEADERS_SOURCE);
+
+  it("keeps app pages unframeable", () => {
+    expect(framed("/matches/abc")).toBeTruthy();
+    expect(framed("/clubs/abc")).toBeTruthy();
+  });
+
+  it("lets streaming tools frame match overlays and channel links", () => {
+    expect(framed("/overlay/abc")).toBe(false);
+    expect(framed("/overlay/channel/main-ground")).toBe(false);
+    expect(framed("/__/auth/handler")).toBe(false);
   });
 });

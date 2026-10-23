@@ -70,6 +70,20 @@ export interface UsersPrivateRow {
   updated_at: string | null;
 }
 
+/** Where a sponsor logo may appear on the overlay. */
+export type SponsorSlot = "corner" | "break" | "over_end";
+
+/**
+ * A sponsor logo a club or tournament uploaded once (`sponsor-logos/`
+ * in Storage) and reuses on every stream (`~/lib/overlay/sponsors`).
+ */
+export interface Sponsor {
+  id: string;
+  name: string;
+  logo_url: string;
+  slots: SponsorSlot[];
+}
+
 export interface ClubsRow {
   id: string;
   name: string;
@@ -86,6 +100,8 @@ export interface ClubsRow {
   founded_year: number | null;
   owner_id: string;
   social_links: Json | null;
+  /** Overlay sponsor logos, in display order. */
+  sponsors?: Sponsor[] | null;
   name_lower?: string;
   search_prefixes?: string[];
   created_at: string | null;
@@ -127,6 +143,8 @@ export interface InvitationsRow {
   accepted_by: string | null;
   /** Matches the invitee becomes a scorer for when they first sign in. */
   scorer_match_ids?: string[] | null;
+  /** Matches the invitee becomes a streamer for (overlay graphics only). */
+  streamer_match_ids?: string[] | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -232,6 +250,8 @@ export interface TournamentsRow {
   last_man_stands: boolean | null;
   golden_ball: boolean | null;
   created_by: string;
+  /** Overlay sponsor logos, in display order (ahead of the club's). */
+  sponsors?: Sponsor[] | null;
   name_lower?: string;
   search_prefixes?: string[];
   created_at: string | null;
@@ -323,6 +343,11 @@ export interface MatchesRow {
   season_id: string | null;
   created_by: string;
   match_admins: string[] | null;
+  /**
+   * Streamers: may run the overlay graphics (`canProduceOverlay`) but not
+   * score; never match admins.
+   */
+  match_streamers?: string[] | null;
   player_of_the_match_id: string | null;
   wickets_per_innings: number | null;
   last_man_stands: boolean | null;
@@ -655,6 +680,37 @@ export interface MatchOverSummariesRow {
   bowler_id: string | null;
 }
 
+/**
+ * A fixed overlay link (`/overlay/channel/{id}`) for a club's ground or
+ * camera position, or a clubless user's own. Whatever match it points at
+ * is on air there (`~/lib/overlay/channels`).
+ */
+export interface StreamChannelsRow {
+  id: string;
+  /** Owning club; null for a personal channel. */
+  club_id: string | null;
+  /** Owning user of a personal channel (no club); null for a club's. */
+  owner_id: string | null;
+  name: string;
+  match_id: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/**
+ * Server-only (rules deny clients): a match's remote-control token for
+ * Stream Deck / Companion, stored as a SHA-256 hash of its secret
+ * (`~/lib/overlay/remote-token`). The document id is the token's public id.
+ */
+export interface ProducerTokensRow {
+  id: string;
+  match_id: string;
+  secret_hash: string;
+  created_by: string | null;
+  created_at: string | null;
+}
+
 export interface Database {
   users: UsersRow;
   users_private: UsersPrivateRow;
@@ -680,6 +736,8 @@ export interface Database {
   player_matches: PlayerMatchesRow;
   player_career_stats: PlayerCareerStatsRow;
   leaderboards: LeaderboardsRow;
+  stream_channels: StreamChannelsRow;
+  producer_tokens: ProducerTokensRow;
 }
 
 export interface Views {
