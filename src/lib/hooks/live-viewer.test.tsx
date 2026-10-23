@@ -265,6 +265,60 @@ describe("Summary / Scorecard / Top performers while live", () => {
     expect(card.stop).toHaveBeenCalledTimes(1);
   });
 
+  it("drops the live_state listener while the scorecard carries its copy", async () => {
+    const id = newMatchId();
+    server.getMatch.mockResolvedValue({ data: baseMatch(id), error: null });
+    const withCopy = (v: number, extra: Record<string, unknown> = {}) => {
+      const { refs: _refs, ...live } = liveDoc(id, v, extra);
+      void _refs;
+      return { ...scorecard(id, v, v), live };
+    };
+    const { result, rerender } = renderHook(
+      ({ tab }: { tab: string }) =>
+        useMatchDetailQuery(id, {
+          refetchOnChange: tab !== "info",
+          liveScorecard: tab !== "info",
+        }),
+      { wrapper: wrapper(newClient()), initialProps: { tab: "summary" } },
+    );
+    await vi.waitFor(() => expect(result.current.data).toBeTruthy());
+    const liveListener = listeners("live_state", id)[0]!;
+    act(() => liveListener.next(liveDoc(id, 1)));
+    await vi.waitFor(() =>
+      expect(listeners("live_scorecard", id)).toHaveLength(1),
+    );
+    const card = listeners("live_scorecard", id)[0]!;
+    act(() => card.next(withCopy(1) as never));
+    // The copy feeds the live state: its own listener stops.
+    expect(liveListener.stop).toHaveBeenCalledTimes(1);
+
+    for (let v = 2; v <= 6; v += 1) {
+      act(() => card.next(withCopy(v) as never));
+      await act(async () => {
+        vi.advanceTimersByTime(2000);
+      });
+    }
+    // One snapshot per ball, totals and live state current.
+    expect(result.current.live.version).toBe(6);
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.data!.innings![0]!.total_runs).toBe(6);
+    expect(server.getMatch).toHaveBeenCalledTimes(1);
+    // A change to the match itself still refetches it.
+    act(() => card.next(withCopy(7, { match_rev: "r2" }) as never));
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    await vi.waitFor(() => expect(server.getMatch).toHaveBeenCalledTimes(2));
+
+    // Info tab: the scorecard goes, live_state is followed again.
+    rerender({ tab: "info" });
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(card.stop).toHaveBeenCalledTimes(1);
+    expect(listeners("live_state", id)).toHaveLength(2);
+  });
+
   it("refetches getMatch only when the match itself changes", async () => {
     const id = newMatchId();
     server.getMatch.mockResolvedValue({ data: baseMatch(id), error: null });

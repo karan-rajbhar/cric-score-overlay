@@ -17,7 +17,7 @@ import type {
 } from "firebase-admin/firestore";
 import type { DataSource, Doc, NativeFilter } from "../datasource";
 import { stageInningsSummaries } from "../innings-summary";
-import { stageLiveScorecards } from "../live-scorecard-sync";
+import { stageLiveCopies, stageLiveScorecards } from "../live-scorecard-sync";
 
 export type WithId<T> = T & { id: string };
 
@@ -272,6 +272,8 @@ async function finalize(t: ScoringTx): Promise<void> {
   await stageInningsSummaries(t);
   await stageLiveScorecards(t);
   await t.runCommitHooks();
+  // Last: the scorecard's copy of the live_state this commit writes.
+  await stageLiveCopies(t);
 }
 
 /**
