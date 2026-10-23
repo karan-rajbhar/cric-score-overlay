@@ -1069,6 +1069,8 @@ export interface MatchSettingsUpdate {
   ballsPerOver?: number;
   maxBallsPerOver?: number | null;
   wideCountsAsBallFaced?: boolean;
+  /** A no-ball counts as a ball faced (the Laws' convention). */
+  noBallCountsAsBallFaced?: boolean;
   wideRunsToBatsman?: boolean;
   noballExtrasToBatsman?: boolean;
 }
@@ -1139,6 +1141,9 @@ export async function updateMatchSettings(
       matchUpdates.max_balls_per_over = settings.maxBallsPerOver;
     if (settings.wideCountsAsBallFaced !== undefined)
       matchUpdates.wide_counts_as_ball_faced = settings.wideCountsAsBallFaced;
+    if (settings.noBallCountsAsBallFaced !== undefined)
+      matchUpdates.noball_counts_as_ball_faced =
+        settings.noBallCountsAsBallFaced;
     if (settings.wideRunsToBatsman !== undefined)
       matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
     if (settings.noballExtrasToBatsman !== undefined)

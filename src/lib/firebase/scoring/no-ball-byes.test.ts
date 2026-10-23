@@ -160,7 +160,8 @@ describe("byes and leg byes off a no-ball", () => {
     const doc = stored(matchWith(), [
       ball({ runs_scored: 2, extras: 1, extra_type: "no_ball" }),
     ]);
-    expect(card(doc, "a1")).toMatchObject({ runs_scored: 2, balls_faced: 0 });
+    // Faced, like every no-ball (see noball-balls-faced.test.ts).
+    expect(card(doc, "a1")).toMatchObject({ runs_scored: 2, balls_faced: 1 });
     expect(doc).toMatchObject({ extras_no_balls: 1, extras_byes: 0 });
     expect(doc.bowling?.[0]).toMatchObject({ runs_conceded: 3 });
   });

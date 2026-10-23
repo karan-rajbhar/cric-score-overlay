@@ -208,6 +208,28 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
     );
   });
 
+  it("counts no-balls as balls faced unless switched off, and saves the choice", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+    const box = screen.getByRole("checkbox", {
+      name: /count no-balls as balls faced/i,
+    });
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ noBallCountsAsBallFaced: false }),
+    );
+  });
+
   it("plays free hits unless the match switched them off, and saves the choice", () => {
     const onSave = vi.fn();
     const { unmount } = render(

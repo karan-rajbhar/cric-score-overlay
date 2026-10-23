@@ -115,6 +115,7 @@ async function main() {
       "wide_runs_to_batsman",
       "noball_extras_to_batsman",
       "wide_counts_as_ball_faced",
+      "noball_counts_as_ball_faced",
     ]),
     readFields(db.collection("innings"), ["match_id", "partnerships"]),
   ]);

@@ -32,6 +32,7 @@ export interface RecomputeInput {
     | "wide_runs_to_batsman"
     | "noball_extras_to_batsman"
     | "wide_counts_as_ball_faced"
+    | "noball_counts_as_ball_faced"
   >;
   innings: Pick<InningsRow, "id" | "match_id"> &
     Partial<Pick<InningsRow, "team_id">>;
@@ -113,9 +114,10 @@ export function oversFromBalls(balls: number, ballsPerOver: number): number {
   return Math.round((Math.floor(balls / bpo) + (balls % bpo) / 10) * 10) / 10;
 }
 
-export function isLegalDelivery(
-  ball: Pick<BallInput, "bowler_id" | "extra_type">,
-): boolean {
+export function isLegalDelivery(ball: {
+  bowler_id?: string | null;
+  extra_type?: string | null;
+}): boolean {
   if (!ball.bowler_id) return false;
   const t = ball.extra_type;
   return !(t === "wide" || t === "no_ball" || t === "penalty" || t === "bonus");
@@ -198,6 +200,36 @@ export interface BatterCredit {
   faced: boolean;
 }
 
+/**
+ * Whether a no-ball counts as a ball the striker faced: it does (the
+ * striker receives it and may score off it; a wide they cannot), unless the
+ * match switched it off (`noball_counts_as_ball_faced` false: some junior
+ * and pairs formats). Null or absent: on.
+ */
+export function noBallCountsAsFaced(match: {
+  noball_counts_as_ball_faced?: boolean | null;
+}): boolean {
+  return match.noball_counts_as_ball_faced !== false;
+}
+
+/**
+ * Whether the striker faced `ball`: a legal delivery or a no-ball (unless
+ * the match leaves no-balls out), a wide only when the match counts them.
+ * Events between balls (no bowler) never.
+ */
+export function ballFaced(
+  match: {
+    noball_counts_as_ball_faced?: boolean | null;
+    wide_counts_as_ball_faced?: boolean | null;
+  },
+  ball: { bowler_id?: string | null; extra_type?: string | null },
+): boolean {
+  if (!ball.bowler_id) return false;
+  if (ball.extra_type === "no_ball") return noBallCountsAsFaced(match);
+  if (ball.extra_type === "wide") return Boolean(match.wide_counts_as_ball_faced);
+  return isLegalDelivery(ball);
+}
+
 export function batterCreditOf(
   match: MatchRules,
   ball: BallInput,
@@ -205,17 +237,13 @@ export function batterCreditOf(
   const extrasToBatter =
     (ball.extra_type === "wide" && match.wide_runs_to_batsman) ||
     (ball.extra_type === "no_ball" && match.noball_extras_to_batsman);
-  // Byes off a no-ball are never the striker's runs, but the striker did
-  // face that ball.
+  // Byes off a no-ball are never the striker's runs.
   const byes = noBallByesOf(ball);
   return {
     runs:
       (ball.runs_scored ?? 0) +
       (extrasToBatter ? (ball.extras ?? 0) - (byes?.runs ?? 0) : 0),
-    faced:
-      isLegalDelivery(ball) ||
-      byes !== null ||
-      (ball.extra_type === "wide" && Boolean(match.wide_counts_as_ball_faced)),
+    faced: ballFaced(match, ball),
   };
 }
 
@@ -364,7 +392,8 @@ export function addToStand(
   credit: BatterCredit,
 ): void {
   stand.runs = (stand.runs ?? 0) + (ball.runs_scored ?? 0) + (ball.extras ?? 0);
-  stand.balls = (stand.balls ?? 0) + (isLegalDelivery(ball) ? 1 : 0);
+  // The balls the pair faced (as their shares count them).
+  stand.balls = (stand.balls ?? 0) + (credit.faced ? 1 : 0);
   creditStand(stand, ball.batsman_id, credit.runs, credit.faced);
 }
 

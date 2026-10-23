@@ -177,6 +177,8 @@ export interface Match {
   wide_counts_as_ball_faced?: boolean | null;
   wide_runs_to_batsman?: boolean | null;
   noball_extras_to_batsman?: boolean | null;
+  /** A no-ball counts as a ball faced (null or absent: on). */
+  noball_counts_as_ball_faced?: boolean | null;
   status: string;
   current_innings: number;
   current_over: number;

@@ -267,6 +267,7 @@ export const TABLE_COLUMNS: Record<TableName, readonly string[]> = {
     "wide_counts_as_ball_faced",
     "wide_runs_to_batsman",
     "noball_extras_to_batsman",
+    "noball_counts_as_ball_faced",
     "team1_id",
     "team2_id",
     "team1_snapshot",

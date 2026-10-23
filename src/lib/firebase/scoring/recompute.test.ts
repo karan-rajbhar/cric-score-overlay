@@ -130,7 +130,8 @@ describe("recomputeInnings", () => {
         extras: 2,
         extra_type: "bye",
       }),
-      // A no-ball's bat runs are the batter's (not a legal ball).
+      // A no-ball's bat runs are the batter's, and so is the ball: not a
+      // legal ball, but one they faced (the stand counts it too).
       ball({
         batsman_id: "n",
         non_striker_id: "s",
@@ -160,16 +161,16 @@ describe("recomputeInnings", () => {
       batsman1_id: "s",
       batsman2_id: "n",
       runs: 11,
-      balls: 4,
+      balls: 5,
       batsman1_runs: 1,
       batsman1_balls: 1,
       batsman2_runs: 6,
-      batsman2_balls: 3,
+      batsman2_balls: 4,
       wicket_number: 1,
     });
     // The shares and the extras make up the stand, and agree with the card.
     const n = out.batting.find((b) => b.user_id === "n")!;
-    expect(n).toMatchObject({ runs_scored: 6, balls_faced: 3 });
+    expect(n).toMatchObject({ runs_scored: 6, balls_faced: 4 });
     expect(second).toMatchObject({
       batsman1_id: "c",
       batsman2_id: "s",
