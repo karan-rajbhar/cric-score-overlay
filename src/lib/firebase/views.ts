@@ -10,6 +10,7 @@
  * viewers can subscribe to one document instead.
  */
 
+import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { matchPositionOf } from "~/lib/match-position";
 import { phaseBoundaries } from "~/lib/match-report";
 import type { DataSource, Doc } from "./datasource";
@@ -218,7 +219,7 @@ function matchFields(parts: LiveStateParts) {
   };
 }
 
-/** Team colours for the overlay's team-colours theme, and the toss winner. */
+/** Team colours for the overlay's team-colours theme. */
 function colourFields(parts: LiveStateParts) {
   const colours = (t: LiveStateTeam | undefined) =>
     t?.primary_color || t?.secondary_color
@@ -229,9 +230,7 @@ function colourFields(parts: LiveStateParts) {
       : null;
   const team1 = colours(parts.teams.get(parts.match.team1_id));
   const team2 = colours(parts.teams.get(parts.match.team2_id));
-  const toss = parts.match.toss_winner_team_id;
   return {
-    toss_winner_name: toss ? (parts.teams.get(toss)?.name ?? null) : null,
     team_colors: team1 || team2 ? { team1, team2 } : null,
   };
 }
@@ -287,6 +286,7 @@ const NO_INNINGS_FIELDS = {
   bowler_maidens: null,
   last_wicket: null,
   powerplay: null,
+  free_hit: false,
 } as const;
 
 /** The current innings' totals and sides. */
@@ -472,6 +472,7 @@ export function composeLiveMatchState(
         ...lastBallFields(parts),
         last_wicket: lastWicketOf(parts, ci),
         powerplay: powerplayOf(parts, ci),
+        free_hit: nextIsFreeHit(parts.thisOver, freeHitsOn(parts.match)),
         ...(dlsOvers !== null ? { dls_overs: dlsOvers } : {}),
       }
     : base;

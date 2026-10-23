@@ -46,7 +46,7 @@ export function WagonWheelCard({
   const id = batterId ?? state.striker_id ?? null;
   const name =
     id && id === state.non_striker_id ? state.non_striker_name : state.striker_name;
-  const { innings } = useScorecardInnings(state, match, true);
+  const { innings } = useScorecardInnings(match);
   const current = useMemo(
     () => innings.filter((i) => i.innings_number === state.innings_number),
     [innings, state.innings_number],

@@ -248,6 +248,9 @@ export function deliveryEvents(
     ...partnershipEvent(prev, next, d),
     ...overEndEvent(d, nameOf),
   ];
+  if (next.free_hit && d.ball.extra_type === "no_ball") {
+    out.push(event("free_hit"));
+  }
   if (d.innings.is_completed) {
     out.push(
       event("innings_end", {

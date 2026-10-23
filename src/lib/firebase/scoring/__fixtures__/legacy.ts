@@ -81,7 +81,7 @@ function ballText(b: BallByBallRow): string {
  * left out when comparing with it; `live-events.test.ts` covers them.
  */
 export const OVERLAY_ROW_FIELDS = [
-  "toss_winner_name",
+  "free_hit",
   "striker_id",
   "striker_fours",
   "striker_sixes",

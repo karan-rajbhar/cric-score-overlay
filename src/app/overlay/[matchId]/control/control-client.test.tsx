@@ -47,6 +47,17 @@ vi.mock("~/app/overlay/sponsor-actions", () => ({
   })),
 }));
 // The streaming panels (server actions of their own; tested on their own).
+vi.mock("~/app/overlay/snapshot-actions", () => ({
+  getOverlaySnapshots: vi.fn(async () => ({
+    data: {
+      pointsTable: {
+        title: "Group A",
+        rows: [{ team: "Harbour Hawks", played: 3, won: 2, lost: 1, points: 4 }],
+      },
+    },
+    error: null,
+  })),
+}));
 vi.mock("~/components/streaming/channel-picker", () => ({
   ChannelPicker: ({ matchId }: { matchId: string }) => (
     <div data-testid="channel-picker">{matchId}</div>
@@ -120,9 +131,19 @@ describe("ControlClient", () => {
       screen.getByRole("heading", { name: "Control room" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Royal Challengers v Super Kings/),
+      screen.getByText(
+        new RegExp(
+          `${DEMO_MATCH_STATE.team1_name} v ${DEMO_MATCH_STATE.team2_name}`,
+        ),
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/168\/5/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `${DEMO_MATCH_STATE.total_runs}/${DEMO_MATCH_STATE.total_wickets}`,
+        ),
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Stream setup" })).toHaveAttribute(
       "href",
       `/matches/${REAL_ID}/stream`,
@@ -159,7 +180,7 @@ describe("ControlClient", () => {
   it("says a command is on air only once the overlay state names it", async () => {
     renderReal();
     act(() => watchOf("overlay_state").status?.("connected"));
-    fireEvent.click(screen.getByRole("button", { name: /^Striker/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Runs, balls, strike rate/ }));
     expect(lastCommand()).toHaveTextContent("Sending: Lower third: Striker");
 
     const payload = sentPayload();
@@ -271,7 +292,13 @@ describe("ControlClient", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Add a four" }));
-    expect(screen.getByText(/172\/5/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        new RegExp(
+          `${(DEMO_MATCH_STATE.total_runs ?? 0) + 4}/${DEMO_MATCH_STATE.total_wickets}`,
+        ),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("picks themes from the shared list", () => {

@@ -425,7 +425,6 @@ export const DEMO_MATCH_STATE: LiveMatchState = {
   result_type: null,
   result_description: null,
   toss_winner_team_id: HAWKS.id,
-  toss_winner_name: HAWKS.name,
   toss_decision: "bat",
   umpire1_name: "Peter Lane",
   umpire2_name: "Suresh Menon",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -12,15 +12,27 @@ import {
   Send,
   XCircle,
 } from "lucide-react";
+import {
+  AUTO_RULE_IDS,
+  AUTO_RULE_LABELS,
+} from "~/components/overlay/auto-graphics";
+import {
+  BROADCAST_VIEW_OPTIONS,
+  broadcastViewAvailable,
+} from "~/components/overlay/broadcast-suite-overlay";
+import { strapAvailable } from "~/components/overlay/lower-third-straps";
+import { useStageMatch } from "~/components/overlay/overlay-data";
 import { OverlayPreview } from "~/components/overlay/overlay-preview";
-import { overlayPhaseOf } from "~/components/overlay/overlay-stage";
 import {
   OVERLAY_THEMES,
   resolveOverlayTheme,
 } from "~/components/overlay/overlay-themes";
+import { presentationCardUnavailable } from "~/components/overlay/presentation-cards";
 import type {
   ActiveLowerThirdStrap,
+  BroadcastViewId,
   LiveMatchState,
+  OverlaySnapshots,
   PresentationCardType,
 } from "~/components/overlay/types";
 import {
@@ -32,11 +44,14 @@ import { useOverlayLayers } from "~/components/overlay/use-overlay-state";
 import { useLiveState } from "~/lib/hooks/useLiveState";
 import type { Match } from "~/lib/match-types";
 import {
+  automaticRules,
   autoRulesIn,
-  DEFAULT_AUTO_RULES,
+  isReplayRule,
   manualAutoRules,
+  type HoldMode,
   type SceneLayout,
 } from "~/lib/overlay-state";
+import { getOverlaySnapshots } from "~/app/overlay/snapshot-actions";
 import { cn } from "~/lib/utils";
 import { ChannelPicker } from "~/components/streaming/channel-picker";
 import { RemoteControlPanel } from "~/components/streaming/remote-control-panel";
@@ -83,6 +98,25 @@ const STRAPS: Array<{
     key: "P",
   },
   { type: "target", label: "Chase", hint: "Runs needed from balls", key: "T" },
+  {
+    type: "last_wicket",
+    label: "Last wicket",
+    hint: "Who went, how, for what",
+    key: "L",
+  },
+  {
+    type: "win_predictor",
+    label: "Win predictor",
+    hint: "An estimate, labelled as one",
+    key: "E",
+  },
+  {
+    type: "commentary",
+    label: "Commentary",
+    hint: "The scorer's note on the last ball",
+    key: "C",
+  },
+  { type: "powerplay", label: "Powerplay", hint: "While it is on", key: "Y" },
 ];
 
 const NOTICES: Array<{
@@ -111,47 +145,45 @@ const LAYOUTS: Array<{ id: SceneLayout; label: string }> = [
   { id: "compact", label: "Corner" },
 ];
 
-const AUTO_LABELS: Record<string, string> = {
-  four: "Fours",
-  six: "Sixes",
-  wicket: "Wickets",
-  milestone: "Fifties and hundreds",
-  free_hit: "Free hits",
-};
+/** The graphics-suite views by what they show. */
+const VIEW_GROUPS: Array<{ title: string; views: BroadcastViewId[] }> = [
+  { title: "Scorecards", views: ["2", "3", "4", "5", "8", "14"] },
+  { title: "This innings", views: ["16", "17", "18", "19", "23", "40"] },
+  { title: "Careers", views: ["24", "25", "26", "27"] },
+  {
+    title: "Tournament",
+    views: ["20", "43", "44", "36", "37", "38", "39"],
+  },
+  { title: "Charts", views: ["21", "22", "41", "42"] },
+  { title: "Breaks", views: ["13", "15", "28", "29"] },
+];
+
+const viewLabel = (id: BroadcastViewId) =>
+  BROADCAST_VIEW_OPTIONS.find((o) => o.id === id)?.label ?? id;
+
+const MESSAGE_STYLES: Array<{
+  id: "strap" | "single" | "double" | "baseline";
+  label: string;
+}> = [
+  { id: "strap", label: "Lower third" },
+  { id: "single", label: "In place of the score bar" },
+  { id: "double", label: "Title and text card" },
+  { id: "baseline", label: "Thin line under the score" },
+];
+
+const HOLDS: Array<{ id: HoldMode; label: string; hint: string }> = [
+  { id: "card", label: "Holding line", hint: "Says the score is being updated" },
+  { id: "clean", label: "Clean", hint: "No graphics at all" },
+  { id: "black", label: "Black", hint: "Covers the picture" },
+];
+
+const RULE_SECONDS = [3, 4, 5, 6, 8, 10, 15, 20, 30, 45];
 
 const STRAP_SECONDS = [5, 8, 10, 15];
 
 function oversText(balls: number | null | undefined): string {
   if (!balls) return "0.0";
   return `${Math.floor(balls / 6)}.${balls % 6}`;
-}
-
-/** Why a card cannot go up yet, or null when it can. */
-function cardUnavailable(
-  card: PresentationCardType,
-  state: LiveMatchState,
-  match: Match | null,
-): string | null {
-  const phase = overlayPhaseOf(state);
-  switch (card) {
-    case "toss":
-      return state.toss_winner_team_id ? null : "No toss recorded yet";
-    case "playing_xi":
-      return (match?.team1?.team_players?.length ?? 0) +
-        (match?.team2?.team_players?.length ?? 0) >
-        0
-        ? null
-        : "No squads picked yet";
-    case "scorecard":
-      return phase === "pre" ? "Starts with the first innings" : null;
-    case "partnership":
-    case "over_summary":
-      return phase === "live" ? null : "Only while an innings is in play";
-    case "result":
-      return phase === "done" ? null : "After the match";
-    default:
-      return null;
-  }
 }
 
 function Panel({
@@ -259,6 +291,51 @@ function CommandStatusLine({
   );
 }
 
+function AutoRuleRow({
+  id,
+  label,
+  rule,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  rule: { on: boolean; seconds: number };
+  onChange: (change: { on?: boolean; seconds?: number }) => void;
+}) {
+  const secondsId = useId();
+  return (
+    <li className="flex min-h-10 items-center justify-between gap-2 text-sm text-slate-200">
+      <label className="flex min-w-0 items-center gap-2">
+        <input
+          type="checkbox"
+          checked={rule.on}
+          onChange={(e) => onChange({ on: e.target.checked })}
+          className="h-4 w-4 accent-white"
+          data-rule={id}
+        />
+        <span className="truncate">{label}</span>
+      </label>
+      <label htmlFor={secondsId} className="sr-only">
+        {label}: seconds on air
+      </label>
+      <select
+        id={secondsId}
+        value={rule.seconds}
+        onChange={(e) => onChange({ seconds: Number(e.target.value) })}
+        className="min-h-9 rounded-lg border border-white/10 bg-slate-900 px-1.5 text-sm text-white"
+      >
+        {[...new Set([...RULE_SECONDS, rule.seconds])]
+          .sort((a, b) => a - b)
+          .map((sec) => (
+            <option key={sec} value={sec}>
+              {sec} s
+            </option>
+          ))}
+      </select>
+    </li>
+  );
+}
+
 export function ControlClient({
   matchId,
   initialState,
@@ -270,7 +347,7 @@ export function ControlClient({
   const [demoState, setDemoState] = useState<LiveMatchState | null>(
     isDemo ? (initialState ?? DEMO_MATCH_STATE) : null,
   );
-  const match = initialMatch ?? (isDemo ? DEMO_MATCH_DETAILS : null);
+  const pageMatch = initialMatch ?? (isDemo ? DEMO_MATCH_DETAILS : null);
 
   // Live score: one listener on live_state/{matchId} (1 read per change).
   // Once the match is over it stops; the producer can resume it (e.g.
@@ -301,9 +378,23 @@ export function ControlClient({
   });
   const { scene } = layers;
   const listening = producer.status === "connected";
+  // Scorecards in the preview follow the live scorecard, as on air.
+  const match = useStageMatch(matchId, pageMatch, {
+    view: layers.view,
+    card: layers.card,
+  });
+  const snapshots: OverlaySnapshots | null = layers.snapshots ?? null;
+  const viewOk = (id: BroadcastViewId) =>
+    broadcastViewAvailable(id, { state, match, snapshots });
 
   const [strapSeconds, setStrapSeconds] = useState(8);
   const [noticeText, setNoticeText] = useState("");
+  const [noticeBody, setNoticeBody] = useState("");
+  const [noticeStyle, setNoticeStyle] =
+    useState<(typeof MESSAGE_STYLES)[number]["id"]>("strap");
+  const [replayScene, setReplayScene] = useState(scene.replayScene);
+  const [snapshotNote, setSnapshotNote] = useState<string | null>(null);
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false);
   const [sponsorText, setSponsorText] = useState(scene.sponsor);
   const [tickerText, setTickerText] = useState(scene.tickerText);
   const [sponsorsText, setSponsorsText] = useState(
@@ -318,6 +409,7 @@ export function ControlClient({
     setTickerText(scene.tickerText);
     setSponsorsText(scene.sponsors.map((s) => s.name).join("\n"));
     setVolume(Math.round(scene.volume * 100));
+    setReplayScene(scene.replayScene);
   }
 
   // ---- commands ----
@@ -333,21 +425,66 @@ export function ControlClient({
   );
 
   const showStrap = useCallback(
-    (type: ActiveLowerThirdStrap["type"], label: string, text?: string) => {
+    (
+      type: ActiveLowerThirdStrap["type"],
+      label: string,
+      text?: string,
+      extra: Partial<ActiveLowerThirdStrap> = {},
+    ) => {
       const strap: ActiveLowerThirdStrap = {
         id: `strap-${type}-${Date.now()}`,
         type,
         title: "",
         durationMs: strapSeconds * 1000,
+        ...extra,
       };
       if (type === "custom") {
         strap.badge = "Notice";
         strap.title = text ?? "";
       }
+      if (type === "message") strap.title = text ?? "";
       void send({ type: "SHOW_STRAP", strap }, `Lower third: ${label}`);
     },
     [send, strapSeconds],
   );
+
+  const showView = (id: BroadcastViewId) => {
+    if (layers.view === id) {
+      void send(
+        { type: "SET_BROADCAST_VIEW", broadcastView: null },
+        "Back to the score bug",
+      );
+    } else {
+      void send(
+        { type: "SET_BROADCAST_VIEW", broadcastView: id },
+        `Graphic: ${viewLabel(id)}`,
+      );
+    }
+  };
+
+  const loadSnapshots = async () => {
+    setLoadingSnapshots(true);
+    setSnapshotNote(null);
+    const res = await getOverlaySnapshots(matchId);
+    setLoadingSnapshots(false);
+    if (res.error !== null) {
+      setSnapshotNote(res.error);
+      return;
+    }
+    const parts = [
+      res.data.pointsTable && "points table",
+      res.data.leaderboard && "leaders",
+      res.data.nextFixture && "next match",
+      res.data.series && "players' figures",
+    ].filter(Boolean);
+    setSnapshotNote(
+      parts.length ? `Loaded: ${parts.join(", ")}` : "No tournament data yet",
+    );
+    void send(
+      { type: "SET_SNAPSHOTS", snapshots: res.data },
+      "Tournament data for the graphics",
+    );
+  };
 
   const clearAll = useCallback(() => {
     void send({ type: "PANIC_CLEAR" }, "Cleared graphics, score bug only");
@@ -362,6 +499,10 @@ export function ControlClient({
   };
 
   // Keyboard shortcuts for whoever runs the graphics from a laptop.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
@@ -389,7 +530,7 @@ export function ControlClient({
         return;
       }
       const strap = STRAPS.find((s) => s.key.toLowerCase() === key);
-      if (strap) {
+      if (strap && strapAvailable(strap.type, stateRef.current)) {
         e.preventDefault();
         showStrap(strap.type, strap.label);
       }
@@ -410,19 +551,38 @@ export function ControlClient({
     : null;
   const mainOnAir = !scene.showBug
     ? "Score bug hidden"
-    : scene.view !== null
-      ? "Graphics-suite view"
+    : layers.view
+      ? viewLabel(layers.view)
       : `Score bug (${LAYOUTS.find((l) => l.id === scene.layout)?.label.toLowerCase()})`;
 
   const rules = autoRulesIn(doc);
-  const allAuto = Object.values(rules).every((r) => r.on);
-  const noneAuto = Object.values(rules).every((r) => !r.on);
+  const graphicRules = AUTO_RULE_IDS.filter((id) => !isReplayRule(id));
+  const replayRules = AUTO_RULE_IDS.filter(isReplayRule);
+  const allAuto = graphicRules.every((id) => rules[id]?.on);
+  const noneAuto = graphicRules.every((id) => !rules[id]?.on);
+  const setRule = (id: string, change: { on?: boolean; seconds?: number }) =>
+    void send(
+      {
+        type: "SET_AUTO",
+        auto: { ...rules, [id]: { ...rules[id]!, ...change } },
+      },
+      `${AUTO_RULE_LABELS[id as keyof typeof AUTO_RULE_LABELS] ?? id}: ${
+        change.on === undefined
+          ? `${change.seconds} seconds`
+          : change.on
+            ? "automatic"
+            : "manual"
+      }`,
+    );
   const theme = resolveOverlayTheme(scene.theme);
 
   const team1 = state.team1_name ?? state.team1_short_name ?? "Team 1";
   const team2 = state.team2_name ?? state.team2_short_name ?? "Team 2";
   const ids = {
     notice: useId(),
+    noticeBody: useId(),
+    noticeStyle: useId(),
+    replayScene: useId(),
     sponsor: useId(),
     sponsors: useId(),
     ticker: useId(),
@@ -560,7 +720,7 @@ export function ControlClient({
                   <span className="text-slate-400">Main: </span>
                   {mainOnAir}
                 </span>
-                {scene.view !== null && (
+                {layers.view && (
                   <button
                     type="button"
                     className="rounded-md px-2 py-1 text-slate-200 underline-offset-2 hover:underline"
@@ -678,6 +838,7 @@ export function ControlClient({
                 <button
                   key={s.type}
                   type="button"
+                  disabled={!strapAvailable(s.type, state)}
                   onClick={() => showStrap(s.type, s.label)}
                   className={cn(QUIET, "flex-col items-start text-left")}
                   aria-keyshortcuts={s.key}
@@ -707,33 +868,82 @@ export function ControlClient({
               ))}
             </div>
             <form
-              className="mt-3 flex flex-col gap-2 sm:flex-row"
+              className="mt-3 space-y-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 const text = noticeText.trim();
                 if (!text) return;
-                showStrap("custom", `Notice "${text}"`, text);
+                if (noticeStyle === "strap") {
+                  showStrap("custom", `Notice "${text}"`, text);
+                } else {
+                  showStrap("message", `Message "${text}"`, text, {
+                    form: noticeStyle,
+                    ...(noticeStyle === "double" && noticeBody.trim()
+                      ? { subtitle: noticeBody.trim() }
+                      : {}),
+                  });
+                }
                 setNoticeText("");
+                setNoticeBody("");
               }}
             >
-              <label htmlFor={ids.notice} className="sr-only">
-                Your own notice
-              </label>
-              <input
-                id={ids.notice}
-                value={noticeText}
-                onChange={(e) => setNoticeText(e.target.value)}
-                maxLength={120}
-                placeholder="Your own notice, e.g. Play resumes at 3:30"
-                className="min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none sm:text-sm"
-              />
-              <button
-                type="submit"
-                className={`${PRIMARY} shrink-0 whitespace-nowrap`}
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-                Show notice
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <label htmlFor={ids.notice} className="sr-only">
+                  Your own notice
+                </label>
+                <input
+                  id={ids.notice}
+                  value={noticeText}
+                  onChange={(e) => setNoticeText(e.target.value)}
+                  maxLength={120}
+                  placeholder="Your own notice, e.g. Play resumes at 3:30"
+                  className="min-h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none sm:text-sm"
+                />
+                <button
+                  type="submit"
+                  className={`${PRIMARY} shrink-0 whitespace-nowrap`}
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                  Show notice
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <label htmlFor={ids.noticeStyle} className="text-slate-300">
+                  Shown as
+                </label>
+                <select
+                  id={ids.noticeStyle}
+                  value={noticeStyle}
+                  onChange={(e) =>
+                    setNoticeStyle(
+                      e.target.value as (typeof MESSAGE_STYLES)[number]["id"],
+                    )
+                  }
+                  className="min-h-10 rounded-lg border border-white/10 bg-slate-900 px-2 text-sm text-white"
+                >
+                  {MESSAGE_STYLES.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {noticeStyle === "double" && (
+                <>
+                  <label htmlFor={ids.noticeBody} className="sr-only">
+                    Card text
+                  </label>
+                  <textarea
+                    id={ids.noticeBody}
+                    rows={2}
+                    value={noticeBody}
+                    maxLength={200}
+                    onChange={(e) => setNoticeBody(e.target.value)}
+                    placeholder="The card's text, under the title"
+                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-base text-white placeholder:text-slate-500 sm:text-sm"
+                  />
+                </>
+              )}
             </form>
           </Panel>
 
@@ -791,7 +1001,7 @@ export function ControlClient({
           >
             <div className="grid grid-cols-2 gap-2">
               {CARDS.map((c) => {
-                const why = cardUnavailable(c.id, state, match);
+                const why = presentationCardUnavailable(c.id, state, match);
                 const onAir = scene.card === c.id;
                 return (
                   <button
@@ -815,7 +1025,61 @@ export function ControlClient({
             </div>
           </Panel>
 
-          <Panel title="Automatic event cards">
+          <Panel
+            title="Graphics"
+            hint="Full-screen and lower-third graphics; one at a time. Greyed out until there is data for them."
+          >
+            <div className="space-y-3">
+              {VIEW_GROUPS.map((g) => (
+                <fieldset key={g.title}>
+                  <legend className="mb-1.5 text-sm text-slate-400">
+                    {g.title}
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.views.map((id) => {
+                      const onAir = layers.view === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          disabled={!onAir && !viewOk(id)}
+                          aria-pressed={onAir}
+                          onClick={() => showView(id)}
+                          className={cn(onAir ? ON_AIR : QUIET, "text-left")}
+                        >
+                          {viewLabel(id)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+            {isRealMatch && (
+              <div className="mt-3 space-y-1 text-sm">
+                <button
+                  type="button"
+                  className={QUIET}
+                  disabled={loadingSnapshots}
+                  onClick={() => void loadSnapshots()}
+                >
+                  {loadingSnapshots && (
+                    <Loader2
+                      className="h-4 w-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                  )}
+                  Load tournament data
+                </button>
+                <p className="text-slate-400" role="status">
+                  {snapshotNote ??
+                    "Points table, leaders, next match and players' tournament figures."}
+                </p>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Automatic graphics">
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -823,8 +1087,8 @@ export function ControlClient({
                 className={allAuto ? SELECTED : QUIET}
                 onClick={() =>
                   void send(
-                    { type: "SET_AUTO", auto: DEFAULT_AUTO_RULES },
-                    "Automatic event cards on",
+                    { type: "SET_AUTO", auto: automaticRules(rules) },
+                    "Automatic graphics on",
                   )
                 }
               >
@@ -837,7 +1101,7 @@ export function ControlClient({
                 onClick={() =>
                   void send(
                     { type: "SET_AUTO", auto: manualAutoRules(rules) },
-                    "Automatic event cards off",
+                    "Automatic graphics off",
                   )
                 }
               >
@@ -846,36 +1110,104 @@ export function ControlClient({
             </div>
             <fieldset className="mt-3">
               <legend className="mb-2 text-sm text-slate-400">
-                Show by themselves after
+                Show by themselves, for
               </legend>
-              <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                {Object.entries(rules).map(([id, rule]) => (
-                  <label
+              <ul className="space-y-1">
+                {graphicRules.map((id) => (
+                  <AutoRuleRow
                     key={id}
-                    className="flex min-h-10 items-center gap-2 text-sm text-slate-200"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={rule.on}
-                      onChange={(e) =>
-                        void send(
-                          {
-                            type: "SET_AUTO",
-                            auto: {
-                              ...rules,
-                              [id]: { ...rule, on: e.target.checked },
-                            },
-                          },
-                          `${AUTO_LABELS[id] ?? id}: ${e.target.checked ? "automatic" : "manual"}`,
-                        )
-                      }
-                      className="h-4 w-4 accent-white"
-                    />
-                    {AUTO_LABELS[id] ?? id}
-                  </label>
+                    id={id}
+                    label={AUTO_RULE_LABELS[id]}
+                    rule={rules[id]!}
+                    onChange={(change) => setRule(id, change)}
+                  />
                 ))}
-              </div>
+              </ul>
             </fieldset>
+            <fieldset className="mt-4">
+              <legend className="mb-2 text-sm text-slate-400">
+                Replays through OBS (see Stream setup, Replays)
+              </legend>
+              <ul className="space-y-1">
+                {replayRules.map((id) => (
+                  <AutoRuleRow
+                    key={id}
+                    id={id}
+                    label={AUTO_RULE_LABELS[id]}
+                    rule={rules[id]!}
+                    onChange={(change) => setRule(id, change)}
+                  />
+                ))}
+              </ul>
+              <form
+                className="mt-2 flex flex-wrap items-center gap-2 text-sm"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void send(
+                    { type: "SET_REPLAY_SCENE", replayScene },
+                    replayScene.trim()
+                      ? `Replay scene: ${replayScene.trim()}`
+                      : "Replays: save clips only",
+                  );
+                }}
+              >
+                <label htmlFor={ids.replayScene} className="text-slate-300">
+                  OBS replay scene
+                </label>
+                <input
+                  id={ids.replayScene}
+                  value={replayScene}
+                  maxLength={80}
+                  onChange={(e) => setReplayScene(e.target.value)}
+                  placeholder="Replay"
+                  autoCorrect="off"
+                  className="min-h-10 w-40 rounded-lg border border-white/10 bg-black/40 px-3 text-base text-white sm:text-sm"
+                />
+                <button type="submit" className={QUIET}>
+                  Save
+                </button>
+              </form>
+            </fieldset>
+          </Panel>
+
+          <Panel
+            title="Hold"
+            hint="While a score is corrected: the graphics keep the score they had."
+          >
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {HOLDS.map((h) => (
+                <button
+                  key={h.id}
+                  type="button"
+                  aria-pressed={scene.hold === h.id}
+                  className={cn(
+                    scene.hold === h.id ? ON_AIR : QUIET,
+                    "flex-col items-start text-left",
+                  )}
+                  onClick={() =>
+                    void send(
+                      { type: "SET_HOLD", hold: h.id },
+                      `Hold: ${h.label}`,
+                    )
+                  }
+                >
+                  {h.label}
+                  <span className="text-xs font-normal text-slate-400">
+                    {h.hint}
+                  </span>
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={!scene.hold}
+                className={QUIET}
+                onClick={() =>
+                  void send({ type: "SET_HOLD", hold: null }, "Hold ended")
+                }
+              >
+                End hold
+              </button>
+            </div>
           </Panel>
 
           <Panel title="Score bug">

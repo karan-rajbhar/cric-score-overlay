@@ -26,7 +26,7 @@ describe("PresentationCards", () => {
 
   it("shows the toss from the live row", () => {
     show("toss");
-    expect(screen.getByText(`${S.toss_winner_name} won the toss`)).toBeInTheDocument();
+    expect(screen.getByText(`${S.team2_name} won the toss`)).toBeInTheDocument();
     expect(screen.getByText("Chose to bat")).toBeInTheDocument();
   });
 

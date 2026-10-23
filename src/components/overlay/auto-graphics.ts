@@ -33,6 +33,7 @@ export const AUTO_RULE_IDS = [
   "sting_four",
   "sting_six",
   "sting_wicket",
+  "sting_free_hit",
   "batter_milestone",
   "bowler_milestone",
   "hat_trick",
@@ -67,6 +68,7 @@ export const DEFAULT_AUTO_RULES: AutoRules = {
   sting_four: { on: true, seconds: 4 },
   sting_six: { on: true, seconds: 5 },
   sting_wicket: { on: true, seconds: 6 },
+  sting_free_hit: { on: true, seconds: 4 },
   batter_milestone: { on: true, seconds: 8 },
   bowler_milestone: { on: true, seconds: 8 },
   hat_trick: { on: true, seconds: 8 },
@@ -87,6 +89,7 @@ export const AUTO_RULE_LABELS: Record<AutoRuleId, string> = {
   sting_four: "Four",
   sting_six: "Six",
   sting_wicket: "Wicket",
+  sting_free_hit: "Free hit",
   batter_milestone: "Batter fifty and hundred",
   bowler_milestone: "Three and five wickets",
   hat_trick: "Hat-trick",
@@ -102,13 +105,41 @@ export const AUTO_RULE_LABELS: Record<AutoRuleId, string> = {
   replay_wicket: "Replay wickets (OBS)",
 };
 
-/** Stored rules (possibly partial or old) completed with the defaults. */
+/**
+ * Rule ids stored before this set (the overlay's first automatic event
+ * cards), and the rules each one now stands for.
+ */
+const LEGACY_RULE_IDS: Record<string, AutoRuleId[]> = {
+  four: ["sting_four"],
+  six: ["sting_six"],
+  wicket: ["sting_wicket"],
+  free_hit: ["sting_free_hit"],
+  milestone: ["batter_milestone", "bowler_milestone", "hat_trick"],
+};
+
+/** Whether `id` is a current rule id. */
+export function isAutoRuleId(id: string): id is AutoRuleId {
+  return (AUTO_RULE_IDS as readonly string[]).includes(id);
+}
+
+/**
+ * Stored rules (possibly partial, or with old ids) completed with the
+ * defaults; a current id wins over an old one naming the same rule.
+ */
 export function resolveAutoRules(
   rules?: Partial<Record<string, Partial<AutoRule>>> | null,
 ): AutoRules {
   const out = { ...DEFAULT_AUTO_RULES };
+  const merged: Partial<Record<string, Partial<AutoRule>>> = {};
+  for (const [old, ids] of Object.entries(LEGACY_RULE_IDS)) {
+    const r = rules?.[old];
+    if (r) for (const id of ids) merged[id] = r;
+  }
   for (const id of AUTO_RULE_IDS) {
-    const r = rules?.[id];
+    if (rules?.[id]) merged[id] = rules[id];
+  }
+  for (const id of AUTO_RULE_IDS) {
+    const r = merged[id];
     if (!r) continue;
     out[id] = {
       on: typeof r.on === "boolean" ? r.on : out[id].on,
@@ -234,6 +265,17 @@ function stingFor(
           title: e.value === 5 ? "Five wickets" : "Three wickets",
           subtitle: name,
           detail: `${e.wickets ?? e.value}-${e.runs ?? 0}`,
+        },
+      };
+    case "free_hit":
+      return {
+        rule: "sting_free_hit",
+        sting: {
+          id,
+          type: "free_hit",
+          title: "Free hit",
+          subtitle: "No-ball called",
+          detail: "Next delivery is a free hit",
         },
       };
     case "hat_trick":

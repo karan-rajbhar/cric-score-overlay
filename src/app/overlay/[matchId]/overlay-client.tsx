@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createObsBridge } from "~/components/overlay/obs-bridge";
+import { useStageMatch } from "~/components/overlay/overlay-data";
 import { OverlayStage } from "~/components/overlay/overlay-stage";
 import type { LiveMatchState } from "~/components/overlay/types";
 import {
   useOverlayLayers,
   useOverlayStateDoc,
+  type ReplayRequest,
 } from "~/components/overlay/use-overlay-state";
-import {
-  applyLiveScorecard,
-  useLiveScorecard,
-  useLiveState,
-} from "~/lib/hooks/useLiveState";
+import { useLiveState } from "~/lib/hooks/useLiveState";
 import type { Match } from "~/lib/match-types";
 import type { SceneUrlParams } from "~/lib/overlay-state";
 
@@ -19,10 +18,6 @@ export type { LiveMatchState };
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Suite views and cards that show full scorecards. */
-const SCORECARD_VIEWS = new Set(["2", "3", "4", "5", "8"]);
-const SCORECARD_CARDS = new Set(["scorecard", "result", "over_summary"]);
 
 /** Longest wait for the producer state before drawing from the link alone. */
 const STATE_WAIT_MS = 3000;
@@ -95,12 +90,21 @@ export function OverlayClient({
   );
 
   const producer = useOverlayStateDoc(matchId, isRealMatch);
+  // Replays through OBS (the browser source's API; nothing elsewhere).
+  const replayScene = producer.doc?.scene.replayScene;
+  const bridge = useMemo(
+    () => createObsBridge({ replayScene: replayScene ?? "Replay" }),
+    [replayScene],
+  );
+  useEffect(() => () => bridge.dispose(), [bridge]);
   const layers = useOverlayLayers({
     doc: producer.doc,
     loaded: !isRealMatch || producer.loaded,
     params,
     state,
     serverNow,
+    onReplay: (item: ReplayRequest) =>
+      void bridge.replay({ seconds: item.durationMs / 1000 }),
   });
 
   // Draw once the producer state is known (no flash of the wrong theme),
@@ -113,16 +117,10 @@ export function OverlayClient({
   const ready = !isRealMatch || producer.loaded || waited;
 
   // Scorecards follow the live scorecard while one is on air.
-  const needsScorecard =
-    (layers.scene.view !== null && SCORECARD_VIEWS.has(layers.scene.view)) ||
-    SCORECARD_CARDS.has(layers.card);
-  const scorecard = useLiveScorecard(matchId, {
-    enabled: isRealMatch && needsScorecard,
+  const currentMatch = useStageMatch(matchId, match, {
+    view: layers.view,
+    card: layers.card,
   });
-  const currentMatch = useMemo(
-    () => (match ? applyLiveScorecard(match, scorecard.doc) : null),
-    [match, scorecard.doc],
-  );
 
   // Interact (OBS) or keyboard: Escape takes one-off graphics off here, G
   // shows the safe-zone guides for lining the source up.

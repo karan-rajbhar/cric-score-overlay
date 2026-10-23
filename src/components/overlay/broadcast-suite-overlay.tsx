@@ -30,7 +30,11 @@ import {
   teamCode,
   type OverlayThemeProps,
 } from "./overlay-kit";
-import { playingXi, presentationCardAvailable } from "./presentation-cards";
+import {
+  playingXi,
+  presentationCardAvailable,
+  tossWinnerName,
+} from "./presentation-cards";
 import {
   CareerCard,
   InningsFiguresCard,
@@ -83,10 +87,10 @@ export const BROADCAST_VIEW_OPTIONS: Array<{
   { id: "14", label: "Innings break" },
   { id: "15", label: "Drinks break" },
   { id: "28", label: "Rain delay" },
-  { id: "16", label: "Striker" },
-  { id: "17", label: "Non-striker" },
-  { id: "18", label: "Bowler" },
-  { id: "19", label: "Last wicket" },
+  { id: "16", label: "Striker figures" },
+  { id: "17", label: "Non-striker figures" },
+  { id: "18", label: "Bowler figures" },
+  { id: "19", label: "Last out figures" },
   { id: "24", label: "Striker career" },
   { id: "25", label: "Non-striker career" },
   { id: "26", label: "Bowler career" },
@@ -95,13 +99,13 @@ export const BROADCAST_VIEW_OPTIONS: Array<{
   { id: "37", label: "Non-striker this tournament" },
   { id: "38", label: "Bowler this tournament" },
   { id: "39", label: "Last out this tournament" },
-  { id: "23", label: "Partnership" },
+  { id: "23", label: "Partnership split" },
   { id: "40", label: "Wagon wheel" },
   { id: "8", label: "Match summary" },
   { id: "21", label: "Runs per over" },
   { id: "22", label: "Worm" },
   { id: "41", label: "Run rates" },
-  { id: "42", label: "Win predictor" },
+  { id: "42", label: "Win predictor card" },
   { id: "20", label: "Points table" },
   { id: "43", label: "Leaderboard" },
   { id: "44", label: "Next match" },
@@ -214,9 +218,6 @@ export function broadcastViewAvailable(
       return !!snapshots?.nextFixture;
   }
 }
-
-/** Views that need every innings' scorecard. */
-const NEEDS_SCORECARD = new Set<BroadcastViewId>(["2", "3", "4", "5", "8", "14", "23", "29"]);
 
 function inningsNo(innings: Innings[], n: number): Innings | undefined {
   return innings.find((i) => i.innings_number === n);
@@ -376,7 +377,14 @@ function SummaryCard({
   );
 }
 
-function IntroCard({ state }: { state: LiveMatchState }) {
+function IntroCard({
+  state,
+  match,
+}: {
+  state: LiveMatchState;
+  match?: Match | null;
+}) {
+  const toss = tossWinnerName(state, match);
   const sides = [
     { name: state.team1_name, short: state.team1_short_name, logo: state.team1_logo_url },
     { name: state.team2_name, short: state.team2_short_name, logo: state.team2_logo_url },
@@ -407,8 +415,8 @@ function IntroCard({ state }: { state: LiveMatchState }) {
       <p className={cn("text-center text-lg", OV.cardMuted)}>
         {[
           state.venue,
-          state.toss_winner_name &&
-            `${state.toss_winner_name} won the toss and chose to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`,
+          toss &&
+            `${toss} won the toss and chose to ${state.toss_decision === "bowl" ? "bowl" : "bat"}`,
         ]
           .filter(Boolean)
           .join(" · ")}
@@ -573,7 +581,7 @@ function ViewContent({
     case "8":
       return <SummaryCard state={state} match={match} innings={innings} />;
     case "13":
-      return <IntroCard state={state} />;
+      return <IntroCard state={state} match={match} />;
     case "14":
       return <SummaryCard state={state} match={match} innings={innings} breakCard />;
     case "15":
@@ -632,11 +640,7 @@ export function BroadcastSuiteOverlay({
   customColors,
 }: BroadcastSuiteOverlayProps) {
   const available = broadcastViewAvailable(activeView, { state, match, snapshots });
-  const { innings } = useScorecardInnings(
-    state,
-    match,
-    available && NEEDS_SCORECARD.has(activeView),
-  );
+  const { innings } = useScorecardInnings(match);
   const lowerThird = LOWER_THIRD.has(activeView);
   const showBug = activeView === "1" || lowerThird || !available;
 
@@ -676,6 +680,7 @@ export function BroadcastSuiteOverlay({
       {showBug && (
         <ScoreBug
           state={state}
+          match={match}
           layout="bottom"
           theme={theme}
           customColors={customColors}

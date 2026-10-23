@@ -682,7 +682,8 @@ export type LiveEventType =
   | "innings_end"
   | "match_end"
   | "new_batter"
-  | "new_bowler";
+  | "new_bowler"
+  | "free_hit";
 
 /**
  * Something the change behind a `live_state` version did, for overlays to
@@ -774,7 +775,8 @@ export interface LiveMatchStateRow {
    */
   dls_overs?: number | null;
   // Overlay fields (optional: documents written before they existed).
-  toss_winner_name?: string | null;
+  /** The next delivery is a free hit (`~/lib/free-hit`). */
+  free_hit?: boolean | null;
   striker_id?: string | null;
   striker_fours?: number | null;
   striker_sixes?: number | null;

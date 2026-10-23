@@ -170,6 +170,8 @@ export interface WinPredictorLiveRow {
   innings_number?: number | null;
   innings_completed?: boolean | null;
   overs_per_innings?: number | null;
+  /** Overs of an innings revised by DLS (it wins over the match's). */
+  dls_overs?: number | null;
   total_runs?: number | null;
   total_wickets?: number | null;
   total_balls?: number | null;
@@ -185,10 +187,11 @@ export function winPredictorFromLive(
   options: { ballsPerOver?: number; wicketsPerInnings?: number } = {},
 ): WinEstimate | null {
   if (row.status !== "live" || row.innings_completed) return null;
-  if (!row.innings_number || !row.overs_per_innings) return null;
+  const overs = row.dls_overs ?? row.overs_per_innings;
+  if (!row.innings_number || !overs) return null;
   return winPredictor({
     inningsNumber: row.innings_number,
-    oversPerInnings: row.overs_per_innings,
+    oversPerInnings: overs,
     ballsPerOver: options.ballsPerOver,
     wicketsPerInnings: options.wicketsPerInnings,
     runs: row.total_runs ?? 0,

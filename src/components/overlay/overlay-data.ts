@@ -6,8 +6,10 @@
  *
  * - {@link useDocWhenShown}: one read of a document when a card appears;
  *   showing it again reuses that read unless the score moved since.
- * - {@link useScorecardInnings}: every innings' card from
- *   `live_scorecard/{matchId}` (1 read per showing with a new score).
+ * - {@link useStageMatch}: the page's match with every innings' scorecard
+ *   from `live_scorecard/{matchId}`, followed (1 read, then 1 per change)
+ *   only while a graphic showing scorecards is on air; the cards read
+ *   their innings from it ({@link useScorecardInnings}).
  * - {@link usePlayerProfile}: career figures and photo (2 reads per player
  *   per innings, cached).
  * - {@link useInningsBallLog}: the ball log for charts and the wagon wheel
@@ -20,10 +22,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { getFirebaseDb } from "~/lib/firebase/client";
-import {
-  LIVE_SCORECARD_COLLECTION,
-  type LiveScorecardDoc,
-} from "~/lib/firebase/live-scorecard";
 import { readDoc } from "~/lib/firebase/realtime";
 import {
   ballRowsOf,
@@ -32,7 +30,10 @@ import {
   type OversRow,
 } from "~/lib/firebase/scorecard";
 import type { PlayerCareerStatsRow, UsersRow } from "~/lib/firebase/types";
-import { liveScorecardViewOf } from "~/lib/hooks/useLiveState";
+import {
+  applyLiveScorecard,
+  useLiveScorecard,
+} from "~/lib/hooks/useLiveState";
 import type { BallEvent, Innings, Match } from "~/lib/match-types";
 import type { LiveMatchState } from "./types";
 
@@ -42,18 +43,6 @@ const UUID =
 /** A real match id (the overlay's demo uses "test"). */
 export function isLiveMatchId(id: string | null | undefined): id is string {
   return !!id && UUID.test(id);
-}
-
-/** Changes whenever the score does: a card shown again re-reads only then. */
-export function scoreFreshness(state: LiveMatchState): string {
-  return [
-    state.innings_number,
-    state.total_runs,
-    state.total_wickets,
-    state.total_balls,
-    state.last_ball_seq,
-    state.status,
-  ].join(":");
 }
 
 interface CacheEntry {
@@ -121,33 +110,69 @@ export function useDocWhenShown<T>(
   return { data, loaded };
 }
 
+/** Suite views and cards that show innings figures (scorecards, charts). */
+const SCORECARD_VIEWS = new Set<string>([
+  "2",
+  "3",
+  "4",
+  "5",
+  "8",
+  "14",
+  "21",
+  "22",
+  "23",
+  "29",
+  "40",
+  "41",
+]);
+const SCORECARD_CARDS = new Set<string>([
+  "scorecard",
+  "result",
+  "over_summary",
+  "partnership",
+]);
+
+/** Whether what is on air shows innings figures. */
+export function showsScorecard(
+  view: string | null | undefined,
+  card: string | null | undefined,
+): boolean {
+  return (
+    (!!view && SCORECARD_VIEWS.has(view)) ||
+    (!!card && SCORECARD_CARDS.has(card))
+  );
+}
+
 /**
- * Every innings' scorecard (batting, bowling, fall of wickets and stands):
- * from `live_scorecard` for a real match, else the page's match.
+ * The page's match with the live scorecard applied while a scorecard
+ * graphic is on air (the overlay and the control room's preview alike).
  */
+export function useStageMatch(
+  matchId: string,
+  match: Match | null,
+  onAir: { view: string | null | undefined; card: string | null | undefined },
+): Match | null {
+  const scorecard = useLiveScorecard(matchId, {
+    enabled: isLiveMatchId(matchId) && showsScorecard(onAir.view, onAir.card),
+  });
+  return useMemo(
+    () => (match ? applyLiveScorecard(match, scorecard.doc) : null),
+    [match, scorecard.doc],
+  );
+}
+
+/** Every innings of the match (as `useStageMatch` keeps it), in order. */
 export function useScorecardInnings(
-  state: LiveMatchState,
   match: Match | null | undefined,
-  active: boolean,
-): { innings: Innings[]; loaded: boolean } {
-  const id = isLiveMatchId(state.match_id) ? state.match_id : null;
-  const { data, loaded } = useDocWhenShown<LiveScorecardDoc>(
-    LIVE_SCORECARD_COLLECTION,
-    id,
-    active,
-    scoreFreshness(state),
+): { innings: Innings[] } {
+  const innings = useMemo(
+    () =>
+      [...(match?.innings ?? [])].sort(
+        (a, b) => a.innings_number - b.innings_number,
+      ),
+    [match],
   );
-  const innings = useMemo(() => {
-    if (data) {
-      return liveScorecardViewOf(data).innings as unknown as Innings[];
-    }
-    return [...(match?.innings ?? [])];
-  }, [data, match]);
-  const sorted = useMemo(
-    () => [...innings].sort((a, b) => a.innings_number - b.innings_number),
-    [innings],
-  );
-  return { innings: sorted, loaded: id ? loaded : true };
+  return { innings };
 }
 
 export interface PlayerProfile {

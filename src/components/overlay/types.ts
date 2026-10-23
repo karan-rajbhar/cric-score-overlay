@@ -181,6 +181,9 @@ export interface ProducerCommand {
     | "SET_BROADCAST_VIEW"
     | "SET_AUTO"
     | "NEXT_SPONSOR"
+    | "SET_REPLAY_SCENE"
+    | "SET_HOLD"
+    | "SET_SNAPSHOTS"
     | "PANIC_CLEAR";
   card?: PresentationCardType;
   visible?: boolean;
@@ -202,6 +205,12 @@ export interface ProducerCommand {
   broadcastView?: BroadcastViewId | null;
   /** SET_AUTO: automatic graphics, by rule id. */
   auto?: Record<string, { on: boolean; seconds: number }>;
+  /** SET_REPLAY_SCENE: the OBS scene that plays replays ("" saves only). */
+  replayScene?: string;
+  /** SET_HOLD: hold the overlay while the score is corrected; null ends it. */
+  hold?: "black" | "clean" | "card" | null;
+  /** SET_SNAPSHOTS: standings, leaders, next match, tournament figures. */
+  snapshots?: OverlaySnapshots | null;
   timestamp: number;
 }
 

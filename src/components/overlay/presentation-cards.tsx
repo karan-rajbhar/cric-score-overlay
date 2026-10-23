@@ -85,11 +85,35 @@ export function presentationCardAvailable(
   }
 }
 
-function tossWinnerName(
+const CARD_REASON: Record<PresentationCardType, string> = {
+  none: "",
+  toss: "No toss recorded yet",
+  playing_xi: "No playing XI picked yet",
+  scorecard: "Starts with the first innings",
+  partnership: "Only while an innings is in play",
+  over_summary: "Only while an over is in progress",
+  result: "After the match",
+};
+
+/**
+ * Why a card cannot go up (the control room's hint), or null when it can:
+ * {@link presentationCardAvailable} in words.
+ */
+export function presentationCardUnavailable(
+  card: PresentationCardType,
   state: LiveMatchState,
   match: Match | null | undefined,
 ): string | null {
-  if (state.toss_winner_name) return state.toss_winner_name;
+  return presentationCardAvailable(card, state, match)
+    ? null
+    : CARD_REASON[card] || "Not available yet";
+}
+
+/** The side that won the toss, from the match's team ids. */
+export function tossWinnerName(
+  state: LiveMatchState,
+  match: Match | null | undefined,
+): string | null {
   if (!state.toss_winner_team_id || !match) return null;
   if (state.toss_winner_team_id === match.team1_id) return state.team1_name;
   if (state.toss_winner_team_id === match.team2_id) return state.team2_name;
@@ -400,9 +424,7 @@ export function PresentationCards({
   theme,
   customColors,
 }: PresentationCardsProps) {
-  const needsScorecard =
-    card === "scorecard" || card === "result" || card === "partnership";
-  const { innings } = useScorecardInnings(state, match, needsScorecard);
+  const { innings } = useScorecardInnings(match);
 
   if (!presentationCardAvailable(card, state, match)) return null;
 

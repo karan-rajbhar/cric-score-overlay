@@ -19,7 +19,7 @@ import type {
   DeliveryToEdit,
 } from "./components/EditBallDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { freeHitsOn, nextIsFreeHit } from "./free-hit";
+import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { describeQueuedAction } from "./describe-action";
 import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";

@@ -52,7 +52,7 @@ function useSeries(
   state: LiveMatchState,
   match: Match | null | undefined,
 ): Series[] | null {
-  const { innings } = useScorecardInnings(state, match, true);
+  const { innings } = useScorecardInnings(match);
   const main = useMemo(
     () => innings.filter((i) => i.innings_number <= 2),
     [innings],

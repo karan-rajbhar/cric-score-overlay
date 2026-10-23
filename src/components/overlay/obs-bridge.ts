@@ -211,9 +211,9 @@ export const RECOMMENDED_REPLAY_BUFFER_SECONDS = 20;
 /** Operator steps for the setup flow's "Automatic replays" section. */
 export const OBS_REPLAY_SETUP_STEPS: readonly string[] = [
   "In OBS, open Settings → Output and turn on the Replay Buffer. Set Maximum Replay Time to 20 seconds (the scorer records a ball a few seconds after it happens; 20 seconds holds the delivery and the lead-up).",
-  "Still in Output (Advanced mode, Replay Buffer tab or Recording), give replays a fixed file name and tick “Overwrite if file exists”, so the newest replay always has the same name.",
-  "Make a scene called Replay. Add a Media Source pointing at that replay file, and tick “Restart playback when source becomes active” and “Close file when inactive”. Add the CricScore overlay to this scene too (Paste Reference) if you want the score on replays.",
-  "Open the CricScore browser source's properties. Set Page permissions to “Advanced access to OBS” (needed to switch to the Replay scene; “Basic access” only saves clips), and leave “Shutdown source when not visible” off.",
+  "Still in Output (Advanced mode, Replay Buffer tab or Recording), give replays a fixed file name and tick \"Overwrite if file exists\", so the newest replay always has the same name.",
+  "Make a scene called Replay. Add a Media Source pointing at that replay file, and tick \"Restart playback when source becomes active\" and \"Close file when inactive\". Add the CricScore overlay to this scene too (Paste Reference) if you want the score on replays.",
+  "Open the CricScore browser source's properties. Set Page permissions to \"Advanced access to OBS\" (needed to switch to the Replay scene; \"Basic access\" only saves clips), and leave \"Shutdown source when not visible\" off.",
   "Before the first ball, click Start Replay Buffer in OBS's Controls dock.",
   "In the CricScore control room, turn on the replay rules you want (wickets, sixes, fours) and enter the scene name Replay. Each one saves a clip, shows it for the rule's seconds and cuts back.",
 ];

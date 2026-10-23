@@ -32,7 +32,11 @@ vi.mock("~/components/overlay/sound-effects", () => ({
 
 import { playSixExplosion } from "~/components/overlay/sound-effects";
 import { OverlayClient } from "./overlay-client";
-import { DEMO_MATCH_STATE } from "./demo-data";
+import { DEMO_MATCH_DETAILS, DEMO_MATCH_STATE } from "./demo-data";
+
+/** The score as the bar shows it ("138/5"). */
+const SCORE = `${DEMO_MATCH_STATE.total_runs}/${DEMO_MATCH_STATE.total_wickets}`;
+const scoreOf = (runs: number) => `${runs}/${DEMO_MATCH_STATE.total_wickets}`;
 
 // A new id per test: the live_state listener outlives an unmount briefly.
 let n = 0;
@@ -48,6 +52,7 @@ function renderOverlay(
     <OverlayClient
       matchId={REAL_ID}
       initial={{ ...DEMO_MATCH_STATE, match_id: REAL_ID }}
+      match={DEMO_MATCH_DETAILS}
       serverNow={NOW}
       {...props}
     />,
@@ -83,9 +88,9 @@ describe("OverlayClient", () => {
   it("draws once the producer state is in, with nothing to click on air", () => {
     renderOverlay();
     // Not before: no flash of the wrong look.
-    expect(screen.queryByText("168")).toBeNull();
+    expect(screen.queryByText(SCORE)).toBeNull();
     act(() => watchOf("overlay_state").next(null));
-    expect(screen.getByText("168")).toBeInTheDocument();
+    expect(screen.getByText(SCORE)).toBeInTheDocument();
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryByText(/connected|offline/i)).toBeNull();
 
@@ -97,13 +102,13 @@ describe("OverlayClient", () => {
         version: 3,
       }),
     );
-    expect(screen.getByText("231")).toBeInTheDocument();
+    expect(screen.getByText(scoreOf(231))).toBeInTheDocument();
   });
 
   it("draws from the link alone if the producer state is slow", () => {
     renderOverlay();
     act(() => vi.advanceTimersByTime(3000));
-    expect(screen.getByText("168")).toBeInTheDocument();
+    expect(screen.getByText(SCORE)).toBeInTheDocument();
   });
 
   it("shows what the control room put on air, including after a reload", () => {
@@ -123,7 +128,9 @@ describe("OverlayClient", () => {
         cue: null,
       }),
     );
-    expect(screen.getByText("Toss result")).toBeInTheDocument();
+    expect(
+      screen.getByText(`${DEMO_MATCH_STATE.team2_name} won the toss`),
+    ).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(0));
     expect(screen.getByText("Play resumes at 3:30")).toBeInTheDocument();
     // Its 8 seconds were up 6 seconds after loading.
@@ -159,6 +166,7 @@ describe("OverlayClient", () => {
   it("shows automatic cards for new deliveries unless turned off", () => {
     renderOverlay();
     act(() => watchOf("overlay_state").next(null));
+    // The server says what each delivery did (live_state.events).
     const ball = (seq: number, runs: number) =>
       act(() =>
         watchOf("live_state").next({
@@ -166,10 +174,24 @@ describe("OverlayClient", () => {
           match_id: REAL_ID,
           last_ball_seq: seq,
           last_ball_runs: runs,
+          total_runs: (DEMO_MATCH_STATE.total_runs ?? 0) + seq,
+          events: [
+            {
+              type: "four",
+              player_id: DEMO_MATCH_STATE.striker_id,
+              name: DEMO_MATCH_STATE.striker_name,
+              value: null,
+              runs: null,
+              balls: null,
+              wickets: null,
+              number: null,
+            },
+          ],
           version: seq,
         }),
       );
     ball(113, 4);
+    act(() => vi.advanceTimersByTime(0));
     expect(screen.getByRole("heading", { name: "Four" })).toBeInTheDocument();
 
     act(() =>
@@ -181,6 +203,7 @@ describe("OverlayClient", () => {
     );
     act(() => vi.advanceTimersByTime(5000));
     ball(114, 4);
+    act(() => vi.advanceTimersByTime(0));
     expect(screen.queryByRole("heading", { name: "Four" })).toBeNull();
   });
 
@@ -194,9 +217,9 @@ describe("OverlayClient", () => {
         total_runs: 175,
       }),
     );
-    expect(screen.queryByText("175")).toBeNull();
+    expect(screen.queryByText(scoreOf(175))).toBeNull();
     act(() => vi.advanceTimersByTime(10_000));
-    expect(screen.getByText("175")).toBeInTheDocument();
+    expect(screen.getByText(scoreOf(175))).toBeInTheDocument();
   });
 
   it("says when the link names no match, instead of a blank source", () => {
@@ -210,6 +233,6 @@ describe("OverlayClient", () => {
   it("opens no listener for the demo match", () => {
     render(<OverlayClient matchId="test" initial={DEMO_MATCH_STATE} />);
     expect(watches).toHaveLength(0);
-    expect(screen.getByText("168")).toBeInTheDocument();
+    expect(screen.getByText(SCORE)).toBeInTheDocument();
   });
 });
