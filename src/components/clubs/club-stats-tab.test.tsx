@@ -44,6 +44,7 @@ describe("ClubStatsTab Component", () => {
   it("renders milestone summary statistics", () => {
     render(
       <ClubStatsTab
+        clubId="club-1"
         clubName="Metro CC"
         milestones={dummyMilestones}
         battingLeaders={dummyBattingLeaders}
@@ -61,6 +62,7 @@ describe("ClubStatsTab Component", () => {
   it("renders top run scorers and top wicket takers", () => {
     render(
       <ClubStatsTab
+        clubId="club-1"
         clubName="Metro CC"
         milestones={dummyMilestones}
         battingLeaders={dummyBattingLeaders}
@@ -118,6 +120,7 @@ describe("ClubStatsTab Component", () => {
 
     render(
       <ClubStatsTab
+        clubId="club-1"
         clubName="Metro CC"
         milestones={dummyMilestones}
         battingLeaders={[]}
@@ -127,5 +130,71 @@ describe("ClubStatsTab Component", () => {
     );
 
     expect(screen.getByText("Leaderboard")).toBeInTheDocument();
+  });
+
+  it("offers the statistics as CSV and PDF once there are ranked players", () => {
+    const mvp = {
+      userId: "u1",
+      name: "Asha",
+      avatar: null,
+      matches: 2,
+      totalPoints: 40,
+      battingPoints: 30,
+      bowlingPoints: 5,
+      fieldingPoints: 5,
+      runs: 60,
+      wickets: 1,
+      catches: 1,
+      stumpings: 0,
+      runOuts: 0,
+      summary: "60 runs",
+    };
+    const none = {
+      orangeCap: null,
+      purpleCap: null,
+      mvpLeader: null,
+      mostSixes: null,
+      mostFours: null,
+      highestScore: null,
+      bestBowling: null,
+      bestEconomy: null,
+      topFielder: null,
+    };
+    render(
+      <ClubStatsTab
+        clubId="club-1"
+        clubName="Metro CC"
+        milestones={dummyMilestones}
+        battingLeaders={[]}
+        bowlingLeaders={[]}
+        leaderboardData={{
+          batting: [],
+          bowling: [],
+          fielding: [],
+          mvp: [mvp],
+          highlights: none,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: /all statistics csv/i }),
+    ).toHaveAttribute("href", "/clubs/club-1/stats.csv");
+    expect(
+      screen.getByRole("link", { name: /all statistics pdf/i }),
+    ).toHaveAttribute("href", "/clubs/club-1/stats-report");
+  });
+
+  it("offers no download while nobody is ranked", () => {
+    render(
+      <ClubStatsTab
+        clubId="club-1"
+        clubName="Metro CC"
+        milestones={dummyMilestones}
+        battingLeaders={dummyBattingLeaders}
+        bowlingLeaders={dummyBowlingLeaders}
+      />,
+    );
+    expect(screen.queryByRole("link", { name: /csv/i })).toBeNull();
   });
 });

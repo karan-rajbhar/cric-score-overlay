@@ -11,10 +11,8 @@ import {
   BowlingCard,
   FallOfWickets,
   TableCard,
-  figCell,
-  figHead,
-  figTable,
 } from "~/components/ds/scorecard";
+import { figCell, figHead, figTable } from "~/components/ds/fig-table";
 import { RankList } from "~/components/ds/standings";
 import type {
   ImpactLeader,
@@ -421,27 +419,29 @@ export function SignoffCard({
 export function ReportFooter({
   matchUrl,
   qrDataUrl,
+  title = "CricScore match record",
+  hint = "Scan the code for the ball-by-ball log and the wagon wheel.",
+  alt = "QR code linking to this match",
 }: {
   matchUrl: string;
   qrDataUrl: string;
+  title?: string;
+  hint?: string;
+  alt?: string;
 }) {
   return (
     <footer className="flex break-inside-avoid items-center justify-between gap-4 rounded-xl bg-muted/60 p-4 sm:p-5">
       <div className="min-w-0 space-y-1">
-        <p className="text-sm font-semibold text-foreground">
-          CricScore match record
-        </p>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
         <p className="break-all font-score text-xs text-muted-foreground">
           {matchUrl}
         </p>
-        <p className="text-xs text-muted-foreground">
-          Scan the code for the ball-by-ball log and the wagon wheel.
-        </p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element -- a data URL */}
       <img
         src={qrDataUrl}
-        alt="QR code linking to this match"
+        alt={alt}
         width={96}
         height={96}
         className="h-24 w-24 shrink-0 rounded-lg bg-white"

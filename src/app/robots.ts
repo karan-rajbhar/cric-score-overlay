@@ -19,6 +19,8 @@ export default function robots(): MetadataRoute.Robots {
         "/overlay/",
         "/matches/*/score",
         "/matches/*/report",
+        "/clubs/*/stats-report",
+        "/clubs/*/stats.csv",
         "/dashboard",
         "/invitations",
         "/search",

@@ -9,6 +9,8 @@ import { Input } from "~/components/ui/input";
 import {
   Search,
   Activity,
+  FileSpreadsheet,
+  FileText,
   SlidersHorizontal,
 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -28,11 +30,17 @@ import {
   sortMvpEntries,
 } from "~/lib/leaderboard";
 
+/** Where a tab's table can be downloaded (the file and the printable PDF). */
+export type TabDownloadLinks = { csv: string; pdf: string };
+export type DownloadableTab = "batting" | "bowling" | "fielding" | "mvp";
+
 interface LeaderboardViewProps {
   title?: string;
   subtitle?: string;
   data: LeaderboardData;
   showHighlights?: boolean;
+  /** Adds "CSV" and "PDF" downloads to the batting, bowling, fielding and MVP tabs. */
+  downloads?: (tab: DownloadableTab) => TabDownloadLinks;
 }
 
 // ---------------------------------------------------------------------------
@@ -589,6 +597,40 @@ function RankCard({
         ))}
       </div>
     </Card>
+  );
+}
+
+/** The open tab's table as a spreadsheet or a printable PDF. */
+function TabDownloads({
+  label,
+  links,
+}: {
+  label: string;
+  links: TabDownloadLinks;
+}) {
+  return (
+    <div
+      className="mb-4 flex flex-wrap items-center justify-end gap-2"
+      role="group"
+      aria-label={`Download the ${label} statistics`}
+    >
+      <Button variant="outline" size="sm" asChild>
+        {/* A file, not a page: a plain link, so the browser saves it. */}
+        <a href={links.csv} download>
+          <FileSpreadsheet
+            className="mr-1.5 h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          {label} CSV
+        </a>
+      </Button>
+      <Button variant="outline" size="sm" asChild>
+        <a href={links.pdf} target="_blank" rel="noopener">
+          <FileText className="mr-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {label} PDF
+        </a>
+      </Button>
+    </div>
   );
 }
 
@@ -2281,6 +2323,7 @@ export function LeaderboardView({
   subtitle = "Comprehensive performance records, milestones, and MVP rankings across all fixtures.",
   data,
   showHighlights = true,
+  downloads,
 }: LeaderboardViewProps) {
   const view = useLeaderboardState(data, showHighlights);
   const { activeTab, setActiveTab, searchQuery, setSearchQuery, hasAnyData } =
@@ -2343,15 +2386,27 @@ export function LeaderboardView({
           <OverviewTab view={view} />
         </TabsContent>
         <TabsContent value="batting" className="mt-0">
+          {downloads && (
+            <TabDownloads label="Batting" links={downloads("batting")} />
+          )}
           <BattingTab view={view} />
         </TabsContent>
         <TabsContent value="bowling" className="mt-0">
+          {downloads && (
+            <TabDownloads label="Bowling" links={downloads("bowling")} />
+          )}
           <BowlingTab view={view} />
         </TabsContent>
         <TabsContent value="fielding" className="mt-0">
+          {downloads && (
+            <TabDownloads label="Fielding" links={downloads("fielding")} />
+          )}
           <FieldingTab view={view} />
         </TabsContent>
         <TabsContent value="mvp" className="mt-0">
+          {downloads && (
+            <TabDownloads label="Points" links={downloads("mvp")} />
+          )}
           <MvpTab view={view} />
         </TabsContent>
       </Tabs>
