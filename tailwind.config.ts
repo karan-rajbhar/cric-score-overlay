@@ -3,7 +3,14 @@ import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
-  content: ["./src/**/*.tsx"],
+  // Class strings live in .ts modules too (the figure table's, which a server
+  // component imports; see components/ds/fig-table.ts): scan those as well,
+  // but not tests, which only mention classes they check for.
+  content: [
+    "./src/**/*.{ts,tsx}",
+    "!./src/**/*.test.{ts,tsx}",
+    "!./src/**/__fixtures__/**",
+  ],
   theme: {
     extend: {
       fontSize: {
