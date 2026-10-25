@@ -31,6 +31,7 @@ import {
 } from "../_components/examples";
 import {
   BATTING,
+  BATTING_DETAIL,
   BOWLING,
   CREASE,
   FALL_OF_WICKETS,
@@ -289,6 +290,19 @@ function Scorecards() {
   );
 }
 
+function DismissalDetail() {
+  return (
+    <Specimen
+      title="Dismissal detail"
+      usage="On the match page a batter's dismissal is a button: it opens the ball, who bowled to whom, how the batter went and the score at the fall, under their row. Several can be open; not-out batters stay plain. The printed report keeps the static card."
+    >
+      <div className="max-w-xl" data-specimen="dismissal-detail">
+        <BattingCard {...BATTING_DETAIL} expandable />
+      </div>
+    </Specimen>
+  );
+}
+
 function Award() {
   return (
     <Specimen
@@ -526,6 +540,7 @@ export function CricketSection() {
       </div>
       <Keypad />
       <Scorecards />
+      <DismissalDetail />
       <Award />
       <Partnerships />
       <Charts />

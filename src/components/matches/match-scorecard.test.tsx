@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MatchScorecard } from "./match-scorecard";
 import { makeMatch } from "~/test/factories";
 import type { Innings } from "~/lib/match-types";
@@ -186,6 +186,70 @@ describe("MatchScorecard", () => {
     ],
     bowling_performances: [],
     ...over,
+  });
+
+  it("opens how a wicket fell under the batter, and closes it again", () => {
+    const base = inningsOf({});
+    const match = makeMatch({
+      innings: [
+        inningsOf({
+          fall_of_wickets: [
+            {
+              id: "fow-1",
+              match_id: "m1",
+              innings_id: "inn-1",
+              wicket_number: 1,
+              runs_at_fall: 40,
+              overs_at_fall: 4.4,
+              batsman_out_id: "p1",
+              dismissal_type: "caught",
+              bowler_id: "bw",
+              fielder_id: "fl",
+              bowler: { id: "bw", full_name: "Jacob Duffy" },
+              fielder: { id: "fl", full_name: "Glenn Phillips" },
+              batsman: { id: "p1", full_name: "Virat Kohli" },
+            },
+          ],
+          batting_performances: base.batting_performances!.map((b) =>
+            b.user_id === "p1" ? { ...b, dismissal_type: "caught" } : b,
+          ),
+        }),
+      ],
+    });
+    render(<MatchScorecard match={match} />);
+
+    const toggle = screen.getByRole("button", {
+      name: /c Glenn Phillips b Jacob Duffy/,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const panel = document.getElementById(
+      toggle.getAttribute("aria-controls")!,
+    )!;
+    expect(panel).toHaveAttribute("hidden");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(panel).not.toHaveAttribute("hidden");
+    expect(panel).toHaveTextContent("4.4");
+    expect(panel).toHaveTextContent("Jacob Duffy to Virat Kohli");
+    expect(panel).toHaveTextContent("Out, caught by Glenn Phillips");
+    expect(panel).toHaveTextContent("40/1 · wicket 1");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(panel).toHaveAttribute("hidden");
+
+    // Batters still in have nothing to open.
+    expect(screen.getAllByRole("button", { name: /c Glenn/ })).toHaveLength(1);
+    expect(screen.getAllByText("not out")).toHaveLength(2);
+  });
+
+  it("keeps a dismissal as plain text when the wicket has no record", () => {
+    render(<MatchScorecard match={makeMatch({ innings: [inningsOf({})] })} />);
+    expect(
+      screen.queryByRole("button", { name: /b / }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("b")).toBeInTheDocument();
   });
 
   it("lists the partnerships by wicket, with each batter's runs and balls", () => {

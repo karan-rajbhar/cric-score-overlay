@@ -134,6 +134,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               didNotBat={inn.didNotBat}
               didNotBatLabel={inn.inProgress ? "Yet to bat" : "Did not bat"}
               milestones
+              expandable
               className="[contain-intrinsic-size:auto_36rem] [content-visibility:auto]"
             />
             <BowlingCard title="Bowling" rows={inn.bowlers} />

@@ -3,6 +3,7 @@ import { ballFaced, noBallByesOf } from "./firebase/scoring/recompute";
 
 /** The match's balls-faced rules (null: the Laws' convention). */
 type FacedRules = Parameters<typeof ballFaced>[0];
+import { dismissalDetailOf, type DismissalDetail } from "./dismissal-detail";
 import { playerAwardOf, type PlayerAward } from "./player-award";
 import {
   bowlerEconomy,
@@ -718,6 +719,8 @@ export interface ReportTeam {
 export interface ReportBatter {
   name: string;
   dismissal: string;
+  /** How the wicket fell, for the scorecard's dropdown (null: not out). */
+  detail: DismissalDetail | null;
   notOut: boolean;
   runs: number;
   balls: number;
@@ -825,6 +828,15 @@ function reportBatters(inn: InningsRow): ReportBatter[] {
         !b.is_out && b.dismissal_type === "retired_hurt"
           ? "retired hurt"
           : dismissalText(b, inn.fall_of_wickets ?? []),
+      detail: b.is_out
+        ? dismissalDetailOf(
+            b.user?.full_name ?? "Batter",
+            (inn.fall_of_wickets ?? []).find(
+              (f) => f.batsman_out_id === b.user_id,
+            ),
+            b.dismissal_type,
+          )
+        : null,
       notOut: !b.is_out && b.dismissal_type !== "retired_hurt",
       runs: b.runs_scored ?? 0,
       balls: b.balls_faced ?? 0,
