@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { PointsTable, type StandingRow } from "./standings";
+import { PointsTable, RankList, type StandingRow } from "./standings";
 
 const row = (name: string, extra: Partial<StandingRow> = {}): StandingRow => ({
   team: { name },
@@ -48,5 +48,31 @@ describe("PointsTable", () => {
     expect(within(tigers).getAllByRole("cell").map((c) => c.textContent)).toEqual(
       ["4", "2", "1", "0", "1", "4", "+0.50"],
     );
+  });
+});
+
+describe("RankList", () => {
+  it("makes a row a link to the player when it has an href", () => {
+    render(
+      <RankList
+        title="Top batters"
+        unit="Runs"
+        rows={[
+          {
+            name: "Jordan Bell",
+            team: "Royal Tigers",
+            value: 52,
+            href: "/players/p1",
+          },
+          { name: "Sam Clark", team: "Coastal Kings", value: 40 },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: /Jordan Bell/ })).toHaveAttribute(
+      "href",
+      "/players/p1",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByText("Sam Clark")).toBeInTheDocument();
   });
 });

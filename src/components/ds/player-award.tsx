@@ -1,4 +1,5 @@
 import { Award } from "lucide-react";
+import { PlayerLink } from "~/components/ds/player-link";
 import type { PlayerAward } from "~/lib/player-award";
 import { cn } from "~/lib/utils";
 import { Avatar } from "./avatar";
@@ -53,9 +54,12 @@ function FigureTile({
  */
 export function PlayerAwardCard({
   award,
+  href,
   className,
 }: {
   award: PlayerAward;
+  /** Their profile: the name opens it. */
+  href?: string;
   className?: string;
 }) {
   const { batting, bowling } = award;
@@ -79,7 +83,7 @@ export function PlayerAwardCard({
             Player of the match
           </span>
           <span className="block text-balance break-words text-lg font-semibold leading-snug text-foreground">
-            {award.name}
+            <PlayerLink name={award.name} href={href} />
           </span>
           {award.team && (
             <span className="block break-words text-xs text-muted-foreground">

@@ -1,4 +1,9 @@
-import type * as React from "react";
+"use client";
+
+import * as React from "react";
+import { ChevronDown } from "lucide-react";
+import { PlayerLink } from "~/components/ds/player-link";
+import type { DismissalDetail } from "~/lib/dismissal-detail";
 import { cn } from "~/lib/utils";
 
 /*
@@ -139,6 +144,8 @@ function HeadRow({
 
 export type BatterFigures = {
   name: string;
+  /** The player's profile: the name opens it. */
+  href?: string;
   runs: number;
   balls: number;
   fours: number;
@@ -148,6 +155,8 @@ export type BatterFigures = {
 
 export type BowlerFigures = {
   name: string;
+  /** The player's profile: the name opens it. */
+  href?: string;
   overs: string;
   maidens: number;
   runs: number;
@@ -193,7 +202,7 @@ export function CreaseTable({
                 )}
               >
                 <span className="block truncate">
-                  {b.name}
+                  <PlayerLink name={b.name} href={b.href} />
                   {b.name === strikerName && (
                     <>
                       <span aria-hidden="true"> *</span>
@@ -239,7 +248,9 @@ function BowlerRow({
         scope="row"
         className={cn(figCell, "max-w-0 font-sans font-medium text-foreground")}
       >
-        <span className="block truncate">{b.name}</span>
+        <span className="block truncate">
+          <PlayerLink name={b.name} href={b.href} />
+        </span>
       </th>
       <td className={figCell}>{b.overs}</td>
       <td className={figCell}>{b.maidens}</td>
@@ -300,43 +311,104 @@ function BattingTotals({
   );
 }
 
-/**
- * A side's batting: dismissal under each name, extras, total, yet to bat.
- * `milestones` puts fifties and hundreds on a chip; `note` is a line under
- * the total ("12 fours and 3 sixes: 66 runs").
- */
-export function BattingCard({
-  title,
-  score,
-  rows,
-  extras,
-  total,
-  didNotBat,
-  didNotBatLabel = "Yet to bat",
-  milestones = false,
-  note,
-  className,
-}: {
-  title: React.ReactNode;
-  score?: React.ReactNode;
-  rows: readonly (BatterFigures & { dismissal: string; notOut?: boolean })[];
-  extras: { total: number; detail: string };
-  total: { label: string; runRate: string };
-  didNotBat?: readonly string[];
-  didNotBatLabel?: string;
-  milestones?: boolean;
-  note?: React.ReactNode;
-  className?: string;
-}) {
+export type BatterRow = BatterFigures & {
+  dismissal: string;
+  notOut?: boolean;
+  /** How the wicket fell: opens under the row when the card is expandable. */
+  detail?: DismissalDetail | null;
+};
+
+function DismissalPanel({ detail }: { detail: DismissalDetail }) {
   return (
-    <TableCard title={title} aside={score} className={className}>
-      <table className={figTable}>
-        <thead>
-          <HeadRow columns={BATTING_COLUMNS} />
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.name} className="border-t border-border">
+    <div className="space-y-0.5 rounded-lg bg-muted/60 px-3 py-2 text-left font-sans">
+      <p className="text-sm text-foreground">
+        <span className="mr-2 font-score text-xs tabular-nums text-muted-foreground">
+          {detail.over}
+        </span>
+        {detail.headline}
+      </p>
+      <p className="text-sm font-medium text-wicket">{detail.outcome}</p>
+      <p className="font-score text-xs tabular-nums text-muted-foreground">
+        {detail.score}
+      </p>
+    </div>
+  );
+}
+
+/** The dismissal under a name: a button when it has a detail to open. */
+function DismissalLine({
+  row: r,
+  panelId,
+  isOpen,
+  onToggle,
+}: {
+  row: BatterRow;
+  panelId: string;
+  isOpen: boolean;
+  onToggle: (() => void) | null;
+}) {
+  if (!onToggle) {
+    return (
+      <span
+        className={cn(
+          "block text-xs",
+          r.notOut ? "font-medium text-success" : "text-muted-foreground",
+        )}
+      >
+        {r.dismissal}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-expanded={isOpen}
+      aria-controls={panelId}
+      onClick={onToggle}
+      className="-ml-1.5 mt-0.5 flex min-h-7 max-w-full items-center gap-1 rounded-md px-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <ChevronDown
+        className={cn(
+          "h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none",
+          isOpen && "rotate-180",
+        )}
+        aria-hidden="true"
+      />
+      <span className="truncate">{r.dismissal}</span>
+    </button>
+  );
+}
+
+/**
+ * The batters in order. A dismissal with a `detail` is a button that opens
+ * how it happened in a row under the batter; several can be open at once.
+ */
+function BatterRows({
+  rows,
+  milestones,
+  expandable,
+}: {
+  rows: readonly BatterRow[];
+  milestones: boolean;
+  expandable: boolean;
+}) {
+  const [open, setOpen] = React.useState<ReadonlySet<string>>(new Set());
+  const base = React.useId();
+  const toggle = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  return (
+    <>
+      {rows.map((r, i) => {
+        const panelId = `${base}-${i}`;
+        const detail = expandable ? r.detail : null;
+        const isOpen = open.has(r.name);
+        return (
+          <React.Fragment key={r.name}>
+            <tr className="border-t border-border">
               <th
                 scope="row"
                 className={cn(
@@ -345,18 +417,14 @@ export function BattingCard({
                 )}
               >
                 <span className="block truncate font-medium text-foreground">
-                  {r.name}
+                  <PlayerLink name={r.name} href={r.href} />
                 </span>
-                <span
-                  className={cn(
-                    "block text-xs",
-                    r.notOut
-                      ? "font-medium text-success"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {r.dismissal}
-                </span>
+                <DismissalLine
+                  row={r}
+                  panelId={panelId}
+                  isOpen={isOpen}
+                  onToggle={detail ? () => toggle(r.name) : null}
+                />
               </th>
               <td className={cn(figCell, "font-semibold text-foreground")}>
                 {milestones ? (
@@ -372,7 +440,63 @@ export function BattingCard({
                 {r.strikeRate}
               </td>
             </tr>
-          ))}
+            {detail && (
+              <tr id={panelId} hidden={!isOpen}>
+                <td colSpan={BATTING_COLUMNS.length} className="px-4 pb-3 pt-0">
+                  <DismissalPanel detail={detail} />
+                </td>
+              </tr>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * A side's batting: dismissal under each name, extras, total, yet to bat.
+ * `milestones` puts fifties and hundreds on a chip; `note` is a line under
+ * the total ("12 fours and 3 sixes: 66 runs").
+ */
+export function BattingCard({
+  title,
+  score,
+  rows,
+  extras,
+  total,
+  didNotBat,
+  didNotBatLabel = "Yet to bat",
+  milestones = false,
+  expandable = false,
+  note,
+  className,
+}: {
+  title: React.ReactNode;
+  score?: React.ReactNode;
+  rows: readonly BatterRow[];
+  extras: { total: number; detail: string };
+  total: { label: string; runRate: string };
+  didNotBat?: readonly string[];
+  didNotBatLabel?: string;
+  milestones?: boolean;
+  /** Each dismissal with a `detail` opens under its row (not in print). */
+  expandable?: boolean;
+  note?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <TableCard title={title} aside={score} className={className}>
+      <table className={figTable}>
+        <thead>
+          <HeadRow columns={BATTING_COLUMNS} />
+        </thead>
+        <tbody>
+          <BatterRows
+            rows={rows}
+            milestones={milestones}
+            expandable={expandable}
+          />
         </tbody>
         <BattingTotals extras={extras} total={total} />
       </table>
@@ -383,7 +507,9 @@ export function BattingCard({
       )}
       {didNotBat && didNotBat.length > 0 && (
         <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{didNotBatLabel}: </span>
+          <span className="font-medium text-foreground">
+            {didNotBatLabel}:{" "}
+          </span>
           {didNotBat.join(", ")}
         </p>
       )}

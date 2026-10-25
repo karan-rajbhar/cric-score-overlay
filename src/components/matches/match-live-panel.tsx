@@ -19,6 +19,7 @@ import {
   strikeRate,
   teamName,
 } from "~/lib/cricket";
+import { playerHrefOf } from "~/lib/player-href";
 import { useLiveState } from "~/lib/hooks/useLiveState";
 import { winPredictorFromLive } from "~/lib/win-predictor";
 import type { Innings, Match } from "~/lib/match-types";
@@ -83,6 +84,7 @@ export function MatchLivePanel({ match }: { match: Match }) {
     .sort((a, b) => (a.batting_position ?? 99) - (b.batting_position ?? 99));
   const batters: BatterFigures[] = atCrease.map((b) => ({
     name: b.user?.full_name ?? "Batter",
+    href: playerHrefOf(b.user_id),
     runs: b.runs_scored,
     balls: b.balls_faced,
     fours: b.fours,
@@ -98,6 +100,7 @@ export function MatchLivePanel({ match }: { match: Match }) {
   );
   const bowler: BowlerFigures | undefined = bowling && {
     name: bowling.user?.full_name ?? live?.current_bowler_name ?? "Bowler",
+    href: playerHrefOf(bowling.user_id),
     overs: formatBowlerOvers(bowling, bpo),
     maidens: bowling.maidens,
     runs: bowling.runs_conceded,

@@ -196,6 +196,36 @@ export const BATTING = {
   didNotBat: ["Tanmay Ghosh", "Ishaan Pillai", "Varun Saxena"],
 };
 
+/** BATTING with how the first two wickets fell, for the expandable card. */
+export const BATTING_DETAIL = {
+  ...BATTING,
+  rows: BATTING.rows
+    .map((r, i) =>
+      i === 0
+        ? {
+            ...r,
+            detail: {
+              over: "6.2",
+              headline: "Qureshi to Rohan Iyer",
+              outcome: "Out, caught by Mehta",
+              score: "52/1 · wicket 1",
+            },
+          }
+        : i === 1
+          ? {
+              ...r,
+              detail: {
+                over: "8.5",
+                headline: "Rao to Sameer Khan",
+                outcome: "Out, bowled",
+                score: "71/2 · wicket 2",
+              },
+            }
+          : r,
+    )
+    .map((r) => ({ ...r, href: "#" })),
+};
+
 export const BOWLING = {
   title: "Hilltop Hawks bowling",
   rows: [

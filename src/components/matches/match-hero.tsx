@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { PlayerAwardCard } from "~/components/ds/player-award";
+import { PlayerLink } from "~/components/ds/player-link";
 import {
   HeroScore,
   HeroTime,
@@ -18,6 +19,7 @@ import {
   oversFromBalls,
   runRate,
 } from "~/lib/cricket";
+import { playerHrefOf } from "~/lib/player-href";
 import type { Innings, Match, Team } from "~/lib/match-types";
 import { playerAwardOf } from "~/lib/player-award";
 
@@ -69,27 +71,29 @@ const surname = (name?: string | null) =>
 export function performerLines(
   match: Pick<Match, "innings" | "team1_id" | "team2_id">,
   teamId: string,
-): string[] {
+): { text: string; href?: string }[] {
   const main = (match.innings ?? []).filter((i) => i.innings_number <= 2);
   const batted = main.find((i) => i.team_id === teamId);
   const bowled = main.find((i) => i.team_id !== teamId);
-  const lines: string[] = [];
+  const lines: { text: string; href?: string }[] = [];
   const bat = [...(batted?.batting_performances ?? [])].sort(
     (a, b) => b.runs_scored - a.runs_scored || a.balls_faced - b.balls_faced,
   )[0];
   if (bat && bat.runs_scored > 0 && surname(bat.user?.full_name)) {
-    lines.push(
-      `${surname(bat.user?.full_name)} ${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})`,
-    );
+    lines.push({
+      text: `${surname(bat.user?.full_name)} ${bat.runs_scored}${bat.is_out ? "" : "*"} (${bat.balls_faced})`,
+      href: playerHrefOf(bat.user_id),
+    });
   }
   const bowl = [...(bowled?.bowling_performances ?? [])].sort(
     (a, b) =>
       b.wickets_taken - a.wickets_taken || a.runs_conceded - b.runs_conceded,
   )[0];
   if (bowl && bowl.wickets_taken > 0 && surname(bowl.user?.full_name)) {
-    lines.push(
-      `${surname(bowl.user?.full_name)} ${bowl.wickets_taken}/${bowl.runs_conceded}`,
-    );
+    lines.push({
+      text: `${surname(bowl.user?.full_name)} ${bowl.wickets_taken}/${bowl.runs_conceded}`,
+      href: playerHrefOf(bowl.user_id),
+    });
   }
   return lines;
 }
@@ -180,7 +184,14 @@ export function MatchHero({
     const props = side(s, i);
     const lines = performers ? performerLines(match, s.team.id) : [];
     return lines.length
-      ? { ...props, extra: lines.map((l) => <p key={l}>{l}</p>) }
+      ? {
+          ...props,
+          extra: lines.map((l) => (
+            <p key={l.text}>
+              <PlayerLink name={l.text} href={l.href} />
+            </p>
+          )),
+        }
       : props;
   };
 
@@ -202,7 +213,11 @@ export function MatchHero({
       <div>
         <MatchNote tone="result">{formatMatchResult(match)}</MatchNote>
         {award && match.status === "completed" && (
-          <PlayerAwardCard award={award} className="mt-4" />
+          <PlayerAwardCard
+            award={award}
+            href={playerHrefOf(award.userId)}
+            className="mt-4"
+          />
         )}
       </div>
     ) : line ? (

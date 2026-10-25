@@ -5,6 +5,7 @@ import type * as React from "react";
 import { Coins, Flag, Target, TrendingUp, XCircle } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Card } from "~/components/ds/card";
+import { PlayerLink } from "~/components/ds/player-link";
 import { Chip } from "~/components/ds/chip";
 import { ListCard, ListRow } from "~/components/ds/list";
 import { RankList } from "~/components/ds/standings";
@@ -15,6 +16,7 @@ import {
   formatDismissalType,
   sidesInBattingOrder,
 } from "~/lib/cricket";
+import { playerHrefOf } from "~/lib/player-href";
 import { buildExportSummary, type ExportTeamStats } from "~/lib/match-report";
 import { cn } from "~/lib/utils";
 import { MatchLivePanel } from "./match-live-panel";
@@ -108,7 +110,13 @@ function keyMomentsOf(match: Match): Moment[] {
   return moments;
 }
 
-type Figure = { name: string; fig: string; sub: string; strong: boolean };
+type Figure = {
+  name: string;
+  href?: string;
+  fig: string;
+  sub: string;
+  strong: boolean;
+};
 
 function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
   return (
@@ -124,7 +132,7 @@ function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
               className="flex items-baseline gap-2 border-t border-border py-2 first:border-t-0"
             >
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                {r.name}
+                <PlayerLink name={r.name} href={r.href} />
               </span>
               <span
                 className={cn(
@@ -190,6 +198,7 @@ function TeamSummaryCard({
           title="Top batters"
           rows={stats.batters.map((b) => ({
             name: b.name,
+            href: playerHrefOf(b.userId),
             fig: `${b.runs}${b.notOut ? "*" : ""}`,
             sub: `(${b.balls})`,
             strong: b.runs >= 50,
@@ -199,6 +208,7 @@ function TeamSummaryCard({
           title="Top bowlers"
           rows={stats.bowlers.map((b) => ({
             name: b.name,
+            href: playerHrefOf(b.userId),
             fig: `${b.wickets}/${b.runs}`,
             sub: `(${b.overs})`,
             strong: b.wickets >= 3,
@@ -248,6 +258,7 @@ function BestPerformers({ match }: { match: Match }) {
     .slice(0, 3)
     .map(({ b, team }) => ({
       name: b.user?.full_name ?? "Batter",
+      href: playerHrefOf(b.user_id),
       avatarUrl: b.user?.avatar_url,
       team: teamName(team),
       value: `${b.runs_scored}${b.is_out ? "" : "*"}`,
@@ -269,6 +280,7 @@ function BestPerformers({ match }: { match: Match }) {
     .slice(0, 3)
     .map(({ b, team }) => ({
       name: b.user?.full_name ?? "Bowler",
+      href: playerHrefOf(b.user_id),
       avatarUrl: b.user?.avatar_url,
       team: teamName(team),
       value: `${b.wickets_taken}/${b.runs_conceded}`,
