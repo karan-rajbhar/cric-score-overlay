@@ -463,6 +463,8 @@ export function useUserAdminClubIdsQuery(userId?: string | null) {
 export interface HistoricalMatchSummary {
   id: string;
   title: string;
+  status: string | null;
+  tournament_snapshot?: { name: string | null } | null;
   scheduled_at: string | null;
   venue: string | null;
   winning_team_id: string | null;
@@ -472,6 +474,7 @@ export interface HistoricalMatchSummary {
   team2_id: string;
   innings?: Array<{
     team_id: string;
+    innings_number?: number | null;
     total_runs: number;
     total_wickets: number;
     total_overs: number;
@@ -481,6 +484,8 @@ export interface HistoricalMatchSummary {
 const HEAD_TO_HEAD_SELECT = `
   id,
   title,
+  status,
+  tournament_snapshot,
   scheduled_at,
   venue,
   winning_team_id,
@@ -488,11 +493,12 @@ const HEAD_TO_HEAD_SELECT = `
   result_description,
   team1_id,
   team2_id,
-  innings(team_id, total_runs, total_wickets, total_overs)
+  innings(team_id, innings_number, total_runs, total_wickets, total_overs)
 `;
 
 /**
- * The two teams' completed meetings, the latest first. One equality query
+ * The two teams' meetings of any status (the view counts the finished ones
+ * and lists the live and upcoming), the latest first. One equality query
  * per home / away pairing (no composite index needed), so it reads only
  * these matches rather than every completed match.
  */
@@ -500,13 +506,11 @@ export async function fetchHeadToHead(
   db: Pick<ReturnType<typeof createClient>, "from">,
   team1Id: string,
   team2Id: string,
-  currentMatchId: string,
 ): Promise<HistoricalMatchSummary[]> {
   const pairing = (home: string, away: string) =>
     db
       .from("matches")
       .select(HEAD_TO_HEAD_SELECT)
-      .eq("status", "completed")
       .eq("team1_id", home)
       .eq("team2_id", away);
   const results = await Promise.all(
@@ -520,7 +524,7 @@ export async function fetchHeadToHead(
     for (const row of (data ?? []) as unknown as Array<
       HistoricalMatchSummary & Record<string, unknown>
     >) {
-      if (row.id !== currentMatchId) rows.push(row);
+      rows.push(row);
     }
   }
   // As `.order("scheduled_at", { ascending: false })` (nulls first) over
@@ -534,15 +538,10 @@ export async function fetchHeadToHead(
 /**
  * TanStack Query hook for Head-to-Head historical matches
  */
-export function useHeadToHeadQuery(
-  team1Id: string,
-  team2Id: string,
-  currentMatchId: string,
-) {
+export function useHeadToHeadQuery(team1Id: string, team2Id: string) {
   return useQuery<HistoricalMatchSummary[]>({
-    queryKey: ["headToHead", team1Id, team2Id, currentMatchId],
-    queryFn: () =>
-      fetchHeadToHead(createClient(), team1Id, team2Id, currentMatchId),
+    queryKey: ["headToHead", team1Id, team2Id],
+    queryFn: () => fetchHeadToHead(createClient(), team1Id, team2Id),
     enabled: Boolean(team1Id && team2Id),
     staleTime: 5 * 60 * 1000,
   });
