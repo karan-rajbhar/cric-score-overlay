@@ -463,6 +463,8 @@ export function useUserAdminClubIdsQuery(userId?: string | null) {
 export interface HistoricalMatchSummary {
   id: string;
   title: string;
+  status: string | null;
+  tournament_snapshot?: { name: string | null } | null;
   scheduled_at: string | null;
   venue: string | null;
   winning_team_id: string | null;
@@ -481,6 +483,8 @@ export interface HistoricalMatchSummary {
 const HEAD_TO_HEAD_SELECT = `
   id,
   title,
+  status,
+  tournament_snapshot,
   scheduled_at,
   venue,
   winning_team_id,
@@ -492,7 +496,8 @@ const HEAD_TO_HEAD_SELECT = `
 `;
 
 /**
- * The two teams' completed meetings, the latest first. One equality query
+ * The two teams' meetings of any status (the view counts the finished ones
+ * and lists the live and upcoming), the latest first. One equality query
  * per home / away pairing (no composite index needed), so it reads only
  * these matches rather than every completed match.
  */
@@ -506,7 +511,6 @@ export async function fetchHeadToHead(
     db
       .from("matches")
       .select(HEAD_TO_HEAD_SELECT)
-      .eq("status", "completed")
       .eq("team1_id", home)
       .eq("team2_id", away);
   const results = await Promise.all(

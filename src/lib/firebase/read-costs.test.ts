@@ -312,8 +312,10 @@ describe("billed reads per page on the seed data", () => {
       ballLog: 50,
       ballLogArchived: 7,
       // Was every completed match (4 on the seed, unbounded in production):
-      // now 2 equality queries for the two pairings (an empty one bills 1).
-      headToHead: 3,
+      // now 2 equality queries for the two pairings (an empty one bills 1),
+      // of any status so the live and upcoming meetings can be listed too:
+      // the pair's own matches, 4 for the seed's busiest pair.
+      headToHead: 4,
       // 6 when the tournament's club, the match's own, was checked twice.
       matchAdminCheck: 4,
       typeahead: 10,
