@@ -242,4 +242,40 @@ describe("LeaderboardView Component", () => {
     expect(screen.getByRole("columnheader", { name: /^bbi$/i })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /^econ$/i })).toBeInTheDocument();
   });
+
+  describe("downloads", () => {
+    const downloads = (tab: string) => ({
+      csv: `/files/${tab}.csv`,
+      pdf: `/files/${tab}.pdf`,
+    });
+
+    it("offers CSV and PDF on the batting, bowling, fielding and MVP tabs", () => {
+      render(
+        <LeaderboardView
+          data={mockData}
+          downloads={downloads as never}
+        />,
+      );
+      for (const [tab, label] of [
+        ["batting", "Batting"],
+        ["bowling", "Bowling"],
+        ["fielding", "Fielding"],
+        ["mvp", "Points"],
+      ] as const) {
+        selectTab(screen.getByRole("tab", { name: new RegExp(tab === "mvp" ? "mvp" : tab, "i") }));
+        const csv = screen.getByRole("link", { name: `${label} CSV` });
+        expect(csv).toHaveAttribute("href", `/files/${tab}.csv`);
+        expect(csv).toHaveAttribute("download");
+        const pdf = screen.getByRole("link", { name: `${label} PDF` });
+        expect(pdf).toHaveAttribute("href", `/files/${tab}.pdf`);
+        expect(pdf).toHaveAttribute("target", "_blank");
+      }
+    });
+
+    it("shows none when the page gives no download links", () => {
+      render(<LeaderboardView data={mockData} />);
+      selectTab(screen.getByRole("tab", { name: /batting/i }));
+      expect(screen.queryByRole("link", { name: /csv/i })).toBeNull();
+    });
+  });
 });

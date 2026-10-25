@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { MobileTabBar } from "~/components/layout/mobile-tab-bar";
 import { NavigationBar } from "~/components/navigation-bar";
-import { isMatchReportPath } from "~/lib/report-route";
+import { isReportPath } from "~/lib/report-route";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -37,8 +37,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // The printable match report brings its own toolbar and layout.
-  if (isMatchReportPath(pathname)) {
+  // The printable reports (match, club statistics) bring their own toolbar
+  // and layout.
+  if (isReportPath(pathname)) {
     return <div className="min-h-screen bg-background">{children}</div>;
   }
 

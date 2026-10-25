@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { isMatchReportPath } from "./report-route";
+import { isReportPath } from "./report-route";
 import {
   createContext,
   useContext,
@@ -45,7 +45,7 @@ export function ThemeProvider({
 
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("light");
   // The match report is a printed document: always light.
-  const forceLight = isMatchReportPath(usePathname());
+  const forceLight = isReportPath(usePathname());
 
   useEffect(() => {
     const root = window.document.documentElement;

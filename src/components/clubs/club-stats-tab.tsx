@@ -3,7 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Initials } from "~/components/ui/initials";
 import { StatTile } from "~/components/ui/stat-tile";
-import { Activity } from "lucide-react";
+import { Activity, FileSpreadsheet, FileText } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
 import { LeaderboardData } from "~/lib/leaderboard";
@@ -45,6 +46,7 @@ export interface ClubMilestones {
 }
 
 interface ClubStatsTabProps {
+  clubId: string;
   clubName: string;
   milestones: ClubMilestones;
   battingLeaders: ClubBatterLeader[];
@@ -53,6 +55,7 @@ interface ClubStatsTabProps {
 }
 
 export function ClubStatsTab({
+  clubId,
   clubName,
   milestones,
   battingLeaders,
@@ -80,13 +83,46 @@ export function ClubStatsTab({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">
-          Statistics and records
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Across every match {clubName} has hosted.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Statistics and records
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Across every match {clubName} has hosted.
+          </p>
+        </div>
+        {(leaderboardData?.mvp.length ?? 0) > 0 && (
+          <div
+            className="flex flex-wrap gap-2"
+            role="group"
+            aria-label="Download the club statistics"
+          >
+            <Button variant="outline" size="sm" asChild>
+              {/* A file, not a page: a plain link, so the browser saves it. */}
+              <a href={`/clubs/${clubId}/stats.csv`} download>
+                <FileSpreadsheet
+                  className="mr-1.5 h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                All statistics CSV
+              </a>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href={`/clubs/${clubId}/stats-report`}
+                target="_blank"
+                rel="noopener"
+              >
+                <FileText
+                  className="mr-1.5 h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                All statistics PDF
+              </a>
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Key Milestones Cards */}
@@ -124,6 +160,10 @@ export function ClubStatsTab({
           subtitle={`The leading players across every ${clubName} match.`}
           data={leaderboardData}
           showHighlights={true}
+          downloads={(tab) => ({
+            csv: `/clubs/${clubId}/stats.csv?tab=${tab}`,
+            pdf: `/clubs/${clubId}/stats-report?tab=${tab}`,
+          })}
         />
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
@@ -149,10 +189,14 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground">
                           {idx + 1}
                         </span>
-                        <Initials name={b.name} fallback="P" className="h-8 w-8" />
+                        <Initials
+                          name={b.name}
+                          fallback="P"
+                          className="h-8 w-8"
+                        />
                         <div>
                           <div className="font-semibold text-foreground">
                             {b.name}
@@ -165,7 +209,7 @@ export function ClubStatsTab({
                       </div>
 
                       <div className="text-right">
-                        <div className="font-semibold text-sm font-score tabular-nums text-foreground">
+                        <div className="font-score text-sm font-semibold tabular-nums text-foreground">
                           {b.runs}
                         </div>
                         <div className="text-2xs text-muted-foreground">
@@ -201,10 +245,14 @@ export function ClubStatsTab({
                       className="flex items-center justify-between p-3.5"
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted font-semibold text-2xs text-muted-foreground">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground">
                           {idx + 1}
                         </span>
-                        <Initials name={bw.name} fallback="B" className="h-8 w-8" />
+                        <Initials
+                          name={bw.name}
+                          fallback="B"
+                          className="h-8 w-8"
+                        />
                         <div>
                           <div className="font-semibold text-foreground">
                             {bw.name}
@@ -216,7 +264,7 @@ export function ClubStatsTab({
                       </div>
 
                       <div className="text-right">
-                        <div className="font-semibold text-sm font-score tabular-nums text-foreground">
+                        <div className="font-score text-sm font-semibold tabular-nums text-foreground">
                           {bw.wickets}{" "}
                           <span className="text-xs font-normal">wkts</span>
                         </div>

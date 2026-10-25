@@ -728,6 +728,7 @@ export default async function ClubPage({
         {/* TAB 4: CLUB STATS & RECORDS */}
         <TabsContent value="stats" className="mt-4 sm:mt-6">
           <ClubStatsTab
+            clubId={club.id}
             clubName={club.name}
             milestones={milestones}
             battingLeaders={battingLeaders}

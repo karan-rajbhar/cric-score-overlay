@@ -74,9 +74,14 @@ const PDF_LABEL: Record<Exclude<PdfState, "failed">, string> = {
 export function ReportToolbar({
   fileName,
   matchUrl,
+  title = "Match report",
+  closeLabel = "Close",
 }: {
   fileName: string;
+  /** The page the report is about (the link shared, where Close goes). */
   matchUrl: string;
+  title?: string;
+  closeLabel?: string;
 }) {
   const pdf = usePdfFile(fileName);
   const [linkCopied, setLinkCopied] = React.useState(false);
@@ -108,7 +113,7 @@ export function ReportToolbar({
       <div className="mx-auto flex max-w-[52rem] flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-6">
         <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <BrandMark className="h-7 w-7" />
-          Match report
+          {title}
         </span>
         <div className="flex flex-wrap items-center gap-2">
           {pdf.state !== "failed" && (
@@ -131,7 +136,7 @@ export function ReportToolbar({
             </span>
           </Button>
           <Button size="sm" variant="ghost" onClick={close}>
-            Close
+            {closeLabel}
           </Button>
         </div>
       </div>

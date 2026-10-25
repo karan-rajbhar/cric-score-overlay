@@ -6,18 +6,10 @@ import { PlayerLink } from "~/components/ds/player-link";
 import type { DismissalDetail } from "~/lib/dismissal-detail";
 import { cn } from "~/lib/utils";
 
-/*
- * Figure tables: the first column is a name, the rest are right-aligned
- * tabular figures. Runs and wickets carry the weight; the rest stay plain.
- */
+import { figCell, figHead, figTable } from "./fig-table";
 
-export const figTable = "w-full text-sm tabular-nums";
-// The name column takes the slack (first:w-full), so figures stay compact
-// on the right and long names keep their room on phones.
-export const figHead =
-  "px-2 py-2 text-right text-xs font-medium text-muted-foreground first:w-full first:pl-4 first:text-left last:pr-4 sm:px-3 sm:first:pl-4 sm:last:pr-4";
-export const figCell =
-  "px-2 py-2.5 text-right font-score first:pl-4 first:text-left last:pr-4 sm:px-3 sm:first:pl-4 sm:last:pr-4";
+// Re-exported for client code; server components import ./fig-table directly.
+export { figCell, figHead, figTable };
 
 /** Card with a title row ("Mumbai Strikers innings  182/4 (20)"). */
 export function TableCard({
