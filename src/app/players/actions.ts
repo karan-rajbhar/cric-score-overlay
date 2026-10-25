@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/firebase/server";
-import { validateUsername, cleanHandle } from "~/lib/username";
+import { validateUsername } from "~/lib/username";
+import { parsePlayerRef, playerLookup } from "~/lib/player-ref";
 
 export interface UsernameCheckResult {
   available: boolean;
@@ -159,32 +160,18 @@ export async function updateUsername(
 }
 
 /**
- * Looks up a player by either their unique UUID or their @username handle.
+ * Looks up a player by `@handle` or by id (see `~/lib/player-ref`).
  */
 export async function getPlayerByIdOrHandle(idOrHandle: string) {
-  const clean = cleanHandle(idOrHandle);
-  if (!clean) return null;
+  const ref = parsePlayerRef(idOrHandle);
+  if (!ref) return null;
 
   const db = await createServerClient();
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      clean,
-    );
-
-  if (isUuid) {
-    const { data } = await db
-      .from("users")
-      .select("id, full_name, avatar_url, username, location")
-      .eq("id", clean)
-      .maybeSingle();
-    return data;
-  }
-
+  const { column, value } = playerLookup(ref);
   const { data } = await db
     .from("users")
     .select("id, full_name, avatar_url, username, location")
-    .eq("username", clean)
+    .eq(column, value)
     .maybeSingle();
-
   return data;
 }
