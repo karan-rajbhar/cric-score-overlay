@@ -294,7 +294,7 @@ function DismissalDetail() {
   return (
     <Specimen
       title="Dismissal detail"
-      usage="On the match page a batter's dismissal is a button: it opens the ball, who bowled to whom, how the batter went and the score at the fall, under their row. Several can be open; not-out batters stay plain. The printed report keeps the static card."
+      usage="On the match page a batter's name opens their profile (so do bowlers' names, and the top batters and bowlers on the summary), and the dismissal is a button: it opens the ball, who bowled to whom, how the batter went and the score at the fall, under their row. Several can be open; not-out batters stay plain. The printed report keeps the static card."
     >
       <div className="max-w-xl" data-specimen="dismissal-detail">
         <BattingCard {...BATTING_DETAIL} expandable />

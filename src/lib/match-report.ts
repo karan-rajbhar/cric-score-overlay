@@ -30,6 +30,7 @@ import {
 
 export interface ExportBatter {
   name: string;
+  userId?: string | null;
   runs: number;
   balls: number;
   notOut: boolean;
@@ -38,6 +39,7 @@ export interface ExportBatter {
 
 export interface ExportBowler {
   name: string;
+  userId?: string | null;
   /** Cricket overs notation, e.g. "3.4". */
   overs: string;
   runs: number;
@@ -81,6 +83,7 @@ export function buildExportSummary(
     scoreLine: scoreLine(battingInnings),
     batters: topBatters(battingInnings).map((b) => ({
       name: b.user?.full_name ?? "—",
+      userId: b.user_id ?? null,
       runs: b.runs_scored ?? 0,
       balls: b.balls_faced ?? 0,
       notOut: !b.is_out,
@@ -88,6 +91,7 @@ export function buildExportSummary(
     })),
     bowlers: topBowlers(match, team.id).map((b) => ({
       name: b.user?.full_name ?? "—",
+      userId: b.user_id ?? null,
       overs: formatBowlerOvers(b),
       runs: b.runs_conceded ?? 0,
       wickets: b.wickets_taken ?? 0,
@@ -718,6 +722,7 @@ export interface ReportTeam {
 
 export interface ReportBatter {
   name: string;
+  userId: string | null;
   dismissal: string;
   /** How the wicket fell, for the scorecard's dropdown (null: not out). */
   detail: DismissalDetail | null;
@@ -731,6 +736,7 @@ export interface ReportBatter {
 
 export interface ReportBowler {
   name: string;
+  userId: string | null;
   overs: string;
   maidens: number;
   runs: number;
@@ -824,6 +830,7 @@ function reportBatters(inn: InningsRow): ReportBatter[] {
     .sort(byBattingOrder)
     .map((b) => ({
       name: b.user?.full_name ?? "—",
+      userId: b.user_id ?? null,
       dismissal:
         !b.is_out && b.dismissal_type === "retired_hurt"
           ? "retired hurt"
@@ -916,6 +923,7 @@ function reportBowlers(inn: InningsRow): ReportBowler[] {
         log.length > 0 ? mine.filter(pred).length : null;
       return {
         name: b.user?.full_name ?? "—",
+        userId: b.user_id ?? null,
         overs: formatBowlerOvers(b),
         maidens: b.maidens ?? 0,
         runs: b.runs_conceded ?? 0,

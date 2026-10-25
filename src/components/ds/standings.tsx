@@ -32,8 +32,16 @@ export type StandingRow = {
 };
 
 const STATUS = {
-  qualified: { mark: "Q", label: "qualified", cls: "bg-success/10 text-success" },
-  eliminated: { mark: "E", label: "eliminated", cls: "bg-muted text-muted-foreground" },
+  qualified: {
+    mark: "Q",
+    label: "qualified",
+    cls: "bg-success/10 text-success",
+  },
+  eliminated: {
+    mark: "E",
+    label: "eliminated",
+    cls: "bg-muted text-muted-foreground",
+  },
 } as const;
 
 function StandingTableRow({
@@ -56,7 +64,10 @@ function StandingTableRow({
 }) {
   const status = row.status ? STATUS[row.status] : null;
   const name = row.href ? (
-    <Link href={row.href} className="truncate hover:text-primary hover:underline">
+    <Link
+      href={row.href}
+      className="truncate hover:text-primary hover:underline"
+    >
       {row.team.name}
     </Link>
   ) : (
@@ -213,41 +224,63 @@ export function RankList({
     value: string | number;
     detail?: string;
     avatarUrl?: string | null;
+    /** The player's profile: the row opens it. */
+    href?: string;
   }[];
   className?: string;
 }) {
   return (
     <TableCard title={title} aside={unit} className={className}>
       <ol>
-        {rows.map((r, i) => (
-          <li
-            key={r.name}
-            className="flex items-center gap-3 border-t border-border px-4 py-3 first:border-t-0"
-          >
-            <span className="w-5 shrink-0 text-right font-score text-sm tabular-nums text-muted-foreground">
-              {i + 1}
-            </span>
-            <Avatar name={r.name} src={r.avatarUrl} size="sm" />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium text-foreground">
-                {r.name}
+        {rows.map((r, i) => {
+          const rowClass = "flex items-center gap-3 px-4 py-3 first:border-t-0";
+          const body = (
+            <>
+              <span className="w-5 shrink-0 text-right font-score text-sm tabular-nums text-muted-foreground">
+                {i + 1}
               </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {r.team}
-              </span>
-            </span>
-            <span className="shrink-0 text-right">
-              <span className="block font-score text-lg font-semibold tabular-nums leading-tight text-foreground">
-                {r.value}
-              </span>
-              {r.detail && (
-                <span className="block font-score text-xs tabular-nums text-muted-foreground">
-                  {r.detail}
+              <Avatar name={r.name} src={r.avatarUrl} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {r.name}
                 </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {r.team}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block font-score text-lg font-semibold tabular-nums leading-tight text-foreground">
+                  {r.value}
+                </span>
+                {r.detail && (
+                  <span className="block font-score text-xs tabular-nums text-muted-foreground">
+                    {r.detail}
+                  </span>
+                )}
+              </span>
+            </>
+          );
+          return (
+            <li
+              key={r.name}
+              className="border-t border-border first:border-t-0"
+            >
+              {r.href ? (
+                <Link
+                  href={r.href}
+                  className={cn(
+                    rowClass,
+                    "transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
+                  )}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div className={rowClass}>{body}</div>
               )}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
     </TableCard>
   );

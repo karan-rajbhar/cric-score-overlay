@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
+import { PlayerLink } from "~/components/ds/player-link";
 import type { DismissalDetail } from "~/lib/dismissal-detail";
 import { cn } from "~/lib/utils";
 
@@ -143,6 +144,8 @@ function HeadRow({
 
 export type BatterFigures = {
   name: string;
+  /** The player's profile: the name opens it. */
+  href?: string;
   runs: number;
   balls: number;
   fours: number;
@@ -152,6 +155,8 @@ export type BatterFigures = {
 
 export type BowlerFigures = {
   name: string;
+  /** The player's profile: the name opens it. */
+  href?: string;
   overs: string;
   maidens: number;
   runs: number;
@@ -197,7 +202,7 @@ export function CreaseTable({
                 )}
               >
                 <span className="block truncate">
-                  {b.name}
+                  <PlayerLink name={b.name} href={b.href} />
                   {b.name === strikerName && (
                     <>
                       <span aria-hidden="true"> *</span>
@@ -243,7 +248,9 @@ function BowlerRow({
         scope="row"
         className={cn(figCell, "max-w-0 font-sans font-medium text-foreground")}
       >
-        <span className="block truncate">{b.name}</span>
+        <span className="block truncate">
+          <PlayerLink name={b.name} href={b.href} />
+        </span>
       </th>
       <td className={figCell}>{b.overs}</td>
       <td className={figCell}>{b.maidens}</td>
@@ -410,7 +417,7 @@ function BatterRows({
                 )}
               >
                 <span className="block truncate font-medium text-foreground">
-                  {r.name}
+                  <PlayerLink name={r.name} href={r.href} />
                 </span>
                 <DismissalLine
                   row={r}

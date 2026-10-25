@@ -244,6 +244,44 @@ describe("MatchScorecard", () => {
     expect(screen.getAllByText("not out")).toHaveLength(2);
   });
 
+  it("opens a batter's or bowler's profile from their name", () => {
+    const match = makeMatch({
+      innings: [
+        inningsOf({
+          bowling_performances: [
+            {
+              id: "bowl-1",
+              match_id: "m1",
+              innings_id: "inn-1",
+              user_id: "bw1",
+              overs_bowled: 2,
+              balls_bowled: 12,
+              maidens: 0,
+              runs_conceded: 14,
+              wickets_taken: 1,
+              wides: 0,
+              no_balls: 0,
+              user: { id: "bw1", full_name: "Jasprit Bumrah" },
+            },
+          ],
+        }),
+      ],
+    });
+    render(<MatchScorecard match={match} />);
+
+    expect(screen.getByRole("link", { name: "Virat Kohli" })).toHaveAttribute(
+      "href",
+      "/players/p1",
+    );
+    expect(screen.getByRole("link", { name: "Shubman Gill" })).toHaveAttribute(
+      "href",
+      "/players/p3",
+    );
+    expect(
+      screen.getByRole("link", { name: "Jasprit Bumrah" }),
+    ).toHaveAttribute("href", "/players/bw1");
+  });
+
   it("keeps a dismissal as plain text when the wicket has no record", () => {
     render(<MatchScorecard match={makeMatch({ innings: [inningsOf({})] })} />);
     expect(

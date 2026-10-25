@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { Innings, Match } from "~/lib/match-types";
 import { allInnings, type ReportInnings } from "~/lib/match-report";
 import { inningsInPlay } from "~/lib/cricket";
+import { playerHrefOf } from "~/lib/player-href";
 
 interface MatchScorecardProps {
   match: Match;
@@ -125,7 +126,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
           <TabsContent key={inn.id} value={inn.id} className="space-y-4">
             <BattingCard
               title="Batting"
-              rows={inn.batters}
+              rows={inn.batters.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
               extras={inn.extras}
               total={{
                 label: `${inn.score} (${inn.overs} ov)`,
@@ -137,7 +138,10 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               expandable
               className="[contain-intrinsic-size:auto_36rem] [content-visibility:auto]"
             />
-            <BowlingCard title="Bowling" rows={inn.bowlers} />
+            <BowlingCard
+              title="Bowling"
+              rows={inn.bowlers.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
+            />
             {inn.fallOfWickets.length > 0 && (
               <Card className="p-4 sm:p-5">
                 <h3 className="mb-3 text-sm font-semibold text-foreground">

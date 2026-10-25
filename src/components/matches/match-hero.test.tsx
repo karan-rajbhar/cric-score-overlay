@@ -76,4 +76,37 @@ describe("MatchHero", () => {
     expect(screen.getByText("Royal Tigers bat first")).toBeDefined();
     expect(screen.queryByText(/Run rate/)).toBeNull();
   });
+
+  it("opens a player's profile from the top performers and the player of the match", () => {
+    const batter = {
+      id: "bp1",
+      match_id: "m1",
+      innings_id: "inn-1",
+      user_id: "u-bat",
+      batting_position: 1,
+      runs_scored: 58,
+      balls_faced: 41,
+      fours: 5,
+      sixes: 1,
+      is_out: false,
+      user: { id: "u-bat", full_name: "Arjun Mehta" },
+    };
+    hero(
+      makeMatch({
+        status: "completed",
+        winning_team_id: "t1",
+        result_description: "Royal Tigers won by 15 runs",
+        player_of_the_match: { id: "u-bat", full_name: "Arjun Mehta" },
+        innings: [{ ...first, batting_performances: [batter] }],
+      }),
+    );
+
+    const links = screen
+      .getAllByRole("link")
+      .filter((a) => a.getAttribute("href") === "/players/u-bat");
+    // The surname line under the side, and the award card's name.
+    expect(links.map((a) => a.textContent)).toEqual(
+      expect.arrayContaining(["Mehta 58* (41)", "Arjun Mehta"]),
+    );
+  });
 });

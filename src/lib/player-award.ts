@@ -4,6 +4,8 @@ import type { Match } from "./match-types";
 /** The player of the match with what they did, for the award card. */
 export interface PlayerAward {
   name: string;
+  /** Their profile page is `/players/<userId>`. */
+  userId?: string;
   avatarUrl: string | null;
   /** The side they played for. */
   team: string | null;
@@ -63,6 +65,7 @@ export function playerAwardOf(match: Match): PlayerAward | null {
 
   return {
     name: potm.full_name,
+    userId: potm.id,
     avatarUrl: potm.avatar_url ?? null,
     team: (batInn ? nameOf(batInn.team_id) : bowlingSide) ?? null,
     batting: batted
