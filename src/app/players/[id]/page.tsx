@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import {
+  legacyHandleOf,
+  parsePlayerRef,
+  playerLookup,
+  playerPath,
+} from "~/lib/player-ref";
 import type { Doc } from "~/lib/firebase/datasource";
 import { playerDirectory } from "~/lib/firebase/directory";
 import { sortRows } from "~/lib/firebase/filters";
@@ -51,29 +57,32 @@ const IN_LIMIT = 30;
 /** Live matches checked for in-progress figures (1 read each). */
 const MAX_LIVE_MATCHES = 3;
 
-/** The player id or @handle in the URL, normalised; null when invalid. */
-function playerParam(rawId: string): { value: string; isUuid: boolean } | null {
-  const value = decodeURIComponent(rawId).replace(/^@/, "").trim().toLowerCase();
-  const isUuid =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value,
-    );
-  const isValidHandle = /^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/.test(value);
-  return isUuid || isValidHandle ? { value, isUuid } : null;
-}
-
 /**
- * The player, by UUID or by @username handle (usernames are stored lower
- * case, so the handle is one equality lookup). Read once per request, by
- * the page and its title.
+ * The player named by the URL (`@handle` or id, see `~/lib/player-ref`).
+ * Read once per request, by the page and its title. A bare old-style handle
+ * (`/players/karan`) that matches no id is looked up as a handle, and the
+ * page redirects to its canonical address.
  */
-const loadPlayer = cache(async (value: string, isUuid: boolean) => {
+const loadPlayer = cache(async (rawId: string) => {
+  const ref = parsePlayerRef(rawId);
+  if (!ref) return null;
   const db = await createServerClient();
-  return db
+  const select = "id, full_name, avatar_url, username";
+  const { column, value } = playerLookup(ref);
+  const { data } = await db
     .from("users")
-    .select("id, full_name, avatar_url, username")
-    .eq(isUuid ? "id" : "username", value)
+    .select(select)
+    .eq(column, value)
     .maybeSingle();
+  if (data) return { user: data, redirectTo: null };
+  const legacy = legacyHandleOf(ref);
+  if (!legacy) return null;
+  const { data: byHandle } = await db
+    .from("users")
+    .select(select)
+    .eq("username", legacy)
+    .maybeSingle();
+  return byHandle ? { user: byHandle, redirectTo: playerPath(byHandle) } : null;
 });
 
 export async function generateMetadata({
@@ -81,9 +90,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const param = playerParam((await params).id);
-  if (!param) return { title: "Player" };
-  const { data: player } = await loadPlayer(param.value, param.isUuid);
+  const player = (await loadPlayer((await params).id))?.user;
   return { title: player?.full_name ?? "Player" };
 }
 
@@ -100,21 +107,25 @@ export default async function PlayerPage({
     tab?: string;
   }>;
 }) {
-  const param = playerParam((await params).id);
-  if (!param) {
-    notFound();
-  }
-
   const resolvedSearchParams = await searchParams;
   const { teamId, tournamentId, matchId, clubId, tab } =
     resolvedSearchParams ?? {};
 
   const db = await createServerClient();
 
-  const { data: user } = await loadPlayer(param.value, param.isUuid);
-  if (!user) {
+  const loaded = await loadPlayer((await params).id);
+  if (!loaded) {
     notFound();
   }
+  if (loaded.redirectTo) {
+    const query = new URLSearchParams(
+      Object.entries(resolvedSearchParams ?? {}).filter(
+        (e): e is [string, string] => typeof e[1] === "string",
+      ),
+    ).toString();
+    redirect(query ? `${loaded.redirectTo}?${query}` : loaded.redirectTo);
+  }
+  const user = loaded.user;
 
   const id = user.id;
 
@@ -203,8 +214,9 @@ export default async function PlayerPage({
     rows: T[],
   ) =>
     sortRows(
-      [...rows].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) as
-        unknown as Doc[],
+      [...rows].sort((a, b) =>
+        a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+      ) as unknown as Doc[],
       [{ field: "created_at", ascending: false, nullsFirst: true }],
     ) as unknown as T[];
   const battingRows = byNewest(records.flatMap(battingRowsOfPlayerMatch));
@@ -519,7 +531,14 @@ export default async function PlayerPage({
           }
         />
         <ProfileTeams teams={teams} tournamentId={tournamentId} />
-        {!isSelf && <EntityActions kind="player" id={user.id} name={user.full_name} className="" />}
+        {!isSelf && (
+          <EntityActions
+            kind="player"
+            id={user.id}
+            name={user.full_name}
+            className=""
+          />
+        )}
       </div>
 
       {/* Career figures first, then the innings, matches and teams. */}

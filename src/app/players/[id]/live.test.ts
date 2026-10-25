@@ -11,6 +11,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  redirect: (to: string) => {
+    throw new Error(`NEXT_REDIRECT ${to}`);
+  },
 }));
 const state: { client: unknown } = { client: null };
 vi.mock("~/lib/firebase/server", () => ({
@@ -134,5 +137,46 @@ describe("player page: innings in progress", () => {
     const other = seed.users!.find((u) => !inLive.has(u.id))!;
     const { card } = await render(other.id);
     expect(card).toBeNull();
+  });
+});
+
+describe("player page: which player the URL names", () => {
+  // Real accounts carry a Firebase Auth uid: 28 mixed-case characters.
+  const UID = "w4RVc8WK0UbGVm8jb2O1iUoGv1S2";
+  const open = async (id: string) => {
+    const ds = new MemoryDataSource({
+      ...seed,
+      users: [
+        ...seed.users!,
+        { id: UID, full_name: "Uid Player", username: "uid_player" },
+      ],
+    });
+    state.client = serverClientFor({ ds, db: null, getUser: async () => null });
+    return PlayerPage({
+      params: Promise.resolve({ id }),
+      searchParams: Promise.resolve({}),
+    });
+  };
+
+  it("opens a player by their Firebase uid, case kept", async () => {
+    await expect(open(UID)).resolves.toBeTruthy();
+  });
+
+  it("does not match an id by another case", async () => {
+    await expect(open(UID.toLowerCase())).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("opens a player by @handle", async () => {
+    await expect(open("@Uid_Player")).resolves.toBeTruthy();
+  });
+
+  it("sends an old bare handle to the canonical address", async () => {
+    await expect(open("uid_player")).rejects.toThrow(
+      "NEXT_REDIRECT /players/@uid_player",
+    );
+  });
+
+  it("404s for nobody", async () => {
+    await expect(open("nobody_here")).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });
