@@ -505,7 +505,6 @@ export async function fetchHeadToHead(
   db: Pick<ReturnType<typeof createClient>, "from">,
   team1Id: string,
   team2Id: string,
-  currentMatchId: string,
 ): Promise<HistoricalMatchSummary[]> {
   const pairing = (home: string, away: string) =>
     db
@@ -524,7 +523,7 @@ export async function fetchHeadToHead(
     for (const row of (data ?? []) as unknown as Array<
       HistoricalMatchSummary & Record<string, unknown>
     >) {
-      if (row.id !== currentMatchId) rows.push(row);
+      rows.push(row);
     }
   }
   // As `.order("scheduled_at", { ascending: false })` (nulls first) over
@@ -538,15 +537,10 @@ export async function fetchHeadToHead(
 /**
  * TanStack Query hook for Head-to-Head historical matches
  */
-export function useHeadToHeadQuery(
-  team1Id: string,
-  team2Id: string,
-  currentMatchId: string,
-) {
+export function useHeadToHeadQuery(team1Id: string, team2Id: string) {
   return useQuery<HistoricalMatchSummary[]>({
-    queryKey: ["headToHead", team1Id, team2Id, currentMatchId],
-    queryFn: () =>
-      fetchHeadToHead(createClient(), team1Id, team2Id, currentMatchId),
+    queryKey: ["headToHead", team1Id, team2Id],
+    queryFn: () => fetchHeadToHead(createClient(), team1Id, team2Id),
     enabled: Boolean(team1Id && team2Id),
     staleTime: 5 * 60 * 1000,
   });

@@ -69,4 +69,20 @@ describe("summarizeHeadToHead", () => {
     expect(s.open).toHaveLength(1);
     expect(s.streak).toBeNull();
   });
+
+  it("counts the viewed match once finished, but never lists it as still to come", () => {
+    const rows = [
+      m("cur", "completed", "t1", "2026-06-01"),
+      m("old", "completed", "t2", "2026-05-01"),
+      m("live", "live", null, "2026-07-01"),
+    ];
+    const done = summarizeHeadToHead(rows, "t1", "t2", "cur");
+    expect(done.completed.map((r) => r.id)).toEqual(["cur", "old"]);
+    expect([done.team1Wins, done.team2Wins]).toEqual([1, 1]);
+    expect(done.open.map((r) => r.id)).toEqual(["live"]);
+
+    const viewingLive = summarizeHeadToHead(rows, "t1", "t2", "live");
+    expect(viewingLive.open).toEqual([]);
+    expect(viewingLive.completed).toHaveLength(2);
+  });
 });

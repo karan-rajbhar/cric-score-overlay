@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Card, CardHeader } from "~/components/ds/card";
-import { MatchStatusChip } from "~/components/ds/chip";
+import { Chip, MatchStatusChip } from "~/components/ds/chip";
 import { ListCard } from "~/components/ds/list";
 import {
   summarizeHeadToHead,
@@ -76,14 +76,15 @@ function Side({
  * results in the middle) and their past meetings, the latest first.
  */
 export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
-  const { data, isLoading: loading } = useHeadToHeadQuery(
+  const { data, isLoading: loading } = useHeadToHeadQuery(team1.id, team2.id);
+  const matches = (data ?? []) as unknown as HistoricalMatch[];
+
+  const summary = summarizeHeadToHead(
+    matches,
     team1.id,
     team2.id,
     currentMatchId,
   );
-  const matches = (data ?? []) as unknown as HistoricalMatch[];
-
-  const summary = summarizeHeadToHead(matches, team1.id, team2.id);
   const { completed, open } = summary;
   const total = completed.length;
 
@@ -96,14 +97,7 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
     );
   }
 
-  const score = (m: HistoricalMatch, teamId: string) => {
-    const inn = m.innings?.find((i) => i.team_id === teamId);
-    return inn
-      ? `${inn.total_runs}/${inn.total_wickets} (${formatDecimalOvers(inn.total_overs)})`
-      : "–";
-  };
-  const scores = (m: HistoricalMatch) =>
-    `${team1.short_name || team1.name} ${score(m, team1.id)} · ${team2.short_name || team2.name} ${score(m, team2.id)}`;
+  const scores = (m: HistoricalMatch) => scoreLine(m, team1, team2);
 
   return (
     <div className="space-y-4">
@@ -147,6 +141,11 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
                 match={m}
                 title={m.result_description || "Match completed"}
                 detail={scores(m)}
+                chip={
+                  m.id === currentMatchId ? (
+                    <Chip tone="primary">This match</Chip>
+                  ) : undefined
+                }
               />
             ))}
           </ListCard>
@@ -154,6 +153,16 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
       )}
     </div>
   );
+}
+
+function scoreLine(m: HistoricalMatch, team1: MatchTeam, team2: MatchTeam) {
+  const score = (teamId: string) => {
+    const inn = m.innings?.find((i) => i.team_id === teamId);
+    return inn
+      ? `${inn.total_runs}/${inn.total_wickets} (${formatDecimalOvers(inn.total_overs)})`
+      : "–";
+  };
+  return `${team1.short_name || team1.name} ${score(team1.id)} · ${team2.short_name || team2.name} ${score(team2.id)}`;
 }
 
 function RecordCard({

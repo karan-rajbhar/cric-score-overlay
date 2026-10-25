@@ -107,6 +107,35 @@ describe("HeadToHead", () => {
     expect(screen.getByText(/National Cricket Stadium/)).toBeInTheDocument();
     expect(screen.getByText("Past meetings")).toBeInTheDocument();
     expect(screen.queryByText("Live and upcoming")).not.toBeInTheDocument();
+    expect(screen.queryByText("This match")).not.toBeInTheDocument();
+  });
+
+  it("counts the finished match being viewed and marks it", () => {
+    vi.mocked(matchQueries.useHeadToHeadQuery).mockReturnValue({
+      data: [
+        {
+          id: "m1",
+          title: "Final",
+          status: "completed",
+          scheduled_at: "2026-05-10T14:00:00Z",
+          venue: null,
+          winning_team_id: "t1",
+          result_type: "win",
+          result_description: "Royal Tigers won by 15 runs",
+          team1_id: "t1",
+          team2_id: "t2",
+          innings: [],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<HeadToHead team1={team1} team2={team2} currentMatchId="m1" />);
+
+    expect(screen.getAllByText("1")).toHaveLength(2);
+    expect(screen.getByText("This match")).toBeInTheDocument();
+    expect(screen.getByText("Royal Tigers won by 15 runs")).toBeInTheDocument();
   });
 
   it("names a side that has won the last meetings in a row", () => {

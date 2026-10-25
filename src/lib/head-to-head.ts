@@ -28,16 +28,22 @@ function byDate(a: MeetingLike, b: MeetingLike): number {
 /**
  * Splits two teams' meetings (`rows`, latest first) into the record, which
  * counts finished matches only, and the matches still to be played or in
- * progress. Abandoned and cancelled matches are in neither.
+ * progress. Abandoned and cancelled matches are in neither. The match being
+ * viewed counts once it is finished, but is not listed as still to come.
  */
 export function summarizeHeadToHead<T extends MeetingLike>(
   rows: T[],
   team1Id: string,
   team2Id: string,
+  currentMatchId?: string,
 ): HeadToHeadSummary<T> {
   const completed = rows.filter((m) => m.status === "completed");
   const open = rows
-    .filter((m) => m.status === "scheduled" || IN_PLAY.has(m.status ?? ""))
+    .filter(
+      (m) =>
+        m.id !== currentMatchId &&
+        (m.status === "scheduled" || IN_PLAY.has(m.status ?? "")),
+    )
     .sort((a, b) => {
       const live =
         Number(IN_PLAY.has(b.status ?? "")) -

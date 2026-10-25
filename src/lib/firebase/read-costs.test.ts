@@ -152,7 +152,6 @@ describe("billed reads per page on the seed data", () => {
         state.client as Parameters<typeof fetchHeadToHead>[0],
         String(completedMatch.team1_id),
         String(completedMatch.team2_id),
-        completedMatch.id,
       ),
     );
     // `is_match_admin` for a signed-in viewer who is not a scorer (match
