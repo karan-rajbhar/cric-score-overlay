@@ -1,44 +1,28 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Card, CardHeader } from "~/components/ds/card";
-import { Chip, MatchStatusChip } from "~/components/ds/chip";
-import { ListCard } from "~/components/ds/list";
+import { SectionHeader } from "~/components/ds/list";
+import { FixtureCard, MatchCard } from "~/components/ds/match-card";
+import { MatchNote } from "~/components/ds/score";
 import {
   summarizeHeadToHead,
   type HeadToHeadSummary,
 } from "~/lib/head-to-head";
-import { useHeadToHeadQuery } from "~/lib/hooks/useMatchQueries";
+import {
+  useHeadToHeadQuery,
+  type HistoricalMatchSummary as HistoricalMatch,
+} from "~/lib/hooks/useMatchQueries";
 import type { MatchTeam } from "~/lib/match-types";
 import { formatDecimalOvers } from "~/lib/cricket";
+import { matchCardLabel, matchStart } from "./match-card";
 import { teamRef } from "./match-hero";
 
 interface HeadToHeadProps {
   team1: MatchTeam;
   team2: MatchTeam;
   currentMatchId: string;
-}
-
-interface HistoricalMatch {
-  id: string;
-  title: string;
-  status: string | null;
-  tournament_snapshot?: { name: string | null } | null;
-  scheduled_at: string | null;
-  venue: string | null;
-  winning_team_id: string | null;
-  result_type: string | null;
-  result_description: string | null;
-  team1_id: string;
-  team2_id: string;
-  innings?: Array<{
-    team_id: string;
-    total_runs: number;
-    total_wickets: number;
-    total_overs: number;
-  }>;
 }
 
 function Side({
@@ -77,7 +61,7 @@ function Side({
  */
 export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
   const { data, isLoading: loading } = useHeadToHeadQuery(team1.id, team2.id);
-  const matches = (data ?? []) as unknown as HistoricalMatch[];
+  const matches = data ?? [];
 
   const summary = summarizeHeadToHead(
     matches,
@@ -97,72 +81,28 @@ export function HeadToHead({ team1, team2, currentMatchId }: HeadToHeadProps) {
     );
   }
 
-  const scores = (m: HistoricalMatch) => scoreLine(m, team1, team2);
-
-  return (
-    <div className="space-y-4">
-      <RecordCard team1={team1} team2={team2} summary={summary} />
-
-      {open.length > 0 && (
-        <section aria-labelledby="open-meetings" className="space-y-2">
-          <h3
-            id="open-meetings"
-            className="px-1 text-base font-semibold text-foreground"
-          >
-            Live and upcoming
-          </h3>
-          <ListCard>
-            {open.map((m) => (
-              <MeetingRow
-                key={m.id}
-                match={m}
-                title={m.title}
-                detail={m.status === "scheduled" ? null : scores(m)}
-                chip={<MatchStatusChip status={m.status ?? "scheduled"} />}
-                withTime
-              />
-            ))}
-          </ListCard>
-        </section>
-      )}
-
-      {total > 0 && (
-        <section aria-labelledby="past-meetings" className="space-y-2">
-          <h3
-            id="past-meetings"
-            className="px-1 text-base font-semibold text-foreground"
-          >
-            Past meetings
-          </h3>
-          <ListCard>
-            {completed.map((m) => (
-              <MeetingRow
-                key={m.id}
-                match={m}
-                title={m.result_description || "Match completed"}
-                detail={scores(m)}
-                chip={
-                  m.id === currentMatchId ? (
-                    <Chip tone="primary">This match</Chip>
-                  ) : undefined
-                }
-              />
-            ))}
-          </ListCard>
-        </section>
-      )}
+  const meetings = (title: string, list: HistoricalMatch[]) => (
+    <div className="space-y-3">
+      <SectionHeader title={title} as="h3" />
+      {list.map((m) => (
+        <MeetingCard
+          key={m.id}
+          match={m}
+          team1={team1}
+          team2={team2}
+          current={m.id === currentMatchId}
+        />
+      ))}
     </div>
   );
-}
 
-function scoreLine(m: HistoricalMatch, team1: MatchTeam, team2: MatchTeam) {
-  const score = (teamId: string) => {
-    const inn = m.innings?.find((i) => i.team_id === teamId);
-    return inn
-      ? `${inn.total_runs}/${inn.total_wickets} (${formatDecimalOvers(inn.total_overs)})`
-      : "–";
-  };
-  return `${team1.short_name || team1.name} ${score(team1.id)} · ${team2.short_name || team2.name} ${score(team2.id)}`;
+  return (
+    <div className="space-y-6">
+      <RecordCard team1={team1} team2={team2} summary={summary} />
+      {open.length > 0 && meetings("Live and upcoming", open)}
+      {total > 0 && meetings("Past meetings", completed)}
+    </div>
+  );
 }
 
 function RecordCard({
@@ -232,58 +172,109 @@ function RecordCard({
   );
 }
 
-function MeetingRow({
-  match: m,
-  title,
-  detail,
-  chip,
-  withTime = false,
-}: {
-  match: HistoricalMatch;
-  title: string;
-  detail: string | null;
-  chip?: React.ReactNode;
-  withTime?: boolean;
-}) {
-  const when = m.scheduled_at ? new Date(m.scheduled_at) : null;
-  const date = when
-    ? when.toLocaleDateString("en-GB", {
+/** Both sides with their innings, in batting order, the loser dimmed. */
+function meetingSides(m: HistoricalMatch, team1: MatchTeam, team2: MatchTeam) {
+  return [team1, team2]
+    .map((team) => {
+      const inn = m.innings?.find((i) => i.team_id === team.id);
+      return {
+        order: inn?.innings_number ?? 99,
+        team: teamRef(team),
+        innings: inn && {
+          runs: inn.total_runs,
+          wickets: inn.total_wickets,
+          overs: formatDecimalOvers(inn.total_overs),
+        },
+        dim: !!m.winning_team_id && m.winning_team_id !== team.id,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+}
+
+/** "Autumn Cup · 20 Jul 2024": where it was played, else the venue, and when. */
+function meetingContext(m: HistoricalMatch) {
+  const when = m.scheduled_at
+    ? new Date(m.scheduled_at).toLocaleDateString("en-GB", {
         day: "numeric",
         month: "short",
         year: "numeric",
-      }) +
-      (withTime
-        ? `, ${when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
-        : "")
+      })
     : null;
-  const meta = [m.venue, m.tournament_snapshot?.name, date]
+  return [m.tournament_snapshot?.name ?? m.venue, when]
     .filter(Boolean)
     .join(" · ");
+}
+
+function UpcomingMeeting({
+  match: m,
+  team1,
+  team2,
+}: {
+  match: HistoricalMatch;
+  team1: MatchTeam;
+  team2: MatchTeam;
+}) {
+  const start = matchStart(m.scheduled_at);
+  // The match's own first team is home, as on every other card.
+  const [home, away] =
+    m.team1_id === team1.id ? [team1, team2] : [team2, team1];
   return (
-    <Link
+    <FixtureCard
       href={`/matches/${m.id}`}
-      className="flex min-h-14 items-center gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-foreground">
-          {title}
-        </span>
-        {detail && (
-          <span className="block font-score text-xs tabular-nums text-muted-foreground">
-            {detail}
-          </span>
-        )}
-        {meta && (
-          <span className="block truncate text-xs text-muted-foreground">
-            {meta}
-          </span>
-        )}
-      </span>
-      {chip}
-      <ChevronRight
-        className="h-4 w-4 shrink-0 text-muted-foreground"
-        aria-hidden="true"
-      />
-    </Link>
+      date={start?.date ?? "Date to be confirmed"}
+      time={start?.time ?? "TBC"}
+      home={teamRef(home)}
+      away={teamRef(away)}
+      venue={m.tournament_snapshot?.name ?? m.venue}
+    />
+  );
+}
+
+/**
+ * One meeting as the app shows a match anywhere else: a fixture before the
+ * start, otherwise both sides' scores in batting order and the result.
+ */
+function MeetingCard({
+  match: m,
+  team1,
+  team2,
+  current,
+}: {
+  match: HistoricalMatch;
+  team1: MatchTeam;
+  team2: MatchTeam;
+  current: boolean;
+}) {
+  const status = m.status ?? "completed";
+  if (status === "scheduled") {
+    return <UpcomingMeeting match={m} team1={team1} team2={team2} />;
+  }
+  const sides = meetingSides(m, team1, team2);
+  const note =
+    status === "completed" ? m.result_description || "Match completed" : null;
+  const context = meetingContext(m);
+  return (
+    <MatchCard
+      href={`/matches/${m.id}`}
+      label={matchCardLabel({
+        status,
+        sides: sides.map((s) => ({ name: s.team.name, innings: s.innings })),
+        note: [current && "This match", note].filter(Boolean).join(". "),
+      })}
+      competition={
+        current ? (
+          <>
+            <span className="font-medium text-foreground">This match</span>
+            {context && ` · ${context}`}
+          </>
+        ) : (
+          context
+        )
+      }
+      status={status}
+      first={sides[0]!}
+      second={sides[1]!}
+      note={note && <MatchNote tone="result">{note}</MatchNote>}
+    />
   );
 }

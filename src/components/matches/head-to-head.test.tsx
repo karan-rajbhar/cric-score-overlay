@@ -67,8 +67,10 @@ describe("HeadToHead", () => {
     render(<HeadToHead team1={team1} team2={team2} currentMatchId="m1" />);
 
     expect(screen.getByText("Live and upcoming")).toBeInTheDocument();
-    expect(screen.getByText("Tigers vs Kings")).toBeInTheDocument();
+    expect(screen.getByText("Royal Tigers")).toBeInTheDocument();
+    expect(screen.getByText("Coastal Kings")).toBeInTheDocument();
     expect(screen.getByText(/Autumn Cup/)).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/matches/live-1");
     expect(screen.getByText("Live")).toBeInTheDocument();
     expect(screen.queryByText("Past meetings")).not.toBeInTheDocument();
     expect(screen.getByText(/no completed matches/i)).toBeInTheDocument();
@@ -163,5 +165,35 @@ describe("HeadToHead", () => {
     expect(
       screen.getByText("Coastal Kings have won the last 2 meetings."),
     ).toBeInTheDocument();
+  });
+
+  it("shows an upcoming meeting as a fixture", () => {
+    vi.mocked(matchQueries.useHeadToHeadQuery).mockReturnValue({
+      data: [
+        {
+          id: "up-1",
+          title: "Rematch",
+          status: "scheduled",
+          scheduled_at: "2030-01-05T09:30:00Z",
+          venue: "National Cricket Stadium",
+          tournament_snapshot: null,
+          winning_team_id: null,
+          result_type: null,
+          result_description: null,
+          team1_id: "t2",
+          team2_id: "t1",
+          innings: [],
+        },
+      ],
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<HeadToHead team1={team1} team2={team2} currentMatchId="m1" />);
+
+    expect(screen.getByText("Live and upcoming")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+    expect(screen.getByText("National Cricket Stadium")).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/matches/up-1");
   });
 });

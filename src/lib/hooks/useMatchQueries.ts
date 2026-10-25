@@ -474,6 +474,7 @@ export interface HistoricalMatchSummary {
   team2_id: string;
   innings?: Array<{
     team_id: string;
+    innings_number?: number | null;
     total_runs: number;
     total_wickets: number;
     total_overs: number;
@@ -492,7 +493,7 @@ const HEAD_TO_HEAD_SELECT = `
   result_description,
   team1_id,
   team2_id,
-  innings(team_id, total_runs, total_wickets, total_overs)
+  innings(team_id, innings_number, total_runs, total_wickets, total_overs)
 `;
 
 /**
