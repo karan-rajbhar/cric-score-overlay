@@ -111,7 +111,12 @@ function FigureTable<R extends NamedRow>({
             <tr key={r.userId} className="border-t border-border">
               <th
                 scope="row"
-                className={cn(figCell, "max-w-0 font-medium text-foreground")}
+                // A name column that never collapses: on a narrow screen the table
+                // scrolls inside its card (TableCard) instead of crushing names.
+                className={cn(
+                  figCell,
+                  "min-w-[9rem] font-medium text-foreground",
+                )}
               >
                 <span className="flex min-w-0 items-center gap-2.5">
                   <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-muted-foreground">
