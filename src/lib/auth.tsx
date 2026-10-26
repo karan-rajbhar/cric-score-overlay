@@ -153,13 +153,25 @@ async function syncServerSession(user: FirebaseUser | null): Promise<void> {
   if (!res.ok) throw new Error("Could not establish a server session");
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: React.ReactNode;
+  /**
+   * The user the server resolved from the session cookie (root layout). With
+   * one, the first render is already signed in; Firebase Auth then confirms
+   * it in the browser, or signs the user out if it disagrees.
+   */
+  initialUser?: AppUser | null;
+}) {
   const isOverlay =
     typeof window !== "undefined" &&
     window.location.pathname.startsWith("/overlay");
-  const [user, setUser] = useState<AppUser | null>(null);
+  const [user, setUser] = useState<AppUser | null>(initialUser);
   // The OBS overlay runs unauthenticated; skip auth bootstrapping there.
-  const [loading, setLoading] = useState(!isOverlay);
+  // Nothing is pending when the server already named the user.
+  const [loading, setLoading] = useState(!isOverlay && !initialUser);
   const [redirectError, setRedirectError] = useState<AuthError | null>(null);
   const router = useRouter();
   const syncedUidRef = useRef<string | null>(null);

@@ -24,11 +24,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PlayerHeader } from "~/components/ds/player-header";
-import {
-  CareerCards,
-  ProfileHighlights,
-  ProfileTeams,
-} from "~/components/players/player-profile";
+import { ProfileTeams } from "~/components/players/player-profile";
 import {
   PlayerActivityTabs,
   type PlayerTeamMembership,
@@ -37,6 +33,7 @@ import {
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
 import { EditProfileDialog } from "~/components/players/edit-profile-dialog";
+import { SeasonStatistics } from "~/components/players/season-statistics";
 import { RecentForm } from "~/components/players/recent-form";
 import { ShareProfileButton } from "~/components/players/share-profile-button";
 import { playerDetailLine, playingRoleLabel } from "~/lib/player-profile";
@@ -45,7 +42,6 @@ import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
-import { PlayerMilestones } from "~/components/players/player-milestones";
 import { EntityActions } from "~/components/follow/entity-actions";
 import { liveScorecardInnings } from "~/lib/firebase/live-innings";
 import { livePerformanceOf } from "~/lib/firebase/live-player";
@@ -567,40 +563,43 @@ export default async function PlayerPage({
           teamId={teamId}
           initialTab={tab}
           statistics={
-            <>
-              <ProfileHighlights
-                matches={totalMatches}
-                runs={totalRuns}
-                wickets={totalWickets}
-                catches={stats?.total_catches ?? 0}
-              />
-              {livePerformances.length > 0 && (
-                <LivePerformanceCard performances={livePerformances} />
-              )}
-              <RecentForm batting={batting} bowling={bowling} />
-              <CareerCards
-                batting={[
+            <SeasonStatistics
+              batting={batting}
+              bowling={bowling}
+              allTime={{
+                matches: totalMatches,
+                runs: totalRuns,
+                wickets: totalWickets,
+                catches: stats?.total_catches ?? 0,
+                batting: [
                   ["Matches", totalMatches],
                   ["Runs", totalRuns],
                   ["Average", stats?.batting_average ?? "–"],
                   ["Strike rate", stats?.strike_rate ?? "–"],
                   ["50s", stats?.half_centuries ?? 0],
                   ["100s", stats?.centuries ?? 0],
-                ]}
-                bowling={[
+                ],
+                bowling: [
                   ["Wickets", totalWickets],
                   ["Average", stats?.bowling_average ?? "–"],
                   ["Economy", stats?.economy_rate ?? "–"],
                   ["5 wickets", stats?.five_wicket_hauls ?? 0],
-                ]}
-                fielding={[
+                ],
+                fielding: [
                   ["Catches", stats?.total_catches ?? 0],
                   ["Stumpings", stats?.total_stumpings ?? 0],
                   ["Run outs", stats?.total_run_outs ?? 0],
-                ]}
-              />
-              <PlayerMilestones batting={batting} bowling={bowling} />
-            </>
+                ],
+              }}
+              between={
+                <>
+                  {livePerformances.length > 0 && (
+                    <LivePerformanceCard performances={livePerformances} />
+                  )}
+                  <RecentForm batting={batting} bowling={bowling} />
+                </>
+              }
+            />
           }
         />
       </ContentSheet>

@@ -76,54 +76,145 @@ function OptionField({
   );
 }
 
+interface ProfileValues {
+  name: string;
+  location: string;
+  role: string;
+  hand: string;
+  style: string;
+}
+
+const squash = (v: string) => v.trim().replace(/\s+/g, " ");
+
+function valuesOf(
+  currentName: string,
+  current: Partial<PlayerDetails>,
+): ProfileValues {
+  return {
+    name: currentName,
+    location: current.location ?? "",
+    role: current.playing_role ?? "",
+    hand: current.batting_hand ?? "",
+    style: current.bowling_style ?? "",
+  };
+}
+
+/** The form's values, whether they differ from the saved ones, and reset. */
+function useProfileForm(currentName: string, current: Partial<PlayerDetails>) {
+  const saved = valuesOf(currentName, current);
+  const [values, setValues] = useState(saved);
+  const set = (key: keyof ProfileValues) => (value: string) =>
+    setValues((v) => ({ ...v, [key]: value }));
+  const name = squash(values.name);
+  const location = squash(values.location);
+  const changed =
+    name !== saved.name ||
+    location !== saved.location ||
+    values.role !== saved.role ||
+    values.hand !== saved.hand ||
+    values.style !== saved.style;
+  return {
+    values,
+    set,
+    reset: () => setValues(saved),
+    canSubmit: name.length >= 2 && changed,
+    payload: {
+      full_name: name,
+      location,
+      playing_role: values.role,
+      batting_hand: values.hand,
+      bowling_style: values.style,
+    },
+  };
+}
+
+function ProfileFields({
+  values,
+  set,
+}: {
+  values: ProfileValues;
+  set: (key: keyof ProfileValues) => (value: string) => void;
+}) {
+  const nameId = useId();
+  const locationId = useId();
+  return (
+    <div className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label htmlFor={nameId} className="text-xs font-semibold">
+          Name
+        </Label>
+        <Input
+          id={nameId}
+          type="text"
+          autoComplete="name"
+          autoCorrect="off"
+          maxLength={60}
+          value={values.name}
+          onChange={(e) => set("name")(e.target.value)}
+          className="form-input"
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={locationId} className="text-xs font-semibold">
+          Location
+        </Label>
+        <Input
+          id={locationId}
+          type="text"
+          autoComplete="address-level2"
+          autoCorrect="off"
+          maxLength={LOCATION_MAX}
+          placeholder="City or town"
+          value={values.location}
+          onChange={(e) => set("location")(e.target.value)}
+          className="form-input"
+        />
+      </div>
+      <OptionField
+        label="Main role"
+        value={values.role}
+        onChange={set("role")}
+        options={PLAYING_ROLES}
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <OptionField
+          label="Batting"
+          value={values.hand}
+          onChange={set("hand")}
+          options={BATTING_HANDS}
+        />
+        <OptionField
+          label="Bowling"
+          value={values.style}
+          onChange={set("style")}
+          options={BOWLING_STYLES}
+        />
+      </div>
+    </div>
+  );
+}
+
 /** Name, location and how the player bats and bowls. */
 export function EditProfileDialog({
   currentName,
   current,
 }: EditProfileDialogProps) {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState(currentName);
-  const [location, setLocation] = useState(current.location ?? "");
-  const [role, setRole] = useState(current.playing_role ?? "");
-  const [hand, setHand] = useState(current.batting_hand ?? "");
-  const [style, setStyle] = useState(current.bowling_style ?? "");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const nameId = useId();
-  const locationId = useId();
+  const form = useProfileForm(currentName, current);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
-    if (next) {
-      setName(currentName);
-      setLocation(current.location ?? "");
-      setRole(current.playing_role ?? "");
-      setHand(current.batting_hand ?? "");
-      setStyle(current.bowling_style ?? "");
-    }
+    if (next) form.reset();
   };
-
-  const cleanedName = name.trim().replace(/\s+/g, " ");
-  const cleanedLocation = location.trim().replace(/\s+/g, " ");
-  const changed =
-    cleanedName !== currentName ||
-    cleanedLocation !== (current.location ?? "") ||
-    role !== (current.playing_role ?? "") ||
-    hand !== (current.batting_hand ?? "") ||
-    style !== (current.bowling_style ?? "");
-  const canSubmit = cleanedName.length >= 2 && changed;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!form.canSubmit) return;
     startTransition(async () => {
-      const res = await updateProfile({
-        full_name: cleanedName,
-        location: cleanedLocation,
-        playing_role: role,
-        batting_hand: hand,
-        bowling_style: style,
-      });
+      const res = await updateProfile(form.payload);
       if (res.success) {
         toast.success("Profile updated");
         setOpen(false);
@@ -151,60 +242,7 @@ export function EditProfileDialog({
               your name is optional.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor={nameId} className="text-xs font-semibold">
-                Name
-              </Label>
-              <Input
-                id={nameId}
-                type="text"
-                autoComplete="name"
-                autoCorrect="off"
-                maxLength={60}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="form-input"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={locationId} className="text-xs font-semibold">
-                Location
-              </Label>
-              <Input
-                id={locationId}
-                type="text"
-                autoComplete="address-level2"
-                autoCorrect="off"
-                maxLength={LOCATION_MAX}
-                placeholder="City or town"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="form-input"
-              />
-            </div>
-            <OptionField
-              label="Main role"
-              value={role}
-              onChange={setRole}
-              options={PLAYING_ROLES}
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <OptionField
-                label="Batting"
-                value={hand}
-                onChange={setHand}
-                options={BATTING_HANDS}
-              />
-              <OptionField
-                label="Bowling"
-                value={style}
-                onChange={setStyle}
-                options={BOWLING_STYLES}
-              />
-            </div>
-          </div>
+          <ProfileFields values={form.values} set={form.set} />
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
@@ -214,7 +252,7 @@ export function EditProfileDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSubmit || isPending}>
+            <Button type="submit" disabled={!form.canSubmit || isPending}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -75,9 +75,24 @@ function niceTicks(max: number, count = 4): number[] {
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
 }
 
-function overTicks(maxOvers: number): number[] {
+/** Width one over label needs, so numbers never touch. */
+const OVER_LABEL_PX = 18;
+
+/**
+ * The overs labelled on the axis. A bars chart passes the width of one
+ * over's slot: when every label fits, every over is labelled.
+ */
+export function overTicks(maxOvers: number, slotW?: number): number[] {
   const step =
-    maxOvers <= 10 ? 1 : maxOvers <= 20 ? 2 : maxOvers <= 50 ? 5 : 10;
+    slotW !== undefined && slotW >= OVER_LABEL_PX
+      ? 1
+      : maxOvers <= 10
+        ? 1
+        : maxOvers <= 20
+          ? 2
+          : maxOvers <= 50
+            ? 5
+            : 10;
   const out: number[] = [];
   for (let o = step; o <= maxOvers; o += step) out.push(o);
   return out;
@@ -192,14 +207,16 @@ function OverTicks({
   maxOvers,
   x,
   bottom,
+  slotW,
 }: {
   maxOvers: number;
   x: (over: number) => number;
   bottom: number;
+  slotW?: number;
 }) {
   return (
     <>
-      {overTicks(maxOvers).map((o) => (
+      {overTicks(maxOvers, slotW).map((o) => (
         <text
           key={o}
           x={x(o)}
@@ -587,7 +604,12 @@ export function OverBarsChart({
             />
           )}
           <YGrid ticks={yTicks} y={y} left={m.l} width={pw} />
-          <OverTicks maxOvers={maxOvers} x={mid} bottom={height - 8} />
+          <OverTicks
+            maxOvers={maxOvers}
+            x={mid}
+            bottom={height - 8}
+            slotW={slotW}
+          />
           <BarsLayer
             series={series}
             slots={slots}

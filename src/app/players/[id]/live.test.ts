@@ -54,10 +54,16 @@ function findLiveCard(node: ReactNode): LivePerformanceItem[] | null {
     children?: ReactNode;
     /** PlayerActivityTabs' first tab. */
     statistics?: ReactNode;
+    /** SeasonStatistics' slot under the headline tiles. */
+    between?: ReactNode;
     performances?: LivePerformanceItem[];
   };
   if (node.type === LivePerformanceCard) return props.performances ?? null;
-  return findLiveCard(props.children) ?? findLiveCard(props.statistics);
+  return (
+    findLiveCard(props.children) ??
+    findLiveCard(props.statistics) ??
+    findLiveCard(props.between)
+  );
 }
 
 async function render(userId: string) {
