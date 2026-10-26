@@ -57,19 +57,22 @@ export function ProfileHighlights({
   matches: number;
   runs: number;
   wickets: number;
-  catches: number;
+  /** Absent for a season: catches are kept for the whole career only. */
+  catches?: number;
 }) {
   return (
-    <StatGrid>
+    <StatGrid className={catches === undefined ? "sm:grid-cols-3" : undefined}>
       <StatTile icon={CalendarDays} label="Matches" value={matches} />
       <StatTile icon={TrendingUp} label="Runs" value={runs} />
       <StatTile icon={Target} label="Wickets" value={wickets} />
-      <StatTile icon={Hand} label="Catches" value={catches} />
+      {catches !== undefined && (
+        <StatTile icon={Hand} label="Catches" value={catches} />
+      )}
     </StatGrid>
   );
 }
 
-type Figure = [label: string, value: string | number];
+export type Figure = [label: string, value: string | number];
 
 /** One discipline's career figures: a card of small labelled figures. */
 function FigureCard({ title, figures }: { title: string; figures: Figure[] }) {
@@ -97,13 +100,16 @@ export function CareerCards({
 }: {
   batting: Figure[];
   bowling: Figure[];
-  fielding: Figure[];
+  /** Absent for a season: fielding is kept for the whole career only. */
+  fielding?: Figure[];
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div
+      className={`grid grid-cols-1 gap-4 ${fielding ? "md:grid-cols-3" : "md:grid-cols-2"}`}
+    >
       <FigureCard title="Batting" figures={batting} />
       <FigureCard title="Bowling" figures={bowling} />
-      <FigureCard title="Fielding" figures={fielding} />
+      {fielding && <FigureCard title="Fielding" figures={fielding} />}
     </div>
   );
 }

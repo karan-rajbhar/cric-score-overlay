@@ -66,4 +66,14 @@ describe("MobileTabBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(useSidebarStore.getState().mobileOpen).toBe(false);
   });
+
+  it("keeps Home lit on the dashboard while auth is still resolving", () => {
+    mockUseAuth.mockReturnValue({ user: null, loading: true });
+    mockUsePathname.mockReturnValue("/dashboard");
+    render(<MobileTabBar />);
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
 });

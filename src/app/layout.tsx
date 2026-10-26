@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 import { Barlow_Condensed, Outfit, Urbanist } from "next/font/google";
 import { Toaster } from "sonner";
 import { AuthProvider } from "~/lib/auth";
+import { getInitialUser } from "~/lib/firebase/initial-user";
 import { ErrorReporter } from "~/components/error-reporter";
 import { ServiceWorkerRegistrar } from "~/components/pwa/service-worker-registrar";
 import { ViewportVars } from "~/components/viewport-vars";
@@ -67,6 +68,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Read per request: the page is built for whoever is signed in, so a
+  // signed-in visitor never gets a signed-out first paint.
+  const initialUser = await getInitialUser();
   return (
     <html lang="en" suppressHydrationWarning>
       {/* No speculation rules: navigation is client-side (next/link, which
@@ -79,7 +83,7 @@ export default async function RootLayout({
         <WebVitalsReporter />
         <ViewportVars />
         <ThemeProvider defaultTheme="light">
-          <AuthProvider>
+          <AuthProvider initialUser={initialUser}>
             <QueryProvider>
               <AppShell>{children}</AppShell>
               <Toaster richColors position="top-center" />

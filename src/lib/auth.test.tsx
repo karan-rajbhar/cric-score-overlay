@@ -64,6 +64,21 @@ function Probe() {
   );
 }
 
+function renderSeeded(initialUser: { id: string }) {
+  return render(
+    <AuthProvider
+      initialUser={{
+        id: initialUser.id,
+        email: null,
+        phone: null,
+        user_metadata: {},
+      }}
+    >
+      <Probe />
+    </AuthProvider>,
+  );
+}
+
 function renderProvider() {
   return render(
     <AuthProvider>
@@ -325,5 +340,32 @@ describe("invite-only refusal message", () => {
 
   it("still reads when the account has no email", () => {
     expect(inviteOnlyMessage(null)).toContain("This Google account has no invite");
+  });
+});
+
+describe("initialUser", () => {
+  it("is signed in and not loading on the first render", () => {
+    renderSeeded({ id: "server-user" });
+    expect(screen.getByTestId("user")).toHaveTextContent("server-user");
+    expect(ctx.loading).toBe(false);
+  });
+
+  it("starts signed out and loading without one", () => {
+    renderProvider();
+    expect(screen.getByTestId("user")).toHaveTextContent("none");
+    expect(ctx.loading).toBe(true);
+  });
+
+  it("signs the user out when the browser has no Firebase user", async () => {
+    firebaseAuth.onIdTokenChanged.mockImplementation(
+      (_auth: unknown, cb: (u: null) => Promise<void>) => {
+        void cb(null);
+        return () => undefined;
+      },
+    );
+    renderSeeded({ id: "server-user" });
+    await waitFor(() =>
+      expect(screen.getByTestId("user")).toHaveTextContent("none"),
+    );
   });
 });
