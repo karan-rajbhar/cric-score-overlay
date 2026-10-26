@@ -36,6 +36,7 @@ import {
   type PlayerBowlingPerformance,
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
+import { EditNameDialog } from "~/components/players/edit-name-dialog";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
@@ -524,6 +525,7 @@ export default async function PlayerPage({
           actions={
             isSelf ? (
               <>
+                <EditNameDialog currentName={user.full_name ?? ""} />
                 <EditUsernameDialog currentUsername={user.username ?? ""} />
                 <InviteDialog />
               </>
