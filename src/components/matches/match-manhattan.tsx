@@ -108,7 +108,8 @@ export function MatchManhattan({ match }: { match: Match }) {
                 label: t.shortName,
                 series: (i + 1) as 1 | 2,
                 overs: t.overs.map((o) => ({
-                  over: o.over_number,
+                  // over_number is 0-based in the engine; the chart is 1-based
+                  over: o.over_number + 1,
                   runs: overTotal(o),
                   wickets: o.wickets ?? 0,
                 })),

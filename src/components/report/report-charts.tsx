@@ -65,7 +65,7 @@ export function ReportCharts({
           />
           <OverBarsChart
             label={`Runs per over: ${vs}`}
-            maxOvers={Math.max(1, ...sides.map((s) => s.overs.length))}
+            maxOvers={charts.maxOvers}
             width={CHART_W}
             height={220}
             series={sides.map((s) => ({
