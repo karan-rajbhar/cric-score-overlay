@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "~/lib/firebase/server";
 import { validateUsername } from "~/lib/username";
+import { cleanPlayerDetails } from "~/lib/player-profile";
 import { parsePlayerRef, playerLookup } from "~/lib/player-ref";
 
 export interface UsernameCheckResult {
@@ -159,22 +160,26 @@ export async function updateUsername(
   };
 }
 
-export interface UpdateFullNameResult {
+export interface UpdateProfileResult {
   success: boolean;
-  fullName?: string;
   error?: string;
 }
 
 const FULL_NAME_MAX = 60;
 
 /**
- * Updates the authenticated user's display name. Search keys and the name
+ * Updates the authenticated user's display name and self-described details
+ * (location, role, batting hand, bowling style). Search keys and the name
  * snapshots on rosters are kept by the write hooks.
  */
-export async function updateFullName(
-  rawName: string,
-): Promise<UpdateFullNameResult> {
-  const fullName = rawName.trim().replace(/\s+/g, " ");
+export async function updateProfile(input: {
+  full_name: string;
+  location?: string | null;
+  playing_role?: string | null;
+  batting_hand?: string | null;
+  bowling_style?: string | null;
+}): Promise<UpdateProfileResult> {
+  const fullName = (input.full_name ?? "").trim().replace(/\s+/g, " ");
   if (fullName.length < 2) {
     return { success: false, error: "Enter at least 2 characters" };
   }
@@ -184,21 +189,30 @@ export async function updateFullName(
       error: `Use at most ${FULL_NAME_MAX} characters`,
     };
   }
+  const details = cleanPlayerDetails(input);
+  if (!details.ok) return { success: false, error: details.error };
 
   const db = await createServerClient();
   const {
     data: { user },
   } = await db.auth.getUser();
   if (!user) {
-    return { success: false, error: "You must be signed in to change your name" };
+    return {
+      success: false,
+      error: "You must be signed in to change your profile",
+    };
   }
 
   const { error } = await db
     .from("users")
-    .update({ full_name: fullName, updated_at: new Date().toISOString() })
+    .update({
+      full_name: fullName,
+      ...details.value,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", user.id);
   if (error) {
-    return { success: false, error: error.message || "Failed to update name" };
+    return { success: false, error: error.message || "Failed to save profile" };
   }
 
   try {
@@ -212,7 +226,7 @@ export async function updateFullName(
   revalidatePath("/search");
   revalidatePath(`/players/${user.id}`);
 
-  return { success: true, fullName };
+  return { success: true };
 }
 
 /**

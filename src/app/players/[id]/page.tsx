@@ -36,7 +36,10 @@ import {
   type PlayerBowlingPerformance,
   type PlayerMatchItem,
 } from "~/components/players/player-activity-tabs";
-import { EditNameDialog } from "~/components/players/edit-name-dialog";
+import { EditProfileDialog } from "~/components/players/edit-profile-dialog";
+import { RecentForm } from "~/components/players/recent-form";
+import { ShareProfileButton } from "~/components/players/share-profile-button";
+import { playerDetailLine, playingRoleLabel } from "~/lib/player-profile";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
@@ -68,7 +71,8 @@ const loadPlayer = cache(async (rawId: string) => {
   const ref = parsePlayerRef(rawId);
   if (!ref) return null;
   const db = await createServerClient();
-  const select = "id, full_name, avatar_url, username";
+  const select =
+    "id, full_name, avatar_url, username, location, playing_role, batting_hand, bowling_style";
   const { column, value } = playerLookup(ref);
   const { data } = await db
     .from("users")
@@ -518,18 +522,26 @@ export default async function PlayerPage({
       <div className="space-y-4">
         <PlayerHeader
           name={user.full_name}
-          detail={[user.username ? `@${user.username}` : null, ownEmail]
-            .filter(Boolean)
-            .join(" · ")}
+          role={playingRoleLabel(user.playing_role) ?? undefined}
+          detail={playerDetailLine(user, [
+            user.username ? `@${user.username}` : null,
+            ownEmail,
+          ])}
           photoUrl={user.avatar_url}
           actions={
-            isSelf ? (
-              <>
-                <EditNameDialog currentName={user.full_name ?? ""} />
-                <EditUsernameDialog currentUsername={user.username ?? ""} />
-                <InviteDialog />
-              </>
-            ) : undefined
+            <>
+              <ShareProfileButton name={user.full_name} />
+              {isSelf && (
+                <>
+                  <EditProfileDialog
+                    currentName={user.full_name ?? ""}
+                    current={user}
+                  />
+                  <EditUsernameDialog currentUsername={user.username ?? ""} />
+                  <InviteDialog />
+                </>
+              )}
+            </>
           }
         />
         <ProfileTeams teams={teams} tournamentId={tournamentId} />
@@ -565,6 +577,7 @@ export default async function PlayerPage({
               {livePerformances.length > 0 && (
                 <LivePerformanceCard performances={livePerformances} />
               )}
+              <RecentForm batting={batting} bowling={bowling} />
               <CareerCards
                 batting={[
                   ["Matches", totalMatches],

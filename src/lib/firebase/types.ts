@@ -48,6 +48,10 @@ export interface UsersRow {
   full_name: string;
   avatar_url: string | null;
   location: string | null;
+  /** Self-described, all optional (`~/lib/player-profile`). */
+  playing_role?: string | null;
+  batting_hand?: string | null;
+  bowling_style?: string | null;
   username: string | null;
   is_active: boolean | null;
   /**
