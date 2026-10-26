@@ -13,7 +13,7 @@ import { useSidebarStore } from "~/lib/stores/useSidebarStore";
  */
 export function MobileTabBar() {
   const pathname = usePathname() ?? "/";
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { mobileOpen, setMobileOpen } = useSidebarStore();
   const home = user ? "/dashboard" : "/";
   const under = (href: string) =>
@@ -27,7 +27,8 @@ export function MobileTabBar() {
             href: home,
             label: "Home",
             icon: Home,
-            active: pathname === home,
+            // Until auth is known Home points at "/"; keep it lit on the dashboard.
+            active: pathname === home || (loading && pathname === "/dashboard"),
           },
           {
             href: "/matches",
