@@ -159,6 +159,62 @@ export async function updateUsername(
   };
 }
 
+export interface UpdateFullNameResult {
+  success: boolean;
+  fullName?: string;
+  error?: string;
+}
+
+const FULL_NAME_MAX = 60;
+
+/**
+ * Updates the authenticated user's display name. Search keys and the name
+ * snapshots on rosters are kept by the write hooks.
+ */
+export async function updateFullName(
+  rawName: string,
+): Promise<UpdateFullNameResult> {
+  const fullName = rawName.trim().replace(/\s+/g, " ");
+  if (fullName.length < 2) {
+    return { success: false, error: "Enter at least 2 characters" };
+  }
+  if (fullName.length > FULL_NAME_MAX) {
+    return {
+      success: false,
+      error: `Use at most ${FULL_NAME_MAX} characters`,
+    };
+  }
+
+  const db = await createServerClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) {
+    return { success: false, error: "You must be signed in to change your name" };
+  }
+
+  const { error } = await db
+    .from("users")
+    .update({ full_name: fullName, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  if (error) {
+    return { success: false, error: error.message || "Failed to update name" };
+  }
+
+  try {
+    await db.auth.updateUser({ data: { full_name: fullName } });
+  } catch {
+    // Non-critical if auth metadata update fails
+  }
+
+  revalidatePath("/players");
+  revalidatePath("/dashboard");
+  revalidatePath("/search");
+  revalidatePath(`/players/${user.id}`);
+
+  return { success: true, fullName };
+}
+
 /**
  * Looks up a player by `@handle` or by id (see `~/lib/player-ref`).
  */
