@@ -2252,7 +2252,7 @@ function Console({ s }: { s: LoadedScreen }) {
               <div className="flex items-center justify-between border-b border-border/50 pb-2">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
-                    Over {match.current_over}
+                    Over {match.current_over + 1}
                   </h3>
                 </div>
                 <Badge
@@ -2360,7 +2360,7 @@ function Console({ s }: { s: LoadedScreen }) {
               ) : (
                 <div className="rounded-xl border border-dashed border-border/60 py-6 text-center text-xs text-muted-foreground">
                   <Clock className="mx-auto mb-1.5 h-5 w-5 opacity-40" />
-                  Awaiting the first delivery of over {match.current_over}
+                  Awaiting the first delivery of over {match.current_over + 1}
                   ...
                 </div>
               )}
