@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ThemeToggle } from "~/components/ui/theme-toggle";
 import {
   LogOut,
@@ -137,7 +138,13 @@ export function NavigationBar() {
             </Link>
           </Button>
 
-          {/* Quick Create Dropdown (Auth only) */}
+          {/* Quick Create Dropdown (Auth only); its space is held while auth resolves. */}
+          {loading && (
+            <Skeleton
+              className="h-8 w-16 rounded-lg sm:w-24"
+              aria-hidden="true"
+            />
+          )}
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

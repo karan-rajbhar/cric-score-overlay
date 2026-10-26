@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "~/lib/auth";
 import { Button } from "~/components/ui/button";
 import { LiveHeroCard } from "~/components/matches/live-hero-card";
-import { MatchCardSkeleton } from "~/components/ui/skeleton";
+import { MatchCardSkeleton, Skeleton } from "~/components/ui/skeleton";
 import { Carousel } from "~/components/ds/carousel";
 import { BrandMark, BrandWordmark } from "~/components/brand";
 import { cardSurface } from "~/components/ds/card";
@@ -30,7 +30,7 @@ const FEATURES = [
 ];
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { data: liveData, isLoading: liveLoading } = useMatchesQuery({
     status: "live",
     limit: 6,
@@ -54,7 +54,22 @@ export default function HomePage() {
           scorer for an invite to start scoring.
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          {user ? (
+          {loading ? (
+            // Not known yet: reserve the buttons' space rather than guess,
+            // so a signed-in visitor never sees "Sign in" first.
+            <>
+              <Skeleton
+                className="h-10 w-full rounded-lg sm:w-32"
+                aria-hidden="true"
+                data-testid="hero-action-loading"
+              />
+              <Skeleton
+                className="h-10 w-full rounded-lg sm:w-40"
+                aria-hidden="true"
+                data-testid="hero-action-loading"
+              />
+            </>
+          ) : user ? (
             <>
               <Button asChild>
                 <Link href="/matches/create">New match</Link>
