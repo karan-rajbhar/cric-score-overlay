@@ -564,7 +564,7 @@ export function WagonWheel({ match, balls: initialBalls }: WagonWheelProps) {
             <div className="mt-2 flex items-center gap-2">
               <Badge
                 variant="secondary"
-                className="gap-1.5 px-2.5 py-1 text-xs font-medium"
+                className="gap-1.5"
               >
                 Sector: {activeSectorInfo.label} ({sectorStats.get(selectedSectorId)?.runs ?? 0} runs)
                 <button

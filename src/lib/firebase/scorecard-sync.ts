@@ -5,7 +5,7 @@
  * - {@link rebuildPlayerMatches}: re-derive a match's `player_matches`
  *   records from its innings. The engine keeps them in step itself; this
  *   covers innings completed by other writes (abandoning a match) and
- *   matches whose tournament / club / season / date changed.
+ *   matches whose tournament / club / club side / season / date changed.
  * - {@link remapScorecardUserId}: rewrite a user id inside innings
  *   scorecards, over documents and player records when an auth account
  *   takes over an existing profile.
@@ -16,6 +16,7 @@ import type { WriteEvent } from "./query-builder";
 import {
   OVERS_COLLECTION,
   PLAYER_MATCHES_COLLECTION,
+  replaceDeep,
   SCORECARD_FIELDS,
 } from "./scorecard";
 import { runScoringTransaction } from "./scoring/tx";
@@ -45,6 +46,7 @@ export async function rebuildPlayerMatches(
 const PLAYER_MATCH_MATCH_FIELDS = [
   "tournament_id",
   "club_id",
+  "club_side",
   "season_id",
   "scheduled_at",
 ] as const;
@@ -82,19 +84,6 @@ export async function syncPlayerMatchesAfterWrite(
       await rebuildPlayerMatches(ds, after.id);
     }
   }
-}
-
-function replaceDeep(value: unknown, oldId: string, newId: string): unknown {
-  if (value === oldId) return newId;
-  if (Array.isArray(value))
-    return value.map((v) => replaceDeep(v, oldId, newId));
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value))
-      out[k] = replaceDeep(v, oldId, newId);
-    return out;
-  }
-  return value;
 }
 
 /**

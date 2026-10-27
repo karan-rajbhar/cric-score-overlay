@@ -3,6 +3,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   CloudRain,
@@ -10,7 +11,9 @@ import {
   MoreHorizontal,
   SlidersHorizontal,
   Trash2,
+  Shield,
   Tv,
+  UserCog,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
@@ -25,9 +28,11 @@ import {
   useCanDeleteMatchQuery,
   useCanProduceOverlayQuery,
   useMatchAdminQuery,
+  useMatchClubChoices,
 } from "~/lib/hooks/useMatchQueries";
 import type { Match } from "~/lib/match-types";
 import { DeleteMatchDialog } from "./delete-match-dialog";
+import { MatchClubDialog } from "./match-club-dialog";
 import { RescheduleMatchDialog } from "./reschedule-match-dialog";
 
 const DlsCalculatorModal = dynamic(
@@ -72,6 +77,7 @@ export function MatchMoreMenu({
   className,
 }: MatchMoreMenuProps) {
   const { user } = useAuth();
+  const router = useRouter();
   // Everyone who may delete is also a match admin; ask the stricter
   // question only then (viewers pay no extra reads).
   const { data: isAdmin } = useMatchAdminQuery(match.id, user?.id);
@@ -89,6 +95,20 @@ export function MatchMoreMenu({
     menuOpen && isAdmin === false,
   );
   const canProduce = isAdmin === true || canStream === true;
+  // Putting the match into a club afterwards: the user's clubs are read
+  // once the menu opens.
+  const [showClub, setShowClub] = useState(false);
+  const {
+    choosable: choosableClubs,
+    offer,
+    loading: clubsLoading,
+  } = useMatchClubChoices(
+    match,
+    user?.id,
+    isAdmin === true,
+    menuOpen || showClub,
+  );
+  const canSetClub = !!dlsMatch && offer;
   const [showDelete, setShowDelete] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const canReschedule = canDelete === true && match.status === "scheduled";
@@ -105,7 +125,7 @@ export function MatchMoreMenu({
           <Button
             variant="ghost"
             size="sm"
-            className={className ?? "h-8 w-8 p-0"}
+            className={className ?? "h-9 w-9 p-0"}
             aria-label="More match actions"
             title="More"
           >
@@ -131,6 +151,27 @@ export function MatchMoreMenu({
                 <SlidersHorizontal className="h-4 w-4" />
                 <span>Overlay control room</span>
               </Link>
+            </DropdownMenuItem>
+          )}
+          {isAdmin === true && (
+            <DropdownMenuItem asChild>
+              {/* The team sheet, where any player can be replaced. */}
+              <Link
+                href={`/matches/${match.id}/players`}
+                className="flex cursor-pointer items-center gap-2"
+              >
+                <UserCog className="h-4 w-4" aria-hidden="true" />
+                <span>Replace a player</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {canSetClub && (
+            <DropdownMenuItem
+              onSelect={() => setShowClub(true)}
+              className="flex cursor-pointer items-center gap-2"
+            >
+              <Shield className="h-4 w-4" aria-hidden="true" />
+              <span>{match.club_id ? "Change club" : "Add to club"}</span>
             </DropdownMenuItem>
           )}
           {dls && (
@@ -190,6 +231,16 @@ export function MatchMoreMenu({
           open={showReschedule}
           onOpenChange={setShowReschedule}
           match={match}
+        />
+      )}
+      {dlsMatch && (canSetClub || showClub) && (
+        <MatchClubDialog
+          open={showClub}
+          onOpenChange={setShowClub}
+          match={dlsMatch}
+          clubs={choosableClubs}
+          loading={clubsLoading}
+          onSaved={() => router.refresh()}
         />
       )}
       {dls && showDls && (

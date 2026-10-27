@@ -2,6 +2,8 @@
  * Shared form and scoring types — single source for all match actions.
  * Extracted from the 679-line God file to satisfy SRP.
  */
+import type { ClubSide } from "~/lib/firebase/types";
+
 export type MatchFormat = "T20" | "T10" | "ODI" | "Custom";
 
 export interface MatchFormData {
@@ -15,6 +17,8 @@ export interface MatchFormData {
   umpire1Name?: string;
   umpire2Name?: string;
   clubId?: string;
+  /** With a club: the side(s) whose players count for it (default both). */
+  clubSide?: ClubSide;
   tournamentId?: string;
   seasonId?: string;
   wicketsPerInnings?: number;

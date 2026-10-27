@@ -650,7 +650,7 @@ export function ScoringPanel({
               onClick={onEditBalls}
               aria-label="Correct a ball"
               title="Correct a ball (any over)"
-              className="h-9 shrink-0 gap-1 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="shrink-0 gap-1 px-2 text-muted-foreground hover:text-foreground"
             >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">Correct a ball</span>
@@ -725,7 +725,7 @@ export function ScoringPanel({
                 size="sm"
                 onClick={onRedo}
                 disabled={disabled}
-                className="h-8 shrink-0 px-2.5 text-xs font-semibold"
+                className="h-8 shrink-0"
               >
                 Restore ball
               </Button>
@@ -1160,7 +1160,15 @@ export function ScoringPanel({
             if (!open) handleCancelModal();
           }}
         >
-          <DialogContent className="max-w-md rounded-3xl p-4 sm:p-6">
+          <DialogContent
+            className="max-w-md rounded-3xl p-4 sm:p-6"
+            // Focus the dialog, not its first sector (long off): a focused
+            // sector looks picked, and nothing is picked until a tap.
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              (e.currentTarget as HTMLElement | null)?.focus();
+            }}
+          >
             <DialogHeader className="text-center sm:text-center">
               <div className="mx-auto flex items-center gap-2">
                 <Compass className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -1220,7 +1228,7 @@ export function ScoringPanel({
                 variant="ghost"
                 size="sm"
                 onClick={handleCancelModal}
-                className="text-xs text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive"
               >
                 Discard delivery
               </Button>
@@ -1229,7 +1237,7 @@ export function ScoringPanel({
                 variant="default"
                 size="sm"
                 onClick={handleSkipZone}
-                className="w-full text-xs font-bold sm:w-auto"
+                className="w-full sm:w-auto"
               >
                 Skip (score without zone)
               </Button>
@@ -1272,7 +1280,8 @@ export function ScoringPanel({
                   <span className="font-bold">{key}</span>
                   <Badge
                     variant={variant as "outline" | "destructive"}
-                    className="font-sans text-2xs"
+                    size="sm"
+                    className="font-sans"
                   >
                     {label}
                   </Badge>
@@ -1286,7 +1295,7 @@ export function ScoringPanel({
                 variant="default"
                 size="sm"
                 onClick={() => setShowShortcutsHelp(false)}
-                className="w-full text-xs font-bold"
+                className="w-full"
               >
                 Got it (press ? anytime)
               </Button>

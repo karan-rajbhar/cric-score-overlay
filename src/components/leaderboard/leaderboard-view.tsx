@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { Segmented } from "~/components/ds/tabs";
 import {
   Search,
   Activity,
@@ -963,7 +964,6 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab("batting")}
-              className="h-7 text-xs font-medium"
             >
               View all ({data.batting.length})
             </Button>
@@ -1020,7 +1020,6 @@ function OverviewTab({ view }: { view: LeaderboardState }) {
               variant="ghost"
               size="sm"
               onClick={() => setActiveTab("bowling")}
-              className="h-7 text-xs font-medium"
             >
               View all ({data.bowling.length})
             </Button>
@@ -1077,12 +1076,15 @@ function BattingTab({ view }: { view: LeaderboardState }) {
     <div className="space-y-4">
       {/* Filter & Sort Chips + Table View Mode Toggle */}
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-            Rank by:
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm text-muted-foreground">
+            Rank by
           </span>
-          {(
-            [
+          <Segmented
+            label="Rank by"
+            className="min-w-0"
+            options={(
+              [
               { id: "runs", label: "Most runs" },
               { id: "centuries", label: "100s" },
               { id: "fifties", label: "50s" },
@@ -1092,18 +1094,11 @@ function BattingTab({ view }: { view: LeaderboardState }) {
               { id: "sixes", label: "Most 6s" },
               { id: "fours", label: "Most 4s" },
               { id: "balls", label: "Balls faced" },
-            ] as const
-          ).map((chip) => (
-            <Button
-              key={chip.id}
-              variant={battingSort === chip.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setBattingSort(chip.id)}
-              className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-            >
-              {chip.label}
-            </Button>
-          ))}
+              ] as const
+            ).map((o) => ({ value: o.id, label: o.label }))}
+            value={battingSort}
+            onChange={setBattingSort}
+          />
         </div>
 
         {/* View Toggle: Focused Perspective vs All Columns */}
@@ -1499,12 +1494,15 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
     <div className="space-y-4">
       {/* Filter & Sort Chips + Table View Mode Toggle */}
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
-            Rank by:
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm text-muted-foreground">
+            Rank by
           </span>
-          {(
-            [
+          <Segmented
+            label="Rank by"
+            className="min-w-0"
+            options={(
+              [
               { id: "wickets", label: "Most wickets" },
               { id: "bestBowling", label: "Best bowling (BBI)" },
               { id: "average", label: "Bowling avg" },
@@ -1513,18 +1511,11 @@ function BowlingTab({ view }: { view: LeaderboardState }) {
               { id: "threeWickets", label: "3-Wkt hauls" },
               { id: "fiveWickets", label: "5-Wkt hauls" },
               { id: "balls", label: "Balls bowled" },
-            ] as const
-          ).map((chip) => (
-            <Button
-              key={chip.id}
-              variant={bowlingSort === chip.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setBowlingSort(chip.id)}
-              className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-            >
-              {chip.label}
-            </Button>
-          ))}
+              ] as const
+            ).map((o) => ({ value: o.id, label: o.label }))}
+            value={bowlingSort}
+            onChange={setBowlingSort}
+          />
         </div>
 
         {/* View Toggle for Bowling */}
@@ -1901,28 +1892,24 @@ function FieldingTab({ view }: { view: LeaderboardState }) {
   return (
     <div className="space-y-4">
       {/* Filter & Sort Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+      <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
           Rank by:
         </span>
-        {(
-          [
+        <Segmented
+            label="Rank by"
+            className="min-w-0"
+            options={(
+              [
             { id: "totalDismissals", label: "Total dismissals" },
             { id: "catches", label: "Catches" },
             { id: "stumpings", label: "Stumpings" },
             { id: "runOuts", label: "Run outs" },
-          ] as const
-        ).map((chip) => (
-          <Button
-            key={chip.id}
-            variant={fieldingSort === chip.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFieldingSort(chip.id)}
-            className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-          >
-            {chip.label}
-          </Button>
-        ))}
+              ] as const
+            ).map((o) => ({ value: o.id, label: o.label }))}
+            value={fieldingSort}
+            onChange={setFieldingSort}
+          />
       </div>
 
       {/* Active Metric Leader Spotlight Banner */}
@@ -2109,28 +2096,24 @@ function MvpTab({ view }: { view: LeaderboardState }) {
   return (
     <div className="space-y-4">
       {/* Filter & Sort Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+      <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 mr-1 text-xs font-semibold text-muted-foreground">
           Rank by:
         </span>
-        {(
-          [
+        <Segmented
+            label="Rank by"
+            className="min-w-0"
+            options={(
+              [
             { id: "totalPoints", label: "Total MVP points" },
             { id: "battingPoints", label: "Batting impact" },
             { id: "bowlingPoints", label: "Bowling impact" },
             { id: "fieldingPoints", label: "Fielding impact" },
-          ] as const
-        ).map((chip) => (
-          <Button
-            key={chip.id}
-            variant={mvpSort === chip.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => setMvpSort(chip.id)}
-            className="shrink-0 whitespace-nowrap h-8 min-h-[32px] sm:h-7 text-2xs font-semibold"
-          >
-            {chip.label}
-          </Button>
-        ))}
+              ] as const
+            ).map((o) => ({ value: o.id, label: o.label }))}
+            value={mvpSort}
+            onChange={setMvpSort}
+          />
       </div>
 
       {/* Active Metric Leader Spotlight Banner */}

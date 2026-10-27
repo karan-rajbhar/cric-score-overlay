@@ -232,9 +232,9 @@ export function SponsorLogosManager({
               <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
                 <Button
                   type="button"
-                  size="icon"
+                  size="icon-sm"
                   variant="ghost"
-                  className="h-8 w-8"
+                  
                   disabled={busy || i === 0}
                   onClick={() => move(i, -1)}
                   aria-label={`Move ${s.name} up`}
@@ -243,9 +243,9 @@ export function SponsorLogosManager({
                 </Button>
                 <Button
                   type="button"
-                  size="icon"
+                  size="icon-sm"
                   variant="ghost"
-                  className="h-8 w-8"
+                  
                   disabled={busy || i === sponsors.length - 1}
                   onClick={() => move(i, 1)}
                   aria-label={`Move ${s.name} down`}
@@ -254,9 +254,9 @@ export function SponsorLogosManager({
                 </Button>
                 <Button
                   type="button"
-                  size="icon"
+                  size="icon-sm"
                   variant="ghost"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive"
                   disabled={busy}
                   onClick={() => remove(s)}
                   aria-label={`Remove ${s.name}`}

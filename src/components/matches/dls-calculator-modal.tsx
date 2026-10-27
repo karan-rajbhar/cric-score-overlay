@@ -153,7 +153,6 @@ export function DlsCalculatorModal({
             <Button
               variant="outline"
               size="sm"
-              className="h-10 min-h-[36px] gap-1.5 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
             >
               <CloudRain className="h-4 w-4 shrink-0 text-primary" />
               <span className="hidden sm:inline">DLS calculator</span>

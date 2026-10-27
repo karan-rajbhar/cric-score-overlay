@@ -8,7 +8,7 @@
  * caused the is_out/is_not_out and runs_at_fall/runs_at_wicket bugs.
  */
 
-import type { DlsRevision, Tables } from "~/lib/firebase/types";
+import type { ClubSide, DlsRevision, Tables } from "~/lib/firebase/types";
 
 export type DbMatch = Tables<"matches">;
 export type DbInnings = Tables<"innings">;
@@ -215,6 +215,8 @@ export interface Match {
   /** Free hit after a no-ball; null or absent: on. */
   free_hit?: boolean | null;
   club_id?: string | null;
+  /** The side(s) whose players count for the club; null or absent: both. */
+  club_side?: ClubSide | null;
   tournament_id?: string | null;
   season_id?: string | null;
   team1: MatchTeam;

@@ -48,6 +48,15 @@ export async function runWriteHooks(
   if (event.table === "matches" || event.table === "innings") {
     await syncPlayerMatchesAfterWrite(ds, event);
   }
+  if (
+    event.table === "matches" &&
+    event.op === "update" &&
+    typeof event.after?.id === "string" &&
+    (event.before?.club_side ?? null) !== (event.after.club_side ?? null)
+  ) {
+    // The summary totals (club milestones) count the club's side only.
+    await refreshInningsSummary(ds, event.after.id);
+  }
   if (event.table === "innings") {
     const matchId = event.after?.match_id ?? event.before?.match_id;
     if (typeof matchId === "string") {

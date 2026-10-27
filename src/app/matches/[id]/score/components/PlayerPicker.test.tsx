@@ -233,7 +233,7 @@ describe("PlayerPicker add while typing", () => {
     const find = vi
       .fn()
       .mockResolvedValue([
-        { id: "u-rahul", name: "Rahul Dravid", username: "rahul" },
+        { id: "u-rahul", name: "Rahul Dravid", username: "rahul", matches: 42 },
       ]);
     render(
       <PlayerSearchContext.Provider value={find}>
@@ -252,7 +252,8 @@ describe("PlayerPicker add while typing", () => {
       name: /Add Rahul Dravid to Team A/,
     });
     expect(find).toHaveBeenCalledWith("rahul");
-    expect(pick).toHaveTextContent("@rahul");
+    // Told apart from another Rahul by the matches played.
+    expect(pick).toHaveTextContent("@rahul · 42 matches");
     expect(
       screen.getByRole("button", { name: /Add .rahul. as a new player to Team A/ }),
     ).toBeInTheDocument();

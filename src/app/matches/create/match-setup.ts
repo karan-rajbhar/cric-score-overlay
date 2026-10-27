@@ -16,6 +16,33 @@ export interface SetupTeam {
   vice_captain_id?: string | null;
   /** Players on the squad, when the team doc carries its roster. */
   player_count?: number | null;
+  /** Their user ids, from the same roster. */
+  player_ids?: string[];
+  /** The squad by name, from the same roster. */
+  players?: { id: string; name: string }[];
+}
+
+/**
+ * Whether the opponent looks like an outside team, so its players should
+ * stay out of the club's statistics: a club match where your team's
+ * players have played for the club and none of the opponent's squad has.
+ * An empty squad (a team made on the spot) tells nothing, nor does a club
+ * nobody has played for yet, so the answer is then no.
+ */
+export function looksLikeOutsideOpponent(input: {
+  clubId: string;
+  opponentPlayerIds: readonly string[] | undefined;
+  /** `hasClubRecords` of your team's players; undefined while loading. */
+  yourTeamHasClubRecords: boolean | undefined;
+  /** `hasClubRecords` of the opponent's; undefined while loading. */
+  hasClubRecords: boolean | undefined;
+}): boolean {
+  return (
+    !!input.clubId &&
+    !!input.opponentPlayerIds?.length &&
+    input.yourTeamHasClubRecords === true &&
+    input.hasClubRecords === false
+  );
 }
 
 export interface FormatPreset {

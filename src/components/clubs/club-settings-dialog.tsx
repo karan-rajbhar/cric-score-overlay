@@ -117,7 +117,7 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 min-h-[36px] gap-1.5 text-xs">
+        <Button variant="outline" size="sm">
           <Settings className="h-3.5 w-3.5" />
           <span>Club settings</span>
         </Button>
@@ -157,7 +157,6 @@ export function ClubSettingsDialog({ club }: ClubSettingsDialogProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 min-h-[32px] text-xs"
               >
                 Edit branding
               </Button>

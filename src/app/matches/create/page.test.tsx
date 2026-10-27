@@ -13,13 +13,14 @@ vi.mock("~/lib/auth", () => ({
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
+const TEAMS: Record<string, unknown>[] = [
+  { id: "t1", name: "Lions", short_name: "LIO", created_by: "u1", player_count: 12 },
+  { id: "t2", name: "Tigers", short_name: "TIG", created_by: "u1", player_count: 11 },
+  { id: "t3", name: "Hawks", short_name: "HAW", created_by: "u1", player_count: 0 },
+  { id: "t9", name: "Strangers", created_by: "someone-else" },
+];
 const wizard = {
-  teams: [
-    { id: "t1", name: "Lions", short_name: "LIO", created_by: "u1", player_count: 12 },
-    { id: "t2", name: "Tigers", short_name: "TIG", created_by: "u1", player_count: 11 },
-    { id: "t3", name: "Hawks", short_name: "HAW", created_by: "u1", player_count: 0 },
-    { id: "t9", name: "Strangers", created_by: "someone-else" },
-  ],
+  teams: [...TEAMS],
   tournaments: [] as Record<string, unknown>[],
   clubs: [],
   playerTeamIds: [],
@@ -35,16 +36,28 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
   }),
   useTournamentRegistrationsQuery: () => ({ data: undefined }),
   useMatchWizardScopeQuery: () => ({ data: undefined }),
+  useClubRecordsQuery: (clubId: string, ids: string[]) => ({
+    data: clubId && ids.length ? ids.some((id) => knownToClub.has(id)) : undefined,
+  }),
 }));
+/** Players who have played in the club (`hasClubRecords`). */
+let knownToClub = new Set<string>();
 vi.mock("../mutations", () => ({ createMatch: vi.fn() }));
 vi.mock("../../teams/actions", () => ({
   createTeamQuick: vi.fn(),
   createPlayerQuick: vi.fn(),
+  addExistingPlayerQuick: vi.fn(),
+  searchUsers: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
 import CreateMatchPage from "./page";
 import { createMatch } from "../mutations";
-import { createPlayerQuick, createTeamQuick } from "../../teams/actions";
+import {
+  addExistingPlayerQuick,
+  createPlayerQuick,
+  createTeamQuick,
+  searchUsers,
+} from "../../teams/actions";
 import { SETUP_STORAGE_KEY } from "./match-setup";
 
 const startButton = () => screen.getByRole("button", { name: "Start match" });
@@ -61,6 +74,11 @@ describe("New match form", () => {
     window.localStorage.clear();
     search = new URLSearchParams();
     wizard.tournaments = [];
+    wizard.clubs = [];
+    wizard.clubAdminIds = [];
+    wizard.teams = [...TEAMS];
+    knownToClub = new Set();
+    vi.mocked(searchUsers).mockResolvedValue({ data: [] } as never);
   });
 
   it("starts on T20 with a reason why it cannot start yet", () => {
@@ -365,5 +383,176 @@ describe("New match form", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /more options/i }));
     expect(screen.getByLabelText("Wickets per side")).toHaveValue(8);
+  });
+
+  describe("a club match", () => {
+    const clubMatch = () => {
+      wizard.clubs = [{ id: "c1", name: "Riverside CC" }] as never;
+      wizard.clubAdminIds = ["c1"] as never;
+      search = new URLSearchParams("clubId=c1");
+      vi.mocked(createMatch).mockResolvedValue({
+        data: { id: "m1" },
+        error: null,
+      } as never);
+      render(<CreateMatchPage />);
+      chooseTeam(/your team/i, "Lions");
+      chooseTeam(/opponent/i, "Tigers");
+    };
+    const question = () =>
+      screen.getByRole("group", { name: "Whose stats count for Riverside CC?" });
+    const answer = (name: RegExp) =>
+      within(question()).getByRole("radio", { name });
+
+    it("asks whose stats count, the same way as everywhere else, and counts both teams by default", async () => {
+      clubMatch();
+      expect(answer(/both teams/i)).toBeChecked();
+      expect(question()).toHaveTextContent(
+        "Everyone's stats count: both teams are club players.",
+      );
+      fireEvent.click(startButton());
+      await waitFor(() => expect(createMatch).toHaveBeenCalled());
+      expect(vi.mocked(createMatch).mock.calls[0]![0]).toMatchObject({
+        clubId: "c1",
+        clubSide: "both",
+      });
+    });
+
+    it("counts only your team against an outside team", async () => {
+      clubMatch();
+      fireEvent.click(answer(/only lions/i));
+      expect(answer(/only lions/i)).toBeChecked();
+      expect(question()).toHaveTextContent(
+        "The other team, Tigers, is from outside the club. Its players keep their own stats.",
+      );
+      fireEvent.click(startButton());
+      await waitFor(() => expect(createMatch).toHaveBeenCalled());
+      expect(vi.mocked(createMatch).mock.calls[0]![0]).toMatchObject({
+        clubSide: "team1",
+      });
+    });
+
+    it("suggests only your team when none of the opponent's players has played for the club", () => {
+      knownToClub = new Set(["l1"]);
+      wizard.teams = wizard.teams.map((t) =>
+        t.id === "t1"
+          ? { ...t, player_ids: ["l1", "l2"] }
+          : t.id === "t2"
+            ? { ...t, player_ids: ["x1", "x2"] }
+            : t,
+      );
+      clubMatch();
+      expect(answer(/only lions/i)).toBeChecked();
+      // The suggestion can be undone.
+      fireEvent.click(answer(/both teams/i));
+      expect(answer(/both teams/i)).toBeChecked();
+    });
+
+    it("makes no guess for a club nobody has played for yet", () => {
+      wizard.teams = wizard.teams.map((t) =>
+        t.id === "t2" ? { ...t, player_ids: ["x1", "x2"] } : t,
+      );
+      clubMatch();
+      expect(answer(/both teams/i)).toBeChecked();
+    });
+  });
+
+  describe("adding players by name", () => {
+    const rahul = {
+      id: "u-rahul",
+      full_name: "Rahul Sharma",
+      username: null,
+      matches: 42,
+    };
+    const openHawks = () => {
+      render(<CreateMatchPage />);
+      chooseTeam(/opponent/i, "Hawks");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Add players to Hawks" }),
+      );
+      return screen.getByLabelText("Add a player to Hawks");
+    };
+
+    it("offers the existing player instead of adding them twice", async () => {
+      vi.mocked(searchUsers).mockResolvedValue({ data: [rahul] } as never);
+      vi.mocked(addExistingPlayerQuick).mockResolvedValue({
+        data: { user_id: "u-rahul", full_name: "Rahul Sharma" },
+        error: null,
+      } as never);
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "rahul" } });
+      // Enter before the suggestions show: it looks first, adds nobody.
+      fireEvent.keyDown(input, { key: "Enter" });
+      const pick = await screen.findByRole("button", {
+        name: /Add Rahul Sharma/,
+      });
+      expect(pick).toHaveTextContent("42 matches");
+      expect(createPlayerQuick).not.toHaveBeenCalled();
+
+      fireEvent.click(pick);
+      await waitFor(() =>
+        expect(addExistingPlayerQuick).toHaveBeenCalledWith("t3", "u-rahul"),
+      );
+      expect(await screen.findByText(/Added: Rahul Sharma/)).toHaveTextContent(
+        "1 player in the squad",
+      );
+    });
+
+    it("offers people from your teams first, with their team, without guessing", async () => {
+      wizard.teams = wizard.teams.map((t) =>
+        t.id === "t1"
+          ? {
+              ...t,
+              player_ids: ["u-rahul"],
+              players: [{ id: "u-rahul", name: "Rahul Sharma" }],
+            }
+          : t,
+      );
+      // Someone else of that name elsewhere on CricScore.
+      vi.mocked(searchUsers).mockResolvedValue({
+        data: [rahul, { ...rahul, id: "u-other", matches: 3 }],
+      } as never);
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "rah" } });
+      const ours = within(
+        screen.getByRole("group", { name: "From your teams" }),
+      ).getByRole("button", { name: /Add Rahul Sharma/ });
+      expect(ours).toHaveTextContent("Plays for Lions");
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(createPlayerQuick).not.toHaveBeenCalled();
+      // The stranger is listed apart, with a warning, and not twice.
+      const others = await screen.findByRole("group", {
+        name: "Other players on CricScore",
+      });
+      expect(others).toHaveTextContent(/only if you know it's the same person/);
+      expect(within(others).getAllByRole("button")).toHaveLength(1);
+      expect(others).toHaveTextContent("3 matches");
+    });
+
+    it("looks up other CricScore players only from three letters", async () => {
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "ra" } });
+      await new Promise((r) => setTimeout(r, 400));
+      expect(searchUsers).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: "rah" } });
+      await waitFor(() => expect(searchUsers).toHaveBeenCalledWith("rah"));
+    });
+
+    it("still adds a different person of the same name as a new player", async () => {
+      vi.mocked(searchUsers).mockResolvedValue({ data: [rahul] } as never);
+      vi.mocked(createPlayerQuick).mockResolvedValue({
+        data: { user_id: "p2", full_name: "Rahul" },
+        error: null,
+      } as never);
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "Rahul" } });
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Add “Rahul” as a new player",
+        }),
+      );
+      await waitFor(() =>
+        expect(createPlayerQuick).toHaveBeenCalledWith("t3", "Rahul"),
+      );
+    });
   });
 });

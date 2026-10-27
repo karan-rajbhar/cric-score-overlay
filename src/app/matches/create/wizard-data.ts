@@ -28,6 +28,10 @@ export interface WizardTeam {
   vice_captain_id?: string | null;
   /** Squad size from the team's roster copy; null when it has none. */
   player_count?: number | null;
+  /** The squad's user ids, from the same roster copy. */
+  player_ids?: string[];
+  /** The squad by name (roster snapshots): suggested when adding players. */
+  players?: { id: string; name: string }[];
 }
 
 export interface WizardTournament {
@@ -95,7 +99,7 @@ const ids = (rows: unknown, field: string): string[] => [
   ),
 ];
 
-/** Squad size from `roster`, on the team document already read. */
+/** Squad size and ids from `roster`, on the team document already read. */
 function teamsOf(rows: Row[]): WizardTeam[] {
   return sortRows(rows, [
     { field: "name", ascending: true, nullsFirst: false },
@@ -103,9 +107,20 @@ function teamsOf(rows: Row[]): WizardTeam[] {
     const { roster, ...team } = row as unknown as WizardTeam & {
       roster?: unknown;
     };
+    if (!Array.isArray(roster)) return { ...team, player_count: null };
+    const entries = roster as {
+      user_id?: unknown;
+      user?: { full_name?: string | null } | null;
+    }[];
     return {
       ...team,
-      player_count: Array.isArray(roster) ? roster.length : null,
+      player_count: roster.length,
+      player_ids: ids(roster, "user_id"),
+      players: entries.flatMap((e) =>
+        typeof e.user_id === "string" && e.user?.full_name
+          ? [{ id: e.user_id, name: e.user.full_name }]
+          : [],
+      ),
     };
   });
 }
@@ -199,6 +214,29 @@ export async function fetchWizardBase(
     clubAdminIds,
     error: t.error,
   };
+}
+
+/** Most user ids one `in` filter takes. */
+const IN_LIMIT = 30;
+
+/**
+ * Whether any of `userIds` has a record in a match of the club (1 read):
+ * a squad none of whose players ever played for the club is likely an
+ * outside opponent. Checks the first {@link IN_LIMIT} players.
+ */
+export async function hasClubRecords(
+  db: WizardClient,
+  clubId: string,
+  userIds: readonly string[],
+): Promise<boolean> {
+  if (!userIds.length) return false;
+  const { data } = (await db
+    .from("player_matches")
+    .select("id")
+    .eq("club_id", clubId)
+    .in("user_id", userIds.slice(0, IN_LIMIT))
+    .limit(1)) as Result;
+  return ((data ?? []) as unknown[]).length > 0;
 }
 
 export interface WizardScope {

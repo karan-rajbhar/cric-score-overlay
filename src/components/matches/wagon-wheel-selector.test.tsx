@@ -113,4 +113,16 @@ describe("WagonWheelSelector", () => {
     fireEvent.keyDown(longOnButton, { key: " " });
     expect(onSelect).toHaveBeenCalledWith("long_on");
   });
+
+  it("does not light up a sector that only received focus from code (a dialog opening)", () => {
+    render(<WagonWheelSelector selectedZone={null} onSelectZone={vi.fn()} />);
+    const longOff = screen.getByRole("button", { name: /long off/i });
+    const ring = () => longOff.querySelectorAll("path")[1]!.getAttribute("class");
+    longOff.focus();
+    expect(ring()).not.toContain("fill-accent");
+    expect(longOff).toHaveAttribute("aria-pressed", "false");
+    // Hovering still shows where the ball would go.
+    fireEvent.mouseEnter(longOff);
+    expect(ring()).toContain("fill-accent");
+  });
 });

@@ -71,4 +71,27 @@ describe("MatchInfo", () => {
     expect(screen.getByText("Virat Kohli")).toBeInTheDocument();
     expect(screen.getByText("Jasprit Bumrah")).toBeInTheDocument();
   });
+
+  it("says whose stats count for the club, so a missing outside player is explained", () => {
+    const club = { id: "c1", name: "Riverside CC" };
+    const { unmount } = render(
+      <MatchInfo match={makeMatch({ club_id: "c1", club })} />,
+    );
+    expect(screen.getByText("Club stats count")).toBeInTheDocument();
+    expect(screen.getByText("Both teams")).toBeInTheDocument();
+    unmount();
+
+    render(
+      <MatchInfo
+        match={makeMatch({ club_id: "c1", club, club_side: "team2" })}
+      />,
+    );
+    expect(screen.getByText("Only Coastal Kings")).toBeInTheDocument();
+    expect(screen.getByText("Royal Tigers: outside team")).toBeInTheDocument();
+  });
+
+  it("says nothing about club stats for a match in no club", () => {
+    render(<MatchInfo match={makeMatch({})} />);
+    expect(screen.queryByText("Club stats count")).toBeNull();
+  });
 });

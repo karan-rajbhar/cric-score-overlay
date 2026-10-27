@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { cn, deriveShortName } from "~/lib/utils";
+import { AvatarPhoto } from "./avatar-photo";
 
 const SIZE = {
   xs: "h-6 w-6 text-2xs",
@@ -50,19 +51,7 @@ export function Avatar({
     SIZE[size],
     className,
   );
-  if (src) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={src}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className={cn(base, "object-cover")}
-      />
-    );
-  }
-  return (
+  const initials = (
     <span
       aria-hidden="true"
       className={cn(base, TINT)}
@@ -70,6 +59,16 @@ export function Avatar({
     >
       {initialsOf(name, 2)}
     </span>
+  );
+  // A photo that fails to load shows the initials instead.
+  return src ? (
+    <AvatarPhoto
+      src={src}
+      className={cn(base, "object-cover")}
+      fallback={initials}
+    />
+  ) : (
+    initials
   );
 }
 

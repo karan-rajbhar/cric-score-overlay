@@ -30,7 +30,9 @@ interface LeaderboardClient {
 
 /** The match fields this needs (match lists already select them). */
 export type ScopeMatch = Pick<MatchesRow, "id"> &
-  Partial<Pick<MatchesRow, "team1_id" | "team2_id" | "status">> & {
+  Partial<
+    Pick<MatchesRow, "team1_id" | "team2_id" | "status" | "club_side">
+  > & {
     innings?:
       | ({ id?: string | null; is_completed?: boolean | null } & Record<
           string,
@@ -80,17 +82,24 @@ export async function loadScopeLeaderboard(
     );
   }
   const added = new Set<string>();
-  for (const match of open) {
+  // On a club board, only the club's side of a match counts (`club_side`).
+  const inScope = (doc: { club_id: string | null }) =>
+    scope !== "club" || doc.club_id === scopeId;
+  for (const listed of open) {
+    const match = scope === "club" ? { ...listed, club_id: scopeId } : listed;
     const innings = ((openInnings ?? []) as InningsRow[]).filter(
       (i) => i.match_id === match.id,
     );
     const counted = new Set(
-      playerMatchDocs(match, innings, "").map((d) => d.user_id),
+      playerMatchDocs(match, innings, "")
+        .filter(inScope)
+        .map((d) => d.user_id),
     );
     const inPlay = innings
       .filter((i) => !i.is_completed)
       .map((i) => ({ ...i, is_completed: true }));
     for (const doc of playerMatchDocs(match, inPlay, "")) {
+      if (!inScope(doc)) continue;
       let p = players[doc.user_id];
       if (!p) {
         p = { ...emptyAcc(), name: null, avatar_url: null };

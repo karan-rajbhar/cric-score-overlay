@@ -89,7 +89,8 @@ export function ClubStatsTab({
             Statistics and records
           </h2>
           <p className="text-sm text-muted-foreground">
-            Across every match {clubName} has hosted.
+            Across every match {clubName} has hosted. Players from outside
+            teams are left out.
           </p>
         </div>
         {(leaderboardData?.mvp.length ?? 0) > 0 && (

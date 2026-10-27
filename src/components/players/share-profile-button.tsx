@@ -26,7 +26,6 @@ export function ShareProfileButton({ name }: { name: string }) {
       type="button"
       variant="outline"
       size="sm"
-      className="gap-1.5 text-xs"
       onClick={() => void share()}
     >
       <Share2 className="h-3.5 w-3.5 text-primary" />

@@ -129,9 +129,9 @@ function ChannelRow({
             )}
             <Button
               type="button"
-              size="icon"
+              size="icon-sm"
               variant="ghost"
-              className="h-8 w-8"
+              
               onClick={() => setEditing(true)}
               aria-label={`Rename ${channel.name}`}
             >
@@ -139,9 +139,9 @@ function ChannelRow({
             </Button>
             <Button
               type="button"
-              size="icon"
+              size="icon-sm"
               variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
               onClick={remove}
               disabled={busy}
               aria-label={`Delete ${channel.name}`}

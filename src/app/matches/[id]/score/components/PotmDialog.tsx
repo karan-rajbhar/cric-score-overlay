@@ -195,7 +195,7 @@ export function PotmDialog({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="truncate text-sm font-medium">{p.name}</p>
                         {p.isTopRecommendation && (
-                          <Badge variant="outline" className="text-[0.625rem] font-medium px-1.5 py-0">
+                          <Badge variant="outline" size="sm">
                             Suggested
                           </Badge>
                         )}

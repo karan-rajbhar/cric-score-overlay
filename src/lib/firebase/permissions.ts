@@ -34,6 +34,43 @@ export async function isClubAdminOf(
 }
 
 /**
+ * The user's standing in a club: "admin" (its owner, or an active owner /
+ * admin member), "member" (any other active member) or null.
+ */
+export async function clubRoleOf(
+  db: ServerClient,
+  clubId: string,
+  userId: string,
+): Promise<"admin" | "member" | null> {
+  const [{ data: club }, { data: rows }] = await Promise.all([
+    db.from("clubs").select("owner_id").eq("id", clubId).maybeSingle(),
+    db
+      .from("club_memberships")
+      .select("role, status")
+      .eq("club_id", clubId)
+      .eq("user_id", userId),
+  ]);
+  if (!club) return null;
+  if (club.owner_id === userId) return "admin";
+  const active = (rows ?? []).filter((m) => m.status === "active");
+  if (active.some((m) => m.role === "owner" || m.role === "admin")) {
+    return "admin";
+  }
+  return active.length ? "member" : null;
+}
+
+/**
+ * Who may put a match into a club or take it out of one: that club's
+ * admins, or a member of it who scores the match (`isMatchAdmin`).
+ */
+export function canSetMatchClub(
+  role: "admin" | "member" | null,
+  isMatchAdmin: boolean,
+): boolean {
+  return role === "admin" || (role === "member" && isMatchAdmin);
+}
+
+/**
  * Who may manage a team or act for it (its squad, details, tournament
  * entries): its creator, captain or vice-captain, or an admin of its club.
  */

@@ -411,7 +411,7 @@ export default async function TournamentPage({
           variant="ghost"
           size="sm"
           asChild
-          className="pl-0 text-xs sm:text-sm"
+          className="pl-0"
         >
           <Link href={backHref}>
             <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />

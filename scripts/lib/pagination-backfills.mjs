@@ -8,6 +8,7 @@
 
 import {
   canonicalJson,
+  clubTeamIdsOf,
   SUMMARY_TOTAL_FIELDS,
   summaryTotalsOf,
 } from "../../src/lib/firebase/derive.mjs";
@@ -47,7 +48,7 @@ export function planMatchSummaryTotals(matches) {
   const updates = [];
   for (const m of matches) {
     /** @type {Record<string, unknown>} */
-    const totals = summaryTotalsOf(m.innings_summary ?? []);
+    const totals = summaryTotalsOf(m.innings_summary ?? [], clubTeamIdsOf(m));
     const same = SUMMARY_TOTAL_FIELDS.every(
       (f) => canonicalJson(m[f] ?? null) === canonicalJson(totals[f]),
     );

@@ -27,6 +27,7 @@ import type {
   MatchesRow,
   PartnershipsRow,
 } from "./types";
+import { clubTeamIdsOf } from "./derive.mjs";
 
 export const OVERS_COLLECTION = "overs";
 export const PLAYER_MATCHES_COLLECTION = "player_matches";
@@ -80,6 +81,27 @@ export const SCORECARD_FIELDS = [
   "last_ball",
   "last_over_bowler_id",
 ] as const;
+
+/**
+ * `value` with every string equal to `oldId` replaced by `newId`, however
+ * deep (a player's id inside scorecard arrays and ball entries).
+ */
+export function replaceDeep(
+  value: unknown,
+  oldId: string,
+  newId: string,
+): unknown {
+  if (value === oldId) return newId;
+  if (Array.isArray(value))
+    return value.map((v) => replaceDeep(v, oldId, newId));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value))
+      out[k] = replaceDeep(v, oldId, newId);
+    return out;
+  }
+  return value;
+}
 
 export interface OversRow {
   id: string;
@@ -375,36 +397,36 @@ type MatchRef = Pick<MatchesRow, "id"> &
   Partial<
     Pick<
       MatchesRow,
-      "tournament_id" | "club_id" | "season_id" | "scheduled_at" | "created_at"
+      | "tournament_id"
+      | "club_id"
+      | "club_side"
+      | "team1_id"
+      | "team2_id"
+      | "season_id"
+      | "scheduled_at"
+      | "created_at"
     >
   >;
 
 /**
  * The `player_matches` documents a match should have: one per player who
  * batted, bowled or took a catch / stumping / run-out in a completed innings.
+ * Only players of the club's side (`club_side`, {@link clubTeamIdsOf}) carry
+ * the match's `club_id`: an outside opponent's records stay out of the club
+ * statistics but still count for their careers.
  */
 export function playerMatchDocs(
   match: MatchRef,
-  innings: (InningsRef & Pick<InningsRow, "innings_number" | "is_completed">)[],
+  innings: (InningsRef &
+    Pick<InningsRow, "innings_number" | "is_completed"> &
+    Partial<Pick<InningsRow, "team_id">>)[],
   now: string,
 ): PlayerMatchesRow[] {
   const docs = new Map<string, PlayerMatchesRow>();
   const docOf = (userId: string) => {
     let doc = docs.get(userId);
     if (!doc) {
-      doc = {
-        id: playerMatchId(match.id, userId),
-        user_id: userId,
-        match_id: match.id,
-        tournament_id: match.tournament_id ?? null,
-        club_id: match.club_id ?? null,
-        season_id: match.season_id ?? null,
-        match_date: match.scheduled_at ?? match.created_at ?? null,
-        batting: [],
-        bowling: [],
-        fielding: { catches: 0, stumpings: 0, run_outs: 0 },
-        updated_at: now,
-      };
+      doc = emptyPlayerMatch(match, userId, now);
       docs.set(userId, doc);
     }
     return doc;
@@ -419,19 +441,85 @@ export function playerMatchDocs(
     for (const e of inn.bowling ?? [])
       docOf(e.user_id).bowling.push({ ...e, ...tag });
     for (const f of inn.fall_of_wickets ?? []) {
-      if (!f.fielder_id) continue;
-      const key =
-        f.dismissal_type === "caught"
-          ? "catches"
-          : f.dismissal_type === "stumped"
-            ? "stumpings"
-            : f.dismissal_type === "run_out"
-              ? "run_outs"
-              : null;
-      if (key) docOf(f.fielder_id).fielding[key] += 1;
+      const key = fieldingKeyOf(f.dismissal_type);
+      if (f.fielder_id && key) docOf(f.fielder_id).fielding[key] += 1;
     }
   }
-  return Array.from(docs.values());
+  const club = clubPlayerIds(match, completed);
+  return Array.from(docs.values(), (doc) =>
+    club && !club.has(doc.user_id) ? { ...doc, club_id: null } : doc,
+  );
+}
+
+/**
+ * The players who played for the club's side (`clubTeamIdsOf`): its
+ * batters, and the bowlers and fielders of the innings it fielded in. Null
+ * when both sides are the club's.
+ */
+function clubPlayerIds(
+  match: MatchRef,
+  innings: (InningsRef & Partial<Pick<InningsRow, "team_id">>)[],
+): Set<string> | null {
+  const clubTeams = clubTeamIdsOf(match);
+  if (!clubTeams) return null;
+  const isClub = (teamId: string | null) =>
+    !!teamId && clubTeams.includes(teamId);
+  const ids = new Set<string>();
+  for (const inn of innings) {
+    const batting = inn.team_id ?? null;
+    const batters = (inn.batting ?? []).map((e) => e.user_id);
+    const fielders = [
+      ...(inn.bowling ?? []).map((e) => e.user_id),
+      ...(inn.fall_of_wickets ?? []).flatMap((f) =>
+        f.fielder_id ? [f.fielder_id] : [],
+      ),
+    ];
+    if (isClub(batting)) batters.forEach((id) => ids.add(id));
+    if (isClub(opponentOf(match, batting))) {
+      fielders.forEach((id) => ids.add(id));
+    }
+  }
+  return ids;
+}
+
+function emptyPlayerMatch(
+  match: MatchRef,
+  userId: string,
+  now: string,
+): PlayerMatchesRow {
+  return {
+    id: playerMatchId(match.id, userId),
+    user_id: userId,
+    match_id: match.id,
+    tournament_id: match.tournament_id ?? null,
+    club_id: match.club_id ?? null,
+    season_id: match.season_id ?? null,
+    match_date: match.scheduled_at ?? match.created_at ?? null,
+    batting: [],
+    bowling: [],
+    fielding: { catches: 0, stumpings: 0, run_outs: 0 },
+    updated_at: now,
+  };
+}
+
+/** The other team of the match (the fielding side of `teamId`'s innings). */
+function opponentOf(
+  match: Pick<MatchRef, "team1_id" | "team2_id">,
+  teamId: string | null,
+): string | null {
+  if (teamId && teamId === match.team1_id) return match.team2_id ?? null;
+  if (teamId && teamId === match.team2_id) return match.team1_id ?? null;
+  return null;
+}
+
+/** The fielding figure a dismissal credits its fielder with, if any. */
+function fieldingKeyOf(
+  dismissal: string | null | undefined,
+): keyof PlayerMatchesRow["fielding"] | null {
+  if (dismissal === "caught") return "catches";
+  if (dismissal === "stumped") return "stumpings";
+  if (dismissal === "run_out") return "run_outs";
+  return null;
 }
 
 export function battingRowsOfPlayerMatch(

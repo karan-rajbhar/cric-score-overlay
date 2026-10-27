@@ -278,8 +278,9 @@ export function LiveMatchHUD({
                   </span>
                   <Badge
                     variant="outline"
+                    size="sm"
                     className={cn(
-                      "px-1.5 py-0 text-[0.625rem] font-medium sm:text-xs",
+                      "sm:h-6 sm:px-2.5 sm:text-xs",
                       sunlightMode
                         ? "border-black text-black"
                         : "border-white/20 bg-white/5 text-white/80",
@@ -467,8 +468,9 @@ export function LiveMatchHUD({
                   {rateDiff && (
                     <Badge
                       variant="outline"
+                      size="sm"
                       className={cn(
-                        "shrink-0 gap-1 px-2 py-0.5 text-[0.625rem] font-bold tabular-nums sm:px-2.5 sm:py-1 sm:text-xs",
+                        "font-score tabular-nums sm:h-6 sm:px-2.5 sm:text-xs",
                         sunlightMode
                           ? "border-2 border-black font-bold text-black"
                           : isAheadOfRate
@@ -578,7 +580,7 @@ export function LiveMatchHUD({
                     <Badge
                       variant="outline"
                       className={cn(
-                        "px-2.5 py-1 text-xs font-bold tabular-nums",
+                        "font-score tabular-nums",
                         sunlightMode
                           ? "border-2 border-black font-bold text-black"
                           : "border-white/20 bg-white/5 text-white/80",

@@ -8,6 +8,8 @@ import { refreshLiveState } from "~/lib/firebase/live-sync";
 import { matchEventOf, notifyFollowersAfter } from "~/lib/push/notify";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
+import { isClubSide } from "~/lib/firebase/derive.mjs";
+import type { ClubSide } from "~/lib/firebase/types";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { afterDeleteHref } from "~/lib/match-delete";
 import type { DeleteMatchResult } from "~/lib/firebase/rpc/delete-match";
@@ -55,6 +57,9 @@ export async function createMatch(formData: MatchFormData) {
       formData.ballsPerOver > 12)
   ) {
     return { data: null, error: "Balls per over must be between 2 and 12" };
+  }
+  if (formData.clubSide !== undefined && !isClubSide(formData.clubSide)) {
+    return { data: null, error: "Choose which side plays for the club" };
   }
   if (
     formData.wicketsPerInnings !== undefined &&
@@ -289,6 +294,12 @@ export async function createMatch(formData: MatchFormData) {
       umpire1_name: formData.umpire1Name,
       umpire2_name: formData.umpire2Name,
       club_id: formData.clubId,
+      // Only a club match has sides that count for a club; "both" is the
+      // default, so it is not stored.
+      club_side:
+        formData.clubId && formData.clubSide && formData.clubSide !== "both"
+          ? formData.clubSide
+          : null,
       tournament_id: formData.tournamentId,
       season_id: formData.seasonId,
       wickets_per_innings: formData.wicketsPerInnings ?? 10,
@@ -1073,6 +1084,11 @@ export interface MatchSettingsUpdate {
   noBallCountsAsBallFaced?: boolean;
   wideRunsToBatsman?: boolean;
   noballExtrasToBatsman?: boolean;
+  /**
+   * A club match's side(s) whose players count for the club; changing it
+   * moves the match's records in or out of the club statistics.
+   */
+  clubSide?: ClubSide;
 }
 
 export async function updateMatchSettings(
@@ -1097,6 +1113,13 @@ export async function updateMatchSettings(
       return {
         success: false,
         error: "Balls per over must be between 2 and 12",
+      };
+    }
+
+    if (settings.clubSide !== undefined && !isClubSide(settings.clubSide)) {
+      return {
+        success: false,
+        error: "Choose which side plays for the club",
       };
     }
 
@@ -1148,6 +1171,10 @@ export async function updateMatchSettings(
       matchUpdates.wide_runs_to_batsman = settings.wideRunsToBatsman;
     if (settings.noballExtrasToBatsman !== undefined)
       matchUpdates.noball_extras_to_batsman = settings.noballExtrasToBatsman;
+    // The write hooks move the records and milestone totals with it.
+    if (settings.clubSide !== undefined)
+      matchUpdates.club_side =
+        settings.clubSide === "both" ? null : settings.clubSide;
     // A target set by hand replaces any DLS revision.
     if (settings.targetRuns !== undefined) matchUpdates.dls_revision = null;
 
@@ -1683,6 +1710,49 @@ export async function replaceBatter(
   }
 }
 
+/**
+ * A player recorded by mistake, replaced throughout the match, during it
+ * or after (`replace_player`): their batting, bowling, fielding and any
+ * player-of-the-match award go to `toId`, a squad player who has no part
+ * in the match yet; the scorecards and statistics follow.
+ */
+export async function replacePlayerInMatch(
+  matchId: string,
+  fromId: string,
+  toId: string,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await db.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "You must be logged in to replace a player" };
+    }
+    const { error } = await db.rpc("replace_player", {
+      p_match_id: matchId,
+      p_from_id: fromId,
+      p_to_id: toId,
+    });
+    if (error) return { success: false, error: friendlyError(error.message) };
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/matches/${matchId}/score`);
+    revalidatePath(`/players/${fromId}`);
+    revalidatePath(`/players/${toId}`);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in replacePlayerInMatch:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to replace the player",
+      ),
+    };
+  }
+}
+
 export interface MatchScorerUser {
   id: string;
   full_name: string;
@@ -1691,6 +1761,8 @@ export interface MatchScorerUser {
 }
 
 const SCORER_FIELDS = "id, full_name, avatar_url, username";
+/** How many times `limit` profiles a name search reads, past placeholders. */
+const CANDIDATE_LOOKAHEAD = 3;
 /** Candidates also bring the placeholder flag, to leave those players out. */
 const CANDIDATE_FIELDS = `${SCORER_FIELDS}, is_placeholder`;
 const UUID_RE =
@@ -1756,15 +1828,21 @@ async function findScorerCandidates(
       error: usersError?.message ?? null,
     };
   }
-  // Word-prefix match on name / @username: reads at most `limit` profiles.
+  // Word-prefix match on name / @username. Players added by name only
+  // (placeholders) cannot score and are left out, so look further than
+  // `limit` (at most CANDIDATE_LOOKAHEAD times as many profiles): a name
+  // shared with several of them must still find the registered player.
   const { data, error } = await prefixSearch(
     db,
     "users",
     target,
     CANDIDATE_FIELDS,
-    limit,
+    limit * CANDIDATE_LOOKAHEAD,
   );
-  return { data: withAccounts(data as unknown[]), error };
+  return {
+    data: withAccounts(data as unknown[]).slice(0, limit),
+    error,
+  };
 }
 
 export async function getMatchScorers(matchId: string): Promise<{

@@ -202,8 +202,13 @@ export function WagonWheelSelector({
                 onMouseEnter={() => setHoveredSector(s.id)}
                 onMouseLeave={() => setHoveredSector(null)}
                 // Keyboard focus shows the hover highlight (an outline does
-                // not draw on an SVG group).
-                onFocus={() => setHoveredSector(s.id)}
+                // not draw on an SVG group); focus moved by code or a tap
+                // does not, or the sector would look picked.
+                onFocus={(e) => {
+                  if (e.currentTarget.matches(":focus-visible")) {
+                    setHoveredSector(s.id);
+                  }
+                }}
                 onBlur={() => setHoveredSector(null)}
                 className="cursor-pointer focus:outline-none"
               >
