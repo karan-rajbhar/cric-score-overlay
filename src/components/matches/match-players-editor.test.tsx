@@ -131,7 +131,10 @@ describe("Players page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Add the player to the team's squad first.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    // Cancel is disabled while the request is in flight: wait for it.
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    await waitFor(() => expect(cancel).toBeEnabled());
+    fireEvent.click(cancel);
     expect(screen.queryByRole("radiogroup")).toBeNull();
   });
 });
