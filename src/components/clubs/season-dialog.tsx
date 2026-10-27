@@ -64,7 +64,7 @@ export function SeasonDialog({ clubId }: SeasonDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+        <Button variant="outline" size="sm">
           <Plus className="h-3.5 w-3.5" />
           New season
         </Button>

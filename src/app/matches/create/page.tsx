@@ -17,9 +17,12 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
+import { ClubSideChoice } from "~/components/matches/club-side-choice";
+import type { ClubSide } from "~/lib/firebase/types";
 import { PageContainer } from "~/components/layout/page";
 import { useAuth } from "~/lib/auth";
 import {
+  useClubRecordsQuery,
   useMatchWizardDataQuery,
   useMatchWizardScopeQuery,
   useTournamentRegistrationsQuery,
@@ -28,6 +31,7 @@ import { cn } from "~/lib/utils";
 import { createMatch } from "../mutations";
 import { createTeamQuick } from "../../teams/actions";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import { teammatesOf } from "~/lib/player-search";
 import type { MatchFormat } from "../types";
 import {
   defaultTitle,
@@ -36,6 +40,7 @@ import {
   formatForOvers,
   LIMITS,
   loadSetup,
+  looksLikeOutsideOpponent,
   saveSetup,
   setupBlocker,
   teamGroups,
@@ -116,7 +121,18 @@ function MatchSetupForm({ userId }: { userId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdTeams, setCreatedTeams] = useState<SetupTeam[]>([]);
-  const [addedPlayers, setAddedPlayers] = useState<Record<string, number>>({});
+  // Players added inline, per team (their count and ids join the team's).
+  const [addedPlayers, setAddedPlayers] = useState<Record<string, string[]>>(
+    {},
+  );
+  const addPlayer = (teamId: string) => (player: { id: string }) =>
+    setAddedPlayers((p) => ({ ...p, [teamId]: [...(p[teamId] ?? []), player.id] }));
+  // "Whose stats count" as answered for one club and pair of teams;
+  // otherwise the guess (`looksLikeOutsideOpponent`) applies.
+  const [sideChoice, setSideChoice] = useState<{
+    key: string;
+    side: ClubSide;
+  } | null>(null);
 
   const {
     data: wizardData,
@@ -147,12 +163,18 @@ function MatchSetupForm({ userId }: { userId: string }) {
       ...((scopeData?.teams ?? []) as SetupTeam[]).filter(
         (t) => !created.has(t.id),
       ),
-    ]).map((t) =>
-      addedPlayers[t.id]
-        ? { ...t, player_count: (t.player_count ?? 0) + addedPlayers[t.id]! }
-        : t,
-    );
+    ]).map((t) => {
+      const added = addedPlayers[t.id];
+      if (!added) return t;
+      return {
+        ...t,
+        player_count: (t.player_count ?? 0) + added.length,
+        player_ids: [...(t.player_ids ?? []), ...added],
+      };
+    });
   }, [createdTeams, wizardData?.teams, scopeData?.teams, addedPlayers]);
+  // The people on the user's teams: offered first when adding by name.
+  const teammates = useMemo(() => teammatesOf(teams), [teams]);
   const tournaments = uniqueById([
     ...((wizardData?.tournaments ?? []) as TournamentOption[]),
     ...((scopeData?.tournaments ?? []) as TournamentOption[]),
@@ -262,6 +284,28 @@ function MatchSetupForm({ userId }: { userId: string }) {
       team1?.club_id === c.id ||
       team2?.club_id === c.id,
   );
+  const clubName = clubs.find((c) => c.id === clubId)?.name ?? "the club";
+
+  // A club match against an outside team counts only your side for the club.
+  const { data: yourTeamHasClubRecords } = useClubRecordsQuery(
+    team2?.player_ids?.length ? clubId : "",
+    team1?.player_ids ?? [],
+  );
+  const { data: opponentHasClubRecords } = useClubRecordsQuery(
+    clubId,
+    team2?.player_ids ?? [],
+  );
+  const sideKey = `${clubId}:${effectiveTeam1}:${team2Id}`;
+  const guessedSide: ClubSide = looksLikeOutsideOpponent({
+    clubId,
+    opponentPlayerIds: team2?.player_ids,
+    yourTeamHasClubRecords,
+    hasClubRecords: opponentHasClubRecords,
+  })
+    ? "team1"
+    : "both";
+  const clubSide: ClubSide =
+    sideChoice?.key === sideKey ? sideChoice.side : guessedSide;
 
   const oversNum = Number(overs);
   const wicketsNum = Number(wickets);
@@ -371,6 +415,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
         umpire2Name: umpire2.trim() || undefined,
         tournamentId: tournamentId || undefined,
         clubId: clubId || undefined,
+        clubSide: clubId ? clubSide : undefined,
       });
     } catch {
       setSubmitError(NETWORK_ERROR_MESSAGE);
@@ -484,9 +529,9 @@ function MatchSetupForm({ userId }: { userId: string }) {
                       teamId={team1.id}
                       teamName={team1.name}
                       playerCount={team1.player_count}
-                      onAdded={() =>
-                        setAddedPlayers((p) => ({ ...p, [team1.id]: (p[team1.id] ?? 0) + 1 }))
-                      }
+                      existingIds={team1.player_ids}
+                      teammates={teammates}
+                      onAdded={addPlayer(team1.id)}
                     />
                   )}
                 </div>
@@ -512,9 +557,19 @@ function MatchSetupForm({ userId }: { userId: string }) {
                       teamId={team2.id}
                       teamName={team2.name}
                       playerCount={team2.player_count}
-                      onAdded={() =>
-                        setAddedPlayers((p) => ({ ...p, [team2.id]: (p[team2.id] ?? 0) + 1 }))
-                      }
+                      existingIds={team2.player_ids}
+                      teammates={teammates}
+                      onAdded={addPlayer(team2.id)}
+                    />
+                  )}
+                  {clubId && team1 && team2 && (
+                    <ClubSideChoice
+                      className="mt-4"
+                      clubName={clubName}
+                      team1Name={team1.name}
+                      team2Name={team2.name}
+                      value={clubSide}
+                      onChange={(side) => setSideChoice({ key: sideKey, side })}
                     />
                   )}
                 </div>

@@ -358,8 +358,7 @@ export function PlayerActivityTabs({
                             </span>
                             {!bp.is_out && (
                               <Badge
-                                variant="outline"
-                                className="border-success/40 bg-success/10 px-1 py-0 text-2xs text-success"
+                                variant="success"
                               >
                                 not out
                               </Badge>

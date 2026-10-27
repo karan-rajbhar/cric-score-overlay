@@ -385,7 +385,12 @@ export async function ensureOwnProfile(
   return { ok: true, user_id: uid, username, action: "created" };
 }
 
-/** Whether `userId` scores `matchId`, an unfinished match `teamId` plays in. */
+/**
+ * Whether `userId` scores `matchId`, a match `teamId` plays in, before or
+ * after it ends: a finished match's scorers may still correct it (a wrong
+ * player replaced by the one who played, `replace_player`), which can mean
+ * adding that player to the squad.
+ */
 async function scoresMatchOf(
   ds: DataSource,
   matchId: string | null | undefined,
@@ -399,13 +404,12 @@ async function scoresMatchOf(
   )) as unknown as MatchesRow | null;
   if (!match) return false;
   if (match.team1_id !== teamId && match.team2_id !== teamId) return false;
-  if (match.status === "completed" || match.status === "abandoned") return false;
   return isMatchAdmin(ds, matchId, userId);
 }
 
 /**
  * Who may add players to a team: its creator, captain or vice-captain, a
- * club admin, or (with `matchId`) a scorer of an unfinished match it plays.
+ * club admin, or (with `matchId`) a scorer of a match it plays.
  */
 async function assertMayAddPlayers(
   ds: DataSource,
@@ -440,8 +444,8 @@ export async function createTeamPlayer(
   jerseyNumber?: number | null,
   /**
    * The match the player is added for: its scorers (including invited
-   * co-scorers, `match_admins`) may add players to either of its teams
-   * until it is over.
+   * co-scorers, `match_admins`) may add players to either of its teams,
+   * during it or (to correct it) after.
    */
   matchId?: string | null,
 ): Promise<{

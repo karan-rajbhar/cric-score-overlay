@@ -293,13 +293,36 @@ export function inningsSummaryOf(innings) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {value is "both" | "team1" | "team2"}
+ */
+export function isClubSide(value) {
+  return value === "both" || value === "team1" || value === "team2";
+}
+
+/**
+ * The team ids whose players count for the match's club (`club_side`), or
+ * null when both sides do (also when unset: older matches have none).
+ * @param {Record<string, any>} match `club_side`, `team1_id`, `team2_id`
+ * @returns {string[] | null}
+ */
+export function clubTeamIdsOf(match) {
+  if (match.club_side === "team1" && match.team1_id) return [match.team1_id];
+  if (match.club_side === "team2" && match.team2_id) return [match.team2_id];
+  return null;
+}
+
+/**
  * Match fields derived from its innings summary, written with it, so a
  * club's milestones are aggregations (count / sum / top innings) instead
- * of reading every match: the runs and wickets of all its innings and its
- * highest innings (the first of equal ones, in innings order).
+ * of reading every match: the runs of the innings the club batted, the
+ * wickets of those it bowled and its highest innings (the first of equal
+ * ones, in innings order). `clubTeamIds` from {@link clubTeamIdsOf}; null:
+ * both sides are the club's (every innings counts both ways).
  * @param {Record<string, any>[] | null | undefined} entries
+ * @param {readonly string[] | null} [clubTeamIds]
  */
-export function summaryTotalsOf(entries) {
+export function summaryTotalsOf(entries, clubTeamIds = null) {
   let runs = 0;
   let wickets = 0;
   /** @type {{ runs: number, wickets: number, overs: number, team_id: string | null } | null} */
@@ -311,8 +334,13 @@ export function summaryTotalsOf(entries) {
       overs: count(e.total_overs),
       team_id: typeof e.team_id === "string" ? e.team_id : null,
     };
+    const clubBatted =
+      !clubTeamIds || (!!line.team_id && clubTeamIds.includes(line.team_id));
+    const clubBowled =
+      !clubTeamIds || (!!line.team_id && !clubTeamIds.includes(line.team_id));
+    if (clubBowled) wickets += line.wickets;
+    if (!clubBatted) continue;
     runs += line.runs;
-    wickets += line.wickets;
     if (!best || line.runs > best.runs) best = line;
   }
   return {

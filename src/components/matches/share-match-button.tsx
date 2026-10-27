@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Share2 } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button } from "~/components/ds/button";
 import { matchShareUrl, shareMatch } from "~/lib/share-match";
 
 /**
@@ -38,7 +38,7 @@ export function ShareMatchButton({
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="surface"
       size="sm"
       onClick={handleShare}
       aria-label={copied ? "Link copied" : label}

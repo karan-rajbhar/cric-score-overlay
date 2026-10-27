@@ -50,7 +50,6 @@ export function MatchExportButtons({ match }: { match: Match }) {
         variant="outline"
         size="sm"
         onClick={openReport}
-        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
       >
         <FileText className="mr-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
         Match report
@@ -62,7 +61,6 @@ export function MatchExportButtons({ match }: { match: Match }) {
         onPointerDown={summaryShare.prepare}
         onFocus={summaryShare.prepare}
         onClick={() => void summaryShare.share()}
-        className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm"
       >
         {summaryShare.busy ? (
           <Loader2 className="mr-1.5 h-4 w-4 shrink-0 animate-spin" />

@@ -160,7 +160,11 @@ import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
   useMatchAdminQuery,
+  useMatchClubChoices,
 } from "~/lib/hooks/useMatchQueries";
+import { MatchClubDialog } from "~/components/matches/match-club-dialog";
+import { Chip, chipVariants } from "~/components/ds/chip";
+import { ClubSuggestionCard } from "~/components/matches/club-suggestion";
 import { useScoringUIStore } from "~/lib/stores/useScoringUIStore";
 import { usePreferencesStore } from "~/lib/stores/usePreferencesStore";
 import { useWakeLock } from "~/lib/hooks/useWakeLock";
@@ -189,7 +193,9 @@ import {
   UserPlus,
   Users,
   Award,
+  Shield,
   ShieldAlert,
+  UserCog,
   Play,
   SlidersHorizontal,
   Sun,
@@ -225,6 +231,7 @@ type FoundUser = {
   id: string;
   full_name: string | null;
   username?: string | null;
+  matches?: number;
 };
 import {
   matchShareMessage,
@@ -489,6 +496,8 @@ function useScoringScreen() {
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   /** The list of this innings' balls, to correct one in any over. */
   const [showEarlierBalls, setShowEarlierBalls] = useState(false);
+  /** "Add to club": puts the match into a club, or changes it. */
+  const [showClubDialog, setShowClubDialog] = useState(false);
   /** The actions kept after the server refused them, under review. */
   const [showUnsaved, setShowUnsaved] = useState(false);
   /** Asking before the refused action at the head of the queue is dropped. */
@@ -590,6 +599,7 @@ function useScoringScreen() {
           id: u.id,
           name: u.full_name ?? "Player",
           username: u.username,
+          matches: u.matches,
         }));
     },
     [battingTeamPlayerIds, bowlingTeamPlayerIds],
@@ -1121,6 +1131,7 @@ function useScoringScreen() {
     : null;
 
   return {
+    actionsMenuOpen,
     addPlayerDisabledReason,
     awaitingServer,
     confirmSkip,
@@ -1134,9 +1145,11 @@ function useScoringScreen() {
     refusedHeadText,
     setConfirmSkip,
     setConfirmSuperOver,
+    setShowClubDialog,
     setShowEarlierBalls,
     setShowUnsaved,
     setWicketRunsKind,
+    showClubDialog,
     showEarlierBalls,
     showUnsaved,
     unsavedItems,
@@ -1308,7 +1321,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
             type="button"
             onClick={() => void flushOfflineQueue()}
             title="Some changes have not reached the server yet. Tap to send them again."
-            className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-semibold text-warning"
+            className={chipVariants({ tone: "warning", size: "sm" })}
           >
             <AlertCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
             <span>Not saved</span>
@@ -1316,7 +1329,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
           </button>
         ) : (
           <span
-            className="flex items-center gap-1 px-1 text-[0.625rem] font-medium text-muted-foreground"
+            className="flex items-center gap-1 px-1 text-2xs font-medium text-muted-foreground"
             title={
               pendingCount > 0 || isSaving || isProcessing
                 ? "Saving to the server"
@@ -1340,31 +1353,34 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
         ))}
       {/* Offline indicator */}
       {isOffline && (
-        <span
+        <Chip
           role="status"
           title="Offline: changes are kept on this device"
-          className="flex items-center gap-1 rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[0.625rem] font-bold text-warning"
+          tone="warning"
+          size="sm"
         >
           <WifiOff className="h-3 w-3 shrink-0" aria-hidden="true" />
           <span className="hidden sm:inline">Offline</span>
-          {pendingCount > 0 && <span>({pendingCount})</span>}
-        </span>
+          {pendingCount > 0 && <span className="tabular-nums">({pendingCount})</span>}
+        </Chip>
       )}
       {/* Sunlight indicator */}
       {sunlightMode && (
-        <span className="hidden items-center gap-1 rounded-full border border-black bg-black px-2 py-0.5 text-[0.625rem] font-semibold text-white sm:inline-flex">
+        <span className={cn(chipVariants({ size: "sm" }), "hidden bg-black text-white sm:inline-flex")}>
           <Sun className="h-3 w-3" aria-hidden="true" /> Sun
         </span>
       )}
 
       {/* Awake indicator */}
       {isScreenAwake && (
-        <span
+        <Chip
           title="Screen wake lock active to prevent display timeout"
-          className="hidden items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[0.625rem] font-medium text-muted-foreground sm:inline-flex"
+          tone="outline"
+          size="sm"
+          className="hidden text-muted-foreground sm:inline-flex"
         >
           Awake
-        </span>
+        </Chip>
       )}
 
       {/* Start Match / Toss if scheduled */}
@@ -1372,7 +1388,7 @@ function HeaderIndicators({ s }: { s: LoadedScreen }) {
         <Button
           size="sm"
           onClick={() => setTossDialogDismissed(false)}
-          className="h-8 gap-1 rounded-lg px-2.5 text-xs font-bold"
+          className="gap-1"
         >
           <Play className="h-3.5 w-3.5" />
           <span>Toss</span>
@@ -1409,7 +1425,16 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
     setShowDeleteMatchDialog,
     setShowEarlierBalls,
     setShowAbandonMatchDialog,
+    actionsMenuOpen,
+    showClubDialog,
+    setShowClubDialog,
   } = s;
+  const club = useMatchClubChoices(
+    match,
+    user?.id,
+    isScorer,
+    actionsMenuOpen || showClubDialog,
+  );
   return (
     <>
       {/* Consolidated "Match Tools" Menu (Clean on Desktop & Mobile) */}
@@ -1419,16 +1444,16 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             variant="outline"
             size="sm"
             className={cn(
-              "h-10 gap-1.5 rounded-lg px-2.5 text-xs font-medium sm:h-8",
+              "h-10 w-10 gap-1.5 p-0 sm:h-9 sm:w-auto sm:px-3",
               sunlightMode && "border-2 border-black font-bold",
             )}
             aria-label="Match actions and scoring options"
             title="Match tools & scoring options"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <SlidersHorizontal className="hidden h-4 w-4 shrink-0 sm:inline" />
             <span className="hidden sm:inline">Match tools</span>
             <ChevronDown className="hidden h-3 w-3 opacity-60 sm:inline" />
-            <MoreVertical className="h-3.5 w-3.5 sm:hidden" />
+            <MoreVertical className="h-4 w-4 sm:hidden" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5">
@@ -1451,6 +1476,18 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             >
               <Pencil className="h-4 w-4 text-muted-foreground" />
               <span>Correct a ball</span>
+            </DropdownMenuItem>
+          )}
+          {isScorer && (
+            <DropdownMenuItem asChild>
+              {/* The team sheet, where any player can be replaced. */}
+              <Link
+                href={`/matches/${match.id}/players?from=score`}
+                className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+              >
+                <UserCog className="h-4 w-4 text-muted-foreground" />
+                <span>Replace a player</span>
+              </Link>
             </DropdownMenuItem>
           )}
           {match.status === "live" && isScorer && (
@@ -1540,6 +1577,15 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
                 </div>
               }
             />
+          )}
+          {club.offer && (
+            <DropdownMenuItem
+              onSelect={() => setShowClubDialog(true)}
+              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
+            >
+              <Shield className="h-4 w-4 text-muted-foreground" />
+              <span>{match.club_id ? "Change club" : "Add to club"}</span>
+            </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
           <DropdownMenuLabel className="px-2 py-1 text-xs font-medium text-muted-foreground">
@@ -1658,7 +1704,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
+              className="shrink-0 text-muted-foreground hover:text-foreground sm:h-9 sm:w-9"
               asChild
             >
               <Link
@@ -1671,7 +1717,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <h1 className="truncate text-xs font-semibold sm:text-sm">
+                <h1 className="truncate text-sm font-semibold">
                   {match.team1.short_name || match.team1.name} vs{" "}
                   {match.team2.short_name || match.team2.name}
                 </h1>
@@ -1680,14 +1726,15 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
                 ) : (
                   <Badge
                     variant="secondary"
-                    className="hidden h-4 px-1.5 text-[0.625rem] font-medium capitalize sm:inline-flex"
+                    size="sm"
+                    className="hidden capitalize sm:inline-flex"
                   >
                     {match.status}
                   </Badge>
                 )}
               </div>
-              <p className="truncate text-[0.625rem] text-muted-foreground sm:text-xs">
-                {match.title} • {match.match_format.toUpperCase()}
+              <p className="truncate text-xs text-muted-foreground">
+                {match.title} · {match.match_format}
               </p>
             </div>
           </div>
@@ -1700,7 +1747,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="outline"
               size="icon"
-              className="h-10 w-10 rounded-lg sm:h-8 sm:w-8 lg:hidden"
+              className="sm:h-9 sm:w-9 lg:hidden"
               onClick={() => setShowAddPlayerDialog(true)}
               aria-label="Open squads"
               title="Squads"
@@ -1717,7 +1764,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
               onPointerDown={matchShare.prepare}
               onClick={() => void matchShare.share()}
               aria-label="Share live score"
-              className="h-10 w-10 rounded-lg p-0 sm:h-8 sm:w-auto sm:px-2.5"
+              className="h-10 w-10 p-0 sm:h-9 sm:w-auto sm:px-3"
             >
               {matchShare.busy ? (
                 <Loader2 className="animate-spin" />
@@ -1731,7 +1778,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
             <Button
               variant="outline"
               size="icon"
-              className="hidden h-8 w-8 rounded-lg sm:inline-flex"
+              className="hidden h-9 w-9 sm:inline-flex"
               asChild
               title="Open broadcast overlay in new tab"
             >
@@ -1827,7 +1874,7 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
                   variant="ghost"
                   disabled={isProcessing}
                   onClick={() => setConfirmSkip(true)}
-                  className="h-9 px-2.5 text-xs font-semibold text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-destructive"
                 >
                   Discard it
                 </Button>
@@ -1837,7 +1884,7 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
                 variant="outline"
                 disabled={isProcessing}
                 onClick={() => flushOfflineQueue()}
-                className="h-9 gap-1 px-2.5 text-xs font-semibold"
+                className="gap-1"
               >
                 <RefreshCw
                   className={cn("h-3.5 w-3.5", isProcessing && "animate-spin")}
@@ -1869,7 +1916,7 @@ function SyncBanner({ s }: { s: LoadedScreen }) {
             size="sm"
             variant="outline"
             onClick={() => setShowUnsaved(true)}
-            className="h-9 shrink-0 px-2.5 text-xs font-semibold"
+            className="shrink-0"
           >
             Review
           </Button>
@@ -1888,6 +1935,7 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
     isScorer,
     user,
     matchId,
+    syncFromDb,
   } = s;
   return (
     <>
@@ -1934,6 +1982,12 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
           </Button>
         </div>
       )}
+      {/* A finished match whose players play for the scorer's club. */}
+      <ClubSuggestionCard
+        match={match}
+        isScorer={isScorer}
+        onAdded={() => void syncFromDb()}
+      />
 
       {!isScorer && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5 sm:p-4">
@@ -1958,7 +2012,7 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!user ? (
-              <Button size="sm" asChild className="h-8 text-xs font-bold">
+              <Button size="sm" asChild>
                 <Link href={`/auth/login?redirect=/matches/${matchId}/score`}>
                   Sign in to score
                 </Link>
@@ -1968,7 +2022,6 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
               size="sm"
               variant="outline"
               asChild
-              className="h-8 text-xs font-bold"
             >
               <Link href={`/matches/${matchId}`}>Match centre</Link>
             </Button>
@@ -1976,7 +2029,6 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
               size="sm"
               variant="secondary"
               asChild
-              className="h-8 text-xs font-bold"
             >
               <Link href={`/overlay/${matchId}`} target="_blank">
                 Overlay
@@ -2126,7 +2178,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
               size="sm"
               onClick={() => void handleEndInnings()}
               disabled={isProcessing}
-              className="h-10 text-xs font-semibold"
+              className="h-10"
             >
               {notice.action === "finish" ? "Finish the match" : "End innings"}
             </Button>
@@ -2154,7 +2206,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
               size="sm"
               onClick={() => setShowSelectBowler(true)}
               disabled={isProcessing}
-              className="h-10 text-xs font-bold"
+              className="h-10"
             >
               Choose bowler
             </Button>
@@ -2186,7 +2238,7 @@ function ConsoleBanners({ s }: { s: LoadedScreen }) {
                 size="sm"
                 onClick={() => setShowSelectBatsmen(true)}
                 disabled={isProcessing}
-                className="h-10 text-xs font-bold"
+                className="h-10"
               >
                 {oneEmpty ? "Choose batter" : "Choose batters"}
               </Button>
@@ -2257,7 +2309,8 @@ function Console({ s }: { s: LoadedScreen }) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="text-[0.625rem] font-bold text-muted-foreground"
+                  size="sm"
+                  className="text-muted-foreground"
                 >
                   {rawDeliveries.length} ball
                   {rawDeliveries.length === 1 ? "" : "s"} this over
@@ -2375,14 +2428,12 @@ function Console({ s }: { s: LoadedScreen }) {
                 Scoring keypad locked · Live feed updates automatically
               </span>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              asChild
-              className="h-6 text-2xs font-bold"
+            <Link
+              href={`/matches/${matchId}`}
+              className="shrink-0 text-sm font-medium text-muted-foreground hover:text-foreground"
             >
-              <Link href={`/matches/${matchId}`}>Full scorecard</Link>
-            </Button>
+              Full scorecard
+            </Link>
           </div>
         </div>
       ) : (
@@ -2498,7 +2549,7 @@ function BenchCard({ s }: { s: LoadedScreen }) {
             <h3 className="text-sm font-semibold">
               <span>{battingTeam?.name ?? "Batting team"} bench</span>
             </h3>
-            <Badge variant="outline" className="text-[0.625rem] font-medium">
+            <Badge variant="outline" size="sm">
               Inns {match.current_innings}
             </Badge>
           </div>
@@ -2514,7 +2565,7 @@ function BenchCard({ s }: { s: LoadedScreen }) {
                   <Badge
                     key={p.playerId}
                     variant="secondary"
-                    className="text-2xs font-semibold"
+                    size="sm"
                   >
                     {p.name}
                   </Badge>
@@ -2563,7 +2614,7 @@ function BenchCard({ s }: { s: LoadedScreen }) {
             <Button
               variant="ghost"
               size="sm"
-              className="mt-2 w-full text-xs font-bold"
+              className="mt-2 w-full"
               onClick={() => setShowAddPlayerDialog(true)}
             >
               <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Manage players
@@ -2629,6 +2680,41 @@ function BowlingAttackCard({ s }: { s: LoadedScreen }) {
         </Card>
       )}
     </>
+  );
+}
+
+/** "Add to club" from Match tools (`MatchClubDialog`), mounted while open. */
+function ScoringClubDialog({
+  match,
+  userId,
+  isScorer,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  match: LoadedScreen["match"];
+  userId: string | undefined;
+  isScorer: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSaved: () => void;
+}) {
+  const { choosable, loading } = useMatchClubChoices(
+    match,
+    userId,
+    isScorer,
+    open,
+  );
+  if (!open) return null;
+  return (
+    <MatchClubDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      match={match}
+      clubs={choosable}
+      loading={loading}
+      onSaved={onSaved}
+    />
   );
 }
 
@@ -2737,9 +2823,20 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     refusedHeadText,
     handleSkipHeadAction,
     setEditingDelivery,
+    user,
+    showClubDialog,
+    setShowClubDialog,
   } = s;
   return (
     <>
+      <ScoringClubDialog
+        match={match}
+        userId={user?.id}
+        isScorer={isScorer}
+        open={showClubDialog}
+        onOpenChange={setShowClubDialog}
+        onSaved={() => void syncFromDb()}
+      />
       <TossDialog
         open={showTossDialog}
         onOpenChange={(open) => setTossDialogDismissed(!open)}

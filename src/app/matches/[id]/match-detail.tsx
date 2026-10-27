@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
-import { MatchStatusChip } from "~/components/ds/chip";
+import { Button as DsButton } from "~/components/ds/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
@@ -17,7 +16,7 @@ import {
   useMatchDetailQuery,
   useMatchAdminQuery,
 } from "~/lib/hooks/useMatchQueries";
-import { displayStatusOf, sidesInBattingOrder } from "~/lib/cricket";
+import { sidesInBattingOrder } from "~/lib/cricket";
 import { matchShareMessage } from "~/lib/share-match";
 import { useAuth } from "~/lib/auth";
 import { MatchHero } from "~/components/matches/match-hero";
@@ -62,13 +61,19 @@ const MatchScorersDialog = dynamic(
     ),
   { ssr: false },
 );
+// Shown to few (scorers of a finished match in no club): loaded on demand.
+const ClubSuggestionCard = dynamic(
+  () =>
+    import("~/components/matches/club-suggestion").then(
+      (m) => m.ClubSuggestionCard,
+    ),
+  { ssr: false },
+);
 import {
   ChevronLeft,
   ChevronRight,
   Play,
   AlertCircle,
-  Trophy,
-  Shield,
 } from "lucide-react";
 import { ShareMatchButton } from "~/components/matches/share-match-button";
 import { EntityActions } from "~/components/follow/entity-actions";
@@ -76,6 +81,9 @@ import { EntityActions } from "~/components/follow/entity-actions";
 /** The round white buttons of the phone screen bar. */
 const screenAction =
   "h-11 w-11 rounded-full border-0 bg-card p-0 shadow-soft ring-1 ring-border/60 hover:bg-accent";
+/** The same round action, at the desktop bar's height (ds `icon-sm`). */
+const barAction =
+  "h-9 w-9 rounded-full border-0 bg-card p-0 shadow-soft ring-1 ring-border/60 hover:bg-accent";
 
 /** Tabs that show per-player figures (refetched per change unless live). */
 const FULL_MATCH_TABS = new Set(["summary", "scorecard", "superstars"]);
@@ -252,7 +260,6 @@ function MatchDetailsPageContent() {
   const [side1, side2] = sidesInBattingOrder(match);
   // While live the first tab is the live view (crease, this over).
   const inPlay = match.status === "live" || match.status === "innings_break";
-  const status = displayStatusOf(match);
   // A link share sends the score so far with the link.
   const shareTitle = `${match.team1?.name ?? "Team 1"} vs ${match.team2?.name ?? "Team 2"}`;
   const shareText = matchShareMessage(match);
@@ -398,93 +405,61 @@ function MatchDetailsPageContent() {
       {/* Header */}
       <div className="sticky top-14 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70 max-md:hidden">
         <div className="container mx-auto px-3 py-2.5 sm:px-4">
-          <div className="flex items-center justify-between gap-2 sm:gap-3">
-            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-              <Button
-                variant="outline"
-                size="sm"
+          {/* The phone ScreenBar's layout: round back, where you are, and
+              the actions. Status, format, overs and the club / tournament
+              are on the score card right below, not repeated here. */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <DsButton
+                variant="surface"
+                size="icon-sm"
                 asChild
-                className="shrink-0 pl-2.5 text-xs font-medium sm:text-sm"
+                className="shrink-0"
               >
-                <Link href={matchBackHref} onClick={handleBackClick}>
-                  <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-                  <span className="sm:hidden">Back</span>
-                  <span className="hidden sm:inline">{matchBackLabel}</span>
-                </Link>
-              </Button>
-
-              {/* Breadcrumb Trail */}
-              {breadcrumbItems.length > 0 && (
-                <nav
-                  aria-label="Breadcrumb"
-                  className="hidden items-center gap-1.5 border-l pl-3 text-xs text-muted-foreground md:flex"
+                <Link
+                  href={matchBackHref}
+                  onClick={handleBackClick}
+                  aria-label={matchBackLabel}
+                  title={matchBackLabel}
                 >
-                  {breadcrumbItems.map((item, idx) => (
-                    <span key={item.href} className="flex items-center gap-1.5">
-                      {idx > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-                      <Link
-                        href={item.href}
-                        className="max-w-[140px] truncate transition-colors hover:text-foreground"
-                      >
-                        {item.label}
-                      </Link>
-                    </span>
-                  ))}
-                  <ChevronRight className="h-3 w-3 shrink-0" />
-                  <span className="max-w-[160px] truncate font-medium text-foreground">
-                    {match.title}
+                  <ChevronLeft />
+                </Link>
+              </DsButton>
+              <nav
+                aria-label="Breadcrumb"
+                className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"
+              >
+                {breadcrumbItems.map((item) => (
+                  <span key={item.href} className="flex shrink-0 items-center gap-1.5">
+                    <Link
+                      href={item.href}
+                      className="max-w-[10rem] truncate transition-colors hover:text-foreground"
+                    >
+                      {item.label}
+                    </Link>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   </span>
-                </nav>
-              )}
+                ))}
+                <span
+                  aria-current="page"
+                  className="min-w-0 truncate font-medium text-foreground"
+                >
+                  {match.title}
+                </span>
+              </nav>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              {/* The same chip as the score below and the match cards. */}
-              <MatchStatusChip status={status} />
+            <div className="flex shrink-0 items-center gap-2">
               <ShareMatchButton
                 matchId={match.id}
                 title={shareTitle}
                 text={shareText}
-                className="h-8 px-2 sm:px-3"
               />
-              <Badge variant="outline" className="hidden sm:inline-flex">
-                {match.match_format}
-              </Badge>
-              <Badge variant="outline" className="hidden sm:inline-flex">
-                {match.overs_per_innings} overs
-              </Badge>
-
-              {/* Secondary link to Tournament fixture if not already coming from tournament */}
-              {match.tournament && !tournamentId && (
-                <Link
-                  href={`/tournaments/${match.tournament.id}?tab=fixtures${clubId ? `&clubId=${clubId}` : ""}`}
-                  className="hidden items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
-                  title="View tournament"
-                >
-                  <Trophy className="h-3 w-3 shrink-0" />
-                  <span className="max-w-[120px] truncate">
-                    {match.tournament.name}
-                  </span>
-                </Link>
-              )}
-
-              {/* Secondary link to Club if not already coming from club */}
-              {match.club && !clubId && (
-                <Link
-                  href={`/clubs/${match.club.id}?tab=matches`}
-                  className="hidden items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground md:inline-flex"
-                  title="View club"
-                >
-                  <Shield className="h-3 w-3 shrink-0" />
-                  <span className="max-w-[120px] truncate">
-                    {match.club.name}
-                  </span>
-                </Link>
-              )}
               <MatchMoreMenu
                 match={match}
                 dlsMatch={match}
                 canEditDls={isScorer}
+                className={barAction}
               />
             </div>
           </div>
@@ -518,7 +493,7 @@ function MatchDetailsPageContent() {
               </>
             }
           />
-          <h1 className="mb-5 text-balance text-center text-sm font-medium text-muted-foreground max-md:hidden">
+          <h1 className="mb-3 text-balance text-center text-xl font-semibold text-foreground max-md:hidden">
             {match.title}
           </h1>
           <MatchHero match={match} sides={[side1, side2]}>
@@ -608,6 +583,15 @@ function MatchDetailsPageContent() {
           </TabsList>
 
           <TabsContent value="summary">
+            {/* A finished match whose players play for the scorer's club
+                (the page follows live_state, so it updates once added). */}
+            {isScorer && match.status === "completed" && !match.club_id && (
+              <ClubSuggestionCard
+                match={match}
+                isScorer={isScorer}
+                className="mb-4"
+              />
+            )}
             <MatchSummary match={match} />
           </TabsContent>
 

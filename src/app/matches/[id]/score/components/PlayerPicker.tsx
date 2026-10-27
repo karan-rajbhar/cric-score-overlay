@@ -12,15 +12,12 @@ import {
 import { Check, Loader2, Search, UserPlus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { foundPlayerHint, type FoundPlayer } from "~/lib/player-search";
 import { cn } from "~/lib/utils";
 import type { PickerRow } from "./player-rows";
 
-/** A registered player who is in neither squad yet. */
-export interface FoundPlayer {
-  id: string;
-  name: string;
-  username?: string | null;
-}
+/** An existing player who is in neither squad yet. */
+export type { FoundPlayer };
 
 /**
  * Finds registered players by name for "Add" (the scoring screen provides
@@ -243,11 +240,12 @@ export function PlayerPicker({
                 {suggestions.length > 0 && (
                   <div
                     role="group"
-                    aria-label="Registered players"
+                    aria-label="Existing players"
                     className="space-y-1"
                   >
                     <p className="px-1 text-xs text-muted-foreground">
-                      Registered players
+                      Existing players on CricScore. Pick one only if you know
+                      it&apos;s the same person; otherwise add a new player.
                     </p>
                     {suggestions.map((p) => (
                       <Button
@@ -269,11 +267,9 @@ export function PlayerPicker({
                         <span className="min-w-0 truncate">
                           Add {p.name} to {addPlayer.teamName}
                         </span>
-                        {p.username && (
-                          <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">
-                            @{p.username}
-                          </span>
-                        )}
+                        <span className="ml-auto shrink-0 text-xs font-normal tabular-nums text-muted-foreground">
+                          {foundPlayerHint(p)}
+                        </span>
                       </Button>
                     ))}
                   </div>

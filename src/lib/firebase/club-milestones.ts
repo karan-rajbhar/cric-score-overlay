@@ -5,11 +5,14 @@
  * (`summaryTotalsOf`, written with its innings summary) and its few best
  * innings. A live match's innings in progress is not in those totals (the
  * summary does not follow every ball): `clubMilestonesOf` swaps in the
- * live matches' totals from their fresh innings.
+ * live matches' totals from their fresh innings. Against an outside
+ * opponent (`club_side`), only the club side's runs, wickets taken and
+ * innings count.
  */
 
 import type { DataSource, Doc } from "./datasource";
-import { summaryTotalsOf } from "./derive.mjs";
+import { clubTeamIdsOf, summaryTotalsOf } from "./derive.mjs";
+import type { ClubSide } from "./types";
 
 /** Best innings read beyond the live matches (ties are rare). */
 const TOP_INNINGS = 10;
@@ -56,8 +59,11 @@ interface InningsLine {
 export interface MilestoneMatch {
   id: string;
   scheduled_at?: string | null;
+  team1_id?: string | null;
+  team2_id?: string | null;
   team1?: { id: string; name: string } | null;
   team2?: { id: string; name: string } | null;
+  club_side?: ClubSide | null;
   innings?: InningsLine[] | null;
   summary_runs?: number | null;
   summary_wickets?: number | null;
@@ -82,9 +88,21 @@ export interface ClubMilestoneFigures {
   } | null;
 }
 
+/** A match's totals for its club: the club's side only (`club_side`). */
+function clubTotalsOf(m: MilestoneMatch) {
+  return summaryTotalsOf(
+    (m.innings ?? []) as Record<string, unknown>[],
+    clubTeamIdsOf({
+      club_side: m.club_side,
+      team1_id: m.team1_id ?? m.team1?.id,
+      team2_id: m.team2_id ?? m.team2?.id,
+    }),
+  );
+}
+
 /**
  * The milestones of a club whose every match is at hand (`matches` in list
- * order, live ones with fresh innings): add up their innings.
+ * order, live ones with fresh innings): add up the club's innings.
  */
 export function clubMilestonesFromList(
   matches: readonly (MilestoneMatch & { status?: string | null })[],
@@ -93,25 +111,23 @@ export function clubMilestonesFromList(
   let totalWickets = 0;
   let highestTeamScore: ClubMilestoneFigures["highestTeamScore"] = null;
   for (const m of matches) {
-    for (const inn of m.innings ?? []) {
-      const runs = inn.total_runs ?? 0;
-      const wickets = inn.total_wickets ?? 0;
-      totalRuns += runs;
-      totalWickets += wickets;
-      if (!highestTeamScore || runs > highestTeamScore.runs) {
-        const team =
-          inn.team_id === m.team1?.id
-            ? m.team1
-            : inn.team_id === m.team2?.id
-              ? m.team2
-              : null;
-        highestTeamScore = {
-          runs,
-          wickets,
-          overs: inn.total_overs ?? 0,
-          teamName: team?.name ?? undefined,
-        };
-      }
+    const totals = clubTotalsOf(m);
+    totalRuns += totals.summary_runs;
+    totalWickets += totals.summary_wickets;
+    const best = totals.best_innings;
+    if (best && (!highestTeamScore || best.runs > highestTeamScore.runs)) {
+      const team =
+        best.team_id === m.team1?.id
+          ? m.team1
+          : best.team_id === m.team2?.id
+            ? m.team2
+            : null;
+      highestTeamScore = {
+        runs: best.runs,
+        wickets: best.wickets,
+        overs: best.overs,
+        teamName: team?.name ?? undefined,
+      };
     }
   }
   return {
@@ -152,9 +168,7 @@ export function clubMilestonesOf(
     best: NonNullable<MilestoneMatch["best_innings"]>;
   }> = [];
   for (const m of live) {
-    const fresh = summaryTotalsOf(
-      (m.innings ?? []) as Record<string, unknown>[],
-    );
+    const fresh = clubTotalsOf(m);
     runs += fresh.summary_runs - (m.summary_runs ?? 0);
     wickets += fresh.summary_wickets - (m.summary_wickets ?? 0);
     if (fresh.best_innings)

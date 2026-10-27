@@ -18,7 +18,9 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchAdminQuery: () => ({ data: true }),
   useCanDeleteMatchQuery: () => ({ data: canDelete }),
   useCanProduceOverlayQuery: () => ({ data: undefined }),
+  useMatchClubChoices: () => ({ choosable: [], offer: false }),
 }));
+vi.mock("~/app/matches/club", () => ({ setMatchClub: vi.fn() }));
 
 const fixture = {
   id: "m1",

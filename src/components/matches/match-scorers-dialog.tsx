@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Initials } from "~/components/ui/initials";
 import {
   Dialog,
   DialogContent,
@@ -11,19 +10,12 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Badge } from "~/components/ui/badge";
-import {
-  UserPlus,
-  Users,
-  Copy,
-  Check,
-  Trash2,
-  Loader2,
-  ShieldCheck,
-  Search,
-  Share2,
-} from "lucide-react";
+import { Avatar } from "~/components/ds/avatar";
+import { Button as DsButton } from "~/components/ds/button";
+import { Chip } from "~/components/ds/chip";
+import { SearchField } from "~/components/ds/field";
+import { ListCard, ListRow } from "~/components/ds/list";
+import { UserPlus, Copy, Check, Trash2, Loader2, Share2 } from "lucide-react";
 import {
   getMatchScorers,
   addMatchScorer,
@@ -273,7 +265,6 @@ export function MatchScorersDialog({
           <Button
             variant="outline"
             size="sm"
-            className="h-10 px-3 text-xs font-semibold sm:h-9 sm:text-sm min-h-[36px] gap-1.5"
             title="Invite co-scorers to record balls live"
           >
             <UserPlus className="h-4 w-4 shrink-0" />
@@ -283,244 +274,159 @@ export function MatchScorersDialog({
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <Users className="h-5 w-5" />
-            <span className="text-xs font-medium">
-              Scorers
-            </span>
-          </div>
-          <DialogTitle className="text-xl">Match scorers</DialogTitle>
+          <DialogTitle>Match scorers</DialogTitle>
           <DialogDescription>
             Co-scorers can record balls and fix mistakes, like you. Only the
             match&apos;s creator can remove them.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Quick Link Share Box */}
-        <div className="rounded-xl border border-border bg-muted/40 p-3 text-xs space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-foreground">Direct scoring link</div>
-              <div className="truncate text-muted-foreground text-2xs">
-                /matches/{matchId}/score
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={copyScoringLink}
-                className="h-9 min-h-[36px] gap-1 px-2.5 text-xs"
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-success" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    <span>Copy</span>
-                  </>
-                )}
-              </Button>
-              {typeof navigator !== "undefined" && Boolean(navigator.share) && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleShare}
-                  className="h-9 min-h-[36px] gap-1 px-2 text-xs"
-                  title="Share scoring link"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  <span className="sr-only">Share</span>
-                </Button>
-              )}
-            </div>
-          </div>
-          <p className="text-2xs text-muted-foreground">
-            Anyone with this link can open live scoring once authorized below.
-          </p>
-        </div>
-
-        {/* Search & Add Scorer Form */}
-        <div className="space-y-2 pt-1">
-          <label htmlFor="scorer-search-input" className="text-xs font-semibold text-foreground">
+        {/* 1. Add a scorer: one box for a name or an email */}
+        <section className="space-y-2">
+          <label
+            htmlFor="scorer-search-input"
+            className="block text-sm font-medium text-foreground"
+          >
             Add scorer by name or email
           </label>
-          <p className="text-2xs text-muted-foreground">
-            Not on CricScore yet? Enter their Google email to invite them as a
-            scorer.
-          </p>
-          <form onSubmit={handleFormSubmit} className="relative flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                autoCorrect="off"
-                autoCapitalize="none"
-                spellCheck={false}
-                id="scorer-search-input"
-                value={query}
-                onChange={(e) => handleQueryChange(e.target.value)}
-                placeholder="Name or Google email"
-                className="text-sm pl-8"
-                disabled={submitting}
-                autoComplete="off"
-              />
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            </div>
-            <Button
+          <form onSubmit={handleFormSubmit} className="flex gap-2">
+            <SearchField
+              id="scorer-search-input"
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="Name or Google email"
+              className="min-w-0 flex-1"
+              disabled={submitting}
+              autoComplete="off"
+            />
+            <DsButton
               type="submit"
-              disabled={submitting || !query.trim()}
-              size="sm"
-              className="gap-1 px-3.5 whitespace-nowrap h-10 min-h-[40px]"
+              disabled={!query.trim()}
+              loading={submitting}
+              className="shrink-0"
             >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <UserPlus className="h-4 w-4" />
-              )}
-              <span>Add</span>
-            </Button>
+              Add
+            </DsButton>
           </form>
+          <p className="text-xs text-muted-foreground">
+            Not on CricScore yet? Enter their Google email to invite them.
+          </p>
 
-          {/* Autocomplete Search Dropdown */}
           {searching && (
-            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>Searching registered players...</span>
-            </div>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Searching players
+            </p>
           )}
-
           {!searching && searchResults.length > 0 && (
-            <div className="rounded-lg border border-border bg-card shadow-sm divide-y divide-border/60 sm:max-h-48 sm:overflow-y-auto">
-              {searchResults.map((user) => {
-                const isAlreadyScorer = existingAdminIds.has(user.id);
-                return (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-2.5 text-xs hover:bg-muted/40 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 pr-2">
-                      <Initials name={user.full_name} fallback="U" className="h-7 w-7" />
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-foreground">
-                          {user.full_name}
-                        </div>
-                        {user.username && (
-                          <div className="truncate text-muted-foreground">
-                            @{user.username}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {isAlreadyScorer ? (
-                      <Badge variant="secondary" className="text-2xs shrink-0">
-                        Authorized
-                      </Badge>
+            <ListCard>
+              {searchResults.map((found) => (
+                <ListRow
+                  key={found.id}
+                  leading={<Avatar name={found.full_name} src={found.avatar_url} size="sm" />}
+                  title={found.full_name}
+                  subtitle={found.username ? `@${found.username}` : undefined}
+                  trailing={
+                    existingAdminIds.has(found.id) ? (
+                      <Chip>Scorer</Chip>
                     ) : (
-                      <Button
+                      <DsButton
                         type="button"
                         size="sm"
-                        variant="secondary"
+                        variant="soft"
                         disabled={submitting}
-                        onClick={() => handleAddScorerTarget(user.id)}
-                        className="h-10 shrink-0 px-3 text-xs"
-                        aria-label={`Add ${user.full_name} as a scorer`}
+                        onClick={() => handleAddScorerTarget(found.id)}
+                        aria-label={`Add ${found.full_name} as a scorer`}
                       >
                         Add
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      </DsButton>
+                    )
+                  }
+                />
+              ))}
+            </ListCard>
           )}
-        </div>
+        </section>
 
         {shareText && <InviteShare text={shareText} />}
 
-        {/* Authorized Scorers Roster */}
-        <div className="space-y-2 pt-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
-              Current scorers
+        {/* 2. Who scores this match */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">
+            Scorers{" "}
+            <span className="font-normal text-muted-foreground">
+              ({(createdBy ? 1 : 0) + matchAdmins.length})
             </span>
-            <span className="text-2xs text-muted-foreground">
-              {(createdBy ? 1 : 0) + matchAdmins.length} active
-            </span>
-          </div>
-
+          </h3>
           {loading ? (
-            <div className="flex items-center justify-center py-6 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
+            <div className="flex justify-center py-6 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             </div>
           ) : (
-            <div className="divide-y divide-border rounded-xl border border-border">
-              {/* Lead / Creator Scorer */}
+            <ListCard>
               {createdBy && (
-                <div className="flex items-center justify-between p-3 text-sm bg-primary/5">
-                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <Initials name={createdBy.full_name} fallback="U" className="h-8 w-8" />
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">
-                        {createdBy.full_name}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="text-xs font-normal shrink-0">
-                    <ShieldCheck className="mr-1 h-3 w-3 text-primary" />
-                    Creator
-                  </Badge>
-                </div>
+                <ListRow
+                  leading={<Avatar name={createdBy.full_name} src={createdBy.avatar_url} size="sm" />}
+                  title={createdBy.full_name}
+                  trailing={<Chip tone="primary">Creator</Chip>}
+                />
               )}
-
-              {/* Co-Scorers */}
               {matchAdmins.map((admin) => (
-                <div
+                <ListRow
                   key={admin.id}
-                  className="flex items-center justify-between p-3 text-sm"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <Initials name={admin.full_name} fallback="S" className="h-8 w-8" />
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">
-                        {admin.full_name}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="outline" className="text-xs">
-                      Co-scorer
-                    </Badge>
-                    {isCreator && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() =>
-                          handleRemoveScorer(admin.id, admin.full_name)
-                        }
-                        className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-destructive"
-                        title="Remove scorer"
-                        aria-label={`Remove ${admin.full_name} as a scorer`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                  leading={<Avatar name={admin.full_name} src={admin.avatar_url} size="sm" />}
+                  title={admin.full_name}
+                  trailing={
+                    <span className="flex items-center gap-1">
+                      <Chip>Co-scorer</Chip>
+                      {isCreator && (
+                        <DsButton
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() =>
+                            handleRemoveScorer(admin.id, admin.full_name)
+                          }
+                          className="text-muted-foreground hover:text-destructive"
+                          title="Remove scorer"
+                          aria-label={`Remove ${admin.full_name} as a scorer`}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </DsButton>
+                      )}
+                    </span>
+                  }
+                />
               ))}
-
               {!createdBy && matchAdmins.length === 0 && (
-                <div className="p-4 text-center text-xs text-muted-foreground">
-                  No additional scorers authorized yet.
-                </div>
+                <p className="px-4 py-5 text-center text-sm text-muted-foreground">
+                  No scorers yet.
+                </p>
               )}
-            </div>
+            </ListCard>
           )}
-        </div>
+        </section>
+
+        {/* 3. The link they open to score */}
+        <section className="space-y-2">
+          <h3 className="text-sm font-medium text-foreground">Scoring link</h3>
+          <p className="text-xs text-muted-foreground">
+            Send it to the scorers above: it opens live scoring for this match.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <DsButton variant="outline" size="sm" onClick={copyScoringLink}>
+              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+              {copied ? "Copied" : "Copy link"}
+            </DsButton>
+            {typeof navigator !== "undefined" && Boolean(navigator.share) && (
+              <DsButton variant="outline" size="sm" onClick={handleShare}>
+                <Share2 aria-hidden="true" />
+                Share
+              </DsButton>
+            )}
+          </div>
+        </section>
 
         <MatchStreamersSection matchId={matchId} />
       </DialogContent>

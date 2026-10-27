@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Search, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Badge } from "~/components/ui/badge";
-import { Initials } from "~/components/ui/initials";
+import { Avatar } from "~/components/ds/avatar";
+import { Button as DsButton } from "~/components/ds/button";
+import { Chip } from "~/components/ds/chip";
+import { SearchField } from "~/components/ds/field";
+import { ListCard, ListRow } from "~/components/ds/list";
 import { InviteShare, inviteLink } from "~/components/invite-share";
 import { searchScorers, type MatchScorerUser } from "~/app/matches/mutations";
 import {
@@ -156,93 +157,75 @@ export function MatchStreamersSection({ matchId }: { matchId: string }) {
   return (
     <section
       aria-labelledby="match-streamers-heading"
-      className="space-y-2 border-t border-border pt-4"
+      className="space-y-2"
     >
       <h3
         id="match-streamers-heading"
-        className="text-sm font-semibold text-foreground"
+        className="text-sm font-medium text-foreground"
       >
         Streamers
       </h3>
-      <p className="text-2xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Streamers run the overlay graphics and the Stream Deck, but cannot
         score.
       </p>
 
       <form onSubmit={invite} className="flex gap-2">
-        <div className="relative flex-1">
-          <label htmlFor="streamer-search-input" className="sr-only">
-            Add streamer by name or email
-          </label>
-          <Input
-            id="streamer-search-input"
-            autoCorrect="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            autoComplete="off"
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search a player or enter an email"
-            className="pl-8 text-sm"
-            disabled={submitting}
-          />
-          <Search
-            className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-        </div>
-        <Button
+        <label htmlFor="streamer-search-input" className="sr-only">
+          Add streamer by name or email
+        </label>
+        <SearchField
+          id="streamer-search-input"
+          autoComplete="off"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Name or email"
+          className="min-w-0 flex-1"
+          disabled={submitting}
+        />
+        <DsButton
           type="submit"
-          size="sm"
-          disabled={submitting || !EMAIL_PATTERN.test(query.trim())}
-          className="h-10 min-h-[40px] gap-1 px-3.5"
+          variant="outline"
+          disabled={!EMAIL_PATTERN.test(query.trim())}
+          loading={submitting}
+          className="shrink-0"
         >
-          {submitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <UserPlus className="h-4 w-4" />
-          )}
-          <span>Invite</span>
-        </Button>
+          Invite
+        </DsButton>
       </form>
 
       {searching && (
-        <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          <span>Searching players</span>
-        </div>
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Searching players
+        </p>
       )}
       {!searching && results.length > 0 && (
-        <ul className="divide-y divide-border/60 rounded-lg border border-border bg-card">
+        <ListCard>
           {results.map((r) => (
-            <li
+            <ListRow
               key={r.id}
-              className="flex items-center justify-between gap-2 p-2.5 text-xs"
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <Initials name={r.full_name} fallback="U" className="h-7 w-7" />
-                <span className="truncate font-semibold">{r.full_name}</span>
-              </span>
-              {streamerIds.has(r.id) ? (
-                <Badge variant="secondary" className="shrink-0 text-2xs">
-                  Streamer
-                </Badge>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={submitting}
-                  onClick={() => addById(r)}
-                  className="h-8 min-h-[32px] shrink-0 px-2.5 text-xs"
-                  aria-label={`Add ${r.full_name} as a streamer`}
-                >
-                  Add
-                </Button>
-              )}
-            </li>
+              leading={<Avatar name={r.full_name} size="sm" />}
+              title={r.full_name}
+              trailing={
+                streamerIds.has(r.id) ? (
+                  <Chip>Streamer</Chip>
+                ) : (
+                  <DsButton
+                    type="button"
+                    size="sm"
+                    variant="soft"
+                    disabled={submitting}
+                    onClick={() => addById(r)}
+                    aria-label={`Add ${r.full_name} as a streamer`}
+                  >
+                    Add
+                  </DsButton>
+                )
+              }
+            />
           ))}
-        </ul>
+        </ListCard>
       )}
 
       {shareText && (
@@ -251,36 +234,35 @@ export function MatchStreamersSection({ matchId }: { matchId: string }) {
 
       {loading ? (
         <div className="flex justify-center py-4 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
         </div>
-      ) : streamers.length === 0 ? (
-        <p className="rounded-xl border border-border p-3 text-center text-xs text-muted-foreground">
-          No streamers yet.
-        </p>
       ) : (
-        <ul className="divide-y divide-border rounded-xl border border-border">
+        <ListCard>
           {streamers.map((s) => (
-            <li
+            <ListRow
               key={s.id}
-              className="flex items-center justify-between gap-2 p-3 text-sm"
-            >
-              <span className="flex min-w-0 items-center gap-2.5">
-                <Initials name={s.full_name} fallback="S" className="h-8 w-8" />
-                <span className="truncate font-semibold">{s.full_name}</span>
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => remove(s)}
-                className="h-8 min-h-[32px] w-8 min-w-[32px] text-muted-foreground hover:text-destructive"
-                aria-label={`Remove ${s.full_name} from streamers`}
-                title="Remove streamer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </li>
+              leading={<Avatar name={s.full_name} size="sm" />}
+              title={s.full_name}
+              trailing={
+                <DsButton
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() => remove(s)}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove ${s.full_name} from streamers`}
+                  title="Remove streamer"
+                >
+                  <Trash2 aria-hidden="true" />
+                </DsButton>
+              }
+            />
           ))}
-        </ul>
+          {streamers.length === 0 && (
+            <p className="px-4 py-5 text-center text-sm text-muted-foreground">
+              No streamers yet.
+            </p>
+          )}
+        </ListCard>
       )}
     </section>
   );

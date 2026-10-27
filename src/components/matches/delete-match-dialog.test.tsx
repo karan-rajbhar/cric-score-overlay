@@ -30,7 +30,15 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
     canDeleteQuery(...args);
     return { data: args[2] ? canDelete : undefined };
   },
+  useMatchClubChoices: (...args: unknown[]) => {
+    clubChoices(...args);
+    return { choosable: [], offer: args[3] ? clubOffer : false };
+  },
+  useClubRecordsQuery: () => ({ data: undefined }),
 }));
+vi.mock("~/app/matches/club", () => ({ setMatchClub: vi.fn() }));
+let clubOffer = false;
+const clubChoices = vi.fn();
 
 const match = {
   id: "m1",
@@ -157,5 +165,48 @@ describe("MatchMoreMenu", () => {
     ).toHaveAttribute("href", "/overlay/m1/control");
     expect(canStreamQuery).toHaveBeenLastCalledWith("m1", "u1", true);
     canStream = false;
+  });
+
+  it("offers Add to club once the menu opens, reading the user's clubs only then", async () => {
+    clubOffer = true;
+    const full = {
+      id: "m1",
+      status: "completed",
+      team1: { id: "A", name: "Lions" },
+      team2: { id: "B", name: "Tigers" },
+    };
+    render(
+      <MatchMoreMenu
+        match={{ ...match, club_id: null }}
+        dlsMatch={full as never}
+      />,
+    );
+    expect(clubChoices).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "u1",
+      true,
+      false,
+    );
+    const trigger = screen.getByRole("button", { name: "More match actions" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(
+      await screen.findByRole("menuitem", { name: "Add to club" }),
+    ).toBeInTheDocument();
+    expect(clubChoices).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "u1",
+      true,
+      true,
+    );
+    clubOffer = false;
+  });
+
+  it("links scorers to the Players page to replace a player", async () => {
+    render(<MatchMoreMenu match={match} />);
+    const trigger = screen.getByRole("button", { name: "More match actions" });
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+    expect(
+      await screen.findByRole("menuitem", { name: "Replace a player" }),
+    ).toHaveAttribute("href", "/matches/m1/players");
   });
 });

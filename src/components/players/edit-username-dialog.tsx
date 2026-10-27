@@ -127,7 +127,7 @@ export function EditUsernameDialog({
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5 font-mono text-xs"
+            className="font-mono"
           >
             <AtSign className="h-3.5 w-3.5 text-primary" />
             <span>Edit handle</span>

@@ -232,6 +232,9 @@ export interface TeamSnapshot {
   secondary_color?: string | null;
 }
 
+/** `matches.club_side`: the side(s) whose players count for the club. */
+export type ClubSide = "both" | "team1" | "team2";
+
 /**
  * A chase target revised by the DLS method (`matches.dls_revision`): the
  * innings it applies to, the revised target and the overs that innings now
@@ -377,6 +380,12 @@ export interface MatchesRow {
   scorer_name: string | null;
   tournament_id: string | null;
   club_id: string | null;
+  /**
+   * Which side plays for the club (`clubTeamIdsOf`): only its players get
+   * club statistics, so an outside opponent's stay out of them. Null or
+   * absent: both sides.
+   */
+  club_side?: ClubSide | null;
   season_id: string | null;
   /** Tournament stage ("group", "knockout"; null: league or friendly). */
   stage?: string | null;

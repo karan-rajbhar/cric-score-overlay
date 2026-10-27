@@ -86,7 +86,6 @@ export function QualificationCalculatorButton({
       <Button
         variant="outline"
         size="sm"
-        className="h-8 gap-1.5 text-xs"
         onClick={() => setOpen(true)}
       >
         <Calculator className="h-3.5 w-3.5 text-primary" />
@@ -269,7 +268,7 @@ export function RegistrationApprovalActions({
         variant="outline"
         disabled={loading}
         onClick={() => handleAction("confirmed")}
-        className="h-7 border-success/40 px-2 text-xs text-success hover:bg-success/10"
+        className="border-success/40 text-success hover:bg-success/10"
       >
         <Check className="mr-1 h-3.5 w-3.5" />
         Approve
@@ -279,7 +278,7 @@ export function RegistrationApprovalActions({
         variant="outline"
         disabled={loading}
         onClick={() => handleAction("rejected")}
-        className="h-7 border-destructive/40 px-2 text-xs text-destructive hover:bg-destructive/10"
+        className="border-destructive/40 text-destructive hover:bg-destructive/10"
       >
         <X className="mr-1 h-3.5 w-3.5" />
         Reject

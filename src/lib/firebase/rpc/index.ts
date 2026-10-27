@@ -32,6 +32,7 @@ import {
   endInnings,
   reassignOverBowler,
   replaceBatter,
+  replacePlayer,
   recomputeInningsRpc,
   recordBall,
   retireBatter,
@@ -146,6 +147,12 @@ export async function callRpc(
       });
     case "replace_batter":
       return replaceBatter(scoring, {
+        p_match_id: str(args, "p_match_id"),
+        p_from_id: str(args, "p_from_id"),
+        p_to_id: str(args, "p_to_id"),
+      });
+    case "replace_player":
+      return replacePlayer(scoring, {
         p_match_id: str(args, "p_match_id"),
         p_from_id: str(args, "p_from_id"),
         p_to_id: str(args, "p_to_id"),

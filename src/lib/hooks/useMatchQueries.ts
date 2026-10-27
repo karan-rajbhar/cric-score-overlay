@@ -15,8 +15,15 @@ import {
 } from "~/app/matches/queries";
 import { fetchMatchList } from "~/app/matches/match-list";
 import {
+  clubsForMatch,
+  clubWithRecords,
+  fetchMyClubs,
+  offerAddToClub,
+} from "~/app/matches/club-data";
+import {
   fetchWizardBase,
   fetchWizardScope,
+  hasClubRecords,
   type MatchWizardData,
   type WizardScope,
 } from "~/app/matches/create/wizard-data";
@@ -147,6 +154,101 @@ export function useMatchWizardScopeQuery(scope: WizardScope) {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+}
+
+/**
+ * Whether any of a squad has played in the club's matches
+ * (`hasClubRecords`, 1 read): the wizard's outside-opponent guess. Off
+ * without a club or players.
+ */
+export function useClubRecordsQuery(clubId: string, userIds: readonly string[]) {
+  const ids = [...new Set(userIds)].sort();
+  return useQuery({
+    queryKey: ["clubRecords", clubId, ids],
+    queryFn: () => hasClubRecords(createClient(), clubId, ids),
+    enabled: Boolean(clubId && ids.length),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+/** The signed-in user's clubs (`fetchMyClubs`), when `enabled`. */
+export function useMyClubsQuery(userId: string | null | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["myClubs", userId ?? ""],
+    queryFn: () => fetchMyClubs(createClient(), userId!),
+    enabled: Boolean(userId && enabled),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+}
+
+/**
+ * "Add to club" for a match: the clubs the user may choose
+ * (`clubsForMatch`) and whether to offer the action (`offerAddToClub`).
+ * Reads the user's clubs only when `enabled` (a menu or the dialog open).
+ */
+export function useMatchClubChoices(
+  match: { club_id?: string | null; tournament_id?: string | null },
+  userId: string | null | undefined,
+  isMatchAdmin: boolean,
+  enabled: boolean,
+) {
+  const { data } = useMyClubsQuery(userId, enabled);
+  const choosable = clubsForMatch(data ?? [], isMatchAdmin);
+  return {
+    choosable,
+    // Scorers of a match in no club see it at once (the dialog says it is
+    // loading); anyone else once their clubs are known.
+    offer:
+      !!userId &&
+      (data
+        ? offerAddToClub(match, choosable, isMatchAdmin)
+        : isMatchAdmin && !match.club_id && !match.tournament_id),
+    loading: !data,
+  };
+}
+
+/**
+ * The club a finished match probably belongs to: for its scorers, when it
+ * is in no club (nor a tournament), the first of their clubs its players
+ * have played for (`clubWithRecords`: the user's clubs, then 1 read per
+ * club, at most 3). Null otherwise, or once `dismissed`.
+ */
+export function useClubSuggestion(
+  match: {
+    id: string;
+    status?: string | null;
+    club_id?: string | null;
+    tournament_id?: string | null;
+    team1?: { team_players?: { user_id: string }[] } | null;
+    team2?: { team_players?: { user_id: string }[] } | null;
+  },
+  userId: string | null | undefined,
+  isScorer: boolean,
+  dismissed: boolean,
+) {
+  const enabled =
+    !!userId &&
+    isScorer &&
+    !dismissed &&
+    match.status === "completed" &&
+    !match.club_id &&
+    !match.tournament_id;
+  const { data: clubs } = useMyClubsQuery(userId, enabled);
+  const choosable = clubsForMatch(clubs ?? [], true);
+  const playerIds = [
+    ...(match.team1?.team_players ?? []),
+    ...(match.team2?.team_players ?? []),
+  ].map((p) => p.user_id);
+  const { data: club } = useQuery({
+    queryKey: ["clubSuggestion", match.id, choosable.map((c) => c.id)],
+    queryFn: () => clubWithRecords(createClient(), choosable, playerIds),
+    enabled: enabled && choosable.length > 0 && playerIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+  return { club: enabled ? (club ?? null) : null, choosable };
 }
 
 /**
@@ -587,8 +689,14 @@ export function useMatchAdminQuery(
     queryFn: async () => {
       if (!matchId || !userId) return false;
       const db = createClient();
+      // The user is passed, not left to the browser client: it would ask
+      // Firebase Auth's current user, which is still empty for a moment
+      // after load (the page's user comes from the session cookie first),
+      // and a cached "no" would send the match's own creator away from
+      // the scoring screen.
       const { data, error } = await db.rpc("is_match_admin", {
         p_match_id: matchId,
+        p_user_id: userId,
       });
       if (error) {
         console.error("is_match_admin RPC error:", error);
@@ -618,8 +726,10 @@ export function useCanProduceOverlayQuery(
     queryKey: ["canProduceOverlay", matchId ?? "", userId ?? "anon"],
     queryFn: async () => {
       if (!matchId || !userId) return false;
+      // The user is passed (see useMatchAdminQuery).
       const { data, error } = await createClient().rpc("can_produce_overlay", {
         p_match_id: matchId,
+        p_user_id: userId,
       });
       if (error) throw new Error("Could not check overlay access");
       return Boolean(data);
@@ -643,8 +753,10 @@ export function useCanDeleteMatchQuery(
     queryKey: ["canDeleteMatch", matchId ?? "", userId ?? "anon"],
     queryFn: async () => {
       if (!matchId || !userId) return false;
+      // The user is passed (see useMatchAdminQuery).
       const { data, error } = await createClient().rpc("can_delete_match", {
         p_match_id: matchId,
+        p_user_id: userId,
       });
       if (error) return false;
       return Boolean(data);

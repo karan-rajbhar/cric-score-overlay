@@ -124,7 +124,6 @@ export function QualificationCalculator({
                 variant={qualSpots === spots ? "default" : "outline"}
                 size="sm"
                 onClick={() => setQualSpots(spots)}
-                className="h-8 text-xs font-semibold"
               >
                 Top {spots}
               </Button>
@@ -160,14 +159,13 @@ export function QualificationCalculator({
                   </div>
                   <div>
                     {isQ && (
-                      <Badge className="border-success/40 bg-success/20 text-2xs font-semibold text-success">
-                        <CheckCircle2 className="mr-1 h-3 w-3" /> Qualified (Q)
+                      <Badge variant="success">
+                        <CheckCircle2 className="h-3 w-3" /> Qualified (Q)
                       </Badge>
                     )}
                     {isE && (
                       <Badge
                         variant="destructive"
-                        className="text-2xs font-semibold"
                       >
                         <XCircle className="mr-1 h-3 w-3" /> Eliminated (E)
                       </Badge>
@@ -175,7 +173,6 @@ export function QualificationCalculator({
                     {!isQ && !isE && (
                       <Badge
                         variant="secondary"
-                        className="text-2xs font-semibold"
                       >
                         <HelpCircle className="mr-1 h-3 w-3" /> In contention
                       </Badge>

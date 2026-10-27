@@ -72,7 +72,10 @@ export default async function RootLayout({
   // signed-in visitor never gets a signed-out first paint.
   const initialUser = await getInitialUser();
   return (
-    <html lang="en" suppressHydrationWarning>
+    // data-scroll-behavior: the html element scrolls smoothly (globals.css),
+    // and Next 16 switches that off during route changes only when asked, so
+    // a new page starts at the top at once instead of gliding up to it.
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       {/* No speculation rules: navigation is client-side (next/link, which
           prefetches routes itself), so a prerendered document is never used
           but still costs a server render and Firestore reads and listeners. */}

@@ -4,7 +4,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "~/lib/utils";
 
 /* Small rounded labels: status, format, role. Colour only when it is state. */
-const chipVariants = cva(
+/** The chip's classes, for a control that must look like one (a button). */
+export const chipVariants = cva(
   "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full font-medium leading-none",
   {
     variants: {

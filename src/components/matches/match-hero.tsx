@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Shield, Trophy } from "lucide-react";
 import type * as React from "react";
 import { PlayerAwardCard } from "~/components/ds/player-award";
 import { PlayerLink } from "~/components/ds/player-link";
@@ -136,8 +138,23 @@ export function MatchHero({
 }) {
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
-  const competition =
-    match.tournament?.name ?? match.club?.name ?? match.title ?? "Match";
+  // The tournament or club, linked (the only way there from the match on
+  // phones, and on desktop since the header no longer repeats it).
+  const parent = match.tournament
+    ? { href: `/tournaments/${match.tournament.id}?tab=fixtures`, name: match.tournament.name }
+    : match.club
+      ? { href: `/clubs/${match.club.id}?tab=matches`, name: match.club.name }
+      : null;
+  const competition = parent ? (
+    <Link
+      href={parent.href}
+      className="underline-offset-4 hover:underline focus-visible:underline"
+    >
+      {parent.name}
+    </Link>
+  ) : (
+    (match.title ?? "Match")
+  );
   const stage = `${match.match_format} · ${match.overs_per_innings} overs`;
   const live = match.status === "live" || match.status === "innings_break";
   // While live: the side whose innings is open bats; the other shows its
@@ -232,6 +249,7 @@ export function MatchHero({
     <ScoreHero
       plain={plain}
       competition={competition}
+      competitionIcon={!match.tournament && match.club ? Shield : Trophy}
       stage={stage}
       status={displayStatusOf(match)}
       home={withPerformers(sides[0], 0)}

@@ -285,4 +285,52 @@ describe("MatchSettingsDialog (Mid-Game Rules & Format Adjustment)", () => {
 
     expect(onOpenAbandon).toHaveBeenCalled();
   });
+
+  it("asks a club match whose stats count, and saves one team for an outside opponent", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={{
+          ...dummyMatch,
+          club_id: "c1",
+          club: { id: "c1", name: "Riverside CC" },
+        }}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+
+    const group = screen.getByRole("group", {
+      name: /whose stats count for riverside cc/i,
+    });
+    expect(group).toBeInTheDocument();
+    // Older club matches count both teams.
+    expect(screen.getByRole("radio", { name: /both teams/i })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("radio", { name: /only hawks/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ clubSide: "team1" }),
+    );
+  });
+
+  it("does not ask a match without a club", () => {
+    const onSave = vi.fn();
+    render(
+      <MatchSettingsDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        match={dummyMatch}
+        onSave={onSave}
+        isProcessing={false}
+      />,
+    );
+
+    expect(screen.queryByText(/whose stats count/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave.mock.calls[0]![0]).not.toHaveProperty("clubSide");
+  });
 });

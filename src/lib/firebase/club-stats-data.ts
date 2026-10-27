@@ -56,7 +56,7 @@ export const loadClubStatsExport = cache(
         ? (((
             await db
               .from("matches")
-              .select("id, innings(*)")
+              .select("id, team1_id, team2_id, club_side, innings(*)")
               .in(
                 "id",
                 live.map((m) => m.id),

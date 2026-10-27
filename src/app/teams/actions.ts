@@ -596,7 +596,7 @@ export async function createPlayerQuick(
 /**
  * Adds a registered player (found by `searchUsers`) to a team's squad from
  * the scoring screen: like `createPlayerQuick`, the match's scorers may do
- * it until the match is over.
+ * it, during the match or (to correct it) after.
  */
 export async function addExistingPlayerQuick(
   teamId: string,
@@ -803,7 +803,27 @@ export async function searchUsers(query: string) {
     return { data: [], error };
   }
 
-  return { data, error: null };
+  // How many matches each has played (one batched read of their career
+  // docs), so two players of the same name can be told apart.
+  const found = (data ?? []) as { id: string }[];
+  const { data: careers } = found.length
+    ? await db
+        .from("player_career_stats")
+        .select("id, total_matches")
+        .in(
+          "id",
+          found.map((u) => u.id),
+        )
+    : { data: [] };
+  const matches = new Map(
+    ((careers ?? []) as { id: string; total_matches: number | null }[]).map(
+      (c) => [c.id, c.total_matches ?? 0],
+    ),
+  );
+  return {
+    data: found.map((u) => ({ ...u, matches: matches.get(u.id) ?? 0 })),
+    error: null,
+  };
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB

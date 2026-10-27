@@ -54,7 +54,7 @@ export function MemberRoleAction({
       size="sm"
       disabled={loading}
       onClick={handleToggle}
-      className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
+      className="text-muted-foreground hover:text-foreground"
       title={isAdmin ? "Demote to Member" : "Promote to Admin"}
     >
       {loading ? (

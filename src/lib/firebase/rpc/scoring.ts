@@ -71,6 +71,8 @@ import {
   OVERS_COLLECTION,
   oversOfBalls,
   partnershipRowsOf,
+  replaceDeep,
+  SCORECARD_FIELDS,
   scorecardFields,
   seqCounterOf,
   type InningsScorecard,
@@ -1951,6 +1953,112 @@ export async function replaceBatter(
   });
   if (tracked) await finishQuietly(ctx, matchId, tracked[0], tracked[1]);
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// replace_player
+// ---------------------------------------------------------------------------
+
+/**
+ * The team a player played for in a match: the batting side of an innings
+ * they batted in, else the fielding side of one they bowled or fielded in.
+ */
+function teamOfPlayer(
+  match: Pick<MatchesRow, "team1_id" | "team2_id">,
+  innings: readonly InningsRow[],
+  playerId: string,
+): string | null {
+  for (const inn of innings) {
+    if ((inn.batting ?? []).some((b) => b.user_id === playerId)) {
+      return inn.team_id;
+    }
+  }
+  for (const inn of innings) {
+    const fielded =
+      (inn.bowling ?? []).some((b) => b.user_id === playerId) ||
+      (inn.fall_of_wickets ?? []).some((f) => f.fielder_id === playerId);
+    if (!fielded) continue;
+    if (inn.team_id === match.team1_id) return match.team2_id;
+    if (inn.team_id === match.team2_id) return match.team1_id;
+  }
+  return null;
+}
+
+/**
+ * A player recorded by mistake, replaced throughout the match (NV Play's
+ * Replace, Play-Cricket's replacement player): every mention of `from` in
+ * the match's scorecards and ball log (batting, bowling, fielding, the
+ * crease) and as player of the match becomes `to`, during the match or
+ * after it, whether or not they are out or still bowling. `to` must be in
+ * the squad of the team `from` played for and appear nowhere in the match
+ * (two people's figures would merge). Only ids change, so the figures stay
+ * as scored; the player records and statistics follow
+ * (`syncMatchRecords`), and the transaction stages the summaries, the live
+ * documents and the ball-log archives (`finalize`).
+ */
+export async function replacePlayer(
+  ctx: ScoringContext,
+  args: { p_match_id: string; p_from_id: string; p_to_id: string },
+): Promise<{ team_id: string }> {
+  const { p_match_id: matchId, p_from_id: from, p_to_id: to } = args;
+  if (!from || !to || from === to)
+    throw new DbQueryError("invalid_input", "22000");
+  const now = new Date().toISOString();
+  const [[match, teamId], changed] = await runTracked(ctx, async (t) => {
+    const match = await t.doc<MatchesRow>("matches", matchId);
+    await requireAdminOf(ctx, matchId, match);
+    if (!match) throw new DbQueryError("match_not_found", "22000");
+    const [innings, overs] = await Promise.all([
+      t.where<InningsRow>("innings", [["match_id", "==", matchId]]),
+      t.where<OversRow>(OVERS_COLLECTION, [["match_id", "==", matchId]]),
+    ]);
+    const mentions = (id: string) => {
+      const needle = JSON.stringify(id);
+      return (
+        innings.some((inn) =>
+          SCORECARD_FIELDS.some((f) => JSON.stringify(inn[f] ?? null).includes(needle)),
+        ) || overs.some((o) => JSON.stringify(o.balls ?? []).includes(needle))
+      );
+    };
+    if (!mentions(from)) throw new DbQueryError("player_not_in_match", "22000");
+    if (mentions(to)) throw new DbQueryError("player_already_in_match", "22000");
+    const teamId = teamOfPlayer(match, innings, from);
+    if (!teamId) throw new DbQueryError("player_not_in_match", "22000");
+    const roster = await t.where<TeamPlayersRow>("team_players", [
+      ["team_id", "==", teamId],
+      ["user_id", "==", to],
+    ]);
+    if (roster.length === 0)
+      throw new DbQueryError("player_not_in_team", "22000");
+
+    const after = innings.map((inn) => {
+      const patch: Record<string, unknown> = {};
+      for (const field of SCORECARD_FIELDS) {
+        if (!(field in inn)) continue;
+        const next = replaceDeep(inn[field], from, to);
+        if (JSON.stringify(next) !== JSON.stringify(inn[field]))
+          patch[field] = next;
+      }
+      if (Object.keys(patch).length) t.patch("innings", inn.id, patch);
+      return { ...inn, ...patch } as WithId<InningsRow>;
+    });
+    for (const over of overs) {
+      const balls = replaceDeep(over.balls, from, to);
+      if (JSON.stringify(balls) !== JSON.stringify(over.balls))
+        t.patch(OVERS_COLLECTION, over.id, { balls });
+    }
+    const matchAfter =
+      match.player_of_the_match_id === from
+        ? { ...match, player_of_the_match_id: to }
+        : match;
+    if (matchAfter !== match) {
+      t.patch("matches", matchId, { player_of_the_match_id: to });
+    }
+    await syncMatchRecords(t, matchId, matchAfter, after, now);
+    return [match, teamId] as const;
+  });
+  await finishQuietly(ctx, matchId, match, changed);
+  return { team_id: teamId };
 }
 
 // ---------------------------------------------------------------------------

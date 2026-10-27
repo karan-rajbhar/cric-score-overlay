@@ -216,7 +216,6 @@ export function TournamentManageDialog({
           <Button
             variant="outline"
             size="sm"
-            className="h-9 min-h-[36px] gap-1.5 text-xs"
             aria-label="Manage tournament settings"
           >
             <Settings2 className="h-3.5 w-3.5" />
@@ -509,7 +508,6 @@ export function TournamentManageDialog({
                   size="sm"
                   disabled={confirmDeleteText !== tournament.name || isDeleting}
                   onClick={handleDelete}
-                  className="gap-1.5 text-xs h-10 min-h-[40px] sm:h-9 font-semibold"
                 >
                   {isDeleting ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -101,7 +101,7 @@ describe("createTeamPlayer", () => {
     );
   });
 
-  it("lets a match's invited scorer add players to its teams until it is over", async () => {
+  it("lets a match's invited scorer add players to its teams, also to correct it after it is over", async () => {
     const ds = new MemoryDataSource({
       teams: [
         { id: "t1", created_by: "owner", club_id: null },
@@ -139,9 +139,14 @@ describe("createTeamPlayer", () => {
       expect(rows).toMatchObject([{ team_id: team, added_by: "coscorer" }]);
     }
 
+    // After the match: still, to put the player who really played in the
+    // squad (a wrong player replaced); still never a team outside it.
     await ds.update("matches", "m1", { status: "completed" });
     await expect(
-      createTeamPlayer(ds, "coscorer", "t1", "Ana", null, "m1"),
+      createTeamPlayer(ds, "coscorer", "t1", "Ben", null, "m1"),
+    ).resolves.toMatchObject({ full_name: "Ben" });
+    await expect(
+      createTeamPlayer(ds, "coscorer", "t3", "Ben", null, "m1"),
     ).rejects.toThrow(/not_authorized/);
   });
 });

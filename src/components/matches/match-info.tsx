@@ -7,6 +7,7 @@ import { ListCard } from "~/components/ds/list";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { Match, MatchTeam } from "~/lib/match-types";
 import { formatPlayerRole } from "~/lib/cricket";
+import { clubStatsFact } from "~/lib/club-side-text";
 import { teamRef } from "./match-hero";
 
 interface MatchInfoProps {
@@ -109,6 +110,28 @@ function Squad({ team }: { team: MatchTeam }) {
   );
 }
 
+/**
+ * Whose stats count for the club (`club_side`), so anyone can see why a
+ * player of an outside team is missing from the club's leaderboards.
+ */
+function ClubStatsFact({ match }: { match: MatchInfoProps["match"] }) {
+  const { counts, outside } = clubStatsFact(
+    match.club_side,
+    match.team1.name,
+    match.team2.name,
+  );
+  return (
+    <>
+      {counts}
+      {outside && (
+        <span className="block text-xs font-normal text-muted-foreground">
+          {outside}: outside team
+        </span>
+      )}
+    </>
+  );
+}
+
 /** Info: the match's details and conditions, and both squads. */
 export function MatchInfo({ match }: MatchInfoProps) {
   const tossWinner =
@@ -139,6 +162,7 @@ export function MatchInfo({ match }: MatchInfoProps) {
     match.actual_start_time && ["Started", formatTime(match.actual_start_time)],
     match.tournament && ["Tournament", match.tournament.name],
     match.club && ["Club", match.club.name],
+    match.club && ["Club stats count", <ClubStatsFact key="cs" match={match} />],
   );
   const conditions = rows(
     [

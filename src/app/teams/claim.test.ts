@@ -150,6 +150,14 @@ describe("invite to claim", () => {
     ).toBe(false);
   });
 
+  it("finds the registered player past several placeholders of the same name", async () => {
+    // Daily sides add players by name: many Ashas who cannot score.
+    for (let i = 0; i < 7; i += 1) await addPlaceholder(`Asha ${i}`);
+    signIn("cap");
+    const { data } = await searchScorers("asha");
+    expect(data.map((u) => u.full_name)).toEqual(["Asha Rao"]);
+  });
+
   it("keeps placeholders out of the scorer search", async () => {
     await addPlaceholder("Asha Placeholder");
     signIn("cap");

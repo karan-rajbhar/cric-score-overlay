@@ -23,6 +23,7 @@
 
 import {
   canonicalJson,
+  clubTeamIdsOf,
   inningsSummaryEntry,
   inningsSummaryOf,
   SUMMARY_TOTAL_FIELDS,
@@ -42,7 +43,7 @@ export function inningsSummaryPatch(
   match: Entry,
   next: Entry[],
 ): Record<string, unknown> | null {
-  const totals: Entry = summaryTotalsOf(next);
+  const totals: Entry = summaryTotalsOf(next, clubTeamIdsOf(match));
   const same =
     canonicalJson(match.innings_summary ?? null) === canonicalJson(next) &&
     SUMMARY_TOTAL_FIELDS.every(

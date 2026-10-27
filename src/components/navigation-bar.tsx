@@ -150,7 +150,6 @@ export function NavigationBar() {
               <DropdownMenuTrigger asChild>
                 <Button
                   size="sm"
-                  className="h-8 px-2 text-xs font-semibold sm:gap-1 sm:px-3"
                 >
                   <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">Create</span>
@@ -288,7 +287,6 @@ export function NavigationBar() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs sm:px-3"
               >
                 <Link href="/auth/login">Sign in</Link>
               </Button>

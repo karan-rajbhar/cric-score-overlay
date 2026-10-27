@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { Trophy } from "lucide-react";
+import { Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Chip, MatchStatusChip } from "~/components/ds/chip";
@@ -170,6 +170,7 @@ function HeroSide({ team, detail, extra, dim }: HeroSideProps) {
  */
 export function ScoreHero({
   competition,
+  competitionIcon: CompetitionIcon = Trophy,
   stage,
   status,
   home,
@@ -181,6 +182,8 @@ export function ScoreHero({
   className,
 }: {
   competition: React.ReactNode;
+  /** Beside the competition: Trophy (tournament, default) or Shield (club). */
+  competitionIcon?: LucideIcon;
   /** Right of the competition, in navy: "Match 12", "Final". */
   stage?: React.ReactNode;
   status: string;
@@ -201,15 +204,37 @@ export function ScoreHero({
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
+      {/* Plain (the top of the match page, on the wash): a white disc for
+          the icon (lavender would vanish into the wash), and from md one
+          centred line in one type size, "Club · T20 · 20 overs", rather
+          than two ends of a wide row. */}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3",
+          plain && "md:justify-center md:gap-2",
+        )}
+      >
         <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary-soft-foreground">
-            <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+          <span
+            className={cn(
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+              plain
+                ? "bg-card text-primary shadow-soft"
+                : "bg-primary-soft text-primary-soft-foreground",
+            )}
+          >
+            <CompetitionIcon className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <span className="truncate">{competition}</span>
         </span>
         {stage && (
-          <span className="shrink-0 text-xs font-semibold text-primary">
+          <span
+            className={cn(
+              "shrink-0 text-xs font-semibold text-primary",
+              plain &&
+                "md:text-sm md:font-medium md:text-muted-foreground md:before:mr-2 md:before:content-['·']",
+            )}
+          >
             {stage}
           </span>
         )}

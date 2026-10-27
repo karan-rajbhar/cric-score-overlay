@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Sliders, ShieldAlert } from "lucide-react";
+import { ClubSideChoice } from "~/components/matches/club-side-choice";
+import type { ClubSide } from "~/lib/firebase/types";
 import type { Match } from "~/lib/match-types";
 import type { MatchSettingsUpdate } from "~/app/matches/mutations";
 
@@ -87,6 +89,10 @@ function MatchSettingsForm({
   );
   // On unless switched off (matches made before the setting play them).
   const [freeHit, setFreeHit] = useState<boolean>(match.free_hit !== false);
+  // Both sides unless set (older club matches count both).
+  const [clubSide, setClubSide] = useState<ClubSide>(
+    match.club_side ?? "both",
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,6 +114,7 @@ function MatchSettingsForm({
       lastManStands,
       goldenBall,
       freeHit,
+      ...(match.club_id ? { clubSide } : {}),
     };
     await onSave(updatePayload);
   };
@@ -135,7 +142,7 @@ function MatchSettingsForm({
       <div className="space-y-4 py-4">
         {/* Match Title */}
         <div className="space-y-1.5">
-          <Label htmlFor="match-title" className="text-xs font-semibold">
+          <Label htmlFor="match-title" className="text-sm font-medium">
             Match title
           </Label>
           <Input
@@ -143,17 +150,16 @@ function MatchSettingsForm({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Final - Club Championship"
-            className="h-9 text-xs"
           />
         </div>
 
         {/* Match Format */}
         <div className="space-y-1.5">
-          <Label htmlFor="match-format" className="text-xs font-semibold">
+          <Label htmlFor="match-format" className="text-sm font-medium">
             Match format
           </Label>
           <Select value={matchFormat} onValueChange={setMatchFormat}>
-            <SelectTrigger id="match-format" className="h-9 text-xs">
+            <SelectTrigger id="match-format">
               <SelectValue placeholder="Format" />
             </SelectTrigger>
             <SelectContent>
@@ -172,15 +178,15 @@ function MatchSettingsForm({
           <div className="flex items-center justify-between">
             <Label
               htmlFor="overs-per-innings"
-              className="text-xs font-semibold"
+              className="text-sm font-medium"
             >
               Overs per innings
             </Label>
-            <span className="text-2xs text-muted-foreground">
-              Quick Presets:
+            <span className="text-xs text-muted-foreground">
+              Presets
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
             <Input
               id="overs-per-innings"
               type="number"
@@ -188,7 +194,7 @@ function MatchSettingsForm({
               max={100}
               value={oversPerInnings}
               onChange={(e) => setOversPerInnings(Number(e.target.value))}
-              className="h-9 w-24 text-xs font-semibold"
+              className="w-24"
               required
             />
             <div className="flex flex-wrap gap-1">
@@ -197,9 +203,9 @@ function MatchSettingsForm({
                   key={ov}
                   type="button"
                   variant={oversPerInnings === ov ? "default" : "outline"}
-                  size="sm"
+                  size="icon-sm"
+                  className="font-score tabular-nums"
                   onClick={() => setOversPerInnings(ov)}
-                  className="h-8 px-2.5 text-xs font-semibold"
                 >
                   {ov}
                 </Button>
@@ -211,14 +217,14 @@ function MatchSettingsForm({
         {/* Balls Per Over */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="balls-per-over" className="text-xs font-semibold">
+            <Label htmlFor="balls-per-over" className="text-sm font-medium">
               Balls per over
             </Label>
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Standard: 6 (The Hundred: 5, Box: 4/8)
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center">
             <Input
               id="balls-per-over"
               type="number"
@@ -226,7 +232,7 @@ function MatchSettingsForm({
               max={12}
               value={ballsPerOver}
               onChange={(e) => setBallsPerOver(Number(e.target.value))}
-              className="h-9 w-20 text-xs font-semibold"
+              className="w-20"
               required
             />
             <div className="flex flex-wrap gap-1">
@@ -235,9 +241,9 @@ function MatchSettingsForm({
                   key={b}
                   type="button"
                   variant={ballsPerOver === b ? "default" : "outline"}
-                  size="sm"
+                  size="icon-sm"
+                  className="font-score tabular-nums"
                   onClick={() => setBallsPerOver(b)}
-                  className="h-8 px-2.5 text-xs font-semibold"
                 >
                   {b}
                 </Button>
@@ -248,14 +254,14 @@ function MatchSettingsForm({
 
         {/* Max Balls Per Over (with Extras) */}
         <div className="space-y-1.5">
-          <Label htmlFor="max-balls-per-over" className="text-xs font-semibold">
+          <Label htmlFor="max-balls-per-over" className="text-sm font-medium">
             Max balls per over (inclusive of extras)
           </Label>
           <Select
             value={maxBallsPerOver}
             onValueChange={setMaxBallsPerOver}
           >
-            <SelectTrigger id="max-balls-per-over" className="h-9 text-xs">
+            <SelectTrigger id="max-balls-per-over">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -266,7 +272,7 @@ function MatchSettingsForm({
               <SelectItem value="12">Max 12 balls</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-2xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Overs conclude automatically once this delivery count is reached to prevent dragged overs.
           </p>
         </div>
@@ -274,10 +280,10 @@ function MatchSettingsForm({
         {/* Target Runs (if 2nd innings or revised target) */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="target-runs" className="text-xs font-semibold">
+            <Label htmlFor="target-runs" className="text-sm font-medium">
               Target runs
             </Label>
-            <span className="text-2xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               (Rain / DLS revised target)
             </span>
           </div>
@@ -288,13 +294,12 @@ function MatchSettingsForm({
             placeholder="e.g. 165 (Leave empty if 1st innings)"
             value={targetRuns}
             onChange={(e) => setTargetRuns(e.target.value)}
-            className="h-9 text-xs"
           />
         </div>
 
         {/* Wickets Per Innings */}
         <div className="space-y-1.5">
-          <Label htmlFor="wickets-per-innings" className="text-xs font-semibold">
+          <Label htmlFor="wickets-per-innings" className="text-sm font-medium">
             Wickets per innings
           </Label>
           <Input
@@ -304,9 +309,8 @@ function MatchSettingsForm({
             max={11}
             value={wicketsPerInnings}
             onChange={(e) => setWicketsPerInnings(Number(e.target.value))}
-            className="h-9 text-xs font-semibold"
           />
-          <p className="text-2xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Standard is 10 wickets. Set fewer for box/corporate cricket.
           </p>
         </div>
@@ -321,11 +325,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="wide-balls-faced"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Count wides as balls faced
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 A wide counts as a ball faced by the striker.
               </p>
             </div>
@@ -342,11 +346,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="noball-balls-faced"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Count no-balls as balls faced
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 The striker received the ball, as scorecards count it. Switch
                 off only where the format leaves no-balls out.
               </p>
@@ -364,11 +368,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="wide-runs-batsman"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Give wide runs to the batter
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Runs from wides count to the striker&apos;s score.
               </p>
             </div>
@@ -385,11 +389,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="noball-extras-batsman"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Give no-ball runs to the batter
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 The no-ball penalty counts to the striker&apos;s score.
               </p>
             </div>
@@ -413,11 +417,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="last-man-stands"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Last man stands
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Allow the 11th or sole remaining batter to bat alone.
               </p>
             </div>
@@ -434,11 +438,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="golden-ball"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Golden ball
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Enable sudden death / golden ball rule for tied scores.
               </p>
             </div>
@@ -455,11 +459,11 @@ function MatchSettingsForm({
             <div>
               <Label
                 htmlFor="free-hit"
-                className="cursor-pointer text-xs font-semibold"
+                className="cursor-pointer text-sm font-medium"
               >
                 Free hit after a no-ball
               </Label>
-              <p className="text-2xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 On the ball after a no-ball the batter can be out only run out
                 or obstructing the field. Switch off where the competition has
                 no free hits.
@@ -475,15 +479,31 @@ function MatchSettingsForm({
           </div>
         </div>
 
+        {/* Club statistics: an outside opponent's players stay out */}
+        {match.club_id && (
+          <div className="space-y-2 rounded-2xl border border-border/80 bg-muted/30 p-3.5">
+            <ClubSideChoice
+              clubName={match.club?.name ?? "the club"}
+              team1Name={match.team1?.name ?? "Team 1"}
+              team2Name={match.team2?.name ?? "Team 2"}
+              value={clubSide}
+              onChange={setClubSide}
+            />
+            <p className="text-xs text-muted-foreground">
+              The club&apos;s stats update when you save.
+            </p>
+          </div>
+        )}
+
         {/* Danger Zone: Abandon Match */}
         {onOpenAbandon && (
           <div className="space-y-2 rounded-2xl border border-destructive/30 bg-destructive/5 p-3.5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-destructive">
+                <p className="text-sm font-medium text-destructive">
                   Abandon match
                 </p>
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Halt and abandon fixture due to weather, light, or forfeiture.
                 </p>
               </div>
@@ -491,7 +511,7 @@ function MatchSettingsForm({
                 type="button"
                 variant="destructive"
                 size="sm"
-                className="h-8 text-xs font-semibold"
+                
                 onClick={() => {
                   onCancel();
                   onOpenAbandon();
