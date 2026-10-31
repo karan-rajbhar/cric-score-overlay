@@ -97,6 +97,18 @@ export function shouldFallbackToRedirect(err: unknown): boolean {
   return code !== undefined && REDIRECT_FALLBACK_CODES.has(code);
 }
 
+/**
+ * Whether Google sign-in stays in this tab. On a touch-first device a popup
+ * is a second tab, and its result has to get back to a page the browser has
+ * put in the background; when it does not, Firebase reports the window as
+ * closed even though the sign-in worked at Google. A redirect has no such
+ * hand-off, and `/__/auth` is on our own domain, so it stays first-party. By
+ * pointer, not user agent: Android tablets send no "Mobile".
+ */
+function signsInThisTab(): boolean {
+  return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+}
+
 /** Marks a pending redirect sign-in so only the return trip asks for it. */
 const REDIRECT_PENDING_KEY = "cric_google_redirect";
 
@@ -177,6 +189,7 @@ export function AuthProvider({
   const syncedUidRef = useRef<string | null>(null);
   /** Signed in locally but the server session still needs syncing. */
   const resyncUidRef = useRef<string | null>(null);
+  const popupFailedRef = useRef(false);
 
   useEffect(() => {
     if (isOverlay) return;
@@ -296,15 +309,20 @@ export function AuthProvider({
       setRedirectError(null);
       const auth = getFirebaseAuth();
       const provider = createGoogleProvider(loginHint);
-      try {
-        const cred = await signInWithPopup(auth, provider);
-        await finishSignIn(cred.user);
-        return { error: null };
-      } catch (err) {
-        if (!shouldFallbackToRedirect(err)) return { error: toAuthError(err) };
+      if (!signsInThisTab() && !popupFailedRef.current) {
+        try {
+          const cred = await signInWithPopup(auth, provider);
+          await finishSignIn(cred.user);
+          return { error: null };
+        } catch (err) {
+          const error = toAuthError(err);
+          // Closed, or lost on its way back: the next try stays in this tab.
+          popupFailedRef.current = error.code === "auth/popup-closed-by-user";
+          if (!shouldFallbackToRedirect(err)) return { error };
+        }
       }
-      // The browser refused the popup: continue in this tab instead. The page
-      // navigates away; the result is handled when the app loads again.
+      // No popup here, or the browser refused it. The page navigates away;
+      // the result is handled when the app loads again.
       try {
         markRedirectPending();
         await signInWithRedirect(auth, provider);

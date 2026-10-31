@@ -92,6 +92,7 @@ const fetchMock = vi.fn();
 beforeEach(() => {
   vi.resetAllMocks();
   sessionStorage.clear();
+  vi.stubGlobal("matchMedia", () => ({ matches: false }));
   firebaseAuth.onIdTokenChanged.mockReturnValue(() => undefined);
   firebaseAuth.signOut.mockResolvedValue(undefined);
   fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
@@ -175,6 +176,56 @@ describe("signInWithGoogle", () => {
     });
 
     expect(result?.error?.code).toBe("auth/popup-closed-by-user");
+    expect(firebaseAuth.signInWithRedirect).not.toHaveBeenCalled();
+  });
+
+  it("stays in this tab on a touch device, keeping the login hint", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(pointer: coarse)",
+    }));
+    renderProvider();
+
+    await act(async () => {
+      await ctx.signInWithGoogle("a@b.com");
+    });
+
+    expect(firebaseAuth.signInWithPopup).not.toHaveBeenCalled();
+    const [, provider] = firebaseAuth.signInWithRedirect.mock.calls[0]!;
+    expect(provider.params.login_hint).toBe("a@b.com");
+    expect(sessionStorage.getItem("cric_google_redirect")).toBe("1");
+  });
+
+  it("stays in this tab on the try after a popup came back without a result", async () => {
+    firebaseAuth.signInWithPopup.mockRejectedValue({
+      code: "auth/popup-closed-by-user",
+    });
+    renderProvider();
+
+    await act(async () => {
+      await ctx.signInWithGoogle();
+    });
+    await act(async () => {
+      await ctx.signInWithGoogle();
+    });
+
+    expect(firebaseAuth.signInWithPopup).toHaveBeenCalledTimes(1);
+    expect(firebaseAuth.signInWithRedirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not leave the popup for any other failure", async () => {
+    firebaseAuth.signInWithPopup.mockRejectedValue({
+      code: "auth/network-request-failed",
+    });
+    renderProvider();
+
+    await act(async () => {
+      await ctx.signInWithGoogle();
+    });
+    await act(async () => {
+      await ctx.signInWithGoogle();
+    });
+
+    expect(firebaseAuth.signInWithPopup).toHaveBeenCalledTimes(2);
     expect(firebaseAuth.signInWithRedirect).not.toHaveBeenCalled();
   });
 
