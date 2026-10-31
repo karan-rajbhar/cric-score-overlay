@@ -227,32 +227,123 @@ describe("BowlerDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders reassign deliveries checkbox when currentBall > 0", () => {
-    const handleReassignChange = vi.fn();
+  describe("mid-over, with balls already bowled", () => {
+    const squad: TeamPlayer[] = [
+      ...mockPlayers,
+      {
+        id: "tp-3",
+        team_id: "team-2",
+        user_id: "user-manoj",
+        user: { id: "user-manoj", full_name: "Manoj" },
+      },
+    ];
+    const renderMidOver = (
+      overrides: Partial<React.ComponentProps<typeof BowlerDialog>> = {},
+    ) => {
+      const onConfirm = vi.fn();
+      const onReassign = vi.fn();
+      render(
+        <BowlerDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          bowlingTeamPlayers={squad}
+          currentBowlerId="user-rahul"
+          overBowling={{ bowlerId: "user-rahul", balls: 3 }}
+          overNumber={5}
+          onConfirm={onConfirm}
+          onReassign={onReassign}
+          isProcessing={false}
+          {...overrides}
+        />,
+      );
+      return { onConfirm, onReassign };
+    };
+    const pick = (name: RegExp) =>
+      fireEvent.click(screen.getByRole("radio", { name }));
 
-    render(
-      <BowlerDialog
-        open={true}
-        onOpenChange={vi.fn()}
-        bowlingTeamPlayers={mockPlayers}
-        currentBowlerId="user-rahul"
-        lastOverBowlerId="user-kishor"
-        currentBall={3}
-        reassignOverDeliveries={false}
-        onReassignOverDeliveriesChange={handleReassignChange}
-        onConfirm={vi.fn()}
-        isProcessing={false}
-      />,
-    );
+    it("says whose balls they are and asks what happened before any pick", () => {
+      renderMidOver();
+      expect(
+        screen.getByText("Rahul has bowled 3 balls in this over."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Change the bowler of over 5" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: /Kishor/ })).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Choose what happened" }),
+      ).toBeDisabled();
+    });
 
-    const checkbox = screen.getByRole("checkbox");
-    expect(checkbox).toBeInTheDocument();
-    expect(
-      screen.getByText(/Wrong bowler picked/i),
-    ).toBeInTheDocument();
+    it("a wrong bowler gives the balls to the right one", () => {
+      const { onConfirm, onReassign } = renderMidOver();
+      pick(/Wrong bowler/);
+      expect(
+        screen.getByRole("button", { name: "Choose who bowled" }),
+      ).toBeDisabled();
+      pick(/Kishor/);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Give 3 balls to Kishor" }),
+      );
+      expect(onReassign).toHaveBeenCalledWith("user-kishor");
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
 
-    fireEvent.click(checkbox);
-    expect(handleReassignChange).toHaveBeenCalledWith(true);
+    it("an injured bowler keeps the balls and another finishes the over", () => {
+      const { onConfirm, onReassign } = renderMidOver();
+      pick(/Can't finish the over/);
+      pick(/Manoj/);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manoj finishes the over" }),
+      );
+      expect(onConfirm).toHaveBeenCalledWith("user-manoj");
+      expect(onReassign).not.toHaveBeenCalled();
+    });
+
+    it("never offers the bowler whose balls these are", () => {
+      renderMidOver();
+      pick(/Wrong bowler/);
+      expect(screen.queryByRole("radio", { name: /^Rahul/ })).toBeNull();
+    });
+
+    it("keeps the previous over's bowler out, whichever the reason", () => {
+      const { onReassign } = renderMidOver({
+        lastOverBowlerId: "user-kishor",
+      });
+      pick(/Wrong bowler/);
+      expect(screen.getByRole("radio", { name: /Kishor/ })).toBeDisabled();
+      expect(onReassign).not.toHaveBeenCalled();
+    });
+
+    it("lets a bowler brought on with none of the balls be given them", () => {
+      const { onReassign } = renderMidOver({
+        currentBowlerId: "user-kishor",
+      });
+      expect(
+        screen.getByText("Rahul has bowled 3 balls in this over."),
+      ).toBeInTheDocument();
+      pick(/Wrong bowler/);
+      pick(/Kishor/);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Give 3 balls to Kishor" }),
+      );
+      expect(onReassign).toHaveBeenCalledWith("user-kishor");
+    });
+
+    it("asks nothing before the over's first ball", () => {
+      renderMidOver({ overBowling: null });
+      expect(screen.queryByText("What happened?")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Confirm bowler" }),
+      ).toBeInTheDocument();
+    });
+
+    it("reads one ball in the singular", () => {
+      renderMidOver({ overBowling: { bowlerId: "user-rahul", balls: 1 } });
+      expect(
+        screen.getByText("Rahul has bowled 1 ball in this over."),
+      ).toBeInTheDocument();
+    });
   });
 
   it("disables Confirm Bowler when currentBowlerId is batting (striker or non-striker)", () => {

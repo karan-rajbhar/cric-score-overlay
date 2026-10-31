@@ -47,6 +47,16 @@ export function readBallLabel(ball: string): {
   const plural = (n: number, one: string, many: string) =>
     `${n} ${n === 1 ? one : many}`;
   if (ball === "W") return { kind: "wicket", spoken: "Wicket", runs: 0, wicket: true };
+  // A wicket and what else the ball brought ("W+3", "W+wd").
+  if (ball.startsWith("W+")) {
+    const rest = readBallLabel(ball.slice(2));
+    return {
+      kind: "wicket",
+      spoken: `Wicket + ${rest.spoken.toLowerCase()}`,
+      runs: rest.runs,
+      wicket: true,
+    };
+  }
   if (ball === "rh")
     return { kind: "retired", spoken: "Retired hurt", runs: 0, wicket: false };
   if (ball === "ro")
@@ -592,7 +602,7 @@ export function ScoringPanel({
               >
                 {lastBalls.map((ball, idx) => {
                   const chip =
-                    "flex h-8 w-8 shrink-0 items-center justify-center border text-2xs sm:h-9 sm:w-9 sm:text-xs";
+                    "flex h-8 min-w-8 shrink-0 items-center justify-center border px-0.5 text-2xs sm:h-9 sm:min-w-9 sm:text-xs";
                   // A retirement sits between balls: shown, not numbered
                   // or edited (undo removes it).
                   if (readBallLabel(ball).kind === "retired") {

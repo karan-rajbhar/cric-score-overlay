@@ -537,4 +537,20 @@ describe("readBallLabel", () => {
       runs: 5,
     });
   });
+
+  it("keeps a wicket ball's runs in the over's total", () => {
+    expect(readBallLabel("W")).toMatchObject({ spoken: "Wicket", runs: 0 });
+    expect(readBallLabel("W+3")).toEqual({
+      kind: "wicket",
+      spoken: "Wicket + 3 runs",
+      runs: 3,
+      wicket: true,
+    });
+    expect(readBallLabel("W+wd")).toMatchObject({
+      kind: "wicket",
+      spoken: "Wicket + wide",
+      runs: 1,
+    });
+    expect(readBallLabel("W+nb+1")).toMatchObject({ kind: "wicket", runs: 2 });
+  });
 });

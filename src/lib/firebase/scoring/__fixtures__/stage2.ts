@@ -104,11 +104,7 @@ export function stage2Driver(
       });
     },
     reassignBowler: async (matchId, bowlerId) => {
-      try {
-        await setCurrentBowler(ctx, matchId, bowlerId);
-      } catch {
-        // ignored, as the server action does
-      }
+      await setCurrentBowler(ctx, matchId, bowlerId);
       await reassignOverBowler(ctx, {
         p_match_id: matchId,
         p_bowler_id: bowlerId,

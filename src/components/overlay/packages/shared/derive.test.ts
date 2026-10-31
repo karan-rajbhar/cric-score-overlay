@@ -140,6 +140,8 @@ describe("this over", () => {
     expect(overBall("wd+1")).toMatchObject({ kind: "extra", legal: false });
     expect(overBall("lb1")).toMatchObject({ kind: "extra", legal: true });
     expect(overBall("W")).toMatchObject({ kind: "wicket", legal: true });
+    expect(overBall("W+3")).toEqual({ token: "W+3", kind: "wicket", label: "W+3", legal: true });
+    expect(overBall("W+wd")).toMatchObject({ kind: "wicket", legal: false });
     expect(overBall("rh")).toMatchObject({ kind: "event", legal: false });
     expect(overBall("p5")).toMatchObject({ kind: "event", legal: false });
     expect(overBall("4").kind).toBe("four");

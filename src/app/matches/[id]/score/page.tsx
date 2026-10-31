@@ -21,6 +21,7 @@ import type {
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { describeQueuedAction } from "./describe-action";
+import { overBowlingOf } from "~/lib/firebase/scoring/ball-docs";
 import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
 import { OtherScorerNotice } from "./components/OtherScorerNotice";
 import { useLiveResync } from "./useLiveResync";
@@ -218,7 +219,7 @@ import {
   Pencil,
   Flag,
 } from "lucide-react";
-import { economyRate } from "~/lib/cricket";
+import { deliveryKind, deliveryLabel, economyRate } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
 import { searchUsers } from "~/app/teams/actions";
 import {
@@ -489,7 +490,6 @@ function useScoringScreen() {
     playerId: string;
     playerName: string;
   } | null>(null);
-  const [reassignOverDeliveries, setReassignOverDeliveries] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<DeliveryToEdit | null>(
     null,
   );
@@ -1218,7 +1218,6 @@ function useScoringScreen() {
     params,
     pendingCount,
     rawDeliveries,
-    reassignOverDeliveries,
     refreshSquads,
     retireTarget,
     runsCompletedBeforeRunOut,
@@ -1229,7 +1228,6 @@ function useScoringScreen() {
     setDismissedPlayerId,
     setEditingDelivery,
     setFielderId,
-    setReassignOverDeliveries,
     setRetireTarget,
     setRunsCompletedBeforeRunOut,
     setSelectedTossWinner,
@@ -2338,7 +2336,7 @@ function Console({ s }: { s: LoadedScreen }) {
                           : (strikerDisplay?.name ?? "Batter"));
                       const isBoundary =
                         d.runs_scored === 4 || d.runs_scored === 6;
-                      const isWicket = d.is_wicket;
+                      const isWicket = deliveryKind(d) === "wicket";
                       return (
                         <div
                           key={d.id || idx}
@@ -2377,7 +2375,8 @@ function Console({ s }: { s: LoadedScreen }) {
                                 ) : null}
                                 {d.dismissal_type ? (
                                   <span className="font-medium capitalize text-destructive">
-                                    Out: {d.dismissal_type.replace("_", " ")}
+                                    {isWicket ? "Out: " : ""}
+                                    {d.dismissal_type.replace("_", " ")}
                                   </span>
                                 ) : null}
                               </div>
@@ -2399,11 +2398,7 @@ function Console({ s }: { s: LoadedScreen }) {
                                         : "border border-extra/30 bg-extra/15 text-extra",
                               )}
                             >
-                              {isWicket
-                                ? "W"
-                                : d.extra_type
-                                  ? `${d.runs_scored || 0}${d.extra_type === "wide" ? "wd" : d.extra_type === "no_ball" ? "nb" : "ex"}`
-                                  : d.runs_scored}
+                              {deliveryLabel(d)}
                             </span>
                           </div>
                         </div>
@@ -2750,12 +2745,11 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
     setRetireTarget,
     handleEndInnings,
     showSelectBowler,
-    setReassignOverDeliveries,
     bowlingTeamPlayers,
     bowlingTeam,
     lastOverBowlerId,
     battingTeamPlayerIds,
-    reassignOverDeliveries,
+    rawDeliveries,
     handleReassignOverBowler,
     handleReplaceBatter,
     handleConfirmBowler,
@@ -2932,10 +2926,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
 
       <BowlerDialog
         open={showSelectBowler}
-        onOpenChange={(open) => {
-          setShowSelectBowler(open);
-          if (!open) setReassignOverDeliveries(false);
-        }}
+        onOpenChange={setShowSelectBowler}
         bowlingTeamPlayers={bowlingTeamPlayers}
         bowlingTeamName={bowlingTeam?.name}
         bowlingPerformances={currentInnings?.bowling_performances}
@@ -2945,29 +2936,22 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         strikerId={strikerId}
         nonStrikerId={nonStrikerId}
         battingTeamPlayerIds={battingTeamPlayerIds}
-        currentBall={match.current_ball}
-        reassignOverDeliveries={reassignOverDeliveries}
-        onReassignOverDeliveriesChange={setReassignOverDeliveries}
+        overBowling={overBowlingOf(rawDeliveries, match.current_over ?? 0)}
         overNumber={(match.current_over ?? 0) + 1}
         onConfirm={async (bowlerId) => {
-          if (reassignOverDeliveries && (match.current_ball ?? 0) > 0) {
-            const res = await handleReassignOverBowler(bowlerId);
-            if (res.error) {
-              toast.error(res.error);
-            } else {
-              if (!res.queued) {
-                toast.success("Bowler changed for this over's deliveries");
-              }
-              setShowSelectBowler(false);
-              setReassignOverDeliveries(false);
-            }
-          } else {
-            const res = await handleConfirmBowler(bowlerId);
-            if (!res.error) {
-              setShowSelectBowler(false);
-              setReassignOverDeliveries(false);
-            }
+          const res = await handleConfirmBowler(bowlerId);
+          if (!res.error) setShowSelectBowler(false);
+        }}
+        onReassign={async (bowlerId) => {
+          const res = await handleReassignOverBowler(bowlerId);
+          if (res.error) {
+            toast.error(res.error);
+            return;
           }
+          if (!res.queued) {
+            toast.success("Bowler changed for this over's deliveries");
+          }
+          setShowSelectBowler(false);
         }}
         isProcessing={isProcessing}
         onCreatePlayer={createPickedPlayer("bowling")}

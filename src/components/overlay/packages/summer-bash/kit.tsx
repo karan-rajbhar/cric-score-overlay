@@ -13,6 +13,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { deliveryLabelKind } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { OverlayFrame } from "../../overlay-kit";
 import type { LayoutMode, LiveMatchState } from "../../types";
@@ -269,12 +270,11 @@ export function Photo({
 type ChipKind = "dot" | "run" | "four" | "six" | "wicket" | "extra";
 
 export function chipOf(token: string): { kind: ChipKind; label: string } {
-  if (token === "W") return { kind: "wicket", label: "W" };
-  if (/wd|nb|lb|b\d|^b$/.test(token)) return { kind: "extra", label: token };
-  if (token === "4") return { kind: "four", label: "4" };
-  if (token === "6") return { kind: "six", label: "6" };
-  if (token === "0") return { kind: "dot", label: "•" };
-  return { kind: "run", label: token };
+  const kind = deliveryLabelKind(token);
+  return {
+    kind: kind === "event" ? "dot" : kind,
+    label: token === "0" ? "•" : token,
+  };
 }
 
 const CHIP_STYLE: Record<ChipKind, CSSProperties> = {

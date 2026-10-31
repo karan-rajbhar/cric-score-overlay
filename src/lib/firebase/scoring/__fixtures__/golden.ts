@@ -7,7 +7,12 @@
  * once when a no-ball began to count as a ball faced: each hash that moved
  * then differs only by batters' balls faced (and live_state's / the
  * ScoringState's striker_balls / non_striker_balls), one more per no-ball
- * received; with `noball_counts_as_ball_faced` false the old hashes return. Replaying
+ * received; with `noball_counts_as_ball_faced` false the old hashes return.
+ * Re-recorded once more when a bowler correction stopped naming a bowler on
+ * events without one: the "edits" scenario's hashes from its reassignment on
+ * differ only by a bonus event's `bowler_id` (null, not the new bowler). And
+ * again when the live row took the app's one spelling of a ball
+ * (`deliveryLabel`): with `this_over_balls` masked no hash moved. Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball

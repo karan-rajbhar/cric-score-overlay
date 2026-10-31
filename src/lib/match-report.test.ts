@@ -207,31 +207,30 @@ describe("match-report export helpers", () => {
   });
 
   const URL_ = "https://cricket.app/matches/match-124";
-  const deliveriesOf = (): Innings["ball_by_ball"] => {
-    const ball = (n: number, extra: Record<string, unknown>) => ({
-      id: `b${n}`,
-      match_id: "m1",
-      innings_id: "inn1",
-      over_number: 1,
-      ball_number: n,
-      runs_scored: 0,
-      extras: 0,
-      extra_type: null,
-      is_wicket: false,
-      dismissal_type: null,
-      bowler_id: "b_u1",
-      batsman_id: "u1",
-      non_striker_id: "u2",
-      bowler: { id: "b_u1", full_name: "Mitchell Starc" },
-      batsman: { id: "u1", full_name: "Virat Kohli" },
-      ...extra,
-    });
-    return [
+  const ball = (n: number, extra: Record<string, unknown>) => ({
+    id: `b${n}`,
+    match_id: "m1",
+    innings_id: "inn1",
+    over_number: 1,
+    ball_number: n,
+    runs_scored: 0,
+    extras: 0,
+    extra_type: null,
+    is_wicket: false,
+    dismissal_type: null,
+    bowler_id: "b_u1",
+    batsman_id: "u1",
+    non_striker_id: "u2",
+    bowler: { id: "b_u1", full_name: "Mitchell Starc" },
+    batsman: { id: "u1", full_name: "Virat Kohli" },
+    ...extra,
+  });
+  const deliveriesOf = (): Innings["ball_by_ball"] =>
+    [
       ball(1, { runs_scored: 4 }),
       ball(2, { extras: 1, extra_type: "wide" }),
       ball(3, { is_wicket: true, dismissal_type: "bowled" }),
     ] as never;
-  };
 
   describe("buildMatchReport", () => {
     it("holds each innings' scorecard, fall of wickets and the match facts", () => {
@@ -289,6 +288,45 @@ describe("match-report export helpers", () => {
       ]);
       expect(r.impact[0]?.name).toBe("Virat Kohli");
       expect(r.innings[0]!.bowlers).toEqual([]);
+    });
+
+    it("spells balls as the app does and counts wickets as the engine does", () => {
+      const r = buildMatchReport(
+        {
+          ...sampleMatch,
+          innings: [
+            {
+              ...innings1,
+              ball_by_ball: [
+                ball(1, {
+                  runs_scored: 3,
+                  is_wicket: true,
+                  dismissal_type: "run_out",
+                }),
+                ball(2, {
+                  bowler_id: null,
+                  is_wicket: true,
+                  dismissal_type: "retired_hurt",
+                }),
+                ball(2, { is_wicket: true, dismissal_type: "bowled" }),
+                ball(3, { extras: 2, extra_type: "bye" }),
+              ] as never,
+            },
+            innings2,
+          ],
+        },
+        URL_,
+      );
+      const over = r.overs?.rows[0]?.[0];
+      expect(over?.balls).toEqual([
+        { text: "W+3", type: "wicket" },
+        { text: "rh", type: "dot" },
+        { text: "W", type: "wicket" },
+        { text: "b2", type: "extra" },
+      ]);
+      // The run out and the bowled fell; the bowler took only the bowled,
+      // and is charged the run out's 3 but not the byes.
+      expect(over).toMatchObject({ wickets: 2, bowlerWickets: 1, bowlerRuns: 3 });
     });
 
     it("leaves out partnerships without a ball log, and signs off with blank name lines", () => {

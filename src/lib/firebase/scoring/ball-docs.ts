@@ -614,6 +614,35 @@ export function battingWithCrease(
 }
 
 /**
+ * Who the log has bowling over `overNumber`: the bowler of its latest
+ * delivery and how many they have bowled in it (wides and no-balls count;
+ * events between balls do not). Null before its first delivery. An over can
+ * hold two bowlers (one injured): this is the later one. `balls` in order.
+ */
+export function overBowlingOf(
+  balls: readonly {
+    over_number?: number | null;
+    bowler_id?: string | null;
+    extra_type?: string | null;
+  }[],
+  overNumber: number,
+): { bowlerId: string; balls: number } | null {
+  const bowled = balls.filter(
+    (b) =>
+      b.over_number === overNumber &&
+      b.bowler_id &&
+      b.extra_type !== "penalty" &&
+      b.extra_type !== "bonus",
+  );
+  const bowlerId = bowled.at(-1)?.bowler_id;
+  if (!bowlerId) return null;
+  return {
+    bowlerId,
+    balls: bowled.filter((b) => b.bowler_id === bowlerId).length,
+  };
+}
+
+/**
  * The innings' bowling entries with `bowlerId` as the current bowler (a new
  * entry when they have not bowled yet), or null when nothing changes.
  * Validation (team, previous over) is the caller's.

@@ -1622,12 +1622,16 @@ export async function reassignCurrentOverBowler(
       };
     }
 
-    await db.rpc("set_current_bowler", {
+    // Refuses a bowler who cannot bowl this over, before any ball moves.
+    const { error: bowlerErr } = await db.rpc("set_current_bowler", {
       p_match_id: matchId,
       p_bowler_id: newBowlerId,
     });
+    if (bowlerErr) {
+      return { success: false, error: friendlyError(bowlerErr.message) };
+    }
 
-    // Credits the current over's deliveries to the new bowler and
+    // Credits the over's latest bowler's deliveries to the new bowler and
     // recomputes the innings.
     const { error: reassignErr } = await db.rpc("reassign_over_bowler", {
       p_match_id: matchId,

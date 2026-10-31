@@ -25,7 +25,7 @@ const HOW_OUT: Record<string, (fielder: string | null, cb: boolean) => string> =
   };
 
 /** The how-out clause: "caught by X", "bowled", "run out (X)". */
-function howOut(
+export function howOut(
   type: string | null | undefined,
   fielder: string | null,
   caughtAndBowled: boolean,

@@ -22,8 +22,9 @@ const SPOKEN: Record<BallKind, string> = {
 };
 
 /**
- * One delivery: "0", "1", "4", "6", "W", "1wd", "2nb". Colour says what
- * happened (4 green, 6 violet, W red, extras amber); plain runs stay quiet.
+ * One delivery, as `deliveryLabel` spells it: "0", "1", "4", "6", "W",
+ * "W+3", "wd+1", "nb+2". Colour says what happened (4 green, 6 violet, W
+ * red, extras amber); plain runs stay quiet.
  */
 export function BallChip({
   kind,
@@ -49,7 +50,7 @@ export function BallChip({
     >
       <span aria-hidden="true">{label}</span>
       <span className="sr-only">
-        {kind === "run" || kind === "extra"
+        {kind === "run" || kind === "extra" || (kind === "wicket" && label !== "W")
           ? `${label} ${SPOKEN[kind]}`
           : SPOKEN[kind]}
       </span>

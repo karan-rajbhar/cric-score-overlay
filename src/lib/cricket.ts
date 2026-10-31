@@ -191,24 +191,46 @@ export const requiredRunRate = (
   return ballsRem > 0 ? ((runsNeeded * bpo) / ballsRem).toFixed(2) : "—";
 };
 
-/**
- * "4 1 W wd 6" style label for one entry of an over; a retirement (logged
- * between deliveries) is "rh" / "ro", not a wicket ball.
- */
-export function deliveryLabel(b: {
+type DeliveryFields = {
   runs_scored?: number | null;
   extras?: number | null;
   extra_type?: string | null;
   is_wicket?: boolean | null;
   dismissal_type?: string | null;
   no_ball_runs?: string | null;
-}): string {
+};
+
+/** A batter is out on this entry: retired hurt is neither out nor a wicket. */
+export function isWicketFall(
+  b: Pick<DeliveryFields, "is_wicket" | "dismissal_type">,
+): boolean {
+  return Boolean(b.is_wicket) && b.dismissal_type !== "retired_hurt";
+}
+
+/**
+ * "4 1 W wd 6" style label for one entry of an over: the one spelling of a
+ * ball, on every screen and in `live_state.this_over_balls`. A wicket keeps
+ * what else the ball brought ("W+3" run out after 3, "W+wd" stumped off a
+ * wide); a retirement (logged between deliveries) is "rh" / "ro", not a
+ * wicket ball.
+ */
+export function deliveryLabel(b: DeliveryFields): string {
   if (b.is_wicket && b.dismissal_type === "retired_hurt") return "rh";
   if (b.is_wicket && b.dismissal_type === "retired_out") return "ro";
-  if (b.is_wicket) return "W";
+  if (!b.is_wicket) return runsLabel(b);
+  return (b.runs_scored ?? 0) + (b.extras ?? 0) > 0
+    ? `W+${runsLabel(b)}`
+    : "W";
+}
+
+/** A ball's label apart from any wicket on it. */
+function runsLabel(b: DeliveryFields): string {
   switch (b.extra_type) {
-    case "wide":
-      return `wd${(b.extras ?? 0) > 1 ? `+${(b.extras ?? 0) - 1}` : ""}`;
+    case "wide": {
+      // Older wides carry their runs in `runs_scored`.
+      const more = (b.extras ?? 0) - 1 + (b.runs_scored ?? 0);
+      return `wd${more > 0 ? `+${more}` : ""}`;
+    }
     case "no_ball": {
       // Byes / leg byes off it: in extras after the 1-run penalty ("nb+2b").
       if (b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye") {
@@ -231,6 +253,36 @@ export function deliveryLabel(b: {
     default:
       return String(b.runs_scored ?? 0);
   }
+}
+
+export type DeliveryLabelKind =
+  | "dot"
+  | "run"
+  | "four"
+  | "six"
+  | "wicket"
+  | "extra"
+  | "event";
+
+/**
+ * What a {@link deliveryLabel} is, from the label alone (all `live_state`
+ * holds): "event" is logged between balls (a retirement, runs awarded).
+ */
+export function deliveryLabelKind(label: string): DeliveryLabelKind {
+  if (label === "W" || label.startsWith("W+")) return "wicket";
+  if (label === "rh" || label === "ro" || /^(p|bon)\d/.test(label))
+    return "event";
+  if (/^(wd|nb|b\d|lb\d)/.test(label)) return "extra";
+  if (label === "4") return "four";
+  if (label === "6") return "six";
+  return label === "0" ? "dot" : "run";
+}
+
+/** Whether a {@link deliveryLabel} counts towards the over ("W+wd" does not). */
+export function isLegalDeliveryLabel(label: string): boolean {
+  return (
+    deliveryLabelKind(label) !== "event" && !/(^|\+)(wd|nb)/.test(label)
+  );
 }
 
 /**

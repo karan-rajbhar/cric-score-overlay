@@ -8,6 +8,11 @@
  * import for its data.
  */
 
+import {
+  deliveryLabelKind,
+  isLegalDeliveryLabel,
+  type DeliveryLabelKind,
+} from "~/lib/cricket";
 import type { Innings, Match } from "~/lib/match-types";
 import { winPredictorFromLive, type WinEstimate } from "~/lib/win-predictor";
 import type { LiveMatchState } from "../../types";
@@ -265,10 +270,10 @@ export function partnershipOf(
 
 // ---- this over --------------------------------------------------------------------
 
-export type DeliveryKind = "dot" | "run" | "four" | "six" | "wicket" | "extra" | "event";
+export type DeliveryKind = DeliveryLabelKind;
 
 export interface OverBall {
-  /** As the live row has it: "4", "W", "wd", "nb+2b", "lb1", "rh"... */
+  /** As the live row has it: "4", "W", "W+3", "wd", "nb+2b", "lb1", "rh"... */
   token: string;
   kind: DeliveryKind;
   /** What to print: the token itself ("nb+2b" stays as it is). */
@@ -280,15 +285,12 @@ export interface OverBall {
 /** One entry of `this_over_balls`, classified. */
 export function overBall(token: string): OverBall {
   const t = token.trim();
-  if (t === "W") return { token: t, kind: "wicket", label: t, legal: true };
-  if (t === "rh" || t === "ro") return { token: t, kind: "event", label: t, legal: false };
-  if (/^(wd|nb)/.test(t)) return { token: t, kind: "extra", label: t, legal: false };
-  if (/^(p|bon)\d/.test(t)) return { token: t, kind: "event", label: t, legal: false };
-  if (/^(b|lb)\d/.test(t)) return { token: t, kind: "extra", label: t, legal: true };
-  if (t === "4") return { token: t, kind: "four", label: t, legal: true };
-  if (t === "6") return { token: t, kind: "six", label: t, legal: true };
-  if (t === "0") return { token: t, kind: "dot", label: t, legal: true };
-  return { token: t, kind: "run", label: t, legal: true };
+  return {
+    token: t,
+    kind: deliveryLabelKind(t),
+    label: t,
+    legal: isLegalDeliveryLabel(t),
+  };
 }
 
 /** This over's entries, classified (`live_state.this_over_balls`). */

@@ -229,7 +229,7 @@ describe("World event figures", () => {
     expect(matchTitleOf({ ...DEMO_MATCH_STATE, title: "Metro T20 League" })).toBeNull();
     expect(matchTitleOf({ ...DEMO_MATCH_STATE, title: "Semi-final 2" })).toBe("Semi-final 2");
     expect(ballLabel("0")).toBe("");
-    expect(ballLabel("2+wd")).toBe("2wd");
+    expect(ballLabel("W+3")).toBe("W+3");
     expect(ballLabel("nb+1lb")).toBe("nb+1lb");
     const crest = render(<Crest n={1} code="RIV" name="Riverside Rangers" />);
     expect(crest.container.textContent).toBe("RR");
