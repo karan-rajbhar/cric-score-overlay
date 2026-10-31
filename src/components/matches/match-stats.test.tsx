@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MatchStats } from "./match-stats";
 import type { Match } from "~/lib/match-types";
 import { makeInnings } from "~/test/factories";
@@ -34,6 +34,21 @@ describe("MatchStats stacked layout", () => {
     team2: { id: "team-b", name: "Eagles", short_name: "EAG" },
     innings: [],
   };
+
+  it("opens a folded section when the jump bar goes to it", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(<MatchStats match={dummyMatch} />);
+    const section = document.getElementById(
+      "stats-breakdown",
+    ) as HTMLDetailsElement;
+    expect(section.open).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deliveries" }));
+
+    expect(section.open).toBe(true);
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
 
   it("renders wagon wheel first, then worm, manhattan and breakdown one after another", () => {
     const { container } = render(<MatchStats match={dummyMatch} />);

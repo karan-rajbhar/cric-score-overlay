@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Match } from "~/lib/match-types";
 import { makeInnings, makeMatch } from "~/test/factories";
@@ -347,5 +347,37 @@ describe("MatchLivePanel between and before innings", () => {
     expect(
       screen.getByText("Target revised by the DLS method: 98 runs in 12 overs."),
     ).toBeDefined();
+  });
+
+  it("shows phones the first key moments, then all of them on request", () => {
+    const wickets = Array.from({ length: 7 }, (_, i) => ({
+      id: `w${i}`,
+      wicket_number: i + 1,
+      runs_at_fall: 10 * (i + 1),
+      overs_at_fall: i + 1,
+      batsman_id: `u${i}`,
+      batsman: { id: `u${i}`, full_name: `Batter ${i}` },
+      dismissal_type: "bowled",
+    }));
+    render(
+      <MatchSummary
+        match={makeMatch({
+          status: "completed",
+          innings: [
+            makeInnings({ is_completed: true, fall_of_wickets: wickets as never }),
+          ],
+        })}
+      />,
+    );
+    const moments = within(screen.getByRole("region", { name: "Key moments" }));
+    const show = moments.getByRole("button", { name: /Show all \d+ moments/ });
+    const rows = () => moments.getAllByText(/^Batter \d$/);
+    const hidden = () =>
+      rows().filter((r) => r.closest(".max-md\\:hidden")).length;
+    expect(rows()).toHaveLength(7);
+    expect(hidden()).toBeGreaterThan(0);
+    fireEvent.click(show);
+    expect(hidden()).toBe(0);
+    expect(moments.queryByRole("button", { name: /Show all/ })).toBeNull();
   });
 });

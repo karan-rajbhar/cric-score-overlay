@@ -115,7 +115,7 @@ describe("MatchScorecard", () => {
     // Fall of wickets, as on a printed scorecard
     expect(screen.getByText(/fall of wickets/i)).toBeInTheDocument();
     expect(screen.getByText("1-45").closest("li")).toHaveTextContent(
-      "1-45Rohit Sharma5.2 ov",
+      "1-45 Rohit Sharma 5.2 ov",
     );
 
     // Extras with their breakdown, and the total with overs and run rate
@@ -123,7 +123,7 @@ describe("MatchScorecard", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
     expect(
       screen.getByRole("rowheader", { name: "Total" }).closest("tr"),
-    ).toHaveTextContent("165/4 (20.0 ov)Run rate 8.25");
+    ).toHaveTextContent("165/4 (20.0 ov) Run rate 8.25");
   });
 
   const inningsOf = (over: Partial<Innings>): Innings => ({

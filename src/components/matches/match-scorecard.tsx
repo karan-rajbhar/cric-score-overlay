@@ -1,6 +1,7 @@
 "use client";
 
-import { Card, CardHeader } from "~/components/ds/card";
+import { Card } from "~/components/ds/card";
+import { Disclosure } from "~/components/ds/disclosure";
 import { PartnershipList, type StandData } from "~/components/ds/partnership";
 import {
   BattingCard,
@@ -73,10 +74,21 @@ function standDataOf(innings: Innings, inPlay: boolean): StandData[] {
   return stands.map((s) => ({ ...s, best: best > 0 && s.runs === best }));
 }
 
+/** What the folded Partnerships hold: the best stand. */
+function BestStand({ stands }: { stands: readonly StandData[] }) {
+  const best = stands.find((s) => s.best);
+  if (!best) return null;
+  return (
+    <span className="font-score text-sm tabular-nums text-muted-foreground">
+      Best {best.runs}
+    </span>
+  );
+}
+
 /**
  * The scorecard of each innings, one tab per side (score in the tab): the
- * batting card, fall of wickets, partnerships and bowling, in the design
- * system's tables, as in the match report.
+ * batting card, bowling and fall of wickets open, as on a printed scorecard,
+ * and partnerships folded on phones, in the design system's tables.
  */
 export function MatchScorecard({ match }: MatchScorecardProps) {
   const innings = allInnings(match);
@@ -123,7 +135,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
           ? standDataOf(source, inningsInPlay(match, source))
           : [];
         return (
-          <TabsContent key={inn.id} value={inn.id} className="space-y-4">
+          <TabsContent key={inn.id} value={inn.id} className="space-y-3 md:space-y-4">
             <BattingCard
               title="Batting"
               rows={inn.batters.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
@@ -136,23 +148,27 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
               didNotBatLabel={inn.inProgress ? "Yet to bat" : "Did not bat"}
               milestones
               expandable
-              className="[contain-intrinsic-size:auto_36rem] [content-visibility:auto]"
+              dense
+              className="[contain-intrinsic-size:auto_30rem] [content-visibility:auto]"
             />
             <BowlingCard
               title="Bowling"
               rows={inn.bowlers.map((b) => ({ ...b, href: playerHrefOf(b.userId) }))}
+              dense
             />
             {inn.fallOfWickets.length > 0 && (
               <Card className="p-4 sm:p-5">
-                <h3 className="mb-3 text-sm font-semibold text-foreground">
+                <h3 className="mb-1.5 text-sm font-semibold text-foreground md:mb-3">
                   Fall of wickets
                 </h3>
-                <FallOfWickets wickets={inn.fallOfWickets} />
+                <FallOfWickets wickets={inn.fallOfWickets} dense />
               </Card>
             )}
             {stands.length > 0 && (
-              <Card className="[contain-intrinsic-size:auto_18rem] [content-visibility:auto]">
-                <CardHeader title="Partnerships" />
+              <Disclosure
+                title="Partnerships"
+                aside={<BestStand stands={stands} />}
+              >
                 <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                   <PartnershipList
                     stands={stands}
@@ -160,7 +176,7 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
                     aria-label="Partnerships"
                   />
                 </div>
-              </Card>
+              </Disclosure>
             )}
           </TabsContent>
         );
