@@ -9,6 +9,7 @@ import {
   deliveryLabel,
   deliveryLabelKind,
   dismissalText,
+  fieldingCreditOf,
   isLegalDeliveryLabel,
   isWicketFall,
   formatDismissalType,
@@ -420,6 +421,79 @@ describe("cricket math & formatting utilities", () => {
           fow,
         ),
       ).toBe("run out (Sharma)");
+    });
+
+    describe("when the bowler fielded", () => {
+      const byBowler = [
+        {
+          batsman_out_id: "u1",
+          bowler_id: "b1",
+          fielder_id: "b1",
+          bowler: { full_name: "Patel" },
+          fielder: { full_name: "Patel" },
+        },
+      ] as never;
+      const text = (dismissal_type: string) =>
+        dismissalText({ user_id: "u1", is_out: true, dismissal_type }, byBowler);
+
+      it("is c & b only when they caught it", () => {
+        expect(text("caught")).toBe("c & b Patel");
+      });
+
+      it("keeps a run out or stumping what it was", () => {
+        expect(text("run_out")).toBe("run out (Patel)");
+        expect(text("stumped")).toBe("st Patel b Patel");
+      });
+    });
+
+    it("tells two players with the same name apart", () => {
+      expect(
+        dismissalText({ user_id: "u1", is_out: true, dismissal_type: "caught" }, [
+          {
+            batsman_out_id: "u1",
+            bowler_id: "b1",
+            fielder_id: "f1",
+            bowler: { full_name: "R Sharma" },
+            fielder: { full_name: "R Sharma" },
+          },
+        ] as never),
+      ).toBe("c R Sharma b R Sharma");
+    });
+
+    it("does not guess a fielder or a dismissal", () => {
+      const noFielder = [
+        { batsman_out_id: "u1", bowler_id: "b1", bowler: { full_name: "Patel" } },
+      ] as never;
+      expect(
+        dismissalText(
+          { user_id: "u1", is_out: true, dismissal_type: "caught" },
+          noFielder,
+        ),
+      ).toBe("caught b Patel");
+      expect(
+        dismissalText({ user_id: "u1", is_out: true, dismissal_type: null }, []),
+      ).toBe("out");
+    });
+
+    it("says retired hurt, not not out", () => {
+      expect(
+        dismissalText(
+          { user_id: "u1", is_out: false, dismissal_type: "retired_hurt" },
+          [],
+        ),
+      ).toBe("retired hurt");
+    });
+  });
+
+  describe("fieldingCreditOf", () => {
+    it("credits only a catch, a stumping or a run out", () => {
+      expect(fieldingCreditOf("caught")).toBe("catches");
+      expect(fieldingCreditOf("caught and bowled")).toBe("catches");
+      expect(fieldingCreditOf("stumped")).toBe("stumpings");
+      expect(fieldingCreditOf("run_out")).toBe("run_outs");
+      for (const type of ["bowled", "lbw", "obstructing", "hit_wicket", null]) {
+        expect(fieldingCreditOf(type)).toBeNull();
+      }
     });
   });
 

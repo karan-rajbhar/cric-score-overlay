@@ -86,6 +86,7 @@ import {
   checkBallArgs as checkBall,
   DISMISSAL_TYPES,
   EXTRA_TYPES,
+  fielderOf,
   inningsComplete,
   newBall,
   newEventBall,
@@ -1452,7 +1453,9 @@ export async function updateBall(
       extra_type: extraType,
       is_wicket: isWicket,
       dismissal_type: isWicket ? (args.p_dismissal_type ?? null) : null,
-      fielder_id: isWicket ? (args.p_fielder_id ?? null) : null,
+      fielder_id: isWicket
+        ? fielderOf(args.p_dismissal_type, args.p_fielder_id)
+        : null,
       dismissed_player_id: isWicket
         ? (args.p_dismissed_player_id ?? ball.batsman_id ?? null)
         : null,

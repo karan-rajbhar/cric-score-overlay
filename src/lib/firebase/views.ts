@@ -10,7 +10,7 @@
  * viewers can subscribe to one document instead.
  */
 
-import { deliveryLabel } from "~/lib/cricket";
+import { deliveryLabel, isWicketFall } from "~/lib/cricket";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { matchPositionOf } from "~/lib/match-position";
 import { phaseBoundaries } from "~/lib/match-report";
@@ -703,6 +703,7 @@ export function overSummariesOf(
       | "extras"
       | "extra_type"
       | "is_wicket"
+      | "dismissal_type"
     >
   >,
 ): MatchOverSummariesRow[] {
@@ -739,7 +740,7 @@ export function overSummariesOf(
       row.extras_off_bat_and_bowler =
         (row.extras_off_bat_and_bowler ?? 0) + extras;
     }
-    if (b.is_wicket) row.wickets = (row.wickets ?? 0) + 1;
+    if (isWicketFall(b)) row.wickets = (row.wickets ?? 0) + 1;
     if (b.extra_type === "wide") row.wides = (row.wides ?? 0) + 1;
     if (b.extra_type === "no_ball") row.no_balls = (row.no_balls ?? 0) + 1;
     if (

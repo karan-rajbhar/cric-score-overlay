@@ -5,7 +5,12 @@ import { Disclosure } from "~/components/ds/disclosure";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
-import { teamName, runRate, inningsBalls as inningsBallCount } from "~/lib/cricket";
+import {
+  inningsBalls as inningsBallCount,
+  isWicketFall,
+  runRate,
+  teamName,
+} from "~/lib/cricket";
 import { WagonWheel } from "./wagon-wheel";
 import { MatchWormChart } from "./match-worm-chart";
 import { MatchManhattan } from "./match-manhattan";
@@ -207,12 +212,15 @@ export function MatchStats({ match }: MatchStatsProps) {
         <div className="px-4 pb-4">
           <div className="grid gap-6 md:grid-cols-2">
             {sortedInnings.map((innings) => {
-              const balls = inningsBalls(innings, ballLog);
+              // A retirement hurt is neither a ball nor a wicket.
+              const balls = inningsBalls(innings, ballLog).filter(
+                (b) => !(b.is_wicket && b.dismissal_type === "retired_hurt"),
+              );
                 // Mutually exclusive buckets — every ball lands in exactly
                 // one, so counts sum to balls.length and the bar never
                 // overflows (a no-ball with bat runs counts as an extras
                 // ball, not twice).
-                const isWkt = (b: (typeof balls)[number]) => b.is_wicket;
+                const isWkt = isWicketFall;
                 const hasEx = (b: (typeof balls)[number]) => (b.extras ?? 0) > 0;
                 const batRuns = (b: (typeof balls)[number]) => b.runs_scored ?? 0;
                 const wickets = balls.filter(isWkt).length;

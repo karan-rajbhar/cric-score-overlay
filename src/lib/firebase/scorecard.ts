@@ -27,6 +27,7 @@ import type {
   MatchesRow,
   PartnershipsRow,
 } from "./types";
+import { fieldingCreditOf } from "../cricket";
 import { clubTeamIdsOf } from "./derive.mjs";
 
 export const OVERS_COLLECTION = "overs";
@@ -441,7 +442,7 @@ export function playerMatchDocs(
     for (const e of inn.bowling ?? [])
       docOf(e.user_id).bowling.push({ ...e, ...tag });
     for (const f of inn.fall_of_wickets ?? []) {
-      const key = fieldingKeyOf(f.dismissal_type);
+      const key = fieldingCreditOf(f.dismissal_type);
       if (f.fielder_id && key) docOf(f.fielder_id).fielding[key] += 1;
     }
   }
@@ -509,16 +510,6 @@ function opponentOf(
 ): string | null {
   if (teamId && teamId === match.team1_id) return match.team2_id ?? null;
   if (teamId && teamId === match.team2_id) return match.team1_id ?? null;
-  return null;
-}
-
-/** The fielding figure a dismissal credits its fielder with, if any. */
-function fieldingKeyOf(
-  dismissal: string | null | undefined,
-): keyof PlayerMatchesRow["fielding"] | null {
-  if (dismissal === "caught") return "catches";
-  if (dismissal === "stumped") return "stumpings";
-  if (dismissal === "run_out") return "run_outs";
   return null;
 }
 

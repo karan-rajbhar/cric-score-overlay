@@ -329,6 +329,62 @@ describe("match-report export helpers", () => {
       expect(over).toMatchObject({ wickets: 2, bowlerWickets: 1, bowlerRuns: 3 });
     });
 
+    it("shows a bowler's run out as a run out, on the scorecard and the bowler's figures", () => {
+      const r = buildMatchReport(
+        {
+          ...sampleMatch,
+          innings: [
+            {
+              ...innings1,
+              batting_performances: [
+                {
+                  ...innings1.batting_performances![0]!,
+                  is_out: true,
+                  dismissal_type: "run_out",
+                },
+              ],
+              fall_of_wickets: [
+                {
+                  id: "f1",
+                  batsman_out_id: "u1",
+                  wicket_number: 1,
+                  runs_at_fall: 10,
+                  overs_at_fall: 2,
+                  bowler_id: "b_u1",
+                  fielder_id: "b_u1",
+                  bowler: { id: "b_u1", full_name: "Mitchell Starc" },
+                  fielder: { id: "b_u1", full_name: "Mitchell Starc" },
+                },
+              ] as never,
+            },
+            innings2,
+          ],
+        },
+        URL_,
+      );
+      expect(r.innings[0]!.batters[0]!.dismissal).toBe("run out (Mitchell Starc)");
+    });
+
+    it("does not count a retirement in the phase table", () => {
+      const deliveries = [
+        ball(1, { runs_scored: 1 }),
+        ball(2, {
+          bowler_id: null,
+          is_wicket: true,
+          dismissal_type: "retired_hurt",
+        }),
+        ball(2, { is_wicket: true, dismissal_type: "bowled" }),
+      ];
+      const r = buildMatchReport(
+        {
+          ...sampleMatch,
+          innings: [{ ...innings1, ball_by_ball: deliveries as never }, innings2],
+        },
+        URL_,
+      );
+      expect(r.phases?.rows[0]?.sides[0]).toMatchObject({ score: "1/1" });
+    });
+
     it("leaves out partnerships without a ball log, and signs off with blank name lines", () => {
       const r = buildMatchReport(sampleMatch, URL_);
       // Who batted together is not known without the ball log: no made-up

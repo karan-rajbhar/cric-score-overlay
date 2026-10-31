@@ -1,3 +1,4 @@
+import { isWicketFall } from "./cricket";
 import type { BallEvent, Innings } from "./match-types";
 
 /** Report-parity palette — teal vs amber distinguishes innings at a glance. */
@@ -33,7 +34,7 @@ export function buildOverTable(balls: BallEvent[]): OverPoint[] {
       (s, d) => s + (d.runs_scored ?? 0) + (d.extras ?? 0),
       0,
     );
-    const wickets = list.filter((d) => d.is_wicket).length;
+    const wickets = list.filter(isWicketFall).length;
     cumRuns += runs;
     cumWkts += wickets;
     return {
@@ -113,7 +114,7 @@ export function phaseSplits(
         (s, d) => s + (d.runs_scored ?? 0) + (d.extras ?? 0),
         0,
       ),
-      wickets: slice.filter((d) => d.is_wicket).length,
+      wickets: slice.filter(isWicketFall).length,
       balls: slice.length,
     };
   };

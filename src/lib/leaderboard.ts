@@ -6,6 +6,7 @@
  * the stored `leaderboards/*` documents, or raw rows folded the same way.
  */
 
+import { fieldingCreditOf } from "~/lib/cricket";
 import {
   applyBatting,
   applyBowling,
@@ -501,10 +502,10 @@ export function buildLeaderboardData(params: {
     user: unknown,
   ) => {
     const p = playerOf(fielderId, matchId, resolveUserInfo(user, "Fielder"), "Fielder");
-    const type = (dismissalType ?? "").toLowerCase();
-    if (type.includes("stump")) p.st += 1;
-    else if (type.includes("run")) p.ro += 1;
-    else p.ct += 1;
+    const credit = fieldingCreditOf(dismissalType);
+    if (credit === "stumpings") p.st += 1;
+    else if (credit === "run_outs") p.ro += 1;
+    else if (credit === "catches") p.ct += 1;
   };
   const seen = new Set<string>();
   for (const fow of params.fallOfWickets ?? []) {

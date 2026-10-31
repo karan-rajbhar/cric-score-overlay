@@ -6,6 +6,7 @@
  */
 
 import type { ScoringState } from "~/app/matches/types";
+import { NON_BOWLER_DISMISSALS } from "~/lib/firebase/scoring/recompute";
 import type { TeamPlayer } from "~/lib/match-types";
 
 /**
@@ -219,8 +220,7 @@ export function processDeliveryLocally(ctx: LocalScoringContext, ball: BallInput
       newCtx.totalWickets += 1;
     }
 
-    const nonBowlerDismissals = ["run_out", "retired_hurt", "retired_out", "obstructing"];
-    if (!ball.dismissalType || !nonBowlerDismissals.includes(ball.dismissalType)) {
+    if (!NON_BOWLER_DISMISSALS.has(ball.dismissalType ?? "")) {
       newCtx.bowlerWickets += 1;
     }
   }

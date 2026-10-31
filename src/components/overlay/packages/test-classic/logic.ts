@@ -10,7 +10,7 @@
  * none of them yet.
  */
 
-import { formatDismissalType, formatFowOvers } from "~/lib/cricket";
+import { formatDismissalType, isCaughtAndBowled, formatFowOvers } from "~/lib/cricket";
 import type {
   BattingPerformance,
   FallOfWicket,
@@ -235,22 +235,23 @@ export function howOut(
   fow: FallOfWicket[] | undefined,
   names?: ReadonlyMap<string, string>,
 ): string {
-  if (!batter.is_out) return "not out";
+  if (!batter.is_out) {
+    return batter.dismissal_type === "retired_hurt" ? "retired hurt" : "not out";
+  }
   const entry = fow?.find((f) => f.batsman_out_id === batter.user_id);
   const type = batter.dismissal_type ?? entry?.dismissal_type ?? null;
   const named = (id: string | null | undefined) =>
     id ? (names?.get(id) ?? null) : null;
   const bowler = entry?.bowler?.full_name ?? named(entry?.bowler_id);
   const fielder = entry?.fielder?.full_name ?? named(entry?.fielder_id);
-  const sameMan =
-    !!entry?.fielder_id && entry.fielder_id === entry.bowler_id;
   switch (type) {
     case "bowled":
       return bowler ? `b ${bowler}` : "bowled";
     case "lbw":
       return bowler ? `lbw b ${bowler}` : "lbw";
     case "caught":
-      if (sameMan && bowler) return `c & b ${bowler}`;
+      if (bowler && isCaughtAndBowled(type, entry?.fielder_id, entry?.bowler_id))
+        return `c & b ${bowler}`;
       if (fielder && bowler) return `c ${fielder} b ${bowler}`;
       if (bowler) return `caught b ${bowler}`;
       return fielder ? `c ${fielder}` : "caught";

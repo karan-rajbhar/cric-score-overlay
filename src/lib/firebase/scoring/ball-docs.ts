@@ -33,6 +33,7 @@ import {
   type OversRow,
 } from "../scorecard";
 import type { BallByBallRow, InningsRow, MatchesRow } from "../types";
+import { fieldingCreditOf } from "../../cricket";
 import { matchPositionOf } from "../../match-position";
 import {
   applyBallIncrementally,
@@ -43,6 +44,18 @@ import { startsNewPartnership } from "./recompute";
 import { inningsLimits } from "./result";
 
 type WithId<T> = T & { id: string };
+
+/**
+ * The fielder a wicket records: none on a dismissal that has no fielder, so
+ * a scorer who picked Caught and a catcher, then changed to Bowled, does not
+ * leave a catcher on a bowled wicket.
+ */
+export function fielderOf(
+  dismissalType: string | null | undefined,
+  fielderId: string | null | undefined,
+): string | null {
+  return fieldingCreditOf(dismissalType) ? (fielderId ?? null) : null;
+}
 
 export const EXTRA_TYPES = new Set([
   "wide",
@@ -172,7 +185,7 @@ export function newBall(
     extra_type: checked.extraType,
     is_wicket: checked.isWicket,
     dismissal_type: checked.isWicket ? checked.dismissalType : null,
-    fielder_id: args.p_fielder_id ?? null,
+    fielder_id: fielderOf(checked.dismissalType, args.p_fielder_id),
     dismissed_player_id: checked.dismissedId,
     commentary: args.p_commentary ?? null,
     shot_zone: args.p_shot_zone ?? null,

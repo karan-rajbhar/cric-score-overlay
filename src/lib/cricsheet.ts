@@ -6,6 +6,7 @@
  */
 
 import type { Match, BallEvent } from "./match-types";
+import { fieldingCreditOf } from "./cricket";
 import { noBallByesOf } from "./firebase/scoring/recompute";
 
 export interface CricsheetDelivery {
@@ -377,7 +378,9 @@ function wicketOf(
     b.fielder_id === b.bowler_id;
   const kind = toCricsheetDismissalKind(b.dismissal_type, isCaughtAndBowled);
   const fielderName = nameOn(people, b.fielder, b.fielder_id);
-  if (!fielderName || isCaughtAndBowled) {
+  // A bowled wicket can name a fielder left over from the scorer's first
+  // pick (older records): only a catch, stumping or run out has one.
+  if (!fielderName || isCaughtAndBowled || !fieldingCreditOf(b.dismissal_type)) {
     return { player_out: outPlayerName, kind };
   }
   people.register(fielderName, b.fielder_id, side.bowling);

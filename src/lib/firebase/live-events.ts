@@ -10,6 +10,7 @@
  * none, so an undone ball never fires anything.
  */
 
+import { isWicketFall } from "../cricket";
 import { battingRowsOf, bowlingRowsOf } from "./scorecard";
 import { NON_BOWLER_DISMISSALS } from "./scoring/recompute";
 import type {
@@ -136,7 +137,7 @@ function batterEvents(
       }),
     );
   }
-  if (ball.is_wicket) {
+  if (isWicketFall(ball)) {
     const outId = ball.dismissed_player_id ?? batterId;
     const row = battingRowsOf(innings).find((b) => b.user_id === outId);
     out.push(
@@ -229,7 +230,7 @@ function overEndEvent(d: DeliveryContext, nameOf: NameOf): LiveEvent[] {
         (n, b) => n + (b.runs_scored ?? 0) + (b.extras ?? 0),
         0,
       ),
-      wickets: shown.filter((b) => b.is_wicket).length,
+      wickets: shown.filter(isWicketFall).length,
     }),
   ];
 }
