@@ -1,5 +1,10 @@
 import type { Match } from "./match-types";
-import { ballFaced, noBallByesOf } from "./firebase/scoring/recompute";
+import {
+  ballFaced,
+  bowlerConcedes,
+  isLegalDelivery,
+  NON_BOWLER_DISMISSALS,
+} from "./firebase/scoring/recompute";
 
 /** The match's balls-faced rules (null: the Laws' convention). */
 type FacedRules = Parameters<typeof ballFaced>[0];
@@ -9,11 +14,14 @@ import {
   bowlerEconomy,
   byBattingOrder,
   chaseLine,
+  deliveryKind,
+  deliveryLabel,
   dismissalText,
   displayStatusOf,
   formatBowlerOvers,
   formatDecimalOvers,
   inningsBalls,
+  isWicketFall,
   oversFromBalls,
   runRate,
   scoreLine,
@@ -365,20 +373,14 @@ function getInningsOverComparison(
       const totalBallRuns = runsScored + extras;
       overRuns += totalBallRuns;
 
-      const isWkt = Boolean(d.is_wicket);
+      const isWkt = isWicketFall(d);
       if (isWkt) overWickets++;
 
-      const isLegal = d.extra_type !== "wide" && d.extra_type !== "no_ball";
+      const isLegal = isLegalDelivery(d);
       if (isLegal) overLegalBalls++;
-      // Byes off a no-ball are not the bowler's (only its penalty is).
-      const nbByes = noBallByesOf(d);
-      if (
-        d.extra_type !== "bye" &&
-        d.extra_type !== "leg_bye" &&
-        d.extra_type !== "penalty"
-      ) {
-        overBowlerRuns += totalBallRuns - (nbByes?.runs ?? 0);
-      }
+      // As the engine charges it (not byes, leg byes or penalties).
+      const bowlerRuns = bowlerConcedes(d);
+      overBowlerRuns += bowlerRuns;
 
       if (d.batsman_id) {
         overBattersSet.add(d.batsman_id);
@@ -396,52 +398,18 @@ function getInningsOverComparison(
           wickets: 0,
           maidens: 0,
         };
-        // Byes/leg-byes/penalties are never charged to the bowler (engine).
-        const bowlerRuns =
-          d.extra_type === "bye" ||
-          d.extra_type === "leg_bye" ||
-          d.extra_type === "penalty"
-            ? 0
-            : totalBallRuns - (nbByes?.runs ?? 0);
         bwStat.runs += bowlerRuns;
-        if (isWkt) bwStat.wickets++;
+        if (isWkt && !NON_BOWLER_DISMISSALS.has(d.dismissal_type ?? ""))
+          bwStat.wickets++;
         if (isLegal) bwStat.balls++;
         bowlerStats.set(d.bowler_id, bwStat);
       }
 
-      let text = "0";
-      let type: OverData["balls"][number]["type"] = "dot";
-      if (isWkt) {
-        text = "W";
-        type = "wicket";
-      } else if (d.extra_type === "wide") {
-        text = extras > 1 ? `${extras}Wd` : "Wd";
-        type = "extra";
-      } else if (d.extra_type === "no_ball") {
-        text = nbByes?.runs
-          ? `Nb+${nbByes.runs}${nbByes.kind === "bye" ? "b" : "lb"}`
-          : runsScored > 0
-            ? `${runsScored}Nb`
-            : "Nb";
-        type = "extra";
-      } else if (d.extra_type === "bye") {
-        text = `B${extras}`;
-        type = "extra";
-      } else if (d.extra_type === "leg_bye") {
-        text = `Lb${extras}`;
-        type = "extra";
-      } else if (runsScored === 4) {
-        text = "4";
-        type = "four";
-      } else if (runsScored === 6) {
-        text = "6";
-        type = "six";
-      } else if (runsScored > 0) {
-        text = String(runsScored);
-        type = "single";
-      }
-
-      ballsList.push({ text, type });
+      const kind = deliveryKind(d);
+      ballsList.push({
+        text: deliveryLabel(d),
+        type: kind === "run" ? "single" : kind,
+      });
     }
 
     cumulativeRuns += overRuns;

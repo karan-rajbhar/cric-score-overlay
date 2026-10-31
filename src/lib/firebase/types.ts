@@ -783,6 +783,7 @@ export interface LiveMatchStateRow {
   bowler_wickets: number | null;
   partnership_runs: number | null;
   partnership_balls: number | null;
+  /** The over's `deliveryLabel`s, space-separated: "1 W+3 wd nb+2b rh". */
   this_over_balls: string | null;
   /** Runs off the deliveries in this_over_balls. */
   this_over_runs: number | null;

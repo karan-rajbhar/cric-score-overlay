@@ -37,9 +37,10 @@ export function describeQueuedAction(
         no_ball_runs: event.noBallRuns ?? null,
       });
       const how = event.isWicket ? dismissalLabel(event.dismissalType) : null;
+      const { spoken } = readBallLabel(label);
       const what = how
-        ? `Wicket (${how.toLowerCase()})`
-        : readBallLabel(label).spoken;
+        ? spoken.replace("Wicket", `Wicket (${how.toLowerCase()})`)
+        : spoken;
       return `${what}, ${name(bowlerId, "the bowler")} to ${name(batsmanId, "the batter")}`;
     }
     case "setBatsmen":

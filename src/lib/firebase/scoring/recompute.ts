@@ -176,7 +176,12 @@ export function wideRunsOf(ball: {
 }
 
 /** What the bowler is charged for `ball` (not byes, leg byes or penalties). */
-export function bowlerConcedes(ball: BallInput): number {
+export function bowlerConcedes(ball: {
+  runs_scored?: number | null;
+  extras?: number | null;
+  extra_type?: string | null;
+  no_ball_runs?: string | null;
+}): number {
   const runs = ball.runs_scored ?? 0;
   const extras = ball.extras ?? 0;
   const t = ball.extra_type;

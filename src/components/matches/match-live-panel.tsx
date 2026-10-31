@@ -9,6 +9,7 @@ import {
 } from "~/components/ds/scorecard";
 import {
   bowlerEconomy,
+  deliveryLabelKind,
   dlsRevisionFor,
   formatBowlerOvers,
   formatDismissalType,
@@ -24,14 +25,10 @@ import { useLiveState } from "~/lib/hooks/useLiveState";
 import { winPredictorFromLive } from "~/lib/win-predictor";
 import type { Innings, Match } from "~/lib/match-types";
 
-/** A ball of `live_state.this_over_balls` ("1", "W", "wd", "2+nb") as a chip. */
+/** A ball of `live_state.this_over_balls` ("1", "W+3", "wd", "rh") as a chip. */
 export function overBallChip(token: string): { kind: BallKind; label: string } {
-  if (token === "W") return { kind: "wicket", label: "W" };
-  if (/wd|nb/.test(token)) return { kind: "extra", label: token };
-  if (token === "4") return { kind: "four", label: "4" };
-  if (token === "6") return { kind: "six", label: "6" };
-  if (token === "0") return { kind: "dot", label: "0" };
-  return { kind: "run", label: token };
+  const kind = deliveryLabelKind(token);
+  return { kind: kind === "event" ? "dot" : kind, label: token };
 }
 
 function Figure({

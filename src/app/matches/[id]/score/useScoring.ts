@@ -213,7 +213,7 @@ export interface UndoNotice {
    */
   heading?: string | null;
   /**
-   * The undone ball as the over strip labels it ("4", "W", "Wd"...), or an
+   * The undone ball as the over strip labels it ("4", "W+3", "wd"...), or an
    * event in words ("Kohli, retired hurt", "5 runs").
    */
   label: string;

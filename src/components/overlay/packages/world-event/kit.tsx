@@ -187,10 +187,9 @@ export function Crest({
   );
 }
 
-/** A chip's text: none for a dot ball (its ring shows it), "2+wd" as "2wd". */
+/** A chip's text: none for a dot ball (its ring shows it). */
 export function ballLabel(token: string): string {
-  if (token === "0") return "";
-  return token.replace(/^(\d)\+(wd|nb)$/, "$1$2");
+  return token === "0" ? "" : token;
 }
 
 /** This over's deliveries, then empty slots up to a full over. */

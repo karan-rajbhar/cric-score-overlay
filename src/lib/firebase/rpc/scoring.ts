@@ -89,6 +89,7 @@ import {
   inningsComplete,
   newBall,
   newEventBall,
+  overBowlingOf,
   penaltyFields,
   retirementFields,
   noBallRunsOf,
@@ -1846,7 +1847,12 @@ export async function retireBatter(
   );
 }
 
-/** Credit every ball of the current over to another bowler. */
+/**
+ * The wrong bowler was recorded: credit what the over's latest bowler
+ * (`overBowlingOf`) has in the current over to another. A bowler who left
+ * the over before them keeps theirs, and events without a bowler (a
+ * retirement, a fielding-side penalty) stay events.
+ */
 export async function reassignOverBowler(
   ctx: ScoringContext,
   args: { p_match_id: string; p_bowler_id: string },
@@ -1856,10 +1862,10 @@ export async function reassignOverBowler(
     args.p_match_id,
     ({ match, innings, bundle }) => {
       const { current_over } = matchPositionOf(match, innings);
+      const from = overBowlingOf(bundle.balls, current_over)?.bowlerId;
       return {
-        // Fielding-side penalty events in the over are not deliveries.
         balls: bundle.balls.map((b) =>
-          b.over_number === current_over && !b.penalty_team_id
+          from && b.over_number === current_over && b.bowler_id === from
             ? { ...b, bowler_id: args.p_bowler_id }
             : b,
         ),

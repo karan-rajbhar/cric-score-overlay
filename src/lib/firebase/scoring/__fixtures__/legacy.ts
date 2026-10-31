@@ -6,10 +6,12 @@
  * One change: they read the match through {@link readLogicalMatch}, i.e.
  * with `current_over` / `current_ball` / `last_ball_seq` as the engine kept
  * them on the match before those moved to the current innings (see
- * `logicalMatch` in golden.ts).
+ * `logicalMatch` in golden.ts). And `this_over_balls` holds `deliveryLabel`s,
+ * as the live row has since it stopped spelling balls its own way.
  */
 
 import type { ScoringState } from "~/app/matches/types";
+import { deliveryLabel } from "~/lib/cricket";
 import type { DataSource, Doc } from "../../datasource";
 import { DbQueryError } from "../../query-builder";
 import type {
@@ -65,14 +67,6 @@ async function readLogicalMatch(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-function ballText(b: BallByBallRow): string {
-  const runs = b.runs_scored ?? 0;
-  if (b.is_wicket) return "W";
-  if (b.extra_type === "wide") return runs ? `${runs}+wd` : "wd";
-  if (b.extra_type === "no_ball") return runs ? `${runs}+nb` : "nb";
-  return String(runs);
 }
 
 /**
@@ -299,7 +293,7 @@ export async function legacyBuildLiveMatchState(
     bowler_wickets: bowler?.wickets_taken ?? null,
     partnership_runs: partnership?.runs ?? null,
     partnership_balls: partnership?.balls ?? null,
-    this_over_balls: thisOver.length ? thisOver.map(ballText).join(" ") : null,
+    this_over_balls: thisOver.length ? thisOver.map(deliveryLabel).join(" ") : null,
     this_over_runs: thisOver.length
       ? thisOver.reduce(
           (n, b) => n + (b.runs_scored ?? 0) + (b.extras ?? 0),

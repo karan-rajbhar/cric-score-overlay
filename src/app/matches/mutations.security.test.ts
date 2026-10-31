@@ -234,6 +234,40 @@ describe("Scoring Security & Authorization Gate", () => {
     expect(res.error).toContain("Only match administrators or designated scorers");
   });
 
+  it("moves no ball to a bowler the engine refuses", async () => {
+    const rpc = vi.fn(async (name: string) =>
+      name === "set_current_bowler"
+        ? { data: null, error: { message: "same_bowler_next_over" } }
+        : { data: true, error: null },
+    );
+    vi.mocked(createServerClient).mockResolvedValueOnce({
+      auth: {
+        getUser: vi.fn().mockResolvedValueOnce({
+          data: { user: { id: "scorer-id" } },
+        }),
+      },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { created_by: "scorer-id", match_admins: [] },
+            }),
+          }),
+        }),
+      }),
+      rpc,
+    } as never);
+
+    const res = await reassignCurrentOverBowler(dummyMatchId, "bowler-1");
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain("previous over");
+    expect(rpc).not.toHaveBeenCalledWith(
+      "reassign_over_bowler",
+      expect.anything(),
+    );
+  });
+
   it("blocks unauthorized users from setting current bowler", async () => {
     const from = vi.fn();
     const rpc = vi.fn().mockResolvedValue({

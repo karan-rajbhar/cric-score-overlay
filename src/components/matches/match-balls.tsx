@@ -14,8 +14,10 @@ import {
   deliveryLabel,
   formatDismissalType,
   formatExtraType,
+  isWicketFall,
   teamName,
 } from "~/lib/cricket";
+import { howOut } from "~/lib/dismissal-detail";
 import { cn } from "~/lib/utils";
 
 type Ball = BallEvent;
@@ -34,16 +36,14 @@ const FILTERS: readonly { value: Filter; label: string }[] = [
 function filterBalls(balls: Ball[], filter: Filter): Ball[] {
   if (filter === "boundaries")
     return balls.filter((b) => b.runs_scored >= 4 && !b.extra_type);
-  if (filter === "wickets") return balls.filter((b) => b.is_wicket);
+  if (filter === "wickets") return balls.filter(isWicketFall);
   return balls;
 }
 
 const runsOf = (b: Ball) => b.runs_scored + (b.extras || 0);
 
-/** "Four", "2 runs", "Wicket (caught)": what happened, in words. */
-function outcomeOf(b: Ball): string {
-  if (b.is_wicket)
-    return `Out, ${formatDismissalType(b.dismissal_type).toLowerCase()}`;
+/** "Four", "2 runs", "1 run, wide": what the ball brought, in words. */
+function runsInWords(b: Ball): string {
   if (!b.extra_type && b.runs_scored === 4) return "Four";
   if (!b.extra_type && b.runs_scored === 6) return "Six";
   const runs = runsOf(b);
@@ -51,6 +51,36 @@ function outcomeOf(b: Ball): string {
   return b.extra_type
     ? `${words}, ${formatExtraType(b.extra_type).toLowerCase()}`
     : words;
+}
+
+/**
+ * "Out, caught by Smith"; when the batter out is not the one facing (a run
+ * out at the other end), by name: "Rohit run out (Smith)".
+ */
+function outInWords(b: Ball): string {
+  const how = howOut(
+    b.dismissal_type,
+    b.fielder?.full_name ?? null,
+    Boolean(b.fielder_id) && b.fielder_id === b.bowler_id,
+  );
+  return b.dismissed_player_id && b.dismissed_player_id !== b.batsman_id
+    ? `${b.dismissed_player?.full_name ?? "The non-striker"} ${how}`
+    : `Out, ${how}`;
+}
+
+/**
+ * What happened, in words: "Four", "Out, caught by Smith", "3 runs. Out, run
+ * out (Smith)". A retirement is not a dismissal: "Rohit retired hurt".
+ */
+export function outcomeOf(b: Ball): string {
+  if (b.dismissal_type === "retired_hurt" || b.dismissal_type === "retired_out") {
+    const who = b.dismissed_player?.full_name ?? b.batsman?.full_name ?? "Batter";
+    return `${who} ${formatDismissalType(b.dismissal_type).toLowerCase()}`;
+  }
+  if (!b.is_wicket) return runsInWords(b);
+  return runsOf(b) > 0
+    ? `${runsInWords(b)}. ${outInWords(b)}`
+    : outInWords(b);
 }
 
 const OUTCOME_TONE: Partial<Record<ReturnType<typeof deliveryKind>, string>> = {
@@ -63,8 +93,11 @@ const OUTCOME_TONE: Partial<Record<ReturnType<typeof deliveryKind>, string>> = {
 function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
   const sorted = [...balls].sort((a, b) => a.ball_number - b.ball_number);
   const runs = sorted.reduce((n, b) => n + runsOf(b), 0);
-  const wickets = sorted.filter((b) => b.is_wicket).length;
-  const bowler = sorted.find((b) => b.bowler?.full_name)?.bowler?.full_name;
+  const wickets = sorted.filter(isWicketFall).length;
+  // Two when one left the over injured.
+  const bowlers = [
+    ...new Set(sorted.flatMap((b) => b.bowler?.full_name ?? [])),
+  ].join(", ");
   return (
     <Card className="[contain-intrinsic-size:auto_16rem] [content-visibility:auto]">
       <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -72,9 +105,9 @@ function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
           <span className="block text-sm font-semibold text-foreground">
             Over {over + 1}
           </span>
-          {bowler && (
+          {bowlers && (
             <span className="block truncate text-xs text-muted-foreground">
-              {bowler}
+              {bowlers}
             </span>
           )}
         </span>
@@ -107,13 +140,18 @@ function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
                 {over}.{b.ball_number}
               </span>
               <span className="min-w-0">
-                <span className="text-muted-foreground">
-                  {b.bowler?.full_name ?? "Bowler"} to{" "}
-                </span>
-                <span className="font-medium text-foreground">
-                  {b.batsman?.full_name ?? "Batter"}
-                </span>
-                <span className="text-muted-foreground">, </span>
+                {/* Events between balls have no bowler to name. */}
+                {b.bowler_id && (
+                  <>
+                    <span className="text-muted-foreground">
+                      {b.bowler?.full_name ?? "Bowler"} to{" "}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {b.batsman?.full_name ?? "Batter"}
+                    </span>
+                    <span className="text-muted-foreground">, </span>
+                  </>
+                )}
                 <span
                   className={cn(
                     "font-medium text-foreground",

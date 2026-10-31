@@ -7,7 +7,10 @@ import {
   strikeRate,
   economyRate,
   deliveryLabel,
+  deliveryLabelKind,
   dismissalText,
+  isLegalDeliveryLabel,
+  isWicketFall,
   formatDismissalType,
   formatExtraType,
   formatStatus,
@@ -146,6 +149,84 @@ describe("cricket math & formatting utilities", () => {
       expect(deliveryLabel({ ...retired, dismissal_type: "retired_hurt" })).toBe("rh");
       expect(deliveryLabel({ ...retired, dismissal_type: "retired_out" })).toBe("ro");
       expect(deliveryLabel({ ...retired, dismissal_type: "run_out" })).toBe("W");
+    });
+
+    it("keeps what else a wicket ball brought", () => {
+      const out = { is_wicket: true, dismissal_type: "run_out" };
+      expect(deliveryLabel({ ...out, runs_scored: 3, extras: 0 })).toBe("W+3");
+      expect(
+        deliveryLabel({ ...out, runs_scored: 0, extras: 2, extra_type: "bye" }),
+      ).toBe("W+b2");
+      expect(
+        deliveryLabel({ ...out, runs_scored: 1, extras: 1, extra_type: "no_ball" }),
+      ).toBe("W+nb+1");
+      expect(
+        deliveryLabel({
+          is_wicket: true,
+          dismissal_type: "stumped",
+          runs_scored: 0,
+          extras: 1,
+          extra_type: "wide",
+        }),
+      ).toBe("W+wd");
+      // A bye with nothing run is a plain wicket.
+      expect(
+        deliveryLabel({ ...out, runs_scored: 0, extras: 0, extra_type: "bye" }),
+      ).toBe("W");
+    });
+
+    it("counts a wide's runs however they were stored", () => {
+      const wide = { is_wicket: false, extra_type: "wide" };
+      expect(deliveryLabel({ ...wide, runs_scored: 0, extras: 1 })).toBe("wd");
+      expect(deliveryLabel({ ...wide, runs_scored: 0, extras: 3 })).toBe("wd+2");
+      expect(deliveryLabel({ ...wide, runs_scored: 2, extras: 1 })).toBe("wd+2");
+    });
+  });
+
+  describe("deliveryLabelKind", () => {
+    it("reads every spelling of deliveryLabel", () => {
+      const kinds: Record<string, string> = {
+        "0": "dot",
+        "1": "run",
+        "4": "four",
+        "6": "six",
+        W: "wicket",
+        "W+3": "wicket",
+        "W+wd": "wicket",
+        "W+nb+1": "wicket",
+        wd: "extra",
+        "wd+1": "extra",
+        nb: "extra",
+        "nb+2": "extra",
+        "nb+2b": "extra",
+        b2: "extra",
+        lb1: "extra",
+        rh: "event",
+        ro: "event",
+        p5: "event",
+        bon2: "event",
+      };
+      for (const [label, kind] of Object.entries(kinds)) {
+        expect(deliveryLabelKind(label), label).toBe(kind);
+      }
+    });
+
+    it("counts only what uses up a ball of the over", () => {
+      for (const label of ["0", "1", "W", "W+3", "W+b2", "b2", "lb1"]) {
+        expect(isLegalDeliveryLabel(label), label).toBe(true);
+      }
+      for (const label of ["wd", "nb+2", "W+wd", "W+nb+1", "rh", "ro", "p5"]) {
+        expect(isLegalDeliveryLabel(label), label).toBe(false);
+      }
+    });
+  });
+
+  describe("isWicketFall", () => {
+    it("is every dismissal but retired hurt", () => {
+      expect(isWicketFall({ is_wicket: true, dismissal_type: "run_out" })).toBe(true);
+      expect(isWicketFall({ is_wicket: true, dismissal_type: "retired_out" })).toBe(true);
+      expect(isWicketFall({ is_wicket: true, dismissal_type: "retired_hurt" })).toBe(false);
+      expect(isWicketFall({ is_wicket: false })).toBe(false);
     });
 
     it("returns W for wickets", () => {

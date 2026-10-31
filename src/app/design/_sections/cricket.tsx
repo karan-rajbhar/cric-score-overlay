@@ -179,9 +179,10 @@ function Deliveries() {
         <BallChip kind="four" label="4" />
         <BallChip kind="six" label="6" />
         <BallChip kind="wicket" label="W" />
-        <BallChip kind="extra" label="1wd" />
-        <BallChip kind="extra" label="2nb" />
-        <BallChip kind="extra" label="1lb" />
+        <BallChip kind="wicket" label="W+3" />
+        <BallChip kind="extra" label="wd+1" />
+        <BallChip kind="extra" label="nb+2" />
+        <BallChip kind="extra" label="lb1" />
       </div>
       <Caption>BallChip kind: dot · run · four · six · wicket · extra</Caption>
       <OverStrip balls={THIS_OVER} total={5} />

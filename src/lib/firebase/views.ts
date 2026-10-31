@@ -10,6 +10,7 @@
  * viewers can subscribe to one document instead.
  */
 
+import { deliveryLabel } from "~/lib/cricket";
 import { freeHitsOn, nextIsFreeHit } from "~/lib/free-hit";
 import { matchPositionOf } from "~/lib/match-position";
 import { phaseBoundaries } from "~/lib/match-report";
@@ -84,26 +85,10 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function ballText(b: BallByBallRow): string {
-  const runs = b.runs_scored ?? 0;
-  if (b.is_wicket) return "W";
-  if (b.extra_type === "wide") return runs ? `${runs}+wd` : "wd";
-  if (b.extra_type === "no_ball") {
-    // Byes / leg byes off it ride in extras after the 1-run penalty.
-    const byes =
-      b.no_ball_runs === "bye" || b.no_ball_runs === "leg_bye"
-        ? Math.max(0, (b.extras ?? 0) - 1)
-        : 0;
-    if (byes) return `nb+${byes}${b.no_ball_runs === "bye" ? "b" : "lb"}`;
-    return runs ? `${runs}+nb` : "nb";
-  }
-  return String(runs);
-}
-
 /** The over's deliveries; fielding-side penalty events are not shown. */
 function overText(balls: BallByBallRow[]): string | null {
   const shown = balls.filter((b) => !b.penalty_team_id);
-  return shown.length ? shown.map(ballText).join(" ") : null;
+  return shown.length ? shown.map(deliveryLabel).join(" ") : null;
 }
 
 /** The runs off those deliveries (extras included). */

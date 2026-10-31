@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { ChoiceGroup } from "~/components/ds/field";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -18,6 +19,9 @@ import {
 import { buildBowlerRows } from "./player-rows";
 import { RoleBand } from "./RoleBand";
 
+/** Why a bowler changes once the over has balls in it. */
+type ChangeReason = "wrong_bowler" | "cannot_finish";
+
 interface BowlerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,9 +35,12 @@ interface BowlerDialogProps {
   strikerId?: string | null;
   nonStrikerId?: string | null;
   battingTeamPlayerIds?: Set<string>;
-  currentBall?: number;
-  reassignOverDeliveries?: boolean;
-  onReassignOverDeliveriesChange?: (val: boolean) => void;
+  /**
+   * Who the log has bowling this over (`overBowlingOf`), null before its
+   * first delivery. Set, the scorer first says what happened: the two ways
+   * of changing a bowler now do different things to those balls.
+   */
+  overBowling?: { bowlerId: string; balls: number } | null;
   /** The over being bowled (1-based), for the title. */
   overNumber?: number;
   /**
@@ -41,6 +48,8 @@ interface BowlerDialogProps {
    * the pick stays in the dialog until Confirm.
    */
   onConfirm: (bowlerId: string) => void;
+  /** A wrong pick: the `overBowling` bowler's balls go to `bowlerId`. */
+  onReassign?: (bowlerId: string) => void;
   isProcessing: boolean;
   /** Adds a player to the bowling side; resolves to their id. */
   onCreatePlayer?: PickerAddPlayer["onAdd"];
@@ -60,11 +69,10 @@ export function BowlerDialog({
   strikerId,
   nonStrikerId,
   battingTeamPlayerIds,
-  currentBall,
-  reassignOverDeliveries = false,
-  onReassignOverDeliveriesChange,
+  overBowling = null,
   overNumber,
   onConfirm,
+  onReassign,
   isProcessing,
   onCreatePlayer,
   addPlayerDisabledReason,
@@ -95,16 +103,24 @@ export function BowlerDialog({
   const contentRef = useRef<HTMLDivElement>(null);
 
   // The scorer's pick, starting from the current bowler (or nobody: a
-  // wrong default would put the wrong bowler on).
+  // wrong default would put the wrong bowler on). Mid-over nobody: the
+  // change is away from the bowler on.
   const [draftBowlerId, setDraftBowlerId] = useState<string | null>(
-    currentBowlerId,
+    overBowling ? null : currentBowlerId,
   );
+  const [reason, setReason] = useState<ChangeReason | null>(null);
   const [seen, setSeen] = useState("");
-  const key = `${open}:${currentBowlerId}`;
+  const key = `${open}:${currentBowlerId}:${overBowling?.bowlerId}`;
   if (key !== seen) {
     setSeen(key);
-    if (open) setDraftBowlerId(currentBowlerId);
+    if (open) {
+      setDraftBowlerId(overBowling ? null : currentBowlerId);
+      setReason(null);
+    }
   }
+
+  const nameOf = (id: string | null | undefined) =>
+    rows.find((r) => r.id === id)?.name ?? "The bowler";
 
   const blockedReason = (id: string | null): string | null => {
     if (!id) return null;
@@ -120,13 +136,36 @@ export function BowlerDialog({
   };
   const selectedBlocked = blockedReason(draftBowlerId);
   const canConfirm =
-    Boolean(draftBowlerId) && !selectedBlocked && !isProcessing;
+    Boolean(draftBowlerId) &&
+    (!overBowling || Boolean(reason)) &&
+    !selectedBlocked &&
+    !isProcessing;
 
   const confirm = (id: string | null = draftBowlerId) => {
     if (!id || blockedReason(id) || isProcessing) return;
-    onConfirm(id);
+    if (overBowling && !reason) return;
+    if (reason === "wrong_bowler") onReassign?.(id);
+    else onConfirm(id);
   };
-  const changingOver = currentBall !== undefined && currentBall > 0;
+
+  // The over's bowler is the one being corrected, or the one leaving.
+  const pickable = overBowling
+    ? rows.filter((r) => r.id !== overBowling.bowlerId)
+    : rows;
+  const overBowlerName = nameOf(overBowling?.bowlerId);
+  const ballsBowled = `${overBowling?.balls} ball${overBowling?.balls === 1 ? "" : "s"}`;
+  // The task, in the title; the action, on the button.
+  const confirmLabel = !overBowling
+    ? "Confirm bowler"
+    : !reason
+      ? "Choose what happened"
+      : reason === "wrong_bowler"
+        ? draftBowlerId
+          ? `Give ${ballsBowled} to ${nameOf(draftBowlerId)}`
+          : "Choose who bowled"
+        : draftBowlerId
+          ? `${nameOf(draftBowlerId)} finishes the over`
+          : "Choose who finishes the over";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -138,61 +177,71 @@ export function BowlerDialog({
         <DialogHeader className="space-y-2 text-left">
           <RoleBand role="bowling" teamName={bowlingTeamName} />
           <DialogTitle className="text-balance">
-            {changingOver
+            {overBowling
               ? `Change the bowler of over ${overNumber ?? ""}`.trim()
               : overNumber
                 ? `Choose the bowler for over ${overNumber}`
                 : "Choose the bowler"}
           </DialogTitle>
           <DialogDescription>
-            Figures are overs-maidens-runs-wickets.
+            {overBowling
+              ? `${overBowlerName} has bowled ${ballsBowled} in this over.`
+              : "Figures are overs-maidens-runs-wickets."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <PlayerPicker
-            label="Choose bowler"
-            rows={rows}
-            selectedId={draftBowlerId}
-            onSelect={setDraftBowlerId}
-            onSubmit={(id) => confirm(id)}
-            addPlayer={
-              onCreatePlayer
-                ? {
-                    teamName: bowlingTeamName ?? "the bowling side",
-                    onAdd: onCreatePlayer,
-                    disabledReason: addPlayerDisabledReason,
-                  }
-                : undefined
-            }
-            emptyMessage="No players in the bowling squad yet."
-            noun="bowler"
-          />
+          {overBowling && (
+            <ChoiceGroup
+              legend="What happened?"
+              name="bowler-change-reason"
+              layout="cards"
+              value={reason}
+              onChange={setReason}
+              options={[
+                {
+                  value: "wrong_bowler",
+                  label: "Wrong bowler",
+                  description: `${overBowlerName} did not bowl. Their ${ballsBowled} go to the right bowler.`,
+                },
+                {
+                  value: "cannot_finish",
+                  label: "Can't finish the over",
+                  description: `Injured or suspended. ${overBowlerName} keeps ${ballsBowled} and another bowler bowls the rest.`,
+                },
+              ]}
+            />
+          )}
+
+          {/* Mid-over the list waits for the answer, so it cannot be skipped */}
+          {(!overBowling || reason) && (
+            <PlayerPicker
+              label={
+                reason === "wrong_bowler"
+                  ? "Who bowled"
+                  : reason === "cannot_finish"
+                    ? "Who finishes the over"
+                    : "Choose bowler"
+              }
+              rows={pickable}
+              selectedId={draftBowlerId}
+              onSelect={setDraftBowlerId}
+              onSubmit={(id) => confirm(id)}
+              addPlayer={
+                onCreatePlayer
+                  ? {
+                      teamName: bowlingTeamName ?? "the bowling side",
+                      onAdd: onCreatePlayer,
+                      disabledReason: addPlayerDisabledReason,
+                    }
+                  : undefined
+              }
+              emptyMessage="No players in the bowling squad yet."
+              noun="bowler"
+            />
+          )}
 
           {selectedBlocked && (
             <p className="text-xs text-destructive">{selectedBlocked}</p>
-          )}
-
-          {currentBall !== undefined && currentBall > 0 && (
-            <label
-              htmlFor="reassign-bowler-over"
-              className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm"
-            >
-              <input
-                id="reassign-bowler-over"
-                type="checkbox"
-                checked={reassignOverDeliveries}
-                onChange={(e) =>
-                  onReassignOverDeliveriesChange?.(e.target.checked)
-                }
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
-              />
-              <span>
-                Wrong bowler picked: give the {currentBall} ball
-                {currentBall > 1 ? "s" : ""} already bowled in this over to
-                this bowler too. Leave it unticked when this bowler takes
-                over the rest of the over (an injury).
-              </span>
-            </label>
           )}
 
           {/* Pinned on phones: reachable however long the squad is */}
@@ -202,7 +251,7 @@ export function BowlerDialog({
               onClick={() => confirm()}
               disabled={!canConfirm}
             >
-              Confirm bowler
+              {confirmLabel}
             </Button>
           </div>
         </div>
