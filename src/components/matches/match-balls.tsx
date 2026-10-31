@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { BallChip } from "~/components/ds/ball";
 import { Card } from "~/components/ds/card";
 import { Chip } from "~/components/ds/chip";
+import { Disclosure } from "~/components/ds/disclosure";
 import { Segmented } from "~/components/ds/tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
@@ -89,8 +90,19 @@ const OUTCOME_TONE: Partial<Record<ReturnType<typeof deliveryKind>, string>> = {
   six: "text-six",
 };
 
-/** One over: its deliveries as chips, then each ball in words. */
-function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
+/**
+ * One over: its deliveries as chips, then each ball in words, which fold
+ * away on phones (the chips already tell the over).
+ */
+function OverCard({
+  over,
+  balls,
+  open,
+}: {
+  over: number;
+  balls: Ball[];
+  open: boolean;
+}) {
   const sorted = [...balls].sort((a, b) => a.ball_number - b.ball_number);
   const runs = sorted.reduce((n, b) => n + runsOf(b), 0);
   const wickets = sorted.filter(isWicketFall).length;
@@ -99,19 +111,23 @@ function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
     ...new Set(sorted.flatMap((b) => b.bowler?.full_name ?? [])),
   ].join(", ");
   return (
-    <Card className="[contain-intrinsic-size:auto_16rem] [content-visibility:auto]">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <span className="min-w-0">
+    <Disclosure
+      defaultOpen={open}
+      className="[contain-intrinsic-size:auto_5.5rem] [content-visibility:auto]"
+      title={
+        <>
           <span className="block text-sm font-semibold text-foreground">
             Over {over + 1}
           </span>
           {bowlers && (
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block truncate text-xs font-normal text-muted-foreground">
               {bowlers}
             </span>
           )}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
+        </>
+      }
+      aside={
+        <span className="flex items-center gap-2">
           {wickets > 0 && (
             <Chip tone="danger" size="sm">
               {wickets} {wickets === 1 ? "wicket" : "wickets"}
@@ -121,19 +137,23 @@ function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
             {runs} {runs === 1 ? "run" : "runs"}
           </span>
         </span>
-      </header>
-      <div className="px-4 py-3">
-        <ol
-          className="flex flex-wrap gap-1.5"
-          aria-label={`Over ${over + 1} deliveries`}
-        >
+      }
+      below={
+        <span className="flex flex-wrap gap-1">
           {sorted.map((b) => (
-            <li key={b.id}>
-              <BallChip kind={deliveryKind(b)} label={deliveryLabel(b)} />
-            </li>
+            <BallChip
+              key={b.id}
+              kind={deliveryKind(b)}
+              label={deliveryLabel(b)}
+              size="sm"
+              className="md:h-8 md:min-w-8 md:px-1.5 md:text-sm"
+            />
           ))}
-        </ol>
-        <ul className="mt-3 divide-y divide-border border-t border-border">
+        </span>
+      }
+    >
+      <div className="px-4 pb-3">
+        <ul className="divide-y divide-border border-t border-border">
           {sorted.map((b) => (
             <li key={b.id} className="flex gap-3 py-2 text-sm">
               <span className="w-8 shrink-0 font-score text-xs tabular-nums leading-5 text-muted-foreground">
@@ -170,7 +190,7 @@ function OverCard({ over, balls }: { over: number; balls: Ball[] }) {
           ))}
         </ul>
       </div>
-    </Card>
+    </Disclosure>
   );
 }
 
@@ -249,7 +269,7 @@ export function MatchBalls({ match }: MatchBallsProps) {
             <TabsContent
               key={innings.id}
               value={`innings-${innings.innings_number}`}
-              className="space-y-4"
+              className="space-y-2 md:space-y-4"
             >
               {balls.length === 0 ? (
                 <Card className="py-12 text-center text-sm text-muted-foreground">
@@ -262,8 +282,14 @@ export function MatchBalls({ match }: MatchBallsProps) {
                     : "No boundaries in this innings yet"}
                 </Card>
               ) : (
-                overs.map((over) => (
-                  <OverCard key={over} over={over} balls={byOver.get(over)!} />
+                overs.map((over, i) => (
+                  <OverCard
+                    key={over}
+                    over={over}
+                    balls={byOver.get(over)!}
+                    // The latest over; a filter is there for the words.
+                    open={i === 0 || filter !== "all"}
+                  />
                 ))
               )}
             </TabsContent>

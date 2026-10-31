@@ -56,6 +56,7 @@ import {
   NavItem,
   SectionHeader,
 } from "~/components/ds/list";
+import { Disclosure } from "~/components/ds/disclosure";
 import { ScreenBar, ScreenWash, Sheet } from "~/components/ds/screen";
 import { Caption, DocSection, Specimen } from "../_components/doc";
 import { TAB_BAR_ITEMS, TEAMS } from "../_components/sample";
@@ -204,6 +205,28 @@ function CardSpecimens() {
   );
 }
 
+function DisclosureSpecimen() {
+  return (
+    <Specimen
+      title="Disclosure"
+      usage="Secondary content that folds on phones and stays open from md up. What people came for stays open; aside and below say what is inside."
+    >
+      <Disclosure
+        title="Partnerships"
+        aside={
+          <span className="font-score text-sm tabular-nums text-muted-foreground">
+            Best 46
+          </span>
+        }
+      >
+        <p className="px-4 pb-4 text-sm text-muted-foreground">
+          Each stand, its runs and who scored them.
+        </p>
+      </Disclosure>
+    </Specimen>
+  );
+}
+
 function ListSpecimen() {
   return (
     <Specimen
@@ -249,6 +272,7 @@ export function ContentSection() {
       <Navigation />
       <PageHeaderSpecimen />
       <CardSpecimens />
+      <DisclosureSpecimen />
       <ListSpecimen />
     </DocSection>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Disclosure } from "~/components/ds/disclosure";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
 import type { BallEvent, Match } from "~/lib/match-types";
@@ -23,6 +24,22 @@ type Ball = BallEvent;
 
 interface MatchStatsProps {
   match: Match;
+}
+
+/** The sections the jump bar reaches; `wide`: not on phones. */
+const JUMPS = [
+  { id: "stats-wagon-wheel", label: "Field", icon: CircleDot },
+  { id: "stats-worm", label: "Worm", icon: TrendingUp },
+  { id: "stats-manhattan", label: "Runs / over", icon: BarChart3 },
+  { id: "stats-breakdown", label: "Deliveries", icon: PieChart },
+  { id: "stats-phases", label: "Phases", icon: Activity, wide: true },
+];
+
+/** Scrolls to a section, opening it first if it is folded. */
+function jumpTo(id: string) {
+  const section = document.getElementById(id);
+  if (section instanceof HTMLDetailsElement) section.open = true;
+  section?.scrollIntoView({ behavior: "smooth" });
 }
 
 export function MatchStats({ match }: MatchStatsProps) {
@@ -53,67 +70,18 @@ export function MatchStats({ match }: MatchStatsProps) {
         <span className="hidden px-2.5 text-xs text-muted-foreground sm:inline-block">
           Jump to
         </span>
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById("stats-wagon-wheel")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <CircleDot className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Field
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById("stats-worm")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Worm
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById("stats-manhattan")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <BarChart3 className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Runs / over
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            document
-              .getElementById("stats-breakdown")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          <PieChart className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-          Deliveries
-        </button>
-        {sortedInnings.length > 0 && (
-          <button
-            type="button"
-            onClick={() =>
-              document
-                .getElementById("stats-phases")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
-            className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:inline-flex"
-          >
-            <Activity className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-            Phases
-          </button>
+        {JUMPS.map(({ id, label, icon: Icon, wide }) =>
+          wide && sortedInnings.length === 0 ? null : (
+            <button
+              key={id}
+              type="button"
+              onClick={() => jumpTo(id)}
+              className={`items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent ${wide ? "hidden sm:inline-flex" : "inline-flex"}`}
+            >
+              <Icon className="h-3.5 w-3.5 text-muted-foreground max-sm:hidden" aria-hidden="true" />
+              {label}
+            </button>
+          ),
         )}
       </div>
 
@@ -134,7 +102,7 @@ export function MatchStats({ match }: MatchStatsProps) {
 
       {/* 5. Phase splits + momentum per innings */}
       {sortedInnings.length > 0 && (
-        <div id="stats-phases" className="grid gap-4 md:grid-cols-2 scroll-mt-16 md:scroll-mt-[10.5rem]">
+        <div id="stats-phases" className="grid gap-2 md:grid-cols-2 md:gap-4 scroll-mt-16 md:scroll-mt-[10.5rem]">
           {sortedInnings.map((innings, ii) => {
             const table = tables[ii]?.table ?? [];
             const best = bestOver(table);
@@ -144,23 +112,29 @@ export function MatchStats({ match }: MatchStatsProps) {
               match.overs_per_innings,
             );
             return (
-              <Card key={innings.id} className="overflow-hidden">
-                <CardContent className="space-y-3.5 py-4">
-                  <div className="flex items-center justify-between">
-                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground sm:text-base">
-                      <span
-                        aria-hidden="true"
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${ii === 0 ? "bg-series-1" : "bg-series-2"}`}
-                      />
+              <Disclosure
+                key={innings.id}
+                title={
+                  <span className="flex items-center gap-2 text-sm sm:text-base">
+                    <span
+                      aria-hidden="true"
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${ii === 0 ? "bg-series-1" : "bg-series-2"}`}
+                    />
+                    <span className="min-w-0 truncate">
                       {teamName(match, innings.team_id)} ·{" "}
                       <span className="font-score font-bold tabular-nums">
                         {innings.total_runs}/{innings.total_wickets}
                       </span>
-                    </p>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      Innings {innings.innings_number}
                     </span>
-                  </div>
+                  </span>
+                }
+                aside={
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Innings {innings.innings_number} phases
+                  </span>
+                }
+              >
+                <div className="space-y-3.5 px-4 pb-4">
                   <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                     <div className="rounded-xl bg-muted p-2.5">
                       <span className="text-muted-foreground block text-2xs">Best over</span>
@@ -217,19 +191,20 @@ export function MatchStats({ match }: MatchStatsProps) {
                       );
                     })}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </Disclosure>
             );
           })}
         </div>
       )}
 
       {/* 6. Delivery breakdown */}
-      <Card id="stats-breakdown" className="scroll-mt-16 md:scroll-mt-[10.5rem]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-balance text-base sm:text-lg">Delivery breakdown</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Disclosure
+        id="stats-breakdown"
+        title="Delivery breakdown"
+        className="scroll-mt-16 md:scroll-mt-[10.5rem]"
+      >
+        <div className="px-4 pb-4">
           <div className="grid gap-6 md:grid-cols-2">
             {sortedInnings.map((innings) => {
               const balls = inningsBalls(innings, ballLog);
@@ -276,15 +251,18 @@ export function MatchStats({ match }: MatchStatsProps) {
                 ];
 
               return (
-                <Card key={innings.id}>
-                  <CardHeader className="pb-2">
+                <Card
+                  key={innings.id}
+                  className="max-md:border-0 max-md:bg-transparent max-md:shadow-none max-md:ring-0"
+                >
+                  <CardHeader className="pb-2 max-md:p-0 max-md:pb-2">
                     <CardTitle className="text-balance text-base">
                       {teamName(match, innings.team_id)} · {innings.total_runs}/
                       {innings.total_wickets}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-4 gap-2">
+                  <CardContent className="max-md:p-0">
+                    <div className="grid grid-cols-4 gap-1.5 md:gap-2">
                       {(
                         [
                           ["Dots", dots, "bg-muted-foreground/25", ""],
@@ -299,7 +277,7 @@ export function MatchStats({ match }: MatchStatsProps) {
                           ["Wickets", wickets, "bg-wicket", "text-wicket"],
                         ] as const
                       ).map(([label, count, swatch, tone]) => (
-                        <div key={label} className="rounded-xl bg-muted p-3 text-center">
+                        <div key={label} className="rounded-xl bg-muted p-2 text-center md:p-3">
                           <p className={`font-score text-2xl font-semibold tabular-nums ${tone}`}>
                             {count}
                           </p>
@@ -383,8 +361,8 @@ export function MatchStats({ match }: MatchStatsProps) {
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </Disclosure>
     </div>
   );
 }

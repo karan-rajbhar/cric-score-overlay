@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type * as React from "react";
 import { Coins, Flag, Target, TrendingUp, XCircle } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
+import { Button } from "~/components/ds/button";
 import { Card } from "~/components/ds/card";
 import { PlayerLink } from "~/components/ds/player-link";
 import { Chip } from "~/components/ds/chip";
@@ -129,9 +130,10 @@ function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
           {rows.map((r) => (
             <li
               key={r.name}
-              className="flex items-baseline gap-2 border-t border-border py-2 first:border-t-0"
+              className="flex items-baseline gap-2 border-t border-border py-2 first:border-t-0 max-md:flex-wrap max-md:gap-x-1.5 max-md:gap-y-0 max-md:py-1.5"
             >
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+              {/* Half a phone's width: the name on its own line, not cut. */}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground max-md:basis-full">
                 <PlayerLink name={r.name} href={r.href} />
               </span>
               <span
@@ -142,7 +144,7 @@ function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
               >
                 {r.fig}
               </span>
-              <span className="w-12 shrink-0 text-right font-score text-xs tabular-nums text-muted-foreground">
+              <span className="w-12 shrink-0 text-right font-score text-xs tabular-nums text-muted-foreground max-md:w-auto">
                 {r.sub}
               </span>
             </li>
@@ -193,7 +195,7 @@ function TeamSummaryCard({
           )}
         </span>
       </div>
-      <div className="grid gap-4 p-4 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-1 md:gap-4 xl:grid-cols-2">
         <FigureColumn
           title="Top batters"
           rows={stats.batters.map((b) => ({
@@ -288,8 +290,9 @@ function BestPerformers({ match }: { match: Match }) {
     }));
 
   if (batters.length === 0 && bowlers.length === 0) return null;
+  // Not on phones: each side's card above already names them.
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="hidden gap-4 md:grid md:grid-cols-2">
       {batters.length > 0 && (
         <RankList title="Top batters" unit="Runs" rows={batters} />
       )}
@@ -300,6 +303,9 @@ function BestPerformers({ match }: { match: Match }) {
   );
 }
 
+/** Key moments a phone shows before "Show all". */
+const PHONE_MOMENTS = 5;
+
 function KeyMoments({
   moments,
   finished,
@@ -308,6 +314,8 @@ function KeyMoments({
   /** Over (a result, or abandoned): nothing more is coming. */
   finished: boolean;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const cut = !showAll && moments.length > PHONE_MOMENTS;
   return (
     <section aria-labelledby="key-moments" className="space-y-3">
       <h3 id="key-moments" className="text-base font-semibold text-foreground">
@@ -321,10 +329,13 @@ function KeyMoments({
         </p>
       ) : (
         <ListCard>
-          {moments.map((m) => (
+          {moments.map((m, i) => (
             <ListRow
               key={m.id}
-              className="[contain-intrinsic-size:auto_3.5rem] [content-visibility:auto]"
+              className={cn(
+                "[contain-intrinsic-size:auto_3.5rem] [content-visibility:auto]",
+                cut && i >= PHONE_MOMENTS && "max-md:hidden",
+              )}
               leading={
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
                   {m.icon}
@@ -338,6 +349,16 @@ function KeyMoments({
             />
           ))}
         </ListCard>
+      )}
+      {cut && (
+        <Button
+          variant="soft"
+          size="sm"
+          className="w-full md:hidden"
+          onClick={() => setShowAll(true)}
+        >
+          Show all {moments.length} moments
+        </Button>
       )}
     </section>
   );
