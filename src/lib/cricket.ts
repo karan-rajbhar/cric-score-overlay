@@ -321,16 +321,52 @@ const DISMISSAL_SHORT: Record<string, string> = {
   retired_out: "retired out",
 };
 
-/** Full dismissal text, e.g. "c Sharma b Patel", "b Jones", "run out (Kumar)". */
-/** Detailed dismissal string when bowler/fielder names are directly provided. */
+/**
+ * "c & b" is one dismissal only: caught, by the bowler. A bowler who runs a
+ * batter out or stumps them is `run out (Bowler)` / `st Bowler b Bowler`. By
+ * id: two players can share a name, and overlays print surnames.
+ */
+export function isCaughtAndBowled(
+  dismissalType: string | null | undefined,
+  fielderId: string | null | undefined,
+  bowlerId: string | null | undefined,
+): boolean {
+  return dismissalType === "caught" && !!fielderId && fielderId === bowlerId;
+}
+
+/**
+ * The fielding figure a dismissal credits its fielder with, if any: the one
+ * rule for career records, leaderboards and top performers. A bowled or
+ * obstructing wicket credits no fielder, even if the record names one.
+ */
+export function fieldingCreditOf(
+  dismissalType: string | null | undefined,
+): "catches" | "stumpings" | "run_outs" | null {
+  const type = (dismissalType ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (type === "caught" || type === "caught_and_bowled") return "catches";
+  if (type === "stumped") return "stumpings";
+  if (type === "run_out") return "run_outs";
+  return null;
+}
+
+/**
+ * Detailed dismissal string when bowler/fielder names are directly provided.
+ * `caughtAndBowled` comes from {@link isCaughtAndBowled} when the ids are
+ * known; without them, by name. Nothing is guessed: no fielder recorded is
+ * not "c & b", and an unknown dismissal is not "bowled".
+ */
 export function formatHowOut(
   isOut: boolean | null | undefined,
   dismissalType?: string | null,
   bowlerName?: string | null,
   fielderName?: string | null,
+  caughtAndBowled?: boolean,
 ): string {
-  if (!isOut) return "not out";
-  const type = dismissalType ?? "bowled";
+  if (!isOut) {
+    return dismissalType === "retired_hurt" ? "retired hurt" : "not out";
+  }
+  const type = dismissalType;
+  if (!type) return "out";
 
   switch (type) {
     case "bowled":
@@ -340,15 +376,12 @@ export function formatHowOut(
     case "lbw":
       return bowlerName ? `lbw b ${bowlerName}` : "lbw";
     case "caught":
-      if (fielderName && bowlerName) {
-        if (fielderName === bowlerName) {
-          return `c & b ${bowlerName}`;
-        }
-        return `c ${fielderName} b ${bowlerName}`;
+      if (bowlerName && (caughtAndBowled ?? fielderName === bowlerName)) {
+        return `c & b ${bowlerName}`;
       }
+      if (fielderName && bowlerName) return `c ${fielderName} b ${bowlerName}`;
       if (fielderName) return `c ${fielderName}`;
-      if (bowlerName) return `c & b ${bowlerName}`;
-      return "caught";
+      return bowlerName ? `caught b ${bowlerName}` : "caught";
     case "stumped":
       if (fielderName && bowlerName) return `st ${fielderName} b ${bowlerName}`;
       if (fielderName) return `st ${fielderName}`;
@@ -366,15 +399,15 @@ export function dismissalText(
   batter: Pick<BattingPerformance, "user_id" | "is_out" | "dismissal_type">,
   fow: FallOfWicket[],
 ): string {
-  if (!batter.is_out) return "not out";
   const entry = fow.find((f) => f.batsman_out_id === batter.user_id);
-  const type = batter.dismissal_type ?? entry?.dismissal_type ?? "bowled";
-  const bowlerName = entry?.bowler?.full_name;
-  const fielderName = entry?.fielder?.full_name;
-  if (fielderName && bowlerName && entry?.fielder_id === entry?.bowler_id) {
-    return `c & b ${bowlerName}`;
-  }
-  return formatHowOut(batter.is_out, type, bowlerName, fielderName);
+  const type = batter.dismissal_type ?? entry?.dismissal_type;
+  return formatHowOut(
+    batter.is_out,
+    type,
+    entry?.bowler?.full_name,
+    entry?.fielder?.full_name,
+    isCaughtAndBowled(type, entry?.fielder_id, entry?.bowler_id),
+  );
 }
 
 /** Sentence-case label for dismissal types, e.g. "run_out" -> "Run out", "bowled" -> "Bowled", "lbw" -> "LBW". */
@@ -660,6 +693,29 @@ export interface PlayerImpactScore {
  * - Fielding: Catches (10 pts), Stumpings (15 pts), Run Outs (15 pts)
  * - Winning Impact: 15% bonus + 5 pts for players on the winning team
  */
+/** A fielder's figures and points for their part in a dismissal. */
+function creditFielder(
+  p: {
+    catches: number;
+    stumpings: number;
+    runOuts: number;
+    fieldingPoints: number;
+  },
+  dismissalType: string | null | undefined,
+): void {
+  const credit = fieldingCreditOf(dismissalType);
+  if (credit === "stumpings") {
+    p.stumpings += 1;
+    p.fieldingPoints += 15;
+  } else if (credit === "run_outs") {
+    p.runOuts += 1;
+    p.fieldingPoints += 15;
+  } else if (credit === "catches") {
+    p.catches += 1;
+    p.fieldingPoints += 10;
+  }
+}
+
 export function rankPlayersByImpact(match: Match): PlayerImpactScore[] {
   const playerMap = new Map<
     string,
@@ -808,17 +864,7 @@ export function rankPlayersByImpact(match: Match): PlayerImpactScore[] {
           bowlingTeamId,
           fow.fielder?.avatar_url,
         );
-        const dtype = (fow.dismissal_type ?? "").toLowerCase();
-        if (dtype.includes("stump")) {
-          p.stumpings += 1;
-          p.fieldingPoints += 15;
-        } else if (dtype.includes("run")) {
-          p.runOuts += 1;
-          p.fieldingPoints += 15;
-        } else {
-          p.catches += 1;
-          p.fieldingPoints += 10;
-        }
+        creditFielder(p, fow.dismissal_type);
       }
     }
 
@@ -833,17 +879,7 @@ export function rankPlayersByImpact(match: Match): PlayerImpactScore[] {
             bowlingTeamId,
             ball.fielder?.avatar_url,
           );
-          const dtype = (ball.dismissal_type ?? "").toLowerCase();
-          if (dtype.includes("stump")) {
-            p.stumpings += 1;
-            p.fieldingPoints += 15;
-          } else if (dtype.includes("run")) {
-            p.runOuts += 1;
-            p.fieldingPoints += 15;
-          } else {
-            p.catches += 1;
-            p.fieldingPoints += 10;
-          }
+          creditFielder(p, ball.dismissal_type);
         }
       }
     }

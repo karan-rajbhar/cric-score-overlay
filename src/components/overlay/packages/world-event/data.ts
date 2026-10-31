@@ -4,7 +4,7 @@
  * up. A helper with nothing to work from answers null.
  */
 
-import { formatDismissalType } from "~/lib/cricket";
+import { formatDismissalType, isCaughtAndBowled } from "~/lib/cricket";
 import type {
   BattingPerformance,
   Innings,
@@ -154,7 +154,8 @@ export function dismissalText(
     case "lbw":
       return bowler ? `lbw ${b}` : "lbw";
     case "caught":
-      if (fielder && fielder === bowler) return `c & ${b}`;
+      if (bowler && isCaughtAndBowled(type, fow?.fielder_id, fow?.bowler_id))
+        return `c & ${b}`;
       if (fielder) return `c ${fielder} ${b}`.trim();
       return bowler ? `caught, ${b}` : "caught";
     case "stumped":

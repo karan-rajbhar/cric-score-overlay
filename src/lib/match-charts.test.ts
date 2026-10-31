@@ -84,3 +84,14 @@ describe("match-charts", () => {
     });
   });
 });
+
+describe("a retirement in the charts", () => {
+  it("is not a wicket", () => {
+    const rows = buildOverTable([
+      { over_number: 0, ball_number: 1, runs_scored: 1, extras: 0, is_wicket: false },
+      { over_number: 0, ball_number: 2, runs_scored: 0, extras: 0, is_wicket: true, dismissal_type: "retired_hurt" },
+      { over_number: 0, ball_number: 2, runs_scored: 0, extras: 0, is_wicket: true, dismissal_type: "bowled" },
+    ] as never);
+    expect(rows[0]).toMatchObject({ wickets: 1 });
+  });
+});

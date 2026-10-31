@@ -5,7 +5,7 @@
  * {@link playStingSound}.
  */
 
-import { formatHowOut } from "~/lib/cricket";
+import { formatHowOut, isWicketFall } from "~/lib/cricket";
 import {
   playFourFanfare,
   playFreeHitAlert,
@@ -68,9 +68,14 @@ export function stingFor(
         detail: batterLine(state),
       };
     case "wicket": {
-      const out = state?.last_ball_is_wicket
-        ? state.last_ball_dismissed_player
-        : null;
+      const out =
+        state &&
+        isWicketFall({
+          is_wicket: state.last_ball_is_wicket,
+          dismissal_type: state.last_ball_dismissal_type,
+        })
+          ? state.last_ball_dismissed_player
+          : null;
       return {
         ...base,
         title: "Wicket",

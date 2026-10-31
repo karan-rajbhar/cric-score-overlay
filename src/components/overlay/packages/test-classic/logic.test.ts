@@ -159,6 +159,9 @@ describe("scorecard lines", () => {
     expect(howOut(out("lbw"), fow({ bowler: { id: "bw", full_name: "Starc" } }))).toBe("lbw b Starc");
     expect(howOut(out("run_out"), fow({ fielder_id: "fd" }), names)).toBe("run out (Shah)");
     expect(howOut(out("run_out"), fow({}))).toBe("run out");
+    // A bowler's run out is not "c & b".
+    expect(howOut(out("run_out"), fow({ bowler_id: "bw", fielder_id: "bw" }), names)).toBe("run out (Khan)");
+    expect(howOut({ user_id: "b1", is_out: false, dismissal_type: "retired_hurt" }, [])).toBe("retired hurt");
     expect(howOut(out("stumped"), fow({ bowler_id: "bw", fielder_id: "fd" }), names)).toBe("st Shah b Khan");
   });
 

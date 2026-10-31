@@ -534,8 +534,8 @@ function getPhaseStatsForInnings(
         const ov = (d.over_number ?? 0) + 1; // 1-indexed over number
         if (ov >= ph.start && ov <= ph.end) {
           pRuns += (d.runs_scored ?? 0) + (d.extras ?? 0);
-          if (d.is_wicket) pWkts++;
-          if (d.extra_type !== "wide" && d.extra_type !== "no_ball") pBalls++;
+          if (isWicketFall(d)) pWkts++;
+          if (isLegalDelivery(d)) pBalls++;
         }
       }
 
@@ -799,10 +799,7 @@ function reportBatters(inn: InningsRow): ReportBatter[] {
     .map((b) => ({
       name: b.user?.full_name ?? "—",
       userId: b.user_id ?? null,
-      dismissal:
-        !b.is_out && b.dismissal_type === "retired_hurt"
-          ? "retired hurt"
-          : dismissalText(b, inn.fall_of_wickets ?? []),
+      dismissal: dismissalText(b, inn.fall_of_wickets ?? []),
       detail: b.is_out
         ? dismissalDetailOf(
             b.user?.full_name ?? "Batter",

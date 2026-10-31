@@ -200,6 +200,24 @@ describe("World event figures", () => {
     };
     expect(dismissalText(caught, withFielder)).toMatch(/^c Price b /);
     expect(dismissalText({ ...out, dismissal_type: "run_out" }, withFielder)).toBe("run out (Price)");
+    // Two Sharmas are not "c & b", and a bowler's run out never is.
+    const fowOf = (fielder_id: string) => ({
+      ...inn,
+      fall_of_wickets: inn.fall_of_wickets!.map((f) =>
+        f.batsman_out_id === out.user_id
+          ? {
+              ...f,
+              bowler_id: "bw",
+              bowler: { id: "bw", full_name: "Ishant Sharma" },
+              fielder_id,
+              fielder: { id: fielder_id, full_name: "Rohit Sharma" },
+            }
+          : f,
+      ),
+    });
+    expect(dismissalText(caught, fowOf("fd"))).toBe("c Sharma b Sharma");
+    expect(dismissalText(caught, fowOf("bw"))).toBe("c & b Sharma");
+    expect(dismissalText({ ...out, dismissal_type: "run_out" }, fowOf("bw"))).toBe("run out (Sharma)");
   });
 
   it("marks captains and keepers and keeps playing roles", () => {

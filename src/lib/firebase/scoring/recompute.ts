@@ -54,11 +54,14 @@ export interface RecomputeOutput {
   overJustEnded: boolean;
 }
 
+/** Dismissals the Laws do not credit to the bowler. */
 export const NON_BOWLER_DISMISSALS = new Set([
   "run_out",
   "retired_hurt",
   "retired_out",
   "obstructing",
+  "timed_out",
+  "handled_ball",
 ]);
 
 /**
