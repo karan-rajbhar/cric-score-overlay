@@ -56,8 +56,7 @@ export function toAuthError(err: unknown): AuthError {
     "auth/weak-password": "Password must be at least 6 characters long.",
     "auth/too-many-requests":
       "Too many attempts. Please wait a moment and try again.",
-    "auth/popup-closed-by-user":
-      "The sign-in window was closed before completing sign in.",
+    "auth/popup-closed-by-user": "Sign-in didn't finish. Please try again.",
     "auth/cancelled-popup-request": "Sign-in was cancelled.",
     "auth/popup-blocked":
       "Your browser blocked the sign-in popup. Allow popups and try again.",
