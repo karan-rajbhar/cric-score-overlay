@@ -83,7 +83,7 @@ export function MatchPlayersEditor({ match }: { match: EditorMatch }) {
                       <ReplacePlayerPanel
                         id={panelId}
                         matchId={match.id}
-                        clubId={match.club_id}
+                        clubId={match.club_id ?? team.club_id}
                         part={p}
                         team={team}
                         inMatch={inMatch}

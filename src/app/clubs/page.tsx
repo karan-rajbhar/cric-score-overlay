@@ -11,8 +11,10 @@ import {
   DirectorySwitch,
   MineAllSwitch,
 } from "~/components/layout/directory-switch";
+import { ListSearch } from "~/components/layout/list-search";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
+import { prefixSearch } from "~/lib/firebase/search";
 import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 
 export const metadata = { title: "Clubs" };
@@ -102,14 +104,27 @@ function ClubCard({ club }: { club: ClubRow }) {
 export default async function ClubsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ after?: string; view?: "mine" | "all" }>;
+  searchParams?: Promise<{
+    after?: string;
+    view?: "mine" | "all";
+    search?: string;
+  }>;
 }) {
-  const { after, view: requested } = (await searchParams) ?? {};
+  const { after, view: requested, search } = (await searchParams) ?? {};
+  const query = search?.trim() ?? "";
   const db = await createServerClient();
   const {
     data: { user },
   } = await db.auth.getUser();
-  const view = user && requested !== "all" ? "mine" : "all";
+  // A search looks through every public club.
+  const view = user && requested !== "all" && !query ? "mine" : "all";
+  // Read here, not in nested components, so the page's reads are its own.
+  const list =
+    view === "mine"
+      ? await myClubs(db, user!.id)
+      : query.length >= 2
+        ? await foundClubs(db, query)
+        : await allClubs(db, after, Boolean(user));
 
   return (
     <PageContainer>
@@ -133,19 +148,24 @@ export default async function ClubsPage({
           )
         }
       />
-      {user && (
-        <MineAllSwitch
-          label="Club list"
-          view={view}
-          mine={{ label: "My clubs", href: "/clubs" }}
-          all={{ label: "All clubs", href: "/clubs?view=all" }}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        {user && (
+          <MineAllSwitch
+            label="Club list"
+            view={view}
+            mine={{ label: "My clubs", href: "/clubs" }}
+            all={{ label: "All clubs", href: "/clubs?view=all" }}
+          />
+        )}
+        <ListSearch
+          action="/clubs"
+          value={query}
+          label="Search clubs"
+          placeholder="Search clubs…"
+          hidden={{ view: "all" }}
         />
-      )}
-      {view === "mine" ? (
-        <MyClubs db={db} userId={user!.id} />
-      ) : (
-        <AllClubs db={db} after={after} signedIn={Boolean(user)} />
-      )}
+      </div>
+      {list}
     </PageContainer>
   );
 }
@@ -153,7 +173,7 @@ export default async function ClubsPage({
 type Db = Awaited<ReturnType<typeof createServerClient>>;
 
 /** Clubs the user belongs to or owns (each read only on this view). */
-async function MyClubs({ db, userId }: { db: Db; userId: string }) {
+async function myClubs(db: Db, userId: string) {
   const [{ data: mems }, { data: owned }] = await Promise.all([
     db.from("club_memberships").select("club_id").eq("user_id", userId),
     db.from("clubs").select("id").eq("owner_id", userId),
@@ -201,16 +221,43 @@ async function MyClubs({ db, userId }: { db: Db; userId: string }) {
   );
 }
 
+/** Public clubs named like the search (indexed: at most a page of reads). */
+async function foundClubs(db: Db, query: string) {
+  const { data } = await prefixSearch(
+    db,
+    "clubs",
+    query,
+    CLUB_COLUMNS,
+    PAGE_SIZE,
+  );
+  const clubs = await withTeamCounts(
+    db,
+    (data as unknown as ClubRow[]).filter((c) => c.is_public === true),
+  );
+  if (clubs.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No clubs found"
+        description={`No public club matches “${query}”.`}
+      />
+    );
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {clubs.map((club) => (
+        <ClubCard key={club.id} club={club} />
+      ))}
+    </div>
+  );
+}
+
 /** Public clubs, a page at a time in name order (keyset, no scan). */
-async function AllClubs({
-  db,
-  after,
-  signedIn,
-}: {
-  db: Db;
-  after?: string;
-  signedIn: boolean;
-}) {
+async function allClubs(
+  db: Db,
+  after: string | undefined,
+  signedIn: boolean,
+) {
   const cursor = parseCursor(after);
   let query = db
     .from("clubs")

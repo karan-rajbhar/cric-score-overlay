@@ -45,7 +45,7 @@ export default function GlobalError({
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button onClick={() => reset()}>Try again</Button>
         <Button asChild variant="outline">
-          <Link href="/dashboard">Dashboard</Link>
+          <Link href="/dashboard">Home</Link>
         </Button>
       </div>
     </div>

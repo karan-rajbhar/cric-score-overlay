@@ -80,10 +80,17 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
       },
       {
         title: "Back never leaves the app or goes in circles",
-        rule: "Use history only when the previous page is known to be ours, and skip a page that leads straight back.",
-        why: "A plain history check can drop people out of the app, and scoring and the match page can send each other back forever.",
+        rule: "Use history only when the previous page is known to be ours, skip a page that leads straight back, and treat a replace as taking the old page's place.",
+        why: "A plain history check can drop people out of the app, scoring and the match page can send each other back forever, and a redirect leaves one history entry where the trail counted two.",
         evidence: "learned",
         appliedIn: "in-app-history",
+      },
+      {
+        title: "Back never reopens a used form",
+        rule: "Skip a create form or sign-in on the way back, and go to the page's parent instead.",
+        why: "Following history alone would take someone who just created a club back to the filled-in form.",
+        evidence: "learned",
+        appliedIn: "backTarget",
       },
       {
         title: "A URL names the thing, not the journey",
@@ -151,6 +158,12 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         title: "Test with the data production has",
         rule: "Run a change through the whole path on realistic data, not only with mocked answers.",
         why: "Mocked tests passed, then the seed data showed a duplicate hiding the real profile.",
+        evidence: "learned",
+      },
+      {
+        title: "Check every claim against the code",
+        rule: "Before saying something is done everywhere, search for every place it applies.",
+        why: "A review of \"all fixed\" found create pages, labels and a search box that had been missed.",
         evidence: "learned",
       },
       {

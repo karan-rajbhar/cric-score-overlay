@@ -14,7 +14,7 @@ vi.mock("~/app/teams/actions", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("~/lib/player-lookup", () => ({
-  lookUpPlayers: (q: string) => lookUpPlayers(q),
+  lookUpPlayers: (...args: unknown[]) => lookUpPlayers(...args),
 }));
 
 async function openAndSearch(query: string) {
@@ -81,6 +81,17 @@ describe("AddPlayerDialog", () => {
     expect(createPlayerQuick).toHaveBeenCalledTimes(1);
     expect(createPlayerQuick).toHaveBeenCalledWith("t1", "New Guy");
     expect(addPlayerToTeam).not.toHaveBeenCalled();
+  });
+
+  it("lists the team's club members first", async () => {
+    lookUpPlayers.mockResolvedValue({ players: [], more: false });
+    const user = userEvent.setup();
+    render(<AddPlayerDialog teamId="t1" clubId="c1" />);
+    await user.click(screen.getByRole("button", { name: /add player/i }));
+    await user.type(screen.getByLabelText(/search players/i), "Rahul");
+    await waitFor(() =>
+      expect(lookUpPlayers).toHaveBeenCalledWith("Rahul", { clubId: "c1" }),
+    );
   });
 
   it("says a failed search failed instead of that nobody matches", async () => {

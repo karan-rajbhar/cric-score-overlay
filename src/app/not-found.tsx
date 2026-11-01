@@ -19,7 +19,7 @@ export default function NotFound() {
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button asChild>
-          <Link href="/dashboard">Dashboard</Link>
+          <Link href="/dashboard">Home</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/matches">Matches</Link>

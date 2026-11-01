@@ -79,7 +79,7 @@ export function LandingPage() {
                 <Link href="/matches/create">New match</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/dashboard">Dashboard</Link>
+                <Link href="/dashboard">Home</Link>
               </Button>
             </>
           ) : (

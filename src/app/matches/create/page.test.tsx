@@ -538,7 +538,9 @@ describe("New match form", () => {
       await new Promise((r) => setTimeout(r, 400));
       expect(lookUpPlayers).not.toHaveBeenCalled();
       fireEvent.change(input, { target: { value: "rah" } });
-      await waitFor(() => expect(lookUpPlayers).toHaveBeenCalledWith("rah"));
+      await waitFor(() =>
+        expect(lookUpPlayers).toHaveBeenCalledWith("rah", undefined),
+      );
     });
 
     it("adds nobody on a guess when the search fails, and adding new stays a tap away", async () => {

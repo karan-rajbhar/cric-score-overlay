@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { BackLink } from "~/components/ds/back-link";
 import { unstable_rethrow } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -74,9 +75,9 @@ export default function CreateClubPage() {
   return (
     <PageContainer size="form" stack={false}>
         <Button variant="ghost" asChild className="mb-4">
-          <Link href="/clubs">
-            <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back to clubs
-          </Link>
+          <BackLink href="/clubs">
+            <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back
+          </BackLink>
         </Button>
 
         <Card>

@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMyUpcomingMatches } from "./actions";
@@ -141,7 +142,10 @@ export default function Dashboard() {
             <Link
               href="/search"
               aria-label="Search"
-              className={buttonVariants({ variant: "surface", size: "icon" })}
+              className={cn(
+                buttonVariants({ variant: "surface", size: "icon" }),
+                "md:hidden",
+              )}
             >
               <Search />
             </Link>

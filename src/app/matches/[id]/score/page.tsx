@@ -605,7 +605,9 @@ function useScoringScreen() {
       partTeams,
     ],
   );
-  const matchClubId = match?.club_id;
+  // A club's friendly may have no club of its own: its teams' still counts.
+  const matchClubId =
+    match?.club_id ?? match?.team1?.club_id ?? match?.team2?.club_id;
   const findPlayers = useCallback(
     async (query: string): Promise<PlayerSearchResult> => {
       const found = await lookUpPlayers(query, { clubId: matchClubId });

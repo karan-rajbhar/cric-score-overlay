@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -37,6 +37,12 @@ export function ReplacedPlayerNotice({
   const [error, setError] = useState<string | null>(null);
   const { id, name, teamId, teamName, otherMatches } = player;
 
+  // It appears above the list, and the row it came from may be far down.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.scrollIntoView?.({ block: "center" });
+  }, []);
+
   const remove = () => {
     setError(null);
     startTransition(async () => {
@@ -59,6 +65,7 @@ export function ReplacedPlayerNotice({
 
   return (
     <div
+      ref={box}
       role="status"
       className="space-y-3 rounded-xl bg-primary-soft p-4 text-sm text-primary-soft-foreground"
     >

@@ -34,8 +34,12 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
 async function findExisting(
   query: string,
   exclude: ReadonlySet<string>,
+  clubId?: string | null,
 ): Promise<FoundPlayer[]> {
-  const { players } = await lookUpPlayers(query);
+  const { players } = await lookUpPlayers(
+    query,
+    clubId ? { clubId } : undefined,
+  );
   return players.filter((u) => !exclude.has(u.id)).slice(0, SUGGESTIONS_SHOWN);
 }
 
@@ -50,6 +54,7 @@ async function findExisting(
  */
 export function QuickPlayers({
   teamId,
+  clubId,
   teamName,
   playerCount,
   existingIds = [],
@@ -57,6 +62,8 @@ export function QuickPlayers({
   onAdded,
 }: {
   teamId: string;
+  /** The match's or team's club: its members come first in a search. */
+  clubId?: string | null;
   teamName: string;
   playerCount: number | null | undefined;
   /** Players already in the team (not offered again). */
@@ -94,7 +101,7 @@ export function QuickPlayers({
     if (!lookupOthers) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      findExisting(lookupOthers, new Set(excludeKey.split(","))).then(
+      findExisting(lookupOthers, new Set(excludeKey.split(",")), clubId).then(
         (players) => {
           if (!cancelled) setFound({ q: lookupOthers, players });
         },
@@ -107,7 +114,7 @@ export function QuickPlayers({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [lookupOthers, excludeKey, attempt]);
+  }, [lookupOthers, excludeKey, attempt, clubId]);
   const taken = new Set([...existingIds, ...added.map((a) => a.id)]);
   // People from the user's teams first (known without a read), then
   // anyone else on CricScore of that name.
@@ -197,6 +204,7 @@ export function QuickPlayers({
         players = await findExisting(
           q,
           new Set([...existingIds, ...added.map((a) => a.id)]),
+          clubId,
         );
       } catch {
         // Nobody is added on a guess: the box says it could not check, and

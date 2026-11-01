@@ -31,30 +31,38 @@ describe("BackLink", () => {
   });
 
   it("returns through history when this visit came from inside the app", () => {
-    noteVisit("/tournaments/t1");
-    noteVisit("/matches/m1");
+    noteVisit("/tournaments/t1", 1);
+    noteVisit("/matches/m1", 2);
     const { followed } = click();
     expect(back).toHaveBeenCalledOnce();
     expect(followed).toBe(false);
   });
 
   it("goes to the parent on a link opened fresh, never out of the app", () => {
-    noteVisit("/matches/m1");
+    noteVisit("/matches/m1", 1);
     const { followed } = click();
     expect(back).not.toHaveBeenCalled();
     expect(followed).toBe(true);
   });
 
   it("goes to the parent instead of a page that would send you straight back", () => {
-    noteVisit("/matches/m1/score");
-    noteVisit("/matches/m1");
+    noteVisit("/matches/m1/score", 1);
+    noteVisit("/matches/m1", 2);
     click();
     expect(back).not.toHaveBeenCalled();
   });
 
+  it("does not return to a form already used", () => {
+    noteVisit("/clubs/create", 1);
+    noteVisit("/clubs/c1", 2);
+    const { followed } = click();
+    expect(back).not.toHaveBeenCalled();
+    expect(followed).toBe(true);
+  });
+
   it("leaves a new-tab click alone", () => {
-    noteVisit("/tournaments/t1");
-    noteVisit("/matches/m1");
+    noteVisit("/tournaments/t1", 1);
+    noteVisit("/matches/m1", 2);
     click({ ctrlKey: true });
     expect(back).not.toHaveBeenCalled();
   });

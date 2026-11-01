@@ -1,5 +1,6 @@
 "use client";
 
+import { BackLink } from "~/components/ds/back-link";
 import { useId, useMemo, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -468,10 +469,10 @@ function MatchSetupForm({ userId }: { userId: string }) {
   return (
     <PageContainer size="form" stack={false}>
       <Button variant="ghost" size="sm" asChild className="-ml-2 mb-2">
-        <Link href={backHref}>
+        <BackLink href={backHref}>
           <ChevronLeft className="mr-1 h-4 w-4 shrink-0" aria-hidden="true" />
           Back
-        </Link>
+        </BackLink>
       </Button>
       <h1 className="text-balance text-2xl font-semibold">New match</h1>
       {context && (
@@ -527,6 +528,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
                     <QuickPlayers
                       key={team1.id}
                       teamId={team1.id}
+                      clubId={clubId || team1.club_id}
                       teamName={team1.name}
                       playerCount={team1.player_count}
                       existingIds={team1.player_ids}
@@ -555,6 +557,7 @@ function MatchSetupForm({ userId }: { userId: string }) {
                     <QuickPlayers
                       key={team2.id}
                       teamId={team2.id}
+                      clubId={clubId || team2.club_id}
                       teamName={team2.name}
                       playerCount={team2.player_count}
                       existingIds={team2.player_ids}

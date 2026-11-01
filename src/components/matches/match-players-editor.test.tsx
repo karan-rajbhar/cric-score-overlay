@@ -205,6 +205,19 @@ describe("Players page", () => {
     );
   });
 
+  it("brings the offer into view: the row it came from may be far down the page", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.mocked(replacePlayerInMatch).mockResolvedValue({
+      success: true,
+      error: null,
+      leftover: { otherMatches: 0 },
+    });
+    await replaceWithRavi();
+    await screen.findByRole("button", { name: "Remove from squad" });
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+  });
+
   it("points to the squad when a replaced duplicate has other matches", async () => {
     vi.mocked(replacePlayerInMatch).mockResolvedValue({
       success: true,

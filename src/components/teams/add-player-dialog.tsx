@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,14 @@ import { RecentPlayers } from "~/components/players/recent-players";
 import { toast } from "sonner";
 import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import { lookUpPlayers } from "~/lib/player-lookup";
 import { typedHandle, type FoundPlayer } from "~/lib/player-search";
 import { rememberPlayer } from "~/lib/recent-players";
 
 interface AddPlayerDialogProps {
   teamId: string;
+  /** The team's club: its members come first in a search. */
+  clubId?: string | null;
   onSuccess?: () => void;
 }
 
@@ -33,7 +36,11 @@ interface AddPlayerDialogProps {
  * Adds a player to a team: search registered players as you type, or create
  * a new player record from a name when they are not on the platform yet.
  */
-export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
+export function AddPlayerDialog({
+  teamId,
+  clubId,
+  onSuccess,
+}: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -41,7 +48,11 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
   const trimmed = query.trim();
   const handle = typedHandle(trimmed);
   const searchable = (handle ?? trimmed).length >= 2;
-  const search = usePlayerSearch(searchable ? trimmed : "");
+  const find = useCallback(
+    (q: string) => lookUpPlayers(q, clubId ? { clubId } : undefined),
+    [clubId],
+  );
+  const search = usePlayerSearch(searchable ? trimmed : "", find);
   const results = search.players;
   const sameName = useSameNameCheck(trimmed, results);
 

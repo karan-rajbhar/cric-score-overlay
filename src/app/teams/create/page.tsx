@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "~/components/ds/back-link";
 import { unstable_rethrow, useSearchParams } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import {
@@ -290,17 +291,11 @@ function CreateTeamBackButton() {
       ? `/clubs/${clubId}?tab=teams`
       : "/teams";
 
-  const backLabel = tournamentId
-    ? "Back to tournament"
-    : clubId
-      ? "Back to club"
-      : "Back to teams";
-
   return (
     <Button variant="ghost" asChild className="mb-4">
-      <Link href={backHref}>
-        <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> {backLabel}
-      </Link>
+      <BackLink href={backHref}>
+        <ChevronLeft className="mr-2 h-4 w-4 shrink-0" /> Back
+      </BackLink>
     </Button>
   );
 }
