@@ -8,6 +8,7 @@ import type { Match } from "~/lib/match-types";
 export interface MatchPart {
   id: string;
   name: string;
+  username: string | null;
   /** The team they played for. */
   teamId: string;
   teamName: string;
@@ -39,9 +40,11 @@ export function matchParts(match: MatchLike): MatchPart[] {
   const teamName = (id: string) =>
     id === match.team1_id ? match.team1.name : match.team2.name;
   const names = new Map<string, string>();
+  const usernames = new Map<string, string>();
   for (const team of [match.team1, match.team2]) {
     for (const tp of team.team_players ?? []) {
       if (tp.user?.full_name) names.set(tp.user_id, tp.user.full_name);
+      if (tp.user?.username) usernames.set(tp.user_id, tp.user.username);
     }
   }
   const parts = new Map<string, MatchPart>();
@@ -51,6 +54,7 @@ export function matchParts(match: MatchLike): MatchPart[] {
       p = {
         id,
         name: names.get(id) ?? name ?? "Player",
+        username: usernames.get(id) ?? null,
         teamId,
         teamName: teamName(teamId),
         batted: false,

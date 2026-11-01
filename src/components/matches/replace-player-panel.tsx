@@ -8,15 +8,12 @@ import {
   PlayerSearchContext,
 } from "~/app/matches/[id]/score/components/PlayerPicker";
 import { replacePlayerInMatch } from "~/app/matches/mutations";
-import {
-  addExistingPlayerQuick,
-  createPlayerQuick,
-  searchUsers,
-} from "~/app/teams/actions";
+import { addExistingPlayerQuick, createPlayerQuick } from "~/app/teams/actions";
 import { partInWords, type MatchPart } from "~/lib/match-players";
 import type { MatchTeam } from "~/lib/match-types";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
-import type { FoundPlayer } from "~/lib/player-search";
+import { lookUpPlayers } from "~/lib/player-lookup";
+import type { PlayerSearchResult } from "~/lib/player-search";
 
 /**
  * Opened under a player's row on the Players page: who really played
@@ -46,39 +43,39 @@ export function ReplacePlayerPanel({
 }) {
   const [toId, setToId] = useState<string | null>(null);
   // Players added to the squad from here, listed at once.
-  const [added, setAdded] = useState<{ id: string; name: string }[]>([]);
+  const [added, setAdded] = useState<
+    { id: string; name: string; username?: string | null }[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const candidates = useMemo(() => {
     const squad = (team.team_players ?? [])
       .filter((tp) => !inMatch.has(tp.user_id))
-      .map((tp) => ({ id: tp.user_id, name: tp.user?.full_name ?? "Player" }));
+      .map((tp) => ({
+        id: tp.user_id,
+        name: tp.user?.full_name ?? "Player",
+        username: tp.user?.username,
+      }));
     return [...squad, ...added.filter((a) => !squad.some((s) => s.id === a.id))];
   }, [team, inMatch, added]);
   const to = candidates.find((c) => c.id === toId) ?? null;
 
-  // Existing players for "Add", leaving out everyone already listed.
+  // Existing players for "Add". Someone with a part in the match stays
+  // listed and says so: left out, they would look as if not on CricScore.
   const findPlayers = useCallback(
-    async (query: string): Promise<FoundPlayer[]> => {
-      const { data } = await searchUsers(query);
-      return (
-        (data ?? []) as {
-          id: string;
-          full_name: string | null;
-          username?: string | null;
-          matches?: number;
-        }[]
-      )
-        .filter((u) => !inMatch.has(u.id) && !candidates.some((c) => c.id === u.id))
-        .map((u) => ({
-          id: u.id,
-          name: u.full_name ?? "Player",
-          username: u.username,
-          matches: u.matches,
-        }));
+    async (query: string): Promise<PlayerSearchResult> => {
+      const found = await lookUpPlayers(query);
+      return {
+        ...found,
+        players: found.players.map((p) =>
+          inMatch.has(p.id)
+            ? { ...p, unavailable: "Already in this match" }
+            : p,
+        ),
+      };
     },
-    [inMatch, candidates],
+    [inMatch],
   );
 
   const addToSquad = async (name: string, existingId?: string) => {
@@ -131,6 +128,7 @@ export function ReplacePlayerPanel({
           selectedId={toId}
           onSelect={setToId}
           addPlayer={{ teamName: team.name, onAdd: addToSquad }}
+          showUsernames
           emptyMessage={`Everyone in ${team.name}'s squad has a part in this match. Type a name to add the player who played.`}
         />
       </PlayerSearchContext.Provider>

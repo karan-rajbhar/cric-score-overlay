@@ -8,6 +8,8 @@ import type {
 export interface PickerRow {
   id: string;
   name: string;
+  /** Finds them by "@name", and tells two of one name apart. */
+  username?: string | null;
   /** "(c)", "(wk)", "(vc)" */
   role?: string | null;
   /** Today's figures, e.g. "23 (17)" or "2-0-14-1". */
@@ -35,7 +37,7 @@ export function roleLabel(role?: string | null): string | null {
 
 type PickablePlayer = Pick<TeamPlayer, "user_id"> &
   Partial<Pick<TeamPlayer, "batting_order" | "role_in_team">> & {
-    user?: { full_name?: string | null } | null;
+    user?: { full_name?: string | null; username?: string | null } | null;
   };
 
 /** Dedupe by user id, drop blanks and excluded ids, keep roster order. */
@@ -90,6 +92,7 @@ export function buildBatterRows({
     const row: PickerRow = {
       id: p.user_id,
       name: nameOf(p),
+      username: p.user?.username,
       role: roleLabel(p.role_in_team),
       detail: perf
         ? `${perf.runs_scored ?? 0} (${perf.balls_faced ?? 0})`
@@ -172,6 +175,7 @@ export function buildBowlerRows({
     const row: PickerRow = {
       id: p.user_id,
       name: nameOf(p),
+      username: p.user?.username,
       role: roleLabel(p.role_in_team),
       detail:
         figures && left !== null && left > 0
@@ -213,6 +217,7 @@ export function buildFielderRows({
   const rows = rosterOf(players).map<PickerRow>((p) => ({
     id: p.user_id,
     name: nameOf(p),
+    username: p.user?.username,
     role: roleLabel(p.role_in_team),
     tag: p.user_id === bowlerId ? "Bowler" : null,
   }));

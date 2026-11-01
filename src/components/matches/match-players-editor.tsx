@@ -50,6 +50,7 @@ export function MatchPlayersEditor({ match }: { match: EditorMatch }) {
                       title={p.name}
                       subtitle={
                         <span className="tabular-nums">
+                          {p.username && `@${p.username} · `}
                           {partFigures(p) || "Fielded"}
                         </span>
                       }

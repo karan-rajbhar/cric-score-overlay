@@ -39,7 +39,10 @@ export function ballLogContext(
   const innings = new Map<string, InningsRef>();
   for (const team of [match?.team1, match?.team2]) {
     for (const tp of team?.team_players ?? []) {
-      if (tp.user?.id) players.set(tp.user.id, tp.user);
+      if (!tp.user?.id) continue;
+      // What `getMatchBallLog` embeds, not everything the roster carries.
+      const { id, full_name, avatar_url } = tp.user;
+      players.set(id, { id, full_name, avatar_url });
     }
   }
   for (const inn of match?.innings ?? []) {

@@ -594,7 +594,7 @@ export async function createPlayerQuick(
 }
 
 /**
- * Adds a registered player (found by `searchUsers`) to a team's squad from
+ * Adds a registered player (found by `searchPlayers`) to a team's squad from
  * the scoring screen: like `createPlayerQuick`, the match's scorers may do
  * it, during the match or (to correct it) after.
  */
@@ -782,48 +782,6 @@ export async function updatePlayerRole(
   // Captain / vice-captain markers show on a live match's squads.
   await refreshLiveMatchesFor(db, { teamId });
   return { success: true };
-}
-
-export async function searchUsers(query: string) {
-  const db = await createServerClient();
-
-  if (!query || query.length < 2) return { data: [] };
-
-  // Word-prefix match on name / @username: reads at most 10 profiles.
-  const { data, error } = await prefixSearch(
-    db,
-    "users",
-    query,
-    "id, full_name, avatar_url, username",
-    10,
-  );
-
-  if (error) {
-    console.error("Error searching users:", error);
-    return { data: [], error };
-  }
-
-  // How many matches each has played (one batched read of their career
-  // docs), so two players of the same name can be told apart.
-  const found = (data ?? []) as { id: string }[];
-  const { data: careers } = found.length
-    ? await db
-        .from("player_career_stats")
-        .select("id, total_matches")
-        .in(
-          "id",
-          found.map((u) => u.id),
-        )
-    : { data: [] };
-  const matches = new Map(
-    ((careers ?? []) as { id: string; total_matches: number | null }[]).map(
-      (c) => [c.id, c.total_matches ?? 0],
-    ),
-  );
-  return {
-    data: found.map((u) => ({ ...u, matches: matches.get(u.id) ?? 0 })),
-    error: null,
-  };
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB

@@ -221,19 +221,11 @@ import {
 } from "lucide-react";
 import { deliveryKind, deliveryLabel, economyRate } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
-import { searchUsers } from "~/app/teams/actions";
-import {
-  PlayerSearchContext,
-  type FoundPlayer,
-} from "./components/PlayerPicker";
+import { matchParts } from "~/lib/match-players";
+import { lookUpPlayers } from "~/lib/player-lookup";
+import type { PlayerSearchResult } from "~/lib/player-search";
+import { PlayerSearchContext } from "./components/PlayerPicker";
 
-/** A profile as `searchUsers` returns it. */
-type FoundUser = {
-  id: string;
-  full_name: string | null;
-  username?: string | null;
-  matches?: number;
-};
 import {
   matchShareMessage,
   matchShareUrl,
@@ -585,24 +577,40 @@ function useScoringScreen() {
     [bowlingTeamPlayers],
   );
 
-  // Registered players for the pickers' "Add", leaving out both squads, so
-  // the scorer adds the profile that exists instead of a second one.
+  const partTeams = useMemo(
+    () => new Map(match ? matchParts(match).map((p) => [p.id, p.teamName]) : []),
+    [match],
+  );
+
+  // Registered players for the pickers' "Add", so the scorer adds the
+  // profile that exists instead of a second one. Each says which of this
+  // match's squads they are in and who they played for: someone in the other
+  // side's squad may well play for this one today, and left out they would
+  // look as if they were not on CricScore.
   const findPlayers = useCallback(
-    async (query: string): Promise<FoundPlayer[]> => {
-      const { data } = await searchUsers(query);
-      return ((data ?? []) as FoundUser[])
-        .filter(
-          (u) =>
-            !battingTeamPlayerIds.has(u.id) && !bowlingTeamPlayerIds.has(u.id),
-        )
-        .map((u) => ({
-          id: u.id,
-          name: u.full_name ?? "Player",
-          username: u.username,
-          matches: u.matches,
-        }));
+    async (query: string): Promise<PlayerSearchResult> => {
+      const found = await lookUpPlayers(query);
+      const squads = (id: string) =>
+        [
+          battingTeamPlayerIds.has(id) ? battingTeam?.name : null,
+          bowlingTeamPlayerIds.has(id) ? bowlingTeam?.name : null,
+        ].filter((name): name is string => Boolean(name));
+      return {
+        ...found,
+        players: found.players.map((p) => ({
+          ...p,
+          teams: squads(p.id),
+          playedFor: partTeams.get(p.id) ?? null,
+        })),
+      };
     },
-    [battingTeamPlayerIds, bowlingTeamPlayerIds],
+    [
+      battingTeam?.name,
+      bowlingTeam?.name,
+      battingTeamPlayerIds,
+      bowlingTeamPlayerIds,
+      partTeams,
+    ],
   );
 
   const strikerDisplay = useMemo(() => {

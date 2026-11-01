@@ -99,7 +99,8 @@ describe("billed reads per page on the seed data", () => {
     const { fetchHeadToHead } = await import("~/lib/hooks/useMatchQueries");
     const { isMatchAdmin } = await import("./rpc/auth-helpers");
     const { globalSearch } = await import("~/app/search/actions");
-    const { getTeams, searchUsers } = await import("~/app/teams/actions");
+    const { getTeams } = await import("~/app/teams/actions");
+    const { searchPlayers } = await import("./search-players");
     const { default: TeamPage } = await import("~/app/teams/[id]/page");
     const { searchScorers, recordBall } = await import(
       "~/app/matches/mutations"
@@ -234,7 +235,13 @@ describe("billed reads per page on the seed data", () => {
     });
     egress.beforeBallsResponse = bytes(response);
     results.teamsMine = await cost(() => getTeams({ mine: true }));
-    results.typeahead = await cost(() => searchUsers("jo"));
+    results.typeahead = await cost(() => searchPlayers(state.client as never, "jo"));
+    results.typeaheadByHandle = await cost(() =>
+      searchPlayers(state.client as never, "@john_smith"),
+    );
+    results.typeaheadApart = await cost(() =>
+      searchPlayers(state.client as never, "smith john"),
+    );
     results.scorerTypeahead = await cost(() => searchScorers("jo"));
     signIn(null);
 
@@ -318,6 +325,10 @@ describe("billed reads per page on the seed data", () => {
       // 6 when the tournament's club, the match's own, was checked twice.
       matchAdminCheck: 4,
       typeahead: 10,
+      // + the exact username (1).
+      typeaheadByHandle: 12,
+      // The empty phrase query (1), then at most 3 x limit (15) + careers.
+      typeaheadApart: 62,
       scorerTypeahead: 6,
       search: 25,
       // At most limit (5) per collection, and for the long query 1 + 3 x 5.

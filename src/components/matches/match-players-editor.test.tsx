@@ -8,11 +8,12 @@ vi.mock("~/app/matches/mutations", () => ({ replacePlayerInMatch: vi.fn() }));
 vi.mock("~/app/teams/actions", () => ({
   addExistingPlayerQuick: vi.fn(),
   createPlayerQuick: vi.fn(),
-  searchUsers: vi.fn().mockResolvedValue({ data: [] }),
 }));
+vi.mock("~/lib/player-lookup", () => ({ lookUpPlayers: vi.fn() }));
 
 import { replacePlayerInMatch } from "~/app/matches/mutations";
-import { createPlayerQuick } from "~/app/teams/actions";
+import { addExistingPlayerQuick, createPlayerQuick } from "~/app/teams/actions";
+import { lookUpPlayers } from "~/lib/player-lookup";
 import { makeMatch } from "~/test/factories";
 import { MatchPlayersEditor } from "./match-players-editor";
 
@@ -21,7 +22,7 @@ const squad = (team: string, names: [string, string][]) =>
     id: `${team}-${id}`,
     team_id: team,
     user_id: id,
-    user: { id, full_name: name },
+    user: { id, full_name: name, username: id === "ravi" ? "ravi_k" : null },
   }));
 
 const match = makeMatch({
@@ -61,6 +62,7 @@ const match = makeMatch({
 describe("Players page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(lookUpPlayers).mockResolvedValue({ players: [], more: false });
     vi.mocked(replacePlayerInMatch).mockResolvedValue({
       success: true,
       error: null,
@@ -109,7 +111,9 @@ describe("Players page", () => {
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "Sam Khan" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Add .Sam Khan. to Tigers/ }));
+    const add = screen.getByRole("button", { name: /Add .Sam Khan. to Tigers/ });
+    await waitFor(() => expect(add).toBeEnabled());
+    fireEvent.click(add);
     await waitFor(() =>
       expect(createPlayerQuick).toHaveBeenCalledWith("t2", "Sam Khan", "m1"),
     );
@@ -117,6 +121,50 @@ describe("Players page", () => {
     await waitFor(() =>
       expect(replacePlayerInMatch).toHaveBeenCalledWith("m1", "dev", "sam"),
     );
+  });
+
+  it("finds the squad player by @username and says which one they are", async () => {
+    render(<MatchPlayersEditor match={match} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace Rahul Sharma" }));
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "@ravi_k" },
+    });
+    const row = screen.getByRole("radio", { name: /Ravi Kumar/ });
+    expect(row).toHaveTextContent("@ravi_k");
+    // A username finds a player; it is not a new player's name.
+    await screen.findByRole("status");
+    expect(screen.queryByRole("button", { name: /Add .@ravi_k./ })).toBeNull();
+  });
+
+  it("lists a squad player the search found even if the row has no username", async () => {
+    vi.mocked(lookUpPlayers).mockResolvedValue({
+      players: [{ id: "ravi", name: "Ravi Kumar", username: "another_handle" }],
+      more: false,
+    });
+    render(<MatchPlayersEditor match={match} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace Rahul Sharma" }));
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "@another_handle" },
+    });
+    expect(
+      await screen.findByRole("radio", { name: /Ravi Kumar/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("says why someone already in the match cannot replace, instead of hiding them", async () => {
+    vi.mocked(lookUpPlayers).mockResolvedValue({
+      players: [{ id: "dev", name: "Dev Patel", username: "dev", matches: 9 }],
+      more: false,
+    });
+    render(<MatchPlayersEditor match={match} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace Rahul Sharma" }));
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Dev" },
+    });
+    const found = await screen.findByRole("button", { name: /^Dev Patel/ });
+    expect(found).toBeDisabled();
+    expect(found).toHaveTextContent("Already in this match");
+    expect(addExistingPlayerQuick).not.toHaveBeenCalled();
   });
 
   it("says why a replacement was refused, and Cancel closes the choice", async () => {

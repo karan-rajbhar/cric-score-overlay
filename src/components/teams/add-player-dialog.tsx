@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,24 +12,17 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Search, UserPlus, Loader2 } from "lucide-react";
-import {
-  searchUsers,
-  addPlayerToTeam,
-  createPlayerQuick,
-} from "~/app/teams/actions";
+import { addPlayerToTeam, createPlayerQuick } from "~/app/teams/actions";
+import { PlayerSearchNote } from "~/components/players/player-search-note";
 import { toast } from "sonner";
+import { usePlayerSearch } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import { typedHandle, type FoundPlayer } from "~/lib/player-search";
 
 interface AddPlayerDialogProps {
   teamId: string;
   onSuccess?: () => void;
 }
-
-type FoundUser = {
-  id: string;
-  full_name?: string;
-  username?: string | null;
-};
 
 /**
  * Adds a player to a team: search registered players as you type, or create
@@ -38,50 +31,27 @@ type FoundUser = {
 export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [users, setUsers] = useState<FoundUser[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const trimmed = query.trim();
-
-  useEffect(() => {
-    if (trimmed.length < 2) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const { data, error } = await searchUsers(trimmed);
-        if (cancelled) return;
-        if (error) toast.error("Search failed");
-        else setUsers((data ?? []) as FoundUser[]);
-      } catch {
-        if (!cancelled) toast.error(NETWORK_ERROR_MESSAGE);
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [trimmed]);
-
-  const results = trimmed.length >= 2 ? users : [];
+  const handle = typedHandle(trimmed);
+  const searchable = (handle ?? trimmed).length >= 2;
+  const search = usePlayerSearch(searchable ? trimmed : "");
+  const results = search.players;
 
   const finish = (message: string) => {
     toast.success(message);
     setOpen(false);
     setQuery("");
-    setUsers([]);
     onSuccess?.();
   };
 
-  const addExisting = async (user: FoundUser) => {
+  const addExisting = async (user: FoundPlayer) => {
     setBusy(user.id);
     try {
       const result = await addPlayerToTeam(teamId, user.id);
       if (result.error) toast.error(result.error);
-      else finish(`${user.full_name ?? "Player"} added to the squad`);
+      else finish(`${user.name} added to the squad`);
     } catch {
       toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
@@ -115,8 +85,8 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
         <DialogHeader>
           <DialogTitle>Add player to squad</DialogTitle>
           <DialogDescription>
-            Type a name to find a registered player, or add them as a new player
-            if they are not on CricScore yet.
+            Type a name or @username to find a registered player, or add them
+            as a new player if they are not on CricScore yet.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +97,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
               autoCorrect="off"
               autoCapitalize="words"
               spellCheck={false}
-              placeholder="Player name"
+              placeholder="Name or @username"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Search players"
@@ -138,13 +108,13 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
 
           {/* Right under the name box, so it shows while the phone keyboard
               is open (below the results it was out of sight). */}
-          {trimmed.length >= 2 && (
+          {searchable && handle === null && (
             <Button
               type="button"
               variant="secondary"
               className="w-full"
               onClick={() => void createNew()}
-              disabled={busy !== null}
+              disabled={busy !== null || search.status === "searching"}
             >
               {busy === "new" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -155,7 +125,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
             </Button>
           )}
 
-          {trimmed.length >= 2 && (
+          {searchable && (
             <div
               className="space-y-2 sm:max-h-[300px] sm:overflow-y-auto"
               aria-label="Registered players"
@@ -171,11 +141,11 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                      {user.full_name?.substring(0, 1)}
+                      {user.name.substring(0, 1)}
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">
-                        {user.full_name}
+                        {user.name}
                       </p>
                       {user.username && (
                         <p className="truncate font-mono text-xs text-muted-foreground">
@@ -195,16 +165,11 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
                 </button>
               ))}
 
-              {!searching && results.length === 0 && (
-                <p className="px-1 py-2 text-xs text-muted-foreground">
-                  No registered player matches “{trimmed}”.
-                </p>
-              )}
-              {searching && (
-                <p className="px-1 py-2 text-xs text-muted-foreground">
-                  Searching…
-                </p>
-              )}
+              <PlayerSearchNote
+                search={search}
+                query={trimmed}
+                listed={results.length}
+              />
             </div>
           )}
         </div>

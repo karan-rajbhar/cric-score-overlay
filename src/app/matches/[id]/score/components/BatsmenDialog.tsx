@@ -487,11 +487,7 @@ export function BatsmenDialog({
                     }
                   : undefined
               }
-              emptyMessage={
-                survivor
-                  ? "Nobody left to come in."
-                  : "No players in the batting squad yet."
-              }
+              emptyMessage={survivor ? "Nobody left to come in." : undefined}
               noun="batter"
             />
           )}

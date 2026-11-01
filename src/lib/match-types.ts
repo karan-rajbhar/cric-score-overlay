@@ -23,6 +23,7 @@ export interface UserRef {
   id: string;
   full_name: string;
   avatar_url?: string | null;
+  username?: string | null;
 }
 
 export interface Team {
