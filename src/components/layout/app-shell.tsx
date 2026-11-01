@@ -6,12 +6,14 @@ import { usePathname } from "next/navigation";
 import { AppSidebar } from "~/components/layout/app-sidebar";
 import { MobileTabBar } from "~/components/layout/mobile-tab-bar";
 import { NavigationBar } from "~/components/navigation-bar";
+import { useTrackVisits } from "~/lib/in-app-history";
 import { isReportPath } from "~/lib/report-route";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { collapsed } = useSidebarStore();
+  useTrackVisits(pathname);
 
   // If this is an OBS live overlay, render purely without navigation shell
   const isOverlay = pathname?.startsWith("/overlay");
@@ -46,8 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     // Phones: room at the bottom for the floating tab bar.
     <div className="flex min-h-screen flex-col bg-background text-foreground max-md:pb-24">
-        {/* Phones: no header (the tab bar and its More drawer hold its
-            items; detail screens have their own back bar). */}
+        {/* Phones: no header (the tab bar and the More page hold its items;
+            detail screens have their own back bar). */}
         <div className="contents max-md:hidden">
           <NavigationBar />
         </div>
@@ -101,10 +103,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Tournaments
                 </Link>
                 <Link
-                  href="/search"
+                  href="/clubs"
                   className="transition-colors hover:text-foreground"
                 >
-                  Search
+                  Clubs
                 </Link>
               </nav>
             </div>

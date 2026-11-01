@@ -198,7 +198,6 @@ export function ClubMatchesTab({
               <MatchCard
                 key={m.id}
                 match={m as unknown as Match}
-                contextQuery={`clubId=${clubId}`}
                 showActions={false}
               />
             ) : null,

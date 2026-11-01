@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "~/components/ui/button";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { Chip } from "~/components/ds/chip";
 import { TeamCrest } from "~/components/ds/avatar";
@@ -8,7 +6,6 @@ import { MetaItem } from "~/components/ds/list";
 import { ProfileHeader } from "~/components/ds/player-header";
 import {
   ChevronLeft,
-  ChevronRight,
   Users,
   Trophy,
   Calendar,
@@ -36,7 +33,9 @@ import { formatTeamType } from "~/lib/cricket";
 import { EditTeamDialog } from "~/components/teams/edit-team-dialog";
 import { squadClaims, type PlayerClaim } from "~/lib/squad-claims";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import { PageTrail } from "~/components/ds/page-trail";
+import { backLabelOf, parentOf, teamTrail } from "~/lib/navigation";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
 import {
   TeamMatchesView,
   type TeamMatchItem,
@@ -80,8 +79,8 @@ export default async function TeamDetailsPage({
   searchParams?: Promise<{
     /** How many of the latest matches to list ("Show older matches"). */
     matches?: string;
+    /** Only this tournament's matches (a filter). */
     tournamentId?: string;
-    clubId?: string;
     tab?: string;
   }>;
 }) {
@@ -92,7 +91,7 @@ export default async function TeamDetailsPage({
     notFound();
   }
   const resolvedSearchParams = await searchParams;
-  const { tournamentId, clubId, tab } = resolvedSearchParams ?? {};
+  const { tournamentId, tab } = resolvedSearchParams ?? {};
 
   const { data: team, error } = await loadTeam(id);
 
@@ -116,7 +115,7 @@ export default async function TeamDetailsPage({
     if (t) tournamentInfo = t;
   }
 
-  const targetClubId = clubId || team?.club_id;
+  const targetClubId = team?.club_id;
   let clubInfo: { id: string; name: string; owner_id?: string | null } | null =
     null;
   if (
@@ -157,15 +156,9 @@ export default async function TeamDetailsPage({
       team?.created_by === user.id ||
       isClubAdmin);
 
-  let backHref = "/teams";
-  let backLabel = "Back to teams";
-  if (tournamentInfo) {
-    backHref = `/tournaments/${tournamentInfo.id}?tab=teams`;
-    backLabel = `Back to ${tournamentInfo.name}`;
-  } else if (clubInfo) {
-    backHref = `/clubs/${clubInfo.id}?tab=teams`;
-    backLabel = `Back to ${clubInfo.name}`;
-  }
+  const trail = teamTrail({ club: clubInfo, tournament: tournamentInfo });
+  const backHref = parentOf(trail);
+  const backLabel = backLabelOf(trail);
 
   if (error || !team) {
     if (!team) notFound();
@@ -326,94 +319,7 @@ export default async function TeamDetailsPage({
         backHref={backHref}
         backLabel={backLabel}
       />
-      {/* Contextual Breadcrumbs and Back Navigation */}
-      <div className="mb-6 flex flex-col gap-2.5 max-md:hidden">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
-        >
-          {tournamentInfo ? (
-            <>
-              <Link
-                href="/tournaments"
-                className="transition-colors hover:text-foreground"
-              >
-                Tournaments
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/tournaments/${tournamentInfo.id}`}
-                className="max-w-[160px] truncate transition-colors hover:text-foreground"
-              >
-                {tournamentInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/tournaments/${tournamentInfo.id}?tab=teams`}
-                className="transition-colors hover:text-foreground"
-              >
-                Teams
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[160px] truncate font-medium text-foreground">
-                {team.name}
-              </span>
-            </>
-          ) : clubInfo ? (
-            <>
-              <Link
-                href="/clubs"
-                className="transition-colors hover:text-foreground"
-              >
-                Clubs
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/clubs/${clubInfo.id}`}
-                className="max-w-[160px] truncate transition-colors hover:text-foreground"
-              >
-                {clubInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/clubs/${clubInfo.id}?tab=teams`}
-                className="transition-colors hover:text-foreground"
-              >
-                Teams
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[160px] truncate font-medium text-foreground">
-                {team.name}
-              </span>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/teams"
-                className="transition-colors hover:text-foreground"
-              >
-                Teams
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[200px] truncate font-medium text-foreground">
-                {team.name}
-              </span>
-            </>
-          )}
-        </nav>
-
-        <Button
-          variant="ghost"
-          className="w-fit pl-0 text-sm font-medium"
-          asChild
-        >
-          <Link href={backHref}>
-            <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
-            <span className="sm:hidden">Back</span>
-            <span className="hidden sm:inline">{backLabel}</span>
-          </Link>
-        </Button>
-      </div>
+      <PageTrail crumbs={trail} current={team.name} className="mb-6" />
 
       <ProfileHeader
         name={team.name}
@@ -493,8 +399,9 @@ export default async function TeamDetailsPage({
         <div className="mt-6 space-y-6 sm:mt-8">
           {/* Matches and squad */}
           <div>
-            <Tabs
+            <UrlTabs
               defaultValue={tab === "squad" ? "squad" : "matches"}
+              fallback="matches"
               className="w-full"
             >
               <div className="flex items-center justify-between">
@@ -506,7 +413,6 @@ export default async function TeamDetailsPage({
 
               <TabsContent value="matches" className="mt-4">
                 <TeamMatchesView
-                  currentTeamId={team.id}
                   matches={teamMatches}
                   tournamentInfo={tournamentInfo}
                   totalCount={totalCount}
@@ -516,7 +422,6 @@ export default async function TeamDetailsPage({
                   <ShowMoreLink
                     href={`/teams/${team.id}?${new URLSearchParams({
                       ...(tournamentId ? { tournamentId } : {}),
-                      ...(clubId ? { clubId } : {}),
                       matches: String(matchLimit + MATCH_PAGE),
                     })}`}
                     label="Show older matches"
@@ -550,11 +455,9 @@ export default async function TeamDetailsPage({
                   players={players}
                   claims={claims}
                   allowEdit={canManageTeam}
-                  tournamentId={tournamentId}
-                  clubId={targetClubId}
                 />
               </TabsContent>
-            </Tabs>
+            </UrlTabs>
           </div>
         </div>
       </ContentSheet>

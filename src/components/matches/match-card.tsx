@@ -25,8 +25,6 @@ interface MatchCardProps {
   showActions?: boolean;
   /** Whether the signed-in user may score this match (creator/admin). */
   canScore?: boolean;
-  /** Optional context query params (e.g. from=matches or clubId=xxx) */
-  contextQuery?: string;
   /** A line under the result: a player's figures in this match. */
   detail?: React.ReactNode;
 }
@@ -81,12 +79,11 @@ export function MatchCard({
   match: fetched,
   showActions = true,
   canScore = false,
-  contextQuery,
   detail,
 }: MatchCardProps) {
   // A live match follows its live_state doc (no refresh needed).
   const match = useLiveListMatch(fetched);
-  const href = `/matches/${match.id}${contextQuery ? `?${contextQuery}` : ""}`;
+  const href = `/matches/${match.id}`;
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
   const format = `${match.match_format} · ${match.overs_per_innings} overs`;

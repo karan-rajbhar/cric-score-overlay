@@ -1,5 +1,6 @@
 import { PageContainer } from "~/components/layout/page";
 import { ThemeSwitch } from "./_components/theme-switch";
+import { PrinciplesSection } from "./_sections/principles";
 import { FoundationsSection } from "./_sections/foundations";
 import { ControlsSection } from "./_sections/controls";
 import { ContentSection, FeedbackSection } from "./_sections/content";
@@ -7,6 +8,7 @@ import { CricketSection } from "./_sections/cricket";
 import { ScreensSection } from "./_sections/screens";
 
 const SECTIONS = [
+  ["principles", "Principles"],
   ["foundations", "Foundations"],
   ["controls", "Controls"],
   ["content", "Layout"],
@@ -26,9 +28,9 @@ export default function DesignSystemPage() {
               Design system
             </h1>
             <p className="mt-2 max-w-2xl text-pretty text-sm text-muted-foreground">
-              The app&apos;s tokens and components, inspired by Scoreline: the
-              reference to build new screens from. This page only exists on
-              local dev servers.
+              How screens should behave and why, then the app&apos;s tokens and
+              components, inspired by Scoreline: the reference to build new
+              screens from. This page only exists on local dev servers.
             </p>
           </div>
           <ThemeSwitch />
@@ -48,6 +50,7 @@ export default function DesignSystemPage() {
           </ul>
         </nav>
       </header>
+      <PrinciplesSection />
       <FoundationsSection />
       <ControlsSection />
       <ContentSection />

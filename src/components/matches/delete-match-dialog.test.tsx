@@ -18,14 +18,8 @@ let isAdmin: boolean | undefined = true;
 let canDelete: boolean | undefined = true;
 const canDeleteQuery = vi.fn();
 vi.mock("~/lib/auth", () => ({ useAuth: () => ({ user }) }));
-let canStream: boolean | undefined = false;
-const canStreamQuery = vi.fn();
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchAdminQuery: () => ({ data: isAdmin }),
-  useCanProduceOverlayQuery: (...args: unknown[]) => {
-    canStreamQuery(...args);
-    return { data: args[2] ? canStream : undefined };
-  },
   useCanDeleteMatchQuery: (...args: unknown[]) => {
     canDeleteQuery(...args);
     return { data: args[2] ? canDelete : undefined };
@@ -138,10 +132,10 @@ describe("MatchMoreMenu", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Stream this match" }),
     ).toHaveAttribute("href", "/matches/m1/stream");
-    // Scorers also get the control room.
+    // One way into streaming: that page leads on to the control room.
     expect(
-      screen.getByRole("menuitem", { name: "Overlay control room" }),
-    ).toHaveAttribute("href", "/overlay/m1/control");
+      screen.queryByRole("menuitem", { name: "Overlay control room" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: "Delete match" }),
     ).not.toBeInTheDocument();
@@ -150,21 +144,6 @@ describe("MatchMoreMenu", () => {
     canDelete = true;
     rerender(<MatchMoreMenu match={match} />);
     expect(canDeleteQuery).toHaveBeenLastCalledWith("m1", "u1", false);
-  });
-
-  it("gives streamers the control room, asking only once the menu opens", async () => {
-    isAdmin = false;
-    canDelete = false;
-    canStream = true;
-    render(<MatchMoreMenu match={match} />);
-    expect(canStreamQuery).toHaveBeenLastCalledWith("m1", "u1", false);
-    const trigger = screen.getByRole("button", { name: "More match actions" });
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-    expect(
-      await screen.findByRole("menuitem", { name: "Overlay control room" }),
-    ).toHaveAttribute("href", "/overlay/m1/control");
-    expect(canStreamQuery).toHaveBeenLastCalledWith("m1", "u1", true);
-    canStream = false;
   });
 
   it("offers Add to club once the menu opens, reading the user's clubs only then", async () => {

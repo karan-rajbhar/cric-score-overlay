@@ -80,7 +80,7 @@ const mockMatches: TeamMatchItem[] = [
 
 describe("TeamMatchesView", () => {
   it("renders all matches when no tournament filter is active", () => {
-    render(<TeamMatchesView currentTeamId="team-1" matches={mockMatches} />);
+    render(<TeamMatchesView matches={mockMatches} />);
 
     expect(screen.getByText("Riverside Warriors")).toBeInTheDocument();
     expect(screen.getByText("City Titans")).toBeInTheDocument();
@@ -94,7 +94,6 @@ describe("TeamMatchesView", () => {
   it("filters to tournament matches by default when tournamentInfo is provided", () => {
     render(
       <TeamMatchesView
-        currentTeamId="team-1"
         matches={mockMatches}
         tournamentInfo={{
           id: "tourn-1",
@@ -118,7 +117,7 @@ describe("TeamMatchesView", () => {
   });
 
   it("filters matches by status", () => {
-    render(<TeamMatchesView currentTeamId="team-1" matches={mockMatches} />);
+    render(<TeamMatchesView matches={mockMatches} />);
 
     const upcomingBtn = screen.getByRole("button", { name: "Upcoming" });
     fireEvent.click(upcomingBtn);

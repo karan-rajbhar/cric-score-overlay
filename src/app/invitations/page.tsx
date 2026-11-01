@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "~/lib/firebase/server";
+import { ScreenBar } from "~/components/ds/screen";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { InviteDialog } from "~/components/invite-dialog";
 import { SentInvitesList } from "~/components/invitations/sent-invites-list";
@@ -24,6 +25,12 @@ export default async function InvitationsPage() {
 
   return (
     <PageContainer size="narrow">
+      <ScreenBar
+        title="Invites"
+        backHref="/more"
+        backLabel="Back to More"
+        className="md:hidden"
+      />
       <PageHeader
         title="Invites"
         description={`People you invited to CricScore. Showing the latest ${SENT_INVITES_LIMIT}.`}

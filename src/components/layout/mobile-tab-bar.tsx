@@ -1,59 +1,56 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { CalendarDays, Home, Menu, Search, Trophy } from "lucide-react";
+import { CalendarDays, Home, Menu, Shield, Trophy } from "lucide-react";
 import { TabBar } from "~/components/ds/app-bar";
 import { useAuth } from "~/lib/auth";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
+import { navSectionOf } from "~/lib/navigation";
 
 /**
  * Phone navigation: the floating tab bar at the bottom of the screen, where
- * the thumb is. "More" opens the drawer with everything else (clubs, teams,
- * players, overlays). Hidden from tablets up, where the sidebar shows.
+ * the thumb is. Every tab is a place (see `/design#principles`); Clubs holds
+ * the directory (clubs, teams, players), More what has no place of its own,
+ * and Search is a button at the top of the main screens (`SearchLink`).
+ * Hidden from tablets up, where the sidebar shows.
  */
 export function MobileTabBar() {
   const pathname = usePathname() ?? "/";
-  const { user, loading } = useAuth();
-  const { mobileOpen, setMobileOpen } = useSidebarStore();
-  const home = user ? "/dashboard" : "/";
-  const under = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
+  const { user } = useAuth();
+  const section = navSectionOf(pathname);
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
       <TabBar
         items={[
           {
-            href: home,
+            href: user ? "/dashboard" : "/",
             label: "Home",
             icon: Home,
-            // Until auth is known Home points at "/"; keep it lit on the dashboard.
-            active: pathname === home || (loading && pathname === "/dashboard"),
+            active: section === "home",
           },
           {
             href: "/matches",
             label: "Matches",
             icon: CalendarDays,
-            active: under("/matches"),
+            active: section === "matches",
+          },
+          {
+            href: "/clubs",
+            label: "Clubs",
+            icon: Shield,
+            active: section === "clubs",
           },
           {
             href: "/tournaments",
             label: "Tournaments",
             icon: Trophy,
-            active: under("/tournaments"),
+            active: section === "tournaments",
           },
           {
-            href: "/search",
-            label: "Search",
-            icon: Search,
-            active: under("/search"),
-          },
-          {
+            href: "/more",
             label: "More",
             icon: Menu,
-            onClick: () => setMobileOpen(!mobileOpen),
-            expanded: mobileOpen,
-            active: mobileOpen,
+            active: section === "more",
           },
         ]}
       />

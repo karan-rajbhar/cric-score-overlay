@@ -52,8 +52,6 @@ interface PlayerListProps {
    */
   claims?: Record<string, PlayerClaim>;
   allowEdit?: boolean;
-  tournamentId?: string;
-  clubId?: string;
 }
 
 export function PlayerList({
@@ -62,8 +60,6 @@ export function PlayerList({
   players,
   claims = {},
   allowEdit = false,
-  tournamentId,
-  clubId,
 }: PlayerListProps) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [claiming, setClaiming] = useState<{ id: string; name: string } | null>(
@@ -146,7 +142,7 @@ export function PlayerList({
             <Avatar name={name} src={player.user?.avatar_url} size="sm" />
             <span className="min-w-0 flex-1">
               <Link
-                href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
+                href={`/players/${player.user_id}`}
                 className="block truncate text-sm font-medium text-foreground hover:text-primary"
               >
                 {name}

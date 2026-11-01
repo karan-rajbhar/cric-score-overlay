@@ -1488,7 +1488,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             <DropdownMenuItem asChild>
               {/* The team sheet, where any player can be replaced. */}
               <Link
-                href={`/matches/${match.id}/players?from=score`}
+                href={`/matches/${match.id}/players`}
                 className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
               >
                 <UserCog className="h-4 w-4 text-muted-foreground" />

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "~/components/ds/back-link";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -622,13 +623,13 @@ export function ControlClient({
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0f18]/95 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Link
+            <BackLink
               href={isRealMatch ? `/matches/${matchId}` : "/"}
-              aria-label="Back to the match"
+              aria-label={isRealMatch ? "Back to the match" : "Back"}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            </Link>
+            </BackLink>
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold text-white [text-wrap:balance]">
                 Control room

@@ -1,3 +1,5 @@
+import { PageTrail } from "~/components/ds/page-trail";
+import { backLabelOf, clubTrail, parentOf } from "~/lib/navigation";
 import Link from "next/link";
 import { Initials } from "~/components/ui/initials";
 import { notFound } from "next/navigation";
@@ -18,9 +20,8 @@ import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
 import {
-  ChevronLeft,
   Calendar,
   Users,
   Trophy,
@@ -491,21 +492,18 @@ export default async function ClubPage({
       )
     : clubMilestonesFromList(typedMatches as unknown as MilestoneMatch[]);
 
+  const trail = clubTrail();
+
   return (
     <PageContainer stack={false}>
       {/* Phones: the screen's own bar instead of the header. */}
       <ScreenBar
         className="mb-5 md:hidden"
         title="Club"
-        backHref={"/clubs"}
-        backLabel={"All clubs"}
+        backHref={parentOf(trail)}
+        backLabel={backLabelOf(trail)}
       />
-      <Button variant="ghost" size="sm" asChild className="mb-4 max-md:hidden">
-        <Link href="/clubs">
-          <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-          All clubs
-        </Link>
-      </Button>
+      <PageTrail crumbs={trail} current={club.name} className="mb-4" />
 
       <ProfileHeader
         name={club.name}
@@ -593,8 +591,9 @@ export default async function ClubPage({
       </StatGrid>
 
       {/* Club Tabs */}
-      <Tabs
+      <UrlTabs
         defaultValue={resolvedSearchParams?.tab ?? "teams"}
+        fallback="teams"
         className="mt-6 sm:mt-8"
       >
         <TabsList className="flex h-auto w-full justify-start">
@@ -671,7 +670,7 @@ export default async function ClubPage({
                 return (
                   <ListRow
                     key={team.id}
-                    href={`/teams/${team.id}?clubId=${club.id}`}
+                    href={`/teams/${team.id}`}
                     leading={
                       <TeamCrest
                         name={team.name}
@@ -943,7 +942,7 @@ export default async function ClubPage({
             />
           )}
         </TabsContent>
-      </Tabs>
+      </UrlTabs>
       </ContentSheet>
     </PageContainer>
   );

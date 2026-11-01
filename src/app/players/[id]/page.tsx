@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { PageTrail } from "~/components/ds/page-trail";
+import { backLabelOf, parentOf, playerTrail } from "~/lib/navigation";
 import { notFound, redirect } from "next/navigation";
 import {
   legacyHandleOf,
@@ -21,8 +22,6 @@ import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
 } from "~/lib/firebase/team-snapshot";
-import { Button } from "~/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PlayerHeader } from "~/components/ds/player-header";
 import { ProfileTeams } from "~/components/players/player-profile";
 import {
@@ -100,17 +99,10 @@ export default async function PlayerPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{
-    teamId?: string;
-    tournamentId?: string;
-    matchId?: string;
-    clubId?: string;
-    tab?: string;
-  }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
-  const { teamId, tournamentId, matchId, clubId, tab } =
-    resolvedSearchParams ?? {};
+  const { tab } = resolvedSearchParams ?? {};
 
   const db = await createServerClient();
 
@@ -324,52 +316,7 @@ export default async function PlayerPage({
   const ownEmail = isSelf ? (currentUserData?.user?.email ?? null) : null;
 
   // Contextual navigation resolution
-  let teamInfo: { id: string; name: string } | null = null;
-  if (
-    teamId &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      teamId,
-    )
-  ) {
-    const { data: t } = await db
-      .from("teams")
-      .select("id, name")
-      .eq("id", teamId)
-      .single();
-    if (t) teamInfo = t;
-  }
-
-  let tournamentInfo: { id: string; name: string } | null = null;
-  if (
-    tournamentId &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      tournamentId,
-    )
-  ) {
-    const { data: tr } = await db
-      .from("tournaments")
-      .select("id, name")
-      .eq("id", tournamentId)
-      .single();
-    if (tr) tournamentInfo = tr;
-  }
-
-  let backHref = "/players";
-  let backLabel = "Back to players";
-  if (teamInfo) {
-    const q = new URLSearchParams();
-    if (tournamentId) q.set("tournamentId", tournamentId);
-    if (clubId) q.set("clubId", clubId);
-    const qs = q.toString();
-    backHref = `/teams/${teamInfo.id}${qs ? `?${qs}` : ""}`;
-    backLabel = `Back to ${teamInfo.name}`;
-  } else if (tournamentInfo) {
-    backHref = `/tournaments/${tournamentInfo.id}?tab=analysis`;
-    backLabel = `Back to ${tournamentInfo.name}`;
-  } else if (matchId) {
-    backHref = `/matches/${matchId}`;
-    backLabel = "Back to match";
-  }
+  const trail = playerTrail();
 
   const matchesList: PlayerMatchItem[] = matchesData.map((m) => {
     const playerBat = batting.find((b) => b.match_id === m.id);
@@ -409,111 +356,10 @@ export default async function PlayerPage({
       <ScreenBar
         className="mb-5 md:hidden"
         title="Player"
-        backHref={backHref}
-        backLabel={backLabel}
+        backHref={parentOf(trail)}
+        backLabel={backLabelOf(trail)}
       />
-      {/* Contextual Breadcrumbs and Back Navigation */}
-      <div className="mb-6 flex flex-col gap-2.5 max-md:hidden">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
-        >
-          {tournamentInfo && teamInfo ? (
-            <>
-              <Link
-                href="/tournaments"
-                className="transition-colors hover:text-foreground"
-              >
-                Tournaments
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/tournaments/${tournamentInfo.id}`}
-                className="max-w-[140px] truncate transition-colors hover:text-foreground"
-              >
-                {tournamentInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/teams/${teamInfo.id}?tournamentId=${tournamentInfo.id}`}
-                className="max-w-[140px] truncate transition-colors hover:text-foreground"
-              >
-                {teamInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[160px] truncate font-medium text-foreground">
-                {user.full_name}
-              </span>
-            </>
-          ) : teamInfo ? (
-            <>
-              <Link
-                href="/teams"
-                className="transition-colors hover:text-foreground"
-              >
-                Teams
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/teams/${teamInfo.id}`}
-                className="max-w-[160px] truncate transition-colors hover:text-foreground"
-              >
-                {teamInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[160px] truncate font-medium text-foreground">
-                {user.full_name}
-              </span>
-            </>
-          ) : tournamentInfo ? (
-            <>
-              <Link
-                href="/tournaments"
-                className="transition-colors hover:text-foreground"
-              >
-                Tournaments
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <Link
-                href={`/tournaments/${tournamentInfo.id}`}
-                className="max-w-[160px] truncate transition-colors hover:text-foreground"
-              >
-                {tournamentInfo.name}
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[160px] truncate font-medium text-foreground">
-                {user.full_name}
-              </span>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/players"
-                className="transition-colors hover:text-foreground"
-              >
-                Players
-              </Link>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="max-w-[200px] truncate font-medium text-foreground">
-                {user.full_name}
-              </span>
-            </>
-          )}
-        </nav>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-          className="min-h-[36px] w-fit pl-0"
-        >
-          <Link href={backHref}>
-            <ChevronLeft className="mr-1.5 h-4 w-4 shrink-0" />
-            <span className="sm:hidden">Back</span>
-            <span className="hidden sm:inline">{backLabel}</span>
-          </Link>
-        </Button>
-      </div>
+      <PageTrail crumbs={trail} current={user.full_name} className="mb-6" />
 
       <div className="space-y-4">
         <PlayerHeader
@@ -540,7 +386,7 @@ export default async function PlayerPage({
             </>
           }
         />
-        <ProfileTeams teams={teams} tournamentId={tournamentId} />
+        <ProfileTeams teams={teams} />
         {!isSelf && (
           <EntityActions
             kind="player"
@@ -554,13 +400,10 @@ export default async function PlayerPage({
       {/* Career figures first, then the innings, matches and teams. */}
       <ContentSheet className="mt-8">
         <PlayerActivityTabs
-          userId={id}
           teams={teams}
           batting={batting}
           bowling={bowling}
           matches={matchesList}
-          tournamentId={tournamentId}
-          teamId={teamId}
           initialTab={tab}
           statistics={
             <SeasonStatistics

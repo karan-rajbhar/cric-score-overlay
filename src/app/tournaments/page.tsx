@@ -38,6 +38,7 @@ export default async function TournamentsPage({
   return (
     <PageContainer>
       <PageHeader
+        search
         title="Tournaments"
         description="Leagues and cups with fixtures and points tables"
         actions={

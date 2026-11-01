@@ -32,28 +32,25 @@ async function scores(matchId: string): Promise<boolean> {
 
 /**
  * A match's players, for its scorers to replace one recorded by mistake,
- * during the match or after it. `?from=score`: opened from the scoring
- * screen, so Back returns there.
+ * during the match or after it. Back returns where they came from (the
+ * scoring screen or the match).
  */
 export default async function MatchPlayersPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
 }) {
-  const [{ id }, { from }] = await Promise.all([params, searchParams]);
+  const { id } = await params;
   const [{ data }, scorer] = await Promise.all([getMatch(id), scores(id)]);
   const match = (data as Match | null) ?? null;
   if (!match) notFound();
-  const back = from === "score" ? `/matches/${id}/score` : `/matches/${id}`;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <ScreenBar
         title="Players"
-        backHref={back}
-        backLabel={from === "score" ? "Back to scoring" : "Back to the match"}
+        backHref={`/matches/${id}`}
+        backLabel="Back to the match"
       />
       <p className="text-balance text-center text-sm font-medium text-foreground">
         {match.title}

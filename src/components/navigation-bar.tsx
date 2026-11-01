@@ -46,18 +46,21 @@ export function NavigationBar() {
   const { toggleCollapsed } = useSidebarStore();
   useIosInstallHint(Boolean(user));
 
-  // Keyboard shortcut ⌘K / Ctrl+K for search
+  // Keyboard shortcuts: Ctrl+K for search, Ctrl+B for the sidebar.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if (!e.metaKey && !e.ctrlKey) return;
+      if (e.key === "k") {
         e.preventDefault();
-        const searchInput = document.getElementById("global-search-input");
-        searchInput?.focus();
+        document.getElementById("global-search-input")?.focus();
+      } else if (e.key === "b") {
+        e.preventDefault();
+        toggleCollapsed();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [toggleCollapsed]);
 
   return (
     <nav className="sticky top-0 z-40 h-14 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
@@ -77,7 +80,7 @@ export function NavigationBar() {
           </Button>
 
           <Link
-            href="/"
+            href={user ? "/dashboard" : "/"}
             className="flex shrink-0 items-center gap-2 rounded-lg"
             aria-label="CricScore home"
           >
@@ -237,7 +240,7 @@ export function NavigationBar() {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
-                  <Link href="/dashboard">Dashboard</Link>
+                  <Link href="/dashboard">Home</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer text-xs">
                   <Link

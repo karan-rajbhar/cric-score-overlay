@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { DrawerNotifications } from "./push-settings";
+import { NotificationSettings } from "./push-settings";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const push = {
@@ -19,32 +19,32 @@ beforeEach(() => {
   push.enabled = false;
 });
 
-describe("DrawerNotifications", () => {
+describe("NotificationSettings", () => {
   it("is hidden where push cannot work", () => {
     push.availability = "unsupported";
-    const { container } = render(<DrawerNotifications />);
+    const { container } = render(<NotificationSettings />);
     expect(container).toBeEmptyDOMElement();
     push.availability = "unconfigured";
-    const again = render(<DrawerNotifications />);
+    const again = render(<NotificationSettings />);
     expect(again.container).toBeEmptyDOMElement();
   });
 
   it("explains, and turns notifications on and off", async () => {
-    const { rerender } = render(<DrawerNotifications />);
+    const { rerender } = render(<NotificationSettings />);
     expect(
       screen.getByRole("region", { name: "Notifications" }),
     ).toHaveTextContent("starts, at the innings break and with the result");
     fireEvent.click(screen.getByRole("button", { name: "Turn on notifications" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Notifications are on"));
     push.enabled = true;
-    rerender(<DrawerNotifications />);
+    rerender(<NotificationSettings />);
     fireEvent.click(screen.getByRole("button", { name: "Turn off on this device" }));
     await waitFor(() => expect(push.disable).toHaveBeenCalled());
   });
 
   it("tells iPhone and iPad users to add the app first", () => {
     push.availability = "needs-install";
-    render(<DrawerNotifications />);
+    render(<NotificationSettings />);
     expect(screen.getByText(/add CricScore to your Home Screen first/)).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
   });

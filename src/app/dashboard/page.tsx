@@ -67,7 +67,7 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
               <FixtureCard
                 key={m.id}
                 bare
-                href={`/matches/${m.id}?from=dashboard`}
+                href={`/matches/${m.id}`}
                 date={start?.date ?? "Date to be confirmed"}
                 time={start?.time ?? "TBC"}
                 home={teamRef(m.team1)}
@@ -219,7 +219,6 @@ export default function Dashboard() {
               <MatchCard
                 key={match.id}
                 match={match}
-                contextQuery="from=dashboard"
                 canScore={false}
               />
             ))}

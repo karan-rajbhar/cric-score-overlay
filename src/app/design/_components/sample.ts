@@ -2,7 +2,7 @@
  * Made-up clubs and players for the design reference. One consistent story:
  * a Summer League T20 where Hilltop Hawks are chasing Riverside's 168.
  */
-import { CalendarDays, Home, Search, Trophy, User } from "lucide-react";
+import { CalendarDays, Home, Menu, Shield, Trophy } from "lucide-react";
 import type { TabBarItem } from "~/components/ds/app-bar";
 import type { BallKind } from "~/components/ds/ball";
 import type { InningsRef, TeamRef } from "~/components/ds/score";
@@ -417,7 +417,7 @@ export const PLAYER_METERS = [
 export const TAB_BAR_ITEMS: TabBarItem[] = [
   { href: "#screens", label: "Home", icon: Home, active: true },
   { href: "#screens", label: "Matches", icon: CalendarDays },
+  { href: "#screens", label: "Clubs", icon: Shield },
   { href: "#screens", label: "Tournaments", icon: Trophy },
-  { href: "#screens", label: "Search", icon: Search },
-  { href: "#screens", label: "Profile", icon: User },
+  { href: "#screens", label: "More", icon: Menu },
 ];

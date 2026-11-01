@@ -1,5 +1,6 @@
 "use client";
 
+import { setUrlParam } from "~/lib/url-state";
 import { useState } from "react";
 import type * as React from "react";
 import Link from "next/link";
@@ -145,13 +146,10 @@ export interface PlayerMatchItem {
 }
 
 interface PlayerActivityTabsProps {
-  userId: string;
   teams: PlayerTeamMembership[];
   batting: PlayerBattingPerformance[];
   bowling: PlayerBowlingPerformance[];
   matches: PlayerMatchItem[];
-  tournamentId?: string;
-  teamId?: string;
   initialTab?: string;
   /** The career figures: the first tab, open by default. */
   statistics?: React.ReactNode;
@@ -205,13 +203,7 @@ function MatchOpponentCell({
 }
 
 /** Last cells of a batting or bowling row: the result and the scorecard link. */
-function MatchResultCells({
-  match,
-  userId,
-}: {
-  match?: PerformanceMatch | null;
-  userId: string;
-}) {
+function MatchResultCells({ match }: { match?: PerformanceMatch | null }) {
   return (
     <>
       <TableCell>
@@ -228,7 +220,7 @@ function MatchResultCells({
         {match && (
           <Button asChild variant="ghost" size="sm" className="h-7 w-7 p-0">
             <Link
-              href={`/matches/${match.id}?playerId=${userId}`}
+              href={`/matches/${match.id}`}
               title="View the scorecard"
             >
               <ArrowRight className="h-4 w-4" />
@@ -241,29 +233,29 @@ function MatchResultCells({
 }
 
 export function PlayerActivityTabs({
-  userId,
   teams,
   batting,
   bowling,
   matches,
-  tournamentId,
   initialTab,
   statistics,
 }: PlayerActivityTabsProps) {
   // Determine default active tab
-  const defaultTab =
-    initialTab ??
-    (statistics
-      ? "statistics"
-      : batting.length > 0
+  const defaultTab = statistics
+    ? "statistics"
+    : batting.length > 0
       ? "batting"
       : bowling.length > 0
         ? "bowling"
         : matches.length > 0
           ? "matches"
-          : "teams");
+          : "teams";
 
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const [activeTab, setActiveTab] = useState(initialTab ?? defaultTab);
+  const changeTab = (tab: string) => {
+    setActiveTab(tab);
+    setUrlParam("tab", tab, defaultTab);
+  };
 
   // Helper to determine opponent team name
   const getOpponent = (match?: PerformanceMatch | null) => {
@@ -275,7 +267,7 @@ export function PlayerActivityTabs({
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
       <TabsList aria-label="Player sections">
         {statistics && (
           <TabsTrigger value="statistics">Statistics</TabsTrigger>
@@ -399,7 +391,7 @@ export function PlayerActivityTabs({
                           </span>
                         </TableCell>
 
-                        <MatchResultCells match={bp.match} userId={userId} />
+                        <MatchResultCells match={bp.match} />
                       </TableRow>
                     );
                   })}
@@ -505,7 +497,7 @@ export function PlayerActivityTabs({
                           {bp.wides}/{bp.no_balls}
                         </TableCell>
 
-                        <MatchResultCells match={bp.match} userId={userId} />
+                        <MatchResultCells match={bp.match} />
                       </TableRow>
                     );
                   })}
@@ -541,7 +533,6 @@ export function PlayerActivityTabs({
                 <MatchCard
                   key={m.id}
                   match={m as unknown as Match}
-                  contextQuery={`playerId=${userId}`}
                   showActions={false}
                   detail={
                     figures.length > 0 ? (
@@ -583,7 +574,7 @@ export function PlayerActivityTabs({
               return (
                 <ListRow
                   key={tm.id}
-                  href={`/teams/${tm.team.id}${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`}
+                  href={`/teams/${tm.team.id}`}
                   leading={
                     <TeamCrest
                       name={tm.team.name}

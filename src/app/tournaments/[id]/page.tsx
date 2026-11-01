@@ -8,10 +8,10 @@ import {
   MATCH_TEAM_COLUMNS,
 } from "~/lib/firebase/team-snapshot";
 import { Button } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import { PageTrail } from "~/components/ds/page-trail";
+import { backLabelOf, parentOf, tournamentTrail } from "~/lib/navigation";
+import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
 import {
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   MapPin,
   Trophy,
@@ -117,7 +117,7 @@ export default async function TournamentPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tab?: string; clubId?: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 }) {
   const { id } = await params;
   if (
@@ -383,18 +383,9 @@ export default async function TournamentPage({
     noResult: noResultMatches,
   } = matchGroupsOf(typedMatches);
 
-  const targetClubId = resolvedSearchParams?.clubId;
-  const matchQuery = `tournamentId=${tournament.id}${
-    targetClubId ? `&clubId=${targetClubId}` : ""
-  }`;
-  const clubInfo = tournament.club as { id: string; name: string } | null;
-  const backHref = targetClubId
-    ? `/clubs/${targetClubId}?tab=tournaments`
-    : "/tournaments";
-  const backLabel =
-    targetClubId && clubInfo?.name
-      ? `Back to ${clubInfo.name}`
-      : "All tournaments";
+  const trail = tournamentTrail({
+    club: tournament.club as { id: string; name: string } | null,
+  });
 
   return (
     <PageContainer stack={false}>
@@ -402,45 +393,10 @@ export default async function TournamentPage({
       <ScreenBar
         className="mb-5 md:hidden"
         title="Tournament"
-        backHref={backHref}
-        backLabel={backLabel}
+        backHref={parentOf(trail)}
+        backLabel={backLabelOf(trail)}
       />
-      {/* Top Back Nav & Breadcrumbs */}
-      <div className="mb-4 flex flex-wrap items-center gap-2 max-md:hidden">
-        <Button
-          variant="ghost"
-          size="sm"
-          asChild
-          className="pl-0"
-        >
-          <Link href={backHref}>
-            <ChevronLeft className="mr-1 h-4 w-4 shrink-0" />
-            <span className="sm:hidden">Back</span>
-            <span className="hidden sm:inline">{backLabel}</span>
-          </Link>
-        </Button>
-        {targetClubId && clubInfo && (
-          <nav
-            aria-label="Breadcrumb"
-            className="hidden items-center gap-1.5 border-l pl-3 text-xs text-muted-foreground sm:flex"
-          >
-            <Link href="/clubs" className="hover:text-foreground">
-              Clubs
-            </Link>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            <Link
-              href={`/clubs/${targetClubId}?tab=tournaments`}
-              className="max-w-[150px] truncate hover:text-foreground"
-            >
-              {clubInfo.name}
-            </Link>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            <span className="max-w-[180px] truncate font-medium text-foreground">
-              {tournament.name}
-            </span>
-          </nav>
-        )}
-      </div>
+      <PageTrail crumbs={trail} current={tournament.name} className="mb-4" />
 
       <ProfileHeader
         name={tournament.name}
@@ -555,8 +511,9 @@ export default async function TournamentPage({
       </StatGrid>
 
       {/* Main Tabs Navigation */}
-      <Tabs
+      <UrlTabs
         defaultValue={resolvedSearchParams?.tab ?? "standings"}
+        fallback="standings"
         className="mt-6 sm:mt-8"
       >
         <TabsList className="flex h-auto w-full justify-start">
@@ -702,7 +659,6 @@ export default async function TournamentPage({
                   <MatchCard
                     key={m.id}
                     match={m as unknown as Match}
-                    contextQuery={matchQuery}
                     showActions={false}
                   />
                 ))}
@@ -728,7 +684,6 @@ export default async function TournamentPage({
                     <div key={m.id} className="min-w-0 space-y-2">
                       <MatchCard
                         match={m as unknown as Match}
-                        contextQuery={matchQuery}
                         showActions={false}
                       />
                       <RescheduleMatchDialog match={m} />
@@ -737,7 +692,6 @@ export default async function TournamentPage({
                     <MatchCard
                       key={m.id}
                       match={m as unknown as Match}
-                      contextQuery={matchQuery}
                       showActions={false}
                     />
                   ),
@@ -757,7 +711,6 @@ export default async function TournamentPage({
                   <MatchCard
                     key={m.id}
                     match={m as unknown as Match}
-                    contextQuery={matchQuery}
                     showActions={false}
                   />
                 ))}
@@ -776,7 +729,6 @@ export default async function TournamentPage({
                   <MatchCard
                     key={m.id}
                     match={m as unknown as Match}
-                    contextQuery={matchQuery}
                     showActions={false}
                   />
                 ))}
@@ -913,7 +865,7 @@ export default async function TournamentPage({
             showHighlights={true}
           />
         </TabsContent>
-      </Tabs>
+      </UrlTabs>
       </ContentSheet>
     </PageContainer>
   );

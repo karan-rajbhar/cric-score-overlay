@@ -7,20 +7,14 @@ import { formatPlayerRole } from "~/lib/cricket";
 import type { PlayerTeamMembership } from "./player-activity-tabs";
 
 /** The player's teams as white pills: crest, name, shirt number, role. */
-export function ProfileTeams({
-  teams,
-  tournamentId,
-}: {
-  teams: PlayerTeamMembership[];
-  tournamentId?: string;
-}) {
+export function ProfileTeams({ teams }: { teams: PlayerTeamMembership[] }) {
   if (teams.length === 0) return null;
   return (
     <ul className="flex flex-wrap gap-2">
       {teams.map((tm) => (
         <li key={tm.id}>
           <Link
-            href={`/teams/${tm.team.id}${tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ""}`}
+            href={`/teams/${tm.team.id}`}
             className="inline-flex max-w-full items-center gap-2 rounded-full bg-card py-1 pl-1 pr-3 text-sm font-medium text-foreground shadow-soft ring-1 ring-border/40 transition-colors hover:bg-accent"
           >
             <TeamCrest

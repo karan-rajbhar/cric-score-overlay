@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import QRCode from "qrcode";
+import { Button } from "~/components/ds/button";
 import { ScreenBar } from "~/components/ds/screen";
 import { StreamSetup } from "~/components/overlay/stream-setup";
 import type { LiveMatchState } from "~/components/overlay/types";
@@ -80,6 +82,16 @@ export default async function StreamMatchPage({
         {match.title}: add the live score to your stream. It updates by itself
         after every ball.
       </p>
+      <div className="mx-auto flex max-w-3xl flex-wrap gap-2">
+        {producer && (
+          <Button asChild variant="soft" size="sm">
+            <Link href={`/overlay/${id}/control`}>Open the control room</Link>
+          </Button>
+        )}
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/overlay/test/control">Try it on a demo match</Link>
+        </Button>
+      </div>
       <StreamSetup
         matchId={id}
         overlayUrl={overlayUrl}

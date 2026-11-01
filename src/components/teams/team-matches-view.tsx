@@ -49,7 +49,6 @@ export interface TeamMatchItem {
 }
 
 interface TeamMatchesViewProps {
-  currentTeamId: string;
   matches: TeamMatchItem[];
   tournamentInfo?: { id: string; name: string } | null;
   /** All the team's matches, when `matches` is only the latest of them. */
@@ -59,7 +58,6 @@ interface TeamMatchesViewProps {
 }
 
 export function TeamMatchesView({
-  currentTeamId,
   matches,
   tournamentInfo,
   totalCount,
@@ -154,9 +152,6 @@ export function TeamMatchesView({
             <MatchCard
               key={match.id}
               match={match as unknown as Match}
-              contextQuery={`teamId=${currentTeamId}${
-                tournamentInfo ? `&tournamentId=${tournamentInfo.id}` : ""
-              }`}
               showActions={false}
             />
           ))}
