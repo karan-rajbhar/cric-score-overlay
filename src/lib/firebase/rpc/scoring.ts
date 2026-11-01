@@ -2012,10 +2012,28 @@ export async function replacePlayer(
   const { p_match_id: matchId, p_from_id: from, p_to_id: to } = args;
   if (!from || !to || from === to)
     throw new DbQueryError("invalid_input", "22000");
+  const teamId = await movePlayer(ctx, matchId, from, to, { asScorer: true });
+  return { team_id: teamId! };
+}
+
+/**
+ * Moves `from`'s whole part in a match to `to`, as `replacePlayer` does.
+ * `asScorer`: a scorer's correction, who must score the match, for a player
+ * in it, with `to` in that team's squad. Without it (merging two profiles,
+ * whose caller is checked there): a match `from` has no part in is left
+ * alone and answers null, and `to` need not be in the squad.
+ */
+export async function movePlayer(
+  ctx: ScoringContext,
+  matchId: string,
+  from: string,
+  to: string,
+  { asScorer }: { asScorer: boolean },
+): Promise<string | null> {
   const now = new Date().toISOString();
   const [[match, teamId], changed] = await runTracked(ctx, async (t) => {
     const match = await t.doc<MatchesRow>("matches", matchId);
-    await requireAdminOf(ctx, matchId, match);
+    if (asScorer) await requireAdminOf(ctx, matchId, match);
     if (!match) throw new DbQueryError("match_not_found", "22000");
     const [innings, overs] = await Promise.all([
       t.where<InningsRow>("innings", [["match_id", "==", matchId]]),
@@ -2029,16 +2047,21 @@ export async function replacePlayer(
         ) || overs.some((o) => JSON.stringify(o.balls ?? []).includes(needle))
       );
     };
-    if (!mentions(from)) throw new DbQueryError("player_not_in_match", "22000");
+    if (!mentions(from)) {
+      if (asScorer) throw new DbQueryError("player_not_in_match", "22000");
+      return [match, null] as const;
+    }
     if (mentions(to)) throw new DbQueryError("player_already_in_match", "22000");
     const teamId = teamOfPlayer(match, innings, from);
     if (!teamId) throw new DbQueryError("player_not_in_match", "22000");
-    const roster = await t.where<TeamPlayersRow>("team_players", [
-      ["team_id", "==", teamId],
-      ["user_id", "==", to],
-    ]);
-    if (roster.length === 0)
-      throw new DbQueryError("player_not_in_team", "22000");
+    if (asScorer) {
+      const roster = await t.where<TeamPlayersRow>("team_players", [
+        ["team_id", "==", teamId],
+        ["user_id", "==", to],
+      ]);
+      if (roster.length === 0)
+        throw new DbQueryError("player_not_in_team", "22000");
+    }
 
     const after = innings.map((inn) => {
       const patch: Record<string, unknown> = {};
@@ -2066,8 +2089,8 @@ export async function replacePlayer(
     await syncMatchRecords(t, matchId, matchAfter, after, now);
     return [match, teamId] as const;
   });
-  await finishQuietly(ctx, matchId, match, changed);
-  return { team_id: teamId };
+  if (teamId) await finishQuietly(ctx, matchId, match, changed);
+  return teamId;
 }
 
 // ---------------------------------------------------------------------------

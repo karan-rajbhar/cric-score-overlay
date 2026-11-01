@@ -18,7 +18,16 @@ describe("lookUpPlayers", () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(answer)));
     await expect(lookUpPlayers("@rahul s&x")).resolves.toEqual(answer);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "/api/players/search?q=%40rahul%20s%26x",
+      "/api/players/search?q=%40rahul+s%26x",
+    );
+  });
+
+  it("names the club when there is one", async () => {
+    const answer = { players: [], more: false };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(answer)));
+    await lookUpPlayers("rahul", { clubId: "c1" });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/players/search?q=rahul&club=c1",
     );
   });
 

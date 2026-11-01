@@ -10,6 +10,7 @@ import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
 import type { ClubSide } from "~/lib/firebase/types";
+import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { invalidateMatchCache } from "~/lib/match-cache";
 import { afterDeleteHref } from "~/lib/match-delete";
 import type { DeleteMatchResult } from "~/lib/firebase/rpc/delete-match";
@@ -1720,11 +1721,21 @@ export async function replaceBatter(
  * player-of-the-match award go to `toId`, a squad player who has no part
  * in the match yet; the scorecards and statistics follow.
  */
+/** The player just replaced, if they never signed in: maybe a duplicate. */
+export interface ReplacedPlayer {
+  /** Matches they still have: none, and they can simply be removed. */
+  otherMatches: number;
+}
+
 export async function replacePlayerInMatch(
   matchId: string,
   fromId: string,
   toId: string,
-): Promise<{ success: boolean; error: string | null }> {
+): Promise<{
+  success: boolean;
+  error: string | null;
+  leftover?: ReplacedPlayer | null;
+}> {
   try {
     const db = await createServerClient();
     const {
@@ -1745,13 +1756,63 @@ export async function replacePlayerInMatch(
     revalidatePath(`/matches/${matchId}/score`);
     revalidatePath(`/players/${fromId}`);
     revalidatePath(`/players/${toId}`);
-    return { success: true, error: null };
+    // The replacement stands whatever this answers.
+    const { data: leftover } = await db.rpc<{
+      placeholder: boolean;
+      otherMatches: number;
+    }>("player_leftover", { p_user_id: fromId });
+    return {
+      success: true,
+      error: null,
+      leftover: leftover?.placeholder
+        ? { otherMatches: leftover.otherMatches }
+        : null,
+    };
   } catch (err) {
     console.error("Unexpected error in replacePlayerInMatch:", err);
     return {
       success: false,
       error: friendlyError(
         err instanceof Error ? err.message : "Failed to replace the player",
+      ),
+    };
+  }
+}
+
+/**
+ * Takes a replaced duplicate off the squad, and off CricScore once nothing
+ * names them, for the match's scorers (`remove_leftover_player`).
+ */
+export async function removeReplacedPlayer(
+  matchId: string,
+  teamId: string,
+  userId: string,
+): Promise<{ success: boolean; error: string | null }> {
+  try {
+    const db = await createServerClient();
+    const {
+      data: { user },
+    } = await db.auth.getUser();
+    if (!user) {
+      return { success: false, error: "You must be logged in to remove a player" };
+    }
+    const { error } = await db.rpc("remove_leftover_player", {
+      p_match_id: matchId,
+      p_team_id: teamId,
+      p_user_id: userId,
+    });
+    if (error) return { success: false, error: friendlyError(error.message) };
+    invalidateMatchCache(matchId);
+    revalidatePath(`/matches/${matchId}`);
+    revalidatePath(`/teams/${teamId}`);
+    await refreshLiveMatchesFor(db, { teamId });
+    return { success: true, error: null };
+  } catch (err) {
+    console.error("Unexpected error in removeReplacedPlayer:", err);
+    return {
+      success: false,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Failed to remove the player",
       ),
     };
   }

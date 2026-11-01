@@ -13,14 +13,17 @@ export const PLAYER_LOOKUP_TIMEOUT_MS = 6_000;
 
 export async function lookUpPlayers(
   query: string,
+  /** The club being added to: its members come first. */
+  { clubId }: { clubId?: string | null } = {},
 ): Promise<PlayerSearchResult> {
+  const params = new URLSearchParams({ q: query });
+  if (clubId) params.set("club", clubId);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PLAYER_LOOKUP_TIMEOUT_MS);
   try {
-    const res = await fetch(
-      `/api/players/search?q=${encodeURIComponent(query)}`,
-      { signal: controller.signal },
-    );
+    const res = await fetch(`/api/players/search?${params}`, {
+      signal: controller.signal,
+    });
     if (!res.ok) throw new Error(`Player search answered ${res.status}`);
     return (await res.json()) as PlayerSearchResult;
   } finally {

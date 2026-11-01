@@ -9,6 +9,7 @@ import { createServerClient } from "~/lib/firebase/server";
 import { canManageTeam } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseTeamColor } from "~/lib/team-colors";
@@ -782,6 +783,69 @@ export async function updatePlayerRole(
   // Captain / vice-captain markers show on a live match's squads.
   await refreshLiveMatchesFor(db, { teamId });
   return { success: true };
+}
+
+/** What merging a player into another would do (`MergePlayerDialog`). */
+export async function previewMergePlayer(
+  teamId: string,
+  fromId: string,
+  toId: string,
+) {
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc<{ matches: number; together: number }>(
+      "preview_player_merge",
+      { p_team_id: teamId, p_from_id: fromId, p_to_id: toId },
+    );
+    if (error) return { data: null, error: friendlyError(error.message) };
+    return { data, error: null };
+  } catch (err) {
+    console.error("Unexpected error in previewMergePlayer:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Could not compare the players",
+      ),
+    };
+  }
+}
+
+/**
+ * One batch of merging a player into another: call until `done`. Running it
+ * again after a failure carries on.
+ */
+export async function mergePlayerInto(
+  teamId: string,
+  fromId: string,
+  toId: string,
+) {
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc<{
+      moved: number;
+      remaining: number;
+      done: boolean;
+    }>("merge_player", {
+      p_team_id: teamId,
+      p_from_id: fromId,
+      p_to_id: toId,
+    });
+    if (error) return { data: null, error: friendlyError(error.message) };
+    if (data?.done) {
+      revalidatePath(`/teams/${teamId}`);
+      revalidatePath(`/players/${toId}`);
+      await refreshLiveMatchesFor(db, { teamId });
+    }
+    return { data, error: null };
+  } catch (err) {
+    console.error("Unexpected error in mergePlayerInto:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Could not merge the players",
+      ),
+    };
+  }
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB

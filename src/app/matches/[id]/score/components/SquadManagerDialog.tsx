@@ -13,9 +13,13 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { PlayerSearchNote } from "~/components/players/player-search-note";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
 import { removePlayerFromTeam } from "~/app/teams/actions";
-import { usePlayerSearch } from "~/lib/hooks/usePlayerSearch";
+import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import type { TeamPlayer } from "~/lib/match-types";
 import {
   foundPlayerHint,
@@ -25,6 +29,7 @@ import {
   whyNotAddable,
   type FoundPlayer,
 } from "~/lib/player-search";
+import { rememberPlayer } from "~/lib/recent-players";
 import { roleLabel } from "./player-rows";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PlayerSearchContext } from "./PlayerPicker";
@@ -111,6 +116,7 @@ function SquadPanel({
   const more = search.more || elsewhere.length > SUGGESTIONS_SHOWN;
 
   const q = normalize(query);
+  const sameName = useSameNameCheck(q, elsewhere);
   const filtered = q
     ? team.players.filter(
         (p) =>
@@ -136,6 +142,7 @@ function SquadPanel({
     setBusyId(u.id);
     try {
       await onCreatePlayer(side, u.name, u.id);
+      rememberPlayer(u);
       setQuery("");
     } finally {
       setBusyId(null);
@@ -162,10 +169,13 @@ function SquadPanel({
 
   const createNew = async () => {
     const name = query.trim().replace(/\s+/g, " ");
-    if (!name || isOffline) return;
+    if (!name || isOffline || !sameName.allow()) return;
     setBusyId("new");
     try {
-      await onCreatePlayer(side, name);
+      const res = (await onCreatePlayer(side, name)) as
+        | { data?: { user_id?: string } | null }
+        | undefined;
+      if (res?.data?.user_id) rememberPlayer({ id: res.data.user_id, name });
       setQuery("");
     } finally {
       setBusyId(null);
@@ -283,6 +293,15 @@ function SquadPanel({
         </p>
       )}
 
+      {!q && !isOffline && (
+        <RecentPlayers
+          teamName={team.name}
+          exclude={rosterIds}
+          disabled={isProcessing || busyId !== null}
+          onPick={(p) => void addExisting(p)}
+        />
+      )}
+
       {/* Existing players before "new player": most names being typed
           belong to someone who is already here. */}
       {visibleResults.length > 0 && (
@@ -345,6 +364,9 @@ function SquadPanel({
               player only if this is a different person.
             </p>
           )}
+          {sameName.asking && sameName.twin && (
+            <SameNameNote twin={sameName.twin} />
+          )}
           <Button
             type="button"
             variant="outline"
@@ -358,8 +380,9 @@ function SquadPanel({
               <UserPlus className="h-4 w-4" aria-hidden />
             )}
             <span className="truncate">
-              {duplicate ? "Add another" : "Add"} “{query.trim()}” as a new
-              player
+              {sameName.asking
+                ? `Yes, add a second “${query.trim()}”`
+                : `${duplicate ? "Add another" : "Add"} “${query.trim()}” as a new player`}
             </span>
           </Button>
         </div>

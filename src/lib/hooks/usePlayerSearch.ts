@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { lookUpPlayers } from "~/lib/player-lookup";
-import type { FoundPlayer, PlayerSearchResult } from "~/lib/player-search";
+import {
+  sameNamePlayer,
+  type FoundPlayer,
+  type PlayerSearchResult,
+} from "~/lib/player-search";
 
 export type PlayerSearchStatus = "idle" | "searching" | "done" | "failed";
 
@@ -61,4 +65,25 @@ export function usePlayerSearch(
     return { status: "failed", players: [], more: false, retry };
   }
   return { status: "done", ...answer.result, retry };
+}
+
+/**
+ * A second person of exactly the same name splits a player's statistics if
+ * they are the same person, so adding one takes a second tap. `allow()`
+ * answers whether to go ahead; the first time it asks instead (`asking`,
+ * with `twin` to show who is already there).
+ */
+export function useSameNameCheck(
+  query: string,
+  players: readonly FoundPlayer[],
+) {
+  const [askedFor, setAskedFor] = useState<string | null>(null);
+  const twin = sameNamePlayer(query, players);
+  const asking = twin !== null && askedFor === query;
+  const allow = () => {
+    if (!twin || asking) return true;
+    setAskedFor(query);
+    return false;
+  };
+  return { twin, asking, allow };
 }

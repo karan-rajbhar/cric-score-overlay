@@ -45,7 +45,12 @@ describe("GET /api/players/search", () => {
       players: [{ id: "p1", name: "Rahul" }],
       more: false,
     });
-    expect(searchPlayers).toHaveBeenCalledWith(db, "@rahul_s");
+    expect(searchPlayers).toHaveBeenCalledWith(db, "@rahul_s", { clubId: null });
+  });
+
+  it("passes the club whose members come first", async () => {
+    await GET(request("?q=rahul&club=c1"));
+    expect(searchPlayers).toHaveBeenCalledWith(db, "rahul", { clubId: "c1" });
   });
 
   it("caps the text searched", async () => {

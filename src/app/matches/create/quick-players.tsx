@@ -7,9 +7,15 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { addExistingPlayerQuick, createPlayerQuick } from "../../teams/actions";
-import { PlayerSearchNote } from "~/components/players/player-search-note";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
+import { useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import { lookUpPlayers } from "~/lib/player-lookup";
+import { rememberPlayer } from "~/lib/recent-players";
 import {
   foundPlayerHint,
   playerMatches,
@@ -117,6 +123,7 @@ export function QuickPlayers({
       : [];
   const suggestions = [...fromTeams, ...others];
   const searchFailed = Boolean(q) && failedQ === q && found.q !== q;
+  const sameName = useSameNameCheck(q, suggestions);
   const handle = typedHandle(q);
 
   // The page adds each new player to `playerCount` (via onAdded).
@@ -160,6 +167,7 @@ export function QuickPlayers({
       return;
     }
     const player = { id: res.data.user_id, name: res.data.full_name };
+    rememberPlayer(player);
     setAdded((prev) => [...prev, player]);
     setName("");
     setFound({ q: "", players: [] });
@@ -169,7 +177,10 @@ export function QuickPlayers({
 
   const addExisting = (p: FoundPlayer) =>
     run(p.id, () => addExistingPlayerQuick(teamId, p.id));
-  const addNew = () => run("new", () => createPlayerQuick(teamId, q));
+  const addNew = () => {
+    if (!sameName.allow()) return;
+    void run("new", () => createPlayerQuick(teamId, q));
+  };
 
   // Enter / Add: a new player only once no existing one may be the same
   // person (asks the search first if it has not answered for this name).
@@ -205,7 +216,7 @@ export function QuickPlayers({
       setError(`Nobody has the username ${q}. Type a name to add a new player.`);
       return;
     }
-    await addNew();
+    addNew();
   };
 
   return (
@@ -253,6 +264,16 @@ export function QuickPlayers({
           <span className="ml-1">Add</span>
         </Button>
       </div>
+      {!q && (
+        <div className="mt-2">
+          <RecentPlayers
+            teamName={teamName}
+            exclude={taken}
+            disabled={Boolean(saving)}
+            onPick={(p) => void addExisting(p)}
+          />
+        </div>
+      )}
       {suggestions.length > 0 && (
         <div className="mt-2 space-y-2">
           <p className="text-xs text-muted-foreground">
@@ -272,6 +293,9 @@ export function QuickPlayers({
             saving={saving}
             onPick={(p) => void addExisting(p)}
           />
+          {sameName.asking && sameName.twin && (
+            <SameNameNote twin={sameName.twin} />
+          )}
           {handle === null && (
             <DsButton
               type="button"
@@ -280,11 +304,13 @@ export function QuickPlayers({
               className="w-full justify-start"
               disabled={Boolean(saving)}
               loading={saving === "new"}
-              onClick={() => void addNew()}
+              onClick={addNew}
             >
               <Plus aria-hidden="true" />
               <span className="min-w-0 truncate">
-                Add “{q}” as a new player
+                {sameName.asking
+                  ? `Yes, add a second “${q}”`
+                  : `Add “${q}” as a new player`}
               </span>
             </DsButton>
           )}
@@ -312,7 +338,7 @@ export function QuickPlayers({
               className="w-full justify-start"
               disabled={Boolean(saving)}
               loading={saving === "new"}
-              onClick={() => void addNew()}
+              onClick={addNew}
             >
               <Plus aria-hidden="true" />
               <span className="min-w-0 truncate">

@@ -10,10 +10,14 @@ import {
   type KeyboardEvent,
 } from "react";
 import { Check, Loader2, Search, UserPlus } from "lucide-react";
-import { PlayerSearchNote } from "~/components/players/player-search-note";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { usePlayerSearch } from "~/lib/hooks/usePlayerSearch";
+import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import {
   foundPlayerHint,
   playerMatches,
@@ -23,6 +27,7 @@ import {
   type FoundPlayer,
   type PlayerSearchResult,
 } from "~/lib/player-search";
+import { rememberPlayer } from "~/lib/recent-players";
 import { cn } from "~/lib/utils";
 import type { PickerRow } from "./player-rows";
 
@@ -111,6 +116,8 @@ export function PlayerPicker({
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+  // Focus means someone is about to add a player: recent ones show then.
+  const [boxUsed, setBoxUsed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
   const findPlayers = useContext(PlayerSearchContext);
@@ -143,6 +150,7 @@ export function PlayerPicker({
   );
   const suggestions = elsewhere.slice(0, SUGGESTIONS_SHOWN);
   const moreElsewhere = search.more || elsewhere.length > SUGGESTIONS_SHOWN;
+  const sameName = useSameNameCheck(q, elsewhere);
 
   // A new player waits for the search: nobody is added twice because the
   // answer was still on its way. A "@" text finds people, it names no one.
@@ -175,7 +183,9 @@ export function PlayerPicker({
   };
 
   const add = async (existing?: FoundPlayer) => {
-    if (!addPlayer || !canAdd || adding) return;
+    const usable = addPlayer && (canAdd || existing);
+    if (!usable || adding || addPlayer.disabledReason) return;
+    if (!existing && !sameName.allow()) return;
     const name = existing?.name ?? query.trim().replace(/\s+/g, " ");
     setAdding(existing?.id ?? "new");
     try {
@@ -183,6 +193,7 @@ export function PlayerPicker({
         ? await addPlayer.onAdd(name, existing.id)
         : await addPlayer.onAdd(name);
       if (id) {
+        rememberPlayer({ id, name, username: existing?.username });
         onSelect(id);
         setQuery("");
       }
@@ -257,6 +268,7 @@ export function PlayerPicker({
               }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setBoxUsed(true)}
               onKeyDown={onSearchKeyDown}
               className="h-11 pl-9 text-base sm:text-sm"
             />
@@ -265,6 +277,14 @@ export function PlayerPicker({
               "Add <name>" shows while the keyboard is open instead of
               below the list, out of sight. */}
           <div className="mt-2 space-y-2 empty:hidden">
+            {addPlayer && !addPlayer.disabledReason && !q && boxUsed && (
+              <RecentPlayers
+                teamName={addPlayer.teamName}
+                exclude={new Set(rows.map((r) => r.id))}
+                disabled={Boolean(adding)}
+                onPick={(p) => void add(p)}
+              />
+            )}
             {addPlayer && q && (
               <div className="space-y-1">
                 {exactMatch && (
@@ -329,6 +349,9 @@ export function PlayerPicker({
                     listed={suggestions.length + visible.length}
                   />
                 )}
+                {sameName.asking && sameName.twin && (
+                  <SameNameNote twin={sameName.twin} />
+                )}
                 {handle === null && (
                   <Button
                     type="button"
@@ -343,11 +366,17 @@ export function PlayerPicker({
                       <UserPlus className="h-4 w-4" aria-hidden />
                     )}
                     <span className="truncate">
-                      {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
-                      {suggestions.length > 0 &&
-                        !exactMatch &&
-                        "as a new player "}
-                      to {addPlayer.teamName}
+                      {sameName.asking ? (
+                        `Yes, add a second “${query.trim()}”`
+                      ) : (
+                        <>
+                          {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
+                          {suggestions.length > 0 &&
+                            !exactMatch &&
+                            "as a new player "}
+                          to {addPlayer.teamName}
+                        </>
+                      )}
                     </span>
                   </Button>
                 )}

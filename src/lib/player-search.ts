@@ -15,6 +15,8 @@ export interface FoundPlayer {
   matches?: number | null;
   /** Teams of the user's they are in (known without a read). */
   teams?: readonly string[];
+  /** A member of the club being added to. */
+  clubMember?: boolean;
   /** The team they have already played for in this match. */
   playedFor?: string | null;
   /** Why this box cannot use them, when something else rules them out. */
@@ -35,7 +37,8 @@ export interface PlayerSearchResult {
  * Who they are, in a few words: "Plays for Lions, Tigers" for someone on
  * one or two of the user's teams, "In 40 of your teams" for a regular of
  * sides made afresh each day (their names would only be noise), else
- * "@rahul · 42 matches", "1 match", "No matches yet".
+ * "@rahul · 42 matches", "1 match", "No matches yet", after "Club member"
+ * for a member of the club being added to.
  */
 export function foundPlayerHint(p: FoundPlayer): string {
   if (p.teams?.length) {
@@ -46,7 +49,18 @@ export function foundPlayerHint(p: FoundPlayer): string {
   const n = p.matches ?? 0;
   const played =
     n === 0 ? "No matches yet" : `${n} ${n === 1 ? "match" : "matches"}`;
-  return p.username ? `@${p.username} · ${played}` : played;
+  const who = p.username ? `@${p.username} · ${played}` : played;
+  return p.clubMember ? `Club member · ${who}` : who;
+}
+
+/** Someone found with exactly the name being added, if anyone. */
+export function sameNamePlayer(
+  query: string,
+  players: readonly FoundPlayer[],
+): FoundPlayer | null {
+  const typed = normalizeText(query);
+  if (!typed) return null;
+  return players.find((p) => normalizeText(p.name) === typed) ?? null;
 }
 
 /**

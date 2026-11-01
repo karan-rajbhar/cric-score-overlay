@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { usePlayerSearch } from "./usePlayerSearch";
+import { usePlayerSearch, useSameNameCheck } from "./usePlayerSearch";
 
 const answer = (id: string) => ({
   players: [{ id, name: id }],
@@ -77,5 +77,40 @@ describe("usePlayerSearch", () => {
     await settle();
     expect(result.current.status).toBe("done");
     expect(search).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useSameNameCheck", () => {
+  const rahul = { id: "r", name: "Rahul Sharma" };
+
+  it("lets a name nobody has straight through", () => {
+    const { result } = renderHook(() => useSameNameCheck("Amit", [rahul]));
+    expect(result.current.allow()).toBe(true);
+  });
+
+  it("asks once for a name someone has, then lets it through", () => {
+    const { result } = renderHook(() =>
+      useSameNameCheck("rahul sharma", [rahul]),
+    );
+    let first = true;
+    act(() => {
+      first = result.current.allow();
+    });
+    expect(first).toBe(false);
+    expect(result.current.asking).toBe(true);
+    expect(result.current.twin).toBe(rahul);
+    expect(result.current.allow()).toBe(true);
+  });
+
+  it("asks again for a different name", () => {
+    const { result, rerender } = renderHook(
+      ({ q }) => useSameNameCheck(q, [rahul, { id: "a", name: "Amit" }]),
+      { initialProps: { q: "rahul sharma" } },
+    );
+    act(() => {
+      result.current.allow();
+    });
+    rerender({ q: "amit" });
+    expect(result.current.asking).toBe(false);
   });
 });

@@ -13,11 +13,16 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Search, UserPlus, Loader2 } from "lucide-react";
 import { addPlayerToTeam, createPlayerQuick } from "~/app/teams/actions";
-import { PlayerSearchNote } from "~/components/players/player-search-note";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
 import { toast } from "sonner";
-import { usePlayerSearch } from "~/lib/hooks/usePlayerSearch";
+import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import { typedHandle, type FoundPlayer } from "~/lib/player-search";
+import { rememberPlayer } from "~/lib/recent-players";
 
 interface AddPlayerDialogProps {
   teamId: string;
@@ -38,6 +43,7 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
   const searchable = (handle ?? trimmed).length >= 2;
   const search = usePlayerSearch(searchable ? trimmed : "");
   const results = search.players;
+  const sameName = useSameNameCheck(trimmed, results);
 
   const finish = (message: string) => {
     toast.success(message);
@@ -51,7 +57,10 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
     try {
       const result = await addPlayerToTeam(teamId, user.id);
       if (result.error) toast.error(result.error);
-      else finish(`${user.name} added to the squad`);
+      else {
+        rememberPlayer(user);
+        finish(`${user.name} added to the squad`);
+      }
     } catch {
       toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
@@ -60,12 +69,17 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
   };
 
   const createNew = async () => {
-    if (!trimmed) return;
+    if (!trimmed || !sameName.allow()) return;
     setBusy("new");
     try {
       const result = await createPlayerQuick(teamId, trimmed);
       if (result.error) toast.error(result.error);
-      else finish(`${trimmed} added to the squad`);
+      else {
+        if (result.data) {
+          rememberPlayer({ id: result.data.user_id, name: trimmed });
+        }
+        finish(`${trimmed} added to the squad`);
+      }
     } catch {
       toast.error(NETWORK_ERROR_MESSAGE);
     } finally {
@@ -106,6 +120,18 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
             />
           </div>
 
+          {!trimmed && (
+            <RecentPlayers
+              teamName="the squad"
+              disabled={busy !== null}
+              onPick={(p) => void addExisting(p)}
+            />
+          )}
+
+          {sameName.asking && sameName.twin && (
+            <SameNameNote twin={sameName.twin} />
+          )}
+
           {/* Right under the name box, so it shows while the phone keyboard
               is open (below the results it was out of sight). */}
           {searchable && handle === null && (
@@ -121,7 +147,11 @@ export function AddPlayerDialog({ teamId, onSuccess }: AddPlayerDialogProps) {
               ) : (
                 <UserPlus className="mr-2 h-4 w-4" />
               )}
-              <span className="truncate">Add “{trimmed}” as a new player</span>
+              <span className="truncate">
+                {sameName.asking
+                  ? `Yes, add a second “${trimmed}”`
+                  : `Add “${trimmed}” as a new player`}
+              </span>
             </Button>
           )}
 

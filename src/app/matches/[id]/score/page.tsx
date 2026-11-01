@@ -223,7 +223,8 @@ import { deliveryKind, deliveryLabel, economyRate } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
 import { matchParts } from "~/lib/match-players";
 import { lookUpPlayers } from "~/lib/player-lookup";
-import type { PlayerSearchResult } from "~/lib/player-search";
+import { PlayerDescribeContext } from "~/components/players/recent-players";
+import type { FoundPlayer, PlayerSearchResult } from "~/lib/player-search";
 import { PlayerSearchContext } from "./components/PlayerPicker";
 
 import {
@@ -587,23 +588,15 @@ function useScoringScreen() {
   // match's squads they are in and who they played for: someone in the other
   // side's squad may well play for this one today, and left out they would
   // look as if they were not on CricScore.
-  const findPlayers = useCallback(
-    async (query: string): Promise<PlayerSearchResult> => {
-      const found = await lookUpPlayers(query);
-      const squads = (id: string) =>
-        [
-          battingTeamPlayerIds.has(id) ? battingTeam?.name : null,
-          bowlingTeamPlayerIds.has(id) ? bowlingTeam?.name : null,
-        ].filter((name): name is string => Boolean(name));
-      return {
-        ...found,
-        players: found.players.map((p) => ({
-          ...p,
-          teams: squads(p.id),
-          playedFor: partTeams.get(p.id) ?? null,
-        })),
-      };
-    },
+  const describePlayer = useCallback(
+    (p: FoundPlayer): FoundPlayer => ({
+      ...p,
+      teams: [
+        battingTeamPlayerIds.has(p.id) ? battingTeam?.name : null,
+        bowlingTeamPlayerIds.has(p.id) ? bowlingTeam?.name : null,
+      ].filter((name): name is string => Boolean(name)),
+      playedFor: partTeams.get(p.id) ?? null,
+    }),
     [
       battingTeam?.name,
       bowlingTeam?.name,
@@ -611,6 +604,14 @@ function useScoringScreen() {
       bowlingTeamPlayerIds,
       partTeams,
     ],
+  );
+  const matchClubId = match?.club_id;
+  const findPlayers = useCallback(
+    async (query: string): Promise<PlayerSearchResult> => {
+      const found = await lookUpPlayers(query, { clubId: matchClubId });
+      return { ...found, players: found.players.map(describePlayer) };
+    },
+    [describePlayer, matchClubId],
   );
 
   const strikerDisplay = useMemo(() => {
@@ -1163,6 +1164,7 @@ function useScoringScreen() {
     unsavedItems,
     wicketRunsKind,
     findPlayers,
+    describePlayer,
     authLoading,
     batsmenFocus,
     battingBench,
@@ -3259,7 +3261,9 @@ export default function ScoringPage() {
       </main>
 
       <PlayerSearchContext.Provider value={s.findPlayers}>
-        <ScoringDialogs s={screen} />
+        <PlayerDescribeContext.Provider value={s.describePlayer}>
+          <ScoringDialogs s={screen} />
+        </PlayerDescribeContext.Provider>
       </PlayerSearchContext.Provider>
     </div>
   );

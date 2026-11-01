@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   foundPlayerHint,
   playerMatches,
+  sameNamePlayer,
   teammatesOf,
   typedHandle,
   whyNotAddable,
@@ -55,6 +56,19 @@ describe("existing player suggestions", () => {
     expect(playerMatches("@rahul", rahul)).toBe(false);
     expect(playerMatches("@rahul", { name: "Rahul Sharma" })).toBe(false);
     expect(playerMatches("r_shar", rahul)).toBe(true);
+  });
+
+  it("says who is a member of the club being added to", () => {
+    expect(
+      foundPlayerHint({ id: "a", name: "A", clubMember: true, matches: 3 }),
+    ).toBe("Club member · 3 matches");
+  });
+
+  it("finds someone of exactly the name being added", () => {
+    const rahul = { id: "r", name: "Rahul Sharma" };
+    expect(sameNamePlayer("  rahul   SHARMA ", [rahul])).toBe(rahul);
+    expect(sameNamePlayer("Rahul", [rahul])).toBeNull();
+    expect(sameNamePlayer("", [rahul])).toBeNull();
   });
 
   it("reads a typed username", () => {

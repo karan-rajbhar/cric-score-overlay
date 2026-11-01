@@ -39,9 +39,26 @@ function byHandle(rows: Profile[], handle: string): Profile[] {
   return [...rows].sort((a, b) => rank(a) - rank(b));
 }
 
+/** Who of `ids` belongs to the club (one read per member found). */
+async function clubMembersOf(
+  db: SearchClient,
+  clubId: string,
+  ids: string[],
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const { data } = await db
+    .from("club_memberships")
+    .select("user_id")
+    .eq("club_id", clubId)
+    .in("user_id", ids);
+  return new Set(((data ?? []) as { user_id: string }[]).map((m) => m.user_id));
+}
+
 export async function searchPlayers(
   db: SearchClient,
   query: string,
+  /** The club of the match or team being added to: its members come first. */
+  { clubId }: { clubId?: string | null } = {},
 ): Promise<{ data: PlayerSearchResult | null; error: string | null }> {
   const { data, error } = await prefixSearch(
     db,
@@ -86,11 +103,24 @@ export async function searchPlayers(
       (c) => [c.id, c.total_matches ?? 0],
     ),
   );
+  const members = clubId
+    ? await clubMembersOf(
+        db,
+        clubId,
+        rows.map((u) => u.id),
+      )
+    : new Set<string>();
   const players: FoundPlayer[] = rows.map((u) => ({
     id: u.id,
     name: u.full_name ?? "Player",
     username: u.username ?? null,
     matches: matches.get(u.id) ?? 0,
+    clubMember: members.has(u.id),
   }));
-  return { data: { players, more }, error: null };
+  // Members first, keeping the name and username order within each group.
+  const ranked = [
+    ...players.filter((p) => p.clubMember),
+    ...players.filter((p) => !p.clubMember),
+  ];
+  return { data: { players: ranked, more }, error: null };
 }

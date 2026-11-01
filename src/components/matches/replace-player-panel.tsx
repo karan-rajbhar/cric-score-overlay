@@ -7,13 +7,17 @@ import {
   PlayerPicker,
   PlayerSearchContext,
 } from "~/app/matches/[id]/score/components/PlayerPicker";
-import { replacePlayerInMatch } from "~/app/matches/mutations";
+import { PlayerDescribeContext } from "~/components/players/recent-players";
+import {
+  replacePlayerInMatch,
+  type ReplacedPlayer,
+} from "~/app/matches/mutations";
 import { addExistingPlayerQuick, createPlayerQuick } from "~/app/teams/actions";
 import { partInWords, type MatchPart } from "~/lib/match-players";
 import type { MatchTeam } from "~/lib/match-types";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 import { lookUpPlayers } from "~/lib/player-lookup";
-import type { PlayerSearchResult } from "~/lib/player-search";
+import type { FoundPlayer, PlayerSearchResult } from "~/lib/player-search";
 
 /**
  * Opened under a player's row on the Players page: who really played
@@ -24,6 +28,7 @@ import type { PlayerSearchResult } from "~/lib/player-search";
 export function ReplacePlayerPanel({
   id,
   matchId,
+  clubId,
   part,
   team,
   inMatch,
@@ -32,13 +37,16 @@ export function ReplacePlayerPanel({
 }: {
   id?: string;
   matchId: string;
+  /** The match's club: its members come first in a search. */
+  clubId?: string | null;
   /** The player recorded by mistake. */
   part: MatchPart;
   /** The team they played for, with its squad. */
   team: MatchTeam;
   /** Everyone with a part in the match (never offered: figures would merge). */
   inMatch: ReadonlySet<string>;
-  onDone: () => void;
+  /** Done; `leftover` says what can be tidied up afterwards. */
+  onDone: (leftover: ReplacedPlayer | null) => void;
   onCancel: () => void;
 }) {
   const [toId, setToId] = useState<string | null>(null);
@@ -61,21 +69,19 @@ export function ReplacePlayerPanel({
   }, [team, inMatch, added]);
   const to = candidates.find((c) => c.id === toId) ?? null;
 
-  // Existing players for "Add". Someone with a part in the match stays
-  // listed and says so: left out, they would look as if not on CricScore.
+  // Someone with a part in the match stays listed and says so: left out,
+  // they would look as if not on CricScore.
+  const describe = useCallback(
+    (p: FoundPlayer): FoundPlayer =>
+      inMatch.has(p.id) ? { ...p, unavailable: "Already in this match" } : p,
+    [inMatch],
+  );
   const findPlayers = useCallback(
     async (query: string): Promise<PlayerSearchResult> => {
-      const found = await lookUpPlayers(query);
-      return {
-        ...found,
-        players: found.players.map((p) =>
-          inMatch.has(p.id)
-            ? { ...p, unavailable: "Already in this match" }
-            : p,
-        ),
-      };
+      const found = await lookUpPlayers(query, { clubId });
+      return { ...found, players: found.players.map(describe) };
     },
-    [inMatch],
+    [clubId, describe],
   );
 
   const addToSquad = async (name: string, existingId?: string) => {
@@ -113,7 +119,7 @@ export function ReplacePlayerPanel({
         return;
       }
       toast.success(`${part.name} replaced with ${to.name}.`);
-      onDone();
+      onDone(res.leftover ?? null);
     });
   };
 
@@ -122,15 +128,17 @@ export function ReplacePlayerPanel({
     <div id={id} className="space-y-3 bg-muted/40 px-4 py-3.5">
       <p className="text-sm font-medium text-foreground">{question}</p>
       <PlayerSearchContext.Provider value={findPlayers}>
-        <PlayerPicker
-          label={question}
-          rows={candidates}
-          selectedId={toId}
-          onSelect={setToId}
-          addPlayer={{ teamName: team.name, onAdd: addToSquad }}
-          showUsernames
-          emptyMessage={`Everyone in ${team.name}'s squad has a part in this match. Type a name to add the player who played.`}
-        />
+        <PlayerDescribeContext.Provider value={describe}>
+          <PlayerPicker
+            label={question}
+            rows={candidates}
+            selectedId={toId}
+            onSelect={setToId}
+            addPlayer={{ teamName: team.name, onAdd: addToSquad }}
+            showUsernames
+            emptyMessage={`Everyone in ${team.name}'s squad has a part in this match. Type a name to add the player who played.`}
+          />
+        </PlayerDescribeContext.Provider>
       </PlayerSearchContext.Provider>
       {to && (
         <p className="rounded-lg bg-primary-soft px-3.5 py-3 text-sm text-primary-soft-foreground">

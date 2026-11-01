@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
   const query = (request.nextUrl.searchParams.get("q") ?? "")
     .trim()
     .slice(0, MAX_QUERY_LENGTH);
-  const { data, error } = await searchPlayers(db, query);
+  const clubId = request.nextUrl.searchParams.get("club");
+  const { data, error } = await searchPlayers(db, query, { clubId });
   if (error || !data) {
     console.error("Error searching players:", error);
     return NextResponse.json(

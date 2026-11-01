@@ -39,7 +39,13 @@ describe("searchPlayers", () => {
     const { data } = await searchPlayers(db, "rah");
     expect(data).toEqual({
       players: [
-        { id: "u1", name: "Rahul Sharma", username: "rahul_s", matches: 42 },
+        {
+          id: "u1",
+          name: "Rahul Sharma",
+          username: "rahul_s",
+          matches: 42,
+          clubMember: false,
+        },
       ],
       more: false,
     });
@@ -95,6 +101,32 @@ describe("searchPlayers", () => {
     });
     const { data } = await searchPlayers(db, "@rahul");
     expect(data?.players.map((p) => p.id)).toEqual(["handle", "name"]);
+  });
+
+  it("lists the club's own players first, and says so", async () => {
+    const db = clientOver({
+      users: [
+        person("stranger", "Rahul Agarwal", "rahul_a"),
+        person("member", "Rahul Zaveri", "rahul_z"),
+      ],
+      player_career_stats: [],
+      club_memberships: [{ id: "m1", club_id: "c1", user_id: "member" }],
+    });
+    const { data } = await searchPlayers(db, "rahul", { clubId: "c1" });
+    expect(data?.players.map((p) => [p.id, p.clubMember])).toEqual([
+      ["member", true],
+      ["stranger", false],
+    ]);
+  });
+
+  it("ignores another club's members", async () => {
+    const db = clientOver({
+      users: [person("u1", "Rahul Zaveri", "rahul_z")],
+      player_career_stats: [],
+      club_memberships: [{ id: "m1", club_id: "c2", user_id: "u1" }],
+    });
+    const { data } = await searchPlayers(db, "rahul", { clubId: "c1" });
+    expect(data?.players[0]?.clubMember).toBe(false);
   });
 
   it("says when more people match than were read", async () => {

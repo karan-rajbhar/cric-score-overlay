@@ -4,14 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
-vi.mock("~/app/matches/mutations", () => ({ replacePlayerInMatch: vi.fn() }));
+vi.mock("~/app/matches/mutations", () => ({
+  replacePlayerInMatch: vi.fn(),
+  removeReplacedPlayer: vi.fn(),
+}));
 vi.mock("~/app/teams/actions", () => ({
   addExistingPlayerQuick: vi.fn(),
   createPlayerQuick: vi.fn(),
 }));
 vi.mock("~/lib/player-lookup", () => ({ lookUpPlayers: vi.fn() }));
 
-import { replacePlayerInMatch } from "~/app/matches/mutations";
+import {
+  removeReplacedPlayer,
+  replacePlayerInMatch,
+} from "~/app/matches/mutations";
 import { addExistingPlayerQuick, createPlayerQuick } from "~/app/teams/actions";
 import { lookUpPlayers } from "~/lib/player-lookup";
 import { makeMatch } from "~/test/factories";
@@ -165,6 +171,75 @@ describe("Players page", () => {
     expect(found).toBeDisabled();
     expect(found).toHaveTextContent("Already in this match");
     expect(addExistingPlayerQuick).not.toHaveBeenCalled();
+  });
+
+  const replaceWithRavi = async () => {
+    render(<MatchPlayersEditor match={match} />);
+    fireEvent.click(screen.getByRole("button", { name: "Replace Rahul Sharma" }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ravi Kumar/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+    await waitFor(() => expect(replacePlayerInMatch).toHaveBeenCalled());
+  };
+
+  it("offers to remove a replaced duplicate with no other match", async () => {
+    vi.mocked(replacePlayerInMatch).mockResolvedValue({
+      success: true,
+      error: null,
+      leftover: { otherMatches: 0 },
+    });
+    vi.mocked(removeReplacedPlayer).mockResolvedValue({
+      success: true,
+      error: null,
+    });
+    await replaceWithRavi();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Remove from squad" }),
+    );
+    await waitFor(() =>
+      expect(removeReplacedPlayer).toHaveBeenCalledWith("m1", "t1", "rahul"),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Remove from squad" }),
+      ).toBeNull(),
+    );
+  });
+
+  it("points to the squad when a replaced duplicate has other matches", async () => {
+    vi.mocked(replacePlayerInMatch).mockResolvedValue({
+      success: true,
+      error: null,
+      leftover: { otherMatches: 3 },
+    });
+    await replaceWithRavi();
+    expect(
+      await screen.findByRole("link", { name: "Open the squad" }),
+    ).toHaveAttribute("href", "/teams/t1?tab=squad");
+    expect(screen.getByRole("status")).toHaveTextContent("3 other matches");
+    expect(screen.queryByRole("button", { name: "Remove from squad" })).toBeNull();
+  });
+
+  it("says nothing about a replaced player with an account", async () => {
+    vi.mocked(replacePlayerInMatch).mockResolvedValue({
+      success: true,
+      error: null,
+      leftover: null,
+    });
+    await replaceWithRavi();
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Keep them" })).toBeNull();
+  });
+
+  it("keeps the player when asked", async () => {
+    vi.mocked(replacePlayerInMatch).mockResolvedValue({
+      success: true,
+      error: null,
+      leftover: { otherMatches: 0 },
+    });
+    await replaceWithRavi();
+    fireEvent.click(await screen.findByRole("button", { name: "Keep them" }));
+    expect(removeReplacedPlayer).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Keep them" })).toBeNull();
   });
 
   it("says why a replacement was refused, and Cancel closes the choice", async () => {

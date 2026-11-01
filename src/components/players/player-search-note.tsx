@@ -3,7 +3,11 @@
 import { Loader2 } from "lucide-react";
 import { Button } from "~/components/ds/button";
 import type { PlayerSearchState } from "~/lib/hooks/usePlayerSearch";
-import { typedHandle } from "~/lib/player-search";
+import {
+  foundPlayerHint,
+  typedHandle,
+  type FoundPlayer,
+} from "~/lib/player-search";
 
 /**
  * One line under a player search saying where it stands: looking, found
@@ -55,5 +59,15 @@ export function PlayerSearchNote({
         search.more &&
         "More players match. Type more of the name, or their @username."}
     </div>
+  );
+}
+
+/** Shown when adding a second person of a name someone already has. */
+export function SameNameNote({ twin }: { twin: FoundPlayer }) {
+  return (
+    <p role="alert" className="px-1 text-xs text-warning">
+      {twin.name} is already on CricScore ({foundPlayerHint(twin)}). Add a
+      second one only if this is a different person.
+    </p>
   );
 }

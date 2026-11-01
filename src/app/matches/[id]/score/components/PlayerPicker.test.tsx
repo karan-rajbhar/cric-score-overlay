@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { recentPlayers, rememberPlayer } from "~/lib/recent-players";
 import { PlayerPicker, PlayerSearchContext } from "./PlayerPicker";
 import type { PickerRow } from "./player-rows";
 
@@ -467,6 +468,85 @@ describe("PlayerPicker never suggests a duplicate by accident", () => {
     });
     expect(screen.getByRole("radio", { name: /rahul_sharma_1/ })).toBeInTheDocument();
     expect(screen.queryByText("@jumbo")).toBeNull();
+  });
+
+  it("takes a second tap to add a second person of exactly that name", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Rohit Sharma", username: "rohit", matches: 42 }],
+      more: false,
+    }));
+    type("Rohit Sharma");
+    const addNew = await screen.findByRole("button", {
+      name: /Add .Rohit Sharma. as a new player/,
+    });
+    fireEvent.click(addNew);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Rohit Sharma is already on CricScore (@rohit · 42 matches)",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Yes, add a second .Rohit Sharma./ }),
+    );
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Sharma"));
+  });
+
+  it("adds a name nobody has with one tap", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Rohit Sharma" }],
+      more: false,
+    }));
+    type("Rohit Verma");
+    const addNew = await screen.findByRole("button", {
+      name: /Add .Rohit Verma. as a new player/,
+    });
+    fireEvent.click(addNew);
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Verma"));
+  });
+
+  describe("recently added", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("shows once the box is used, and is one tap away", async () => {
+      rememberPlayer({ id: "r", name: "Rahul Dravid", username: "rahul" });
+      const onAdd = renderPicker(async () => none);
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+      fireEvent.focus(screen.getByRole("searchbox"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Add Rahul Dravid to Lions/ }),
+      );
+      await waitFor(() =>
+        expect(onAdd).toHaveBeenCalledWith("Rahul Dravid", "r"),
+      );
+    });
+
+    it("leaves out who is listed already", () => {
+      rememberPlayer({ id: "a", name: "Anil Kumble" });
+      renderPicker(async () => none);
+      fireEvent.focus(screen.getByRole("searchbox"));
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+    });
+
+    it("remembers a player once added", async () => {
+      renderPicker(async () => ({
+        players: [{ id: "x", name: "Rohit Sharma", username: "rohit" }],
+        more: false,
+      }));
+      type("Rohit");
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Add Rohit Sharma to Lions/ }),
+      );
+      await waitFor(() =>
+        expect(recentPlayers().map((p) => p.id)).toEqual(["new-id"]),
+      );
+    });
+
+    it("gives way to what is typed", () => {
+      rememberPlayer({ id: "r", name: "Rahul Dravid" });
+      renderPicker(async () => none);
+      fireEvent.focus(screen.getByRole("searchbox"));
+      type("Vi");
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+    });
   });
 
   it("shows the list's own reason when it is empty, not that the squad is", () => {
