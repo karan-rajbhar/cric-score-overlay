@@ -2,6 +2,9 @@ import Link from "next/link";
 import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
 import { cn } from "~/lib/utils";
 
+/** Navigation on phones: a full 44px to tap. */
+const TAP_TARGET = "min-h-11 sm:min-h-9";
+
 const PLACES = [
   { href: "/clubs", label: "Clubs" },
   { href: "/teams", label: "Teams" },
@@ -27,7 +30,7 @@ export function DirectorySwitch({
           key={href}
           href={href}
           aria-current={href === current ? "page" : undefined}
-          className={segmentedItem(href === current, "flex-1 justify-center")}
+          className={segmentedItem(href === current, TAP_TARGET)}
         >
           {label}
         </Link>
@@ -53,14 +56,14 @@ export function MineAllSwitch({
       <Link
         href={mine.href}
         aria-current={view === "mine" ? "page" : undefined}
-        className={segmentedItem(view === "mine")}
+        className={segmentedItem(view === "mine", TAP_TARGET)}
       >
         {mine.label}
       </Link>
       <Link
         href={all.href}
         aria-current={view === "all" ? "page" : undefined}
-        className={segmentedItem(view === "all")}
+        className={segmentedItem(view === "all", TAP_TARGET)}
       >
         {all.label}
       </Link>
