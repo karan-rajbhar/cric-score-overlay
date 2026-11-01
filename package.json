@@ -35,7 +35,7 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
-    "@t3-oss/env-nextjs": "^0.7.3",
+    "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "^5.103.1",
     "class-variance-authority": "^0.7.1",
     "client-only": "^0.0.1",
@@ -50,7 +50,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
-    "zod": "^3.25.72",
+    "zod": "^4.6.7",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -81,11 +81,17 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.8.3",
+    "vite": "^8.3.5",
     "vitest": "^4.1.11"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix"
     ]
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.7"
+    }
   }
 }

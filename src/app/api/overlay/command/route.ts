@@ -29,7 +29,7 @@ const commandSchema = z.object({
       // Stored as `last_command_id`: the control room's confirmation.
       id: z.string().max(64).optional(),
     })
-    .passthrough(),
+    .loose(),
 });
 
 function fail(status: number, code: string, message: string) {
