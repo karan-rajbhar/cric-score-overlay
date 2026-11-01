@@ -9,6 +9,7 @@ import { createServerClient } from "~/lib/firebase/server";
 import { canManageTeam } from "~/lib/firebase/permissions";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseTeamColor } from "~/lib/team-colors";
@@ -594,7 +595,7 @@ export async function createPlayerQuick(
 }
 
 /**
- * Adds a registered player (found by `searchUsers`) to a team's squad from
+ * Adds a registered player (found by `searchPlayers`) to a team's squad from
  * the scoring screen: like `createPlayerQuick`, the match's scorers may do
  * it, during the match or (to correct it) after.
  */
@@ -784,46 +785,67 @@ export async function updatePlayerRole(
   return { success: true };
 }
 
-export async function searchUsers(query: string) {
-  const db = await createServerClient();
-
-  if (!query || query.length < 2) return { data: [] };
-
-  // Word-prefix match on name / @username: reads at most 10 profiles.
-  const { data, error } = await prefixSearch(
-    db,
-    "users",
-    query,
-    "id, full_name, avatar_url, username",
-    10,
-  );
-
-  if (error) {
-    console.error("Error searching users:", error);
-    return { data: [], error };
+/** What merging a player into another would do (`MergePlayerDialog`). */
+export async function previewMergePlayer(
+  teamId: string,
+  fromId: string,
+  toId: string,
+) {
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc<{ matches: number; together: number }>(
+      "preview_player_merge",
+      { p_team_id: teamId, p_from_id: fromId, p_to_id: toId },
+    );
+    if (error) return { data: null, error: friendlyError(error.message) };
+    return { data, error: null };
+  } catch (err) {
+    console.error("Unexpected error in previewMergePlayer:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Could not compare the players",
+      ),
+    };
   }
+}
 
-  // How many matches each has played (one batched read of their career
-  // docs), so two players of the same name can be told apart.
-  const found = (data ?? []) as { id: string }[];
-  const { data: careers } = found.length
-    ? await db
-        .from("player_career_stats")
-        .select("id, total_matches")
-        .in(
-          "id",
-          found.map((u) => u.id),
-        )
-    : { data: [] };
-  const matches = new Map(
-    ((careers ?? []) as { id: string; total_matches: number | null }[]).map(
-      (c) => [c.id, c.total_matches ?? 0],
-    ),
-  );
-  return {
-    data: found.map((u) => ({ ...u, matches: matches.get(u.id) ?? 0 })),
-    error: null,
-  };
+/**
+ * One batch of merging a player into another: call until `done`. Running it
+ * again after a failure carries on.
+ */
+export async function mergePlayerInto(
+  teamId: string,
+  fromId: string,
+  toId: string,
+) {
+  try {
+    const db = await createServerClient();
+    const { data, error } = await db.rpc<{
+      moved: number;
+      remaining: number;
+      done: boolean;
+    }>("merge_player", {
+      p_team_id: teamId,
+      p_from_id: fromId,
+      p_to_id: toId,
+    });
+    if (error) return { data: null, error: friendlyError(error.message) };
+    if (data?.done) {
+      revalidatePath(`/teams/${teamId}`);
+      revalidatePath(`/players/${toId}`);
+      await refreshLiveMatchesFor(db, { teamId });
+    }
+    return { data, error: null };
+  } catch (err) {
+    console.error("Unexpected error in mergePlayerInto:", err);
+    return {
+      data: null,
+      error: friendlyError(
+        err instanceof Error ? err.message : "Could not merge the players",
+      ),
+    };
+  }
 }
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB

@@ -1,7 +1,10 @@
 /**
- * Existing players offered while a name is typed (`searchUsers`), so the
- * person who already has a profile is added instead of a duplicate.
+ * Existing players offered while a name is typed, so the person who already
+ * has a profile is added instead of a duplicate. The search itself is
+ * `GET /api/players/search` (`~/lib/player-lookup`, `usePlayerSearch`).
  */
+
+import { matchesEveryWord, normalizeText } from "~/lib/firebase/derive.mjs";
 
 /** A player found by name. */
 export interface FoundPlayer {
@@ -12,13 +15,30 @@ export interface FoundPlayer {
   matches?: number | null;
   /** Teams of the user's they are in (known without a read). */
   teams?: readonly string[];
+  /** A member of the club being added to. */
+  clubMember?: boolean;
+  /** The team they have already played for in this match. */
+  playedFor?: string | null;
+  /** Why this box cannot use them, when something else rules them out. */
+  unavailable?: string | null;
+}
+
+/** Found players listed at once: on a phone the keyboard covers the rest. */
+export const SUGGESTIONS_SHOWN = 5;
+
+/** What one search answered. */
+export interface PlayerSearchResult {
+  players: FoundPlayer[];
+  /** More people match than were read: typing more narrows it down. */
+  more: boolean;
 }
 
 /**
  * Who they are, in a few words: "Plays for Lions, Tigers" for someone on
  * one or two of the user's teams, "In 40 of your teams" for a regular of
  * sides made afresh each day (their names would only be noise), else
- * "@rahul · 42 matches", "1 match", "No matches yet".
+ * "@rahul · 42 matches", "1 match", "No matches yet", after "Club member"
+ * for a member of the club being added to.
  */
 export function foundPlayerHint(p: FoundPlayer): string {
   if (p.teams?.length) {
@@ -29,21 +49,63 @@ export function foundPlayerHint(p: FoundPlayer): string {
   const n = p.matches ?? 0;
   const played =
     n === 0 ? "No matches yet" : `${n} ${n === 1 ? "match" : "matches"}`;
-  return p.username ? `@${p.username} · ${played}` : played;
+  const who = p.username ? `@${p.username} · ${played}` : played;
+  return p.clubMember ? `Club member · ${who}` : who;
+}
+
+/** Someone found with exactly the name being added, if anyone. */
+export function sameNamePlayer(
+  query: string,
+  players: readonly FoundPlayer[],
+): FoundPlayer | null {
+  const typed = normalizeText(query);
+  if (!typed) return null;
+  return players.find((p) => normalizeText(p.name) === typed) ?? null;
 }
 
 /**
- * Whether `name` matches what is typed the way the server's search does:
- * every typed word starts a word of the name ("rah sh" finds "Rahul
- * Sharma").
+ * The username being typed, lower-cased, when the text starts with "@"
+ * (empty for "@" alone), else null: a handle finds a player but is never
+ * the name of a new one.
  */
-export function nameMatches(name: string, query: string): boolean {
-  const words = name.toLowerCase().split(/\s+/).filter(Boolean);
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((q) => words.some((w) => w.startsWith(q)));
+export function typedHandle(query: string): string | null {
+  const text = query.trim();
+  return text.startsWith("@") ? text.slice(1).toLowerCase() : null;
+}
+
+/**
+ * Whether a player already on the screen matches what is typed, the way
+ * the server's search does and a little wider: part of the name or
+ * username, or every typed word starting a word of either ("rah sh" and
+ * "sharma rahul" find "Rahul Sharma"). "@name" looks at usernames only.
+ */
+export function playerMatches(
+  query: string,
+  player: { name: string; username?: string | null },
+): boolean {
+  const handle = typedHandle(query);
+  if (handle !== null) return Boolean(player.username?.includes(handle));
+  const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
+  // Compared as typed too: `normalizeText` keeps Latin letters only.
+  if (raw && player.name.toLowerCase().includes(raw)) return true;
+  const texts = [player.name, player.username];
+  const typed = normalizeText(query);
+  return (
+    Boolean(typed) &&
+    (texts.some((t) => normalizeText(t).includes(typed)) ||
+      matchesEveryWord(typed, texts))
+  );
+}
+
+/**
+ * Why `player` cannot join `team` for this match, or null when they can.
+ * A squad is a team's standing roster, not who plays today, so being in
+ * the other side's squad is no reason: only having played for it is.
+ */
+export function whyNotAddable(p: FoundPlayer, team: string): string | null {
+  if (p.unavailable) return p.unavailable;
+  if (p.playedFor && p.playedFor !== team) return `Played for ${p.playedFor}`;
+  return p.teams?.includes(team) ? `Already in ${team}` : null;
 }
 
 /**

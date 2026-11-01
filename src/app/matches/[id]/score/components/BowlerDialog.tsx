@@ -235,7 +235,6 @@ export function BowlerDialog({
                     }
                   : undefined
               }
-              emptyMessage="No players in the bowling squad yet."
               noun="bowler"
             />
           )}

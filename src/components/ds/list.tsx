@@ -44,7 +44,8 @@ export function SectionHeader({
 
 /**
  * A row in a list card: leading crest/avatar, title, subtitle and a
- * trailing figure or action. With `href` the whole row is the link.
+ * trailing figure or action. With `href` the whole row is the link, with
+ * `onClick` the whole row is the button.
  */
 export function ListRow({
   leading,
@@ -52,6 +53,8 @@ export function ListRow({
   subtitle,
   trailing,
   href,
+  onClick,
+  disabled = false,
   selected = false,
   className,
 }: {
@@ -60,6 +63,8 @@ export function ListRow({
   subtitle?: React.ReactNode;
   trailing?: React.ReactNode;
   href?: string;
+  onClick?: () => void;
+  disabled?: boolean;
   selected?: boolean;
   className?: string;
 }) {
@@ -88,17 +93,34 @@ export function ListRow({
   const classes = cn(
     "flex min-h-14 items-center gap-3 px-4 py-2.5",
     selected && "bg-primary-soft",
-    href &&
+    (href || onClick) &&
       "transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none",
     className,
   );
-  return href ? (
-    <Link href={href} className={classes} aria-current={selected || undefined}>
-      {body}
-    </Link>
-  ) : (
-    <div className={classes}>{body}</div>
-  );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={classes}
+        aria-current={selected || undefined}
+      >
+        {body}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(classes, "w-full text-left disabled:opacity-50")}
+      >
+        {body}
+      </button>
+    );
+  }
+  return <div className={classes}>{body}</div>;
 }
 
 /** Card holding ListRows, separated by hairlines. */

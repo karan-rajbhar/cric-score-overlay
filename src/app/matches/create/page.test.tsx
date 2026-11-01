@@ -47,8 +47,8 @@ vi.mock("../../teams/actions", () => ({
   createTeamQuick: vi.fn(),
   createPlayerQuick: vi.fn(),
   addExistingPlayerQuick: vi.fn(),
-  searchUsers: vi.fn().mockResolvedValue({ data: [] }),
 }));
+vi.mock("~/lib/player-lookup", () => ({ lookUpPlayers: vi.fn() }));
 
 import CreateMatchPage from "./page";
 import { createMatch } from "../mutations";
@@ -56,8 +56,8 @@ import {
   addExistingPlayerQuick,
   createPlayerQuick,
   createTeamQuick,
-  searchUsers,
 } from "../../teams/actions";
+import { lookUpPlayers } from "~/lib/player-lookup";
 import { SETUP_STORAGE_KEY } from "./match-setup";
 
 const startButton = () => screen.getByRole("button", { name: "Start match" });
@@ -78,7 +78,7 @@ describe("New match form", () => {
     wizard.clubAdminIds = [];
     wizard.teams = [...TEAMS];
     knownToClub = new Set();
-    vi.mocked(searchUsers).mockResolvedValue({ data: [] } as never);
+    vi.mocked(lookUpPlayers).mockResolvedValue({ players: [], more: false });
   });
 
   it("starts on T20 with a reason why it cannot start yet", () => {
@@ -459,7 +459,7 @@ describe("New match form", () => {
   describe("adding players by name", () => {
     const rahul = {
       id: "u-rahul",
-      full_name: "Rahul Sharma",
+      name: "Rahul Sharma",
       username: null,
       matches: 42,
     };
@@ -473,7 +473,10 @@ describe("New match form", () => {
     };
 
     it("offers the existing player instead of adding them twice", async () => {
-      vi.mocked(searchUsers).mockResolvedValue({ data: [rahul] } as never);
+      vi.mocked(lookUpPlayers).mockResolvedValue({
+        players: [rahul],
+        more: false,
+      });
       vi.mocked(addExistingPlayerQuick).mockResolvedValue({
         data: { user_id: "u-rahul", full_name: "Rahul Sharma" },
         error: null,
@@ -508,9 +511,10 @@ describe("New match form", () => {
           : t,
       );
       // Someone else of that name elsewhere on CricScore.
-      vi.mocked(searchUsers).mockResolvedValue({
-        data: [rahul, { ...rahul, id: "u-other", matches: 3 }],
-      } as never);
+      vi.mocked(lookUpPlayers).mockResolvedValue({
+        players: [rahul, { ...rahul, id: "u-other", matches: 3 }],
+        more: false,
+      });
       const input = openHawks();
       fireEvent.change(input, { target: { value: "rah" } });
       const ours = within(
@@ -532,13 +536,47 @@ describe("New match form", () => {
       const input = openHawks();
       fireEvent.change(input, { target: { value: "ra" } });
       await new Promise((r) => setTimeout(r, 400));
-      expect(searchUsers).not.toHaveBeenCalled();
+      expect(lookUpPlayers).not.toHaveBeenCalled();
       fireEvent.change(input, { target: { value: "rah" } });
-      await waitFor(() => expect(searchUsers).toHaveBeenCalledWith("rah"));
+      await waitFor(() =>
+        expect(lookUpPlayers).toHaveBeenCalledWith("rah", undefined),
+      );
+    });
+
+    it("adds nobody on a guess when the search fails, and adding new stays a tap away", async () => {
+      vi.mocked(lookUpPlayers).mockRejectedValue(new Error("offline"));
+      vi.mocked(createPlayerQuick).mockResolvedValue({
+        data: { user_id: "p2", full_name: "Rahul" },
+        error: null,
+      } as never);
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "Rahul" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await screen.findByText(/Could not check whether “Rahul”/);
+      expect(createPlayerQuick).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Add “Rahul” as a new player" }),
+      );
+      await waitFor(() =>
+        expect(createPlayerQuick).toHaveBeenCalledWith("t3", "Rahul"),
+      );
+    });
+
+    it("does not make a player of a @username nobody has", async () => {
+      const input = openHawks();
+      fireEvent.change(input, { target: { value: "@rahul_s" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(
+        await screen.findByText(/Nobody has the username @rahul_s/),
+      ).toBeInTheDocument();
+      expect(createPlayerQuick).not.toHaveBeenCalled();
     });
 
     it("still adds a different person of the same name as a new player", async () => {
-      vi.mocked(searchUsers).mockResolvedValue({ data: [rahul] } as never);
+      vi.mocked(lookUpPlayers).mockResolvedValue({
+        players: [rahul],
+        more: false,
+      });
       vi.mocked(createPlayerQuick).mockResolvedValue({
         data: { user_id: "p2", full_name: "Rahul" },
         error: null,

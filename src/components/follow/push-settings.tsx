@@ -9,11 +9,11 @@ const rowClass =
   "flex min-h-[44px] w-full items-center gap-3 rounded-full px-3.5 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50";
 
 /**
- * Notifications on this device, in the More drawer. Hidden where push
+ * Notifications on this device, on the More page. Hidden where push
  * cannot work (no VAPID key in this build, no service worker: dev and
  * localhost, browsers without the Push API).
  */
-export function DrawerNotifications() {
+export function NotificationSettings() {
   const push = usePush();
   if (push.availability === "unconfigured" || push.availability === "unsupported") {
     return null;
@@ -31,9 +31,9 @@ export function DrawerNotifications() {
   };
 
   return (
-    <section aria-labelledby="drawer-notifications" className="space-y-1">
+    <section aria-labelledby="notification-settings" className="space-y-1">
       <h2
-        id="drawer-notifications"
+        id="notification-settings"
         className="mb-1.5 px-3 text-xs font-medium text-muted-foreground/75"
       >
         Notifications

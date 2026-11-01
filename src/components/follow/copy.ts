@@ -1,4 +1,4 @@
-/** Notification copy shared by the follow button and the More drawer. */
+/** Notification copy shared by the follow button and the More page. */
 
 export const PUSH_EXPLANATION =
   "Get a notification when a match you follow starts, at the innings break and with the result.";

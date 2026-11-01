@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMyUpcomingMatches } from "./actions";
@@ -67,7 +68,7 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
               <FixtureCard
                 key={m.id}
                 bare
-                href={`/matches/${m.id}?from=dashboard`}
+                href={`/matches/${m.id}`}
                 date={start?.date ?? "Date to be confirmed"}
                 time={start?.time ?? "TBC"}
                 home={teamRef(m.team1)}
@@ -141,7 +142,10 @@ export default function Dashboard() {
             <Link
               href="/search"
               aria-label="Search"
-              className={buttonVariants({ variant: "surface", size: "icon" })}
+              className={cn(
+                buttonVariants({ variant: "surface", size: "icon" }),
+                "md:hidden",
+              )}
             >
               <Search />
             </Link>
@@ -219,7 +223,6 @@ export default function Dashboard() {
               <MatchCard
                 key={match.id}
                 match={match}
-                contextQuery="from=dashboard"
                 canScore={false}
               />
             ))}

@@ -24,6 +24,7 @@ export default function robots(): MetadataRoute.Robots {
         "/clubs/*/stats.csv",
         "/dashboard",
         "/invitations",
+        "/more",
         "/search",
         "/design",
       ],

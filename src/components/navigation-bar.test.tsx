@@ -98,7 +98,7 @@ describe("NavigationBar Component", () => {
     expect(mockPush).toHaveBeenCalledWith("/search?q=Ashes%20Cup");
   });
 
-  it("calls the sidebar toggle from the desktop trigger (phones use the tab bar's More)", () => {
+  it("toggles the sidebar from its button and from Ctrl+B, as its title says", () => {
     mockUseAuth.mockReturnValue({
       user: null,
       loading: false,
@@ -116,6 +116,7 @@ describe("NavigationBar Component", () => {
     });
     fireEvent.click(desktopCollapseBtn);
     expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
-    expect(mockToggleMobile).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true });
+    expect(mockToggleCollapsed).toHaveBeenCalledTimes(2);
   });
 });

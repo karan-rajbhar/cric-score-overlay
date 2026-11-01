@@ -130,7 +130,9 @@ export const replayBatchSchemaV1 = z.object({
       z.object({
         id,
         type: z.string().min(1).max(64),
-        payload: z.unknown(),
+        // Optional, not just unknown: an action queued with no payload key must
+        // still pass, or zod 4 refuses the whole batch and the queue sticks.
+        payload: z.unknown().optional(),
         queuedAt: z.number().optional(),
         resent: z.boolean().optional(),
       }),

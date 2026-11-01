@@ -17,6 +17,14 @@ export const ERROR_MESSAGES: Record<string, string> = {
   player_already_in_match:
     "That player already has a part in this match. Pick someone who did not play, or correct the balls one by one.",
   player_not_in_team: "Add the player to the team's squad first.",
+  players_played_together:
+    "These two played in the same match, so they are different people.",
+  player_has_account:
+    "This player has signed in or been invited, so their profile stays. Only a player who has never signed in can be merged or removed.",
+  player_has_records:
+    "This player has matches recorded, so they stay. Merge them into the right player instead.",
+  player_in_match:
+    "This player still has a part in this match, so they stay in the squad.",
   player_not_batted:
     "This batter has not faced a ball yet: change them instead of correcting.",
   too_many_batsmen: "All 11 batsmen have already batted.",

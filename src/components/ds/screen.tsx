@@ -1,7 +1,7 @@
 import type * as React from "react";
 import { ChevronLeft } from "lucide-react";
-import Link from "next/link";
 import { cn } from "~/lib/utils";
+import { BackLink } from "~/components/ds/back-link";
 import { buttonVariants } from "~/components/ds/button";
 
 /**
@@ -29,21 +29,22 @@ export function ScreenWash({
 
 /**
  * Screen title bar: round back button, centred title, actions on the right
- * (44 px each).
+ * (44 px each). Back follows the visit's history (`BackLink`); `backHref` is
+ * the page's natural parent, used when there is none.
  */
 export function ScreenBar({
   title,
   backHref,
   backLabel = "Back",
-  onBack,
+  backAvoid,
   action,
   className,
 }: {
   title: React.ReactNode;
   backHref?: string;
   backLabel?: string;
-  /** Runs before following backHref (e.g. history.back when it can). */
-  onBack?: React.MouseEventHandler<HTMLAnchorElement>;
+  /** A page Back must not return to (see `BackLink`). */
+  backAvoid?: string;
   action?: React.ReactNode;
   className?: string;
 }) {
@@ -55,9 +56,9 @@ export function ScreenBar({
       )}
     >
       {backHref ? (
-        <Link
+        <BackLink
           href={backHref}
-          onClick={onBack}
+          avoid={backAvoid}
           aria-label={backLabel}
           className={cn(
             buttonVariants({ variant: "surface", size: "icon" }),
@@ -65,7 +66,7 @@ export function ScreenBar({
           )}
         >
           <ChevronLeft />
-        </Link>
+        </BackLink>
       ) : (
         <span />
       )}

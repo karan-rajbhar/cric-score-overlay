@@ -68,7 +68,6 @@ export function FollowingMatches() {
             <MatchCard
               key={match.id}
               match={match}
-              contextQuery="from=dashboard"
               canScore={false}
             />
           ))}

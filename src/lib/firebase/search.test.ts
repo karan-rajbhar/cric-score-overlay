@@ -11,8 +11,10 @@ vi.mock("server-only", () => ({}));
 
 import { MemoryDataSource, type Doc } from "./datasource";
 import {
+  matchesEveryWord,
   matchesSearch,
   normalizeText,
+  searchFieldsOf,
   searchKey,
   searchPrefixes,
 } from "./derive.mjs";
@@ -186,6 +188,88 @@ describe("mid-word search (trigrams)", () => {
     });
     expect(rows.map((r) => r.full_name)).toEqual(["Mike Wilson"]);
     expect(n).toBe(1);
+  });
+});
+
+describe("words apart or out of order", () => {
+  const person = (id: string, full_name: string, username: string): Doc => ({
+    id,
+    full_name,
+    username,
+    ...searchFieldsOf("users", { full_name, username }),
+  });
+  const users = [
+    person("mid", "Rahul Kumar Sharma", "rks"),
+    person("two", "Rahul Sharma", "rahul_s"),
+    person("other", "Rohit Sharma", "rohit"),
+  ];
+  const find = async (
+    q: string,
+    docs = users,
+    options?: { everyMatch?: boolean },
+  ) => {
+    const ds = new MemoryDataSource({ users: docs });
+    const { ctx } = builderContextFor(ds, null);
+    const db = {
+      from: <T extends TableName>(table: T) => new QueryBuilder<T>(ctx, table),
+    };
+    const before = ds.billedReads;
+    const { data } = await prefixSearch(db, "users", q, "id", 5, options);
+    return { ids: data.map((r) => r.id), reads: ds.billedReads - before };
+  };
+
+  it("matches every typed word against the starts of a name's words", () => {
+    expect(matchesEveryWord("rahul sharma", ["Rahul Kumar Sharma"])).toBe(true);
+    expect(matchesEveryWord("sharma r", ["Rahul Kumar Sharma"])).toBe(true);
+    expect(matchesEveryWord("rahul verma", ["Rahul Kumar Sharma"])).toBe(false);
+    expect(matchesEveryWord("rahul sharma", [null, ""])).toBe(false);
+    expect(matchesEveryWord("", ["Rahul"])).toBe(false);
+  });
+
+  it("finds a middle name left out", async () => {
+    // Other searches stop at the phrase: "Rahul Sharma" is a stored key.
+    expect((await find("rahul sharma")).ids).toEqual(["two"]);
+    const noExact = users.filter((u) => u.id !== "two");
+    expect((await find("rahul sharma", noExact)).ids).toEqual(["mid"]);
+    expect((await find("kumar sharma")).ids).toEqual(["mid"]);
+  });
+
+  it("finds words in the other order and an initial", async () => {
+    expect((await find("sharma rahul")).ids.sort()).toEqual(["mid", "two"]);
+    expect((await find("r sharma")).ids.sort()).toEqual([
+      "mid",
+      "other",
+      "two",
+    ]);
+    expect((await find("rah sh")).ids.sort()).toEqual(["mid", "two"]);
+  });
+
+  it("everyMatch: a phrase match does not hide a fuller name, listed after it", async () => {
+    const { ids, reads } = await find("rahul sharma", users, {
+      everyMatch: true,
+    });
+    expect(ids).toEqual(["two", "mid"]);
+    // One document from each query, and a person once.
+    expect(reads).toBe(1 + 3);
+  });
+
+  it("everyMatch stays one query for a single word", async () => {
+    const { ids, reads } = await find("rohit", users, { everyMatch: true });
+    expect(ids).toEqual(["other"]);
+    expect(reads).toBe(1);
+  });
+
+  it("finds nobody for a word no name has", async () => {
+    expect((await find("rahul verma")).ids).toEqual([]);
+  });
+
+  it("does not spend the second query when the phrase matched", async () => {
+    const { reads } = await find("rohit sh");
+    expect(reads).toBe(1);
+  });
+
+  it("two one-letter words look nothing up", async () => {
+    expect((await find("r s")).ids).toEqual([]);
   });
 });
 

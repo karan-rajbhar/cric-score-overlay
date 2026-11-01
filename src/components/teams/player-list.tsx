@@ -20,6 +20,7 @@ import { formatPlayerRole } from "~/lib/cricket";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { ClaimProfileDialog } from "~/components/teams/claim-profile-dialog";
+import { MergePlayerDialog } from "~/components/teams/merge-player-dialog";
 import type { PlayerClaim } from "~/lib/squad-claims";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
 
@@ -52,8 +53,6 @@ interface PlayerListProps {
    */
   claims?: Record<string, PlayerClaim>;
   allowEdit?: boolean;
-  tournamentId?: string;
-  clubId?: string;
 }
 
 export function PlayerList({
@@ -62,10 +61,11 @@ export function PlayerList({
   players,
   claims = {},
   allowEdit = false,
-  tournamentId,
-  clubId,
 }: PlayerListProps) {
   const [updating, setUpdating] = useState<string | null>(null);
+  const [merging, setMerging] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const [claiming, setClaiming] = useState<{ id: string; name: string } | null>(
     null,
   );
@@ -146,7 +146,7 @@ export function PlayerList({
             <Avatar name={name} src={player.user?.avatar_url} size="sm" />
             <span className="min-w-0 flex-1">
               <Link
-                href={`/players/${player.user_id}?teamId=${teamId}${tournamentId ? `&tournamentId=${encodeURIComponent(tournamentId)}` : ""}${clubId ? `&clubId=${encodeURIComponent(clubId)}` : ""}`}
+                href={`/players/${player.user_id}`}
                 className="block truncate text-sm font-medium text-foreground hover:text-primary"
               >
                 {name}
@@ -236,6 +236,14 @@ export function PlayerList({
                       </DropdownMenuItem>
                     </>
                   )}
+                  {claimOf(player.user_id)?.state === "placeholder" && (
+                    <DropdownMenuItem
+                      onSelect={() => setMerging({ id: player.user_id, name })}
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      Same person as someone else
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
@@ -250,6 +258,16 @@ export function PlayerList({
         );
       })}
     </ListCard>
+    {merging && (
+      <MergePlayerDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) setMerging(null);
+        }}
+        teamId={teamId}
+        player={merging}
+      />
+    )}
     {claiming && (
       <ClaimProfileDialog
         open

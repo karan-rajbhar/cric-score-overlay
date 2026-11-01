@@ -106,13 +106,13 @@ function Navigation() {
   return (
     <Specimen
       title="Navigation"
-      usage="Phones: a floating tab bar at the bottom, where the thumb is. The current tab is a navy circle, and every tab keeps its label. Tablets and desktop: the sidebar, where the current page is lavender."
+      usage="Phones: a floating tab bar at the bottom, where the thumb is. Every tab is a place with a URL, the current one is a navy circle, and every tab keeps its label. Tablets and desktop: the sidebar, where the current page is lavender. See Principles."
       bodyClassName="grid gap-8 lg:grid-cols-[minmax(0,24rem)_1fr] lg:items-start"
     >
       <TabBar items={TAB_BAR_ITEMS} />
       <nav aria-label="Example sidebar" className="flex gap-6">
         <div className="w-56 space-y-1">
-          <NavItem href="#content" icon={Home} label="Dashboard" />
+          <NavItem href="#content" icon={Home} label="Home" />
           <NavItem href="#content" icon={Radio} label="Matches" active />
           <NavItem href="#content" icon={Trophy} label="Tournaments" />
           <NavItem href="#content" icon={Shield} label="Clubs" />

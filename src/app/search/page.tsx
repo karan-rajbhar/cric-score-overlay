@@ -3,6 +3,7 @@ import { globalSearch } from "./actions";
 import { Input } from "~/components/ui/input";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MatchStatusChip } from "~/components/ds/chip";
+import { ScreenBar } from "~/components/ds/screen";
 import { Initials } from "~/components/ui/initials";
 import { PageContainer, PageHeader, SectionHeader } from "~/components/layout/page";
 import { Search } from "lucide-react";
@@ -52,7 +53,9 @@ export default async function SearchPage({
 
   return (
     <PageContainer size="narrow">
+      <ScreenBar title="Search" backHref="/" className="md:hidden" />
       <PageHeader
+        className="max-md:hidden"
         title="Search"
         description="Teams, matches, players, clubs and tournaments"
       />
@@ -110,7 +113,7 @@ export default async function SearchPage({
               venue: string | null;
             }) => {
               return (
-                <Link className="block transition-colors hover:bg-muted/50" href={`/matches/${x.id}?from=search`}>
+                <Link className="block transition-colors hover:bg-muted/50" href={`/matches/${x.id}`}>
                   <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{x.title}</p>

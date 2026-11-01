@@ -221,19 +221,12 @@ import {
 } from "lucide-react";
 import { deliveryKind, deliveryLabel, economyRate } from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
-import { searchUsers } from "~/app/teams/actions";
-import {
-  PlayerSearchContext,
-  type FoundPlayer,
-} from "./components/PlayerPicker";
+import { matchParts } from "~/lib/match-players";
+import { lookUpPlayers } from "~/lib/player-lookup";
+import { PlayerDescribeContext } from "~/components/players/recent-players";
+import type { FoundPlayer, PlayerSearchResult } from "~/lib/player-search";
+import { PlayerSearchContext } from "./components/PlayerPicker";
 
-/** A profile as `searchUsers` returns it. */
-type FoundUser = {
-  id: string;
-  full_name: string | null;
-  username?: string | null;
-  matches?: number;
-};
 import {
   matchShareMessage,
   matchShareUrl,
@@ -585,24 +578,42 @@ function useScoringScreen() {
     [bowlingTeamPlayers],
   );
 
-  // Registered players for the pickers' "Add", leaving out both squads, so
-  // the scorer adds the profile that exists instead of a second one.
+  const partTeams = useMemo(
+    () => new Map(match ? matchParts(match).map((p) => [p.id, p.teamName]) : []),
+    [match],
+  );
+
+  // Registered players for the pickers' "Add", so the scorer adds the
+  // profile that exists instead of a second one. Each says which of this
+  // match's squads they are in and who they played for: someone in the other
+  // side's squad may well play for this one today, and left out they would
+  // look as if they were not on CricScore.
+  const describePlayer = useCallback(
+    (p: FoundPlayer): FoundPlayer => ({
+      ...p,
+      teams: [
+        battingTeamPlayerIds.has(p.id) ? battingTeam?.name : null,
+        bowlingTeamPlayerIds.has(p.id) ? bowlingTeam?.name : null,
+      ].filter((name): name is string => Boolean(name)),
+      playedFor: partTeams.get(p.id) ?? null,
+    }),
+    [
+      battingTeam?.name,
+      bowlingTeam?.name,
+      battingTeamPlayerIds,
+      bowlingTeamPlayerIds,
+      partTeams,
+    ],
+  );
+  // A club's friendly may have no club of its own: its teams' still counts.
+  const matchClubId =
+    match?.club_id ?? match?.team1?.club_id ?? match?.team2?.club_id;
   const findPlayers = useCallback(
-    async (query: string): Promise<FoundPlayer[]> => {
-      const { data } = await searchUsers(query);
-      return ((data ?? []) as FoundUser[])
-        .filter(
-          (u) =>
-            !battingTeamPlayerIds.has(u.id) && !bowlingTeamPlayerIds.has(u.id),
-        )
-        .map((u) => ({
-          id: u.id,
-          name: u.full_name ?? "Player",
-          username: u.username,
-          matches: u.matches,
-        }));
+    async (query: string): Promise<PlayerSearchResult> => {
+      const found = await lookUpPlayers(query, { clubId: matchClubId });
+      return { ...found, players: found.players.map(describePlayer) };
     },
-    [battingTeamPlayerIds, bowlingTeamPlayerIds],
+    [describePlayer, matchClubId],
   );
 
   const strikerDisplay = useMemo(() => {
@@ -1155,6 +1166,7 @@ function useScoringScreen() {
     unsavedItems,
     wicketRunsKind,
     findPlayers,
+    describePlayer,
     authLoading,
     batsmenFocus,
     battingBench,
@@ -1480,7 +1492,7 @@ function MatchToolsMenu({ s }: { s: LoadedScreen }) {
             <DropdownMenuItem asChild>
               {/* The team sheet, where any player can be replaced. */}
               <Link
-                href={`/matches/${match.id}/players?from=score`}
+                href={`/matches/${match.id}/players`}
                 className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium"
               >
                 <UserCog className="h-4 w-4 text-muted-foreground" />
@@ -3251,7 +3263,9 @@ export default function ScoringPage() {
       </main>
 
       <PlayerSearchContext.Provider value={s.findPlayers}>
-        <ScoringDialogs s={screen} />
+        <PlayerDescribeContext.Provider value={s.describePlayer}>
+          <ScoringDialogs s={screen} />
+        </PlayerDescribeContext.Provider>
       </PlayerSearchContext.Provider>
     </div>
   );

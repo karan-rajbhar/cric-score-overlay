@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, Suspense } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useState, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { backLabelOf, matchTrail, parentOf } from "~/lib/navigation";
+import { setUrlParam } from "~/lib/url-state";
 import { Button } from "~/components/ui/button";
-import { Button as DsButton } from "~/components/ds/button";
+import { PageTrail } from "~/components/ds/page-trail";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import dynamic from "next/dynamic";
 import { MatchSummary } from "~/components/matches/match-summary";
@@ -21,7 +23,6 @@ import { matchShareMessage } from "~/lib/share-match";
 import { useAuth } from "~/lib/auth";
 import { MatchHero } from "~/components/matches/match-hero";
 import { ContentSheet, ScreenBar } from "~/components/ds/screen";
-import { firebase } from "~/lib/firebase";
 import MatchDetailLoading from "./loading";
 import { EmptyState } from "~/components/ui/empty-state";
 
@@ -71,7 +72,6 @@ const ClubSuggestionCard = dynamic(
 );
 import {
   ChevronLeft,
-  ChevronRight,
   Play,
   AlertCircle,
 } from "lucide-react";
@@ -98,13 +98,30 @@ const LIVE_SCORECARD_TABS = new Set([
   "stats",
 ]);
 
+const DEFAULT_MATCH_TAB = "summary";
+const MATCH_TABS = new Set([
+  DEFAULT_MATCH_TAB,
+  "scorecard",
+  "superstars",
+  "stats",
+  "balls",
+  "info",
+]);
+
 function MatchDetailsPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const matchId = params.id as string;
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("summary");
+  // In the URL, so a reload, Back from a player and a shared link keep it.
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = searchParams.get("tab");
+    return tab && MATCH_TABS.has(tab) ? tab : DEFAULT_MATCH_TAB;
+  });
+  const changeTab = useCallback((tab: string) => {
+    setActiveTab(tab);
+    setUrlParam("tab", tab, DEFAULT_MATCH_TAB);
+  }, []);
   const {
     data: matchData,
     isLoading: loading,
@@ -124,108 +141,6 @@ function MatchDetailsPageContent() {
 
   const { data: isScorerAdmin } = useMatchAdminQuery(matchId, user?.id);
   const isScorerRole = Boolean(isScorerAdmin);
-
-  const clubId = searchParams.get("clubId");
-  const tournamentId = searchParams.get("tournamentId");
-  const teamId = searchParams.get("teamId");
-  const playerId = searchParams.get("playerId");
-  const fromParam = searchParams.get("from");
-
-  const [contextNames, setContextNames] = useState<{
-    clubName?: string;
-    teamName?: string;
-    tournamentName?: string;
-    playerName?: string;
-  }>({});
-
-  const resolvedRef = useRef<{
-    clubId?: string;
-    tournamentId?: string;
-    playerId?: string;
-  }>({});
-
-  useEffect(() => {
-    if (!match) return; // Names show with the match, which usually has them.
-    let cancelled = false;
-    async function resolveContext() {
-      const updates: typeof contextNames = {};
-
-      if (clubId && resolvedRef.current.clubId !== clubId) {
-        if (match?.club?.id === clubId && match.club.name) {
-          updates.clubName = match.club.name;
-          resolvedRef.current.clubId = clubId;
-        } else {
-          const { data } = await firebase
-            .from("clubs")
-            .select("name")
-            .eq("id", clubId)
-            .single();
-          if (!cancelled && data?.name) {
-            updates.clubName = data.name;
-            resolvedRef.current.clubId = clubId;
-          }
-        }
-      }
-
-      if (tournamentId && resolvedRef.current.tournamentId !== tournamentId) {
-        if (match?.tournament?.id === tournamentId && match.tournament.name) {
-          updates.tournamentName = match.tournament.name;
-          resolvedRef.current.tournamentId = tournamentId;
-        } else {
-          const { data } = await firebase
-            .from("tournaments")
-            .select("name")
-            .eq("id", tournamentId)
-            .single();
-          if (!cancelled && data?.name) {
-            updates.tournamentName = data.name;
-            resolvedRef.current.tournamentId = tournamentId;
-          }
-        }
-      }
-
-      if (playerId && resolvedRef.current.playerId !== playerId) {
-        let foundName: string | undefined;
-        match?.innings?.forEach((inn) => {
-          inn.batting_performances?.forEach((bp) => {
-            if (bp.user?.id === playerId && bp.user.full_name) {
-              foundName = bp.user.full_name;
-            }
-          });
-          inn.bowling_performances?.forEach((bp) => {
-            if (bp.user?.id === playerId && bp.user.full_name) {
-              foundName = bp.user.full_name;
-            }
-          });
-        });
-        if (foundName) {
-          updates.playerName = foundName;
-          resolvedRef.current.playerId = playerId;
-        } else {
-          const { data } = await firebase
-            .from("users")
-            .select("full_name")
-            .eq("id", playerId)
-            .single();
-          if (!cancelled && data?.full_name) {
-            updates.playerName = data.full_name;
-            resolvedRef.current.playerId = playerId;
-          }
-        }
-      }
-
-      if (!cancelled && Object.keys(updates).length > 0) {
-        setContextNames((prev) => ({ ...prev, ...updates }));
-      }
-    }
-
-    void resolveContext();
-    return () => {
-      cancelled = true;
-    };
-  }, [clubId, tournamentId, playerId, match]);
-
-
 
   if (loading) {
     return <MatchDetailLoading />;
@@ -269,132 +184,9 @@ function MatchDetailsPageContent() {
         (match.match_admins ?? []).includes(user.id))) ||
     isScorerRole;
 
-  let matchBackHref = "/matches";
-  let matchBackLabel = "Back to matches";
-  const breadcrumbItems: Array<{ label: string; href: string }> = [];
-
-  if (clubId) {
-    const clubName =
-      (match?.club?.id === clubId ? match.club.name : null) ??
-      contextNames.clubName ??
-      "Club";
-    if (tournamentId) {
-      const tournamentName =
-        (match?.tournament?.id === tournamentId
-          ? match.tournament.name
-          : null) ??
-        contextNames.tournamentName ??
-        "Tournament";
-      matchBackHref = `/tournaments/${tournamentId}?tab=fixtures&clubId=${clubId}`;
-      matchBackLabel = `Back to ${tournamentName}`;
-      breadcrumbItems.push(
-        { label: "Clubs", href: "/clubs" },
-        { label: clubName, href: `/clubs/${clubId}?tab=tournaments` },
-        {
-          label: tournamentName,
-          href: `/tournaments/${tournamentId}?tab=fixtures&clubId=${clubId}`,
-        },
-      );
-    } else {
-      matchBackHref = `/clubs/${clubId}?tab=matches`;
-      matchBackLabel = `Back to ${clubName}`;
-      breadcrumbItems.push(
-        { label: "Clubs", href: "/clubs" },
-        { label: clubName, href: `/clubs/${clubId}?tab=matches` },
-      );
-    }
-  } else if (teamId) {
-    const teamName =
-      (match?.team1?.id === teamId
-        ? match.team1.name
-        : match?.team2?.id === teamId
-          ? match.team2.name
-          : null) ??
-      contextNames.teamName ??
-      "Team";
-    if (tournamentId) {
-      const tournamentName =
-        (match?.tournament?.id === tournamentId
-          ? match.tournament.name
-          : null) ??
-        contextNames.tournamentName ??
-        "Tournament";
-      breadcrumbItems.push(
-        { label: "Tournaments", href: "/tournaments" },
-        {
-          label: tournamentName,
-          href: `/tournaments/${tournamentId}?tab=teams`,
-        },
-        {
-          label: teamName,
-          href: `/teams/${teamId}?tournamentId=${tournamentId}&tab=matches`,
-        },
-      );
-      matchBackHref = `/teams/${teamId}?tournamentId=${tournamentId}&tab=matches`;
-    } else {
-      breadcrumbItems.push(
-        { label: "Teams", href: "/teams" },
-        { label: teamName, href: `/teams/${teamId}?tab=matches` },
-      );
-      matchBackHref = `/teams/${teamId}?tab=matches`;
-    }
-    matchBackLabel = `Back to ${teamName}`;
-  } else if (tournamentId) {
-    const tournamentName =
-      (match?.tournament?.id === tournamentId ? match.tournament.name : null) ??
-      contextNames.tournamentName ??
-      "Tournament";
-    matchBackHref = `/tournaments/${tournamentId}?tab=fixtures`;
-    matchBackLabel = `Back to ${tournamentName}`;
-    breadcrumbItems.push(
-      { label: "Tournaments", href: "/tournaments" },
-      {
-        label: tournamentName,
-        href: `/tournaments/${tournamentId}?tab=fixtures`,
-      },
-    );
-  } else if (playerId) {
-    const playerName = contextNames.playerName ?? "Player";
-    matchBackHref = `/players/${playerId}?tab=matches`;
-    matchBackLabel = `Back to ${playerName}`;
-    breadcrumbItems.push(
-      { label: "Players", href: "/players" },
-      { label: playerName, href: `/players/${playerId}?tab=matches` },
-    );
-  } else if (fromParam === "dashboard") {
-    matchBackHref = "/dashboard";
-    matchBackLabel = "Back to dashboard";
-    breadcrumbItems.push(
-      { label: "Dashboard", href: "/dashboard" },
-      { label: "Matches", href: "/matches" },
-    );
-  } else if (fromParam === "search") {
-    matchBackHref = "/search";
-    matchBackLabel = "Back to search";
-    breadcrumbItems.push({ label: "Search", href: "/search" });
-  } else {
-    // Default fallback: return to general matches list
-    matchBackHref = "/matches";
-    matchBackLabel = "Back to matches";
-    breadcrumbItems.push({ label: "Matches", href: "/matches" });
-  }
-
-  const handleBackClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (typeof window === "undefined") return;
-
-    // Check if we have safe in-app history to go back to
-    const referrer = document.referrer;
-    const isSameOrigin =
-      !!referrer && referrer.startsWith(window.location.origin);
-    const isFromScorePage =
-      !!referrer && referrer.includes(`/matches/${matchId}/score`);
-
-    // If navigated from the scoring screen of this match, avoid looping back into scoring
-    if (isSameOrigin && !isFromScorePage && window.history.length > 1) {
-      e.preventDefault();
-      router.back();
-    }
-  };
+  const trail = matchTrail(match);
+  // Its Back leads here, so Back from here must not lead there.
+  const scoringPath = `/matches/${match.id}/score`;
 
   return (
     // Full-bleed page: cancel the app shell's padding so the sticky header
@@ -409,45 +201,11 @@ function MatchDetailsPageContent() {
               the actions. Status, format, overs and the club / tournament
               are on the score card right below, not repeated here. */}
           <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <DsButton
-                variant="surface"
-                size="icon-sm"
-                asChild
-                className="shrink-0"
-              >
-                <Link
-                  href={matchBackHref}
-                  onClick={handleBackClick}
-                  aria-label={matchBackLabel}
-                  title={matchBackLabel}
-                >
-                  <ChevronLeft />
-                </Link>
-              </DsButton>
-              <nav
-                aria-label="Breadcrumb"
-                className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"
-              >
-                {breadcrumbItems.map((item) => (
-                  <span key={item.href} className="flex shrink-0 items-center gap-1.5">
-                    <Link
-                      href={item.href}
-                      className="max-w-[10rem] truncate transition-colors hover:text-foreground"
-                    >
-                      {item.label}
-                    </Link>
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  </span>
-                ))}
-                <span
-                  aria-current="page"
-                  className="min-w-0 truncate font-medium text-foreground"
-                >
-                  {match.title}
-                </span>
-              </nav>
-            </div>
+            <PageTrail
+              crumbs={trail}
+              current={match.title}
+              avoid={scoringPath}
+            />
 
             <div className="flex shrink-0 items-center gap-2">
               <ShareMatchButton
@@ -473,9 +231,9 @@ function MatchDetailsPageContent() {
           <ScreenBar
             className="mb-5 md:hidden"
             title="Match centre"
-            backHref={matchBackHref}
-            backLabel={matchBackLabel}
-            onBack={handleBackClick}
+            backHref={parentOf(trail)}
+            backLabel={backLabelOf(trail)}
+            backAvoid={scoringPath}
             action={
               <>
                 <ShareMatchButton
@@ -508,11 +266,7 @@ function MatchDetailsPageContent() {
                 (match.status === "scheduled" || match.status === "live") && (
                   <Button asChild>
                     <Link
-                      href={`/matches/${match.id}/score${
-                        searchParams.toString()
-                          ? `?${searchParams.toString()}`
-                          : ""
-                      }`}
+                      href={scoringPath}
                     >
                       <Play className="mr-1.5 h-4 w-4 shrink-0" />
                       {match.status === "scheduled"
@@ -540,7 +294,7 @@ function MatchDetailsPageContent() {
       <ContentSheet className="container mx-auto max-md:-mt-6 max-md:mx-0 max-md:mb-0 max-md:flex-1 sm:max-md:mx-0 md:px-4 md:py-6">
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={changeTab}
           className="space-y-6"
         >
           <TabsList className="flex h-auto w-full justify-start">

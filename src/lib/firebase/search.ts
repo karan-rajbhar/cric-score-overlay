@@ -16,6 +16,11 @@
  *   query on its first trigram (at most 3 x limit reads), confirmed in
  *   memory. So "smit" lists word starts only; "mith" falls through to
  *   mid-word matches.
+ * - several words that are not the start of the name ("rahul sharma" for
+ *   "Rahul Kumar Sharma", "sharma rahul", "r sharma") have no stored key:
+ *   when the phrase finds nothing, a second query on the longest word (at
+ *   most 3 x limit reads), confirmed in memory, finds them. `everyMatch`
+ *   runs it even when the phrase found someone (see below).
  *
  * Indexes: `search_prefixes` (array-contains) + the sort field, one per
  * collection (firestore.indexes.json).
@@ -26,7 +31,9 @@ import {
   isInfixQuery,
   MAX_PHRASE_PREFIX,
   MAX_WORD_PREFIX,
+  matchesEveryWord,
   matchesSearch,
+  MIN_PREFIX,
   normalizeText,
   SEARCH_FIELDS,
   searchKey,
@@ -50,8 +57,11 @@ function storedInFull(query: string): boolean {
 
 /**
  * Up to `limit` documents of `table` whose name (or a word of it) starts
- * with `query`, in name order. `columns` is a select list; the search
- * source fields are added when a long query needs an in-memory check.
+ * with `query`, in name order. `columns` is a select list holding `id`; the
+ * search source fields are added when a long query needs an in-memory
+ * check. `everyMatch`: a phrase's matches do not end a several-word search,
+ * so a player "Rahul Sharma" does not hide "Rahul Kumar Sharma" (likely the
+ * same person, and the reason a scorer looks before adding anyone).
  */
 export async function prefixSearch<T extends SearchTable>(
   db: SearchClient,
@@ -59,6 +69,7 @@ export async function prefixSearch<T extends SearchTable>(
   query: string,
   columns: string,
   limit: number,
+  { everyMatch = false }: { everyMatch?: boolean } = {},
 ): Promise<{ data: Record<string, unknown>[]; error: string | null }> {
   const key = searchKey(query);
   if (!key) return { data: [], error: null };
@@ -80,20 +91,47 @@ export async function prefixSearch<T extends SearchTable>(
     );
   if (!exact) rows = rows.filter(matches).slice(0, limit);
 
-  // Mid-word matches for longer one-word queries with no word-start
-  // match: every word containing the query contains its first trigram.
   const norm = normalizeText(query);
-  if (rows.length === 0 && isInfixQuery(norm) && norm.length > INFIX_LEN) {
-    const infix = await db
+  const words = norm.split(" ");
+  const roomForMore = everyMatch && words.length > 1 && rows.length < limit;
+  if (rows.length > 0 && !roomForMore) return { data: rows, error: null };
+
+  /** Documents holding `token`, kept when `confirm` says they match. */
+  const lookUp = async (
+    token: string,
+    confirm: (r: Record<string, unknown>) => boolean,
+  ) => {
+    const found = await db
       .from(table)
       .select(`${columns}, ${spec.sources.join(", ")}`)
-      .contains("search_prefixes", [norm.slice(0, INFIX_LEN)])
+      .contains("search_prefixes", [token])
       .order(spec.sort)
       .limit(limit * 3);
-    if (infix.error) return { data: [], error: infix.error.message };
-    rows = ((infix.data ?? []) as Record<string, unknown>[])
-      .filter(matches)
+    if (found.error) return { data: [], error: found.error.message };
+    const data = ((found.data ?? []) as Record<string, unknown>[])
+      .filter(confirm)
       .slice(0, limit);
+    return { data, error: null };
+  };
+
+  // Mid-word matches for longer one-word queries with no word-start
+  // match: every word containing the query contains its first trigram.
+  if (isInfixQuery(norm) && norm.length > INFIX_LEN) {
+    return lookUp(norm.slice(0, INFIX_LEN), matches);
+  }
+  // Words apart or out of order: the longest is the most selective.
+  const longest = words.reduce((a, b) => (b.length > a.length ? b : a));
+  if (words.length > 1 && longest.length >= MIN_PREFIX) {
+    const apart = await lookUp(longest.slice(0, MAX_WORD_PREFIX), (r) =>
+      matchesEveryWord(
+        query,
+        spec.sources.map((f) => r[f]),
+      ),
+    );
+    if (apart.error) return apart;
+    const known = new Set(rows.map((r) => r.id));
+    const others = apart.data.filter((r) => !known.has(r.id));
+    return { data: [...rows, ...others].slice(0, limit), error: null };
   }
   return { data: rows, error: null };
 }

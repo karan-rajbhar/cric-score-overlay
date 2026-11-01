@@ -8,11 +8,13 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ClubLogo } from "~/components/clubs/club-logo";
 import { formatClubType } from "~/lib/cricket";
 import {
-  PageContainer,
-  PageHeader,
-  SectionHeader,
-} from "~/components/layout/page";
+  DirectorySwitch,
+  MineAllSwitch,
+} from "~/components/layout/directory-switch";
+import { ListSearch } from "~/components/layout/list-search";
+import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
+import { prefixSearch } from "~/lib/firebase/search";
 import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 
 export const metadata = { title: "Clubs" };
@@ -102,77 +104,39 @@ function ClubCard({ club }: { club: ClubRow }) {
 export default async function ClubsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ after?: string }>;
+  searchParams?: Promise<{
+    after?: string;
+    view?: "mine" | "all";
+    search?: string;
+  }>;
 }) {
-  const { after } = (await searchParams) ?? {};
+  const { after, view: requested, search } = (await searchParams) ?? {};
+  const query = search?.trim() ?? "";
   const db = await createServerClient();
   const {
     data: { user },
   } = await db.auth.getUser();
-
-  // If logged in, fetch clubs where user is owner or member
-  let myClubIds: string[] = [];
-  if (user) {
-    const [{ data: mems }, { data: owned }] = await Promise.all([
-      db.from("club_memberships").select("club_id").eq("user_id", user.id),
-      db.from("clubs").select("id").eq("owner_id", user.id),
-    ]);
-    myClubIds = Array.from(
-      new Set([
-        ...(mems ?? []).map((m) => m.club_id),
-        ...(owned ?? []).map((o) => o.id),
-      ]),
-    );
-  }
-
-  const myClubs =
-    myClubIds.length > 0
-      ? await withTeamCounts(
-          db,
-          ((
-            await db
-              .from("clubs")
-              .select(CLUB_COLUMNS)
-              .in("id", myClubIds)
-              .order("name")
-          ).data ?? []) as ClubRow[],
-        )
-      : null;
-
-  // Public directory, a page at a time in name order (keyset, no scan),
-  // excluding clubs already shown above.
-  const cursor = parseCursor(after);
-  let publicQuery = db
-    .from("clubs")
-    .select(CLUB_COLUMNS)
-    .eq("is_public", true)
-    .order("name_lower");
-  if (cursor) publicQuery = publicQuery.after(cursor.value, cursor.id);
-  const [{ data: publicRows }, { count: publicTotal }] = await Promise.all([
-    publicQuery.limit(PAGE_SIZE + 1),
-    db
-      .from("clubs")
-      .select("id", { count: "exact", head: true })
-      .eq("is_public", true),
-  ]);
-  const page = keysetPage(
-    (publicRows ?? []) as ClubRow[],
-    (c) => c.name_lower ?? "",
-  );
-
-  const myIds = new Set((myClubs ?? []).map((c) => c.id));
-  const explore = await withTeamCounts(
-    db,
-    page.rows.filter((c) => !myIds.has(c.id)),
-  );
-  const myPublic = (myClubs ?? []).filter((c) => c.is_public === true).length;
-  const exploreTotal = Math.max(0, (publicTotal ?? 0) - myPublic);
+  // A search looks through every public club.
+  const view = user && requested !== "all" && !query ? "mine" : "all";
+  // Read here, not in nested components, so the page's reads are its own.
+  const list =
+    view === "mine"
+      ? await myClubs(db, user!.id)
+      : query.length >= 2
+        ? await foundClubs(db, query)
+        : await allClubs(db, after, Boolean(user));
 
   return (
     <PageContainer>
+      <DirectorySwitch current="/clubs" />
       <PageHeader
-        title="Clubs"
-        description="Clubs you belong to, plus public clubs on the platform."
+        search
+        title={view === "mine" ? "My clubs" : "All clubs"}
+        description={
+          view === "mine"
+            ? "Clubs you belong to"
+            : "Public clubs on the platform"
+        }
         actions={
           user && (
             <Button asChild size="sm">
@@ -184,67 +148,162 @@ export default async function ClubsPage({
           )
         }
       />
-
-      {user && (
-        <section className="space-y-4">
-          <SectionHeader title="My clubs" count={myClubs?.length ?? 0} />
-          {myClubs?.length ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {myClubs.map((club) => (
-                <ClubCard key={club.id} club={club} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={Shield}
-              title="No clubs joined yet"
-              description="You don't belong to any cricket clubs yet. Create your club to organize teams, record seasons, and showcase top performers."
-              primaryAction={{
-                label: "Create club",
-                href: "/clubs/create",
-                icon: Plus,
-              }}
-            />
-          )}
-        </section>
-      )}
-
-      <section className="space-y-4">
-        {(!user || explore.length > 0) && (
-          <SectionHeader
-            title="Public clubs"
-            count={exploreTotal || undefined}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        {user && (
+          <MineAllSwitch
+            label="Club list"
+            view={view}
+            mine={{ label: "My clubs", href: "/clubs" }}
+            all={{ label: "All clubs", href: "/clubs?view=all" }}
           />
         )}
-        {explore.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {explore.map((club) => (
-              <ClubCard key={club.id} club={club} />
-            ))}
-          </div>
-        ) : (
-          !user && (
-            <EmptyState
-              icon={Shield}
-              title="No public clubs found"
-              description="No public cricket clubs have been registered on the platform yet. Sign in to create the first club."
-              primaryAction={{
-                label: "Sign in",
-                href: "/auth/login",
-              }}
-            />
-          )
-        )}
-        <Pager
-          label="Public clubs pages"
-          firstHref={after ? "/clubs" : null}
-          nextHref={
-            page.next
-              ? `/clubs?${new URLSearchParams({ after: page.next })}`
-              : null
-          }
+        <ListSearch
+          action="/clubs"
+          value={query}
+          label="Search clubs"
+          placeholder="Search clubs…"
+          hidden={{ view: "all" }}
         />
-      </section>
+      </div>
+      {list}
     </PageContainer>
+  );
+}
+
+type Db = Awaited<ReturnType<typeof createServerClient>>;
+
+/** Clubs the user belongs to or owns (each read only on this view). */
+async function myClubs(db: Db, userId: string) {
+  const [{ data: mems }, { data: owned }] = await Promise.all([
+    db.from("club_memberships").select("club_id").eq("user_id", userId),
+    db.from("clubs").select("id").eq("owner_id", userId),
+  ]);
+  const ids = Array.from(
+    new Set([
+      ...(mems ?? []).map((m) => m.club_id),
+      ...(owned ?? []).map((o) => o.id),
+    ]),
+  );
+  const clubs = ids.length
+    ? await withTeamCounts(
+        db,
+        ((
+          await db
+            .from("clubs")
+            .select(CLUB_COLUMNS)
+            .in("id", ids)
+            .order("name")
+        ).data ?? []) as ClubRow[],
+      )
+    : [];
+
+  if (clubs.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No clubs joined yet"
+        description="You don't belong to any cricket clubs yet. Create your club to organize teams, record seasons, and showcase top performers."
+        primaryAction={{
+          label: "Create club",
+          href: "/clubs/create",
+          icon: Plus,
+        }}
+        secondaryAction={{ label: "See all clubs", href: "/clubs?view=all" }}
+      />
+    );
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {clubs.map((club) => (
+        <ClubCard key={club.id} club={club} />
+      ))}
+    </div>
+  );
+}
+
+/** Public clubs named like the search (indexed: at most a page of reads). */
+async function foundClubs(db: Db, query: string) {
+  const { data } = await prefixSearch(
+    db,
+    "clubs",
+    query,
+    CLUB_COLUMNS,
+    PAGE_SIZE,
+  );
+  const clubs = await withTeamCounts(
+    db,
+    (data as unknown as ClubRow[]).filter((c) => c.is_public === true),
+  );
+  if (clubs.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No clubs found"
+        description={`No public club matches “${query}”.`}
+      />
+    );
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {clubs.map((club) => (
+        <ClubCard key={club.id} club={club} />
+      ))}
+    </div>
+  );
+}
+
+/** Public clubs, a page at a time in name order (keyset, no scan). */
+async function allClubs(
+  db: Db,
+  after: string | undefined,
+  signedIn: boolean,
+) {
+  const cursor = parseCursor(after);
+  let query = db
+    .from("clubs")
+    .select(CLUB_COLUMNS)
+    .eq("is_public", true)
+    .order("name_lower");
+  if (cursor) query = query.after(cursor.value, cursor.id);
+  const { data } = await query.limit(PAGE_SIZE + 1);
+  const page = keysetPage(
+    (data ?? []) as ClubRow[],
+    (c) => c.name_lower ?? "",
+  );
+  const clubs = await withTeamCounts(db, page.rows);
+
+  if (clubs.length === 0) {
+    return (
+      <EmptyState
+        icon={Shield}
+        title="No public clubs found"
+        description={
+          signedIn
+            ? "No public cricket clubs have been registered on the platform yet."
+            : "No public cricket clubs have been registered on the platform yet. Sign in to create the first club."
+        }
+        primaryAction={
+          signedIn ? undefined : { label: "Sign in", href: "/auth/login" }
+        }
+      />
+    );
+  }
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {clubs.map((club) => (
+          <ClubCard key={club.id} club={club} />
+        ))}
+      </div>
+      <Pager
+        label="Public clubs pages"
+        firstHref={after ? "/clubs?view=all" : null}
+        nextHref={
+          page.next
+            ? `/clubs?${new URLSearchParams({ view: "all", after: page.next })}`
+            : null
+        }
+      />
+    </section>
   );
 }

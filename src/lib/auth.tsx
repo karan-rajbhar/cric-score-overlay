@@ -21,6 +21,7 @@ import {
 import { getFirebaseAuth, toAppUser } from "~/lib/firebase/client";
 import { clearAppCaches } from "~/lib/pwa/service-worker";
 import { clearScorerData } from "~/lib/offline-match-cache";
+import { clearRecentPlayers } from "~/lib/recent-players";
 import { matchesWithPendingActions } from "~/lib/offline-queue";
 import { removeDevicePush } from "~/lib/push/client";
 import {
@@ -352,6 +353,7 @@ export function AuthProvider({
     // leave them behind (except what queued actions still need to be sent).
     await clearAppCaches(true);
     clearScorerData(matchesWithPendingActions());
+    clearRecentPlayers();
     router.push("/");
     router.refresh();
   }, [router]);

@@ -170,7 +170,6 @@ describe("PlayerActivityTabs", () => {
   it("renders rich batting innings with formatted dismissals, strike rates, and opponents", () => {
     render(
       <PlayerActivityTabs
-        userId="u-1"
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -198,7 +197,6 @@ describe("PlayerActivityTabs", () => {
   it("renders bowling figures and details on the bowling tab", () => {
     render(
       <PlayerActivityTabs
-        userId="u-1"
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -215,7 +213,6 @@ describe("PlayerActivityTabs", () => {
   it("renders team memberships on the teams tab", () => {
     render(
       <PlayerActivityTabs
-        userId="u-1"
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -234,7 +231,6 @@ describe("PlayerActivityTabs", () => {
   it("renders match appearances with player contributions", () => {
     render(
       <PlayerActivityTabs
-        userId="u-1"
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -262,7 +258,6 @@ describe("PlayerActivityTabs", () => {
 
     render(
       <PlayerActivityTabs
-        userId="u-1"
         teams={mockTeams}
         batting={battingWithNullResult}
         bowling={[]}

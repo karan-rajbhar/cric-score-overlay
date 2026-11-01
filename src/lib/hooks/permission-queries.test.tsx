@@ -23,7 +23,6 @@ vi.mock("~/lib/firebase/client", () => ({
 
 import {
   useCanDeleteMatchQuery,
-  useCanProduceOverlayQuery,
   useMatchAdminQuery,
 } from "./useMatchQueries";
 
@@ -36,13 +35,8 @@ describe("permission checks right after load", () => {
   it("know the match's creator before Firebase Auth restores its user", async () => {
     const admin = renderHook(() => useMatchAdminQuery("m1", "creator"), { wrapper });
     const del = renderHook(() => useCanDeleteMatchQuery("m1", "creator"), { wrapper });
-    const overlay = renderHook(
-      () => useCanProduceOverlayQuery("m1", "creator", true),
-      { wrapper },
-    );
     await waitFor(() => expect(admin.result.current.data).toBe(true));
     await waitFor(() => expect(del.result.current.data).toBe(true));
-    await waitFor(() => expect(overlay.result.current.data).toBe(true));
     for (const [, args] of rpc.mock.calls) {
       expect(args).toMatchObject({ p_match_id: "m1", p_user_id: "creator" });
     }

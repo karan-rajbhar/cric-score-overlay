@@ -23,7 +23,7 @@ vi.mock("~/components/layout/app-sidebar", () => ({
 describe("AppShell Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useSidebarStore.setState({ collapsed: false, mobileOpen: false });
+    useSidebarStore.setState({ collapsed: false });
   });
 
   it("renders pure overlay container without navigation or footer for /overlay routes", () => {
@@ -74,7 +74,7 @@ describe("AppShell Component", () => {
     expect(footerNav).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Matches" })).toHaveAttribute("href", "/matches");
     expect(screen.getByRole("link", { name: "Tournaments" })).toHaveAttribute("href", "/tournaments");
-    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
+    expect(screen.getByRole("link", { name: "Clubs" })).toHaveAttribute("href", "/clubs");
   });
 
   it("applies expanded sidebar padding (260px) when collapsed is false", () => {

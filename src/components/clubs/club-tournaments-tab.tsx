@@ -200,7 +200,7 @@ export function ClubTournamentsTab({
             return (
               <TournamentCard
                 key={t.id}
-                href={`/tournaments/${t.id}?clubId=${clubId}`}
+                href={`/tournaments/${t.id}`}
                 tournament={t}
                 extra={seasonName}
                 actions={

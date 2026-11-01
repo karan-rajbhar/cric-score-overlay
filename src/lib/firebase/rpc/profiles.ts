@@ -212,6 +212,33 @@ export async function remapUserId(
   if (oldId === newId) return;
   // Nested ids first: it finds the matches through the old team_players.
   await remapScorecardUserId(ds, oldId, newId);
+  await rewriteUserReferences(ds, oldId, newId);
+  const old = await ds.getById("users", oldId);
+  if (old) {
+    const copy: Record<string, unknown> = { ...old };
+    delete copy.id;
+    await ds.insert("users", [{ ...copy, id: newId }]);
+    await ds.delete("users", oldId);
+  }
+  await moveUserPrivate(ds, oldId, newId);
+}
+
+/** Rows naming a person once per group (a squad, a club's members). */
+const ONE_ROW_PER_USER: Partial<Record<string, string>> = {
+  team_players: "team_id",
+  club_memberships: "club_id",
+};
+
+/**
+ * Points everything in `USER_REFERENCES` at `newId`. `merge`: `newId` is an
+ * existing player, so a squad or club holding both keeps one row.
+ */
+export async function rewriteUserReferences(
+  ds: DataSource,
+  oldId: string,
+  newId: string,
+  { merge = false }: { merge?: boolean } = {},
+): Promise<void> {
   for (const ref of USER_REFERENCES) {
     if (ref.array) {
       const rows = await ds.query(ref.table, [
@@ -230,18 +257,25 @@ export async function remapUserId(
     const rows = await ds.query(ref.table, [
       { field: ref.column, op: "==", value: oldId },
     ]);
+    const group = merge ? ONE_ROW_PER_USER[ref.table] : undefined;
     for (const row of rows) {
+      if (group && ref.column === "user_id") {
+        const held = await ds.query(
+          ref.table,
+          [
+            { field: group, op: "==", value: row[group] },
+            { field: "user_id", op: "==", value: newId },
+          ],
+          { limit: 1 },
+        );
+        if (held.length > 0) {
+          await ds.delete(ref.table, row.id);
+          continue;
+        }
+      }
       await ds.update(ref.table, row.id, { [ref.column]: newId });
     }
   }
-  const old = await ds.getById("users", oldId);
-  if (old) {
-    const copy: Record<string, unknown> = { ...old };
-    delete copy.id;
-    await ds.insert("users", [{ ...copy, id: newId }]);
-    await ds.delete("users", oldId);
-  }
-  await moveUserPrivate(ds, oldId, newId);
 }
 
 function buildUserDoc(values: Partial<UsersRow> & { id: string }): Doc {
@@ -411,7 +445,7 @@ async function scoresMatchOf(
  * Who may add players to a team: its creator, captain or vice-captain, a
  * club admin, or (with `matchId`) a scorer of a match it plays.
  */
-async function assertMayAddPlayers(
+export async function assertMayAddPlayers(
   ds: DataSource,
   callerId: string,
   teamId: string,

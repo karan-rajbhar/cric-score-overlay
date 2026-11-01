@@ -31,6 +31,7 @@ describe("/design", () => {
       screen.getByRole("heading", { level: 1, name: "Design system" }),
     ).toBeInTheDocument();
     for (const name of [
+      "Principles",
       "Foundations",
       "Controls",
       "Layout and content",

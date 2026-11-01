@@ -4,6 +4,12 @@
  * former Postgres function.
  */
 
+import {
+  mergePlayer,
+  playerLeftover,
+  previewPlayerMerge,
+  removeLeftoverPlayer,
+} from "./merge-player";
 import "server-only";
 import type { Firestore } from "firebase-admin/firestore";
 import type { AppUser } from "../auth-types";
@@ -156,6 +162,26 @@ export async function callRpc(
         p_match_id: str(args, "p_match_id"),
         p_from_id: str(args, "p_from_id"),
         p_to_id: str(args, "p_to_id"),
+      });
+    case "player_leftover":
+      return playerLeftover(ctx.ds, str(args, "p_user_id"));
+    case "remove_leftover_player":
+      return removeLeftoverPlayer(ctx.ds, ctx.uid, {
+        matchId: str(args, "p_match_id"),
+        teamId: str(args, "p_team_id"),
+        userId: str(args, "p_user_id"),
+      });
+    case "preview_player_merge":
+      return previewPlayerMerge(ctx.ds, ctx.uid, {
+        teamId: str(args, "p_team_id"),
+        from: str(args, "p_from_id"),
+        to: str(args, "p_to_id"),
+      });
+    case "merge_player":
+      return mergePlayer(scoring, {
+        teamId: str(args, "p_team_id"),
+        from: str(args, "p_from_id"),
+        to: str(args, "p_to_id"),
       });
     case "set_current_batsmen":
       return setCurrentBatsmen(

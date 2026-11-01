@@ -1,38 +1,45 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 import { AppSidebar } from "./app-sidebar";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
-vi.mock("~/lib/auth", () => ({ useAuth: () => ({ user: null }) }));
-vi.mock("~/components/layout/drawer-account", () => ({
-  DrawerAccount: () => <a href="/auth/login">Sign in</a>,
-  DrawerActions: () => null,
-  DrawerFooter: () => null,
-}));
+const usePathname = vi.fn();
+const useAuth = vi.fn();
+vi.mock("next/navigation", () => ({ usePathname: () => usePathname() }));
+vi.mock("~/lib/auth", () => ({ useAuth: () => useAuth() }));
 
-describe("phone drawer", () => {
+const link = (name: string) => screen.getByRole("link", { name });
+
+describe("AppSidebar", () => {
   beforeEach(() => {
-    useSidebarStore.setState({ collapsed: false, mobileOpen: false });
+    useSidebarStore.setState({ collapsed: false });
+    usePathname.mockReturnValue("/matches");
+    useAuth.mockReturnValue({ user: { id: "u1" } });
   });
 
-  it("is a labelled modal dialog that takes focus and closes on Escape", () => {
+  it("calls the signed-in home Home, and leads to it", () => {
     render(<AppSidebar />);
-    expect(screen.queryByRole("dialog")).toBeNull();
-
-    useSidebarStore.setState({ mobileOpen: true });
-    render(<AppSidebar />);
-    const dialog = screen.getByRole("dialog", { name: "Menu" });
-    expect(dialog).toContainElement(document.activeElement as HTMLElement);
-
-    fireEvent.keyDown(dialog, { key: "Escape" });
-    expect(useSidebarStore.getState().mobileOpen).toBe(false);
+    expect(link("Home")).toHaveAttribute("href", "/dashboard");
+    expect(screen.queryByText("Dashboard")).toBeNull();
   });
 
-  it("closes from its close button", () => {
-    useSidebarStore.setState({ mobileOpen: true });
+  it("sends a visitor to the landing page and hides New match", () => {
+    useAuth.mockReturnValue({ user: null });
     render(<AppSidebar />);
-    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
-    expect(useSidebarStore.getState().mobileOpen).toBe(false);
+    expect(link("Home")).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("link", { name: "New match" })).toBeNull();
+  });
+
+  it("has no demo overlay link and no second way to Search", () => {
+    render(<AppSidebar />);
+    expect(screen.queryByText("Stream overlays")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Search" })).toBeNull();
+  });
+
+  it("lights the current page and only that", () => {
+    usePathname.mockReturnValue("/matches/create");
+    render(<AppSidebar />);
+    expect(link("New match")).toHaveAttribute("aria-current", "page");
+    expect(link("Matches")).not.toHaveAttribute("aria-current");
   });
 });

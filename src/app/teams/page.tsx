@@ -1,16 +1,19 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Plus, Search, Users, AlertCircle } from "lucide-react";
+import { Plus, Users, AlertCircle } from "lucide-react";
 import { getTeams } from "./actions";
 import { TeamCard } from "~/components/teams/team-card";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { createServerClient } from "~/lib/firebase/server";
+import { ListSearch } from "~/components/layout/list-search";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
-import { segmentedItem, segmentedTrack } from "~/components/ui/segmented";
+import {
+  DirectorySwitch,
+  MineAllSwitch,
+} from "~/components/layout/directory-switch";
 
 export const metadata = { title: "Teams" };
 
@@ -51,7 +54,9 @@ export default async function TeamsPage({
 
   return (
     <PageContainer>
+      <DirectorySwitch current="/teams" />
       <PageHeader
+        search
         title={view === "mine" ? "My teams" : "All teams"}
         description={
           view === "mine"
@@ -69,39 +74,19 @@ export default async function TeamsPage({
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <nav aria-label="Team list" className={segmentedTrack}>
-          <Link
-            href={buildHref("mine")}
-            aria-current={view === "mine" ? "page" : undefined}
-            className={segmentedItem(view === "mine")}
-          >
-            My teams
-          </Link>
-          <Link
-            href={buildHref("all")}
-            aria-current={view === "all" ? "page" : undefined}
-            className={segmentedItem(view === "all")}
-          >
-            All teams
-          </Link>
-        </nav>
-        <div className="relative w-full flex-1 sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <form action="/teams" method="GET">
-            <Input
-              autoCorrect="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              name="search"
-              type="search"
-              aria-label="Search teams"
-              placeholder="Search teams…"
-              className="h-9 w-full pl-9"
-              defaultValue={resolvedParams?.search}
-            />
-            {view === "all" && <input type="hidden" name="view" value="all" />}
-          </form>
-        </div>
+        <MineAllSwitch
+          label="Team list"
+          view={view}
+          mine={{ label: "My teams", href: buildHref("mine") }}
+          all={{ label: "All teams", href: buildHref("all") }}
+        />
+        <ListSearch
+          action="/teams"
+          value={resolvedParams?.search}
+          label="Search teams"
+          placeholder="Search teams…"
+          hidden={view === "all" ? { view: "all" } : undefined}
+        />
       </div>
 
       {error ? (

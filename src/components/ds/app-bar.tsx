@@ -59,15 +59,13 @@ export function NotificationsButton({
   );
 }
 
-export type TabBarItem = {
+/** A tab is a place with a URL, never an action. */
+export interface TabBarItem {
+  href: string;
   label: string;
   icon: LucideIcon;
   active?: boolean;
-} & (
-  | { href: string; onClick?: never }
-  /** A tab that opens something instead of navigating ("More"). */
-  | { href?: never; onClick: () => void; expanded?: boolean }
-);
+}
 
 const tabTarget =
   "group flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -125,24 +123,13 @@ export function TabBar({
       <ul className="flex items-stretch justify-between">
         {items.map((item) => (
           <li key={item.label} className="flex-1">
-            {item.href !== undefined ? (
-              <Link
-                href={item.href}
-                aria-current={item.active ? "page" : undefined}
-                className={tabTarget}
-              >
-                <TabFace item={item} />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={item.onClick}
-                aria-expanded={item.expanded}
-                className={tabTarget}
-              >
-                <TabFace item={item} />
-              </button>
-            )}
+            <Link
+              href={item.href}
+              aria-current={item.active ? "page" : undefined}
+              className={tabTarget}
+            >
+              <TabFace item={item} />
+            </Link>
           </li>
         ))}
       </ul>

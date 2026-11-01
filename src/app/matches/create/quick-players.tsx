@@ -6,15 +6,21 @@ import { Button as DsButton } from "~/components/ds/button";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { addExistingPlayerQuick, createPlayerQuick } from "../../teams/actions";
 import {
-  addExistingPlayerQuick,
-  createPlayerQuick,
-  searchUsers,
-} from "../../teams/actions";
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
+import { useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import { NETWORK_ERROR_MESSAGE } from "~/lib/network-error";
+import { lookUpPlayers } from "~/lib/player-lookup";
+import { rememberPlayer } from "~/lib/recent-players";
 import {
   foundPlayerHint,
-  nameMatches,
+  playerMatches,
+  SUGGESTIONS_SHOWN,
+  typedHandle,
   type FoundPlayer,
 } from "~/lib/player-search";
 
@@ -28,24 +34,13 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
 async function findExisting(
   query: string,
   exclude: ReadonlySet<string>,
+  clubId?: string | null,
 ): Promise<FoundPlayer[]> {
-  const { data } = await searchUsers(query);
-  return (
-    (data ?? []) as {
-      id: string;
-      full_name: string | null;
-      username?: string | null;
-      matches?: number;
-    }[]
-  )
-    .filter((u) => !exclude.has(u.id))
-    .slice(0, 5)
-    .map((u) => ({
-      id: u.id,
-      name: u.full_name ?? "Player",
-      username: u.username,
-      matches: u.matches,
-    }));
+  const { players } = await lookUpPlayers(
+    query,
+    clubId ? { clubId } : undefined,
+  );
+  return players.filter((u) => !exclude.has(u.id)).slice(0, SUGGESTIONS_SHOWN);
 }
 
 /**
@@ -59,6 +54,7 @@ async function findExisting(
  */
 export function QuickPlayers({
   teamId,
+  clubId,
   teamName,
   playerCount,
   existingIds = [],
@@ -66,6 +62,8 @@ export function QuickPlayers({
   onAdded,
 }: {
   teamId: string;
+  /** The match's or team's club: its members come first in a search. */
+  clubId?: string | null;
   teamName: string;
   playerCount: number | null | undefined;
   /** Players already in the team (not offered again). */
@@ -89,6 +87,9 @@ export function QuickPlayers({
     q: "",
     players: [],
   });
+  // The name a search could not answer for, and a way to ask again.
+  const [failedQ, setFailedQ] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   const q = normalize(name);
   const lookup = open && q.length >= SEARCH_MIN ? q : "";
@@ -100,25 +101,27 @@ export function QuickPlayers({
     if (!lookupOthers) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      findExisting(lookupOthers, new Set(excludeKey.split(","))).then(
+      findExisting(lookupOthers, new Set(excludeKey.split(",")), clubId).then(
         (players) => {
           if (!cancelled) setFound({ q: lookupOthers, players });
         },
-        () => undefined,
+        () => {
+          if (!cancelled) setFailedQ(lookupOthers);
+        },
       );
     }, 300);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [lookupOthers, excludeKey]);
+  }, [lookupOthers, excludeKey, attempt, clubId]);
   const taken = new Set([...existingIds, ...added.map((a) => a.id)]);
   // People from the user's teams first (known without a read), then
   // anyone else on CricScore of that name.
   const fromTeams = lookup
     ? teammates
-        .filter((p) => !taken.has(p.id) && nameMatches(p.name, lookup))
-        .slice(0, 5)
+        .filter((p) => !taken.has(p.id) && playerMatches(lookup, p))
+        .slice(0, SUGGESTIONS_SHOWN)
     : [];
   const fromTeamIds = new Set(fromTeams.map((p) => p.id));
   const others =
@@ -126,6 +129,9 @@ export function QuickPlayers({
       ? found.players.filter((p) => !fromTeamIds.has(p.id))
       : [];
   const suggestions = [...fromTeams, ...others];
+  const searchFailed = Boolean(q) && failedQ === q && found.q !== q;
+  const sameName = useSameNameCheck(q, suggestions);
+  const handle = typedHandle(q);
 
   // The page adds each new player to `playerCount` (via onAdded).
   const total = playerCount ?? 0;
@@ -168,6 +174,7 @@ export function QuickPlayers({
       return;
     }
     const player = { id: res.data.user_id, name: res.data.full_name };
+    rememberPlayer(player);
     setAdded((prev) => [...prev, player]);
     setName("");
     setFound({ q: "", players: [] });
@@ -177,7 +184,10 @@ export function QuickPlayers({
 
   const addExisting = (p: FoundPlayer) =>
     run(p.id, () => addExistingPlayerQuick(teamId, p.id));
-  const addNew = () => run("new", () => createPlayerQuick(teamId, q));
+  const addNew = () => {
+    if (!sameName.allow()) return;
+    void run("new", () => createPlayerQuick(teamId, q));
+  };
 
   // Enter / Add: a new player only once no existing one may be the same
   // person (asks the search first if it has not answered for this name).
@@ -189,14 +199,18 @@ export function QuickPlayers({
     if (fromTeams.length) return;
     if (q.length >= SEARCH_OTHERS_MIN && found.q !== q) {
       setSaving("search");
-      let players: FoundPlayer[] = [];
+      let players: FoundPlayer[];
       try {
         players = await findExisting(
           q,
           new Set([...existingIds, ...added.map((a) => a.id)]),
+          clubId,
         );
       } catch {
-        // Search unavailable: adding a new player still works.
+        // Nobody is added on a guess: the box says it could not check, and
+        // adding them as new is one tap away.
+        setFailedQ(q);
+        return;
       } finally {
         setSaving(null);
       }
@@ -205,7 +219,12 @@ export function QuickPlayers({
     } else if (suggestions.length) {
       return;
     }
-    await addNew();
+    // "@name" finds someone; it cannot be a new player's name.
+    if (handle !== null) {
+      setError(`Nobody has the username ${q}. Type a name to add a new player.`);
+      return;
+    }
+    addNew();
   };
 
   return (
@@ -228,7 +247,7 @@ export function QuickPlayers({
               if (!saving) void add();
             }
           }}
-          placeholder="Player name"
+          placeholder="Name or @username"
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
@@ -253,6 +272,16 @@ export function QuickPlayers({
           <span className="ml-1">Add</span>
         </Button>
       </div>
+      {!q && (
+        <div className="mt-2">
+          <RecentPlayers
+            teamName={teamName}
+            exclude={taken}
+            disabled={Boolean(saving)}
+            onPick={(p) => void addExisting(p)}
+          />
+        </div>
+      )}
       {suggestions.length > 0 && (
         <div className="mt-2 space-y-2">
           <p className="text-xs text-muted-foreground">
@@ -272,20 +301,59 @@ export function QuickPlayers({
             saving={saving}
             onPick={(p) => void addExisting(p)}
           />
-          <DsButton
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start"
-            disabled={Boolean(saving)}
-            loading={saving === "new"}
-            onClick={() => void addNew()}
-          >
-            <Plus aria-hidden="true" />
-            <span className="min-w-0 truncate">
-              Add “{q}” as a new player
-            </span>
-          </DsButton>
+          {sameName.asking && sameName.twin && (
+            <SameNameNote twin={sameName.twin} />
+          )}
+          {handle === null && (
+            <DsButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              disabled={Boolean(saving)}
+              loading={saving === "new"}
+              onClick={addNew}
+            >
+              <Plus aria-hidden="true" />
+              <span className="min-w-0 truncate">
+                {sameName.asking
+                  ? `Yes, add a second “${q}”`
+                  : `Add “${q}” as a new player`}
+              </span>
+            </DsButton>
+          )}
+        </div>
+      )}
+      {searchFailed && suggestions.length === 0 && (
+        <div className="mt-2 space-y-1">
+          <PlayerSearchNote
+            search={{
+              status: "failed",
+              more: false,
+              retry: () => {
+                setFailedQ("");
+                setAttempt((n) => n + 1);
+              },
+            }}
+            query={q}
+            listed={0}
+          />
+          {handle === null && (
+            <DsButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              disabled={Boolean(saving)}
+              loading={saving === "new"}
+              onClick={addNew}
+            >
+              <Plus aria-hidden="true" />
+              <span className="min-w-0 truncate">
+                Add “{q}” as a new player
+              </span>
+            </DsButton>
+          )}
         </div>
       )}
       {error && (

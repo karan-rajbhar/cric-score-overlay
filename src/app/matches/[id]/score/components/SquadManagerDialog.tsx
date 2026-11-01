@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { Loader2, Search, Trash2, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
@@ -13,10 +13,26 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { removePlayerFromTeam, searchUsers } from "~/app/teams/actions";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
+import { removePlayerFromTeam } from "~/app/teams/actions";
+import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
 import type { TeamPlayer } from "~/lib/match-types";
+import {
+  foundPlayerHint,
+  playerMatches,
+  SUGGESTIONS_SHOWN,
+  typedHandle,
+  whyNotAddable,
+  type FoundPlayer,
+} from "~/lib/player-search";
+import { rememberPlayer } from "~/lib/recent-players";
 import { roleLabel } from "./player-rows";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { PlayerSearchContext } from "./PlayerPicker";
 
 export interface SquadTeam {
   id: string;
@@ -51,12 +67,6 @@ export interface SquadManagerDialogProps {
   isOffline?: boolean;
 }
 
-type FoundUser = {
-  id: string;
-  full_name?: string;
-  username?: string | null;
-};
-
 const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 function SquadPanel({
@@ -81,8 +91,6 @@ function SquadPanel({
   isOffline: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<FoundUser[]>([]);
-  const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   /** The player the scorer asked to remove (removal waits for a confirm). */
   const [removing, setRemoving] = useState<{
@@ -95,36 +103,33 @@ function SquadPanel({
     [team.players],
   );
 
-  // Search registered players as the scorer types (debounced).
+  // Search registered players as the scorer types: the same search as the
+  // pickers', so it says who is in which squad of this match.
+  const findPlayers = useContext(PlayerSearchContext) ?? undefined;
   const activeQuery = query.trim();
-  const searchable = activeQuery.length >= 2 && !isOffline;
-  useEffect(() => {
-    if (!searchable) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const { data } = await searchUsers(activeQuery);
-        if (!cancelled) {
-          setResults(
-            ((data ?? []) as FoundUser[]).filter((u) => !rosterIds.has(u.id)),
-          );
-        }
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [activeQuery, searchable, rosterIds]);
-  const visibleResults = searchable ? results : [];
+  const handle = typedHandle(activeQuery);
+  const searchable = (handle ?? activeQuery).length >= 2 && !isOffline;
+  const search = usePlayerSearch(searchable ? activeQuery : "", findPlayers);
+  const foundIds = new Set(search.players.map((p) => p.id));
+  const elsewhere = search.players.filter((u) => !rosterIds.has(u.id));
+  const visibleResults = elsewhere.slice(0, SUGGESTIONS_SHOWN);
+  const more = search.more || elsewhere.length > SUGGESTIONS_SHOWN;
 
   const q = normalize(query);
+  const sameName = useSameNameCheck(q, elsewhere);
   const filtered = q
-    ? team.players.filter((p) => normalize(p.user?.full_name ?? "").includes(q))
+    ? team.players.filter(
+        (p) =>
+          foundIds.has(p.user_id) ||
+          playerMatches(q, {
+            name: p.user?.full_name ?? "",
+            username: p.user?.username,
+          }),
+      )
     : team.players;
+  // A new player waits for the search, and "@name" never names one.
+  const canAddNew =
+    handle === null && !isOffline && search.status !== "searching";
   const hasPlayed = (id: string) => activeIds.has(id) || usedIds.has(id);
   const played = filtered.filter((p) => hasPlayed(p.user_id));
   const yetToPlay = filtered.filter((p) => !hasPlayed(p.user_id));
@@ -132,13 +137,13 @@ function SquadPanel({
     ? team.players.find((p) => normalize(p.user?.full_name ?? "") === q)
     : undefined;
 
-  const addExisting = async (u: FoundUser) => {
+  const addExisting = async (u: FoundPlayer) => {
     if (isOffline) return;
     setBusyId(u.id);
     try {
-      await onCreatePlayer(side, u.full_name ?? "Player", u.id);
+      await onCreatePlayer(side, u.name, u.id);
+      rememberPlayer(u);
       setQuery("");
-      setResults([]);
     } finally {
       setBusyId(null);
     }
@@ -164,12 +169,14 @@ function SquadPanel({
 
   const createNew = async () => {
     const name = query.trim().replace(/\s+/g, " ");
-    if (!name || isOffline) return;
+    if (!name || isOffline || !sameName.allow()) return;
     setBusyId("new");
     try {
-      await onCreatePlayer(side, name);
+      const res = (await onCreatePlayer(side, name)) as
+        | { data?: { user_id?: string } | null }
+        | undefined;
+      if (res?.data?.user_id) rememberPlayer({ id: res.data.user_id, name });
       setQuery("");
-      setResults([]);
     } finally {
       setBusyId(null);
     }
@@ -260,11 +267,18 @@ function SquadPanel({
           name="playerSearch"
           autoComplete="off"
           aria-label={`Find or add a player for ${team.name}`}
-          placeholder="Find or add a player"
+          placeholder="Search name or @username"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && q && filtered.length === 0) {
+            if (
+              e.key === "Enter" &&
+              q &&
+              filtered.length === 0 &&
+              visibleResults.length === 0 &&
+              canAddNew &&
+              search.status !== "failed"
+            ) {
               e.preventDefault();
               void createNew();
             }
@@ -273,7 +287,76 @@ function SquadPanel({
         />
       </div>
 
-      {q && (
+      {isOffline && (
+        <p className="text-xs text-muted-foreground">
+          Changing squads needs a connection.
+        </p>
+      )}
+
+      {!q && !isOffline && (
+        <RecentPlayers
+          teamName={team.name}
+          exclude={rosterIds}
+          disabled={isProcessing || busyId !== null}
+          onPick={(p) => void addExisting(p)}
+        />
+      )}
+
+      {/* Existing players before "new player": most names being typed
+          belong to someone who is already here. */}
+      {visibleResults.length > 0 && (
+        <section aria-label="Registered players" className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            On CricScore
+          </p>
+          <ul className="space-y-1 sm:max-h-40 sm:overflow-y-auto">
+            {visibleResults.map((u) => {
+              const blocked = whyNotAddable(u, team.name);
+              return (
+                <li key={u.id}>
+                  <button
+                    type="button"
+                    disabled={
+                      busyId === u.id || isProcessing || blocked !== null
+                    }
+                    onClick={() => void addExisting(u)}
+                    aria-label={
+                      blocked
+                        ? `${u.name}: ${blocked}`
+                        : `Add ${u.name} to ${team.name}`
+                    }
+                    className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-60"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">
+                        {u.name}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {blocked ?? foundPlayerHint(u)}
+                      </span>
+                    </span>
+                    {busyId === u.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      !blocked && <UserPlus className="h-4 w-4 text-primary" />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {searchable && (
+        <PlayerSearchNote
+          search={{ ...search, more }}
+          query={activeQuery}
+          listed={visibleResults.length + filtered.length}
+        />
+      )}
+
+      {q && handle === null && (
         <div className="space-y-1">
           {duplicate && (
             <p className="text-xs text-warning">
@@ -281,11 +364,14 @@ function SquadPanel({
               player only if this is a different person.
             </p>
           )}
+          {sameName.asking && sameName.twin && (
+            <SameNameNote twin={sameName.twin} />
+          )}
           <Button
             type="button"
             variant="outline"
             className="h-11 w-full justify-start gap-2"
-            disabled={isProcessing || isOffline || busyId === "new"}
+            disabled={isProcessing || !canAddNew || busyId === "new"}
             onClick={() => void createNew()}
           >
             {busyId === "new" ? (
@@ -294,59 +380,12 @@ function SquadPanel({
               <UserPlus className="h-4 w-4" aria-hidden />
             )}
             <span className="truncate">
-              {duplicate ? "Add another" : "Add"} “{query.trim()}” as a new
-              player
+              {sameName.asking
+                ? `Yes, add a second “${query.trim()}”`
+                : `${duplicate ? "Add another" : "Add"} “${query.trim()}” as a new player`}
             </span>
           </Button>
         </div>
-      )}
-      {isOffline && (
-        <p className="text-xs text-muted-foreground">
-          Changing squads needs a connection.
-        </p>
-      )}
-
-      {(visibleResults.length > 0 || (searchable && searching)) && (
-        <section aria-label="Registered players" className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">
-            On CricScore
-          </p>
-          {searching && visibleResults.length === 0 ? (
-            <p className="px-1 py-2 text-xs text-muted-foreground">
-              Searching…
-            </p>
-          ) : (
-            <ul className="space-y-1 sm:max-h-40 sm:overflow-y-auto">
-              {visibleResults.map((u) => (
-                <li key={u.id}>
-                  <button
-                    type="button"
-                    disabled={busyId === u.id || isProcessing}
-                    onClick={() => void addExisting(u)}
-                    aria-label={`Add ${u.full_name ?? "player"} to ${team.name}`}
-                    className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-60"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">
-                        {u.full_name ?? "Player"}
-                      </span>
-                      {u.username && (
-                        <span className="block truncate text-xs text-muted-foreground">
-                          @{u.username}
-                        </span>
-                      )}
-                    </span>
-                    {busyId === u.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="h-4 w-4 text-primary" />
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       )}
 
       {team.players.length === 0 ? (
@@ -378,7 +417,7 @@ function SquadPanel({
               <ul className="space-y-1">{played.map(renderRow)}</ul>
             </section>
           )}
-          {q && filtered.length === 0 && (
+          {q && filtered.length === 0 && !searchable && (
             <p className="px-1 text-sm text-muted-foreground">
               Nobody in {team.name} matches “{query.trim()}”.
             </p>

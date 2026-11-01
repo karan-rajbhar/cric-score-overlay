@@ -87,7 +87,6 @@ export default function MatchesPage() {
             <MatchCard
               key={match.id}
               match={match}
-              contextQuery="from=matches"
               canScore={
                 !!user &&
                 (match.created_by === user.id ||
@@ -106,6 +105,7 @@ export default function MatchesPage() {
   return (
     <PageContainer>
       <PageHeader
+        search
         title="Matches"
         description="Live scores, fixtures and results"
         actions={

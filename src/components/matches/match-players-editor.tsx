@@ -8,10 +8,14 @@ import { ListCard, ListRow, SectionHeader } from "~/components/ds/list";
 import { matchParts, partFigures } from "~/lib/match-players";
 import type { Match } from "~/lib/match-types";
 import { ReplacePlayerPanel } from "./replace-player-panel";
+import {
+  ReplacedPlayerNotice,
+  type ReplacedPlayerInfo,
+} from "./replaced-player-notice";
 
 type EditorMatch = Pick<
   Match,
-  "id" | "team1_id" | "team2_id" | "team1" | "team2" | "innings"
+  "id" | "team1_id" | "team2_id" | "team1" | "team2" | "innings" | "club_id"
 >;
 
 /**
@@ -26,9 +30,17 @@ export function MatchPlayersEditor({ match }: { match: EditorMatch }) {
   const parts = useMemo(() => matchParts(match), [match]);
   const inMatch = useMemo(() => new Set(parts.map((p) => p.id)), [parts]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [replaced, setReplaced] = useState<ReplacedPlayerInfo | null>(null);
 
   return (
     <div className="space-y-6">
+      {replaced && (
+        <ReplacedPlayerNotice
+          matchId={match.id}
+          player={replaced}
+          onClose={() => setReplaced(null)}
+        />
+      )}
       <p className="text-sm text-muted-foreground [text-wrap:pretty]">
         Recorded the wrong person? Tap Replace next to them and pick who really
         played. Their runs, wickets and catches move across; the score stays
@@ -50,6 +62,7 @@ export function MatchPlayersEditor({ match }: { match: EditorMatch }) {
                       title={p.name}
                       subtitle={
                         <span className="tabular-nums">
+                          {p.username && `@${p.username} · `}
                           {partFigures(p) || "Fielded"}
                         </span>
                       }
@@ -70,12 +83,22 @@ export function MatchPlayersEditor({ match }: { match: EditorMatch }) {
                       <ReplacePlayerPanel
                         id={panelId}
                         matchId={match.id}
+                        clubId={match.club_id ?? team.club_id}
                         part={p}
                         team={team}
                         inMatch={inMatch}
                         onCancel={() => setOpenId(null)}
-                        onDone={() => {
+                        onDone={(leftover) => {
                           setOpenId(null);
+                          setReplaced(
+                            leftover && {
+                              id: p.id,
+                              name: p.name,
+                              teamId: team.id,
+                              teamName: team.name,
+                              otherMatches: leftover.otherMatches,
+                            },
+                          );
                           router.refresh();
                         }}
                       />

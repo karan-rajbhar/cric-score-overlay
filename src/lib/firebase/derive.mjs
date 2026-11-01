@@ -133,6 +133,23 @@ export function matchesSearch(query, texts) {
 }
 
 /**
+ * Whether every typed word starts a word of one of `texts`, in any order
+ * and with other words between: "rahul sharma" and "sharma r" both match
+ * "Rahul Kumar Sharma". No stored key holds such a phrase, so these are
+ * looked up by one word and confirmed here (`prefixSearch`).
+ * @param {unknown} query
+ * @param {unknown[]} texts
+ */
+export function matchesEveryWord(query, texts) {
+  const typed = normalizeText(query).split(" ").filter(Boolean);
+  if (typed.length === 0) return false;
+  return texts.some((t) => {
+    const words = normalizeText(t).split(" ");
+    return typed.every((q) => words.some((w) => w.startsWith(q)));
+  });
+}
+
+/**
  * Collections with search keys: the source fields and the sort field.
  * Users also match on their @username.
  * @type {Record<string, { sources: string[]; sort: string; from: string }>}

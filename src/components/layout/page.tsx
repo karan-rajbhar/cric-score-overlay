@@ -1,4 +1,7 @@
 import type * as React from "react";
+import Link from "next/link";
+import { Search } from "lucide-react";
+import { buttonVariants } from "~/components/ds/button";
 import { cn } from "~/lib/utils";
 
 /*
@@ -36,11 +39,29 @@ export function PageContainer({
   );
 }
 
+/** The way to Search on phones, where it has no tab: top right of a screen. */
+export function SearchLink({ className }: { className?: string }) {
+  return (
+    <Link
+      href="/search"
+      aria-label="Search"
+      className={cn(
+        buttonVariants({ variant: "surface", size: "icon" }),
+        "shrink-0 md:hidden",
+        className,
+      )}
+    >
+      <Search />
+    </Link>
+  );
+}
+
 /** Page title row: h1, one-line description and right-aligned actions. */
 export function PageHeader({
   title,
   description,
   actions,
+  search = false,
   children,
   className,
 }: {
@@ -48,6 +69,8 @@ export function PageHeader({
   description?: React.ReactNode;
   /** Buttons/links. On phones they stretch to share the full width. */
   actions?: React.ReactNode;
+  /** A main screen: shows the way to Search on phones (`SearchLink`). */
+  search?: boolean;
   /** Extra content under the description (badges, meta). */
   children?: React.ReactNode;
   className?: string;
@@ -59,16 +82,19 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="min-w-0">
-        <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-1 text-pretty text-sm text-muted-foreground">
-            {description}
-          </p>
-        )}
-        {children}
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
+            {title}
+          </h1>
+          {description && (
+            <p className="mt-1 text-pretty text-sm text-muted-foreground">
+              {description}
+            </p>
+          )}
+          {children}
+        </div>
+        {search && <SearchLink />}
       </div>
       {actions && (
         <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">

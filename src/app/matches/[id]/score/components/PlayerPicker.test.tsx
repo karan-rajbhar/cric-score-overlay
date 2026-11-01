@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { recentPlayers, rememberPlayer } from "~/lib/recent-players";
 import { PlayerPicker, PlayerSearchContext } from "./PlayerPicker";
 import type { PickerRow } from "./player-rows";
 
@@ -230,11 +231,12 @@ describe("PlayerPicker add while typing", () => {
   it("suggests registered players and adds the one picked instead of a new one", async () => {
     const onSelect = vi.fn();
     const onAdd = vi.fn().mockResolvedValue("u-rahul");
-    const find = vi
-      .fn()
-      .mockResolvedValue([
+    const find = vi.fn().mockResolvedValue({
+      players: [
         { id: "u-rahul", name: "Rahul Dravid", username: "rahul", matches: 42 },
-      ]);
+      ],
+      more: false,
+    });
     render(
       <PlayerSearchContext.Provider value={find}>
         <PlayerPicker
@@ -290,5 +292,270 @@ describe("PlayerPicker add while typing", () => {
       target: { value: "rahul" },
     });
     expect(find).not.toHaveBeenCalled();
+  });
+});
+
+describe("PlayerPicker never suggests a duplicate by accident", () => {
+  const none = { players: [], more: false };
+
+  function renderPicker(
+    find: (q: string) => Promise<unknown>,
+    props: Partial<Parameters<typeof PlayerPicker>[0]> = {},
+    onAdd = vi.fn().mockResolvedValue("new-id"),
+  ) {
+    render(
+      <PlayerSearchContext.Provider value={find as never}>
+        <PlayerPicker
+          label="Choose"
+          rows={rows}
+          selectedId={null}
+          onSelect={vi.fn()}
+          addPlayer={{ teamName: "Lions", onAdd }}
+          {...props}
+        />
+      </PlayerSearchContext.Provider>,
+    );
+    return onAdd;
+  }
+  const type = (value: string) =>
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value } });
+
+  it("adds nobody while the search has not answered", () => {
+    const onAdd = renderPicker(() => new Promise(() => {}));
+    type("Virat Kohli");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Looking for “Virat Kohli” on CricScore",
+    );
+    expect(screen.getByRole("button", { name: /Add .Virat Kohli./ })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("adds a new player on Enter once the search has found nobody", async () => {
+    const onAdd = renderPicker(async () => none);
+    type("Virat Kohli");
+    await screen.findByText("Nobody on CricScore matches “Virat Kohli”.");
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Virat Kohli"));
+  });
+
+  it("says a failed search failed, offers another try, and Enter adds nobody", async () => {
+    const find = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Failed to find Server Action"))
+      .mockResolvedValueOnce({
+        players: [{ id: "v", name: "Virat Kohli", matches: 12 }],
+        more: false,
+      });
+    const onAdd = renderPicker(find);
+    type("Virat");
+    await screen.findByText(/Could not check whether “Virat”/);
+    expect(screen.queryByText(/No player matches/)).toBeNull();
+    expect(screen.queryByText(/Nobody on CricScore/)).toBeNull();
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(
+      await screen.findByRole("button", { name: /Add Virat Kohli to Lions/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("still lets the scorer add a new player after a failed search", async () => {
+    const onAdd = renderPicker(() => Promise.reject(new Error("offline")));
+    type("Virat");
+    await screen.findByText(/Could not check/);
+    fireEvent.click(screen.getByRole("button", { name: /Add .Virat. to Lions/ }));
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Virat"));
+  });
+
+  it("finds a squad player by @username, and a username is never a new name", async () => {
+    const onAdd = renderPicker(async () => none, {
+      rows: [{ id: "r", name: "Rahul Sharma", username: "rahul_sharma" }],
+    });
+    type("@rahul_sh");
+    const row = screen.getByRole("radio", { name: /Rahul Sharma/ });
+    expect(row).toHaveTextContent("@rahul_sharma");
+    await waitFor(() => expect(screen.queryByText(/Looking for/)).toBeNull());
+    expect(screen.queryByRole("button", { name: /Add .@/ })).toBeNull();
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("says nobody has a username rather than offering to create it", async () => {
+    const onAdd = renderPicker(async () => none);
+    type("@nobody");
+    await screen.findByText("Nobody has the username @nobody.");
+    fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("shows a squad row the search found, even if its own text does not match", async () => {
+    renderPicker(async () => ({
+      players: [{ id: "a", name: "Anil Kumble", username: "jumbo" }],
+      more: false,
+    }));
+    type("@jumbo");
+    expect(
+      await screen.findByRole("radio", { name: /Anil Kumble/ }),
+    ).toBeInTheDocument();
+    // Listed once: as the row, not again as someone to add.
+    expect(screen.queryByRole("button", { name: /Anil Kumble/ })).toBeNull();
+  });
+
+  it("finds squad rows with words apart or out of order", () => {
+    renderPicker(async () => none, {
+      rows: [{ id: "r", name: "Rahul Kumar Sharma" }],
+    });
+    type("sharma rahul");
+    expect(screen.getByRole("radio", { name: /Rahul Kumar Sharma/ })).toBeInTheDocument();
+  });
+
+  it("offers someone in the other side's squad instead of hiding them", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Rohit Sharma", teams: ["Tigers"] }],
+      more: false,
+    }));
+    type("Rohit");
+    const pick = await screen.findByRole("button", {
+      name: /Add Rohit Sharma to Lions/,
+    });
+    expect(pick).toHaveTextContent("Plays for Tigers");
+    fireEvent.click(pick);
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Sharma", "x"));
+  });
+
+  it("says why someone cannot be added, and does not add them", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [
+        {
+          id: "x",
+          name: "Rohit Sharma",
+          teams: ["Tigers"],
+          playedFor: "Tigers",
+        },
+      ],
+      more: false,
+    }));
+    type("Rohit");
+    const row = await screen.findByRole("button", { name: /Rohit Sharma/ });
+    expect(row).toBeDisabled();
+    expect(row).toHaveTextContent("Played for Tigers");
+    fireEvent.click(row);
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+
+  it("says when more match than it lists", async () => {
+    renderPicker(async () => ({
+      players: Array.from({ length: 8 }, (_, i) => ({
+        id: `r${i}`,
+        name: `Rahul ${i}`,
+      })),
+      more: false,
+    }));
+    type("Rahul");
+    await screen.findByText(/More players match/);
+    expect(screen.getAllByRole("button", { name: /Add Rahul \d/ })).toHaveLength(5);
+  });
+
+  it("tells two rows of one name apart by username, and no others", () => {
+    renderPicker(async () => none, {
+      rows: [
+        { id: "a", name: "Rahul Sharma", username: "rahul_sharma" },
+        { id: "b", name: "Rahul Sharma", username: "rahul_sharma_1" },
+        { id: "c", name: "Anil Kumble", username: "jumbo" },
+      ],
+    });
+    expect(screen.getByRole("radio", { name: /rahul_sharma_1/ })).toBeInTheDocument();
+    expect(screen.queryByText("@jumbo")).toBeNull();
+  });
+
+  it("takes a second tap to add a second person of exactly that name", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Rohit Sharma", username: "rohit", matches: 42 }],
+      more: false,
+    }));
+    type("Rohit Sharma");
+    const addNew = await screen.findByRole("button", {
+      name: /Add .Rohit Sharma. as a new player/,
+    });
+    fireEvent.click(addNew);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Rohit Sharma is already on CricScore (@rohit · 42 matches)",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Yes, add a second .Rohit Sharma./ }),
+    );
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Sharma"));
+  });
+
+  it("adds a name nobody has with one tap", async () => {
+    const onAdd = renderPicker(async () => ({
+      players: [{ id: "x", name: "Rohit Sharma" }],
+      more: false,
+    }));
+    type("Rohit Verma");
+    const addNew = await screen.findByRole("button", {
+      name: /Add .Rohit Verma. as a new player/,
+    });
+    fireEvent.click(addNew);
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith("Rohit Verma"));
+  });
+
+  describe("recently added", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("shows once the box is used, and is one tap away", async () => {
+      rememberPlayer({ id: "r", name: "Rahul Dravid", username: "rahul" });
+      const onAdd = renderPicker(async () => none);
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+      fireEvent.focus(screen.getByRole("searchbox"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Add Rahul Dravid to Lions/ }),
+      );
+      await waitFor(() =>
+        expect(onAdd).toHaveBeenCalledWith("Rahul Dravid", "r"),
+      );
+    });
+
+    it("leaves out who is listed already", () => {
+      rememberPlayer({ id: "a", name: "Anil Kumble" });
+      renderPicker(async () => none);
+      fireEvent.focus(screen.getByRole("searchbox"));
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+    });
+
+    it("remembers a player once added", async () => {
+      renderPicker(async () => ({
+        players: [{ id: "x", name: "Rohit Sharma", username: "rohit" }],
+        more: false,
+      }));
+      type("Rohit");
+      fireEvent.click(
+        await screen.findByRole("button", { name: /Add Rohit Sharma to Lions/ }),
+      );
+      await waitFor(() =>
+        expect(recentPlayers().map((p) => p.id)).toEqual(["new-id"]),
+      );
+    });
+
+    it("gives way to what is typed", () => {
+      rememberPlayer({ id: "r", name: "Rahul Dravid" });
+      renderPicker(async () => none);
+      fireEvent.focus(screen.getByRole("searchbox"));
+      type("Vi");
+      expect(screen.queryByRole("group", { name: "Recently added" })).toBeNull();
+    });
+  });
+
+  it("shows the list's own reason when it is empty, not that the squad is", () => {
+    renderPicker(async () => none, {
+      rows: [],
+      emptyMessage: "Everyone in the squad has a part in this match.",
+    });
+    expect(
+      screen.getByText("Everyone in the squad has a part in this match."),
+    ).toBeInTheDocument();
   });
 });

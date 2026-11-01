@@ -8,10 +8,10 @@
 export const MATCH_DETAIL_SELECT = `
   *,
   team1:teams!matches_team1_id_fkey(*,
-    team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
+    team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url, username))
   ),
   team2:teams!matches_team2_id_fkey(*,
-    team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))
+    team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url, username))
   ),
   innings(
     *,

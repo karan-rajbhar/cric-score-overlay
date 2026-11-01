@@ -35,7 +35,7 @@
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
-    "@t3-oss/env-nextjs": "^0.7.3",
+    "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "^5.103.1",
     "class-variance-authority": "^0.7.1",
     "client-only": "^0.0.1",
@@ -50,7 +50,7 @@
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
-    "zod": "^3.25.72",
+    "zod": "^4.6.7",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -63,12 +63,12 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.30.1",
     "eslint-config-next": "^16.1.0",
     "eslint-plugin-sonarjs": "^4.2.2",
-    "firebase-tools": "^15.34.0",
+    "firebase-tools": "^15.34.2",
     "husky": "^9.1.7",
     "jiti": "^1.21.7",
     "jscpd": "^5.4.1",
@@ -81,11 +81,27 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.8.3",
-    "vitest": "^4.1.11"
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix"
     ]
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.7"
+    },
+    "@google-cloud/firestore-api": {
+      "rimraf": "npm:empty-npm-package@1.0.0"
+    },
+    "@google-cloud/pubsub": {
+      "@opentelemetry/core": "^2.8.0"
+    },
+    "gaxios@6": {
+      "uuid": "^11.1.1"
+    },
+    "glob": "^14.0.3"
   }
 }

@@ -82,10 +82,10 @@ describe("MatchCard scoring actions", () => {
   });
 
   it("opens the match from the card", () => {
-    renderCard(<MatchCard match={liveMatch} contextQuery="from=matches" />);
+    renderCard(<MatchCard match={liveMatch} />);
     expect(
       screen.getByRole("link", { name: /^Royal Tigers versus Coastal Kings/ }),
-    ).toHaveAttribute("href", `/matches/${liveMatch.id}?from=matches`);
+    ).toHaveAttribute("href", `/matches/${liveMatch.id}`);
   });
 
   it("names the card link with the status, scores and result", () => {

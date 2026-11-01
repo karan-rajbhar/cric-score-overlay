@@ -167,7 +167,7 @@ function PlayerScreen() {
       <Sheet className="-mt-6 px-4 sm:px-4">
         <ProfileSheet />
       </Sheet>
-      <FrameTabBar current="Search" />
+      <FrameTabBar current="Clubs" />
     </PhoneFrame>
   );
 }

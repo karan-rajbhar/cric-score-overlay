@@ -410,7 +410,7 @@ export async function getTeamPlayers(teamId: string) {
     const { data: team, error: teamError } = await db
       .from("teams")
       .select(
-        "id, team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url))",
+        "id, team_players(*, user:users!team_players_user_id_fkey(id, full_name, avatar_url, username))",
       )
       .eq("id", teamId)
       .maybeSingle();
@@ -437,7 +437,7 @@ export async function getTeamPlayers(teamId: string) {
       .select(
         `
         *,
-        user:users!team_players_user_id_fkey(id, full_name, avatar_url)
+        user:users!team_players_user_id_fkey(id, full_name, avatar_url, username)
       `,
       )
       .eq("team_id", teamId)

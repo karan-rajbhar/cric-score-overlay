@@ -5,6 +5,7 @@ import * as TabsPrimitive from "@radix-ui/react-tabs";
 
 import { cn } from "~/lib/utils";
 import { useSwipeTabs } from "~/lib/hooks/useSwipeTabs";
+import { setUrlParam } from "~/lib/url-state";
 
 /** This tab set's tab buttons, in order (not those of nested sets). */
 function ownTabsOf(root: HTMLElement | null): HTMLElement[] {
@@ -173,6 +174,25 @@ const Tabs = React.forwardRef<
 );
 Tabs.displayName = TabsPrimitive.Root.displayName;
 
+/**
+ * Tabs whose choice lives in the URL (`?tab=`), so a reload, Back and a
+ * shared link keep it. For a server page: it passes the tab it read as
+ * `defaultValue`, and `fallback`, the tab of the plain URL.
+ */
+function UrlTabs({
+  fallback,
+  ...props
+}: Omit<React.ComponentPropsWithoutRef<typeof Tabs>, "value" | "onValueChange"> & {
+  fallback: string;
+}) {
+  return (
+    <Tabs
+      onValueChange={(next) => setUrlParam("tab", next, fallback)}
+      {...props}
+    />
+  );
+}
+
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -226,4 +246,4 @@ const TabsContent = React.forwardRef<
 ));
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
-export { Tabs, TabsList, TabsTrigger, TabsContent };
+export { Tabs, TabsList, TabsTrigger, TabsContent, UrlTabs };

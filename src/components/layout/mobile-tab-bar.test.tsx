@@ -1,7 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileTabBar } from "./mobile-tab-bar";
-import { useSidebarStore } from "~/lib/stores/useSidebarStore";
 
 const mockUsePathname = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -13,67 +12,58 @@ vi.mock("~/lib/auth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+const TABS = ["Home", "Matches", "Clubs", "Tournaments", "More"];
+const lit = () =>
+  screen
+    .getAllByRole("link")
+    .filter((l) => l.getAttribute("aria-current") === "page")
+    .map((l) => l.textContent);
+
 describe("MobileTabBar", () => {
   beforeEach(() => {
-    useSidebarStore.setState({ collapsed: false, mobileOpen: false });
     mockUseAuth.mockReturnValue({ user: null });
   });
 
-  it("marks the current section and keeps a label on every tab", () => {
+  it("has five labelled tabs, every one a link to a place", () => {
     mockUsePathname.mockReturnValue("/matches/abc");
     render(<MobileTabBar />);
-    expect(screen.getByRole("link", { name: "Matches" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+    expect(screen.getAllByRole("link").map((l) => l.textContent)).toEqual(TABS);
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("link", { name: "Clubs" })).toHaveAttribute(
       "href",
-      "/",
+      "/clubs",
     );
-    expect(screen.getByRole("link", { name: "Home" })).not.toHaveAttribute(
-      "aria-current",
+    expect(screen.getByRole("link", { name: "More" })).toHaveAttribute(
+      "href",
+      "/more",
     );
-    for (const name of ["Tournaments", "Search"]) {
-      expect(screen.getByRole("link", { name })).toBeInTheDocument();
-    }
   });
 
-  it("sends signed-in people home to their dashboard", () => {
+  it.each([
+    ["/", "Home"],
+    ["/dashboard", "Home"],
+    ["/matches/abc", "Matches"],
+    ["/clubs", "Clubs"],
+    ["/clubs/abc", "Clubs"],
+    ["/teams", "Clubs"],
+    ["/teams/abc", "Clubs"],
+    ["/players/@rahul", "Clubs"],
+    ["/tournaments/abc", "Tournaments"],
+    ["/more", "More"],
+    ["/invitations", "More"],
+  ])("on %s lights %s, and only that", (path, tab) => {
+    mockUsePathname.mockReturnValue(path);
+    render(<MobileTabBar />);
+    expect(lit()).toEqual([tab]);
+  });
+
+  it("sends signed-in people to their own home", () => {
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseAuth.mockReturnValue({ user: { uid: "u1" } });
     render(<MobileTabBar />);
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
       "href",
       "/dashboard",
-    );
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-  });
-
-  it("opens and closes the drawer from More", () => {
-    mockUsePathname.mockReturnValue("/");
-    render(<MobileTabBar />);
-    const more = screen.getByRole("button", { name: "More" });
-    expect(more).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(more);
-    expect(useSidebarStore.getState().mobileOpen).toBe(true);
-    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(useSidebarStore.getState().mobileOpen).toBe(false);
-  });
-
-  it("keeps Home lit on the dashboard while auth is still resolving", () => {
-    mockUseAuth.mockReturnValue({ user: null, loading: true });
-    mockUsePathname.mockReturnValue("/dashboard");
-    render(<MobileTabBar />);
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
-      "aria-current",
-      "page",
     );
   });
 });

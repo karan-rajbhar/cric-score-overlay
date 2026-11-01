@@ -3,16 +3,31 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
 import { Check, Loader2, Search, UserPlus } from "lucide-react";
+import {
+  PlayerSearchNote,
+  SameNameNote,
+} from "~/components/players/player-search-note";
+import { RecentPlayers } from "~/components/players/recent-players";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { foundPlayerHint, type FoundPlayer } from "~/lib/player-search";
+import { usePlayerSearch, useSameNameCheck } from "~/lib/hooks/usePlayerSearch";
+import {
+  foundPlayerHint,
+  playerMatches,
+  SUGGESTIONS_SHOWN,
+  typedHandle,
+  whyNotAddable,
+  type FoundPlayer,
+  type PlayerSearchResult,
+} from "~/lib/player-search";
+import { rememberPlayer } from "~/lib/recent-players";
 import { cn } from "~/lib/utils";
 import type { PickerRow } from "./player-rows";
 
@@ -20,11 +35,12 @@ import type { PickerRow } from "./player-rows";
 export type { FoundPlayer };
 
 /**
- * Finds registered players by name for "Add" (the scoring screen provides
- * it, leaving out both squads); without it only a new player can be added.
+ * Finds registered players for "Add" (the scoring screen provides it, saying
+ * which squad each is in and who they played for); without it only a new
+ * player can be added.
  */
 export const PlayerSearchContext = createContext<
-  ((query: string) => Promise<FoundPlayer[]>) | null
+  ((query: string) => Promise<PlayerSearchResult>) | null
 >(null);
 
 /** Typed this many characters before registered players are looked up. */
@@ -53,7 +69,13 @@ interface PlayerPickerProps {
   addPlayer?: PickerAddPlayer;
   /** Show the search box once the list is longer than this. */
   searchThreshold?: number;
+  /** Why the list is empty; by default, that the squad is. */
   emptyMessage?: string;
+  /**
+   * Show each row's @username (telling people apart is the point of the
+   * list). Otherwise only rows sharing a name show it, or a "@" search.
+   */
+  showUsernames?: boolean;
   /** What the rows are, for the search box: "batter", "bowler", "fielder". */
   noun?: string;
   className?: string;
@@ -87,51 +109,69 @@ export function PlayerPicker({
   onSubmit,
   addPlayer,
   searchThreshold = 8,
-  emptyMessage = "No players in this squad yet.",
+  emptyMessage,
+  showUsernames = false,
   noun = "player",
   className,
 }: PlayerPickerProps) {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState<string | null>(null);
+  // Focus means someone is about to add a player: recent ones show then.
+  const [boxUsed, setBoxUsed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
   const findPlayers = useContext(PlayerSearchContext);
-  const [found, setFound] = useState<{ q: string; players: FoundPlayer[] }>({
-    q: "",
-    players: [],
-  });
 
   const showSearch = Boolean(addPlayer) || rows.length > searchThreshold;
   const q = normalize(query);
-  const visible = q ? rows.filter((r) => normalize(r.name).includes(q)) : rows;
+  const handle = typedHandle(q);
+  const canAdd = Boolean(addPlayer && q && !addPlayer.disabledReason);
+
+  // Registered players matching what is typed, so the scorer adds the
+  // person who already has a profile instead of a second one.
+  const searchable = (handle ?? q).length >= SEARCH_MIN;
+  const lookup = canAdd && findPlayers && searchable ? q : "";
+  const search = usePlayerSearch(lookup, findPlayers ?? undefined);
+  const foundIds = new Set(search.players.map((p) => p.id));
+
+  // Whoever the search found in this list shows here, even if the row
+  // itself cannot tell (no username on it).
+  const visible = q
+    ? rows.filter((r) => playerMatches(q, r) || foundIds.has(r.id))
+    : rows;
   const exactMatch = q ? rows.find((r) => normalize(r.name) === q) : undefined;
   const firstEnabled = visible.find((r) => !r.disabledReason);
   const focusId =
     visible.find((r) => r.id === selectedId && !r.disabledReason)?.id ??
     firstEnabled?.id;
 
-  const canAdd = Boolean(addPlayer && q && !addPlayer.disabledReason);
+  const elsewhere = search.players.filter(
+    (p) => !rows.some((r) => r.id === p.id),
+  );
+  const suggestions = elsewhere.slice(0, SUGGESTIONS_SHOWN);
+  const moreElsewhere = search.more || elsewhere.length > SUGGESTIONS_SHOWN;
+  const sameName = useSameNameCheck(q, elsewhere);
 
-  // Registered players matching what is typed (debounced), so the scorer
-  // adds the person who already has a profile instead of a second one.
-  const lookup = canAdd && findPlayers && q.length >= SEARCH_MIN ? q : "";
-  useEffect(() => {
-    if (!lookup || !findPlayers) return;
-    let cancelled = false;
-    const t = setTimeout(() => {
-      findPlayers(lookup).then(
-        (players) => {
-          if (!cancelled) setFound({ q: lookup, players: players.slice(0, 5) });
-        },
-        () => undefined,
-      );
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [lookup, findPlayers]);
-  const suggestions = lookup && found.q === lookup ? found.players : [];
+  // A new player waits for the search: nobody is added twice because the
+  // answer was still on its way. A "@" text finds people, it names no one.
+  const canAddNew =
+    canAdd && handle === null && search.status !== "searching";
+
+  const repeatedNames = useMemo(() => {
+    const seen = new Set<string>();
+    const repeated = new Set<string>();
+    for (const r of rows) {
+      const name = normalize(r.name);
+      if (seen.has(name)) repeated.add(name);
+      seen.add(name);
+    }
+    return repeated;
+  }, [rows]);
+  const usernameOf = (row: PickerRow) =>
+    row.username &&
+    (showUsernames || handle !== null || repeatedNames.has(normalize(row.name)))
+      ? `@${row.username}`
+      : null;
 
   const focusRow = (id: string | undefined) => {
     if (!id) return;
@@ -143,7 +183,9 @@ export function PlayerPicker({
   };
 
   const add = async (existing?: FoundPlayer) => {
-    if (!addPlayer || !canAdd || adding) return;
+    const usable = addPlayer && (canAdd || existing);
+    if (!usable || adding || addPlayer.disabledReason) return;
+    if (!existing && !sameName.allow()) return;
     const name = existing?.name ?? query.trim().replace(/\s+/g, " ");
     setAdding(existing?.id ?? "new");
     try {
@@ -151,6 +193,7 @@ export function PlayerPicker({
         ? await addPlayer.onAdd(name, existing.id)
         : await addPlayer.onAdd(name);
       if (id) {
+        rememberPlayer({ id, name, username: existing?.username });
         onSelect(id);
         setQuery("");
       }
@@ -168,9 +211,13 @@ export function PlayerPicker({
       if (firstEnabled) {
         onSelect(firstEnabled.id);
         focusRow(firstEnabled.id);
-      } else if (canAdd && suggestions.length === 0) {
-        // With registered players listed, the scorer picks one or taps
-        // "new player": Enter does not guess.
+      } else if (
+        canAddNew &&
+        search.status !== "failed" &&
+        suggestions.length === 0
+      ) {
+        // With registered players listed, or none to go by, the scorer
+        // picks one or taps "new player": Enter does not guess.
         void add();
       }
     }
@@ -217,10 +264,11 @@ export function PlayerPicker({
                 addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`
               }
               placeholder={
-                addPlayer ? `Search or add a ${noun}` : `Search ${noun}s`
+                addPlayer ? "Search name or @username" : `Search ${noun}s`
               }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setBoxUsed(true)}
               onKeyDown={onSearchKeyDown}
               className="h-11 pl-9 text-base sm:text-sm"
             />
@@ -229,6 +277,14 @@ export function PlayerPicker({
               "Add <name>" shows while the keyboard is open instead of
               below the list, out of sight. */}
           <div className="mt-2 space-y-2 empty:hidden">
+            {addPlayer && !addPlayer.disabledReason && !q && boxUsed && (
+              <RecentPlayers
+                teamName={addPlayer.teamName}
+                exclude={new Set(rows.map((r) => r.id))}
+                disabled={Boolean(adding)}
+                onPick={(p) => void add(p)}
+              />
+            )}
             {addPlayer && q && (
               <div className="space-y-1">
                 {exactMatch && (
@@ -247,53 +303,83 @@ export function PlayerPicker({
                       Existing players on CricScore. Pick one only if you know
                       it&apos;s the same person; otherwise add a new player.
                     </p>
-                    {suggestions.map((p) => (
-                      <Button
-                        key={p.id}
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-full justify-start gap-2"
-                        disabled={Boolean(adding)}
-                        onClick={() => void add(p)}
-                      >
-                        {adding === p.id ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden
-                          />
-                        ) : (
-                          <UserPlus className="h-4 w-4" aria-hidden />
-                        )}
-                        <span className="min-w-0 truncate">
-                          Add {p.name} to {addPlayer.teamName}
-                        </span>
-                        <span className="ml-auto shrink-0 text-xs font-normal tabular-nums text-muted-foreground">
-                          {foundPlayerHint(p)}
-                        </span>
-                      </Button>
-                    ))}
+                    {suggestions.map((p) => {
+                      const blocked = whyNotAddable(p, addPlayer.teamName);
+                      return (
+                        <Button
+                          key={p.id}
+                          type="button"
+                          variant="outline"
+                          className="h-auto min-h-11 w-full justify-start gap-2 py-1.5"
+                          disabled={Boolean(adding) || blocked !== null}
+                          onClick={() => void add(p)}
+                        >
+                          {adding === p.id ? (
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden
+                            />
+                          ) : (
+                            <UserPlus
+                              className={cn("h-4 w-4", blocked && "invisible")}
+                              aria-hidden
+                            />
+                          )}
+                          {/* Two lines: the name is how the scorer knows
+                              them, so a hint must not squeeze it. */}
+                          <span className="min-w-0 flex-1 text-left">
+                            <span className="block truncate">
+                              {blocked
+                                ? p.name
+                                : `Add ${p.name} to ${addPlayer.teamName}`}
+                            </span>
+                            <span className="block truncate text-xs font-normal tabular-nums text-muted-foreground">
+                              {blocked ?? foundPlayerHint(p)}
+                            </span>
+                          </span>
+                        </Button>
+                      );
+                    })}
                   </div>
                 )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full justify-start gap-2"
-                  disabled={!canAdd || Boolean(adding)}
-                  onClick={() => void add()}
-                >
-                  {adding === "new" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <UserPlus className="h-4 w-4" aria-hidden />
-                  )}
-                  <span className="truncate">
-                    {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
-                    {suggestions.length > 0 &&
-                      !exactMatch &&
-                      "as a new player "}
-                    to {addPlayer.teamName}
-                  </span>
-                </Button>
+                {lookup && (
+                  <PlayerSearchNote
+                    search={{ ...search, more: moreElsewhere }}
+                    query={query.trim()}
+                    listed={suggestions.length + visible.length}
+                  />
+                )}
+                {sameName.asking && sameName.twin && (
+                  <SameNameNote twin={sameName.twin} />
+                )}
+                {handle === null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full justify-start gap-2"
+                    disabled={!canAddNew || Boolean(adding)}
+                    onClick={() => void add()}
+                  >
+                    {adding === "new" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      <UserPlus className="h-4 w-4" aria-hidden />
+                    )}
+                    <span className="truncate">
+                      {sameName.asking ? (
+                        `Yes, add a second “${query.trim()}”`
+                      ) : (
+                        <>
+                          {exactMatch ? "Add another" : "Add"} “{query.trim()}”{" "}
+                          {suggestions.length > 0 &&
+                            !exactMatch &&
+                            "as a new player "}
+                          to {addPlayer.teamName}
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                )}
               </div>
             )}
             {addPlayer?.disabledReason && (q || rows.length === 0) && (
@@ -322,6 +408,7 @@ export function PlayerPicker({
               aria-checked={selected}
               aria-label={[
                 row.role ? `${row.name} ${row.role}` : row.name,
+                usernameOf(row),
                 row.tag,
                 row.note,
                 row.detail,
@@ -354,6 +441,11 @@ export function PlayerPicker({
                     {row.role}
                   </span>
                 )}
+                {usernameOf(row) && (
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    {usernameOf(row)}
+                  </span>
+                )}
               </span>
               {row.tag && (
                 <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
@@ -384,12 +476,13 @@ export function PlayerPicker({
 
         {rows.length === 0 && (
           <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-            {addPlayer && !addPlayer.disabledReason
-              ? `No players in ${addPlayer.teamName} yet. Type a name to add one.`
-              : emptyMessage}
+            {emptyMessage ??
+              (addPlayer && !addPlayer.disabledReason
+                ? `No players in ${addPlayer.teamName} yet. Type a name to add one.`
+                : "No players in this squad yet.")}
           </p>
         )}
-        {rows.length > 0 && q && visible.length === 0 && (
+        {rows.length > 0 && q && visible.length === 0 && !lookup && (
           <p className="px-1 py-2 text-sm text-muted-foreground">
             No player matches “{query.trim()}”.
           </p>

@@ -9,7 +9,6 @@ import {
   CloudRain,
   FileJson,
   MoreHorizontal,
-  SlidersHorizontal,
   Trash2,
   Shield,
   Tv,
@@ -26,7 +25,6 @@ import {
 import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
-  useCanProduceOverlayQuery,
   useMatchAdminQuery,
   useMatchClubChoices,
 } from "~/lib/hooks/useMatchQueries";
@@ -65,9 +63,8 @@ interface MatchMoreMenuProps {
 
 /**
  * The match page's "More" menu: the tools few people need (streaming the
- * match with its overlay, the overlay control room for those who run its
- * graphics, the DLS calculator while live, a finished match's ball-by-ball
- * data) and, for its organisers (who may delete it), Reschedule before the
+ * match, which leads on to the control room, the DLS calculator while live,
+ * a finished match's ball-by-ball data) and, for its organisers (who may delete it), Reschedule before the
  * start and Delete match.
  */
 export function MatchMoreMenu({
@@ -86,15 +83,8 @@ export function MatchMoreMenu({
     user?.id,
     isAdmin === true,
   );
-  // Streamers run the graphics without being admins: asked only when a
-  // signed-in non-admin opens the menu.
+  // Asked only once the menu opens (viewers pay no extra reads).
   const [menuOpen, setMenuOpen] = useState(false);
-  const { data: canStream } = useCanProduceOverlayQuery(
-    match.id,
-    user?.id,
-    menuOpen && isAdmin === false,
-  );
-  const canProduce = isAdmin === true || canStream === true;
   // Putting the match into a club afterwards: the user's clubs are read
   // once the menu opens.
   const [showClub, setShowClub] = useState(false);
@@ -142,17 +132,6 @@ export function MatchMoreMenu({
               <span>Stream this match</span>
             </Link>
           </DropdownMenuItem>
-          {canProduce && (
-            <DropdownMenuItem asChild>
-              <Link
-                href={`/overlay/${match.id}/control`}
-                className="flex cursor-pointer items-center gap-2"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-                <span>Overlay control room</span>
-              </Link>
-            </DropdownMenuItem>
-          )}
           {isAdmin === true && (
             <DropdownMenuItem asChild>
               {/* The team sheet, where any player can be replaced. */}
