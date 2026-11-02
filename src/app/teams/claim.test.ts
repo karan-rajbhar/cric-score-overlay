@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("~/lib/firebase/live-sync", () => ({
+  notifySquadChanged: vi.fn(),
   refreshLiveMatchesFor: vi.fn(),
   refreshLiveState: vi.fn(),
 }));

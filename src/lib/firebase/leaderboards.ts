@@ -46,6 +46,29 @@ export type ScopeMatch = Pick<MatchesRow, "id"> &
  * innings in progress from the innings it reads (see the module comment).
  */
 
+/**
+ * Bring listed live matches' scores up to date from their innings in play,
+ * which the summary on a match does not follow. For a list that shows scores
+ * but no leaderboard: {@link loadScopeLeaderboard} does this too.
+ */
+export async function freshenOpenInnings(
+  db: LeaderboardClient,
+  matches: readonly ScopeMatch[],
+): Promise<void> {
+  const open = matches.filter((m) =>
+    (m.innings ?? []).some((i) => i.is_completed === false),
+  );
+  if (!open.length) return;
+  const { data } = await db
+    .from("innings")
+    .select("*")
+    .in(
+      "match_id",
+      open.map((m) => m.id),
+    );
+  applyFreshInnings(matches, (data ?? []) as InningsRow[]);
+}
+
 export async function loadScopeLeaderboard(
   db: LeaderboardClient,
   scope: "tournament" | "club",

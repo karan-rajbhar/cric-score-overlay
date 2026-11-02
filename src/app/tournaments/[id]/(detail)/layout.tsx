@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
 import { cachedForMetadata } from "~/lib/metadata-cache";
+import {
+  isTournamentId,
+  loadTournament,
+  TOURNAMENT_MATCH_COLUMNS,
+} from "../tournament-view";
 import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
@@ -14,7 +18,8 @@ import { backLabelOf, parentOf, tournamentTrail } from "~/lib/navigation";
 import { ActionsSheet } from "~/components/ds/actions-sheet";
 import { PinnedTitle } from "~/components/ds/pinned-title";
 import { PinnedTabs } from "~/components/ds/tabs";
-import { TabsContent, UrlTabs } from "~/components/ui/tabs";
+import { OnDemandPanels, OnDemandTabs } from "~/components/ui/on-demand-tabs";
+import { TabsContent } from "~/components/ui/tabs";
 import {
   Calendar,
   MapPin,
@@ -41,10 +46,8 @@ import {
   RegistrationApprovalActions,
 } from "~/components/tournaments/tournament-admin-actions";
 import { formatStatus, formatTournamentFormat } from "~/lib/cricket";
-import { LeaderboardView } from "~/components/leaderboard/leaderboard-view";
-import type { LeaderboardData } from "~/lib/leaderboard";
 import {
-  loadScopeLeaderboard,
+  freshenOpenInnings,
   type ScopeMatch,
 } from "~/lib/firebase/leaderboards";
 import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
@@ -94,16 +97,6 @@ interface MatchRow {
   innings?: InningsRow[];
 }
 
-/** The tournament: read once per request, by the page and its title. */
-const loadTournament = cache(async (id: string) => {
-  const db = await createServerClient();
-  return db
-    .from("tournaments")
-    // owner_id: the club admin check below needs no second club read.
-    .select("*, club:clubs(id, name, short_name, owner_id)")
-    .eq("id", id)
-    .single();
-});
 
 export async function generateMetadata({
   params,
@@ -111,7 +104,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { title: "Tournament" };
+  if (!isTournamentId(id)) return { title: "Tournament" };
   const name = await cachedForMetadata(
     `tournament:${id}`,
     async () => (await loadTournament(id)).data?.name,
@@ -119,20 +112,19 @@ export async function generateMetadata({
   return { title: name ?? "Tournament" };
 }
 
-export default async function TournamentPage({
+/**
+ * The tournament's header and the tabs that need no costly read: it runs once,
+ * and opening Stats re-renders only `page.tsx` beneath it.
+ */
+export default async function TournamentLayout({
   params,
-  searchParams,
+  children,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ tab?: string }>;
+  children: React.ReactNode;
 }) {
   const { id } = await params;
-  if (
-    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  ) {
-    notFound();
-  }
-  const resolvedSearchParams = await searchParams;
+  if (!isTournamentId(id)) notFound();
   const db = await createServerClient();
 
   const [
@@ -160,12 +152,7 @@ export default async function TournamentPage({
     db
       .from("matches")
       .select(
-        `
-                id, title, match_format, overs_per_innings, status, venue, scheduled_at,
-                umpire1_name, umpire2_name, result_type, win_margin, win_margin_type, result_description, winning_team_id,
-                ${MATCH_TEAM_COLUMNS},
-                innings(id, team_id, innings_number, total_runs, total_wickets, total_balls, total_overs, is_completed)
-            `,
+        TOURNAMENT_MATCH_COLUMNS,
       )
       .eq("tournament_id", id)
       .order("scheduled_at", { ascending: true }),
@@ -213,14 +200,9 @@ export default async function TournamentPage({
     team: standingTeams.get(s.team_id) ?? null,
   }));
 
-  // Super Stars & Leaderboards: the tournament's stored leaderboard (one
-  // read) plus any innings still in play.
-  const leaderboardData: LeaderboardData = await loadScopeLeaderboard(
-    db,
-    "tournament",
-    id,
-    (matches ?? []) as unknown as ScopeMatch[],
-  );
+  // Live matches show their innings in play: the summary does not follow a
+  // ball. The leaderboard itself is read by `page.tsx`, when Stats opens.
+  await freshenOpenInnings(db, (matches ?? []) as unknown as ScopeMatch[]);
 
   const {
     data: { user },
@@ -448,11 +430,6 @@ export default async function TournamentPage({
     { value: "teams", label: "Teams" },
     completedMatches.length > 0 && { value: "analysis", label: "Stats" },
   ].filter((t) => !!t);
-  const activeTab = tournamentTabs.find(
-    (t) => t.value === resolvedSearchParams?.tab,
-  )
-    ? resolvedSearchParams!.tab!
-    : "standings";
 
   return (
     <PageContainer stack={false} className={pinnedPage}>
@@ -568,9 +545,10 @@ export default async function TournamentPage({
       </StatGrid>
 
       {/* Main Tabs Navigation */}
-      <UrlTabs
-        defaultValue={activeTab}
+      <OnDemandTabs
         fallback="standings"
+        tabs={tournamentTabs.map((t) => t.value)}
+        onDemand={["analysis"]}
         className="mt-3 sm:mt-8"
       >
         <PinnedTabs label="Tournament sections" tabs={tournamentTabs} />
@@ -893,15 +871,8 @@ export default async function TournamentPage({
         </TabsContent>
 
         {/* TAB 4: SUPER STARS & LEADERBOARDS */}
-        <TabsContent value="analysis" className="mt-6 space-y-6">
-          <LeaderboardView
-            title="Leaderboard"
-            subtitle={`The leading run scorers, wicket takers and all-rounders in ${tournament.name}.`}
-            data={leaderboardData}
-            showHighlights={true}
-          />
-        </TabsContent>
-      </UrlTabs>
+        <OnDemandPanels className="mt-6">{children}</OnDemandPanels>
+      </OnDemandTabs>
       </ContentSheet>
     </PageContainer>
   );

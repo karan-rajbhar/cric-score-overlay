@@ -33,6 +33,7 @@ vi.mock("~/lib/firebase/server", () => ({
 }));
 
 import type { AppUser } from "./auth-types";
+import { clearMetadataCache } from "~/lib/metadata-cache";
 import { MemoryDataSource, type Doc } from "./datasource";
 import { serverClientFor } from "./server-client";
 
@@ -54,6 +55,9 @@ const busiestPlayer = (() => {
 })();
 const player = seed.users!.find((u) => u.id === busiestPlayer)!;
 
+/** Billed reads to add a new player from the scoring screen, live. */
+const BOUND_ADD_PLAYER_LIVE = 13;
+
 let ds: MemoryDataSource;
 
 function signIn(user: Doc | null) {
@@ -72,6 +76,51 @@ function signIn(user: Doc | null) {
   });
 }
 
+/**
+ * The club and tournament pages split into a layout, which runs once, and a
+ * page, which runs alone when a costly tab opens. A first visit is both; a
+ * tab is the page alone. React `cache()` does not memoise outside a render,
+ * so the layout and page of one request are only measured with no tab open.
+ */
+async function detailPages() {
+  const { default: ClubLayout } = await import(
+    "~/app/clubs/[id]/(detail)/layout"
+  );
+  const { default: ClubTab } = await import("~/app/clubs/[id]/(detail)/page");
+  const { default: TournamentLayout } = await import(
+    "~/app/tournaments/[id]/(detail)/layout"
+  );
+  const { default: TournamentTab } = await import(
+    "~/app/tournaments/[id]/(detail)/page"
+  );
+  const params = (id: string) => Promise.resolve({ id });
+  const search = (tab?: string) => Promise.resolve(tab ? { tab } : {});
+  return {
+    openClub: async (id: string) => {
+      await ClubLayout({ params: params(id), children: null });
+      await ClubTab({ params: params(id), searchParams: search() });
+    },
+    openClubTab: async (id: string, tab: string) => {
+      // The page hands the tab to React as a component: run it as React would.
+      const shown = await ClubTab({
+        params: params(id),
+        searchParams: search(tab),
+      });
+      const { type, props } = shown as unknown as {
+        type: (p: unknown) => Promise<unknown>;
+        props: unknown;
+      };
+      await type(props);
+    },
+    openTournament: async (id: string) => {
+      await TournamentLayout({ params: params(id), children: null });
+      await TournamentTab({ params: params(id), searchParams: search() });
+    },
+    openTournamentTab: (id: string, tab: string) =>
+      TournamentTab({ params: params(id), searchParams: search(tab) }),
+  };
+}
+
 async function cost(run: () => Promise<unknown>): Promise<number> {
   const before = ds.billedReads;
   await run();
@@ -85,6 +134,7 @@ const egress: Record<string, number> = {};
 beforeEach(() => {
   ds = new MemoryDataSource(seed);
   signIn(null);
+  clearMetadataCache();
 });
 
 describe("billed reads per page on the seed data", () => {
@@ -107,10 +157,8 @@ describe("billed reads per page on the seed data", () => {
     );
     const { default: PlayerPage } = await import("~/app/players/[id]/page");
     const { default: PlayersPage } = await import("~/app/players/page");
-    const { default: ClubPage } = await import("~/app/clubs/[id]/page");
-    const { default: TournamentPage } = await import(
-      "~/app/tournaments/[id]/page"
-    );
+    const { openClub, openClubTab, openTournament, openTournamentTab } =
+      await detailPages();
 
     results.home = await cost(() => getMatches({ status: "live", limit: 6 }));
     results.matches = await cost(() => getMatches({}));
@@ -262,29 +310,42 @@ describe("billed reads per page on the seed data", () => {
         searchParams: Promise.resolve({}),
       }),
     );
+    // Opening a tab that lists matches, a moment later.
+    results.playerTabMatches = await cost(() =>
+      PlayerPage({
+        params: Promise.resolve({ id: player.id }),
+        searchParams: Promise.resolve({ tab: "matches" }),
+      }),
+    );
+    clearMetadataCache();
     results.playerPageByHandle = await cost(() =>
       PlayerPage({
         params: Promise.resolve({ id: `@${player.username}` }),
         searchParams: Promise.resolve({}),
       }),
     );
-    results.clubPage = await cost(() =>
-      ClubPage({
-        params: Promise.resolve({ id: String(completedMatch.club_id) }),
-        searchParams: Promise.resolve({}),
-      }),
-    );
+    const clubId = String(completedMatch.club_id);
+    results.clubPage = await cost(() => openClub(clubId));
+    results.clubTabMatches = await cost(() => openClubTab(clubId, "matches"));
+    results.clubTabStats = await cost(() => openClubTab(clubId, "stats"));
+    results.clubTabMembers = await cost(() => openClubTab(clubId, "members"));
+    // Every tab in one visit: what the split must not make dearer than the
+    // page that read everything at once (46).
+    results.clubEveryTab =
+      results.clubPage! +
+      results.clubTabMatches! +
+      results.clubTabStats! +
+      results.clubTabMembers!;
     results.teamPage = await cost(() =>
       TeamPage({
         params: Promise.resolve({ id: String(completedMatch.team1_id) }),
         searchParams: Promise.resolve({}),
       }),
     );
-    results.tournamentPage = await cost(() =>
-      TournamentPage({
-        params: Promise.resolve({ id: String(completedMatch.tournament_id) }),
-        searchParams: Promise.resolve({}),
-      }),
+    const tournamentId = String(completedMatch.tournament_id);
+    results.tournamentPage = await cost(() => openTournament(tournamentId));
+    results.tournamentTabStats = await cost(() =>
+      openTournamentTab(tournamentId, "analysis"),
     );
 
     console.info("billed reads per page (seed data)", results);
@@ -336,14 +397,22 @@ describe("billed reads per page on the seed data", () => {
       searchMidWordLong: 80,
       playersList: 31,
       playersSearch: 30,
-      // 24 when dismissal names read the rosters of every listed fixture;
-      // back to 24 with the teams' live and next fixtures read by status
-      // (4 queries, 1 read each when empty) instead of every fixture of
-      // every team (see the scale test).
-      playerPage: 24,
-      playerPageByHandle: 24,
-      clubPage: 46,
-      tournamentPage: 28,
+      // 24 when every visit read the match documents and rosters that only
+      // the tabs listing matches show.
+      playerPage: 17,
+      playerTabMatches: 13,
+      playerPageByHandle: 17,
+      // 46 when every tab's lists were read on every visit.
+      clubPage: 14,
+      clubTabMatches: 14,
+      clubTabStats: 26,
+      clubTabMembers: 18,
+      // More than the 46 of reading it all at once, for the few who open every
+      // tab; most visitors stay on the first, and crawlers cannot open tabs.
+      clubEveryTab: 72,
+      tournamentTabStats: 13,
+      // 28 when the leaderboard was read on every visit.
+      tournamentPage: 20,
       // +1 per live match listed: its innings in progress, which the match
       // summary no longer follows ball by ball (it cost a match write per
       // ball before).
@@ -371,6 +440,117 @@ describe("billed reads per page on the seed data", () => {
  * unbounded lists showed. What each read before keyset pages, limits and
  * count() / sum() aggregations is noted per bound.
  */
+describe("club statistics", () => {
+  const clubId = String(completedMatch.club_id);
+
+  /** What the Stats tab hands `ClubStatsTab`. */
+  async function statsProps() {
+    const { default: ClubTab } = await import("~/app/clubs/[id]/(detail)/page");
+    const page = (await ClubTab({
+      params: Promise.resolve({ id: clubId }),
+      searchParams: Promise.resolve({ tab: "stats" }),
+    })) as unknown as {
+      type: (p: unknown) => Promise<{ props: Record<string, unknown> }>;
+      props: unknown;
+    };
+    return (await page.type(page.props)).props;
+  }
+
+  it("still shows the figures when the aggregates fail", async () => {
+    const withAggregates = await statsProps();
+    // As an index still building, or missing, fails on real Firestore.
+    (ds as unknown as { sum?: unknown }).sum = undefined;
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fromList = await statsProps();
+    spy.mockRestore();
+    const figures = (p: Record<string, unknown>) =>
+      p.milestones as { totalRuns: number; totalWickets: number };
+    expect(figures(fromList).totalRuns).toBeGreaterThan(0);
+    expect(figures(fromList).totalRuns).toBe(figures(withAggregates).totalRuns);
+    expect(fromList.leaderboardData).toBeTruthy();
+  });
+
+  it("has the indexes its sums need on real Firestore", () => {
+    // sum() with a filter needs an index on both, and neither MemoryDataSource
+    // nor the emulator says so: without them it failed in production only.
+    const { indexes } = JSON.parse(
+      readFileSync(join(process.cwd(), "firestore.indexes.json"), "utf8"),
+    ) as {
+      indexes: Array<{
+        collectionGroup: string;
+        fields: Array<{ fieldPath: string }>;
+      }>;
+    };
+    const paths = indexes
+      .filter((i) => i.collectionGroup === "matches")
+      .map((i) => i.fields.map((f) => f.fieldPath).join(","));
+    expect(paths).toContain("club_id,summary_runs");
+    expect(paths).toContain("club_id,summary_wickets");
+  });
+});
+
+describe("adding a player during a live match", () => {
+  const matchId = String(liveMatch.id);
+  const teamId = String(liveMatch.team1_id);
+
+  async function addNew() {
+    const { createPlayerQuick } = await import("~/app/teams/actions");
+    signIn(admin);
+    return cost(() => createPlayerQuick(teamId, "New Player", matchId));
+  }
+
+  beforeEach(async () => {
+    const { writeLiveState } = await import("./live-state");
+    await writeLiveState(ds, matchId);
+  });
+
+  it("costs what a squad needs, not a scoreboard rebuild", async () => {
+    // 54 when every player added rebuilt live_state and the live scorecard.
+    expect(await addNew()).toBeLessThanOrEqual(BOUND_ADD_PLAYER_LIVE);
+  });
+
+  it("leaves the roster a full rebuild would give", async () => {
+    await addNew();
+    const appended = (await ds.getById("teams", teamId))!.roster as Array<{
+      user?: { full_name?: string };
+    }>;
+    expect(appended.some((e) => e.user?.full_name === "New Player")).toBe(true);
+    const { refreshRoster } = await import("./denorm");
+    await refreshRoster(ds, teamId);
+    expect((await ds.getById("teams", teamId))!.roster).toEqual(appended);
+  });
+
+  it("tells viewers, and that nothing else changed", async () => {
+    const before = (await ds.getById("live_state", matchId))!;
+    await addNew();
+    const after = (await ds.getById("live_state", matchId))!;
+    expect(after.version).toBe(Number(before.version) + 1);
+    expect(after.overs_changed).toEqual([]);
+    expect(after.innings_changed).toEqual([]);
+    expect(after.match_rev).toBe(before.match_rev);
+  });
+
+  it("does not play the last ball's graphics again", async () => {
+    await ds.update("live_state", matchId, {
+      events: [{ type: "four" }],
+      refs: { wicket_streaks: { bowler: 2 } },
+    });
+    await addNew();
+    const after = (await ds.getById("live_state", matchId))!;
+    expect(after.events).toEqual([]);
+    expect((after.refs as { wicket_streaks: unknown }).wicket_streaks).toEqual({
+      bowler: 2,
+    });
+  });
+
+  it("keeps the copy on the live scorecard in step", async () => {
+    await addNew();
+    const state = (await ds.getById("live_state", matchId))!;
+    const card = (await ds.getById("live_scorecard", matchId))!;
+    expect((card.live as { version: number }).version).toBe(state.version);
+  });
+});
+
 describe("billed reads per page at scale", () => {
   it("stays bounded however many documents there are", async () => {
     const { scaleSeed } = await import("./__fixtures__/scale");
@@ -380,12 +560,9 @@ describe("billed reads per page at scale", () => {
     const { default: TeamsPage } = await import("~/app/teams/page");
     const { default: ClubsPage } = await import("~/app/clubs/page");
     const { default: TournamentsPage } = await import("~/app/tournaments/page");
-    const { default: ClubPage } = await import("~/app/clubs/[id]/page");
+    const { openClub, openClubTab, openTournament } = await detailPages();
     const { default: TeamPage } = await import("~/app/teams/[id]/page");
     const { default: PlayerPage } = await import("~/app/players/[id]/page");
-    const { default: TournamentPage } = await import(
-      "~/app/tournaments/[id]/page"
-    );
     const { fetchWizardBase, fetchWizardScope } = await import(
       "~/app/matches/create/wizard-data"
     );
@@ -396,9 +573,10 @@ describe("billed reads per page at scale", () => {
     at.teamsAll = await cost(() => TeamsPage(none as never));
     at.clubsList = await cost(() => ClubsPage(none));
     at.tournamentsList = await cost(() => TournamentsPage(none));
-    at.bigClubPage = await cost(() =>
-      ClubPage({ params: Promise.resolve({ id: ids.bigClub }), ...none }),
-    );
+    at.bigClubPage = await cost(() => openClub(ids.bigClub));
+    at.bigClubStats = await cost(() => openClubTab(ids.bigClub, "stats"));
+    at.bigClubMembers = await cost(() => openClubTab(ids.bigClub, "members"));
+    at.bigClubMatches = await cost(() => openClubTab(ids.bigClub, "matches"));
     at.bigTeamPage = await cost(() =>
       TeamPage({ params: Promise.resolve({ id: ids.bigTeam }), ...none }),
     );
@@ -414,10 +592,11 @@ describe("billed reads per page at scale", () => {
       await fetchWizardScope(state.client as never, { clubId: ids.bigClub });
     });
     at.tournamentPageOrganiser = await cost(() =>
-      TournamentPage({
-        params: Promise.resolve({ id: ids.tournament }),
-        ...none,
-      }),
+      openTournament(ids.tournament),
+    );
+    const { getRegistrableTeams } = await import("~/app/tournaments/actions");
+    at.registerTeamDialog = await cost(() =>
+      getRegistrableTeams(ids.tournament),
     );
 
     console.info("billed reads per page (at scale)", at);
@@ -432,18 +611,25 @@ describe("billed reads per page at scale", () => {
       // ~590 (every club match and member): the latest 50 matches, the
       // first 100 members, 8 leaderboard shards and the milestone
       // aggregates (count / sum / top innings).
-      bigClubPage: 200,
+      // 194 when every tab's lists were read on every visit.
+      bigClubPage: 16,
+      bigClubStats: 26,
+      bigClubMembers: 102,
+      bigClubMatches: 55,
       // ~206 (every match of the team): the latest 50 per side and count()s
       // for the totals and the record.
       bigTeamPage: 70,
       // ~310 (every fixture of the player's 3 teams): the matches they have
       // records in, their teams' live and next 20 fixtures.
-      busyPlayerPage: 125,
+      // 123 when every visit read every match the player has played in.
+      busyPlayerPage: 58,
       // ~680 (every team, tournament and club): the organiser's own (here
       // they created all 150 tournaments) and the picked club's teams.
       wizard: 195,
       // ~418 (every team, for the register dialog): read when it opens.
-      tournamentPageOrganiser: 16,
+      tournamentPageOrganiser: 6,
+      // Every team (400 here) before it had a limit, plus the admin check.
+      registerTeamDialog: 205,
     };
     for (const [page, max] of Object.entries(bounds)) {
       expect(at[page], page).toBeLessThanOrEqual(max);

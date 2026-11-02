@@ -17,7 +17,7 @@ import {
 import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
-import { cachedForMetadata } from "~/lib/metadata-cache";
+import { cachedBriefly, cachedForMetadata } from "~/lib/metadata-cache";
 import type { PlayerMatchesRow } from "~/lib/firebase/types";
 import {
   attachMatchTeams,
@@ -132,26 +132,37 @@ export default async function PlayerPage({
   // Career figures are one document (player_career_stats/{userId}); the
   // per-match history is the player's player_matches records, read once
   // for both the batting and the bowling list.
-  const [
-    { data: currentUserData },
-    { data: stats },
-    { data: teamPlayersData },
-    { data: recordsData },
-  ] = await Promise.all([
+  // Kept for a minute: the tabs that list matches render this page again.
+  const [{ data: currentUserData }, shared] = await Promise.all([
     db.auth.getUser(),
-    db.from("player_career_stats").select("*").eq("id", id).maybeSingle(),
-    db
-      .from("team_players")
-      .select(
-        `
-        id, role_in_team, jersey_number, batting_order, created_at,
-        team:teams(id, name, short_name, logo_url, team_type, description, club:clubs(id, name))
-      `,
-      )
-      .eq("user_id", id)
-      .order("created_at", { ascending: false }),
-    db.from("player_matches").select("*").eq("user_id", id),
+    cachedBriefly(`player-page:${id}`, async () => {
+      const [{ data: stats }, { data: teamPlayers }, { data: records }] =
+        await Promise.all([
+          db.from("player_career_stats").select("*").eq("id", id).maybeSingle(),
+        db
+          .from("team_players")
+          .select(
+            `
+            id, role_in_team, jersey_number, batting_order, created_at,
+            team:teams(id, name, short_name, logo_url, team_type, description, club:clubs(id, name))
+          `,
+          )
+          .eq("user_id", id)
+          .order("created_at", { ascending: false }),
+          db.from("player_matches").select("*").eq("user_id", id),
+        ]);
+      return { stats, teamPlayers, records };
+    }),
   ]);
+  const stats = shared?.stats;
+  const teamPlayersData = shared?.teamPlayers;
+  const recordsData = shared?.records;
+  // Stats, where a visit starts, needs only the records (each has its match
+  // date). The match documents and the rosters that name dismissals are for
+  // the tabs that list matches: `PlayerActivityTabs` asks for them when one
+  // of those opens.
+  const listsMatches =
+    tab === "batting" || tab === "bowling" || tab === "matches";
 
   const records = (recordsData ?? []) as unknown as PlayerMatchesRow[];
   const teams = (teamPlayersData ?? []) as unknown as PlayerTeamMembership[];
@@ -174,7 +185,7 @@ export default async function PlayerPage({
   const fixtureTeams = teamIds.slice(0, IN_LIMIT);
   const recordMatchIds = Array.from(new Set(records.map((r) => r.match_id)));
   const results = await Promise.all([
-    recordMatchIds.length
+    listsMatches && recordMatchIds.length
       ? db.from("matches").select(matchColumns).in("id", recordMatchIds)
       : Promise.resolve({ data: [] }),
     ...(fixtureTeams.length
@@ -190,7 +201,8 @@ export default async function PlayerPage({
             .in(field, fixtureTeams)
             .eq("status", "scheduled")
             .order("scheduled_at", { ascending: true })
-            .limit(UPCOMING_FIXTURES),
+            // One says whether the Matches tab has anything to show.
+            .limit(listsMatches ? UPCOMING_FIXTURES : 1),
         ])
       : []),
   ]);
@@ -228,13 +240,15 @@ export default async function PlayerPage({
       .filter((b) => b.bowler_id || b.fielder_id)
       .map((b) => b.match_id),
   );
-  const names = await playerDirectory(
-    db,
-    matchesData
-      .filter((m) => dismissalMatchIds.has(String(m.id)))
-      .flatMap((m) => [m.team1_id as string, m.team2_id as string]),
-    battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
-  );
+  const names = listsMatches
+    ? await playerDirectory(
+        db,
+        matchesData
+          .filter((m) => dismissalMatchIds.has(String(m.id)))
+          .flatMap((m) => [m.team1_id as string, m.team2_id as string]),
+        battingRows.flatMap((b) => [b.bowler_id, b.fielder_id]),
+      )
+    : new Map<string, { id: string; full_name: string }>();
   const nameOf = (uid: string | null) => {
     const u = uid ? names.get(uid) : undefined;
     return u ? { id: u.id, full_name: u.full_name } : null;
@@ -427,6 +441,8 @@ export default async function PlayerPage({
           batting={batting}
           bowling={bowling}
           matches={matchesList}
+          matchesLoaded={listsMatches}
+          hasMatches={records.length > 0 || matchesList.length > 0}
           initialTab={tab}
           statistics={
             <SeasonStatistics

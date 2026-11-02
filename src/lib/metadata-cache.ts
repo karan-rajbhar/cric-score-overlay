@@ -52,6 +52,19 @@ export async function cachedForMetadata<T>(
   }
 }
 
+/**
+ * Public data a page reads on every render, kept for a minute. For a page
+ * that renders again when a tab opens: a tab's reads are its own, and the
+ * data the first render read is not paid for twice. Only for what cannot
+ * depend on the viewer.
+ */
+export function cachedBriefly<T>(
+  key: string,
+  load: () => Promise<T | null | undefined>,
+): Promise<T | null> {
+  return cachedForMetadata(key, load, LIVE_METADATA_TTL_MS);
+}
+
 /** Empties the cache (tests). */
 export function clearMetadataCache(): void {
   store.invalidate();

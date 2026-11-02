@@ -94,7 +94,7 @@ describe("generateMetadata on prefetched pages", () => {
     encoding: "utf8",
   })
     .split("\n")
-    .filter((f) => /\/page\.tsx$/.test(f))
+    .filter((f) => /\/(page|layout)\.tsx$/.test(f))
     .filter((f) => readFileSync(f, "utf8").includes("generateMetadata"));
 
   it("finds the pages to check", () => {

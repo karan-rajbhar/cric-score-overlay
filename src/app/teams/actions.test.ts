@@ -24,6 +24,7 @@ vi.mock("next/cache", () => ({
 }));
 
 vi.mock("~/lib/firebase/live-sync", () => ({
+  notifySquadChanged: vi.fn(),
   refreshLiveMatchesFor: vi.fn(),
 }));
 
@@ -140,7 +141,7 @@ describe("createPlayerQuick", () => {
   });
 });
 
-describe("squad changes refresh live matches of the team", () => {
+describe("squad changes tell live matches of the team", () => {
   /** A query builder whose every call chains; reads resolve `row`. */
   function chain(row: unknown, error: unknown = null) {
     const builder: Record<string, unknown> = {};
@@ -166,7 +167,10 @@ describe("squad changes refresh live matches of the team", () => {
   });
 
   it("after adding, removing or re-roling a player and quick-adding one", async () => {
-    const { refreshLiveMatchesFor } = await import("~/lib/firebase/live-sync");
+    const { notifySquadChanged, refreshLiveMatchesFor } = await import(
+      "~/lib/firebase/live-sync"
+    );
+    const { revalidatePath } = await import("next/cache");
     const actions = await import("./actions");
 
     expect(await actions.addPlayerToTeam("t1", "p1")).toEqual({
@@ -185,17 +189,30 @@ describe("squad changes refresh live matches of the team", () => {
     );
     expect((await actions.createPlayerQuick("t1", "New")).error).toBeNull();
 
-    const calls = vi.mocked(refreshLiveMatchesFor).mock.calls;
+    const calls = vi.mocked(notifySquadChanged).mock.calls;
     expect(calls.map((c) => c[1])).toEqual([
       { teamId: "t1" },
       { teamId: "t1" },
       { teamId: "t1" },
-      { teamId: "t1" },
+      { teamId: "t1", matchId: undefined },
     ]);
+    // The scoreboard shows no squad: nothing rebuilds it.
+    expect(refreshLiveMatchesFor).not.toHaveBeenCalled();
+
+    // From the scoring screen: that match, and the screen is not re-rendered.
+    vi.mocked(revalidatePath).mockClear();
+    expect(
+      (await actions.createPlayerQuick("t1", "New", "m1")).error,
+    ).toBeNull();
+    expect(vi.mocked(notifySquadChanged).mock.lastCall?.[1]).toEqual({
+      teamId: "t1",
+      matchId: "m1",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("not when the change fails", async () => {
-    const { refreshLiveMatchesFor } = await import("~/lib/firebase/live-sync");
+    const { notifySquadChanged } = await import("~/lib/firebase/live-sync");
     const actions = await import("./actions");
     mockFrom.mockImplementation(() =>
       chain({ created_by: "captain" }, { message: "boom" }),
@@ -208,7 +225,7 @@ describe("squad changes refresh live matches of the team", () => {
     expect(await actions.removePlayerFromTeam("t1", "p1")).toEqual({
       error: "boom",
     });
-    expect(refreshLiveMatchesFor).not.toHaveBeenCalled();
+    expect(notifySquadChanged).not.toHaveBeenCalled();
     spy.mockRestore();
   });
 });

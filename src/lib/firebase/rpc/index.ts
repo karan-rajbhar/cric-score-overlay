@@ -52,7 +52,12 @@ import {
   type UpdateBallArgs,
 } from "./scoring";
 import { recalculateTournamentStandings } from "./standings";
-import { ensureLiveState, liveRowOf, writeLiveState } from "../live-state";
+import {
+  bumpLiveState,
+  ensureLiveState,
+  liveRowOf,
+  writeLiveState,
+} from "../live-state";
 import { ensureLiveScorecard } from "../scorecard-refresh";
 import { clubMilestoneAggregates } from "../club-milestones";
 import { matchBallLog } from "../match-ball-log";
@@ -200,6 +205,10 @@ export async function callRpc(
       // Server-only (the browser client rejects unknown names): server
       // actions call this after changing anything the scoreboard shows.
       return writeLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
+    case "bump_live_state":
+      // Server-only, like refresh_live_state: a change the scoreboard does
+      // not show.
+      return bumpLiveState(ctx.ds, str(args, "p_match_id"), ctx.db);
     case "get_live_state": {
       // The scoreboard row from `live_state` (1 read), built once for
       // matches that predate it.

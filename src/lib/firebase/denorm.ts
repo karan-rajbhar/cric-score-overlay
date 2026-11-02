@@ -66,6 +66,49 @@ export async function refreshRoster(
 }
 
 /**
+ * `added` joined a team: append them to `teams/{teamId}.roster` rather than
+ * read the whole squad back ({@link refreshRoster}, one read per player),
+ * which adds up when a squad is filled in during a match. A roster entry is
+ * its team_players document plus the profile snapshot, so the entries on
+ * hand serve as those documents. In a transaction on the team, so two adds
+ * at once cannot lose one. No roster yet, or a document without its id: the
+ * full rebuild.
+ */
+export async function addToRoster(
+  ds: DataSource,
+  teamId: string,
+  added: Doc[],
+): Promise<void> {
+  const known = await runScoringTransaction({ ds }, async (t) => {
+    const team = await t.getById("teams", teamId);
+    if (!team) return true;
+    if (!Array.isArray(team.roster) || added.some((d) => !d.id)) return false;
+    const previous = team.roster as RosterEntry[];
+    const addedIds = new Set(added.map((d) => d.id));
+    const kept = previous.filter((e) => !addedIds.has(String(e.id)));
+    const users = new Map<string, Record<string, unknown>>();
+    for (const e of kept) if (e.user) users.set(e.user.id, { ...e.user });
+    const missing = Array.from(
+      new Set(
+        added
+          .map((d) => d.user_id)
+          .filter(
+            (id): id is string => typeof id === "string" && !users.has(id),
+          ),
+      ),
+    );
+    if (missing.length) {
+      for (const u of await t.getByIds("users", missing)) users.set(u.id, u);
+    }
+    t.patch("teams", teamId, {
+      roster: rosterOf([...(kept as unknown as Doc[]), ...added], users),
+    });
+    return true;
+  });
+  if (!known) await refreshRoster(ds, teamId);
+}
+
+/**
  * A profile's display fields changed (or it was created / re-keyed):
  * refresh its roster entries and leaderboard names.
  */

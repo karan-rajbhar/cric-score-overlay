@@ -1,8 +1,9 @@
 "use client";
 
 import { setUrlParam } from "~/lib/url-state";
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import type * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Table,
@@ -13,6 +14,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { Badge } from "~/components/ui/badge";
+import { TabSkeleton } from "~/components/ui/on-demand-tabs";
 import { MatchStatusChip } from "~/components/ds/chip";
 import { TeamCrest } from "~/components/ds/avatar";
 import { ListCard, ListRow } from "~/components/ds/list";
@@ -152,6 +154,10 @@ interface PlayerActivityTabsProps {
   batting: PlayerBattingPerformance[];
   bowling: PlayerBowlingPerformance[];
   matches: PlayerMatchItem[];
+  /** Whether `matches` and the rows' match details have been read. */
+  matchesLoaded: boolean;
+  /** Whether the Matches tab has anything to show, read or not. */
+  hasMatches: boolean;
   initialTab?: string;
   /** The career figures: the first tab, open by default. */
   statistics?: React.ReactNode;
@@ -234,14 +240,22 @@ function MatchResultCells({ match }: { match?: PerformanceMatch | null }) {
   );
 }
 
+const TABS_LISTING_MATCHES = ["batting", "bowling", "matches"];
+
 export function PlayerActivityTabs({
   teams,
   batting,
   bowling,
   matches,
+  matchesLoaded,
+  hasMatches,
   initialTab,
   statistics,
 }: PlayerActivityTabsProps) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  /** Whether this page has, or has asked for, the tabs that list matches. */
+  const askedForMatches = useRef(matchesLoaded);
   // Determine default active tab
   const defaultTab = statistics
     ? "statistics"
@@ -249,7 +263,7 @@ export function PlayerActivityTabs({
       ? "batting"
       : bowling.length > 0
         ? "bowling"
-        : matches.length > 0
+        : hasMatches
           ? "matches"
           : "teams";
 
@@ -258,7 +272,7 @@ export function PlayerActivityTabs({
     statistics && { value: "statistics", label: "Stats" },
     batting.length > 0 && { value: "batting", label: "Batting" },
     bowling.length > 0 && { value: "bowling", label: "Bowling" },
-    matches.length > 0 && { value: "matches", label: "Matches" },
+    hasMatches && { value: "matches", label: "Matches" },
     teams.length > 0 && { value: "teams", label: "Teams" },
   ].filter((t) => !!t);
 
@@ -267,6 +281,17 @@ export function PlayerActivityTabs({
   );
   const changeTab = (tab: string) => {
     setActiveTab(tab);
+    if (TABS_LISTING_MATCHES.includes(tab) && !askedForMatches.current) {
+      // Their documents are read when one first opens: the page renders
+      // again for this tab, and the other two then have them too.
+      askedForMatches.current = true;
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      startTransition(() => {
+        router.replace(`${url.pathname}${url.search}`, { scroll: false });
+      });
+      return;
+    }
     setUrlParam("tab", tab, defaultTab);
   };
 
@@ -289,7 +314,16 @@ export function PlayerActivityTabs({
         </TabsContent>
       )}
 
+      {!matchesLoaded &&
+        TABS_LISTING_MATCHES.map((tab) => (
+          <TabsContent key={tab} value={tab} className="mt-6">
+            <TabSkeleton />
+          </TabsContent>
+        ))}
+
       {/* =================== BATTING INNINGS TAB =================== */}
+      {matchesLoaded && (
+      <>
       <TabsContent value="batting" className="mt-6 space-y-4">
         <h3 className="text-base font-semibold text-foreground">
           Batting innings
@@ -552,6 +586,9 @@ export function PlayerActivityTabs({
           </div>
         )}
       </TabsContent>
+
+      </>
+      )}
 
       {/* =================== TEAMS TAB =================== */}
       <TabsContent value="teams" className="mt-6 space-y-4">
