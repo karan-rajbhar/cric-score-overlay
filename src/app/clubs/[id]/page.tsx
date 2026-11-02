@@ -20,7 +20,10 @@ import { EntityActions } from "~/components/follow/entity-actions";
 import { ClubContacts } from "~/components/clubs/club-contacts";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
+import { ActionsSheet } from "~/components/ds/actions-sheet";
+import { PinnedTitle } from "~/components/ds/pinned-title";
+import { PinnedTabs } from "~/components/ds/tabs";
+import { TabsContent, UrlTabs } from "~/components/ui/tabs";
 import {
   Calendar,
   Users,
@@ -77,7 +80,7 @@ import {
   loadScopeLeaderboard,
   type ScopeMatch,
 } from "~/lib/firebase/leaderboards";
-import { ContentSheet, ScreenBar } from "~/components/ds/screen";
+import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 
 export const dynamic = "force-dynamic";
@@ -494,14 +497,88 @@ export default async function ClubPage({
 
   const trail = clubTrail();
 
+  const membership = (
+    <ClubMembershipButton
+      clubId={club.id}
+      isMember={isMember}
+      isOwner={isOwner}
+      isAuthenticated={!!user}
+    />
+  );
+  const newTeam = (
+    <Button asChild size="sm" className="gap-1.5">
+      <Link href={`/teams/create?clubId=${club.id}`}>
+        <Plus className="h-4 w-4 shrink-0" />
+        New team
+      </Link>
+    </Button>
+  );
+  const newTournament = (
+    <Button asChild size="sm" variant="outline" className="gap-1.5">
+      <Link href={`/tournaments/create?clubId=${club.id}`}>New tournament</Link>
+    </Button>
+  );
+  const adminTools = isAdmin && (
+    <>
+      <ClubMediaDialog
+        clubId={club.id}
+        clubName={club.name}
+        shortName={club.short_name}
+        initialLogoUrl={club.logo_url}
+        initialBannerUrl={club.banner_url}
+      />
+      <ClubSettingsDialog club={club} />
+      <ClubStreamingDialog clubId={club.id} />
+      <SeasonDialog clubId={club.id} />
+    </>
+  );
+
+  // Only what has something in it; its admins can start what does not yet.
+  const clubTabs = [
+    { value: "teams", label: "Teams" },
+    (isAdmin || typedTournaments.length > 0) && {
+      value: "tournaments",
+      label: "Tournaments",
+    },
+    { value: "matches", label: "Matches" },
+    { value: "stats", label: "Stats" },
+    (isAdmin || typedHallOfFame.length > 0) && {
+      value: "hall-of-fame",
+      label: "Hall of fame",
+    },
+    { value: "members", label: "Members" },
+  ].filter((t) => !!t);
+  const activeTab = clubTabs.find(
+    (t) => t.value === resolvedSearchParams?.tab,
+  )
+    ? resolvedSearchParams!.tab!
+    : "teams";
+
   return (
-    <PageContainer stack={false}>
+    <PageContainer stack={false} className={pinnedPage}>
       {/* Phones: the screen's own bar instead of the header. */}
       <ScreenBar
-        className="mb-5 md:hidden"
-        title="Club"
+        className="mb-4 md:hidden"
         backHref={parentOf(trail)}
         backLabel={backLabelOf(trail)}
+        action={
+          <>
+            {membership}
+            <ActionsSheet title={club.name} label="Club actions">
+              {isAdmin && newTeam}
+              {isAdmin && newTournament}
+              <EntityActions kind="club" id={club.id} name={club.name} />
+              {adminTools}
+              <div className="flex !min-h-0 flex-wrap items-center gap-x-4 gap-y-1.5 px-1 pt-2 text-sm text-muted-foreground empty:hidden">
+                <ClubContacts
+                  club={club}
+                  socialLinks={socialLinks}
+                  part="contact"
+                />
+              </div>
+            </ActionsSheet>
+          </>
+        }
       />
       <PageTrail crumbs={trail} current={club.name} className="mb-4" />
 
@@ -541,93 +618,43 @@ export default async function ClubPage({
           </>
         }
         description={club.description}
-        meta={<ClubContacts club={club} socialLinks={socialLinks} />}
+        meta={
+          <>
+            <span className="contents max-md:hidden">
+              <ClubContacts club={club} socialLinks={socialLinks} />
+            </span>
+            <span className="contents md:hidden">
+              <ClubContacts club={club} socialLinks={socialLinks} part="place" />
+            </span>
+          </>
+        }
         actions={
           <>
-            {isAdmin && (
-              <ClubMediaDialog
-                clubId={club.id}
-                clubName={club.name}
-                shortName={club.short_name}
-                initialLogoUrl={club.logo_url}
-                initialBannerUrl={club.banner_url}
-              />
-            )}
-            {isAdmin && <ClubSettingsDialog club={club} />}
-            {isAdmin && <ClubStreamingDialog clubId={club.id} />}
-            {isAdmin && <SeasonDialog clubId={club.id} />}
+            {adminTools}
             <EntityActions kind="club" id={club.id} name={club.name} />
-            <ClubMembershipButton
-              clubId={club.id}
-              isMember={isMember}
-              isOwner={isOwner}
-              isAuthenticated={!!user}
-            />
-            {isAdmin && (
-              <>
-                <Button asChild size="sm" variant="outline" className="gap-1.5">
-                  <Link href={`/tournaments/create?clubId=${club.id}`}>
-                    New tournament
-                  </Link>
-                </Button>
-                <Button asChild size="sm" className="gap-1.5">
-                  <Link href={`/teams/create?clubId=${club.id}`}>
-                    <Plus className="h-4 w-4 shrink-0" />
-                    New team
-                  </Link>
-                </Button>
-              </>
-            )}
+            {membership}
+            {isAdmin && newTournament}
+            {isAdmin && newTeam}
           </>
         }
       />
+      <PinnedTitle>{club.name}</PinnedTitle>
 
-      <ContentSheet className="mt-6 sm:mt-8">
-      <StatGrid>
-        <StatTile icon={Shield} label="Teams" value={typedTeams.length} />
-        <StatTile icon={Trophy} label="Tournaments" value={typedTournaments.length} />
-        <StatTile icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
-        <StatTile icon={Users} label="Members" value={memberTotal} />
+      <ContentSheet className="mt-4 sm:mt-8">
+      <StatGrid compact>
+        <StatTile compact icon={Shield} label="Teams" value={typedTeams.length} />
+        <StatTile compact icon={Trophy} label="Tournaments" value={typedTournaments.length} />
+        <StatTile compact icon={Award} label="Hall of fame" value={typedHallOfFame.length} />
+        <StatTile compact icon={Users} label="Members" value={memberTotal} />
       </StatGrid>
 
       {/* Club Tabs */}
       <UrlTabs
-        defaultValue={resolvedSearchParams?.tab ?? "teams"}
+        defaultValue={activeTab}
         fallback="teams"
-        className="mt-6 sm:mt-8"
+        className="mt-3 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start">
-          <TabsTrigger
-            value="teams"
-          >
-            Teams
-          </TabsTrigger>
-          <TabsTrigger
-            value="tournaments"
-          >
-            Tournaments
-          </TabsTrigger>
-          <TabsTrigger
-            value="matches"
-          >
-            Matches
-          </TabsTrigger>
-          <TabsTrigger
-            value="stats"
-          >
-            Stats & records
-          </TabsTrigger>
-          <TabsTrigger
-            value="hall-of-fame"
-          >
-            Hall of fame
-          </TabsTrigger>
-          <TabsTrigger
-            value="members"
-          >
-            Members
-          </TabsTrigger>
-        </TabsList>
+        <PinnedTabs label="Club sections" tabs={clubTabs} />
 
         {/* TAB 1: CLUB TEAMS */}
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">

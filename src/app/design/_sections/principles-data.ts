@@ -70,8 +70,36 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
       {
         title: "One place, one name",
         rule: "A destination has one name everywhere, and each screen offers one way to reach it.",
-        why: "Home was also called Dashboard, the logo opened a third page, and desktop had four ways to Search.",
+        why: "Home was also called Dashboard, the logo opened a third page, and desktop had four ways to Search. A finished match had three ways to share.",
         evidence: "learned",
+      },
+      {
+        title: "A screen's content starts on its first screen",
+        rule: "Keep a detail screen's header short: what it is, the one figure that matters, one action at most. The rest goes in a tab, Share or the ⋯ menu; figures sit in one row, chips on one line, a description in two.",
+        why: "A finished match's tabs started 610px down an 844px phone, under the player of the match and three buttons. FotMob, ESPN and Real Sports start theirs about a third of the way down, and FotMob keeps its player of the match inside the first tab.",
+        evidence: "pattern",
+        appliedIn: "MatchHero, PlayerAwardRow, ShareMenu, ActionsSheet, StatGrid compact",
+      },
+      {
+        title: "Long screens keep their tabs in reach",
+        rule: "Tabs stay on screen as a long tab scrolls, with one thin line saying what the screen is about. Keep what is pinned short, so it does not hide the content.",
+        why: "NN/g: sticky headers make their contents easier to find and more likely to be used. Changing tab from the bottom of a 2,700px Stats tab meant scrolling all the way back.",
+        evidence: "study",
+        appliedIn: "PinnedTabs, TopStrip, PinnedTitle",
+      },
+      {
+        title: "Offer only the tabs that have something in them",
+        rule: "A tab appears once it has content. Before a match starts, that is Summary and Squads. Whoever can fill a tab, such as a club's admins, still sees it.",
+        why: "Four of a fixture's six tabs only said that nothing had happened yet.",
+        evidence: "learned",
+        appliedIn: "matchTabsOf, PlayerActivityTabs",
+      },
+      {
+        title: "An action goes when its moment has passed",
+        rule: "Hide what no longer applies to the person looking, and check first whether anyone still needs it.",
+        why: "A finished match offered everyone a Scorers button and Stream this match, and a finished tournament Schedule match. Scorers went, but Stream stays for scorers and streamers: a stream outlasts the last ball, and it is the one way back to the control room.",
+        evidence: "learned",
+        appliedIn: "MatchMoreMenu",
       },
     ],
   },
@@ -210,6 +238,14 @@ export const REFERENCE_APPS: readonly ReferenceApp[] = [
     app: "MLS, Fixtured",
     takeaway: "Team pages split into tabs for matches, results, roster and details.",
   },
+  {
+    app: "FotMob (match)",
+    takeaway: "Score and scorers, then five short tabs about 38% down. Player of the match is a card inside the first tab; share and follow are in the top bar.",
+  },
+  {
+    app: "ESPN, Real Sports (match)",
+    takeaway: "A compact score, then tabs 31 to 39% down. No cricket app was in the library, so these are football and baseball, and only the top of each screen.",
+  },
 ];
 
 export interface Source {
@@ -233,6 +269,16 @@ export const SOURCES: readonly Source[] = [
     label: "Material Design 3: Navigation bar",
     href: "https://m3.material.io/components/navigation-bar/guidelines",
     note: "Not read directly. Its 3 to 5 destinations comes from secondary sources.",
+  },
+  {
+    label: "NN/g: Sticky headers",
+    href: "https://www.nngroup.com/articles/sticky-headers/",
+    note: "Read through search excerpts.",
+  },
+  {
+    label: "WCAG failure F110: a sticky header covering the focused element",
+    href: "https://www.w3.org/WAI/WCAG22/Techniques/failures/F110.html",
+    note: "Why what is pinned stays thin.",
   },
   {
     label: "SaaSFrame: Combobox patterns",

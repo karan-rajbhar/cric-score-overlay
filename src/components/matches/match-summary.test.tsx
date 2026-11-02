@@ -29,13 +29,22 @@ describe("MatchSummary - Key Moments", () => {
     innings: [],
   };
 
-  it("shows empty state when no match events or toss have occurred yet", () => {
-    render(<MatchSummary match={baseMatch} />);
+  it("says what is coming once the match is on, before anything has happened", () => {
+    render(<MatchSummary match={{ ...baseMatch, status: "live" }} />);
 
     expect(screen.getByText("Key moments")).toBeDefined();
     expect(
       screen.getByText(/the toss, wickets and milestones appear here/i),
     ).toBeDefined();
+  });
+
+  it("has no key moments before the start, and the match's details open", () => {
+    render(<MatchSummary match={baseMatch} />);
+
+    expect(screen.queryByText("Key moments")).toBeNull();
+    expect(screen.getByText("Match details").closest("details")).toHaveAttribute(
+      "open",
+    );
   });
 
   it("displays toss key moment when toss data exists", () => {
@@ -134,7 +143,87 @@ describe("MatchSummary - Key Moments", () => {
     expect(moments.getByText("Rashid Khan 3/22")).toBeDefined();
     // Fall of wicket
     expect(moments.getByText("Ishan Kishan b Rashid Khan")).toBeDefined();
-    expect(moments.getByText("42/1 · Bowled")).toBeDefined();
+    expect(moments.getByText("42/1")).toBeDefined();
+  });
+
+  it("words each wicket by the one rule, never as bowled when it was not", () => {
+    const fall = (over: number, fields: object) => ({
+      id: `w${over}`,
+      wicket_number: over,
+      runs_at_fall: over * 10,
+      overs_at_fall: over,
+      batsman: { id: `b${over}`, full_name: `Batter ${over}` },
+      bowler_id: "bowler",
+      bowler: { id: "bowler", full_name: "Mahadev" },
+      ...fields,
+    });
+    render(
+      <MatchSummary
+        match={makeMatch({
+          status: "completed",
+          innings: [
+            makeInnings({
+              is_completed: true,
+              fall_of_wickets: [
+                fall(1, {
+                  dismissal_type: "run_out",
+                  fielder_id: "f",
+                  fielder: { id: "f", full_name: "Akashy" },
+                }),
+                fall(2, {
+                  dismissal_type: "caught",
+                  fielder_id: "f",
+                  fielder: { id: "f", full_name: "Sanket" },
+                }),
+                fall(3, {
+                  dismissal_type: "caught",
+                  fielder_id: "bowler",
+                  fielder: { id: "bowler", full_name: "Mahadev" },
+                }),
+              ] as never,
+            }),
+          ],
+        })}
+      />,
+    );
+    const moments = within(screen.getByRole("region", { name: "Key moments" }));
+    expect(moments.getByText("Batter 1 run out (Akashy)")).toBeDefined();
+    expect(moments.getByText("Batter 2 c Sanket b Mahadev")).toBeDefined();
+    expect(moments.getByText("Batter 3 c & b Mahadev")).toBeDefined();
+  });
+
+  it("opens a finished match on its player of the match, in one row", () => {
+    render(
+      <MatchSummary
+        match={makeMatch({
+          status: "completed",
+          player_of_the_match: { id: "t1p", full_name: "Rohan Desai" },
+          innings: [
+            makeInnings({
+              is_completed: true,
+              batting_performances: [
+                {
+                  id: "b",
+                  match_id: "m1",
+                  innings_id: "inn-1",
+                  user_id: "t1p",
+                  runs_scored: 36,
+                  balls_faced: 11,
+                  fours: 1,
+                  sixes: 4,
+                  is_out: false,
+                  user: { id: "t1p", full_name: "Rohan Desai" },
+                },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("Player of the match")).toBeDefined();
+    expect(screen.getByText("36* (11)")).toBeDefined();
+    // The tiles are the report's.
+    expect(screen.queryByText("Batting")).toBeNull();
   });
 
   it("shows both sides like the summary image, then the best performers", () => {
@@ -180,7 +269,7 @@ describe("MatchSummary - Key Moments", () => {
 
     render(<MatchSummary match={completedMatch} />);
 
-    // Each side as on the share-summary image: score, top batters / bowlers.
+    // Each innings as on the share-summary image: score, top batters / bowlers.
     expect(screen.getByText("165/4")).toBeDefined();
     expect(screen.getByText("20.0 ov")).toBeDefined();
     expect(screen.getByText("Won")).toBeDefined();
@@ -188,6 +277,110 @@ describe("MatchSummary - Key Moments", () => {
     expect(screen.getAllByText("72*").length).toBeGreaterThan(0);
     // The result and the player of the match are in the hero, not here.
     expect(screen.queryByText(/won by 15 runs/i)).toBeNull();
+  });
+
+  it("puts each innings' batters beside the bowlers who bowled at them", () => {
+    const bowler = (innings_id: string, id: string, full_name: string) => ({
+      id,
+      match_id: "m1",
+      innings_id,
+      user_id: id,
+      overs_bowled: 4,
+      balls_bowled: 24,
+      runs_conceded: 22,
+      wickets_taken: 3,
+      maidens: 0,
+      wides: 0,
+      no_balls: 0,
+      user: { id, full_name },
+    });
+    const batter = (innings_id: string, id: string, full_name: string) => ({
+      id,
+      match_id: "m1",
+      innings_id,
+      user_id: id,
+      runs_scored: 40,
+      balls_faced: 30,
+      fours: 2,
+      sixes: 1,
+      is_out: true,
+      user: { id, full_name },
+    });
+    render(
+      <MatchSummary
+        match={makeMatch({
+          status: "completed",
+          innings: [
+            makeInnings({
+              id: "a",
+              team_id: "t1",
+              is_completed: true,
+              batting_performances: [batter("a", "b1", "Tigers Batter")],
+              bowling_performances: [bowler("a", "k1", "Kings Bowler")],
+            }),
+            makeInnings({
+              id: "b",
+              innings_number: 2,
+              team_id: "t2",
+              is_completed: true,
+              batting_performances: [batter("b", "b2", "Kings Batter")],
+              bowling_performances: [bowler("b", "t1", "Tigers Bowler")],
+            }),
+          ],
+        })}
+      />,
+    );
+    const card = (title: string) =>
+      within(screen.getByText(title).closest(".overflow-hidden") as HTMLElement);
+    // The column titles are for screen readers: the figures say which is which.
+    expect(screen.getByText("Bowling for Coastal Kings")).toHaveClass("sr-only");
+    const tigers = card("Bowling for Coastal Kings");
+    expect(tigers.getByText("Tigers Batter")).toBeDefined();
+    expect(tigers.getByText("Kings Bowler")).toBeDefined();
+    expect(tigers.queryByText("Tigers Bowler")).toBeNull();
+
+    const kings = card("Bowling for Royal Tigers");
+    expect(kings.getByText("Kings Batter")).toBeDefined();
+    expect(kings.getByText("Tigers Bowler")).toBeDefined();
+    expect(kings.queryByText("Kings Bowler")).toBeNull();
+  });
+
+  it("shows a side yet to bat as just its header", () => {
+    render(
+      <MatchSummary
+        match={makeMatch({
+          status: "live",
+          innings: [
+            makeInnings({
+              team_id: "t1",
+              is_completed: true,
+              total_runs: 83,
+              batting_performances: [
+                {
+                  id: "b",
+                  match_id: "m1",
+                  innings_id: "inn-1",
+                  user_id: "u1",
+                  runs_scored: 36,
+                  balls_faced: 11,
+                  fours: 1,
+                  sixes: 4,
+                  is_out: false,
+                  user: { id: "u1", full_name: "Rohan Desai" },
+                },
+              ],
+            }),
+          ],
+        })}
+      />,
+    );
+    const card = within(
+      screen.getByText("Yet to bat").closest(".overflow-hidden") as HTMLElement,
+    );
+    expect(card.getByText("Coastal Kings")).toBeDefined();
+    expect(card.queryByText("Top batters")).toBeNull();
+    expect(card.queryByText("None")).toBeNull();
+    expect(screen.queryByText("Bowling for Royal Tigers")).toBeNull();
   });
 
   it("shows the crease, the bowler and this over while an innings is in play", () => {
@@ -371,7 +564,7 @@ describe("MatchLivePanel between and before innings", () => {
     );
     const moments = within(screen.getByRole("region", { name: "Key moments" }));
     const show = moments.getByRole("button", { name: /Show all \d+ moments/ });
-    const rows = () => moments.getAllByText(/^Batter \d$/);
+    const rows = () => moments.getAllByText(/^Batter \d /);
     const hidden = () =>
       rows().filter((r) => r.closest(".max-md\\:hidden")).length;
     expect(rows()).toHaveLength(7);

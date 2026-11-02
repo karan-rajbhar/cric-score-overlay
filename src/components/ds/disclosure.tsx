@@ -20,6 +20,7 @@ export function Disclosure({
   aside,
   below,
   defaultOpen = false,
+  lazy = false,
   id,
   className,
   children,
@@ -28,11 +29,14 @@ export function Disclosure({
   aside?: React.ReactNode;
   below?: React.ReactNode;
   defaultOpen?: boolean;
+  /** Mount the content on first opening: for content that reads data. */
+  lazy?: boolean;
   id?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   const ref = React.useRef<HTMLDetailsElement>(null);
+  const [opened, setOpened] = React.useState(defaultOpen);
   // After mount, so the server's HTML matches on every screen; these sit
   // below the fold, so nothing visibly moves.
   React.useEffect(() => {
@@ -45,6 +49,9 @@ export function Disclosure({
       ref={ref}
       id={id}
       open={defaultOpen}
+      onToggle={(e) => {
+        if (e.currentTarget.open) setOpened(true);
+      }}
       className={cn(cardSurface, "group overflow-hidden", className)}
     >
       <summary className="block min-h-11 cursor-pointer list-none rounded-xl px-4 py-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -60,7 +67,7 @@ export function Disclosure({
         </span>
         {below && <span className="mt-2 block">{below}</span>}
       </summary>
-      {children}
+      {(!lazy || opened) && children}
     </details>
   );
 }

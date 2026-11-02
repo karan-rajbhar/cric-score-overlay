@@ -30,6 +30,8 @@ import {
   teamName,
   topBatters,
   topBowlers,
+  matchFormatLabel,
+  namedFormat,
 } from "./cricket";
 
 // ---------------------------------------------------------------------------
@@ -55,12 +57,18 @@ export interface ExportBowler {
   econ: string;
 }
 
+/**
+ * One side's innings, as a scorecard pairs them: its score, its top batters
+ * and the bowlers who bowled at them, who play for the other side.
+ */
 export interface ExportTeamStats {
   name: string;
   shortName: string;
   scoreLine: string;
   batters: ExportBatter[];
   bowlers: ExportBowler[];
+  /** The side `bowlers` play for. */
+  bowlingSide: string;
 }
 
 export interface MatchExportSummary {
@@ -82,14 +90,16 @@ export function buildExportSummary(
   match: Match,
   matchUrl: string,
 ): MatchExportSummary {
-  const teamStats = (
-    team: Match["team1"],
-    battingInnings = inningsFor(match, team.id),
+  // In batting order: the side that batted first is shown first.
+  const [first, second] = sidesInBattingOrder(match);
+  const inningsStats = (
+    { team, innings }: typeof first,
+    bowling: typeof first,
   ): ExportTeamStats => ({
     name: team.name,
     shortName: team.short_name ?? team.name.slice(0, 3).toUpperCase(),
-    scoreLine: scoreLine(battingInnings),
-    batters: topBatters(battingInnings).map((b) => ({
+    scoreLine: scoreLine(innings),
+    batters: topBatters(innings).map((b) => ({
       name: b.user?.full_name ?? "—",
       userId: b.user_id ?? null,
       runs: b.runs_scored ?? 0,
@@ -97,7 +107,7 @@ export function buildExportSummary(
       notOut: !b.is_out,
       sr: strikeRate(b.runs_scored, b.balls_faced),
     })),
-    bowlers: topBowlers(match, team.id).map((b) => ({
+    bowlers: topBowlers(innings).map((b) => ({
       name: b.user?.full_name ?? "—",
       userId: b.user_id ?? null,
       overs: formatBowlerOvers(b),
@@ -105,11 +115,12 @@ export function buildExportSummary(
       wickets: b.wickets_taken ?? 0,
       econ: bowlerEconomy(b),
     })),
+    bowlingSide: bowling.team.name,
   });
 
   return {
     title: match.title,
-    format: `${match.match_format} · ${match.overs_per_innings} ov`,
+    format: matchFormatLabel(match, "ov"),
     venue: match.venue,
     playedAt: match.scheduled_at
       ? new Date(match.scheduled_at).toLocaleString(undefined, {
@@ -120,9 +131,8 @@ export function buildExportSummary(
     live: isLive(match),
     result: matchSituation(match),
     matchUrl,
-    // In batting order: the side that batted first is shown first.
-    team1: teamStats(sidesInBattingOrder(match)[0].team),
-    team2: teamStats(sidesInBattingOrder(match)[1].team),
+    team1: inningsStats(first, second),
+    team2: inningsStats(second, first),
     playerOfTheMatch: match.player_of_the_match?.full_name ?? null,
   };
 }
@@ -158,10 +168,6 @@ export function matchSituation(match: Match): string {
   if (chase) return chase;
   if (balls === 0 && inn.total_runs === 0) return `${batting} bat first`;
   return `${batting} batting · run rate ${runRate(inn.total_runs, balls, bpo)}`;
-}
-
-function inningsFor(match: Match, teamId: string) {
-  return match.innings?.find((i) => i.team_id === teamId);
 }
 
 /**
@@ -1062,7 +1068,7 @@ function infoOf(match: Match, date: string | null): MatchReportModel["info"] {
   const rows: [string, string | null | undefined, boolean?][] = [
     ["Organiser", match.tournament?.name ?? match.club?.name ?? null],
     ["Match", match.title],
-    ["Format", match.match_format],
+    ["Format", namedFormat(match)],
     ["Overs", `${match.overs_per_innings} overs a side`],
     ["Venue", match.venue ?? null],
     ["Date and time", date],

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Disclosure } from "~/components/ds/disclosure";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { useMatchBallLogQuery } from "~/lib/hooks/useMatchQueries";
@@ -11,10 +12,19 @@ import {
   runRate,
   teamName,
 } from "~/lib/cricket";
+import { MatchSuperstars } from "./match-superstars";
 import { WagonWheel } from "./wagon-wheel";
 import { MatchWormChart } from "./match-worm-chart";
 import { MatchManhattan } from "./match-manhattan";
-import { Activity, BarChart3, CircleDot, PieChart, TrendingUp } from "lucide-react";
+import {
+  Activity,
+  Award,
+  BarChart3,
+  CircleDot,
+  PieChart,
+  Swords,
+  TrendingUp,
+} from "lucide-react";
 import {
   bestOver,
   boundaryPct,
@@ -25,6 +35,11 @@ import {
   phaseSplits,
 } from "~/lib/match-charts";
 
+const HeadToHead = dynamic(
+  () => import("./head-to-head").then((m) => m.HeadToHead),
+  { ssr: false },
+);
+
 type Ball = BallEvent;
 
 interface MatchStatsProps {
@@ -33,12 +48,21 @@ interface MatchStatsProps {
 
 /** The sections the jump bar reaches; `wide`: not on phones. */
 const JUMPS = [
+  { id: "stats-performers", label: "Top performers", icon: Award },
   { id: "stats-wagon-wheel", label: "Field", icon: CircleDot },
   { id: "stats-worm", label: "Worm", icon: TrendingUp },
   { id: "stats-manhattan", label: "Runs / over", icon: BarChart3 },
   { id: "stats-breakdown", label: "Deliveries", icon: PieChart },
   { id: "stats-phases", label: "Phases", icon: Activity, wide: true },
+  { id: "stats-head-to-head", label: "Head to head", icon: Swords },
 ];
+
+/**
+ * Where a jump lands: clear of what is pinned above it (the match's tabs and
+ * their strip; from tablets up the jump bar too).
+ */
+const JUMP_MARGIN =
+  "scroll-mt-[calc(var(--pinned-top,0px)+var(--pinned-tabs,0px)+0.5rem)] md:scroll-mt-[calc(var(--pinned-top,0px)+var(--pinned-tabs,0px)+3.5rem)]";
 
 /** Scrolls to a section, opening it first if it is folded. */
 function jumpTo(id: string) {
@@ -69,9 +93,9 @@ export function MatchStats({ match }: MatchStatsProps) {
 
   return (
     <div className="w-full space-y-6">
-      {/* Jump bar: pinned under the header and back bar (md up); phones
-          have neither, so it pins to the top of the screen. */}
-      <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-10 flex md:top-[7.25rem] flex-wrap items-center gap-1 rounded-full bg-card/90 p-1 shadow-soft ring-1 ring-border/40 backdrop-blur">
+      {/* Jump bar: from tablets up it pins under the match's tabs. A phone
+          has no room for a third pinned row, so there it stays here. */}
+      <div className="no-scrollbar flex items-center gap-1 rounded-full bg-card/90 p-1 shadow-soft ring-1 ring-border/40 backdrop-blur max-md:overflow-x-auto md:sticky md:top-[calc(var(--pinned-top,0px)+var(--pinned-tabs,0px)+0.25rem)] md:z-10 md:flex-wrap">
         <span className="hidden px-2.5 text-xs text-muted-foreground sm:inline-block">
           Jump to
         </span>
@@ -81,7 +105,7 @@ export function MatchStats({ match }: MatchStatsProps) {
               key={id}
               type="button"
               onClick={() => jumpTo(id)}
-              className={`items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent ${wide ? "hidden sm:inline-flex" : "inline-flex"}`}
+              className={`min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-medium text-foreground transition-colors hover:bg-accent ${wide ? "hidden sm:inline-flex" : "inline-flex"}`}
             >
               <Icon className="h-3.5 w-3.5 text-muted-foreground max-sm:hidden" aria-hidden="true" />
               {label}
@@ -90,24 +114,42 @@ export function MatchStats({ match }: MatchStatsProps) {
         )}
       </div>
 
+      {/* Who shaped the match, before the charts of how. */}
+      <section
+        id="stats-performers"
+        aria-labelledby="stats-performers-title"
+        className={`space-y-3 ${JUMP_MARGIN}`}
+      >
+        <h3
+          id="stats-performers-title"
+          className="text-base font-semibold text-foreground"
+        >
+          Top performers
+        </h3>
+        <MatchSuperstars match={match} />
+      </section>
+
       {/* 1. Wagon wheel stays on top — deferred off-screen */}
-      <div id="stats-wagon-wheel" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
+      <div id="stats-wagon-wheel" className={`chart-defer ${JUMP_MARGIN}`}>
         <WagonWheel match={match} />
       </div>
 
       {/* 2. Worm chart — deferred off-screen */}
-      <div id="stats-worm" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
+      <div id="stats-worm" className={`chart-defer ${JUMP_MARGIN}`}>
         <MatchWormChart match={match} ballLog={ballLog} />
       </div>
 
       {/* 3. Manhattan — deferred off-screen */}
-      <div id="stats-manhattan" className="chart-defer scroll-mt-16 md:scroll-mt-[10.5rem]">
+      <div id="stats-manhattan" className={`chart-defer ${JUMP_MARGIN}`}>
         <MatchManhattan match={match} />
       </div>
 
       {/* 5. Phase splits + momentum per innings */}
       {sortedInnings.length > 0 && (
-        <div id="stats-phases" className="grid gap-2 md:grid-cols-2 md:gap-4 scroll-mt-16 md:scroll-mt-[10.5rem]">
+        <div
+          id="stats-phases"
+          className={`grid gap-2 md:grid-cols-2 md:gap-4 ${JUMP_MARGIN}`}
+        >
           {sortedInnings.map((innings, ii) => {
             const table = tables[ii]?.table ?? [];
             const best = bestOver(table);
@@ -207,7 +249,7 @@ export function MatchStats({ match }: MatchStatsProps) {
       <Disclosure
         id="stats-breakdown"
         title="Delivery breakdown"
-        className="scroll-mt-16 md:scroll-mt-[10.5rem]"
+        className={JUMP_MARGIN}
       >
         <div className="px-4 pb-4">
           <div className="grid gap-6 md:grid-cols-2">
@@ -369,6 +411,27 @@ export function MatchStats({ match }: MatchStatsProps) {
               );
             })}
           </div>
+        </div>
+      </Disclosure>
+
+      {/* Reads the two sides' past meetings, so only once it is opened. */}
+      <Disclosure
+        id="stats-head-to-head"
+        title="Head to head"
+        below={
+          <span className="text-xs text-muted-foreground">
+            {match.team1.name} and {match.team2.name} in past meetings
+          </span>
+        }
+        lazy
+        className={JUMP_MARGIN}
+      >
+        <div className="px-3 pb-3">
+          <HeadToHead
+            team1={match.team1}
+            team2={match.team2}
+            currentMatchId={match.id}
+          />
         </div>
       </Disclosure>
     </div>

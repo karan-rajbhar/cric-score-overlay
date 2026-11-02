@@ -225,11 +225,13 @@ export function MatchBalls({ match }: MatchBallsProps) {
     );
   }
 
-  const current = sortedInnings.some(
-    (inn) => inn.innings_number === match.current_innings,
-  )
-    ? match.current_innings
-    : sortedInnings.at(-1)?.innings_number;
+  // While it is on, the innings that matters now; once over, from the start.
+  const over = match.status === "completed" || match.status === "abandoned";
+  const current = over
+    ? sortedInnings[0]?.innings_number
+    : sortedInnings.some((inn) => inn.innings_number === match.current_innings)
+      ? match.current_innings
+      : sortedInnings.at(-1)?.innings_number;
 
   return (
     <div className="space-y-4">

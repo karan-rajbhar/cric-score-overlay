@@ -13,6 +13,7 @@ import {
   Shield,
   Tv,
   UserCog,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
@@ -25,6 +26,7 @@ import {
 import { useAuth } from "~/lib/auth";
 import {
   useCanDeleteMatchQuery,
+  useCanProduceOverlayQuery,
   useMatchAdminQuery,
   useMatchClubChoices,
 } from "~/lib/hooks/useMatchQueries";
@@ -35,6 +37,10 @@ import { RescheduleMatchDialog } from "./reschedule-match-dialog";
 
 const DlsCalculatorModal = dynamic(
   () => import("./dls-calculator-modal").then((m) => m.DlsCalculatorModal),
+  { ssr: false },
+);
+const MatchScorersDialog = dynamic(
+  () => import("./match-scorers-dialog").then((m) => m.MatchScorersDialog),
   { ssr: false },
 );
 
@@ -58,19 +64,29 @@ interface MatchMoreMenuProps {
   dlsMatch?: Match;
   /** Whether the DLS calculator may set the target (scorers). */
   canEditDls?: boolean;
+  /** The user created the match (they may remove scorers). */
+  isCreator?: boolean;
   className?: string;
 }
 
+const ENDED = new Set(["completed", "abandoned", "cancelled"]);
+
 /**
  * The match page's "More" menu: the tools few people need (streaming the
- * match, which leads on to the control room, the DLS calculator while live,
- * a finished match's ball-by-ball data) and, for its organisers (who may delete it), Reschedule before the
- * start and Delete match.
+ * match, which leads on to the control room; inviting scorers until it ends;
+ * the DLS calculator while live; a finished match's ball-by-ball data) and,
+ * for its organisers (who may delete it), Reschedule before the start and
+ * Delete match. With nothing to offer, no button.
+ *
+ * Once the match ends, Stream stays for its scorers and streamers only: a
+ * stream outlasts the last ball (the result, sponsors), and this is the one
+ * way back to the control room.
  */
 export function MatchMoreMenu({
   match,
   dlsMatch,
   canEditDls = false,
+  isCreator = false,
   className,
 }: MatchMoreMenuProps) {
   const { user } = useAuth();
@@ -103,10 +119,23 @@ export function MatchMoreMenu({
   const [showReschedule, setShowReschedule] = useState(false);
   const canReschedule = canDelete === true && match.status === "scheduled";
   const [showDls, setShowDls] = useState(false);
+  const [showScorers, setShowScorers] = useState(false);
   const dls =
     dlsMatch &&
     dlsMatch.status === "live" &&
     (dlsMatch.overs_per_innings ?? 0) > 0;
+  const ended = ENDED.has(match.status ?? "");
+  // Asked only of someone it could change the menu for (1 read).
+  const { data: canProduce } = useCanProduceOverlayQuery(
+    match.id,
+    user?.id,
+    ended && isAdmin === false,
+  );
+  const canStream = !ended || isAdmin === true || canProduce === true;
+  const canDownload = dlsMatch?.status === "completed";
+  // Scorers can always stream, so they always have something here.
+  const hasItems = canStream || canSetClub || canDownload || canDelete;
+  if (!hasItems) return null;
 
   return (
     <>
@@ -123,15 +152,26 @@ export function MatchMoreMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem asChild>
-            <Link
-              href={`/matches/${match.id}/stream`}
+          {canStream && (
+            <DropdownMenuItem asChild>
+              <Link
+                href={`/matches/${match.id}/stream`}
+                className="flex cursor-pointer items-center gap-2"
+              >
+                <Tv className="h-4 w-4" />
+                <span>Stream this match</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {isAdmin === true && !ended && (
+            <DropdownMenuItem
+              onSelect={() => setShowScorers(true)}
               className="flex cursor-pointer items-center gap-2"
             >
-              <Tv className="h-4 w-4" />
-              <span>Stream this match</span>
-            </Link>
-          </DropdownMenuItem>
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              <span>Invite scorers</span>
+            </DropdownMenuItem>
+          )}
           {isAdmin === true && (
             <DropdownMenuItem asChild>
               {/* The team sheet, where any player can be replaced. */}
@@ -162,7 +202,7 @@ export function MatchMoreMenu({
               <span>DLS calculator</span>
             </DropdownMenuItem>
           )}
-          {dlsMatch && dlsMatch.status === "completed" && (
+          {dlsMatch && canDownload && (
             <DropdownMenuItem
               // Loaded on demand: the Cricsheet builder and the export
               // query are needed by few.
@@ -200,6 +240,14 @@ export function MatchMoreMenu({
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {showScorers && (
+        <MatchScorersDialog
+          matchId={match.id}
+          isCreator={isCreator}
+          open
+          onOpenChange={setShowScorers}
+        />
+      )}
       <DeleteMatchDialog
         open={showDelete}
         onOpenChange={setShowDelete}

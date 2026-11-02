@@ -101,7 +101,10 @@ export function MatchScorecard({ match }: MatchScorecardProps) {
     );
   }
 
-  const current = innings.find((i) => i.inProgress) ?? innings.at(-1)!;
+  // While it is on, the innings that matters now; once over, from the start.
+  const over = match.status === "completed" || match.status === "abandoned";
+  const current =
+    innings.find((i) => i.inProgress) ?? (over ? innings[0]! : innings.at(-1)!);
   const sideName = (inn: ReportInnings) => inn.team.name;
 
   return (

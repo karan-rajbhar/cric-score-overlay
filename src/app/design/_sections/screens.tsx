@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import { Search } from "lucide-react";
 import {
   GreetingBar,
@@ -12,10 +13,14 @@ import { Card } from "~/components/ds/card";
 import { SectionHeader } from "~/components/ds/list";
 import { MatchCard } from "~/components/ds/match-card";
 import { PlayerHeader } from "~/components/ds/player-header";
-import { MatchNote } from "~/components/ds/score";
-import { CreaseTable } from "~/components/ds/scorecard";
-import { ScreenWash, Sheet } from "~/components/ds/screen";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ds/tabs";
+import { PlayerAwardRow } from "~/components/ds/player-award";
+import { Disclosure } from "~/components/ds/disclosure";
+import { Facts } from "~/components/ds/facts";
+import { MatchNote, ScoreLine } from "~/components/ds/score";
+import { BattingCard, CreaseTable } from "~/components/ds/scorecard";
+import { ScreenWash, Sheet, TopStrip } from "~/components/ds/screen";
+import { PinnedTabs, Tabs, TabsContent } from "~/components/ds/tabs";
+import { InningsSummaryCard } from "~/components/matches/match-summary";
 import { DocSection, PhoneFrame } from "../_components/doc";
 import {
   LiveCarousel,
@@ -24,12 +29,21 @@ import {
   UpcomingGroup,
 } from "../_components/examples";
 import {
+  BATTING,
   CREASE,
+  FIXTURE,
   LAST_OVER,
+  LIVE_MATCH_TABS,
+  MATCH_TABS,
   PLAYER,
   RESULT,
+  RESULT_AWARD,
+  RESULT_FIRST_INNINGS,
+  RESULT_SIDE,
   TAB_BAR_ITEMS,
+  TEAMS,
   THIS_OVER,
+  UPCOMING_MATCH_TABS,
 } from "../_components/sample";
 
 /** The phone tab bar, floating at the bottom of the frame. */
@@ -120,34 +134,125 @@ function LivePanel() {
   );
 }
 
-function MatchScreen() {
+/** The tabs on their sheet; only the first panel is filled in. */
+function MatchSheet({
+  tabs,
+  children,
+}: {
+  tabs: readonly { value: string; label: string }[];
+  children: React.ReactNode;
+}) {
   return (
-    <PhoneFrame title="Match centre">
-      <ScreenWash className="px-4 pb-10 pt-5">
-        <MatchPageTop />
-      </ScreenWash>
-      <Sheet className="-mt-6 px-4 sm:px-4">
-        <Tabs defaultValue="live">
-          <TabsList aria-label="Match sections">
-            <TabsTrigger value="live">Live</TabsTrigger>
-            <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
-            <TabsTrigger value="balls">Balls</TabsTrigger>
-            <TabsTrigger value="info">Info</TabsTrigger>
-          </TabsList>
-          <TabsContent value="live">
-            <LivePanel />
+    <Sheet className="-mt-6 px-4 sm:px-4">
+      <Tabs defaultValue={tabs[0]?.value}>
+        <PinnedTabs label="Match sections" tabs={tabs} />
+        <TabsContent value={tabs[0]?.value ?? ""}>{children}</TabsContent>
+        {tabs.slice(1).map((t) => (
+          <TabsContent
+            key={t.value}
+            value={t.value}
+            className="text-sm text-muted-foreground"
+          >
+            The {t.label} panel.
           </TabsContent>
-          {["scorecard", "balls", "info"].map((v) => (
-            <TabsContent
-              key={v}
-              value={v}
-              className="text-sm text-muted-foreground"
-            >
-              The {v} panel.
-            </TabsContent>
-          ))}
+        ))}
+      </Tabs>
+    </Sheet>
+  );
+}
+
+/** Finished: the tabs start high, and Summary opens on who shone. */
+function MatchResultScreen() {
+  return (
+    <PhoneFrame title="Match: finished">
+      <ScreenWash className="px-4 pb-10 pt-3">
+        <MatchPageTop state="result" />
+      </ScreenWash>
+      <MatchSheet tabs={MATCH_TABS}>
+        <div className="space-y-4">
+          <PlayerAwardRow award={RESULT_AWARD} href="#screens" />
+          <InningsSummaryCard
+            team={{ name: TEAMS.bay.name, short_name: "BAY" }}
+            stats={RESULT_FIRST_INNINGS}
+            won={false}
+          />
+          <InningsSummaryCard
+            team={{ name: TEAMS.oldTown.name, short_name: "OTC" }}
+            stats={RESULT_SIDE}
+            won
+          />
+        </div>
+      </MatchSheet>
+      <FrameTabBar current="Matches" />
+    </PhoneFrame>
+  );
+}
+
+/** Live: the score and the crease on the first screen. */
+function MatchLiveScreen() {
+  return (
+    <PhoneFrame title="Match: live, for a scorer">
+      <ScreenWash className="px-4 pb-10 pt-3">
+        <MatchPageTop state="live" />
+      </ScreenWash>
+      <MatchSheet tabs={LIVE_MATCH_TABS}>
+        <LivePanel />
+      </MatchSheet>
+      <FrameTabBar current="Matches" />
+    </PhoneFrame>
+  );
+}
+
+/** Before the start: only the tabs that have something in them. */
+function MatchUpcomingScreen() {
+  return (
+    <PhoneFrame title="Match: upcoming">
+      <ScreenWash className="px-4 pb-10 pt-3">
+        <MatchPageTop state="upcoming" />
+      </ScreenWash>
+      <MatchSheet tabs={UPCOMING_MATCH_TABS}>
+        <Disclosure title="Match details" defaultOpen>
+          <Facts
+            facts={[
+              ["Overs", "8 overs per innings"],
+              ["Venue", FIXTURE.venue],
+              ["Date", FIXTURE.date],
+              ["Time", FIXTURE.time],
+            ]}
+          />
+        </Disclosure>
+      </MatchSheet>
+      <FrameTabBar current="Matches" />
+    </PhoneFrame>
+  );
+}
+
+/** Scrolled: the header has gone; the score and the tabs stay. */
+function MatchScrolledScreen() {
+  return (
+    <PhoneFrame title="Match: scrolled down a long tab">
+      <TopStrip show className="static md:block">
+        <ScoreLine
+          sides={[
+            { code: "BAY", score: "151/8 (20)", dim: true },
+            { code: "OTC", score: "152/5 (18.4)" },
+          ]}
+        />
+      </TopStrip>
+      <div className="bg-card px-4 pb-4">
+        <Tabs defaultValue="scorecard">
+          <PinnedTabs label="Match sections" tabs={MATCH_TABS} />
+          <TabsContent value="scorecard">
+            <BattingCard
+              title="Batting"
+              rows={BATTING.rows}
+              extras={BATTING.extras}
+              total={BATTING.total}
+              dense
+            />
+          </TabsContent>
         </Tabs>
-      </Sheet>
+      </div>
       <FrameTabBar current="Matches" />
     </PhoneFrame>
   );
@@ -167,7 +272,7 @@ function PlayerScreen() {
       <Sheet className="-mt-6 px-4 sm:px-4">
         <ProfileSheet />
       </Sheet>
-      <FrameTabBar current="Clubs" />
+      <FrameTabBar current="More" />
     </PhoneFrame>
   );
 }
@@ -177,11 +282,14 @@ export function ScreensSection() {
     <DocSection
       id="screens"
       title="Screens"
-      description="The pieces put together at phone width, as a check that they read as one product. Swipe the live card on Home; the tab bar floats at the bottom of each frame."
+      description="The pieces put together at phone width, as a check that they read as one product. Swipe the live card on Home; the tab bar floats at the bottom of each frame. The match page is shown in each of its states."
     >
       <div className="grid gap-8 lg:grid-cols-2 2xl:grid-cols-3">
         <HomeScreen />
-        <MatchScreen />
+        <MatchResultScreen />
+        <MatchLiveScreen />
+        <MatchUpcomingScreen />
+        <MatchScrolledScreen />
         <PlayerScreen />
       </div>
     </DocSection>

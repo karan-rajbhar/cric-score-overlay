@@ -355,6 +355,44 @@ export function fieldingCreditOf(
  * known; without them, by name. Nothing is guessed: no fielder recorded is
  * not "c & b", and an unknown dismissal is not "bowled".
  */
+/** The formats with a set length: anything else has no name to give. */
+const FORMAT_OVERS: Record<string, number> = { T10: 10, T20: 20, ODI: 50 };
+
+type MatchFormatFields = {
+  match_format?: string | null;
+  overs_per_innings?: number | null;
+};
+
+/**
+ * The format's name, when it says something true: "T20". Null for "Custom",
+ * and for a format the overs contradict (a "T10" of 8 overs).
+ */
+export function namedFormat(match: MatchFormatFields): string | null {
+  const { match_format: format, overs_per_innings: overs } = match;
+  if (!format || format === "Custom") return null;
+  if (overs && FORMAT_OVERS[format] && FORMAT_OVERS[format] !== overs) {
+    return null;
+  }
+  return format;
+}
+
+/** What to call the format in a few characters: "T20", or "8 overs". */
+export function matchFormatName(match: MatchFormatFields): string {
+  const { overs_per_innings: overs } = match;
+  return namedFormat(match) ?? (overs ? `${overs} overs` : "Match");
+}
+
+/** The format with its length: "T20 · 20 overs", or just "8 overs". */
+export function matchFormatLabel(
+  match: MatchFormatFields,
+  oversWord = "overs",
+): string {
+  const { overs_per_innings: overs } = match;
+  const named = namedFormat(match);
+  if (!overs) return named ?? "Match";
+  return [named, `${overs} ${oversWord}`].filter(Boolean).join(" · ");
+}
+
 export function formatHowOut(
   isOut: boolean | null | undefined,
   dismissalType?: string | null,
@@ -572,12 +610,6 @@ export function sidesInBattingOrder<
     : [side1, side2];
 }
 
-/** Innings in which a team bowled (i.e. the opponent's innings). */
-export const bowlingInningsForTeam = (
-  match: Match,
-  teamId: string,
-): Innings | undefined => match.innings?.find((i) => i.team_id !== teamId);
-
 /**
  * Scorecard order: the order the batters came in (`batting_position`),
  * those without one last, in their stored order (sort is stable).
@@ -604,13 +636,16 @@ export function topBatters(
     .slice(0, limit);
 }
 
-/** Top bowlers who bowled AGAINST the given team (i.e. the opponent's innings). */
+/**
+ * The best bowlers of an innings: those who bowled in it, so the other
+ * side's, as a scorecard lists them under the batting. Goes with `topBatters`
+ * of the same innings.
+ */
 export function topBowlers(
-  match: Match,
-  teamId: string,
+  innings: Innings | undefined,
   limit = 3,
 ): BowlingPerformance[] {
-  return (bowlingInningsForTeam(match, teamId)?.bowling_performances ?? [])
+  return (innings?.bowling_performances ?? [])
     .filter(hasBowled)
     .sort(
       (a, b) =>

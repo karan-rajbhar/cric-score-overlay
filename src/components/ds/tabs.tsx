@@ -73,6 +73,44 @@ const TabsContent = React.forwardRef<
 TabsContent.displayName = TabsPrimitive.Content.displayName;
 
 /**
+ * A long screen's main tabs: they stay on screen as it scrolls, so changing
+ * tab never means going back to the top. They stick at `--pinned-top` (under
+ * whatever else is pinned, set by the page). On phones each is a full 44px
+ * and the row shares the width, so five short names all show at 390px.
+ * Goes inside `Tabs`, on a sheet (`Sheet`, `ContentSheet`).
+ */
+const PinnedTabs = React.forwardRef<
+  HTMLDivElement,
+  {
+    label: string;
+    tabs: readonly { value: string; label: React.ReactNode }[];
+    className?: string;
+  }
+>(({ label, tabs, className }, ref) => (
+  <div
+    ref={ref}
+    data-pinned-tabs=""
+    className={cn(
+      "sticky top-[var(--pinned-top,0px)] z-20 -mx-4 bg-card px-4 sm:max-md:-mx-6 sm:max-md:px-6 md:mx-0 md:bg-background md:px-0",
+      className,
+    )}
+  >
+    <TabsList aria-label={label} className="gap-1 pb-2 pt-1.5 sm:gap-2">
+      {tabs.map((t) => (
+        <TabsTrigger
+          key={t.value}
+          value={t.value}
+          className="max-md:h-11 max-md:flex-1 max-md:px-2.5 sm:max-md:px-4"
+        >
+          {t.label}
+        </TabsTrigger>
+      ))}
+    </TabsList>
+  </div>
+));
+PinnedTabs.displayName = "PinnedTabs";
+
+/**
  * A filter that is not a tab set (no panels): "All / Boundaries / Wickets".
  * Buttons with aria-pressed, in a muted track.
  */
@@ -119,4 +157,4 @@ function Segmented<T extends string>({
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, Segmented };
+export { Tabs, TabsList, TabsTrigger, TabsContent, PinnedTabs, Segmented };

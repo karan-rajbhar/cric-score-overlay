@@ -167,7 +167,10 @@ function heroSide(
   ctx.textAlign = "left";
 }
 
-/** A team's card: its top batters and bowlers in two short tables. */
+/**
+ * One innings: the batting side's top batters beside the bowlers who bowled
+ * at them, in two short tables. A side yet to bat is just the header.
+ */
 function teamCard(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -193,11 +196,12 @@ function teamCard(
   ctx.lineTo(x + w - 20, y + 62);
   ctx.stroke();
 
+  if (t.batters.length === 0 && t.bowlers.length === 0) return;
+
   const colW = (w - 60) / 2;
   const cols = [
     {
       x: x + 20,
-      head: "Top batters",
       rows: t.batters.slice(0, 3).map((b) => ({
         name: b.name,
         fig: `${b.runs}${b.notOut ? "*" : ""}`,
@@ -207,7 +211,6 @@ function teamCard(
     },
     {
       x: x + 40 + colW,
-      head: "Top bowlers",
       rows: t.bowlers.slice(0, 3).map((b) => ({
         name: b.name,
         fig: `${b.wickets}/${b.runs}`,
@@ -217,11 +220,8 @@ function teamCard(
     },
   ];
   for (const col of cols) {
-    ctx.fillStyle = C.dim;
-    ctx.font = `500 13px ${SANS}`;
-    ctx.fillText(col.head, col.x, y + 76);
     col.rows.forEach((r, i) => {
-      const ry = y + 104 + i * 30;
+      const ry = y + 92 + i * 30;
       ctx.fillStyle = C.text;
       ctx.font = `500 15px ${SANS}`;
       ctx.fillText(fit(ctx, r.name, colW - 96), col.x, ry);
@@ -387,7 +387,7 @@ export function drawSummary(
   drawHeader(ctx, s, pad);
   drawHeroCard(ctx, s, pad, heroY, heroH);
 
-  // Top performers, one card per side.
+  // One card per innings, in batting order.
   const cardsY = heroY + heroH + 18;
   const cardW = (W - pad * 2 - 20) / 2;
   teamCard(ctx, pad, cardsY, cardW, 196, s.team1);

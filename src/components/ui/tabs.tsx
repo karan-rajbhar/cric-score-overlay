@@ -49,6 +49,18 @@ function revealTab(root: HTMLElement | null, value: string, smooth: boolean) {
 }
 
 /**
+ * A tab changed from further down a long screen opens at its top, just under
+ * tabs pinned to the screen (`PinnedTabs`, however the tab was chosen).
+ */
+function settleUnderPinnedTabs(root: HTMLElement | null) {
+  const bar = root?.querySelector<HTMLElement>(":scope > [data-pinned-tabs]");
+  if (!root || !bar) return;
+  const stuckAt = Number.parseFloat(getComputedStyle(bar).top) || 0;
+  const top = root.getBoundingClientRect().top + window.scrollY - stuckAt;
+  if (window.scrollY > top) window.scrollTo({ top });
+}
+
+/**
  * A tab bar that scrolls sideways fades out at each edge that has tabs
  * beyond it (`data-fade-start` / `data-fade-end`, styled by `.tabs-fade`),
  * so phones show there is more; the fade goes once scrolled to that end.
@@ -136,6 +148,7 @@ const Tabs = React.forwardRef<
     React.useEffect(() => {
       if (!current) return;
       revealTab(rootRef.current, current, placed.current);
+      if (placed.current) settleUnderPinnedTabs(rootRef.current);
       placed.current = true;
     }, [current]);
     const setRefs = React.useCallback(

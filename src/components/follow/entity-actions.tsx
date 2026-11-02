@@ -15,20 +15,24 @@ export function EntityActions({
   kind,
   id,
   name,
+  only,
   className,
 }: {
   kind: EntityKind;
   id: string;
   name: string;
+  /** Just one of them: a phone's bar has Follow, its ⋯ sheet the calendar. */
+  only?: "follow" | "calendar";
   /** Wraps the buttons in a row (pages that have no actions slot). */
   className?: string;
 }) {
-  const follow = kind !== "club" && (
+  const follow = kind !== "club" && only !== "calendar" && (
     <FollowButton kind={kind} id={id} name={name} />
   );
-  const calendar = (kind === "team" ||
-    kind === "tournament" ||
-    kind === "club") && <CalendarSubscribe scope={kind} id={id} name={name} />;
+  const calendar = only !== "follow" &&
+    (kind === "team" || kind === "tournament" || kind === "club") && (
+      <CalendarSubscribe scope={kind} id={id} name={name} />
+    );
   if (className === undefined) {
     return (
       <>

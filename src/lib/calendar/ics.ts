@@ -1,3 +1,4 @@
+import { matchFormatLabel } from "~/lib/cricket";
 /**
  * iCalendar (RFC 5545) feeds of fixtures: a team's, a tournament's or a
  * club's matches as VEVENTs, for calendar apps that subscribe to
@@ -105,13 +106,8 @@ function summaryOf(m: CalendarMatch): string {
 
 function descriptionOf(m: CalendarMatch, url: string): string {
   const lines: string[] = [];
-  const format = [
-    m.match_format,
-    m.overs_per_innings ? `${m.overs_per_innings} overs` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  if (format) lines.push(format);
+  const format = matchFormatLabel(m);
+  if (format !== "Match") lines.push(format);
   if (m.status === "completed" && m.result_description) {
     lines.push(m.result_description);
   }

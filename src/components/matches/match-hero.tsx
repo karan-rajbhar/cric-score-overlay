@@ -11,6 +11,7 @@ import {
   ScoreHero,
   type HeroSideProps,
   type InningsRef,
+  type ScoreLineSide,
   type TeamRef,
 } from "~/components/ds/score";
 import {
@@ -18,6 +19,7 @@ import {
   displayStatusOf,
   formatMatchResult,
   inningsBalls,
+  matchFormatLabel,
   oversFromBalls,
   runRate,
 } from "~/lib/cricket";
@@ -28,7 +30,9 @@ import { playerAwardOf } from "~/lib/player-award";
 type Side = { team: Team; innings: Innings | undefined };
 
 /** A team as the crests want it (logo, short code). */
-export const teamRef = (t: Team): TeamRef => ({
+export const teamRef = (
+  t: Pick<Team, "name" | "short_name" | "logo_url">,
+): TeamRef => ({
   name: t.name,
   shortName: t.short_name,
   logoUrl: t.logo_url,
@@ -60,6 +64,32 @@ export function liveLine(
     return inn.innings_number === 1 ? `${batting.team.name} bat first` : null;
   }
   return `Run rate ${runRate(inn.total_runs, balls, bpo)}`;
+}
+
+/**
+ * The match in one line (`ScoreLine`), for when the hero has scrolled away:
+ * each side's code and score, quiet for the side not batting or that lost.
+ */
+export function scoreLineSides(
+  match: Pick<Match, "status" | "winning_team_id" | "balls_per_over">,
+  sides: [Side, Side],
+): [ScoreLineSide, ScoreLineSide] {
+  const bpo =
+    match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
+  const live = match.status === "live" || match.status === "innings_break";
+  const line = (s: Side): ScoreLineSide => {
+    const inn = s.innings;
+    return {
+      code: s.team.short_name || s.team.name,
+      score: inn
+        ? `${inn.total_runs ?? 0}/${inn.total_wickets ?? 0} (${ref(inn, bpo).overs})`
+        : null,
+      dim: live
+        ? !inn || inn.is_completed
+        : !!match.winning_team_id && match.winning_team_id !== s.team.id,
+    };
+  };
+  return [line(sides[0]), line(sides[1])];
 }
 
 /** "Mehta" from "Arjun Mehta": the hero has room for a surname. */
@@ -123,6 +153,7 @@ export function MatchHero({
   sides,
   plain = true,
   performers = true,
+  page = false,
   className,
   children,
 }: {
@@ -133,6 +164,13 @@ export function MatchHero({
   plain?: boolean;
   /** Each side's top scorer and best bowler under its name. */
   performers?: boolean;
+  /**
+   * The top of the match page, where the tabs should start high: smaller
+   * crests, and only what this header alone can say. The bar names the
+   * match, Summary has the player of the match, and a result or a start
+   * time needs no chip.
+   */
+  page?: boolean;
   className?: string;
   children?: React.ReactNode;
 }) {
@@ -152,10 +190,10 @@ export function MatchHero({
     >
       {parent.name}
     </Link>
-  ) : (
+  ) : page ? undefined : (
     (match.title ?? "Match")
   );
-  const stage = `${match.match_format} · ${match.overs_per_innings} overs`;
+  const stage = matchFormatLabel(match);
   const live = match.status === "live" || match.status === "innings_break";
   // While live: the side whose innings is open bats; the other shows its
   // total (or "Yet to bat").
@@ -189,6 +227,7 @@ export function MatchHero({
           <InningsScore
             innings={ref(s.innings, bpo)}
             dim={lost}
+            inline={page}
             className={won ? "font-semibold" : undefined}
           />
         ),
@@ -213,7 +252,7 @@ export function MatchHero({
   };
 
   const start = scheduledTime(match.scheduled_at);
-  const award = playerAwardOf(match);
+  const award = page ? null : playerAwardOf(match);
   const centre = batting?.innings ? (
     <HeroScore innings={ref(batting.innings, bpo)} />
   ) : match.status === "scheduled" && start ? (
@@ -251,7 +290,12 @@ export function MatchHero({
       competition={competition}
       competitionIcon={!match.tournament && match.club ? Shield : Trophy}
       stage={stage}
-      status={displayStatusOf(match)}
+      status={
+        page && (match.status === "scheduled" || (finished && note))
+          ? undefined
+          : displayStatusOf(match)
+      }
+      compact={page}
       home={withPerformers(sides[0], 0)}
       away={withPerformers(sides[1], 1)}
       centre={centre}

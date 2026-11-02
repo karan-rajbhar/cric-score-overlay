@@ -28,9 +28,18 @@ export function ScreenWash({
 }
 
 /**
+ * For a page's root, with `PinnedTabs` and `PinnedTitle`: tabs stick under
+ * the strip on phones and the navigation bar from tablets up. A plain class
+ * string here, not in a client module, so server pages can read it.
+ */
+export const pinnedPage =
+  "[--pinned-top:calc(env(safe-area-inset-top)+1.8125rem)] md:[--pinned-top:3.5rem]";
+
+/**
  * Screen title bar: round back button, centred title, actions on the right
  * (44 px each). Back follows the visit's history (`BackLink`); `backHref` is
- * the page's natural parent, used when there is none.
+ * the page's natural parent, used when there is none. Leave out `title` when
+ * the header right below names the screen, so it says so once.
  */
 export function ScreenBar({
   title,
@@ -40,7 +49,7 @@ export function ScreenBar({
   action,
   className,
 }: {
-  title: React.ReactNode;
+  title?: React.ReactNode;
   backHref?: string;
   backLabel?: string;
   /** A page Back must not return to (see `BackLink`). */
@@ -51,7 +60,9 @@ export function ScreenBar({
   return (
     <div
       className={cn(
-        "grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2",
+        title
+          ? "grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2"
+          : "flex items-center justify-between gap-2",
         className,
       )}
     >
@@ -70,10 +81,42 @@ export function ScreenBar({
       ) : (
         <span />
       )}
-      <h1 className="truncate text-center text-base font-semibold text-foreground">
-        {title}
-      </h1>
-      <div className="flex items-center gap-2 justify-self-end">{action}</div>
+      {title && (
+        <h1 className="truncate text-center text-base font-semibold text-foreground">
+          {title}
+        </h1>
+      )}
+      <div className="flex min-w-0 items-center gap-2 justify-self-end">
+        {action}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A thin strip fixed to the top of a phone screen, shown once the header has
+ * scrolled away (`show`), so a long screen keeps saying what it is about.
+ * Keep it to one line: it sits above pinned tabs and costs reading space.
+ * Tablets and desktop have a header for this.
+ */
+export function TopStrip({
+  show,
+  className,
+  children,
+}: {
+  show: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "fixed inset-x-0 top-0 z-30 border-b border-border/60 bg-card pt-[env(safe-area-inset-top)] transition-transform duration-200 motion-reduce:transition-none md:hidden",
+        show ? "translate-y-0" : "-translate-y-full",
+        className,
+      )}
+    >
+      <div className="flex h-7 items-center justify-center px-4">{children}</div>
     </div>
   );
 }

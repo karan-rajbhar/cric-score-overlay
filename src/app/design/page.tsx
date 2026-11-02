@@ -5,6 +5,7 @@ import { FoundationsSection } from "./_sections/foundations";
 import { ControlsSection } from "./_sections/controls";
 import { ContentSection, FeedbackSection } from "./_sections/content";
 import { CricketSection } from "./_sections/cricket";
+import { DetailPagesSection } from "./_sections/detail-pages";
 import { ScreensSection } from "./_sections/screens";
 
 const SECTIONS = [
@@ -15,6 +16,7 @@ const SECTIONS = [
   ["feedback", "Feedback"],
   ["cricket", "Cricket"],
   ["screens", "Screens"],
+  ["detail-pages", "Detail pages"],
 ] as const;
 
 export default function DesignSystemPage() {
@@ -30,7 +32,11 @@ export default function DesignSystemPage() {
             <p className="mt-2 max-w-2xl text-pretty text-sm text-muted-foreground">
               How screens should behave and why, then the app&apos;s tokens and
               components, inspired by Scoreline: the reference to build new
-              screens from. This page only exists on local dev servers.
+              screens from. This page only exists on local dev servers.{" "}
+              <a href="/design/match" className="underline underline-offset-4">
+                The match page on sample data
+              </a>{" "}
+              is here too, with ?state=live or upcoming.
             </p>
           </div>
           <ThemeSwitch />
@@ -57,6 +63,7 @@ export default function DesignSystemPage() {
       <FeedbackSection />
       <CricketSection />
       <ScreensSection />
+      <DetailPagesSection />
     </PageContainer>
   );
 }

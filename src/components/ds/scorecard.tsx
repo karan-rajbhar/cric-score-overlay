@@ -393,7 +393,8 @@ function DismissalLine({
         )}
         aria-hidden="true"
       />
-      <span className="truncate">{r.dismissal}</span>
+      {/* The whole dismissal, on two lines if it needs them. */}
+      <span className="min-w-0 text-pretty">{r.dismissal}</span>
     </button>
   );
 }

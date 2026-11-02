@@ -28,7 +28,6 @@ import {
   topBatters,
   topBowlers,
   inningsForTeam,
-  bowlingInningsForTeam,
   runRate,
   inningsBalls,
   ballsRemaining,
@@ -41,6 +40,9 @@ import {
   dlsRevisionFor,
   displayStatusOf,
   inningsOvers,
+  matchFormatLabel,
+  matchFormatName,
+  namedFormat,
 } from "./cricket";
 import type { BowlingPerformance, FallOfWicket, Innings } from "./match-types";
 import { makeInnings, makeMatch } from "~/test/factories";
@@ -805,38 +807,38 @@ describe("cricket math & formatting utilities", () => {
         no_balls: 0,
       };
 
-      const match = makeMatch({
-        innings: [
-          {
-            id: "inn2",
-            match_id: "m1",
-            team_id: "t2",
-            innings_number: 2,
-            total_runs: 66,
-            total_wickets: 7,
-            total_balls: 72,
-            total_overs: 12,
-            is_completed: false,
-            extras_total: 1,
-            extras_byes: 0,
-            extras_leg_byes: 0,
-            extras_wides: 1,
-            extras_no_balls: 0,
-            extras_penalties: 0,
-            bowling_performances: [bowlingPerf1, bowlingPerf2, bowlingPerf3],
-          },
-        ],
-      });
+      const innings: Innings = {
+        id: "inn2",
+        match_id: "m1",
+        team_id: "t2",
+        innings_number: 2,
+        total_runs: 66,
+        total_wickets: 7,
+        total_balls: 72,
+        total_overs: 12,
+        is_completed: false,
+        extras_total: 1,
+        extras_byes: 0,
+        extras_leg_byes: 0,
+        extras_wides: 1,
+        extras_no_balls: 0,
+        extras_penalties: 0,
+        bowling_performances: [bowlingPerf1, bowlingPerf2, bowlingPerf3],
+      };
 
-      // Bowling against team1 means looking at team2's innings bowlers
-      const top = topBowlers(match, "t1", 3);
+      // Whoever bowled in the innings, best first.
+      const top = topBowlers(innings, 3);
       expect(top).toHaveLength(3);
       expect(top[0]?.wickets_taken).toBe(3); // ub3 (3 wickets)
       expect(top[1]?.user_id).toBe("ub2"); // ub2 (2 wickets, 20 runs conceded)
       expect(top[2]?.user_id).toBe("ub1"); // ub1 (2 wickets, 28 runs conceded)
     });
 
-    it("retrieves inningsForTeam and bowlingInningsForTeam", () => {
+    it("has no bowlers for an innings not played", () => {
+      expect(topBowlers(undefined)).toEqual([]);
+    });
+
+    it("retrieves inningsForTeam", () => {
       const inn1 = {
         id: "i1",
         match_id: "m1",
@@ -876,7 +878,6 @@ describe("cricket math & formatting utilities", () => {
       const match = makeMatch({ innings: [inn1, inn2] });
 
       expect(inningsForTeam(match, "t1")?.id).toBe("i1");
-      expect(bowlingInningsForTeam(match, "t1")?.id).toBe("i2");
     });
   });
 
@@ -1711,5 +1712,46 @@ describe("displayStatusOf", () => {
       displayStatusOf(makeMatch({ status: "completed", innings: [done, chase] })),
     ).toBe("completed");
     expect(displayStatusOf(makeMatch({ status: "scheduled" }))).toBe("scheduled");
+  });
+});
+
+describe("match format wording", () => {
+  it("names a format only when the overs agree with it", () => {
+    expect(namedFormat({ match_format: "T20", overs_per_innings: 20 })).toBe(
+      "T20",
+    );
+    expect(namedFormat({ match_format: "ODI", overs_per_innings: 50 })).toBe(
+      "ODI",
+    );
+    // A "T10" of 8 overs is not a T10.
+    expect(namedFormat({ match_format: "T10", overs_per_innings: 8 })).toBeNull();
+    expect(
+      namedFormat({ match_format: "Custom", overs_per_innings: 8 }),
+    ).toBeNull();
+  });
+
+  it("says the length alone when there is no name to give", () => {
+    expect(
+      matchFormatLabel({ match_format: "Custom", overs_per_innings: 8 }),
+    ).toBe("8 overs");
+    expect(matchFormatLabel({ match_format: "T10", overs_per_innings: 8 })).toBe(
+      "8 overs",
+    );
+    expect(
+      matchFormatLabel({ match_format: "T20", overs_per_innings: 20 }),
+    ).toBe("T20 · 20 overs");
+    expect(
+      matchFormatLabel({ match_format: "T20", overs_per_innings: 20 }, "ov"),
+    ).toBe("T20 · 20 ov");
+  });
+
+  it("gives a short name", () => {
+    expect(matchFormatName({ match_format: "T20", overs_per_innings: 20 })).toBe(
+      "T20",
+    );
+    expect(
+      matchFormatName({ match_format: "Custom", overs_per_innings: 8 }),
+    ).toBe("8 overs");
+    expect(matchFormatName({ match_format: "Custom" })).toBe("Match");
   });
 });

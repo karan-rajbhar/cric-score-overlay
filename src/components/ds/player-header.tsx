@@ -6,7 +6,8 @@ import { cn } from "~/lib/utils";
 /**
  * Profile header, after Scoreline's player page: given names light, family
  * name large, role under it, team in a white pill, photo or initials on the
- * right. Transparent: put it on a ScreenWash.
+ * right. Transparent: put it on a ScreenWash. `actions` are for tablets up:
+ * a phone has them in its `ScreenBar`, so the tabs start high.
  */
 export function PlayerHeader({
   name,
@@ -36,7 +37,7 @@ export function PlayerHeader({
         <h1 className="text-balance leading-none">
           {given && (
             <span className="block text-xl font-normal text-foreground">
-              {given}
+              {given}{" "}
             </span>
           )}
           <span className="mt-1 block text-[2.5rem] font-semibold leading-none tracking-tight text-foreground">
@@ -53,7 +54,9 @@ export function PlayerHeader({
             <span className="truncate">{team.name}</span>
           </span>
         )}
-        {actions && <div className="mt-4 flex flex-wrap gap-2">{actions}</div>}
+        {actions && (
+          <div className="mt-4 flex flex-wrap gap-2 max-md:hidden">{actions}</div>
+        )}
       </div>
       <Avatar
         name={name}
@@ -68,7 +71,8 @@ export function PlayerHeader({
 /**
  * The same header for a team, club or tournament: labels on top (type,
  * season), the name large, a line of description and contact details, the
- * crest on the right, actions under it. Transparent: put it on the wash.
+ * crest on the right, actions under it (tablets up: a phone has them in its
+ * `ScreenBar`, so the tabs start high). Transparent: put it on the wash.
  */
 export function ProfileHeader({
   name,
@@ -104,12 +108,17 @@ export function ProfileHeader({
       )}
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          {labels && <div className="flex flex-wrap gap-1.5">{labels}</div>}
+          {/* One sideways line on phones, however many there are. */}
+          {labels && (
+            <div className="no-scrollbar flex gap-1.5 max-md:overflow-x-auto md:flex-wrap [&>*]:shrink-0">
+              {labels}
+            </div>
+          )}
           <h1 className="mt-2 text-balance text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[2.25rem]">
             {name}
           </h1>
           {description && (
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground max-md:line-clamp-2">
               {description}
             </p>
           )}
@@ -121,7 +130,9 @@ export function ProfileHeader({
         </div>
         {crest && <div className="shrink-0">{crest}</div>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap gap-2 max-md:hidden">{actions}</div>
+      )}
     </section>
   );
 }

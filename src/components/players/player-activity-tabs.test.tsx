@@ -167,6 +167,24 @@ const mockMatches: PlayerMatchItem[] = [
 ];
 
 describe("PlayerActivityTabs", () => {
+  it("offers only the tabs that have something in them", () => {
+    render(
+      <PlayerActivityTabs
+        teams={[]}
+        batting={[]}
+        bowling={[]}
+        matches={[]}
+        statistics={<p>Career figures</p>}
+        initialTab="bowling"
+      />,
+    );
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Stats",
+    ]);
+    // A link to a tab this player does not have opens the first one.
+    expect(screen.getByText("Career figures")).toBeInTheDocument();
+  });
+
   it("renders rich batting innings with formatted dismissals, strike rates, and opponents", () => {
     render(
       <PlayerActivityTabs

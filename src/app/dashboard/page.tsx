@@ -1,5 +1,6 @@
 "use client";
 
+import { matchFormatLabel } from "~/lib/cricket";
 import { cn } from "~/lib/utils";
 import { useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -60,7 +61,7 @@ function UpcomingGroups({ matches }: { matches: Match[] }) {
         <CompetitionGroup
           key={name}
           name={name}
-          aside={`${items[0]!.match_format} · ${items[0]!.overs_per_innings} overs`}
+          aside={matchFormatLabel(items[0]!)}
         >
           {items.map((m) => {
             const start = matchStart(m.scheduled_at);

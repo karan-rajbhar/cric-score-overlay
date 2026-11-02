@@ -19,7 +19,8 @@ import { ListCard, ListRow } from "~/components/ds/list";
 import { MatchCard } from "~/components/matches/match-card";
 import type { Match } from "~/lib/match-types";
 import { Button } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "~/components/ui/tabs";
+import { PinnedTabs } from "~/components/ds/tabs";
+import { Tabs, TabsContent } from "~/components/ui/tabs";
 import { TeamLogo } from "~/components/teams/team-logo";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -28,6 +29,7 @@ import {
   strikeRate,
   economyRate,
   ballsFromOvers,
+  namedFormat,
 } from "~/lib/cricket";
 import { ArrowRight, Swords, Users, Activity } from "lucide-react";
 
@@ -189,10 +191,10 @@ function MatchOpponentCell({
           </p>
           <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
             <span>{formatDate(match?.scheduled_at)}</span>
-            {match?.match_format && (
+            {match && namedFormat(match) && (
               <>
                 <span>•</span>
-                <span>{match.match_format}</span>
+                <span>{namedFormat(match)}</span>
               </>
             )}
           </div>
@@ -251,7 +253,18 @@ export function PlayerActivityTabs({
           ? "matches"
           : "teams";
 
-  const [activeTab, setActiveTab] = useState(initialTab ?? defaultTab);
+  // Only the tabs with something in them.
+  const tabs = [
+    statistics && { value: "statistics", label: "Stats" },
+    batting.length > 0 && { value: "batting", label: "Batting" },
+    bowling.length > 0 && { value: "bowling", label: "Bowling" },
+    matches.length > 0 && { value: "matches", label: "Matches" },
+    teams.length > 0 && { value: "teams", label: "Teams" },
+  ].filter((t) => !!t);
+
+  const [activeTab, setActiveTab] = useState(() =>
+    tabs.some((t) => t.value === initialTab) ? initialTab! : defaultTab,
+  );
   const changeTab = (tab: string) => {
     setActiveTab(tab);
     setUrlParam("tab", tab, defaultTab);
@@ -268,15 +281,7 @@ export function PlayerActivityTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={changeTab} className="w-full">
-      <TabsList aria-label="Player sections">
-        {statistics && (
-          <TabsTrigger value="statistics">Statistics</TabsTrigger>
-        )}
-        <TabsTrigger value="batting">Batting</TabsTrigger>
-        <TabsTrigger value="bowling">Bowling</TabsTrigger>
-        <TabsTrigger value="matches">Matches</TabsTrigger>
-        <TabsTrigger value="teams">Teams</TabsTrigger>
-      </TabsList>
+      <PinnedTabs label="Player sections" tabs={tabs} />
 
       {statistics && (
         <TabsContent value="statistics" className="mt-6 space-y-6">

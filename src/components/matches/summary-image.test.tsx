@@ -1,22 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-  }),
-}));
-
-vi.mock("~/app/matches/queries", () => ({
-  getFullMatchForExport: vi.fn(),
-}));
-
-import { MatchExportButtons } from "./match-export-buttons";
 import { drawSummary } from "./summary-image";
 import type { MatchExportSummary } from "~/lib/match-report";
 import type { Match } from "~/lib/match-types";
 
-describe("MatchExportButtons and drawSummary", () => {
+describe("drawSummary", () => {
   const mockSummary: MatchExportSummary = {
     title: "T20 Championship Final",
     format: "T20 · 20 ov",
@@ -35,8 +23,9 @@ describe("MatchExportButtons and drawSummary", () => {
         { name: "Rohit Sharma", runs: 45, balls: 28, notOut: false, sr: "160.7" },
       ],
       bowlers: [
-        { name: "Mohammed Shami", overs: "4.0", runs: 28, wickets: 2, econ: "7.00" },
+        { name: "Rashid Khan", overs: "4.0", runs: 24, wickets: 3, econ: "6.00" },
       ],
+      bowlingSide: "Coastal Kings",
     },
     team2: {
       name: "Coastal Kings",
@@ -46,8 +35,9 @@ describe("MatchExportButtons and drawSummary", () => {
         { name: "Steve Smith", runs: 52, balls: 41, notOut: false, sr: "126.8" },
       ],
       bowlers: [
-        { name: "Rashid Khan", overs: "4.0", runs: 24, wickets: 3, econ: "6.00" },
+        { name: "Mohammed Shami", overs: "4.0", runs: 28, wickets: 2, econ: "7.00" },
       ],
+      bowlingSide: "Royal Tigers",
     },
   };
 
@@ -66,16 +56,6 @@ describe("MatchExportButtons and drawSummary", () => {
     team2: { id: "team-2", name: "Coastal Kings", short_name: "CKS" },
     innings: [],
   } as unknown as Match;
-
-  it("renders the report and image buttons", () => {
-    render(<MatchExportButtons match={mockMatch} />);
-
-    // Say what each one gives: a picture, a report page.
-    expect(screen.getByRole("button", { name: /share image/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^match report$/i })).toBeInTheDocument();
-    // The data file is in the ⋯ menu, not among everyone's buttons.
-    expect(screen.queryByRole("button", { name: /cricsheet/i })).not.toBeInTheDocument();
-  });
 
   it("drawSummary renders broadcast elements onto the canvas context", () => {
     const fillTextCalls: string[] = [];
@@ -127,6 +107,10 @@ describe("MatchExportButtons and drawSummary", () => {
     expect(fillTextCalls.some((t) => t.includes("Coastal Kings"))).toBe(true);
     expect(fillTextCalls.some((t) => t.includes("178/5"))).toBe(true);
     expect(fillTextCalls.some((t) => t.includes("Virat Kohli"))).toBe(true);
+    // Each innings names whose bowlers bowled in it.
+    // The figures say which column is which.
+    expect(fillTextCalls).not.toContain("Top batters");
+    expect(fillTextCalls.join()).not.toContain("Bowling for");
     expect(fillTextCalls.some((t) => t.toLowerCase().includes("royal tigers won by 18 runs"))).toBe(true);
     expect(mockCtx.drawImage).toHaveBeenCalledWith(mockQrImage, expect.any(Number), expect.any(Number), expect.any(Number), expect.any(Number));
   });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MatchScorecard } from "./match-scorecard";
-import { makeMatch } from "~/test/factories";
+import { makeInnings, makeMatch } from "~/test/factories";
 import type { Innings } from "~/lib/match-types";
 
 describe("MatchScorecard", () => {
@@ -370,6 +370,31 @@ describe("MatchScorecard", () => {
     expect(items[0]).toHaveTextContent("Retired hurt");
     expect(items[1]).toHaveTextContent("1st wicket");
     expect(items[1]).not.toHaveTextContent("Retired");
+  });
+
+  it("opens a finished match at its first innings, a live one at the current", () => {
+    const innings = [
+      makeInnings({ id: "a", team_id: "t1", is_completed: true }),
+      makeInnings({
+        id: "b",
+        innings_number: 2,
+        team_id: "t2",
+        is_completed: false,
+      }),
+    ];
+    const first = () =>
+      screen.getAllByRole("tab").map((t) => t.getAttribute("aria-selected"));
+    const live = render(
+      <MatchScorecard match={makeMatch({ status: "live", innings })} />,
+    );
+    expect(first()).toEqual(["false", "true"]);
+    live.unmount();
+
+    const done = innings.map((i) => ({ ...i, is_completed: true }));
+    render(
+      <MatchScorecard match={makeMatch({ status: "completed", innings: done })} />,
+    );
+    expect(first()).toEqual(["true", "false"]);
   });
 
   it("marks the selected side's tab and gives the innings its run rate", () => {

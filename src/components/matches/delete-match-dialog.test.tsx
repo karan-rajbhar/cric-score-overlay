@@ -16,6 +16,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 let user: { id: string } | null = { id: "u1" };
 let isAdmin: boolean | undefined = true;
 let canDelete: boolean | undefined = true;
+let canProduce: boolean | undefined = false;
+const canProduceQuery = vi.fn();
 const canDeleteQuery = vi.fn();
 vi.mock("~/lib/auth", () => ({ useAuth: () => ({ user }) }));
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
@@ -27,6 +29,10 @@ vi.mock("~/lib/hooks/useMatchQueries", () => ({
   useMatchClubChoices: (...args: unknown[]) => {
     clubChoices(...args);
     return { choosable: [], offer: args[3] ? clubOffer : false };
+  },
+  useCanProduceOverlayQuery: (...args: unknown[]) => {
+    canProduceQuery(...args);
+    return { data: args[2] ? canProduce : undefined };
   },
   useClubRecordsQuery: () => ({ data: undefined }),
 }));
@@ -110,6 +116,91 @@ describe("MatchMoreMenu", () => {
     user = { id: "u1" };
     isAdmin = true;
     canDelete = true;
+    canProduce = false;
+  });
+
+  const openMenu = () =>
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "More match actions" }),
+      { button: 0, ctrlKey: false },
+    );
+
+  describe("once the match has ended", () => {
+    const finished = { ...match, status: "completed" };
+
+    it("keeps Stream for its scorers, the one way back to the control room", async () => {
+      render(<MatchMoreMenu match={finished} />);
+      openMenu();
+      expect(
+        await screen.findByRole("menuitem", { name: "Stream this match" }),
+      ).toHaveAttribute("href", `/matches/${match.id}/stream`);
+    });
+
+    it("keeps Stream for its streamers, who are not scorers", async () => {
+      isAdmin = false;
+      canDelete = false;
+      canProduce = true;
+      render(<MatchMoreMenu match={finished} dlsMatch={finished as never} />);
+      openMenu();
+      expect(
+        await screen.findByRole("menuitem", { name: "Stream this match" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides Stream from everyone else", async () => {
+      isAdmin = false;
+      canDelete = false;
+      user = null;
+      render(<MatchMoreMenu match={finished} dlsMatch={finished as never} />);
+      openMenu();
+      await screen.findByRole("menuitem", { name: /Cricsheet/ });
+      expect(
+        screen.queryByRole("menuitem", { name: "Stream this match" }),
+      ).toBeNull();
+    });
+
+    it("asks about streaming only when the answer could change the menu", () => {
+      render(<MatchMoreMenu match={finished} />);
+      expect(canProduceQuery).toHaveBeenCalledWith(match.id, "u1", false);
+    });
+
+    it("no longer offers to invite scorers", async () => {
+      render(<MatchMoreMenu match={finished} />);
+      openMenu();
+      await screen.findByRole("menuitem", { name: "Stream this match" });
+      expect(
+        screen.queryByRole("menuitem", { name: "Invite scorers" }),
+      ).toBeNull();
+    });
+
+    it("has no button at all with nothing to offer", () => {
+      isAdmin = false;
+      canDelete = false;
+      user = null;
+      render(<MatchMoreMenu match={{ ...match, status: "abandoned" }} />);
+      expect(
+        screen.queryByRole("button", { name: "More match actions" }),
+      ).toBeNull();
+    });
+  });
+
+  it("offers scorers Invite scorers until the match ends, viewers not", async () => {
+    const { unmount } = render(
+      <MatchMoreMenu match={{ ...match, status: "live" }} />,
+    );
+    openMenu();
+    expect(
+      await screen.findByRole("menuitem", { name: "Invite scorers" }),
+    ).toBeInTheDocument();
+    unmount();
+
+    isAdmin = false;
+    render(<MatchMoreMenu match={{ ...match, status: "live" }} />);
+    openMenu();
+    await screen.findByRole("menuitem", { name: "Stream this match" });
+    expect(
+      screen.queryByRole("menuitem", { name: "Invite scorers" }),
+    ).toBeNull();
   });
 
   it("offers Delete match to users who may delete", async () => {

@@ -85,7 +85,7 @@ function ScreenTop() {
       <div className="overflow-hidden rounded-xl">
         <ScreenWash className="px-4 pb-10 pt-4">
           <ScreenBar
-            title="Match centre"
+            title="Rohan vs Omkar"
             backHref="#content"
             action={
               <Button variant="surface" size="icon" aria-label="Match info">
