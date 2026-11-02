@@ -64,7 +64,7 @@ function currentInningsOf(match: Match): Innings | undefined {
 }
 
 /**
- * The live match at a glance, after the Match centre screen in /design: the
+ * The live match at a glance, after the match screen in /design: the
  * batters at the crease and the bowler with this over under them, then the
  * rates and the stand. Figures come from the live scorecard and
  * `live_state` the page already follows (no reads of its own).

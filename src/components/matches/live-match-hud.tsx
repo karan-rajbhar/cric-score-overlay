@@ -21,6 +21,7 @@ import {
   strikeRate,
   economyRate,
   inningsBalls,
+  matchFormatName,
 } from "~/lib/cricket";
 import type { Match, Innings } from "~/lib/match-types";
 import type { DeliveryToEdit } from "~/app/matches/[id]/score/components/EditBallDialog";
@@ -288,7 +289,7 @@ export function LiveMatchHUD({
                   >
                     {superOver
                       ? `Super over · ${isSecondInnings ? "2nd" : "1st"} innings`
-                      : `Inns ${inningsNumber} · ${match.match_format || "Match"}`}
+                      : `Inns ${inningsNumber} · ${matchFormatName(match)}`}
                   </Badge>
                 </div>
                 <div className="mt-0.5 flex items-baseline gap-2">

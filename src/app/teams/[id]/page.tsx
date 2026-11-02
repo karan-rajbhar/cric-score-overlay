@@ -35,12 +35,15 @@ import { squadClaims, type PlayerClaim } from "~/lib/squad-claims";
 import { TeamSquadShare } from "~/components/teams/team-squad-share";
 import { PageTrail } from "~/components/ds/page-trail";
 import { backLabelOf, parentOf, teamTrail } from "~/lib/navigation";
-import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
+import { ActionsSheet } from "~/components/ds/actions-sheet";
+import { PinnedTitle } from "~/components/ds/pinned-title";
+import { PinnedTabs } from "~/components/ds/tabs";
+import { TabsContent, UrlTabs } from "~/components/ui/tabs";
 import {
   TeamMatchesView,
   type TeamMatchItem,
 } from "~/components/teams/team-matches-view";
-import { ContentSheet, ScreenBar } from "~/components/ds/screen";
+import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import {
   FINISHED_STATUSES,
@@ -310,14 +313,46 @@ export default async function TeamDetailsPage({
       ? latest.filter((m) => m.tournament_id === tournamentInfo!.id).length
       : undefined;
 
+  const editTeam = canManageTeam && (
+    <EditTeamDialog
+      team={{
+        id: team.id,
+        name: team.name,
+        short_name: team.short_name,
+        description: team.description,
+        logo_url: team.logo_url,
+        primary_color: team.primary_color,
+        secondary_color: team.secondary_color,
+      }}
+    />
+  );
+
   return (
-    <PageContainer stack={false}>
+    <PageContainer stack={false} className={pinnedPage}>
       {/* Phones: the screen's own bar instead of the header. */}
       <ScreenBar
-        className="mb-5 md:hidden"
-        title="Team"
+        className="mb-4 md:hidden"
         backHref={backHref}
         backLabel={backLabel}
+        action={
+          <>
+            <EntityActions
+              kind="team"
+              id={team.id}
+              name={team.name}
+              only="follow"
+            />
+            <ActionsSheet title={team.name} label="Team actions">
+              <EntityActions
+                kind="team"
+                id={team.id}
+                name={team.name}
+                only="calendar"
+              />
+              {editTeam}
+            </ActionsSheet>
+          </>
+        }
       />
       <PageTrail crumbs={trail} current={team.name} className="mb-6" />
 
@@ -335,19 +370,7 @@ export default async function TeamDetailsPage({
         actions={
           <>
             <EntityActions kind="team" id={team.id} name={team.name} />
-            {canManageTeam && (
-              <EditTeamDialog
-                team={{
-                  id: team.id,
-                  name: team.name,
-                  short_name: team.short_name,
-                  description: team.description,
-                  logo_url: team.logo_url,
-                  primary_color: team.primary_color,
-                  secondary_color: team.secondary_color,
-                }}
-              />
-            )}
+            {editTeam}
           </>
         }
         labels={
@@ -374,10 +397,11 @@ export default async function TeamDetailsPage({
           </>
         }
       />
+      <PinnedTitle>{team.name}</PinnedTitle>
 
-      <ContentSheet className="mt-6 sm:mt-8">
-        <StatGrid>
-          <StatTile
+      <ContentSheet className="mt-4 sm:mt-8">
+        <StatGrid compact>
+          <StatTile compact
             icon={Swords}
             label="Played"
             value={record.played}
@@ -387,16 +411,16 @@ export default async function TeamDetailsPage({
                 : undefined
             }
           />
-          <StatTile icon={Trophy} label="Won" value={record.won} />
-          <StatTile icon={X} label="Lost" value={record.lost} />
-          <StatTile
+          <StatTile compact icon={Trophy} label="Won" value={record.won} />
+          <StatTile compact icon={X} label="Lost" value={record.lost} />
+          <StatTile compact
             icon={Percent}
             label="Win rate"
             value={record.winRate !== null ? `${record.winRate}%` : "–"}
           />
         </StatGrid>
 
-        <div className="mt-6 space-y-6 sm:mt-8">
+        <div className="mt-3 space-y-6 sm:mt-8">
           {/* Matches and squad */}
           <div>
             <UrlTabs
@@ -404,12 +428,13 @@ export default async function TeamDetailsPage({
               fallback="matches"
               className="w-full"
             >
-              <div className="flex items-center justify-between">
-                <TabsList className="grid h-auto w-full grid-cols-2 sm:w-auto">
-                  <TabsTrigger value="matches">Matches</TabsTrigger>
-                  <TabsTrigger value="squad">Squad</TabsTrigger>
-                </TabsList>
-              </div>
+              <PinnedTabs
+                label="Team sections"
+                tabs={[
+                  { value: "matches", label: "Matches" },
+                  { value: "squad", label: "Squad" },
+                ]}
+              />
 
               <TabsContent value="matches" className="mt-4">
                 <TeamMatchesView

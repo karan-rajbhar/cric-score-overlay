@@ -7,11 +7,16 @@ const external = (value: string, base: string) =>
 const linkClass =
   "text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline";
 
-/** A club's place and contact details, then its website and socials. */
+/**
+ * A club's place and contact details, then its website and socials. `part`
+ * splits them for phones: the place in the header, the rest in the ⋯ sheet.
+ */
 export function ClubContacts({
   club,
   socialLinks,
+  part,
 }: {
+  part?: "place" | "contact";
   club: {
     location?: string | null;
     contact_email?: string | null;
@@ -41,16 +46,19 @@ export function ClubContacts({
   ].filter((l): l is { label: string; href: string; icon?: boolean } =>
     Boolean(l),
   );
+  const contact = part !== "place";
   return (
     <>
-      {club.location && <MetaItem icon={MapPin}>{club.location}</MetaItem>}
-      {club.contact_email && (
+      {part !== "contact" && club.location && (
+        <MetaItem icon={MapPin}>{club.location}</MetaItem>
+      )}
+      {contact && club.contact_email && (
         <MetaItem icon={Mail}>{club.contact_email}</MetaItem>
       )}
-      {club.contact_phone && (
+      {contact && club.contact_phone && (
         <MetaItem icon={Phone}>{club.contact_phone}</MetaItem>
       )}
-      {links.map((l) => (
+      {(contact ? links : []).map((l) => (
         <a
           key={l.label}
           href={l.href}

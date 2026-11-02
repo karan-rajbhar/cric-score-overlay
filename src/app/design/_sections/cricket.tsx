@@ -8,9 +8,9 @@ import { Card } from "~/components/ds/card";
 import { ChartLegend, OverBarsChart, WormChart } from "~/components/ds/charts";
 import { MatchCard } from "~/components/ds/match-card";
 import { PartnershipList } from "~/components/ds/partnership";
-import { PlayerAwardCard } from "~/components/ds/player-award";
+import { PlayerAwardCard, PlayerAwardRow } from "~/components/ds/player-award";
 import { PlayerHeader } from "~/components/ds/player-header";
-import { MatchNote } from "~/components/ds/score";
+import { MatchNote, ScoreLine } from "~/components/ds/score";
 import {
   BattingCard,
   BowlingCard,
@@ -18,12 +18,14 @@ import {
   FallOfWickets,
 } from "~/components/ds/scorecard";
 import { ScreenWash, Sheet } from "~/components/ds/screen";
+import { ShareMenu } from "~/components/ds/share-menu";
 import { PointsTable, RankList } from "~/components/ds/standings";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ds/tabs";
+import { PinnedTabs, Tabs, TabsContent } from "~/components/ds/tabs";
 import { Caption, DocSection, Specimen } from "../_components/doc";
 import {
   FixtureHero,
   LiveCarousel,
+  MATCH_SHARE_ITEMS,
   MatchPageTop,
   ProfileSheet,
   ResultHero,
@@ -37,8 +39,10 @@ import {
   FALL_OF_WICKETS,
   LAST_OVER,
   LIVE,
+  LIVE_MATCH_TABS,
   PLAYER,
   RESULT,
+  RESULT_AWARD,
   SAMPLE_LOGO,
   STANDINGS,
   TEAMS,
@@ -104,35 +108,67 @@ function MatchPage() {
   return (
     <Specimen
       title="Match page top"
-      usage="The match page opens on the wash: back, title, share; the header without its card, with each side's top performers under it (as Scoreline lists scorers). The sheet rises over it with the tabs."
+      usage="The match page opens on the wash: back, the match's own title, Share and ⋯; the header without its card, with each side's top performers under it (as Scoreline lists scorers), and one action at most. Everything else lives in Share, the ⋯ menu or a tab, so the tabs start high on the screen. The sheet rises over it with the tabs, which then stay on screen as it scrolls."
       bodyClassName="p-0 sm:p-0"
     >
       <div className="mx-auto max-w-md overflow-hidden rounded-xl">
         <ScreenWash className="px-4 pb-10 pt-4">
           <MatchPageTop />
         </ScreenWash>
-        <Sheet className="-mt-6">
-          <Tabs defaultValue="live">
-            <TabsList aria-label="Match sections">
-              <TabsTrigger value="live">Live</TabsTrigger>
-              <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
-              <TabsTrigger value="balls">Balls</TabsTrigger>
-              <TabsTrigger value="info">Info</TabsTrigger>
-            </TabsList>
-            <TabsContent value="live">
+        <Sheet className="-mt-6 px-4 sm:px-4">
+          <Tabs defaultValue="summary">
+            <PinnedTabs label="Match sections" tabs={LIVE_MATCH_TABS} />
+            <TabsContent value="summary">
               <OverStrip balls={THIS_OVER} total={5} />
             </TabsContent>
-            {["scorecard", "balls", "info"].map((v) => (
+            {LIVE_MATCH_TABS.slice(1).map((t) => (
               <TabsContent
-                key={v}
-                value={v}
+                key={t.value}
+                value={t.value}
                 className="text-sm text-muted-foreground"
               >
-                The {v} panel.
+                The {t.label} panel.
               </TabsContent>
             ))}
           </Tabs>
         </Sheet>
+      </div>
+    </Specimen>
+  );
+}
+
+function PinnedScore() {
+  return (
+    <Specimen
+      title="Score line"
+      usage="The match in one line, in the strip at the top of a phone screen (TopStrip) or the desktop header, once the header has scrolled away. It repeats the header, so screen readers skip it."
+      bodyClassName="space-y-3"
+    >
+      <ScoreLine
+        sides={[
+          { code: "BAY", score: "151/8 (20)", dim: true },
+          { code: "OTC", score: "152/5 (18.4)" },
+        ]}
+      />
+      <ScoreLine
+        sides={[
+          { code: "HIL", score: "142/4 (16.3)" },
+          { code: "RIV", score: "168/6 (20)", dim: true },
+        ]}
+      />
+      <ScoreLine sides={[{ code: "NOR" }, { code: "EAS" }]} />
+    </Specimen>
+  );
+}
+
+function ShareActions() {
+  return (
+    <Specimen
+      title="Share menu"
+      usage="One Share button for a screen with several things to send, so they do not each take a button on the page: a finished match's link, summary image and report. A screen with only a link shares it in one tap, with no menu."
+    >
+      <div className="flex justify-center py-1">
+        <ShareMenu items={MATCH_SHARE_ITEMS} />
       </div>
     </Specimen>
   );
@@ -308,9 +344,14 @@ function Award() {
   return (
     <Specimen
       title="Player of the match"
-      usage="Under the result in the match hero and the report: their picture with the award mark, name and side, and what they did as figure tiles."
+      usage="On the match page, one row at the top of Summary (PlayerAwardRow): picture with the award mark, name, figures at the end. In the report, which has the room, the full card under the result: name and side, and what they did as figure tiles."
     >
       <div className="space-y-3" data-specimen="award">
+        <PlayerAwardRow award={RESULT_AWARD} href="#cricket" />
+        <PlayerAwardRow
+          award={{ ...RESULT_AWARD, name: "Siddharth Venkataraman", batting: null }}
+          href="#cricket"
+        />
         <PlayerAwardCard
           award={{
             name: "Arjun Mehta",
@@ -534,6 +575,8 @@ export function CricketSection() {
       <Identity />
       <Headers />
       <MatchPage />
+      <PinnedScore />
+      <ShareActions />
       <Cards />
       <div className="grid gap-6 xl:grid-cols-2">
         <Deliveries />

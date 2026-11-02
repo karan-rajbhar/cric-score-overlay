@@ -14,6 +14,7 @@ import {
   formatMatchResult,
   formatStatus,
   sidesInBattingOrder,
+  matchFormatLabel,
 } from "~/lib/cricket";
 import type { InningsRef } from "~/components/ds/score";
 import { useLiveListMatch } from "~/lib/hooks/useMatchQueries";
@@ -86,7 +87,7 @@ export function MatchCard({
   const href = `/matches/${match.id}`;
   const bpo =
     match.balls_per_over && match.balls_per_over > 0 ? match.balls_per_over : 6;
-  const format = `${match.match_format} · ${match.overs_per_innings} overs`;
+  const format = matchFormatLabel(match);
   const competition = match.tournament?.name ?? match.club?.name;
 
   const action = showActions &&

@@ -11,13 +11,20 @@ import {
   ScoreHero,
 } from "~/components/ds/score";
 import { ScreenBar } from "~/components/ds/screen";
+import { ShareMenu, type ShareMenuItem } from "~/components/ds/share-menu";
 import { MeterList } from "~/components/ds/meter";
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ds/tabs";
 import {
+  Bell,
   CalendarDays,
+  FileText,
   Gauge,
+  ImageIcon,
   Info,
+  Link2,
+  MoreHorizontal,
+  Play,
   Share2,
   Target,
   TrendingUp,
@@ -128,23 +135,120 @@ export function FixtureHero() {
   );
 }
 
-/** Top of the match page: title bar, then the header without its card. */
-export function MatchPageTop() {
+/** A finished match has more than a link to send. */
+export const MATCH_SHARE_ITEMS: readonly ShareMenuItem[] = [
+  { label: "Share link", icon: Link2 },
+  { label: "Share image", icon: ImageIcon },
+  { label: "Match report", icon: FileText },
+];
+
+/** The bar: back, the match's own title, Share and the ⋯ menu. */
+function MatchBar({ title, finished }: { title: string; finished?: boolean }) {
+  return (
+    <ScreenBar
+      title={title}
+      backHref="#cricket"
+      action={
+        <>
+          {finished ? (
+            <ShareMenu items={MATCH_SHARE_ITEMS} />
+          ) : (
+            <Button variant="surface" size="icon" aria-label="Share link">
+              <Share2 />
+            </Button>
+          )}
+          <Button
+            variant="surface"
+            size="icon"
+            aria-label="More match actions"
+          >
+            <MoreHorizontal />
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+/**
+ * The top of the match page in each state: the header without its card, and
+ * one action at most (Continue scoring, or Follow). Everything else lives
+ * in Share, the ⋯ menu or a tab, so the tabs start high on the screen.
+ */
+export function MatchPageTop({
+  state = "live",
+}: {
+  state?: "live" | "result" | "upcoming";
+}) {
+  if (state === "result") {
+    return (
+      <>
+        <MatchBar
+          title={`${RESULT.first.team.name} vs ${RESULT.second.team.name}`}
+          finished
+        />
+        <ScoreHero
+          plain
+          compact
+          className="mt-3"
+          competition={RESULT.competition.split(" · ")[0]}
+          stage="T20 · 20 overs"
+          home={{
+            team: RESULT.first.team,
+            detail: <InningsScore innings={RESULT.first.innings} dim inline />,
+            extra: PERFORMERS.first.map((p) => <p key={p}>{p}</p>),
+            dim: true,
+          }}
+          away={{
+            team: RESULT.second.team,
+            detail: <InningsScore innings={RESULT.second.innings} inline />,
+            extra: PERFORMERS.second.map((p) => <p key={p}>{p}</p>),
+          }}
+          note={<MatchNote tone="result">{RESULT.note}</MatchNote>}
+        />
+      </>
+    );
+  }
+  if (state === "upcoming") {
+    return (
+      <>
+        <MatchBar title={`${FIXTURE.home.name} vs ${FIXTURE.away.name}`} />
+        <ScoreHero
+          plain
+          compact
+          className="mt-3"
+          competition={FIXTURE.competition}
+          stage="8 overs"
+          home={{ team: FIXTURE.home }}
+          away={{ team: FIXTURE.away }}
+          centre={<HeroTime time={FIXTURE.time} label={FIXTURE.stage} />}
+          note={
+            <MatchNote>
+              {FIXTURE.date} · {FIXTURE.venue}
+            </MatchNote>
+          }
+        >
+          <div className="flex justify-center">
+            <Button variant="outline" size="sm">
+              <Bell />
+              Follow
+            </Button>
+          </div>
+        </ScoreHero>
+      </>
+    );
+  }
   return (
     <>
-      <ScreenBar
-        title="Match centre"
-        backHref="#cricket"
-        action={
-          <Button variant="surface" size="icon" aria-label="Share match">
-            <Share2 />
-          </Button>
-        }
+      <MatchBar
+        title={`${LIVE.first.team.name} vs ${LIVE.second.team.name}`}
       />
       <ScoreHero
         plain
-        className="mt-5"
-        competition={LIVE.competition}
+        compact
+        className="mt-3"
+        competition={LIVE.competition.split(" · ")[0]}
+        stage="T20 · 20 overs"
         status="live"
         home={{
           team: LIVE.first.team,
@@ -159,7 +263,14 @@ export function MatchPageTop() {
         }}
         centre={<HeroScore innings={LIVE.second.innings} />}
         note={<MatchNote tone="live">{LIVE.note}</MatchNote>}
-      />
+      >
+        <div className="flex justify-center">
+          <Button size="sm">
+            <Play />
+            Continue scoring
+          </Button>
+        </div>
+      </ScoreHero>
     </>
   );
 }

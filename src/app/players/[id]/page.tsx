@@ -38,7 +38,9 @@ import { ShareProfileButton } from "~/components/players/share-profile-button";
 import { playerDetailLine, playingRoleLabel } from "~/lib/player-profile";
 import { EditUsernameDialog } from "~/components/players/edit-username-dialog";
 import { InviteDialog } from "~/components/invite-dialog";
-import { ContentSheet, ScreenBar } from "~/components/ds/screen";
+import { ActionsSheet } from "~/components/ds/actions-sheet";
+import { PinnedTitle } from "~/components/ds/pinned-title";
+import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { LivePerformanceCard } from "~/components/players/live-performance-card";
 import { EntityActions } from "~/components/follow/entity-actions";
@@ -350,14 +352,38 @@ export default async function PlayerPage({
     stats?.total_matches ??
     Math.max(matchesList.length, batting.length, bowling.length);
 
+  const ownTools = isSelf && (
+    <>
+      <EditProfileDialog currentName={user.full_name ?? ""} current={user} />
+      <EditUsernameDialog currentUsername={user.username ?? ""} />
+      <InviteDialog />
+    </>
+  );
+
   return (
-    <PageContainer stack={false}>
+    <PageContainer stack={false} className={pinnedPage}>
       {/* Phones: the screen's own bar instead of the header. */}
       <ScreenBar
-        className="mb-5 md:hidden"
-        title="Player"
+        className="mb-4 md:hidden"
         backHref={parentOf(trail)}
         backLabel={backLabelOf(trail)}
+        action={
+          <>
+            {!isSelf && (
+              <EntityActions
+                kind="player"
+                id={user.id}
+                name={user.full_name}
+              />
+            )}
+            <ShareProfileButton name={user.full_name} iconOnly />
+            {isSelf && (
+              <ActionsSheet title={user.full_name} label="Profile actions">
+                {ownTools}
+              </ActionsSheet>
+            )}
+          </>
+        }
       />
       <PageTrail crumbs={trail} current={user.full_name} className="mb-6" />
 
@@ -373,16 +399,7 @@ export default async function PlayerPage({
           actions={
             <>
               <ShareProfileButton name={user.full_name} />
-              {isSelf && (
-                <>
-                  <EditProfileDialog
-                    currentName={user.full_name ?? ""}
-                    current={user}
-                  />
-                  <EditUsernameDialog currentUsername={user.username ?? ""} />
-                  <InviteDialog />
-                </>
-              )}
+              {ownTools}
             </>
           }
         />
@@ -392,13 +409,14 @@ export default async function PlayerPage({
             kind="player"
             id={user.id}
             name={user.full_name}
-            className=""
+            className="max-md:hidden"
           />
         )}
       </div>
+      <PinnedTitle>{user.full_name}</PinnedTitle>
 
       {/* Career figures first, then the innings, matches and teams. */}
-      <ContentSheet className="mt-8">
+      <ContentSheet className="mt-4 sm:mt-8">
         <PlayerActivityTabs
           teams={teams}
           batting={batting}

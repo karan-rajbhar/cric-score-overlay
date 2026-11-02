@@ -11,25 +11,55 @@ export function StatTile({
   value,
   hint,
   icon: Icon,
+  compact = false,
   className,
 }: {
   label: React.ReactNode;
   value: React.ReactNode;
   hint?: React.ReactNode;
   icon?: LucideIcon;
+  /** On phones: the figure over its label, in a `StatGrid compact` row. */
+  compact?: boolean;
   className?: string;
 }) {
   return (
-    <div className={cn("min-w-0 rounded-xl bg-muted p-4", className)}>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {Icon && <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+    <div
+      className={cn(
+        "min-w-0 rounded-xl bg-muted p-4",
+        compact &&
+          "max-md:flex max-md:flex-col-reverse max-md:items-center max-md:gap-1 max-md:px-1 max-md:py-2",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-1.5 text-xs text-muted-foreground",
+          compact && "max-md:max-w-full",
+        )}
+      >
+        {Icon && (
+          <Icon
+            className={cn("h-3.5 w-3.5 shrink-0", compact && "max-md:hidden")}
+            aria-hidden="true"
+          />
+        )}
         <span className="truncate">{label}</span>
       </div>
-      <div className="mt-3 font-score text-[1.75rem] font-medium tabular-nums leading-none text-foreground">
+      <div
+        className={cn(
+          "mt-3 font-score text-[1.75rem] font-medium tabular-nums leading-none text-foreground",
+          compact && "max-md:mt-0 max-md:text-xl",
+        )}
+      >
         {value}
       </div>
       {hint && (
-        <div className="mt-1.5 truncate text-xs text-muted-foreground">
+        <div
+          className={cn(
+            "mt-1.5 truncate text-xs text-muted-foreground",
+            compact && "max-md:hidden",
+          )}
+        >
           {hint}
         </div>
       )}
@@ -37,14 +67,23 @@ export function StatTile({
   );
 }
 
-/** Two tiles per row on phones, four from tablets up. */
+/**
+ * Two tiles per row on phones, four from tablets up. `compact`: all four in
+ * one row on phones, for figures above a screen's tabs, where two rows would
+ * push the tabs off the first screen (with `StatTile compact`).
+ */
 export function StatGrid({
+  compact = false,
   className,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: React.HTMLAttributes<HTMLDivElement> & { compact?: boolean }) {
   return (
     <div
-      className={cn("grid grid-cols-2 gap-3 sm:grid-cols-4", className)}
+      className={cn(
+        "grid grid-cols-2 gap-3 sm:grid-cols-4",
+        compact && "max-md:grid-cols-4 max-md:gap-2",
+        className,
+      )}
       {...props}
     />
   );

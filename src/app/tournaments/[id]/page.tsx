@@ -10,7 +10,10 @@ import {
 import { Button } from "~/components/ui/button";
 import { PageTrail } from "~/components/ds/page-trail";
 import { backLabelOf, parentOf, tournamentTrail } from "~/lib/navigation";
-import { TabsContent, TabsList, TabsTrigger, UrlTabs } from "~/components/ui/tabs";
+import { ActionsSheet } from "~/components/ds/actions-sheet";
+import { PinnedTitle } from "~/components/ds/pinned-title";
+import { PinnedTabs } from "~/components/ds/tabs";
+import { TabsContent, UrlTabs } from "~/components/ui/tabs";
 import {
   Calendar,
   MapPin,
@@ -43,7 +46,7 @@ import {
   loadScopeLeaderboard,
   type ScopeMatch,
 } from "~/lib/firebase/leaderboards";
-import { ContentSheet, ScreenBar } from "~/components/ds/screen";
+import { ContentSheet, pinnedPage, ScreenBar } from "~/components/ds/screen";
 import { PageContainer } from "~/components/layout/page";
 import { MatchCard } from "~/components/matches/match-card";
 import type { Match } from "~/lib/match-types";
@@ -387,14 +390,97 @@ export default async function TournamentPage({
     club: tournament.club as { id: string; name: string } | null,
   });
 
+  // Scheduling and following are over when the tournament is.
+  const over = ["completed", "cancelled"].includes(tournament.status ?? "");
+  const registerTeam = canRegisterTeams && !over && (
+    <RegisterTeamDialog
+      tournamentId={tournament.id}
+      availableTeams={isTournamentAdmin ? undefined : availableTeams}
+      registeredTeamIds={registeredTeamIds}
+      isOrganiser={isTournamentAdmin}
+    />
+  );
+  const scheduleMatch = isTournamentAdmin && !over && (
+    <Button asChild size="sm" className="gap-1.5">
+      <Link href={`/matches/create?tournamentId=${tournament.id}`}>
+        <Plus className="h-4 w-4 shrink-0" />
+        Schedule match
+      </Link>
+    </Button>
+  );
+  const sponsors = isTournamentAdmin && (
+    <SponsorLogosDialog scope="tournament" scopeId={tournament.id} />
+  );
+  const manage = isTournamentAdmin && (
+    <TournamentManageDialog
+      tournament={{
+        id: tournament.id,
+        name: tournament.name,
+        description: tournament.description,
+        tournament_format: tournament.tournament_format,
+        match_format: tournament.match_format,
+        overs_per_innings: tournament.overs_per_innings,
+        wickets_per_innings: tournament.wickets_per_innings,
+        status: tournament.status,
+        venue: tournament.venue,
+        start_date: tournament.start_date,
+        end_date: tournament.end_date,
+        season_id: tournament.season_id,
+      }}
+      seasons={seasons}
+      clubId={tournament.club_id}
+      afterDeleteHref={
+        tournament.club_id
+          ? `/clubs/${tournament.club_id}?tab=tournaments`
+          : "/tournaments"
+      }
+    />
+  );
+
+  // Stats have nothing to show until a match has finished.
+  const tournamentTabs = [
+    { value: "standings", label: "Points table" },
+    { value: "fixtures", label: "Fixtures" },
+    { value: "teams", label: "Teams" },
+    completedMatches.length > 0 && { value: "analysis", label: "Stats" },
+  ].filter((t) => !!t);
+  const activeTab = tournamentTabs.find(
+    (t) => t.value === resolvedSearchParams?.tab,
+  )
+    ? resolvedSearchParams!.tab!
+    : "standings";
+
   return (
-    <PageContainer stack={false}>
+    <PageContainer stack={false} className={pinnedPage}>
       {/* Phones: the screen's own bar instead of the header. */}
       <ScreenBar
-        className="mb-5 md:hidden"
-        title="Tournament"
+        className="mb-4 md:hidden"
         backHref={parentOf(trail)}
         backLabel={backLabelOf(trail)}
+        action={
+          <>
+            {!over && (
+              <EntityActions
+                kind="tournament"
+                id={tournament.id}
+                name={tournament.name}
+                only="follow"
+              />
+            )}
+            <ActionsSheet title={tournament.name} label="Tournament actions">
+              {scheduleMatch}
+              {registerTeam}
+              <EntityActions
+                kind="tournament"
+                id={tournament.id}
+                name={tournament.name}
+                only="calendar"
+              />
+              {sponsors}
+              {manage}
+            </ActionsSheet>
+          </>
+        }
       />
       <PageTrail crumbs={trail} current={tournament.name} className="mb-4" />
 
@@ -448,61 +534,28 @@ export default async function TournamentPage({
         }
         actions={
           <>
-            <EntityActions kind="tournament" id={tournament.id} name={tournament.name} />
-            {canRegisterTeams && (
-              <RegisterTeamDialog
-                tournamentId={tournament.id}
-                availableTeams={
-                  isTournamentAdmin ? undefined : availableTeams
-                }
-                registeredTeamIds={registeredTeamIds}
-                isOrganiser={isTournamentAdmin}
-              />
-            )}
-            {isTournamentAdmin && <SponsorLogosDialog scope="tournament" scopeId={tournament.id} />}
-            {isTournamentAdmin && (
-              <Button asChild size="sm" className="gap-1.5">
-                <Link href={`/matches/create?tournamentId=${tournament.id}`}>
-                  <Plus className="h-4 w-4 shrink-0" />
-                  Schedule match
-                </Link>
-              </Button>
-            )}
-            {isTournamentAdmin && (
-              <TournamentManageDialog
-                tournament={{
-                  id: tournament.id,
-                  name: tournament.name,
-                  description: tournament.description,
-                  tournament_format: tournament.tournament_format,
-                  match_format: tournament.match_format,
-                  overs_per_innings: tournament.overs_per_innings,
-                  wickets_per_innings: tournament.wickets_per_innings,
-                  status: tournament.status,
-                  venue: tournament.venue,
-                  start_date: tournament.start_date,
-                  end_date: tournament.end_date,
-                  season_id: tournament.season_id,
-                }}
-                seasons={seasons}
-                clubId={tournament.club_id}
-                afterDeleteHref={
-                  tournament.club_id
-                    ? `/clubs/${tournament.club_id}?tab=tournaments`
-                    : "/tournaments"
-                }
-              />
-            )}
+            <EntityActions
+              kind="tournament"
+              id={tournament.id}
+              name={tournament.name}
+              only={over ? "calendar" : undefined}
+            />
+            {registerTeam}
+            {sponsors}
+            {scheduleMatch}
+            {manage}
           </>
         }
       />
 
-      <ContentSheet className="mt-6 sm:mt-8">
-      <StatGrid>
-        <StatTile icon={Users} label="Teams" value={(registrations ?? []).length} />
-        <StatTile icon={Swords} label="Matches" value={typedMatches.length} />
-        <StatTile icon={CheckCircle2} label="Completed" value={completedMatches.length} />
-        <StatTile
+      <PinnedTitle>{tournament.name}</PinnedTitle>
+
+      <ContentSheet className="mt-4 sm:mt-8">
+      <StatGrid compact>
+        <StatTile compact icon={Users} label="Teams" value={(registrations ?? []).length} />
+        <StatTile compact icon={Swords} label="Matches" value={typedMatches.length} />
+        <StatTile compact icon={CheckCircle2} label="Completed" value={completedMatches.length} />
+        <StatTile compact
           icon={CalendarClock}
           label="Upcoming"
           value={upcomingMatches.length}
@@ -512,32 +565,11 @@ export default async function TournamentPage({
 
       {/* Main Tabs Navigation */}
       <UrlTabs
-        defaultValue={resolvedSearchParams?.tab ?? "standings"}
+        defaultValue={activeTab}
         fallback="standings"
-        className="mt-6 sm:mt-8"
+        className="mt-3 sm:mt-8"
       >
-        <TabsList className="flex h-auto w-full justify-start">
-          <TabsTrigger
-            value="standings"
-          >
-            Points table
-          </TabsTrigger>
-          <TabsTrigger
-            value="fixtures"
-          >
-            Fixtures
-          </TabsTrigger>
-          <TabsTrigger
-            value="teams"
-          >
-            Teams
-          </TabsTrigger>
-          <TabsTrigger
-            value="analysis"
-          >
-            Leaderboard & stats
-          </TabsTrigger>
-        </TabsList>
+        <PinnedTabs label="Tournament sections" tabs={tournamentTabs} />
 
         {/* TAB 1: POINTS TABLE */}
         <TabsContent value="standings" className="mt-4 space-y-4 sm:mt-6">

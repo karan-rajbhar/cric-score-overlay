@@ -1,6 +1,6 @@
 /**
  * Shared canvas + QR helpers — deduplicates the identical QR + canvas
- * boilerplate that lived in match-export-buttons.tsx and team-squad-share.tsx.
+ * boilerplate that lived in summary-image.ts and team-squad-share.tsx.
  */
 import QRCode from "qrcode";
 

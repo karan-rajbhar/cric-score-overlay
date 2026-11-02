@@ -36,14 +36,20 @@ interface MatchScorersDialogProps {
   matchId: string;
   isCreator?: boolean;
   triggerButton?: React.ReactNode;
+  /** Opened from elsewhere (a menu): no button of its own. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function MatchScorersDialog({
   matchId,
   isCreator = false,
   triggerButton,
+  open: openProp,
+  onOpenChange,
 }: MatchScorersDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [query, setQuery] = useState("");
@@ -77,11 +83,16 @@ export function MatchScorersDialog({
     }
   }, [matchId]);
 
+  // However it was opened: by its button, or from a menu.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a read on opening
+    if (open) void fetchScorers();
+  }, [open, fetchScorers]);
+
   const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen);
-    if (isOpen) {
-      void fetchScorers();
-    } else {
+    setOpenState(isOpen);
+    onOpenChange?.(isOpen);
+    if (!isOpen) {
       setQuery("");
       setSearchResults([]);
       setShareText(null);
@@ -260,19 +271,21 @@ export function MatchScorersDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        {triggerButton ?? (
-          <Button
-            variant="outline"
-            size="sm"
-            title="Invite co-scorers to record balls live"
-          >
-            <UserPlus className="h-4 w-4 shrink-0" />
-            <span className="hidden sm:inline">Invite scorer</span>
-            <span className="sm:hidden">Scorers</span>
-          </Button>
-        )}
-      </DialogTrigger>
+      {openProp === undefined && (
+        <DialogTrigger asChild>
+          {triggerButton ?? (
+            <Button
+              variant="outline"
+              size="sm"
+              title="Invite co-scorers to record balls live"
+            >
+              <UserPlus className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Invite scorer</span>
+              <span className="sm:hidden">Scorers</span>
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>

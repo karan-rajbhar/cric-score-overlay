@@ -717,6 +717,32 @@ export function useMatchAdminQuery(
  * creator; not co-scorers). Only asked once `enabled` (e.g. the user is a
  * match admin), so viewers pay no reads. The server re-checks on delete.
  */
+/**
+ * Whether the user may run the match's overlay: its scorers and streamers.
+ * The caller asks only when it needs the answer (1 read).
+ */
+export function useCanProduceOverlayQuery(
+  matchId?: string | null,
+  userId?: string | null,
+  enabled = true,
+) {
+  return useQuery<boolean>({
+    queryKey: ["canProduceOverlay", matchId ?? "", userId ?? "anon"],
+    queryFn: async () => {
+      if (!matchId || !userId) return false;
+      // The user is passed (see useMatchAdminQuery).
+      const { data, error } = await createClient().rpc("can_produce_overlay", {
+        p_match_id: matchId,
+        p_user_id: userId,
+      });
+      if (error) return false;
+      return Boolean(data);
+    },
+    enabled: Boolean(matchId && userId && enabled),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCanDeleteMatchQuery(
   matchId?: string | null,
   userId?: string | null,

@@ -219,7 +219,12 @@ import {
   Pencil,
   Flag,
 } from "lucide-react";
-import { deliveryKind, deliveryLabel, economyRate } from "~/lib/cricket";
+import {
+  deliveryKind,
+  deliveryLabel,
+  economyRate,
+  matchFormatName,
+} from "~/lib/cricket";
 import { useMatchShare } from "~/components/matches/use-match-share";
 import { matchParts } from "~/lib/match-players";
 import { lookUpPlayers } from "~/lib/player-lookup";
@@ -1744,7 +1749,7 @@ function ScoringHeader({ s }: { s: LoadedScreen }) {
                 )}
               </div>
               <p className="truncate text-xs text-muted-foreground">
-                {match.title} · {match.match_format}
+                {match.title} · {matchFormatName(match)}
               </p>
             </div>
           </div>
@@ -2033,7 +2038,7 @@ function MatchNotices({ s }: { s: LoadedScreen }) {
               variant="outline"
               asChild
             >
-              <Link href={`/matches/${matchId}`}>Match centre</Link>
+              <Link href={`/matches/${matchId}`}>Match page</Link>
             </Button>
             <Button
               size="sm"

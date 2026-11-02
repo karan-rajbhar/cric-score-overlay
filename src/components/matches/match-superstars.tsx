@@ -119,13 +119,8 @@ function PlayerRow({
           {player.teamName} · {figuresOf(player) || ROLE[player.role]}
         </span>
       </span>
-      <span className="shrink-0 text-right">
-        <span className="block font-score text-lg font-semibold tabular-nums leading-tight text-foreground">
-          {ratingOf(player)}
-        </span>
-        <span className="block font-score text-xs tabular-nums text-muted-foreground">
-          {player.totalPoints} pts
-        </span>
+      <span className="shrink-0 font-score text-lg font-semibold tabular-nums text-foreground">
+        {ratingOf(player)}
       </span>
       <ChevronRight
         className="h-4 w-4 shrink-0 text-muted-foreground"

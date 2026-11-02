@@ -5,7 +5,7 @@
  * progress is re-read, see `loadShareMatch`).
  */
 
-import { oversFromBalls } from "./cricket";
+import { matchFormatLabel, oversFromBalls } from "./cricket";
 import type { MatchesRow } from "./firebase/types";
 
 export type ShareMatch = Pick<
@@ -153,11 +153,7 @@ export function matchShareSummary(match: ShareMatch): MatchShareSummary {
   const lines = sides
     .filter((s) => s.score)
     .map((s) => `${s.name} ${s.score} (${s.overs} ov)`);
-  const format = [
-    match.match_format,
-    match.overs_per_innings ? `${match.overs_per_innings} overs` : null,
-    match.venue,
-  ]
+  const format = [matchFormatLabel(match), match.venue]
     .filter(Boolean)
     .join(" · ");
   const status = STATUS_LABEL[match.status ?? ""] ?? "Match";

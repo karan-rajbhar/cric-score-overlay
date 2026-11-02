@@ -6,6 +6,7 @@ import { Coins, Flag, Target, TrendingUp, XCircle } from "lucide-react";
 import { TeamCrest } from "~/components/ds/avatar";
 import { Button } from "~/components/ds/button";
 import { Card } from "~/components/ds/card";
+import { PlayerAwardRow } from "~/components/ds/player-award";
 import { PlayerLink } from "~/components/ds/player-link";
 import { Chip } from "~/components/ds/chip";
 import { ListCard, ListRow } from "~/components/ds/list";
@@ -14,12 +15,15 @@ import type { Match } from "~/lib/match-types";
 import {
   formatBowlerOvers,
   formatDecimalOvers,
-  formatDismissalType,
+  formatHowOut,
+  isCaughtAndBowled,
   sidesInBattingOrder,
 } from "~/lib/cricket";
 import { playerHrefOf } from "~/lib/player-href";
+import { playerAwardOf } from "~/lib/player-award";
 import { buildExportSummary, type ExportTeamStats } from "~/lib/match-report";
 import { cn } from "~/lib/utils";
+import { MatchDetails } from "./match-details";
 import { MatchLivePanel } from "./match-live-panel";
 import { teamRef } from "./match-hero";
 
@@ -65,14 +69,22 @@ function keyMomentsOf(match: Match): Moment[] {
       [...(inn.fall_of_wickets ?? [])]
         .sort((x, y) => x.overs_at_fall - y.overs_at_fall)
         .forEach((fow) => {
-          const bowler = fow.bowler?.full_name
-            ? ` b ${fow.bowler.full_name}`
-            : "";
+          const howOut = formatHowOut(
+            true,
+            fow.dismissal_type,
+            fow.bowler?.full_name,
+            fow.fielder?.full_name,
+            isCaughtAndBowled(
+              fow.dismissal_type,
+              fow.fielder_id,
+              fow.bowler_id,
+            ),
+          );
           moments.push({
             id: `fow-${fow.id}`,
             label: `Over ${formatDecimalOvers(fow.overs_at_fall)}`,
-            title: `${fow.batsman?.full_name ?? "Batter"}${bowler}`,
-            description: `${fow.runs_at_fall}/${fow.wicket_number}${fow.dismissal_type ? ` · ${formatDismissalType(fow.dismissal_type)}` : ""}`,
+            title: `${fow.batsman?.full_name ?? "Batter"} ${howOut}`,
+            description: `${fow.runs_at_fall}/${fow.wicket_number}`,
             icon: <XCircle className="h-4 w-4 text-wicket" />,
           });
         });
@@ -119,14 +131,19 @@ type Figure = {
   strong: boolean;
 };
 
+/**
+ * One column of an innings' card. Its title is for screen readers: on the
+ * card, a batter's "36* (11)" and a bowler's "2/21 (3.0)" say which is which,
+ * and the row saves the space.
+ */
 function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
   return (
     <div className="min-w-0">
-      <h4 className="text-xs text-muted-foreground">{title}</h4>
+      <h4 className="sr-only">{title}</h4>
       {rows.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">None</p>
+        <p className="text-sm text-muted-foreground">No figures yet</p>
       ) : (
-        <ol className="mt-1">
+        <ol>
           {rows.map((r) => (
             <li
               key={r.name}
@@ -156,20 +173,23 @@ function FigureColumn({ title, rows }: { title: string; rows: Figure[] }) {
 }
 
 /**
- * One side as on the share-summary image: crest, name and score, then its
- * top three batters and bowlers side by side.
+ * One innings as on the share-summary image and a scorecard: the batting
+ * side's crest, name and score, then its top three batters beside the
+ * bowlers who bowled at them, named as the other side's. Before a side bats
+ * it is just the header.
  */
-function TeamSummaryCard({
+export function InningsSummaryCard({
   team,
   stats,
   won,
 }: {
-  team: Match["team1"];
+  team: Parameters<typeof teamRef>[0];
   stats: ExportTeamStats;
   won: boolean;
 }) {
   // "178/5 (20.0)": the score large, the overs under it.
   const [score, overs] = stats.scoreLine.replace(")", "").split(" (");
+  const played = stats.batters.length > 0 || stats.bowlers.length > 0;
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
@@ -185,7 +205,14 @@ function TeamSummaryCard({
           )}
         </span>
         <span className="shrink-0 text-right font-score tabular-nums">
-          <span className="block text-xl font-semibold leading-none text-foreground">
+          <span
+            className={cn(
+              "block leading-none",
+              overs
+                ? "text-xl font-semibold text-foreground"
+                : "font-sans text-sm text-muted-foreground",
+            )}
+          >
             {score}
           </span>
           {overs && (
@@ -195,44 +222,46 @@ function TeamSummaryCard({
           )}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-1 md:gap-4 xl:grid-cols-2">
-        <FigureColumn
-          title="Top batters"
-          rows={stats.batters.map((b) => ({
-            name: b.name,
-            href: playerHrefOf(b.userId),
-            fig: `${b.runs}${b.notOut ? "*" : ""}`,
-            sub: `(${b.balls})`,
-            strong: b.runs >= 50,
-          }))}
-        />
-        <FigureColumn
-          title="Top bowlers"
-          rows={stats.bowlers.map((b) => ({
-            name: b.name,
-            href: playerHrefOf(b.userId),
-            fig: `${b.wickets}/${b.runs}`,
-            sub: `(${b.overs})`,
-            strong: b.wickets >= 3,
-          }))}
-        />
-      </div>
+      {played && (
+        <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-1 md:gap-4 xl:grid-cols-2">
+          <FigureColumn
+            title="Top batters"
+            rows={stats.batters.map((b) => ({
+              name: b.name,
+              href: playerHrefOf(b.userId),
+              fig: `${b.runs}${b.notOut ? "*" : ""}`,
+              sub: `(${b.balls})`,
+              strong: b.runs >= 50,
+            }))}
+          />
+          <FigureColumn
+            title={`Bowling for ${stats.bowlingSide}`}
+            rows={stats.bowlers.map((b) => ({
+              name: b.name,
+              href: playerHrefOf(b.userId),
+              fig: `${b.wickets}/${b.runs}`,
+              sub: `(${b.overs})`,
+              strong: b.wickets >= 3,
+            }))}
+          />
+        </div>
+      )}
     </Card>
   );
 }
 
-/** Both sides in batting order, as on the share-summary image. */
-function TeamSummaries({ match }: { match: Match }) {
+/** Both innings in batting order, as on the share-summary image. */
+function InningsSummaries({ match }: { match: Match }) {
   const summary = buildExportSummary(match, "");
   const [first, second] = sidesInBattingOrder(match);
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <TeamSummaryCard
+      <InningsSummaryCard
         team={first.team}
         stats={summary.team1}
         won={match.winning_team_id === first.team.id}
       />
-      <TeamSummaryCard
+      <InningsSummaryCard
         team={second.team}
         stats={summary.team2}
         won={match.winning_team_id === second.team.id}
@@ -365,11 +394,12 @@ function KeyMoments({
 }
 
 /**
- * The Summary tab. While an innings is in play it is the live panel
- * (crease, bowler, this over, rates); otherwise both sides as on the
- * share-summary image, then the match's best batters and bowlers. Key
- * moments follow either way. The result and the player
- * of the match are in the hero above.
+ * The Summary tab. A finished match opens on the player of the match. While
+ * an innings is in play it is the live panel (crease, bowler, this over,
+ * rates); otherwise each innings as on the share-summary image (its batters
+ * with the bowlers who bowled at them), then the match's best batters and
+ * bowlers. Key moments follow, once there can be any, then the match's
+ * details. The result is in the hero above.
  */
 export function MatchSummary({ match }: MatchSummaryProps) {
   const moments = useMemo(() => keyMomentsOf(match), [match]);
@@ -380,24 +410,33 @@ export function MatchSummary({ match }: MatchSummaryProps) {
   const innings = [...(match.innings ?? [])]
     .filter((i) => i.innings_number <= 2)
     .sort((a, b) => a.innings_number - b.innings_number);
+  const award = match.status === "completed" ? playerAwardOf(match) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
+      {award && (
+        <PlayerAwardRow award={award} href={playerHrefOf(award.userId)} />
+      )}
       {live ? (
         <MatchLivePanel match={match} />
       ) : (
         innings.length > 0 && (
           <>
-            <TeamSummaries match={match} />
+            <InningsSummaries match={match} />
             <BestPerformers match={match} />
           </>
         )
       )}
-      {/* While live the latest first. */}
-      <KeyMoments
-        moments={live ? [...moments].reverse() : moments}
-        finished={["completed", "abandoned", "cancelled"].includes(match.status)}
-      />
+      {/* While live the latest first. Before the start, nothing to say. */}
+      {(match.status !== "scheduled" || moments.length > 0) && (
+        <KeyMoments
+          moments={live ? [...moments].reverse() : moments}
+          finished={["completed", "abandoned", "cancelled"].includes(
+            match.status,
+          )}
+        />
+      )}
+      <MatchDetails match={match} />
     </div>
   );
 }

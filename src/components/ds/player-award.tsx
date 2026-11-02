@@ -46,11 +46,73 @@ function FigureTile({
   );
 }
 
+/** "36* (11)" and "2/12 (3.0)": what they did, shortest form. */
+function awardFigures({ batting, bowling }: PlayerAward): string[] {
+  const figures: string[] = [];
+  if (batting) {
+    figures.push(
+      `${batting.runs}${batting.notOut ? "*" : ""} (${batting.balls})`,
+    );
+  }
+  if (bowling) {
+    figures.push(`${bowling.wickets}/${bowling.runs} (${bowling.overs})`);
+  }
+  return figures;
+}
+
 /**
- * Player of the match: their picture with the award mark, name and side,
- * and what they did (batting, bowling) as figure tiles. Under the result
- * in the match hero. On phones the tiles go under the name: two side by
- * side, one across the width.
+ * Player of the match in one row, at the top of a match's Summary: picture
+ * with the award mark, name, and their figures at the end. The match page
+ * keeps its first screen for the content, so the card below is for the
+ * printed report, which has the room.
+ */
+export function PlayerAwardRow({
+  award,
+  href,
+  className,
+}: {
+  award: PlayerAward;
+  /** Their profile: the name opens it. */
+  href?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-14 items-center gap-3 rounded-2xl bg-primary-soft/70 px-3 py-2 ring-1 ring-primary/10",
+        className,
+      )}
+    >
+      <span className="relative shrink-0">
+        <Avatar name={award.name} src={award.avatarUrl} size="sm" />
+        <span className="absolute -bottom-1 -right-1 flex h-[1.125rem] w-[1.125rem] items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card">
+          <Award className="h-2.5 w-2.5" aria-hidden="true" />
+        </span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-medium text-primary">
+          Player of the match
+        </span>
+        <span className="line-clamp-2 break-words text-sm font-semibold leading-snug text-foreground">
+          <PlayerLink name={award.name} href={href} />
+        </span>
+      </span>
+      <span className="shrink-0 text-right font-score text-sm font-semibold tabular-nums leading-snug text-foreground">
+        {awardFigures(award).map((f) => (
+          <span key={f} className="block">
+            {f}
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Player of the match in full: their picture with the award mark, name and
+ * side, and what they did (batting, bowling) as figure tiles. For the
+ * report. On phones the tiles go under the name: two side by side, one
+ * across the width.
  */
 export function PlayerAwardCard({
   award,

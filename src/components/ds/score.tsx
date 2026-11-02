@@ -137,10 +137,21 @@ export type HeroSideProps = {
   dim?: boolean;
 };
 
-function HeroSide({ team, detail, extra, dim }: HeroSideProps) {
+function HeroSide({
+  team,
+  detail,
+  extra,
+  dim,
+  compact,
+}: HeroSideProps & { compact: boolean }) {
   return (
-    <div className="flex min-w-0 flex-col items-center gap-2 text-center">
-      <TeamCrest {...team} size="lg" />
+    <div
+      className={cn(
+        "flex min-w-0 flex-col items-center text-center",
+        compact ? "gap-1.5" : "gap-2",
+      )}
+    >
+      <TeamCrest {...team} size={compact ? "md" : "lg"} />
       <div className="min-w-0">
         <p
           className={cn(
@@ -178,24 +189,30 @@ export function ScoreHero({
   centre,
   note,
   plain = false,
+  compact = false,
   children,
   className,
 }: {
-  competition: React.ReactNode;
+  /** Tournament or club; none for a match in neither. */
+  competition?: React.ReactNode;
   /** Beside the competition: Trophy (tournament, default) or Shield (club). */
   competitionIcon?: LucideIcon;
   /** Right of the competition, in navy: "Match 12", "Final". */
   stage?: React.ReactNode;
-  status: string;
+  /** The chip in the middle; none when the note already says it. */
+  status?: string;
   home: HeroSideProps;
   away: HeroSideProps;
   /** Under the chip: HeroScore, HeroTime. */
   centre?: React.ReactNode;
   note?: React.ReactNode;
   plain?: boolean;
+  /** Smaller crests: the top of a screen, where the tabs should start high. */
+  compact?: boolean;
   children?: React.ReactNode;
   className?: string;
 }) {
+  const middle = Boolean(status || centre);
   return (
     <section
       className={cn(
@@ -210,45 +227,106 @@ export function ScoreHero({
           than two ends of a wide row. */}
       <div
         className={cn(
-          "flex items-center justify-between gap-3",
+          "flex items-center gap-3",
+          competition ? "justify-between" : "justify-center",
           plain && "md:justify-center md:gap-2",
         )}
       >
-        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-          <span
-            className={cn(
-              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-              plain
-                ? "bg-card text-primary shadow-soft"
-                : "bg-primary-soft text-primary-soft-foreground",
-            )}
-          >
-            <CompetitionIcon className="h-3.5 w-3.5" aria-hidden="true" />
+        {competition && (
+          <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+            <span
+              className={cn(
+                "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+                plain
+                  ? "bg-card text-primary shadow-soft"
+                  : "bg-primary-soft text-primary-soft-foreground",
+              )}
+            >
+              <CompetitionIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span className="truncate">{competition}</span>
           </span>
-          <span className="truncate">{competition}</span>
-        </span>
+        )}
         {stage && (
           <span
             className={cn(
               "shrink-0 text-xs font-semibold text-primary",
-              plain &&
-                "md:text-sm md:font-medium md:text-muted-foreground md:before:mr-2 md:before:content-['·']",
+              plain && "md:text-sm md:font-medium md:text-muted-foreground",
+              plain && competition && "md:before:mr-2 md:before:content-['·']",
             )}
           >
             {stage}
           </span>
         )}
       </div>
-      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2">
-        <HeroSide {...home} />
-        <div className="flex min-w-[6.5rem] flex-col items-center gap-2 pt-2 text-center">
-          <MatchStatusChip status={status} />
-          {centre}
-        </div>
-        <HeroSide {...away} />
+      <div
+        className={cn(
+          "mt-4 grid items-start gap-2",
+          middle
+            ? "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
+            : "grid-cols-2",
+        )}
+      >
+        <HeroSide {...home} compact={compact} />
+        {middle && (
+          <div className="flex min-w-[6.5rem] flex-col items-center gap-2 pt-2 text-center">
+            {status && <MatchStatusChip status={status} />}
+            {centre}
+          </div>
+        )}
+        <HeroSide {...away} compact={compact} />
       </div>
-      {note && <div className="mt-4 text-center">{note}</div>}
-      {children && <div className="mt-5">{children}</div>}
+      {note && <div className="mt-3 text-center">{note}</div>}
+      {children && <div className="mt-4">{children}</div>}
     </section>
+  );
+}
+
+export type ScoreLineSide = {
+  /** The team's short code, or its name. */
+  code: string;
+  /** "83/6 (8.0)"; none before it bats. */
+  score?: string | null;
+  dim?: boolean;
+};
+
+/**
+ * The match in one line, for a bar that stays on screen once the header has
+ * scrolled away: "ROH 83/6 (8.0) · OMK 68/6 (8.0)", or "ROH v OMK" before
+ * the start. It repeats the header, so screen readers skip it.
+ */
+export function ScoreLine({
+  sides,
+  className,
+}: {
+  sides: readonly [ScoreLineSide, ScoreLineSide];
+  className?: string;
+}) {
+  const started = sides.some((s) => s.score);
+  const side = (s: ScoreLineSide) => (
+    <span
+      className={cn(
+        "min-w-0 truncate",
+        s.dim ? "text-muted-foreground" : "text-foreground",
+      )}
+    >
+      <span className="font-semibold">{s.code}</span>
+      {s.score && <span className="ml-1">{s.score}</span>}
+    </span>
+  );
+  return (
+    <p
+      aria-hidden="true"
+      className={cn(
+        "flex min-w-0 items-center justify-center gap-2 font-score text-sm tabular-nums",
+        className,
+      )}
+    >
+      {side(sides[0])}
+      <span className="shrink-0 text-muted-foreground">
+        {started ? "·" : "v"}
+      </span>
+      {side(sides[1])}
+    </p>
   );
 }

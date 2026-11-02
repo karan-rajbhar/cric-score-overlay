@@ -7,6 +7,8 @@ import type { TabBarItem } from "~/components/ds/app-bar";
 import type { BallKind } from "~/components/ds/ball";
 import type { InningsRef, TeamRef } from "~/components/ds/score";
 import type { StandingRow } from "~/components/ds/standings";
+import type { ExportTeamStats } from "~/lib/match-report";
+import type { PlayerAward } from "~/lib/player-award";
 
 /* A stand-in uploaded logo: a navy shield with a white monogram. */
 export const SAMPLE_LOGO = `data:image/svg+xml,${encodeURIComponent(
@@ -100,6 +102,69 @@ export const RESULT = {
     innings: { runs: 152, wickets: 5, overs: "18.4" },
   },
   note: "Old Town CC won by 5 wickets (8 balls left)",
+};
+
+/** The tabs of a match, as they change with it. */
+export const MATCH_TABS = [
+  { value: "summary", label: "Summary" },
+  { value: "scorecard", label: "Scorecard" },
+  { value: "balls", label: "Balls" },
+  { value: "stats", label: "Stats" },
+  { value: "squads", label: "Squads" },
+];
+export const LIVE_MATCH_TABS = [
+  { value: "summary", label: "Live" },
+  ...MATCH_TABS.slice(1),
+];
+export const UPCOMING_MATCH_TABS = [
+  { value: "summary", label: "Summary" },
+  { value: "squads", label: "Squads" },
+];
+
+export const RESULT_AWARD: PlayerAward = {
+  name: "Rohan Desai",
+  avatarUrl: null,
+  team: TEAMS.oldTown.name,
+  batting: { runs: 74, balls: 48, fours: 7, sixes: 3, notOut: true },
+  bowling: { wickets: 2, runs: 21, overs: "3.0", maidens: 0 },
+};
+
+/**
+ * The two innings of `RESULT`, as the Summary tab shows them: each side's
+ * batters beside the bowlers who bowled at them, the other side's.
+ */
+export const RESULT_FIRST_INNINGS: ExportTeamStats = {
+  name: TEAMS.bay.name,
+  shortName: "BAY",
+  scoreLine: "151/8 (20.0)",
+  batters: [
+    { name: "Joshi Nair", runs: 52, balls: 35, notOut: false, sr: "148.6" },
+    { name: "Aryan Pillai", runs: 34, balls: 28, notOut: false, sr: "121.4" },
+    { name: "Farhan Ali", runs: 19, balls: 14, notOut: true, sr: "135.7" },
+  ],
+  bowlers: [
+    { name: "Rohan Desai", overs: "3.0", runs: 21, wickets: 2, econ: "7.00" },
+    { name: "Nikhil Joshi", overs: "4.0", runs: 28, wickets: 2, econ: "7.00" },
+    { name: "Omar Sheikh", overs: "4.0", runs: 35, wickets: 1, econ: "8.75" },
+  ],
+  bowlingSide: TEAMS.oldTown.name,
+};
+
+export const RESULT_SIDE: ExportTeamStats = {
+  name: TEAMS.oldTown.name,
+  shortName: "OTC",
+  scoreLine: "152/5 (18.4)",
+  batters: [
+    { name: "Rohan Desai", runs: 74, balls: 48, notOut: true, sr: "154.2" },
+    { name: "Sameer Rao", runs: 31, balls: 26, notOut: false, sr: "119.2" },
+    { name: "Dev Kulkarni", runs: 22, balls: 15, notOut: false, sr: "146.7" },
+  ],
+  bowlers: [
+    { name: "Qureshi Khan", overs: "4.0", runs: 31, wickets: 2, econ: "7.75" },
+    { name: "Ishaan Mehta", overs: "3.4", runs: 29, wickets: 1, econ: "7.91" },
+    { name: "Tariq Ansari", overs: "4.0", runs: 33, wickets: 1, econ: "8.25" },
+  ],
+  bowlingSide: TEAMS.bay.name,
 };
 
 export const FIXTURE = {

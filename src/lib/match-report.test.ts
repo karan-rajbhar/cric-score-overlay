@@ -204,6 +204,72 @@ describe("match-report export helpers", () => {
       expect(summary.team2.batters).toHaveLength(1);
       expect(summary.team2.batters[0]?.name).toBe("Steve Smith");
     });
+
+    it("pairs each innings' batters with the bowlers who bowled in it", () => {
+      const bowler = (innings_id: string, name: string) => ({
+        id: name,
+        match_id: "m1",
+        innings_id,
+        user_id: name,
+        overs_bowled: 4,
+        balls_bowled: 24,
+        runs_conceded: 30,
+        wickets_taken: 2,
+        maidens: 0,
+        wides: 0,
+        no_balls: 0,
+        user: { id: name, full_name: name },
+      });
+      const summary = buildExportSummary(
+        {
+          ...sampleMatch,
+          innings: [
+            { ...innings1, bowling_performances: [bowler("inn1", "Rashid Khan")] },
+            {
+              ...innings2,
+              bowling_performances: [bowler("inn2", "Jasprit Bumrah")],
+            },
+          ],
+        },
+        "",
+      );
+
+      // Tigers batted first, so Kings' bowlers bowled at them.
+      expect(summary.team1.name).toBe("Royal Tigers");
+      expect(summary.team1.bowlers.map((b) => b.name)).toEqual(["Rashid Khan"]);
+      expect(summary.team1.bowlingSide).toBe("Coastal Kings");
+      expect(summary.team2.name).toBe("Coastal Kings");
+      expect(summary.team2.bowlers.map((b) => b.name)).toEqual([
+        "Jasprit Bumrah",
+      ]);
+      expect(summary.team2.bowlingSide).toBe("Royal Tigers");
+    });
+
+    it("gives a side yet to bat no batters and no bowlers", () => {
+      const summary = buildExportSummary(
+        { ...sampleMatch, status: "live", innings: [innings1] },
+        "",
+      );
+      expect(summary.team2.scoreLine).toBe("Yet to bat");
+      expect(summary.team2.batters).toEqual([]);
+      expect(summary.team2.bowlers).toEqual([]);
+      expect(summary.team2.bowlingSide).toBe("Royal Tigers");
+    });
+
+    it("leaves a super over out of the two innings", () => {
+      const superOver: Innings = {
+        ...innings2,
+        id: "so",
+        innings_number: 3,
+        team_id: "t1",
+        total_runs: 9,
+      };
+      const summary = buildExportSummary(
+        { ...sampleMatch, innings: [innings1, innings2, superOver] },
+        "",
+      );
+      expect(summary.team1.scoreLine).toBe("178/5 (20.0)");
+    });
   });
 
   const URL_ = "https://cricket.app/matches/match-124";
