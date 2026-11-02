@@ -7,10 +7,7 @@ import { Shield, Plus } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ClubLogo } from "~/components/clubs/club-logo";
 import { formatClubType } from "~/lib/cricket";
-import {
-  DirectorySwitch,
-  MineAllSwitch,
-} from "~/components/layout/directory-switch";
+import { MineAllSwitch } from "~/components/layout/mine-all-switch";
 import { ListSearch } from "~/components/layout/list-search";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
@@ -128,7 +125,6 @@ export default async function ClubsPage({
 
   return (
     <PageContainer>
-      <DirectorySwitch current="/clubs" />
       <PageHeader
         search
         title={view === "mine" ? "My clubs" : "All clubs"}

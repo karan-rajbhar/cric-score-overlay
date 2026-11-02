@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Shield,
   Trophy,
+  UserCheck,
   UserPlus,
   Users,
   type LucideIcon,
@@ -23,6 +24,11 @@ import { Button } from "~/components/ui/button";
 import { useAuth } from "~/lib/auth";
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
 import { useTheme, type Theme } from "~/lib/theme-provider";
+
+const PLACES = [
+  { href: "/teams", label: "Teams", icon: Users },
+  { href: "/players", label: "Players", icon: UserCheck },
+] as const;
 
 const CREATE = [
   { href: "/matches/create", label: "New match", icon: PlusCircle },
@@ -82,6 +88,22 @@ export function AccountCard() {
         title={name}
         subtitle={`${username ? `@${username} · ` : ""}My profile`}
       />
+    </ListCard>
+  );
+}
+
+/** Places with no tab of their own, for anyone. */
+export function PlacesSection() {
+  return (
+    <ListCard>
+      {PLACES.map(({ href, label, icon }) => (
+        <ListRow
+          key={href}
+          href={href}
+          leading={<RowIcon icon={icon} />}
+          title={label}
+        />
+      ))}
     </ListCard>
   );
 }

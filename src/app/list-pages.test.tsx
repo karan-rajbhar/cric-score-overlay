@@ -90,11 +90,10 @@ describe("Clubs list", () => {
     expect(screen.getByText("No public club matches “zzz”.")).toBeInTheDocument();
   });
 
-  it("has the switch to Teams and Players", async () => {
+  it("holds only clubs: Teams and Players are not behind this tab", async () => {
     await clubsAt({});
-    expect(
-      screen.getByRole("navigation", { name: "Clubs, teams and players" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Teams" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Players" })).toBeNull();
   });
 });
 

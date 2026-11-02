@@ -18,8 +18,10 @@ describe("navSectionOf", () => {
     ["/tournaments/abc", "tournaments"],
     ["/clubs", "clubs"],
     ["/clubs/abc", "clubs"],
-    ["/teams/abc", "clubs"],
-    ["/players/@rahul", "clubs"],
+    ["/teams", "more"],
+    ["/teams/abc", "more"],
+    ["/players", "more"],
+    ["/players/@rahul", "more"],
     ["/more", "more"],
     ["/invitations", "more"],
   ])("puts %s under %s", (path, section) => {

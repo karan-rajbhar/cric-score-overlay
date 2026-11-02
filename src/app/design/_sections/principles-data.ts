@@ -43,9 +43,9 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
       {
         title: "Link to what is hidden from inside pages",
         rule: "Anything not in a tab is linked from the pages where people need it.",
-        why: "NN/g's advice when not everything fits: in-page links offset the cost of hiding it. Teams and Players sit behind the Clubs tab, one tap from each other.",
+        why: "NN/g's advice when not everything fits: in-page links offset the cost of hiding it. Teams and Players have no tab, so More lists them, and a club's page has its own teams and members.",
         evidence: "study",
-        appliedIn: "DirectorySwitch",
+        appliedIn: "PlacesSection",
       },
       {
         title: "A tab goes somewhere",
@@ -57,6 +57,13 @@ export const PRINCIPLE_GROUPS: readonly PrincipleGroup[] = [
         title: "One tab is always lit",
         rule: "Every page belongs to one section. Add a new section to navSectionOf.",
         why: "Clubs, Teams and Players once lit nothing, so people could not tell where they were.",
+        evidence: "learned",
+        appliedIn: "navSectionOf",
+      },
+      {
+        title: "A tab holds what its name says",
+        rule: "Everything under a tab belongs to that name. A list that needs a home goes on More, not behind the nearest tab.",
+        why: "The Clubs tab once held a Clubs / Teams / Players switch, but those lists showed every team and player. A club's page has Teams too, so one word meant two things under one tab.",
         evidence: "learned",
         appliedIn: "navSectionOf",
       },
