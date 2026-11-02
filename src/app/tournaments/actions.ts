@@ -108,10 +108,13 @@ async function checkTournamentAdminAuth(
   return isClubAdminOf(db, tournament.club_id, userId);
 }
 
+/** Most teams the "Register team" dialog lists, so it cannot read them all. */
+const REGISTRABLE_TEAMS = 200;
+
 /**
- * Every team, for an organiser's "Register team" dialog: read when the
- * dialog opens, not with every view of the tournament page. Anyone else
- * gets none (their own teams come with the page).
+ * The teams for an organiser's "Register team" dialog, in name order: read
+ * when the dialog opens, not with every view of the tournament page. Anyone
+ * else gets none (their own teams come with the page).
  */
 export async function getRegistrableTeams(tournamentId: string): Promise<{
   data: Array<{ id: string; name: string; short_name: string | null }>;
@@ -128,7 +131,8 @@ export async function getRegistrableTeams(tournamentId: string): Promise<{
   const { data, error } = await db
     .from("teams")
     .select("id, name, short_name")
-    .order("name");
+    .order("name_lower")
+    .limit(REGISTRABLE_TEAMS);
   if (error) return { data: [], error: error.message };
   return {
     data: (data ?? []) as Array<{

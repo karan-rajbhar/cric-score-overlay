@@ -80,6 +80,12 @@ const config = {
   output: "standalone",
   env: { NEXT_PUBLIC_BUILD_ID: buildId() },
   reactStrictMode: true,
+  experimental: {
+    // Going back to a page seen a moment ago reads nothing: every page is
+    // rendered per request, so without this each revisit re-reads Firestore.
+    // A server action that revalidates clears it, so edits still show.
+    staleTimes: { dynamic: 60 },
+  },
   // Hosts the dev server may be opened from (Next.js refuses its dev
   // resources, HMR and chunks, to any other origin): the quick tunnels, and
   // the fixed tunnel host from .env.local (`npm run dev`).

@@ -7,7 +7,10 @@ import { prefixSearch } from "~/lib/firebase/search";
 import { keysetPage, PAGE_SIZE, parseCursor } from "~/lib/keyset";
 import { createServerClient } from "~/lib/firebase/server";
 import { canManageTeam } from "~/lib/firebase/permissions";
-import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
+import {
+  notifySquadChanged,
+  refreshLiveMatchesFor,
+} from "~/lib/firebase/live-sync";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
@@ -581,9 +584,12 @@ export async function createPlayerQuick(
       return { data: null, error: error.message };
     }
 
-    revalidatePath(`/teams/${teamId}`);
+    // From the scoring screen a revalidation only re-renders that screen for
+    // nothing (a request the scorer's phone waits for) and sets its links
+    // prefetching again: the team page reads per request anyway.
+    if (!matchId) revalidatePath(`/teams/${teamId}`);
     // A live match of this team shows its squad: tell its viewers now.
-    await refreshLiveMatchesFor(db, { teamId });
+    await notifySquadChanged(db, { teamId, matchId });
     return { data: data as { user_id: string; full_name: string }, error: null };
   } catch (err) {
     console.error("Unexpected error in createPlayerQuick:", err);
@@ -636,9 +642,12 @@ export async function addExistingPlayerQuick(
       return { data: null, error: error.message };
     }
 
-    revalidatePath(`/teams/${teamId}`);
+    // From the scoring screen a revalidation only re-renders that screen for
+    // nothing (a request the scorer's phone waits for) and sets its links
+    // prefetching again: the team page reads per request anyway.
+    if (!matchId) revalidatePath(`/teams/${teamId}`);
     // A live match of this team shows its squad: tell its viewers now.
-    await refreshLiveMatchesFor(db, { teamId });
+    await notifySquadChanged(db, { teamId, matchId });
     return { data: data as { user_id: string; full_name: string }, error: null };
   } catch (err) {
     console.error("Unexpected error in addExistingPlayerQuick:", err);
@@ -689,7 +698,7 @@ export async function addPlayerToTeam(
   }
 
   revalidatePath(`/teams/${teamId}`);
-  await refreshLiveMatchesFor(db, { teamId });
+  await notifySquadChanged(db, { teamId });
   return { success: true };
 }
 
@@ -728,7 +737,7 @@ export async function removePlayerFromTeam(
   }
 
   revalidatePath(`/teams/${teamId}`);
-  await refreshLiveMatchesFor(db, { teamId });
+  await notifySquadChanged(db, { teamId });
   return { success: true };
 }
 
@@ -781,7 +790,7 @@ export async function updatePlayerRole(
 
   revalidatePath(`/teams/${teamId}`);
   // Captain / vice-captain markers show on a live match's squads.
-  await refreshLiveMatchesFor(db, { teamId });
+  await notifySquadChanged(db, { teamId });
   return { success: true };
 }
 

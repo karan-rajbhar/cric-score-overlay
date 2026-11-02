@@ -185,6 +185,22 @@
       "collectionGroup": "matches",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "club_id", "order": "ASCENDING" },
+        { "fieldPath": "summary_runs", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "club_id", "order": "ASCENDING" },
+        { "fieldPath": "summary_wickets", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "team1_id", "order": "ASCENDING" },
         { "fieldPath": "scheduled_at", "order": "DESCENDING" }
       ]

@@ -438,7 +438,7 @@ async function scoresMatchOf(
   )) as unknown as MatchesRow | null;
   if (!match) return false;
   if (match.team1_id !== teamId && match.team2_id !== teamId) return false;
-  return isMatchAdmin(ds, matchId, userId);
+  return isMatchAdmin(ds, matchId, userId, match);
 }
 
 /**
@@ -460,8 +460,9 @@ export async function assertMayAddPlayers(
     team.created_by === callerId ||
     team.captain_id === callerId ||
     team.vice_captain_id === callerId ||
-    (await isClubAdmin(ds, team.club_id, callerId)) ||
-    (await scoresMatchOf(ds, matchId, teamId, callerId));
+    // Before the club: from the scoring screen this is the usual answer.
+    (await scoresMatchOf(ds, matchId, teamId, callerId)) ||
+    (await isClubAdmin(ds, team.club_id, callerId));
   if (!authorised) {
     throw new DbQueryError(
       "not_authorized: Not authorized to add players to this team",

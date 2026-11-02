@@ -16,7 +16,7 @@
  */
 
 import type { DataSource, Doc, NativeFilter, QueryOptions } from "./datasource";
-import { refreshPlayerIdentity, refreshRoster } from "./denorm";
+import { addToRoster, refreshPlayerIdentity, refreshRoster } from "./denorm";
 import { SEARCH_FIELDS, searchFieldsOf, userSnapshot } from "./derive.mjs";
 
 const IDENTITY_FIELDS = ["full_name", "avatar_url", "username"] as const;
@@ -83,7 +83,13 @@ export class DerivedFieldsDataSource implements DataSource {
           .map((d) => d.team_id)
           .filter((id): id is string => typeof id === "string"),
       );
-      for (const teamId of teams) await refreshRoster(this.inner, teamId);
+      for (const teamId of teams) {
+        await addToRoster(
+          this.inner,
+          teamId,
+          out.filter((d) => d.team_id === teamId),
+        );
+      }
     } else if (table === "users") {
       for (const doc of out) await refreshPlayerIdentity(this.inner, doc.id);
     }

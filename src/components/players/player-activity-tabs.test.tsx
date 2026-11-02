@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PlayerActivityTabs,
   type PlayerTeamMembership,
@@ -7,6 +8,9 @@ import {
   type PlayerBowlingPerformance,
   type PlayerMatchItem,
 } from "./player-activity-tabs";
+
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 
 // Match cards follow live_state (server-only queries); not what these test.
 vi.mock("~/lib/hooks/useMatchQueries", () => ({
@@ -166,10 +170,27 @@ const mockMatches: PlayerMatchItem[] = [
   },
 ];
 
+/** The tabs with their matches read, unless a test says otherwise. */
+function Activity(
+  props: Omit<
+    ComponentProps<typeof PlayerActivityTabs>,
+    "matchesLoaded" | "hasMatches"
+  > &
+    Partial<ComponentProps<typeof PlayerActivityTabs>>,
+) {
+  return (
+    <PlayerActivityTabs
+      matchesLoaded
+      hasMatches={props.matches.length > 0}
+      {...props}
+    />
+  );
+}
+
 describe("PlayerActivityTabs", () => {
   it("offers only the tabs that have something in them", () => {
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={[]}
         batting={[]}
         bowling={[]}
@@ -187,7 +208,7 @@ describe("PlayerActivityTabs", () => {
 
   it("renders rich batting innings with formatted dismissals, strike rates, and opponents", () => {
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -214,7 +235,7 @@ describe("PlayerActivityTabs", () => {
 
   it("renders bowling figures and details on the bowling tab", () => {
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -230,7 +251,7 @@ describe("PlayerActivityTabs", () => {
 
   it("renders team memberships on the teams tab", () => {
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -248,7 +269,7 @@ describe("PlayerActivityTabs", () => {
 
   it("renders match appearances with player contributions", () => {
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={mockTeams}
         batting={mockBatting}
         bowling={mockBowling}
@@ -275,7 +296,7 @@ describe("PlayerActivityTabs", () => {
     ];
 
     render(
-      <PlayerActivityTabs
+      <Activity
         teams={mockTeams}
         batting={battingWithNullResult}
         bowling={[]}
@@ -286,5 +307,55 @@ describe("PlayerActivityTabs", () => {
 
     // The same status chip as the match cards.
     expect(screen.getByText("Upcoming")).toBeInTheDocument();
+  });
+
+  describe("before the matches are read", () => {
+    const open = (name: string) =>
+      fireEvent.mouseDown(screen.getByRole("tab", { name }), { button: 0 });
+
+    const renderUnread = () =>
+      render(
+        <Activity
+          teams={mockTeams}
+          batting={mockBatting}
+          bowling={[]}
+          matches={[]}
+          matchesLoaded={false}
+          hasMatches
+          statistics={<p>Career figures</p>}
+        />,
+      );
+
+    beforeEach(() => {
+      replace.mockClear();
+      window.history.replaceState(null, "", "/players/p1");
+    });
+
+    it("offers the Matches tab though none is read yet", () => {
+      renderUnread();
+      expect(screen.getByRole("tab", { name: "Matches" })).toBeInTheDocument();
+    });
+
+    it("asks for them when a tab that lists matches opens", () => {
+      renderUnread();
+      open("Batting");
+      expect(replace).toHaveBeenCalledWith("/players/p1?tab=batting", {
+        scroll: false,
+      });
+      expect(screen.getByLabelText("Loading")).toBeInTheDocument();
+    });
+
+    it("asks once: the three tabs share what comes back", () => {
+      renderUnread();
+      open("Batting");
+      open("Matches");
+      expect(replace).toHaveBeenCalledTimes(1);
+    });
+
+    it("reads nothing for a tab that lists no matches", () => {
+      renderUnread();
+      open("Teams");
+      expect(replace).not.toHaveBeenCalled();
+    });
   });
 });

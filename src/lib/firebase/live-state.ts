@@ -373,6 +373,40 @@ export async function writeLiveState(
 }
 
 /**
+ * Tell a match's viewers about a change the scoreboard does not show (a
+ * squad): the next version of the stored doc and nothing else, so a tab that
+ * shows the squad re-reads it while the rest read nothing. 2 reads, this doc
+ * and the live scorecard its copy lives on, where {@link writeLiveState}
+ * rebuilds everything from the stored rows, and names no innings, so
+ * scorers and viewers re-read too.
+ *
+ * No `events`: the last ball's graphics must not play again. `refs` stay, so
+ * a bowler's wicket streak survives. A match with no doc yet has no viewers
+ * to tell.
+ */
+export async function bumpLiveState(
+  ds: DataSource,
+  matchId: string,
+  db?: Firestore | null,
+): Promise<LiveStateDoc | null> {
+  const now = new Date().toISOString();
+  return runScoringTransaction({ db, ds }, async (t) => {
+    const prev = await t.doc<LiveStateDoc>(LIVE_STATE_COLLECTION, matchId);
+    if (!prev) return null;
+    const doc: LiveStateDoc = {
+      ...prev,
+      events: [],
+      updated_at: now,
+      version: (prev.version ?? 0) + 1,
+      overs_changed: [],
+      innings_changed: [],
+    };
+    t.put(LIVE_STATE_COLLECTION, matchId, doc);
+    return doc;
+  });
+}
+
+/**
  * The stored `live_state/{matchId}` (1 read), created on first use for
  * matches that predate it. Returns null when the match does not exist.
  */
