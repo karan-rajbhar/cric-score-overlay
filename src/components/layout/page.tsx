@@ -2,6 +2,7 @@ import type * as React from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { buttonVariants } from "~/components/ds/button";
+import { ScreenBar } from "~/components/ds/screen";
 import { cn } from "~/lib/utils";
 
 /*
@@ -62,6 +63,7 @@ export function PageHeader({
   description,
   actions,
   search = false,
+  back,
   children,
   className,
 }: {
@@ -71,37 +73,58 @@ export function PageHeader({
   actions?: React.ReactNode;
   /** A main screen: shows the way to Search on phones (`SearchLink`). */
   search?: boolean;
+  /**
+   * A page under a tab, not the tab itself: on phones the title moves into a
+   * `ScreenBar` with Back, so the screen names itself once.
+   */
+  back?: { href: string; label: string };
   /** Extra content under the description (badges, meta). */
   children?: React.ReactNode;
   className?: string;
 }) {
   return (
-    <header
-      className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
-        className,
+    <>
+      {back && (
+        <ScreenBar
+          title={title}
+          backHref={back.href}
+          backLabel={back.label}
+          action={search ? <SearchLink /> : undefined}
+          className="md:hidden"
+        />
       )}
-    >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
-            {title}
-          </h1>
-          {description && (
-            <p className="mt-1 text-pretty text-sm text-muted-foreground">
-              {description}
-            </p>
-          )}
-          {children}
+      <header
+        className={cn(
+          "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+          className,
+        )}
+      >
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1
+              className={cn(
+                "text-balance text-2xl font-semibold tracking-tight text-foreground",
+                back && "max-md:hidden",
+              )}
+            >
+              {title}
+            </h1>
+            {description && (
+              <p className="mt-1 text-pretty text-sm text-muted-foreground">
+                {description}
+              </p>
+            )}
+            {children}
+          </div>
+          {search && !back && <SearchLink />}
         </div>
-        {search && <SearchLink />}
-      </div>
-      {actions && (
-        <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
-          {actions}
-        </div>
-      )}
-    </header>
+        {actions && (
+          <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto [&>*]:flex-1 sm:[&>*]:flex-none">
+            {actions}
+          </div>
+        )}
+      </header>
+    </>
   );
 }
 

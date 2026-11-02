@@ -50,6 +50,22 @@ describe("More", () => {
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
   });
 
+  it.each([
+    ["a visitor", null],
+    ["a signed-in user", { id: "u1", user_metadata: {} }],
+  ])("takes %s to Teams and Players, which have no tab", (_who, user) => {
+    useAuth.mockReturnValue({ user, loading: false });
+    render(<MorePage />);
+    expect(screen.getByRole("link", { name: "Teams" })).toHaveAttribute(
+      "href",
+      "/teams",
+    );
+    expect(screen.getByRole("link", { name: "Players" })).toHaveAttribute(
+      "href",
+      "/players",
+    );
+  });
+
   it("repeats no tab, and has the way to Search", () => {
     useAuth.mockReturnValue({ user: null, loading: false });
     render(<MorePage />);

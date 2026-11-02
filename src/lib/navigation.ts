@@ -17,15 +17,16 @@ export function navSectionOf(pathname: string): NavSection | null {
   if (pathname === "/" || under(pathname, "/dashboard")) return "home";
   if (under(pathname, "/matches")) return "matches";
   if (under(pathname, "/tournaments")) return "tournaments";
-  // The Clubs tab holds the directory: clubs, their teams and players.
+  if (under(pathname, "/clubs")) return "clubs";
+  // Teams and Players list everyone, not a club's: More holds them.
   if (
-    under(pathname, "/clubs") ||
+    under(pathname, "/more") ||
+    under(pathname, "/invitations") ||
     under(pathname, "/teams") ||
     under(pathname, "/players")
   ) {
-    return "clubs";
+    return "more";
   }
-  if (under(pathname, "/more") || under(pathname, "/invitations")) return "more";
   return null;
 }
 

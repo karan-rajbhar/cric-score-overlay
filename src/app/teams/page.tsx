@@ -10,10 +10,7 @@ import { createServerClient } from "~/lib/firebase/server";
 import { ListSearch } from "~/components/layout/list-search";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
-import {
-  DirectorySwitch,
-  MineAllSwitch,
-} from "~/components/layout/directory-switch";
+import { MineAllSwitch } from "~/components/layout/mine-all-switch";
 
 export const metadata = { title: "Teams" };
 
@@ -54,9 +51,9 @@ export default async function TeamsPage({
 
   return (
     <PageContainer>
-      <DirectorySwitch current="/teams" />
       <PageHeader
         search
+        back={{ href: "/more", label: "Back to More" }}
         title={view === "mine" ? "My teams" : "All teams"}
         description={
           view === "mine"

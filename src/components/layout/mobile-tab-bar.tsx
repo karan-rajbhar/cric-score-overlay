@@ -8,8 +8,8 @@ import { navSectionOf } from "~/lib/navigation";
 
 /**
  * Phone navigation: the floating tab bar at the bottom of the screen, where
- * the thumb is. Every tab is a place (see `/design#principles`); Clubs holds
- * the directory (clubs, teams, players), More what has no place of its own,
+ * the thumb is. Every tab is a place that holds what its name says (see
+ * `/design#principles`); More has what has no tab (Teams, Players, account),
  * and Search is a button at the top of the main screens (`SearchLink`).
  * Hidden from tablets up, where the sidebar shows.
  */

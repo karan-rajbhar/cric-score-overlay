@@ -5,7 +5,6 @@ import { ListCard, ListRow } from "~/components/ds/list";
 import { Input } from "~/components/ui/input";
 import { Search, UserX } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
-import { DirectorySwitch } from "~/components/layout/directory-switch";
 import { ListSearch } from "~/components/layout/list-search";
 import { PageContainer, PageHeader } from "~/components/layout/page";
 import { Pager } from "~/components/layout/pager";
@@ -63,9 +62,9 @@ export default async function PlayersPage({
 
   return (
     <PageContainer>
-      <DirectorySwitch current="/players" />
       <PageHeader
         search
+        back={{ href: "/more", label: "Back to More" }}
         title="Players"
         description="All players on the platform"
       />
