@@ -147,6 +147,7 @@ export function PlayerList({
             <span className="min-w-0 flex-1">
               <Link
                 href={`/players/${player.user_id}`}
+                prefetch={false}
                 className="block truncate text-sm font-medium text-foreground hover:text-primary"
               >
                 {name}

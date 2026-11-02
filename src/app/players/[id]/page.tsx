@@ -17,6 +17,7 @@ import {
 import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
+import { cachedForMetadata } from "~/lib/metadata-cache";
 import type { PlayerMatchesRow } from "~/lib/firebase/types";
 import {
   attachMatchTeams,
@@ -92,8 +93,12 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const player = (await loadPlayer((await params).id))?.user;
-  return { title: player?.full_name ?? "Player" };
+  const { id } = await params;
+  const name = await cachedForMetadata(
+    `player:${id}`,
+    async () => (await loadPlayer(id))?.user.full_name,
+  );
+  return { title: name ?? "Player" };
 }
 
 export default async function PlayerPage({

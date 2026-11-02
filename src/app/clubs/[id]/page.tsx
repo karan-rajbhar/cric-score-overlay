@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
+import { cachedForMetadata } from "~/lib/metadata-cache";
 import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
@@ -183,8 +184,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { title: "Club" };
-  const { data: club } = await loadClub(id);
-  return { title: club?.name ?? "Club" };
+  const name = await cachedForMetadata(
+    `club:${id}`,
+    async () => (await loadClub(id)).data?.name,
+  );
+  return { title: name ?? "Club" };
 }
 
 /** Matches / members listed at first; "Show more" adds as many again. */

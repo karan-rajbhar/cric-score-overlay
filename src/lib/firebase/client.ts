@@ -8,6 +8,7 @@
 
 import "client-only";
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   connectAuthEmulator,
   getAuth,
@@ -23,6 +24,7 @@ import { connectStorageEmulator, getStorage } from "firebase/storage";
 import type { AppUser } from "./auth-types";
 import {
   EMULATOR_PORTS,
+  firebaseAppCheckSiteKey,
   firebaseEmulatorHost,
   firebaseWebConfig,
   useFirebaseEmulators,
@@ -51,6 +53,13 @@ export function getFirebaseApp(): FirebaseApp {
     });
     connectFirestoreEmulator(getFirestore(app), host, EMULATOR_PORTS.firestore);
     connectStorageEmulator(getStorage(app), host, EMULATOR_PORTS.storage);
+  } else if (firebaseAppCheckSiteKey && typeof window !== "undefined") {
+    // Before any other Firebase service, as App Check requires. Tokens are
+    // sent but not required until enforcement is switched on in the console.
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(firebaseAppCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
   }
   return app;
 }

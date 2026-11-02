@@ -31,6 +31,10 @@ export const firebaseWebConfig = {
   appId: env.NEXT_PUBLIC_FIREBASE_APP_ID,
 } as const;
 
+/** reCAPTCHA Enterprise key for App Check; unset leaves App Check off. */
+export const firebaseAppCheckSiteKey =
+  env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY;
+
 /** True when the app should talk to the local emulator suite. */
 export const useFirebaseEmulators =
   env.NEXT_PUBLIC_FIREBASE_USE_EMULATOR === "true";
