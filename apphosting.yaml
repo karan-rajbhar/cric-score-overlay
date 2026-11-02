@@ -41,6 +41,11 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: 1:495993231030:web:5218db0a28013b1bde7817
     availability: [BUILD, RUNTIME]
+  # App Check (reCAPTCHA Enterprise, public by design): the browser sends
+  # tokens, and nothing is blocked until enforcement is on in the console.
+  - variable: NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY
+    value: 6LcGQQwuAAAAAIWGLKweujX22X2qp2-oDcx9XV-I
+    availability: [BUILD, RUNTIME]
 
   # Invite-only bootstrap: Google emails that may always sign in.
   - variable: ALLOWED_EMAILS

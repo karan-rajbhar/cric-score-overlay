@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { createServerClient } from "~/lib/firebase/server";
+import { cachedForMetadata } from "~/lib/metadata-cache";
 import {
   attachMatchTeams,
   MATCH_TEAM_COLUMNS,
@@ -111,8 +112,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { title: "Tournament" };
-  const { data: tournament } = await loadTournament(id);
-  return { title: tournament?.name ?? "Tournament" };
+  const name = await cachedForMetadata(
+    `tournament:${id}`,
+    async () => (await loadTournament(id)).data?.name,
+  );
+  return { title: name ?? "Tournament" };
 }
 
 export default async function TournamentPage({

@@ -22,6 +22,7 @@ export const env = createEnv({
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: z.string().optional(),
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: z.string().optional(),
     NEXT_PUBLIC_FIREBASE_APP_ID: z.string().optional(),
+    NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY: z.string().optional(),
     /** "true" to use the local Firebase Emulator Suite. */
     NEXT_PUBLIC_FIREBASE_USE_EMULATOR: z
       .enum(["true", "false"])
@@ -43,6 +44,8 @@ export const env = createEnv({
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:
       process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY:
+      process.env.NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY,
     NEXT_PUBLIC_FIREBASE_USE_EMULATOR:
       process.env.NEXT_PUBLIC_FIREBASE_USE_EMULATOR,
     NEXT_PUBLIC_FIREBASE_EMULATOR_HOST:

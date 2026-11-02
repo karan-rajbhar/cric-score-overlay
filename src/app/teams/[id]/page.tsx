@@ -60,6 +60,7 @@ function latestCount(raw: string | undefined): number {
   return Number.isInteger(n) && n > MATCH_PAGE ? Math.min(n, 1000) : MATCH_PAGE;
 }
 import { EntityActions } from "~/components/follow/entity-actions";
+import { cachedForMetadata } from "~/lib/metadata-cache";
 
 /** The team: read once per request, by the page and its title. */
 const loadTeam = cache(getTeam);
@@ -70,8 +71,11 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const { data: team } = await loadTeam(id);
-  return { title: team?.name ?? "Team" };
+  const name = await cachedForMetadata(
+    `team:${id}`,
+    async () => (await loadTeam(id)).data?.name,
+  );
+  return { title: name ?? "Team" };
 }
 
 export default async function TeamDetailsPage({

@@ -17,7 +17,7 @@ interface CacheEntry<T> {
 const MATCH_CACHE_TTL_MS = 2000; // 2 seconds micro-cache
 const MAX_ENTRIES = 500; // Strict capacity cap for memory protection
 
-class LruMicroCache {
+export class LruMicroCache {
   private cache = new Map<string, CacheEntry<unknown>>();
   private pending = new Map<string, Promise<unknown>>();
 

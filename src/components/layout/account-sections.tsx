@@ -22,6 +22,7 @@ import { NotificationSettings } from "~/components/follow/push-settings";
 import { useInstallApp } from "~/components/pwa/install-app";
 import { Button } from "~/components/ui/button";
 import { useAuth } from "~/lib/auth";
+import { firebaseAppCheckSiteKey } from "~/lib/firebase/config";
 import { useSignOut, useUsername } from "~/lib/hooks/useAccount";
 import { useTheme, type Theme } from "~/lib/theme-provider";
 
@@ -186,6 +187,19 @@ export function SettingsSection() {
             title={<span className="text-destructive">Sign out</span>}
           />
         </ListCard>
+      )}
+      {firebaseAppCheckSiteKey && (
+        <p className="text-xs text-muted-foreground">
+          This site is protected by reCAPTCHA. The Google{" "}
+          <a className="underline" href="https://policies.google.com/privacy">
+            Privacy Policy
+          </a>{" "}
+          and{" "}
+          <a className="underline" href="https://policies.google.com/terms">
+            Terms of Service
+          </a>{" "}
+          apply.
+        </p>
       )}
     </section>
   );
