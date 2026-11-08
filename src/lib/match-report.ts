@@ -32,6 +32,8 @@ import {
   topBowlers,
   matchFormatLabel,
   namedFormat,
+  rankPlayersByImpact,
+  type PlayerImpactScore,
 } from "./cricket";
 
 // ---------------------------------------------------------------------------
@@ -572,113 +574,50 @@ export interface ImpactLeader {
   highlight: string;
 }
 
+/**
+ * The report's "Match impact": the top five by the match page's points
+ * (`rankPlayersByImpact`: the rules its "How points work" dialog lists, which
+ * the automatic player of the match follows too), so the report and the
+ * page never give a player different points.
+ */
 function calculateMatchImpactLeaders(match: Match): ImpactLeader[] {
-  const scores = new Map<
-    string,
-    {
-      name: string;
-      teamName: string;
-      teamTag: string;
-      points: number;
-      highlightParts: string[];
-    }
-  >();
+  const tagOf = (teamId: string) => {
+    const team = teamId === match.team1_id ? match.team1 : match.team2;
+    return team.short_name ?? team.name.slice(0, 3).toUpperCase();
+  };
+  return rankPlayersByImpact(match)
+    .filter((p) => p.totalPoints > 0)
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.playerId,
+      name: p.playerName,
+      teamName: p.teamName,
+      teamTag: tagOf(p.teamId),
+      points: p.totalPoints,
+      highlight: impactHighlight(p) || "All-round contribution",
+    }));
+}
 
-  const team1Name = match.team1.name;
-  const team1Tag =
-    match.team1.short_name ?? team1Name.slice(0, 3).toUpperCase();
-  const team2Name = match.team2.name;
-  const team2Tag =
-    match.team2.short_name ?? team2Name.slice(0, 3).toUpperCase();
+const counted = (n: number, one: string, many: string) =>
+  `${n} ${n === 1 ? one : many}`;
 
-  for (const inn of match.innings ?? []) {
-    const isTeam1 = inn.team_id === match.team1_id;
-    const battingTeamName = isTeam1 ? team1Name : team2Name;
-    const battingTeamTag = isTeam1 ? team1Tag : team2Tag;
-    const bowlingTeamName = isTeam1 ? team2Name : team1Name;
-    const bowlingTeamTag = isTeam1 ? team2Tag : team1Tag;
-
-    for (const b of inn.batting_performances ?? []) {
-      const uId = b.user_id;
-      const uName = b.user?.full_name ?? "Player";
-      const cur = scores.get(uId) ?? {
-        name: uName,
-        teamName: battingTeamName,
-        teamTag: battingTeamTag,
-        points: 0,
-        highlightParts: [],
-      };
-
-      const runs = b.runs_scored ?? 0;
-      const balls = b.balls_faced ?? 0;
-      const fours = b.fours ?? 0;
-      const sixes = b.sixes ?? 0;
-
-      let batPts = runs;
-      batPts += fours * 1 + sixes * 2;
-      if (runs >= 100) batPts += 40;
-      else if (runs >= 50) batPts += 20;
-      else if (runs >= 30) batPts += 10;
-
-      if (runs >= 15 && balls > 0 && runs / balls >= 1.5) {
-        batPts += 10;
-      }
-
-      cur.points += batPts;
-      if (runs > 0) {
-        cur.highlightParts.push(`${runs} runs (${balls}b)`);
-      }
-      scores.set(uId, cur);
-    }
-
-    for (const bw of inn.bowling_performances ?? []) {
-      const uId = bw.user_id;
-      const uName = bw.user?.full_name ?? "Player";
-      const cur = scores.get(uId) ?? {
-        name: uName,
-        teamName: bowlingTeamName,
-        teamTag: bowlingTeamTag,
-        points: 0,
-        highlightParts: [],
-      };
-
-      const wkts = bw.wickets_taken ?? 0;
-      const runs = bw.runs_conceded ?? 0;
-      const maidens = bw.maidens ?? 0;
-      const overs = (bw.balls_bowled ?? 0) / 6 || (bw.overs_bowled ?? 0);
-
-      let bowlPts = wkts * 25;
-      if (wkts >= 5) bowlPts += 30;
-      else if (wkts >= 3) bowlPts += 15;
-      bowlPts += maidens * 15;
-
-      if (overs >= 2) {
-        const econ = runs / overs;
-        if (econ <= 5.0) bowlPts += 25;
-        else if (econ <= 6.0) bowlPts += 15;
-      }
-
-      cur.points += bowlPts;
-      if (wkts > 0 || maidens > 0) {
-        cur.highlightParts.push(`${wkts}/${runs} (${formatBowlerOvers(bw)} ov)`);
-      }
-      scores.set(uId, cur);
-    }
+/** What earned the points: "16 runs (7b) · 2/7 (1.0 ov) · 1 run out". */
+function impactHighlight({ stats: s, breakdown }: PlayerImpactScore): string {
+  const parts: string[] = [];
+  if (s.runs > 0 || breakdown.batting > 0) {
+    parts.push(`${s.runs} runs (${s.balls}b)`);
   }
-
-  return Array.from(scores.entries())
-    .map(([id, val]) => ({
-      id,
-      name: val.name,
-      teamName: val.teamName,
-      teamTag: val.teamTag,
-      points: Math.round(val.points),
-      highlight:
-        val.highlightParts.join(" · ") || "All-round contribution",
-    }))
-    .filter((p) => p.points > 0)
-    .sort((a, b) => b.points - a.points)
-    .slice(0, 5);
+  if (s.wickets > 0 || breakdown.bowling > 0) {
+    parts.push(
+      `${s.wickets}/${s.runsConceded} (${formatDecimalOvers(s.overs)} ov)`,
+    );
+  }
+  if (s.catches > 0) parts.push(counted(s.catches, "catch", "catches"));
+  if (s.stumpings > 0) {
+    parts.push(counted(s.stumpings, "stumping", "stumpings"));
+  }
+  if (s.runOuts > 0) parts.push(counted(s.runOuts, "run out", "run outs"));
+  return parts.join(" · ");
 }
 
 

@@ -4,6 +4,7 @@ import {
   buildMatchReport,
   phaseBoundaries,
 } from "./match-report";
+import { rankPlayersByImpact } from "./cricket";
 import { makeMatch } from "~/test/factories";
 import type { Innings, Match } from "./match-types";
 
@@ -354,6 +355,54 @@ describe("match-report export helpers", () => {
       ]);
       expect(r.impact[0]?.name).toBe("Virat Kohli");
       expect(r.innings[0]!.bowlers).toEqual([]);
+    });
+
+    it("gives each player the match page's points, fielding and the winning side included", () => {
+      const fall = (n: number, out: string, type: string, fielder: string, name: string) => ({
+        id: `fow2-${n}`,
+        match_id: "m1",
+        innings_id: "inn2",
+        wicket_number: n,
+        runs_at_fall: n * 20,
+        overs_at_fall: n * 3,
+        batsman_out_id: out,
+        dismissal_type: type,
+        fielder_id: fielder,
+        fielder: { id: fielder, full_name: name },
+      });
+      const match: Match = {
+        ...sampleMatch,
+        winning_team_id: "t1",
+        innings: [
+          innings1,
+          {
+            ...innings2,
+            fall_of_wickets: [
+              fall(1, "u3", "caught", "u2", "Rohit Sharma"),
+              fall(2, "u10", "run_out", "uf1", "Ravindra Jadeja"),
+            ],
+          },
+        ],
+      };
+      const page = rankPlayersByImpact(match).slice(0, 5);
+      const r = buildMatchReport(match, URL_);
+
+      expect(r.impact.map((l) => [l.id, l.points])).toEqual(
+        page.map((p) => [p.playerId, p.totalPoints]),
+      );
+      const rohit = r.impact.find((l) => l.name === "Rohit Sharma");
+      expect(rohit).toMatchObject({
+        teamTag: "RTG",
+        highlight: "45 runs (30b) · 1 catch",
+      });
+      expect(rohit?.points).toBe(
+        page.find((p) => p.playerId === "u2")?.totalPoints,
+      );
+      // A fielder who neither batted nor bowled still earns points.
+      expect(r.impact.find((l) => l.id === "uf1")?.highlight).toBe("1 run out");
+      expect(r.impact.find((l) => l.id === "ub1")?.highlight).toBe(
+        "3/26 (4.0 ov)",
+      );
     });
 
     it("spells balls as the app does and counts wickets as the engine does", () => {
