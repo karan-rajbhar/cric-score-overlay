@@ -34,6 +34,7 @@ export interface ClubTournamentItem {
   venue?: string | null;
   season_id?: string | null;
   overs_per_innings?: number | null;
+  wickets_per_innings?: number | null;
 }
 
 export interface ClubSeasonItem {
@@ -213,18 +214,7 @@ export function ClubTournamentsTab({
                         />
                       )}
                       <TournamentManageDialog
-                        tournament={{
-                          id: t.id,
-                          name: t.name,
-                          description: t.description,
-                          tournament_format: t.tournament_format,
-                          match_format: t.match_format,
-                          overs_per_innings: t.overs_per_innings,
-                          venue: t.venue,
-                          start_date: t.start_date,
-                          end_date: t.end_date,
-                          season_id: t.season_id,
-                        }}
+                        tournament={t}
                         seasons={seasons}
                         clubId={clubId}
                       />

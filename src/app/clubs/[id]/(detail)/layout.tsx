@@ -108,7 +108,7 @@ export default async function ClubLayout({
     db
       .from("tournaments")
       .select(
-        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings",
+        "id, name, description, status, tournament_format, match_format, start_date, end_date, venue, season_id, overs_per_innings, wickets_per_innings",
       )
       .eq("club_id", id)
       .order("start_date", { ascending: false }),
