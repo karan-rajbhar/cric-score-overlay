@@ -198,3 +198,28 @@ describe("the automatic innings-break view", () => {
     expect(result.current.strap).toBeNull();
   });
 });
+
+describe("a hold", () => {
+  it("fires no automatic graphics while it is on", () => {
+    const s0 = row({});
+    const { result, rerender } = layersFor(s0);
+    let doc = after(null, { type: "SET_HOLD", hold: "card" });
+    rerender({ state: s0, doc });
+    const four = (seq: number) =>
+      row({
+        total_runs: (s0.total_runs ?? 0) + 4 * seq,
+        last_ball_seq: (s0.last_ball_seq ?? 0) + seq,
+        events: [ev("four", { name: "N Batter" })],
+      });
+    rerender({ state: four(1), doc });
+    tick();
+    expect(result.current.sting).toBeNull();
+
+    // Back on air: the next moment has its card again.
+    doc = after(doc, { type: "SET_HOLD", hold: null });
+    rerender({ state: four(1), doc });
+    rerender({ state: four(2), doc });
+    tick();
+    expect(result.current.sting?.type).toBe("four");
+  });
+});

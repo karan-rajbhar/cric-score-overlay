@@ -188,10 +188,12 @@ export function useOverlayLayers({
   const rulesRef = useRef(rules);
   const onReplayRef = useRef(onReplay);
   const ballsPerOverRef = useRef(ballsPerOver);
+  const heldRef = useRef(scene.hold !== null);
   useEffect(() => {
     rulesRef.current = rules;
     onReplayRef.current = onReplay;
     ballsPerOverRef.current = ballsPerOver;
+    heldRef.current = scene.hold !== null;
   });
   const [auto, setAuto] = useState<AutoOnAir>(NO_AUTO);
   const prevRow = useRef<LiveMatchState | null>(null);
@@ -214,6 +216,8 @@ export function useOverlayLayers({
     if (!state) return;
     const prev = prevRow.current;
     prevRow.current = state;
+    // While the score is held for a correction, nothing plays by itself.
+    if (heldRef.current) return;
     const items = autoGraphics(
       prev,
       state,
