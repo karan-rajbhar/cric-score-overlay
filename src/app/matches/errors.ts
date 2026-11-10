@@ -31,6 +31,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This batter has not faced a ball yet: change them instead of correcting.",
   too_many_batsmen: "All 11 batsmen have already batted.",
   match_not_live: "The match is not live.",
+  super_over_needs_tie:
+    "A super over starts only after a tied match. It may have started already: reload to see the latest score.",
   no_open_innings: "No open innings found.",
   nothing_to_undo: "Nothing to undo.",
   innings_not_migrated:

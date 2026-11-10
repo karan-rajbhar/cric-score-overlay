@@ -1665,6 +1665,10 @@ export async function startSuperOver(
     const { all, current } = await currentInningsOf(t, match);
     await guardClientAction(t, ctx, match, current);
     if (all.length === 0) throw new DbQueryError("no_innings_found", "22000");
+    // Only from a tie: not again once one has started (a second scorer, a
+    // queued start replayed), nor while an innings is in play.
+    if (match.status !== "completed" || match.result_type !== "tie")
+      throw new DbQueryError("super_over_needs_tie", "22000");
 
     const last = all.reduce(
       (m, i) => (i.innings_number > m.innings_number ? i : m),
