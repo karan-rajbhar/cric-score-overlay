@@ -41,6 +41,19 @@ export interface RecomputeInput {
   existingBatting: BattingPerformancesRow[];
   existingBowling: BowlingPerformancesRow[];
   now: string;
+  /**
+   * The crease and bowler to mark current, over what the log leaves (an
+   * undo: those the undone entry was recorded with, i.e. the state just
+   * before it). A batter the log has out, or one without a row, leaves the
+   * crease to the log; a null bowler leaves the bowler to it.
+   */
+  crease?: CreaseOverride | null;
+}
+
+export interface CreaseOverride {
+  striker: string | null;
+  nonStriker: string | null;
+  bowler: string | null;
 }
 
 export interface RecomputeOutput {
@@ -800,17 +813,41 @@ function keepChosenCrease(r: Replay, existing: BattingPerformancesRow[]): void {
 }
 
 /**
- * Marks the crease and the current bowler. With no bowler in the over yet,
- * the one the scorer chose since the last ball stays (`set_current_bowler`),
+ * The crease an override names (see `RecomputeInput.crease`), unless the
+ * log has sent one of them off; false when it does not apply.
+ */
+function setCrease(
+  r: Replay,
+  crease: CreaseOverride | null | undefined,
+): boolean {
+  const striker = crease?.striker;
+  const nonStriker = crease?.nonStriker;
+  const atCrease = (id: string | null | undefined): id is string =>
+    Boolean(id && r.batting.has(id) && !r.batting.get(id)!.is_out);
+  if (!atCrease(striker) || !atCrease(nonStriker)) return false;
+  r.ends = { striker, nonStriker };
+  return true;
+}
+
+/**
+ * Marks the crease and the current bowler: `override` when given (and
+ * on the card), else the over's. With no bowler in the over yet, the one
+ * the scorer chose since the last ball stays (`set_current_bowler`),
  * unless they bowled the over just ended.
  */
-function markCurrent(r: Replay, existing: BowlingPerformancesRow[]): void {
+function markCurrent(
+  r: Replay,
+  existing: BowlingPerformancesRow[],
+  override: string | null = null,
+): void {
   const chosenBowler =
-    r.lastBowler === null
-      ? (existing.find(
-          (b) => b.is_current_bowler && b.user_id !== r.endedOverBowler,
-        )?.user_id ?? null)
-      : null;
+    override && r.bowling.has(override)
+      ? override
+      : r.lastBowler === null
+        ? (existing.find(
+            (b) => b.is_current_bowler && b.user_id !== r.endedOverBowler,
+          )?.user_id ?? null)
+        : null;
 
   const striker = r.ends.striker ? r.batting.get(r.ends.striker) : undefined;
   if (striker) {
@@ -856,8 +893,8 @@ function namedPlayers(balls: BallInput[]): Set<string> {
 export function recomputeInnings(input: RecomputeInput): RecomputeOutput {
   const r = startReplay(input);
   for (const ball of input.balls) replayEntry(r, ball);
-  keepChosenCrease(r, input.existingBatting);
-  markCurrent(r, input.existingBowling);
+  if (!setCrease(r, input.crease)) keepChosenCrease(r, input.existingBatting);
+  markCurrent(r, input.existingBowling, input.crease?.bowler ?? null);
 
   // A batter or bowler the log does not name, with nothing recorded and
   // no longer at the crease or bowling (brought in after a ball since
