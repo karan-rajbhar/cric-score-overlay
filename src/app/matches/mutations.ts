@@ -376,6 +376,58 @@ async function checkMatchAdminAuth(
   return false;
 }
 
+/**
+ * Innings 1 of a match being started. When it is there already, either
+ * another scorer started the match (refused) or an earlier start stopped
+ * before writing the match, whose innings this one takes over.
+ */
+async function openFirstInnings(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  matchId: string,
+  battingTeamId: string,
+): Promise<{ innings: Record<string, unknown> } | { error: string }> {
+  const { data, error } = await db
+    .from("innings")
+    .insert({ match_id: matchId, team_id: battingTeamId, innings_number: 1 })
+    .select()
+    .single();
+  if (!error) return { innings: data };
+  const { data: match } = await db
+    .from("matches")
+    .select("status")
+    .eq("id", matchId)
+    .single();
+  if (match?.status !== "scheduled") {
+    return { error: "This match has already started" };
+  }
+  const { data: leftover } = await db
+    .from("innings")
+    .update({ team_id: battingTeamId })
+    .eq("match_id", matchId)
+    .eq("innings_number", 1)
+    .select()
+    .single();
+  return leftover
+    ? { innings: leftover }
+    : { error: friendlyError(error.message) };
+}
+
+/** The side the toss sends in to bat, for a match still to start. */
+function battingSideOf(
+  match: { status: string | null; team1_id: string; team2_id: string },
+  tossWinnerId: string,
+  tossDecision: "bat" | "bowl",
+): string | { error: string } {
+  if (match.status !== "scheduled") {
+    return { error: "This match has already started" };
+  }
+  if (tossWinnerId !== match.team1_id && tossWinnerId !== match.team2_id) {
+    return { error: "Choose the team that won the toss" };
+  }
+  if (tossDecision === "bat") return tossWinnerId;
+  return tossWinnerId === match.team1_id ? match.team2_id : match.team1_id;
+}
+
 export async function startMatch(
   matchId: string,
   tossWinnerId: string,
@@ -400,18 +452,20 @@ export async function startMatch(
 
   const { data: match, error: matchError } = await db
     .from("matches")
-    .select("team1_id, team2_id")
+    .select("status, team1_id, team2_id")
     .eq("id", matchId)
     .single();
   if (matchError || !match) {
     return { data: null, error: "Match not found" };
   }
-  const battingTeamId =
-    tossDecision === "bat"
-      ? tossWinnerId
-      : tossWinnerId === match.team1_id
-        ? match.team2_id
-        : match.team1_id;
+  const battingTeamId = battingSideOf(match, tossWinnerId, tossDecision);
+  if (typeof battingTeamId !== "string") {
+    return { data: null, error: battingTeamId.error };
+  }
+  // The innings first: a start that fails there leaves the match as it was.
+  const opened = await openFirstInnings(db, matchId, battingTeamId);
+  if ("error" in opened) return { data: null, error: opened.error };
+  const innings = opened.innings;
   const { error: updateError } = await db
     .from("matches")
     .update({
@@ -425,19 +479,7 @@ export async function startMatch(
     })
     .eq("id", matchId);
   if (updateError) {
-    return { data: null, error: updateError.message };
-  }
-  const { data: innings, error: inningsError } = await db
-    .from("innings")
-    .insert({
-      match_id: matchId,
-      team_id: battingTeamId,
-      innings_number: 1,
-    })
-    .select()
-    .single();
-  if (inningsError) {
-    return { data: null, error: inningsError.message };
+    return { data: null, error: friendlyError(updateError.message) };
   }
   await refreshLiveState(db, matchId);
   notifyFollowersAfter(matchId, "started");
