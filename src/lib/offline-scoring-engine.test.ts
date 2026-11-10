@@ -3,6 +3,7 @@ import {
   processDeliveryLocally,
   buildContextFromMatch,
   deliveryResultToScoringState,
+  type BallInput,
   type LocalScoringContext,
   type MatchLike,
 } from "./offline-scoring-engine";
@@ -346,6 +347,85 @@ describe("offline-scoring-engine", () => {
     expect(res.strikerId).toBeNull();
     expect(res.nonStrikerId).toBe("bat-2");
     expect(res.needsBatsman).toBe(true);
+  });
+
+  describe("a cap on deliveries per over (max_balls_per_over)", () => {
+    const capped = { ...baseContext, maxBallsPerOver: 8 };
+    const bowl = (ctx: LocalScoringContext, balls: BallInput[]) =>
+      balls.reduce<LocalScoringContext>((c, b) => processDeliveryLocally(c, b), ctx);
+    const wide: BallInput = { extras: 1, extraType: "wide" };
+    const dot: BallInput = { runsScored: 0 };
+
+    it("ends the over at the cap and counts it as a complete over, as the server does", () => {
+      const seven = bowl(capped, [wide, wide, wide, wide, dot, dot, dot]);
+      expect(seven).toMatchObject({ currentOver: 0, currentBall: 3, deliveriesInOver: 7 });
+      const res = processDeliveryLocally(seven, dot);
+      expect(res).toMatchObject({
+        overCompleted: true,
+        needsBowler: true,
+        currentOver: 1,
+        currentBall: 0,
+        totalBalls: 6,
+        bowlerBallsBowled: 6,
+        deliveriesInOver: 0,
+      });
+      // One swap: the end of the over.
+      expect(res.strikerId).toBe("bat-2");
+    });
+
+    it("counts the next over from its first delivery", () => {
+      const next = bowl(capped, [wide, wide, wide, wide, dot, dot, dot, dot, dot]);
+      expect(next).toMatchObject({
+        overCompleted: false,
+        currentOver: 1,
+        currentBall: 1,
+        totalBalls: 7,
+        deliveriesInOver: 1,
+      });
+    });
+
+    it("does not count penalty runs as a delivery", () => {
+      const res = bowl(capped, [wide, { extras: 5, extraType: "penalty" }]);
+      expect(res.deliveriesInOver).toBe(1);
+    });
+
+    it("ends a one-over innings at the cap", () => {
+      const res = bowl({ ...capped, oversPerInnings: 1 }, [
+        wide,
+        wide,
+        wide,
+        wide,
+        dot,
+        dot,
+        dot,
+        dot,
+      ]);
+      expect(res).toMatchObject({ inningsCompleted: true, totalBalls: 6 });
+    });
+
+    it("starts from the deliveries already in the over", () => {
+      const ctx = buildContextFromMatch(
+        {
+          current_innings: 1,
+          current_over: 0,
+          current_ball: 2,
+          overs_per_innings: 20,
+          max_balls_per_over: 4,
+          innings: [
+            { innings_number: 1, total_runs: 2, total_wickets: 0, total_balls: 2 },
+          ],
+        },
+        "bat-1",
+        "bat-2",
+        "bowl-1",
+        3,
+      );
+      expect(processDeliveryLocally(ctx, dot)).toMatchObject({
+        overCompleted: true,
+        currentOver: 1,
+        totalBalls: 6,
+      });
+    });
   });
 });
 

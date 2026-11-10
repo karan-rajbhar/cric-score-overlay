@@ -174,11 +174,14 @@ async function scoreEndAndNextBall(result: Screen) {
 }
 
 /** The engine's match, the server client over it, and the screen's reads. */
-function seed() {
+function seed(overrides: Partial<MatchesRow> = {}) {
   localStorage.clear();
   vi.clearAllMocks();
   vi.unstubAllGlobals();
-  side = stage2Driver(syntheticTables({ overs_per_innings: 1 }), true);
+  side = stage2Driver(
+    syntheticTables({ overs_per_innings: 1, ...overrides }),
+    true,
+  );
   // Builds nothing: the match starts with an empty first innings.
   void new GoldenReplay(side, "M", SYNTHETIC_ROSTERS);
   server.client = serverClientFor({
@@ -197,13 +200,13 @@ function seed() {
   }));
   vi.mocked(getScoringState).mockResolvedValue({
     base: null,
-    data: START as never,
+    data: { ...START, match: { ...START.match, ...overrides } } as never,
     error: null,
   } as never);
 }
 
 describe("useScoring: offline queue replayed by the server", () => {
-  beforeEach(seed);
+  beforeEach(() => seed());
 
   it("instant scoring offline: ends the innings a ball closed, scores the next, and replays", async () => {
     vi.mocked(getScoringState).mockResolvedValue(engineState() as never);
@@ -262,5 +265,55 @@ describe("useScoring: offline queue replayed by the server", () => {
       [1, 12, 6, true],
       [2, 4, 1, false],
     ]);
+  });
+});
+
+describe("useScoring: a capped over offline (max_balls_per_over)", () => {
+  beforeEach(() => seed({ overs_per_innings: 2, max_balls_per_over: 8 }));
+
+  it("offline, ends a capped over where the server ends it", async () => {
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = renderHook(() => useScoring("M"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleConfirmBatsmen(OPENER1, OPENER2);
+    });
+    await act(async () => {
+      await result.current.handleConfirmBowler(BOWLER);
+    });
+    // Four wides and four dots: eight deliveries, the cap.
+    const deliveries = [
+      ...Array.from({ length: 4 }, () => ({ extras: 1, extraType: "wide" as const })),
+      ...Array.from({ length: 4 }, () => ({ runsScored: 0 })),
+    ];
+    for (const event of deliveries) {
+      await act(async () => {
+        await result.current.handleScore(BOWLER, OPENER1, OPENER2, event);
+      });
+    }
+    const first = () => result.current.match!.innings![0]!;
+    expect(result.current.match).toMatchObject({ current_over: 1, current_ball: 0 });
+    expect(first().total_balls).toBe(6);
+    expect([result.current.strikerId, result.current.currentBowlerId]).toEqual([
+      OPENER2,
+      null,
+    ]);
+    await act(async () => {
+      await result.current.handleConfirmBowler(B[9]!);
+    });
+    await act(async () => {
+      await result.current.handleScore(B[9]!, OPENER2, OPENER1, { runsScored: 0 });
+    });
+    expect(first().total_balls).toBe(7);
+
+    online.mockReturnValue(true);
+    routeToEngine();
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(getDeadLetterActions("M")).toEqual([]);
+    expect(storedInnings()).toEqual([[1, 4, 7, false]]);
   });
 });

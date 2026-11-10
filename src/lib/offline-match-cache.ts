@@ -10,6 +10,8 @@ export interface CachedMatchData {
   lastOverBowlerId: string | null;
   /** Labels of the current over's balls, for the "this over" strip. */
   lastBalls?: string[];
+  /** Deliveries of the current over so far (`max_balls_per_over`). */
+  deliveriesInOver?: number;
   cachedAt: number; // Date.now()
 }
 

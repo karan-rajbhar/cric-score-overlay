@@ -47,6 +47,7 @@ import {
 import {
   processDeliveryLocally,
   buildContextFromMatch,
+  deliveriesIn,
   deliveryResultToScoringState,
 } from "~/lib/offline-scoring-engine";
 import type {
@@ -233,7 +234,16 @@ function endInningsLocally(ctx: LocalScoringContext): LocalScoringContext {
     bowlerBallsBowled: 0,
     bowlerWickets: 0,
     targetRuns: (ctx.totalRuns ?? 0) + 1,
+    deliveriesInOver: 0,
   };
+}
+
+/** Deliveries of over `over` among the shown balls (`max_balls_per_over`). */
+function deliveriesThisOver(
+  balls: readonly DeliveryToEdit[],
+  over: number | null | undefined,
+): number {
+  return deliveriesIn(balls.filter((d) => d.over_number === (over ?? 0)));
 }
 
 /**
@@ -378,6 +388,7 @@ const REPLAY_STEPS: {
     targetRuns: null,
     oversPerInnings: 1,
     wicketsPerInnings: 2,
+    deliveriesInOver: 0,
   }),
 };
 
@@ -770,7 +781,13 @@ export function useScoring(
       bowlerId: b,
       lastOverBowlerId: lob ?? null,
     });
-    localCtxRef.current = buildContextFromMatch(m, s, ns, b);
+    localCtxRef.current = buildContextFromMatch(
+      m,
+      s,
+      ns,
+      b,
+      deliveriesThisOver(thisOverDeliveries, m.current_over),
+    );
     setPendingCount(getPendingCount(matchId));
   }, [matchId, loadPlayers, resolveSquadTeamIds]);
 
@@ -1043,6 +1060,7 @@ export function useScoring(
         cached.strikerId,
         cached.nonStrikerId,
         cached.bowlerId,
+        cached.deliveriesInOver ?? 0,
       );
       setPendingCount(getPendingCount(matchId));
       loadedSquadTeamsRef.current = resolveSquadTeamIds(cached.match);
@@ -1088,6 +1106,8 @@ export function useScoring(
       bowlerId: currentBowlerId,
       lastOverBowlerId,
       lastBalls,
+      // The local context follows every change this copy shows.
+      deliveriesInOver: localCtxRef.current?.deliveriesInOver ?? 0,
     });
   }, [
     matchId,
@@ -1868,7 +1888,13 @@ export function useScoring(
     const currentCtx =
       localCtxRef.current ??
       (match
-        ? buildContextFromMatch(match, batsmanId, nonStriker, bowlerId)
+        ? buildContextFromMatch(
+            match,
+            batsmanId,
+            nonStriker,
+            bowlerId,
+            deliveriesThisOver(rawDeliveries, match.current_over),
+          )
         : null);
 
     if (currentCtx) {
@@ -2166,6 +2192,10 @@ export function useScoring(
         confirmed.strikerId,
         confirmed.nonStrikerId,
         confirmed.bowlerId,
+        deliveriesThisOver(
+          confirmed.thisOverDeliveries,
+          confirmed.match.current_over,
+        ),
       ),
       getPendingActions(matchId),
       match,
@@ -2604,6 +2634,7 @@ export function useScoring(
           targetRuns: null,
           oversPerInnings: 1,
           wicketsPerInnings: 2,
+          deliveriesInOver: 0,
         };
       }
 
