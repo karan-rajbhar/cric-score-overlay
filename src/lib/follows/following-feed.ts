@@ -6,9 +6,10 @@
  *
  * Reads: the followed players' team memberships (1 per membership, at most
  * MAX_PLAYERS players), then per 10 teams one query per side, per 10
- * tournaments one query, each at most PER_QUERY matches (indexed:
- * `<field> in`, `scheduled_at >=`, ordered by `scheduled_at`), plus the
- * followed matches themselves (at most MAX_MATCHES).
+ * tournaments one query, each at most PER_QUERY scheduled matches
+ * (indexed: `<field> in`, `status ==`, `scheduled_at >=`, ordered by
+ * `scheduled_at`), plus the followed matches themselves (at most
+ * MAX_MATCHES).
  */
 
 import { chunk } from "~/lib/firebase/datasource";
@@ -92,11 +93,14 @@ export async function followingFeed(
   const teams = unique(teamIds).slice(-MAX_TEAMS);
   const since = new Date(now.getTime() - GRACE_MS).toISOString();
 
+  // Scheduled only: matches that started lately would otherwise fill the
+  // first PER_QUERY places and push tomorrow's fixtures out.
   const upcomingFor = (field: string, ids: string[]) =>
     db
       .from("matches")
       .select(COLUMNS)
       .in(field, ids)
+      .eq("status", "scheduled")
       .gte("scheduled_at", since)
       .order("scheduled_at", { ascending: true })
       .limit(PER_QUERY);

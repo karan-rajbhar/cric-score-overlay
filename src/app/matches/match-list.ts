@@ -19,25 +19,72 @@ interface MatchListClient {
   from<T extends SourceName>(table: T): QueryBuilder<T>;
 }
 
-/** Latest first, at most `limit` (50) matches; throws on a query error. */
+const COLUMNS = `
+  *,
+  innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
+`;
+
+/** A fixture stays listed this long after its start time (if not started). */
+const UPCOMING_GRACE_MS = 3 * 60 * 60 * 1000;
+/** Of "all": the share of the limit given to the next fixtures. */
+const ALL_UPCOMING_SHARE = 0.4;
+const FINISHED = ["completed", "abandoned", "cancelled"];
+
+/**
+ * One list query (indexed: `status` and `scheduled_at`, with `club_id`).
+ * Fixtures soonest first, from a little before `now`, so one that never
+ * started does not lead the list for good; anything else latest first.
+ */
+function listQuery(
+  db: MatchListClient,
+  status: string | readonly string[],
+  clubId: string | undefined,
+  limit: number,
+  now: Date,
+) {
+  let query = db.from("matches").select(COLUMNS);
+  if (clubId) query = query.eq("club_id", clubId);
+  if (status === "scheduled") {
+    const since = new Date(now.getTime() - UPCOMING_GRACE_MS).toISOString();
+    query = query
+      .eq("status", "scheduled")
+      .gte("scheduled_at", since)
+      .order("scheduled_at", { ascending: true });
+  } else {
+    query =
+      typeof status === "string"
+        ? query.eq("status", status)
+        : query.in("status", [...status]);
+    query = query.order("scheduled_at", { ascending: false });
+  }
+  return query.limit(limit);
+}
+
+/**
+ * At most `limit` (50) matches of `status`; throws on a query error. With
+ * no status ("all"): every live match (up to `limit`), the next fixtures
+ * and the latest results, so neither crowds the others out.
+ */
 export async function fetchMatchList(
   db: MatchListClient,
   filters?: MatchListFilters,
+  now = new Date(),
 ) {
-  let query = db
-    .from("matches")
-    .select(
-      `
-        *,
-        innings(id, team_id, innings_number, total_runs, total_wickets, total_overs, is_completed)
-      `,
-    )
-    .order("scheduled_at", { ascending: false });
-  if (filters?.status) query = query.eq("status", filters.status);
-  if (filters?.clubId) query = query.eq("club_id", filters.clubId);
-  query = query.limit(filters?.limit ?? 50);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  const limit = filters?.limit ?? 50;
+  const clubId = filters?.clubId;
+  const upcoming = Math.round(limit * ALL_UPCOMING_SHARE);
+  const queries = filters?.status
+    ? [listQuery(db, filters.status, clubId, limit, now)]
+    : [
+        listQuery(db, "live", clubId, limit, now),
+        listQuery(db, "scheduled", clubId, upcoming, now),
+        listQuery(db, FINISHED, clubId, limit - upcoming, now),
+      ];
+  const results = await Promise.all(queries);
+  const rows = results.flatMap(({ data, error }) => {
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
   // Team names / logos come from the match's snapshot (no team reads).
-  return attachMatchTeams(db, data ?? []);
+  return attachMatchTeams(db, rows);
 }
