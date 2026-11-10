@@ -81,8 +81,14 @@ describe("POST /api/overlay/command", () => {
         "scene.card",
         "strap",
         "cue",
+        // Stamped layer by layer: the overlay takes its own graphics off.
+        "cleared.view",
+        "cleared.card",
+        "cleared.strap",
+        "cleared.sting",
       ]),
     );
+    expect(options.mergeFields).not.toContain("cleared");
   });
 
   it("changes only what the command sets, and names it for the control room", async () => {

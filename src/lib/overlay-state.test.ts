@@ -23,7 +23,7 @@ describe("overlayPatchOf", () => {
     });
     expect(
       overlayPatchOf({ type: "SET_BROADCAST_VIEW", broadcastView: null }, NOW),
-    ).toEqual({ scene: { view: null } });
+    ).toEqual({ scene: { view: null }, cleared: { view: NOW } });
     expect(
       overlayPatchOf({ type: "SHOW_CARD", card: "scorecard" }, NOW),
     ).toEqual({ scene: { card: "scorecard" } });
@@ -83,7 +83,40 @@ describe("overlayPatchOf", () => {
       scene: { view: null, card: "none", hold: null },
       strap: null,
       cue: null,
+      // The automatic ones go too.
+      cleared: { view: NOW, card: NOW, strap: NOW, sting: NOW },
     });
+  });
+
+  it("stamps the layer a Take off clears, so automatic graphics go too", () => {
+    expect(overlayPatchOf({ type: "HIDE_CARD" }, NOW)).toEqual({
+      scene: { card: "none" },
+      cleared: { card: NOW },
+    });
+    expect(overlayPatchOf({ type: "HIDE_STRAP" }, NOW)).toEqual({
+      strap: null,
+      cleared: { strap: NOW },
+    });
+    // Another view on air is not a take off.
+    expect(
+      overlayPatchOf({ type: "SET_BROADCAST_VIEW", broadcastView: "14" }, NOW),
+    ).toEqual({ scene: { view: "14", card: "none" } });
+    let doc = applyOverlayPatch(
+      null,
+      overlayPatchOf({ type: "HIDE_CARD" }, NOW)!,
+      null,
+      NOW,
+    );
+    doc = applyOverlayPatch(
+      doc,
+      overlayPatchOf({ type: "HIDE_STRAP" }, NOW + 1)!,
+      null,
+      NOW + 1,
+    );
+    expect(doc.cleared).toEqual({ card: NOW, strap: NOW + 1 });
+    expect(parseOverlayState(JSON.parse(JSON.stringify(doc)))?.cleared).toEqual(
+      doc.cleared,
+    );
   });
 
   it("refuses what the overlay would not know", () => {

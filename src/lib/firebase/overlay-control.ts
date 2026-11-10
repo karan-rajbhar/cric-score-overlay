@@ -12,9 +12,10 @@ import { getAdminFirestore } from "./admin";
 
 /**
  * Applies a command to the match's overlay state. Scene fields merge one by
- * one (a theme change keeps the layout); the lower third, the event-card
- * cue and the automatic rules are replaced whole. False (and nothing
- * written) when the command changes nothing the overlay knows.
+ * one (a theme change keeps the layout), as do the stamps of layers taken
+ * off; the lower third, the event-card cue and the automatic rules are
+ * replaced whole. False (and nothing written) when the command changes
+ * nothing the overlay knows.
  */
 export async function publishOverlayCommand(
   matchId: string,
@@ -36,10 +37,8 @@ export async function publishOverlayCommand(
   const scene: Record<string, unknown> = { ...(patch.scene ?? {}) };
   // Counted on the server, so two quick presses move on twice.
   if (patch.nextSponsor) scene.sponsorIndex = FieldValue.increment(1);
-  if (Object.keys(scene).length) {
-    data.scene = scene;
-    for (const key of Object.keys(scene)) fields.push(`scene.${key}`);
-  }
+  mergeByField(data, fields, "scene", scene);
+  mergeByField(data, fields, "cleared", patch.cleared ?? {});
   for (const key of ["strap", "cue", "auto"] as const) {
     if (patch[key] !== undefined) {
       data[key] = patch[key];
@@ -51,4 +50,16 @@ export async function publishOverlayCommand(
     .doc(matchId)
     .set(data, { mergeFields: fields });
   return true;
+}
+
+/** Writes `value` under `key` field by field: the fields it leaves out stay. */
+function mergeByField(
+  data: Record<string, unknown>,
+  fields: string[],
+  key: string,
+  value: Record<string, unknown>,
+) {
+  if (!Object.keys(value).length) return;
+  data[key] = value;
+  for (const field of Object.keys(value)) fields.push(`${key}.${field}`);
 }
