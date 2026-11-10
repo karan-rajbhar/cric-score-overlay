@@ -651,7 +651,13 @@ export default async function TournamentLayout({
                   startDate={tournament.start_date}
                 />
               )}
-              {isBracketFormat(tournament.tournament_format) && <NextRoundDialog tournamentId={tournament.id} />}
+              {isBracketFormat(tournament.tournament_format) && (
+                <NextRoundDialog
+                  tournamentId={tournament.id}
+                  startDate={tournament.start_date}
+                  latestScheduledAt={typedMatches.at(-1)?.scheduled_at}
+                />
+              )}
               <Button asChild size="sm" className="gap-1.5">
                 <Link href={`/matches/create?tournamentId=${tournament.id}`}>
                   <Plus className="h-4 w-4 shrink-0" />

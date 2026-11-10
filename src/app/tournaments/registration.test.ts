@@ -285,4 +285,38 @@ describe("generateTournamentFixtures", () => {
       error: "Pick the first match's day and time",
     });
   });
+
+  it("takes the tournament's rules as the match wizard does, once", async () => {
+    // An older tournament keeps its overs in custom_overs only.
+    await ds.update("tournaments", "tour", {
+      match_format: "Custom",
+      overs_per_innings: null,
+      custom_overs: 10,
+      wickets_per_innings: 8,
+    });
+    signIn("org");
+    for (const team of ["lions", "tigers"]) {
+      await registerTeamForTournament("tour", team);
+    }
+    const first = "2026-11-01T04:30:00.000Z";
+    expect(await generateTournamentFixtures("tour", first)).toMatchObject({
+      success: true,
+      count: 1,
+    });
+    const fixtures = () =>
+      ds.query("matches", [{ field: "tournament_id", op: "==", value: "tour" }]);
+    expect(await fixtures()).toEqual([
+      expect.objectContaining({
+        match_format: "T10",
+        overs_per_innings: 10,
+        wickets_per_innings: 8,
+      }),
+    ]);
+
+    // A stale page or a second organiser: no fixture twice.
+    expect(await generateTournamentFixtures("tour", first)).toEqual({
+      error: "Every pair of teams already has a fixture.",
+    });
+    expect(await fixtures()).toHaveLength(1);
+  });
 });

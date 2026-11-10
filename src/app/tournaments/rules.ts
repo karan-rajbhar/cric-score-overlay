@@ -3,6 +3,30 @@
  * the "use server" actions file exports only actions).
  */
 
+import {
+  tournamentRules,
+  type TournamentRulesSource,
+} from "~/app/matches/create/match-setup";
+
+/**
+ * The format, overs and wickets of the fixtures a tournament's generators
+ * create: what the match wizard takes from the tournament
+ * (`tournamentRules`, which reads `custom_overs` on older tournaments),
+ * else the wizard's own T20 with 10 wickets.
+ */
+export function fixtureRulesOf(t: TournamentRulesSource): {
+  match_format: string;
+  overs_per_innings: number;
+  wickets_per_innings: number;
+} {
+  const rules = tournamentRules(t);
+  return {
+    match_format: rules.format ?? "T20",
+    overs_per_innings: rules.overs ?? 20,
+    wickets_per_innings: rules.wickets ?? 10,
+  };
+}
+
 const MATCH_FORMATS = new Set(["T20", "T10", "ODI", "Custom"]);
 
 /**

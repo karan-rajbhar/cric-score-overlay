@@ -8,7 +8,11 @@ import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import type { TeamSnapshot } from "~/lib/firebase/types";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { TOURNAMENT_STATUSES, tournamentRulesFrom } from "./rules";
+import {
+  fixtureRulesOf,
+  TOURNAMENT_STATUSES,
+  tournamentRulesFrom,
+} from "./rules";
 
 export async function createTournament(formData: FormData) {
   const db = await createServerClient();
@@ -386,10 +390,36 @@ export async function updateRegistrationStatus(
 }
 
 /**
+ * The pairings whose two teams have no match in the tournament yet (either
+ * way round), so generating again, from a stale page or by a second
+ * organiser, creates no fixture twice.
+ */
+async function withoutFixtures<P extends { homeTeamId: string; awayTeamId: string }>(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+  pairings: P[],
+): Promise<{ pairings: P[]; error: string | null }> {
+  const { data, error } = await db
+    .from("matches")
+    .select("team1_id, team2_id")
+    .eq("tournament_id", tournamentId);
+  if (error) return { pairings: [], error: error.message };
+  const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const taken = new Set(
+    (data ?? []).map((m) => key(String(m.team1_id), String(m.team2_id))),
+  );
+  return {
+    pairings: pairings.filter((p) => !taken.has(key(p.homeTeamId, p.awayTeamId))),
+    error: null,
+  };
+}
+
+/**
  * Round-robin fixtures for the confirmed teams, one round a day starting at
  * `firstMatchAt` (an ISO timestamp the organiser's browser builds from
  * their local day and time). Without it: the start date (or today) at
- * 10:00 UTC.
+ * 10:00 UTC. Matches take the rules the match wizard would
+ * (`fixtureRulesOf`); a pair that already has a fixture gets none.
  */
 export async function generateTournamentFixtures(
   tournamentId: string,
@@ -426,13 +456,14 @@ export async function generateTournamentFixtures(
   const { data: tournament, error: tourError } = await db
     .from("tournaments")
     .select(
-      "id, name, match_format, overs_per_innings, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
+      "id, name, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
     )
     .eq("id", tournamentId)
     .single();
 
   if (tourError || !tournament)
     return { error: tourError?.message ?? "Tournament not found" };
+  const rules = fixtureRulesOf(tournament);
 
   // Fetch confirmed teams
   const { data: regs, error: regError } = await db
@@ -450,9 +481,15 @@ export async function generateTournamentFixtures(
     };
 
   const teamIds = regs.map((r) => r.team_id).filter(Boolean) as string[];
-  const pairings = generateRoundRobinFixtures(teamIds);
-
-  if (pairings.length === 0) return { error: "No pairings could be generated" };
+  const { pairings, error: pairError } = await withoutFixtures(
+    db,
+    tournamentId,
+    generateRoundRobinFixtures(teamIds),
+  );
+  if (pairError) return { error: pairError };
+  if (pairings.length === 0) {
+    return { error: "Every pair of teams already has a fixture." };
+  }
 
   const teamById = new Map<string, TeamSnapshot>();
   regs.forEach((r) => {
@@ -478,8 +515,7 @@ export async function generateTournamentFixtures(
 
     return {
       title: `${team1Name} vs ${team2Name} (Round ${p.round})`,
-      match_format: tournament.match_format ?? "T20",
-      overs_per_innings: tournament.overs_per_innings ?? 20,
+      ...rules,
       team1_id: p.homeTeamId,
       team2_id: p.awayTeamId,
       team1_snapshot: team1,
@@ -487,7 +523,6 @@ export async function generateTournamentFixtures(
       tournament_id: tournament.id,
       club_id: tournament.club_id,
       season_id: tournament.season_id,
-      wickets_per_innings: tournament.wickets_per_innings ?? 10,
       last_man_stands: tournament.last_man_stands ?? false,
       golden_ball: tournament.golden_ball ?? false,
       venue: tournament.venue,

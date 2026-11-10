@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -18,7 +18,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
+import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  localDateTimeToIso,
+  todayLocalDateInput,
+  toLocalDateTimeInput,
+} from "~/lib/local-datetime";
 import {
   Select,
   SelectContent,
@@ -36,11 +42,85 @@ const GROUP_OPTIONS = [2, 3, 4, 5, 6, 7, 8];
 const QUALIFIER_OPTIONS = [1, 2, 3, 4];
 
 /**
+ * The first match's day and time to offer, in local time: the day after
+ * the latest fixture at the same time, else the start date (or tomorrow)
+ * at 10:00.
+ */
+export function suggestedStart(
+  latestScheduledAt: string | null | undefined,
+  startDate: string | null | undefined,
+  now = new Date(),
+): FirstMatch {
+  const latest = latestScheduledAt ? new Date(latestScheduledAt) : null;
+  if (latest && !Number.isNaN(latest.getTime())) {
+    latest.setDate(latest.getDate() + 1);
+    const [day = "", time = "10:00"] = toLocalDateTimeInput(
+      latest.toISOString(),
+    ).split("T");
+    return { day, time };
+  }
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return { day: startDate || todayLocalDateInput(tomorrow), time: "10:00" };
+}
+
+interface FirstMatch {
+  day: string;
+  time: string;
+}
+
+/** The first match's day and time, in local time. */
+function FirstMatchFields({
+  value,
+  onChange,
+}: {
+  value: FirstMatch;
+  onChange: (next: FirstMatch) => void;
+}) {
+  const ids = { day: useId(), time: useId() };
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label htmlFor={ids.day}>First match day</Label>
+        <Input
+          id={ids.day}
+          type="date"
+          value={value.day}
+          onChange={(e) => onChange({ ...value, day: e.target.value })}
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={ids.time}>Start time</Label>
+        <Input
+          id={ids.time}
+          type="time"
+          value={value.time}
+          onChange={(e) => onChange({ ...value, time: e.target.value })}
+          required
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
  * "Create next round" for a knockout or mixed tournament: shows what would
  * be created (groups, a knockout round with its byes) or why nothing can
- * be yet, and creates it on confirm.
+ * be yet, and creates it on confirm from the day and time chosen (group
+ * rounds a day apart, a knockout round's matches together).
  */
-export function NextRoundDialog({ tournamentId }: { tournamentId: string }) {
+export function NextRoundDialog({
+  tournamentId,
+  startDate,
+  latestScheduledAt,
+}: {
+  tournamentId: string;
+  /** The tournament's start date ("2026-11-01"). */
+  startDate?: string | null;
+  /** When its latest fixture is scheduled (ISO). */
+  latestScheduledAt?: string | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<NextRoundOptions>({
@@ -50,6 +130,7 @@ export function NextRoundDialog({ tournamentId }: { tournamentId: string }) {
   const [preview, setPreview] = useState<NextRoundPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [start, setStart] = useState<FirstMatch>({ day: "", time: "10:00" });
 
   const refresh = useCallback(
     async (next: NextRoundOptions) => {
@@ -66,6 +147,7 @@ export function NextRoundDialog({ tournamentId }: { tournamentId: string }) {
   );
 
   const show = () => {
+    setStart(suggestedStart(latestScheduledAt, startDate));
     setOpen(true);
     void refresh(options);
   };
@@ -76,9 +158,14 @@ export function NextRoundDialog({ tournamentId }: { tournamentId: string }) {
   };
 
   const create = async () => {
+    const firstMatchAt = localDateTimeToIso(start.day, start.time);
+    if (!firstMatchAt) {
+      toast.error("Pick the first match's day and time");
+      return;
+    }
     setCreating(true);
     try {
-      const res = await createNextRound(tournamentId, options);
+      const res = await createNextRound(tournamentId, options, firstMatchAt);
       if (res.error || !res.data) {
         toast.error(res.error ?? "Could not create the next round");
         return;
@@ -197,6 +284,8 @@ export function NextRoundDialog({ tournamentId }: { tournamentId: string }) {
                 </div>
               ) : null}
             </div>
+
+            {canCreate && <FirstMatchFields value={start} onChange={setStart} />}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

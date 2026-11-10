@@ -15,6 +15,8 @@ import {
   type NrrInnings,
   type NrrMatch,
 } from "~/lib/tournament-standings";
+import type { TournamentRulesSource } from "~/app/matches/create/match-setup";
+import { fixtureRulesOf } from "./rules";
 
 /**
  * "Create next round" for knockout and mixed tournaments: the groups, the
@@ -117,7 +119,7 @@ async function load(
   const { data: tournament } = await db
     .from("tournaments")
     .select(
-      "id, name, tournament_format, match_format, overs_per_innings, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
+      "id, name, tournament_format, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
     )
     .eq("id", tournamentId)
     .maybeSingle();
@@ -256,20 +258,50 @@ export async function previewNextRound(
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The day after the latest fixture, else the start date, else tomorrow. */
-function firstDay(loaded: Loaded): number {
+/**
+ * When the round starts: `firstMatchAt` (an ISO timestamp the organiser's
+ * browser builds from their local day and time), else the day after the
+ * latest fixture, else the start date at 10:00 UTC, else tomorrow. Null
+ * when `firstMatchAt` cannot be read.
+ */
+function firstDay(loaded: Loaded, firstMatchAt: string | undefined): number | null {
+  if (firstMatchAt) {
+    const chosen = Date.parse(firstMatchAt);
+    return Number.isNaN(chosen) ? null : chosen;
+  }
   if (loaded.latestScheduled) {
     const t = Date.parse(loaded.latestScheduled);
     if (!Number.isNaN(t)) return t + DAY_MS;
   }
-  const start = Date.parse(String(loaded.tournament.start_date ?? ""));
+  const start = Date.parse(`${String(loaded.tournament.start_date)}T10:00:00.000Z`);
   return Number.isNaN(start) ? Date.now() + DAY_MS : start;
 }
 
-/** Creates the next round's matches. */
+/** What every match of a round shares: the tournament's rules and links. */
+function commonFields(loaded: Loaded) {
+  const t = loaded.tournament;
+  return {
+    ...fixtureRulesOf(t as TournamentRulesSource),
+    tournament_id: t.id,
+    club_id: (t.club_id as string | null) ?? null,
+    season_id: (t.season_id as string | null) ?? null,
+    last_man_stands: (t.last_man_stands as boolean | null) ?? false,
+    golden_ball: (t.golden_ball as boolean | null) ?? false,
+    venue: (t.venue as string | null) ?? null,
+    status: "scheduled",
+    created_by: loaded.userId,
+    match_admins: [loaded.userId],
+  };
+}
+
+/**
+ * Creates the next round's matches, from `firstMatchAt` (see `firstDay`):
+ * group rounds a day apart, a knockout round's matches together.
+ */
 export async function createNextRound(
   tournamentId: string,
   options: NextRoundOptions = {},
+  firstMatchAt?: string,
 ): Promise<{ data: { count: number; label: string } | null; error: string | null }> {
   try {
     const { data: loaded, error } = await load(tournamentId);
@@ -278,22 +310,11 @@ export async function createNextRound(
     if (next.kind !== "groups" && next.kind !== "knockout") {
       return { data: null, error: previewOf(loaded, next).message };
     }
-    const t = loaded.tournament;
-    const day0 = firstDay(loaded);
-    const common = {
-      match_format: (t.match_format as string | null) ?? "T20",
-      overs_per_innings: (t.overs_per_innings as number | null) ?? 20,
-      tournament_id: t.id,
-      club_id: (t.club_id as string | null) ?? null,
-      season_id: (t.season_id as string | null) ?? null,
-      wickets_per_innings: (t.wickets_per_innings as number | null) ?? 10,
-      last_man_stands: (t.last_man_stands as boolean | null) ?? false,
-      golden_ball: (t.golden_ball as boolean | null) ?? false,
-      venue: (t.venue as string | null) ?? null,
-      status: "scheduled",
-      created_by: loaded.userId,
-      match_admins: [loaded.userId],
-    };
+    const day0 = firstDay(loaded, firstMatchAt);
+    if (day0 === null) {
+      return { data: null, error: "Pick the first match's day and time" };
+    }
+    const common = commonFields(loaded);
     const rows =
       next.kind === "groups"
         ? next.fixtures.map((f) => {

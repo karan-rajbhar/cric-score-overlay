@@ -91,6 +91,22 @@ describe("bracket actions", () => {
     expect([finalMatch.team1_id, finalMatch.team2_id]).not.toContain(first!.team1_id);
   });
 
+  it("takes the tournament's rules and starts at the organiser's chosen time", async () => {
+    // The seed's ODI knockout keeps its overs in custom_overs only.
+    expect((await createNextRound(KNOCKOUT, {}, "not a date")).error).toBe(
+      "Pick the first match's day and time",
+    );
+    const first = "2026-12-10T04:30:00.000Z"; // 10:00 in India
+    expect((await createNextRound(KNOCKOUT, {}, first)).error).toBeNull();
+    const [created] = await knockoutMatches();
+    expect(created).toMatchObject({
+      match_format: "ODI",
+      overs_per_innings: 50,
+      wickets_per_innings: 10,
+      scheduled_at: first,
+    });
+  });
+
   it("is for the organiser only", async () => {
     state.userId = "550e8400-e29b-41d4-a716-446655440003";
     expect((await previewNextRound(KNOCKOUT)).error).toBe(
