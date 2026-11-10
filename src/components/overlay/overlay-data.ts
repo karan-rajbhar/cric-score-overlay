@@ -6,6 +6,11 @@
  *
  * - {@link useDocWhenShown}: one read of a document when a card appears;
  *   showing it again reuses that read unless the score moved since.
+ * - {@link useFreshMatch}: the page's match, read again from
+ *   `GET /api/overlay/match/{id}` ({@link loadOverlayData}) when the match
+ *   document changes (`live_state.match_rev`: player of the match, settings,
+ *   toss, result) or a squad does (a `live_state` version that wrote no
+ *   innings and no overs), never per ball.
  * - {@link useStageMatch}: the page's match with every innings' scorecard
  *   from `live_scorecard/{matchId}`, followed (1 read, then 1 per change)
  *   only while a graphic showing scorecards is on air; the cards read
@@ -32,7 +37,10 @@ import {
 import type { PlayerCareerStatsRow, UsersRow } from "~/lib/firebase/types";
 import {
   applyLiveScorecard,
+  LIVE_REFETCH_DELAY_MS,
+  liveChangesBetween,
   useLiveScorecard,
+  type LiveSnapshot,
 } from "~/lib/hooks/useLiveState";
 import type { BallEvent, Innings, Match } from "~/lib/match-types";
 import type { LiveMatchState } from "./types";
@@ -108,6 +116,98 @@ export function useDocWhenShown<T>(
   }, [active, key, id, table]);
 
   return { data, loaded };
+}
+
+export interface OverlayData {
+  live: LiveMatchState | null;
+  match: Match | null;
+  /** Server clock when the data was read (ms). */
+  serverNow?: number;
+}
+
+/**
+ * The overlay's data for a match, from the stable `/api/overlay/match/{id}`
+ * route (a page left open in OBS outlives deploys, which would break a
+ * server action). Null when it is gone.
+ */
+export async function loadOverlayData(
+  matchId: string,
+  signal?: AbortSignal,
+): Promise<OverlayData | null> {
+  const res = await fetch(`/api/overlay/match/${encodeURIComponent(matchId)}`, {
+    cache: "no-store",
+    signal,
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as OverlayData;
+}
+
+/**
+ * Whether the `live_state` versions after `from` up to `to` changed the
+ * match document or a squad, not the score: `match_rev` moved, or every
+ * version wrote no innings and no overs (`notifySquadChanged`'s bump).
+ */
+function matchChanged(
+  matchId: string,
+  from: { version: number; rev: string | null },
+  to: { version: number; rev: string | null },
+): boolean {
+  if (to.version <= from.version) return false;
+  if (from.rev !== null && to.rev !== null && from.rev !== to.rev) return true;
+  const changes = liveChangesBetween(matchId, from.version, to.version);
+  return !!changes && !changes.overs.length && !changes.innings.length;
+}
+
+/**
+ * The page's match, read again when the match document or a squad changes
+ * (see {@link matchChanged}; one read of the route a short while after, so
+ * a burst of changes costs one), never per ball.
+ */
+export function useFreshMatch(
+  matchId: string,
+  initial: Match | null,
+  live: Pick<LiveSnapshot, "version" | "matchRev">,
+): Match | null {
+  const [match, setMatch] = useState(initial);
+  const [from, setFrom] = useState(initial);
+  if (from !== initial) {
+    setFrom(initial);
+    setMatch(initial);
+  }
+  const seen = useRef<{ version: number; rev: string | null } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (live.version === null || !isLiveMatchId(matchId)) return;
+    const before = seen.current;
+    const now = { version: live.version, rev: live.matchRev };
+    seen.current = now;
+    if (!before || !matchChanged(matchId, before, now)) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      loadOverlayData(matchId, controller.signal)
+        .then((data) => {
+          if (!controller.signal.aborted && data?.match) setMatch(data.match);
+        })
+        .catch((err: unknown) => {
+          if (!controller.signal.aborted) {
+            console.error("[overlay] could not read the match again:", err);
+          }
+        });
+    }, LIVE_REFETCH_DELAY_MS);
+  }, [matchId, live.version, live.matchRev]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      request.current?.abort();
+    },
+    [],
+  );
+  return match;
 }
 
 /** Suite views and cards that show innings figures (scorecards, charts). */

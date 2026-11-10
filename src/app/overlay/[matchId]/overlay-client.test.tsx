@@ -32,7 +32,11 @@ vi.mock("~/components/overlay/sound-effects", () => ({
 
 import { playSixExplosion } from "~/components/overlay/sound-effects";
 import { OverlayClient } from "./overlay-client";
-import { DEMO_MATCH_DETAILS, DEMO_MATCH_STATE } from "./demo-data";
+import {
+  DEMO_MATCH_DETAILS,
+  DEMO_MATCH_STATE,
+  DEMO_RESULT_MATCH,
+} from "./demo-data";
 
 /** The score as the bar shows it ("138/5"). */
 const SCORE = `${DEMO_MATCH_STATE.total_runs}/${DEMO_MATCH_STATE.total_wickets}`;
@@ -228,6 +232,52 @@ describe("OverlayClient", () => {
     expect(
       screen.getByText(/does not match a CricScore match/),
     ).toBeInTheDocument();
+  });
+
+  it("reads the match again when it or a squad changes, never per ball", async () => {
+    const potm = () => screen.queryByText(/Player of the match/);
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
+      Response.json({ live: null, match: DEMO_RESULT_MATCH, serverNow: NOW }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      renderOverlay();
+      // The producer has the player of the match on air.
+      act(() =>
+        watchOf("overlay_state").next({ version: 1, scene: { view: "29" } }),
+      );
+      const live = (version: number, extra: Record<string, unknown>) =>
+        act(() =>
+          watchOf("live_state").next({
+            ...DEMO_MATCH_STATE,
+            match_id: REAL_ID,
+            version,
+            ...extra,
+          }),
+        );
+      const ball = { overs_changed: ["i2_14"], innings_changed: ["i2"] };
+      live(1, { match_rev: "a", ...ball });
+      live(2, { match_rev: "a", ...ball, total_runs: 150 });
+      act(() => vi.advanceTimersByTime(2000));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(potm()).toBeNull();
+
+      // The scorer picks the player of the match: the match doc changes.
+      live(3, { match_rev: "b", overs_changed: [], innings_changed: null });
+      await act(async () => vi.advanceTimersByTime(2000));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(String(fetchMock.mock.calls[0]![0])).toBe(
+        `/api/overlay/match/${REAL_ID}`,
+      );
+      expect(potm()).toBeInTheDocument();
+
+      // A squad change (a bump that wrote nothing of the scorecard).
+      live(4, { match_rev: "b", overs_changed: [], innings_changed: [] });
+      await act(async () => vi.advanceTimersByTime(2000));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("opens no listener for the demo match", () => {

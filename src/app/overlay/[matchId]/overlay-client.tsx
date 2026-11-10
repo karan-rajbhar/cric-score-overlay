@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createObsBridge } from "~/components/overlay/obs-bridge";
-import { useStageMatch } from "~/components/overlay/overlay-data";
+import {
+  useFreshMatch,
+  useStageMatch,
+} from "~/components/overlay/overlay-data";
 import { OverlayStage } from "~/components/overlay/overlay-stage";
 import type { LiveMatchState } from "~/components/overlay/types";
 import {
@@ -62,7 +65,8 @@ export function useDelayed<T>(value: T, delayMs: number): T {
  * score and what the control room puts on air. It follows two documents,
  * 1 read each per change: `live_state/{matchId}` (every ball) and
  * `overlay_state/{matchId}` (every producer command), plus the live
- * scorecard only while a scorecard is on screen. Nothing on it is a
+ * scorecard only while a scorecard is on screen, and reads the match again
+ * when it or a squad changes (`useFreshMatch`). Nothing on it is a
  * control: setting up and producing happen on the match page and in the
  * control room.
  */
@@ -116,8 +120,11 @@ export function OverlayClient({
   }, []);
   const ready = !isRealMatch || producer.loaded || waited;
 
-  // Scorecards follow the live scorecard while one is on air.
-  const currentMatch = useStageMatch(matchId, match, {
+  // The match read again when it or a squad changes (player of the
+  // match, Playing XI, settings); scorecards follow the live scorecard
+  // while one is on air.
+  const freshMatch = useFreshMatch(matchId, match, live);
+  const currentMatch = useStageMatch(matchId, freshMatch, {
     view: layers.view,
     card: layers.card,
   });

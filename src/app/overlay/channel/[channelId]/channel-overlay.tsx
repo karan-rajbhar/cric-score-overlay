@@ -3,36 +3,14 @@
 import { useEffect, useState } from "react";
 import { getFirebaseDb } from "~/lib/firebase/client";
 import { watchDoc } from "~/lib/firebase/realtime";
-import type { LiveMatchState } from "~/components/overlay/types";
-import type { Match } from "~/lib/match-types";
+import {
+  loadOverlayData,
+  type OverlayData,
+} from "~/components/overlay/overlay-data";
 import { OverlayClient } from "../../[matchId]/overlay-client";
 
 /** Mirrors `STREAM_CHANNELS` in `~/lib/overlay/channels` (server). */
 const STREAM_CHANNELS = "stream_channels";
-
-interface OverlayData {
-  live: LiveMatchState | null;
-  match: Match | null;
-  /** Server clock when the data was read (ms). */
-  serverNow?: number;
-}
-
-/**
- * The overlay's starting data for a match, from the stable
- * `/api/overlay/match/{id}` route (a page left open in OBS outlives
- * deploys, which would break a server action). Null when it is gone.
- */
-async function loadOverlayData(
-  matchId: string,
-  signal: AbortSignal,
-): Promise<OverlayData | null> {
-  const res = await fetch(`/api/overlay/match/${encodeURIComponent(matchId)}`, {
-    cache: "no-store",
-    signal,
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as OverlayData;
-}
 
 /** The channel's match; `epoch` moves on every change (incl. off air). */
 interface OnAir {
