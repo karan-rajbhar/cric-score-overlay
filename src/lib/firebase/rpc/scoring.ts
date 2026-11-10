@@ -1813,8 +1813,9 @@ function eventBall(
  * Penalty runs to the fielding side (Law 41.17), logged in the ball log as
  * an event carrying `penalty_team_id`:
  *
- * - when that team has already batted, in its most recent innings, whose
- *   total goes up (and with it the current target, by the same runs);
+ * - when that team has already batted in this pair of innings (the match,
+ *   or the same super over), in that innings, whose total goes up (and with
+ *   it the current target, by the same runs);
  * - otherwise in the current innings, where it adds nothing; starting that
  *   team's innings carries it into their ball log (see `openNextInnings`).
  *
@@ -1841,10 +1842,17 @@ async function awardToFieldingSide(
     if (current.team_id === args.p_team_id)
       throw new DbQueryError("invalid_input", "22000");
 
+    // Their innings in the same pair (the match, or this super over): a
+    // super over's runs never reach the main match's innings.
+    const pairStart =
+      current.innings_number % 2 === 1
+        ? current.innings_number
+        : current.innings_number - 1;
     const theirs = all
       .filter(
         (i) =>
           i.team_id === args.p_team_id &&
+          i.innings_number >= pairStart &&
           i.innings_number < current.innings_number,
       )
       .sort((a, b) => b.innings_number - a.innings_number)[0];

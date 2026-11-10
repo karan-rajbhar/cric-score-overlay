@@ -350,3 +350,41 @@ describe.each([true, false])(
     });
   },
 );
+
+describe.each([true, false])(
+  "penalty runs to the fielding side in a super over (incremental: %s)",
+  (incremental) => {
+    it("go to their super-over innings, not the main match's", async () => {
+      const { side, replay } = setup(incremental);
+      // 6 each, then TB bat the super over's first innings.
+      for (let i = 0; i < 12; i += 1)
+        await replay.step({ kind: "ball", ball: { runs: 1 } });
+      expect(match(side)).toMatchObject({ result_type: "tie" });
+      await replay.step({ kind: "super_over" });
+      expect(innings(side, 3)).toMatchObject({ team_id: "TB" });
+      await replay.step({ kind: "ball", ball: { runs: 2 } });
+
+      await award(side, "TA");
+      expect(innings(side, 1)).toMatchObject({
+        total_runs: 6,
+        extras_penalties: 0,
+      });
+      expect(innings(side, 3)).toMatchObject({ total_runs: 2 });
+      expect(
+        (match(side).innings_summary ?? []).find((s) => s.innings_number === 1)
+          ?.total_runs,
+      ).toBe(6);
+
+      // TB's over ends: TA start their super-over innings on 5, chasing 3.
+      for (let i = 0; i < 5; i += 1)
+        await replay.step({ kind: "ball", ball: { runs: 0 } });
+      expect(innings(side, 4)).toMatchObject({
+        team_id: "TA",
+        total_runs: 5,
+        extras_penalties: 5,
+        target_runs: 3,
+      });
+      expectConsistent(side);
+    });
+  },
+);
