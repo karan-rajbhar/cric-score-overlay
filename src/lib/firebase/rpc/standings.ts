@@ -184,7 +184,7 @@ export async function maybeRecalculateStandings(
   after: Partial<MatchesRow> | null,
 ): Promise<void> {
   const tournamentId = after?.tournament_id ?? before?.tournament_id ?? null;
-  if (!tournamentId) return;
+  if (!tournamentId || leavesTournament(before, after)) return;
   const terminal = (s: string | null | undefined) =>
     s === "completed" || s === "abandoned";
   if (!(terminal(after?.status) || terminal(before?.status) || !after)) return;
@@ -201,6 +201,19 @@ export async function maybeRecalculateStandings(
     return;
   }
   await recalculateTournamentStandings(ds, tournamentId);
+}
+
+/**
+ * Whether the write takes the match out of its tournament. That happens
+ * only when the tournament is deleted (the cascade unlinks its matches):
+ * its table goes with it, so recomputing it would only write rows back for
+ * a tournament that is gone.
+ */
+function leavesTournament(
+  before: Partial<MatchesRow> | null,
+  after: Partial<MatchesRow> | null,
+): boolean {
+  return !!before?.tournament_id && after?.tournament_id === null;
 }
 
 /** Match fields the points table depends on. */

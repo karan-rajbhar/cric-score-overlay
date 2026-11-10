@@ -637,6 +637,12 @@ export async function updateTournament(
   return { success: true };
 }
 
+/**
+ * Deletes a tournament with its registrations and points table, and its
+ * fixtures that never started (`delete_unplayed_fixtures`, the cleanup of
+ * `delete_match`). Matches that started or finished stay, outside any
+ * tournament.
+ */
 export async function deleteTournament(tournamentId: string) {
   const db = await createServerClient();
   const {
@@ -662,6 +668,14 @@ export async function deleteTournament(tournamentId: string) {
     .select("club_id")
     .eq("id", tournamentId)
     .single();
+
+  const { error: fixturesError } = await db.rpc("delete_unplayed_fixtures", {
+    p_tournament_id: tournamentId,
+  });
+  if (fixturesError) {
+    console.error("deleteTournament fixtures error:", fixturesError);
+    return { error: fixturesError.message };
+  }
 
   const { error } = await db
     .from("tournaments")

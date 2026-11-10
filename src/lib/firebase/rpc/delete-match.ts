@@ -180,6 +180,37 @@ async function purge(
   };
 }
 
+/**
+ * For a tournament being deleted: removes its fixtures that never started
+ * (status scheduled, no innings) with everything they own (steps 3 and 4).
+ * The caller has checked that the user may delete the tournament; the
+ * points table is not recomputed, as it goes with the tournament. Matches
+ * that started stay. Answers how many fixtures were removed.
+ */
+export async function deleteUnplayedFixtures(
+  ctx: DeleteMatchContext,
+  tournamentId: string,
+): Promise<number> {
+  if (!ctx.uid) throw new DbQueryError("not_authorized", "42501");
+  const fixtures = await ctx.ds.query("matches", [
+    { field: "tournament_id", op: "==", value: tournamentId },
+    { field: "status", op: "==", value: "scheduled" },
+  ]);
+  const started = new Set<string>();
+  for (const ids of chunk(
+    fixtures.map((m) => m.id),
+    IN_CHUNK_SIZE,
+  )) {
+    const innings = await ctx.ds.query("innings", [
+      { field: "match_id", op: "in", value: ids },
+    ]);
+    for (const inn of innings) started.add(String(inn.match_id));
+  }
+  const unplayed = fixtures.filter((m) => !started.has(m.id));
+  for (const m of unplayed) await purge(ctx, m.id, true);
+  return unplayed.length;
+}
+
 export async function deleteMatch(
   ctx: DeleteMatchContext,
   matchId: string,

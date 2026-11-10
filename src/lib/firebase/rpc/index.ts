@@ -25,7 +25,7 @@ import {
 } from "./auth-helpers";
 import { inviteEmail, revokeInvitation } from "./access";
 import { inviteStreamerEmail } from "./streamers";
-import { deleteMatch } from "./delete-match";
+import { deleteMatch, deleteUnplayedFixtures } from "./delete-match";
 import {
   addTeamPlayer,
   assertMayActForPlaceholder,
@@ -300,6 +300,11 @@ export async function callRpc(
         { ds: ctx.ds, db: ctx.db, uid: ctx.uid },
         str(args, "p_match_id"),
         typeof args.p_confirm_title === "string" ? args.p_confirm_title : "",
+      );
+    case "delete_unplayed_fixtures":
+      return deleteUnplayedFixtures(
+        { ds: ctx.ds, db: ctx.db, uid: ctx.uid },
+        str(args, "p_tournament_id"),
       );
     case "can_delete_match":
       return canDeleteMatch(

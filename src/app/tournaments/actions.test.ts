@@ -131,9 +131,13 @@ describe("Tournament Server Actions", () => {
           }),
         })
         .mockReturnValueOnce({ delete: mockDelete });
+      mockRpc.mockResolvedValueOnce({ data: 0, error: null });
 
       const res = await deleteTournament("t-1");
       expect(res).toEqual({ success: true });
+      expect(mockRpc).toHaveBeenCalledWith("delete_unplayed_fixtures", {
+        p_tournament_id: "t-1",
+      });
     });
   });
 

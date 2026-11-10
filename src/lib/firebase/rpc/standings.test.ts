@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { MemoryDataSource, type Doc } from "../datasource";
+import { serverClientFor } from "../server-client";
 import {
   maybeRecalculateStandings,
   recalculateTournamentStandings,
@@ -84,6 +85,32 @@ describe("tournament standings", () => {
       winning_team_id: match.team2_id,
     });
     expect(ds.billedReads).toBeGreaterThan(before);
+  });
+});
+
+describe("deleting a tournament", () => {
+  it("leaves no points-table row behind", async () => {
+    const ds = new MemoryDataSource(seed);
+    const tournamentId = String(
+      seed.matches!.find((m) => m.status === "completed" && m.tournament_id)!
+        .tournament_id,
+    );
+    const completed = seed.matches!.filter(
+      (m) => m.tournament_id === tournamentId && m.status === "completed",
+    );
+    expect(completed.length).toBeGreaterThanOrEqual(2);
+    const client = serverClientFor({ ds, db: null, getUser: async () => null });
+    expect(
+      (await client.from("tournaments").delete().eq("id", tournamentId)).error,
+    ).toBeNull();
+    // Each match the cascade unlinks used to recompute the deleted
+    // tournament's table, after its rows had been removed.
+    expect(
+      ds.all("tournament_standings").filter((s) => s.tournament_id === tournamentId),
+    ).toEqual([]);
+    expect(
+      ds.all("matches").filter((m) => m.tournament_id === tournamentId),
+    ).toEqual([]);
   });
 });
 

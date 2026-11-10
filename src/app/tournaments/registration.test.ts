@@ -15,6 +15,7 @@ import { serverClientFor } from "~/lib/firebase/server-client";
 import { createMatch } from "~/app/matches/mutations";
 import {
   createTournament,
+  deleteTournament,
   generateTournamentFixtures,
   registerTeamForTournament,
   updateRegistrationStatus,
@@ -318,5 +319,50 @@ describe("generateTournamentFixtures", () => {
       error: "Every pair of teams already has a fixture.",
     });
     expect(await fixtures()).toHaveLength(1);
+  });
+});
+
+describe("deleteTournament", () => {
+  it("deletes the fixtures that never started and keeps the rest as standalone matches", async () => {
+    await ds.insert("teams", [{ id: "hawks", name: "Hawks", created_by: "org" }]);
+    signIn("org");
+    for (const team of ["lions", "tigers", "hawks"]) {
+      await registerTeamForTournament("tour", team);
+    }
+    await generateTournamentFixtures("tour", "2026-11-01T04:30:00.000Z");
+    const [done, started, unplayed] = await ds.query("matches", [
+      { field: "tournament_id", op: "==", value: "tour" },
+    ]);
+    const client = state.client as ReturnType<typeof serverClientFor>;
+    await client
+      .from("matches")
+      .update({
+        status: "completed",
+        result_type: "win",
+        winning_team_id: done!.team1_id as string,
+      })
+      .eq("id", done!.id);
+    // Started, then put back to "scheduled": its innings keep it.
+    await ds.insert("innings", [
+      { id: "inn1", match_id: started!.id, team_id: started!.team1_id, innings_number: 1 },
+    ]);
+    await ds.insert("invitations", [
+      { id: "inv1", scorer_match_ids: [unplayed!.id, "other"] },
+    ]);
+
+    expect(await deleteTournament("tour")).toEqual({ success: true });
+
+    expect(await ds.getById("tournaments", "tour")).toBeNull();
+    expect(await ds.getById("matches", unplayed!.id)).toBeNull();
+    for (const kept of [done!, started!]) {
+      expect(await ds.getById("matches", kept.id)).toMatchObject({
+        tournament_id: null,
+      });
+    }
+    expect(await ds.getById("invitations", "inv1")).toMatchObject({
+      scorer_match_ids: ["other"],
+    });
+    expect(ds.all("tournament_standings")).toEqual([]);
+    expect(ds.all("tournament_registrations")).toEqual([]);
   });
 });
