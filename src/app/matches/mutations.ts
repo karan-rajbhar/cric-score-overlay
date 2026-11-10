@@ -13,6 +13,7 @@ import {
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
+import { isSuperOverInnings } from "~/lib/firebase/scoring/result";
 import type { ClubSide } from "~/lib/firebase/types";
 import { refreshLiveMatchesFor } from "~/lib/firebase/live-sync";
 import { invalidateMatchCache } from "~/lib/match-cache";
@@ -1136,41 +1137,144 @@ function matchSettingsPatch(
   return patch;
 }
 
+/**
+ * Rules deciding who is credited with what: a change re-scores every
+ * innings already played. [setting, column, value when unset]
+ */
+const CREDITING_RULES: Array<[keyof MatchSettingsUpdate, string, boolean]> = [
+  ["wideRunsToBatsman", "wide_runs_to_batsman", false],
+  ["noballExtrasToBatsman", "noball_extras_to_batsman", false],
+  ["wideCountsAsBallFaced", "wide_counts_as_ball_faced", false],
+  ["noBallCountsAsBallFaced", "noball_counts_as_ball_faced", true],
+];
+
 interface SettingsPlan {
   /** A chase target typed by hand that differs from the stored one. */
   target: { inningsId: string; runs: number } | null;
+  /** Innings to recompute after the save, in order. */
+  recompute: string[];
+}
+
+interface SettingsInnings {
+  id: string;
+  innings_number: number;
+  target_runs: number | null;
+  total_balls: number | null;
+  is_completed: boolean | null;
+}
+
+interface SettingsMatch {
+  current_innings: number | null;
+  overs_per_innings: number | null;
+  balls_per_over: number | null;
+  dls_revision: { innings_number: number } | null;
 }
 
 /**
- * Checks a settings save against the match as it stands. A target counts
- * only for the chase in play, and only when it changed: the dialog sends
- * back the target it showed, which must not undo a DLS revision.
+ * Why the save cannot change the over: balls per over stay once an over
+ * has a ball, and the overs cannot drop to what the innings in play has
+ * bowled (nothing would close it; a super over or a DLS-revised chase does
+ * not play to them).
+ */
+function overRefusal(
+  settings: MatchSettingsUpdate,
+  match: SettingsMatch,
+  innings: SettingsInnings[],
+  open: SettingsInnings | null,
+): string | null {
+  const bpo = match.balls_per_over || 6;
+  const newBpo = settings.ballsPerOver ?? bpo;
+  if (newBpo !== bpo && innings.some((i) => (i.total_balls ?? 0) > 0)) {
+    return "Balls per over cannot change once a ball has been bowled";
+  }
+  return oversRefusal(settings, match, open);
+}
+
+function oversRefusal(
+  settings: MatchSettingsUpdate,
+  match: SettingsMatch,
+  open: SettingsInnings | null,
+): string | null {
+  const bpo = match.balls_per_over || 6;
+  const overs = settings.oversPerInnings ?? match.overs_per_innings ?? 20;
+  if (
+    open &&
+    oversGovern(match, open.innings_number) &&
+    overs !== (match.overs_per_innings ?? 20) &&
+    overs * bpo <= (open.total_balls ?? 0)
+  ) {
+    return "The overs must be more than the overs already bowled";
+  }
+  return null;
+}
+
+/** The match's overs set the innings' length (not a super over or DLS). */
+function oversGovern(match: SettingsMatch, inningsNumber: number): boolean {
+  return (
+    !isSuperOverInnings(inningsNumber) &&
+    match.dls_revision?.innings_number !== inningsNumber
+  );
+}
+
+/**
+ * A target counts only for the chase in play, and only when it changed:
+ * sending back the one shown must not undo a DLS revision.
+ */
+function targetChange(
+  targetRuns: number | null | undefined,
+  open: SettingsInnings | null,
+): SettingsPlan["target"] | { error: string } {
+  if (targetRuns == null) return null;
+  if (!open || open.innings_number % 2 !== 0) {
+    return { error: "A target can be set only during a chase" };
+  }
+  return open.target_runs === targetRuns
+    ? null
+    : { inningsId: open.id, runs: targetRuns };
+}
+
+/**
+ * Checks a settings save against the match as it stands (the dialog sends
+ * every setting, changed or not) and says what else it must do.
  */
 async function planSettingsSave(
   db: Awaited<ReturnType<typeof createServerClient>>,
   matchId: string,
   settings: MatchSettingsUpdate,
 ): Promise<SettingsPlan | { error: string }> {
-  if (settings.targetRuns == null) return { target: null };
-  const [{ data: match }, { data: innings }] = await Promise.all([
-    db.from("matches").select("current_innings").eq("id", matchId).single(),
+  const [{ data: match }, { data: rows }] = await Promise.all([
+    db
+      .from("matches")
+      .select(
+        "current_innings, overs_per_innings, balls_per_over, dls_revision, wide_runs_to_batsman, noball_extras_to_batsman, wide_counts_as_ball_faced, noball_counts_as_ball_faced",
+      )
+      .eq("id", matchId)
+      .single(),
     db
       .from("innings")
-      .select("id, innings_number, target_runs, is_completed")
+      .select("id, innings_number, target_runs, total_balls, is_completed")
       .eq("match_id", matchId),
   ]);
-  const current = (innings ?? []).find(
-    (i) => i.innings_number === (match?.current_innings ?? 1),
+  if (!match) return { error: "Match not found" };
+  const innings = ((rows ?? []) as SettingsInnings[]).sort(
+    (a, b) => a.innings_number - b.innings_number,
   );
-  if (!current || current.innings_number % 2 !== 0 || current.is_completed) {
-    return { error: "A target can be set only during a chase" };
-  }
-  return {
-    target:
-      current.target_runs === settings.targetRuns
-        ? null
-        : { inningsId: current.id, runs: settings.targetRuns },
-  };
+  const current = innings.find(
+    (i) => i.innings_number === (match.current_innings ?? 1),
+  );
+  const open = current && !current.is_completed ? current : null;
+
+  const refusal = overRefusal(settings, match as SettingsMatch, innings, open);
+  if (refusal) return { error: refusal };
+  const target = targetChange(settings.targetRuns, open);
+  if (target && "error" in target) return target;
+
+  const stored = match as unknown as Record<string, boolean | null>;
+  const rulesChanged = CREDITING_RULES.some(
+    ([key, column, unset]) =>
+      settings[key] !== undefined && settings[key] !== (stored[column] ?? unset),
+  );
+  return { target, recompute: rulesChanged ? innings.map((i) => i.id) : [] };
 }
 
 export async function updateMatchSettings(
@@ -1261,6 +1365,17 @@ export async function updateMatchSettings(
       if (matchErr) {
         console.error("updateMatchSettings failed on matches:", matchErr);
         return { success: false, error: friendlyError(matchErr.message) };
+      }
+    }
+
+    // A crediting rule changed: re-score what was played under the old one.
+    for (const inningsId of plan.recompute) {
+      const { error } = await db.rpc("recompute_innings", {
+        p_innings_id: inningsId,
+      });
+      if (error) {
+        console.error("updateMatchSettings failed to recompute:", error);
+        return { success: false, error: friendlyError(error.message) };
       }
     }
 

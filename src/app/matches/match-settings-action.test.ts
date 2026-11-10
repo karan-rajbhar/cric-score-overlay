@@ -20,16 +20,14 @@ import {
   GoldenReplay,
   SYNTHETIC_ROSTERS,
   syntheticTables,
+  type BallSpec,
   type Step,
 } from "~/lib/firebase/scoring/__fixtures__/golden";
 import { stage2Driver } from "~/lib/firebase/scoring/__fixtures__/stage2";
 import { serverClientFor } from "~/lib/firebase/server-client";
 import { updateDlsTarget, updateMatchSettings } from "./mutations";
 
-const ball = (
-  runs: number,
-  extra: Partial<Step & { kind: "ball" }>["ball"] = {},
-): Step => ({
+const ball = (runs: number, extra: BallSpec = {}): Step => ({
   kind: "ball",
   ball: { runs, ...extra },
 });
@@ -150,5 +148,97 @@ describe("updateMatchSettings refusing a target", () => {
       "The target must be at least 1 run",
     );
     expect(innings(2)!.target_runs).toBe(13);
+  });
+});
+
+/** What a recompute of the ball log decides, per innings. */
+function scorecards(side: { ds: { all(t: string): Record<string, unknown>[] } }) {
+  return side.ds
+    .all("innings")
+    .sort((a, b) => Number(a.innings_number) - Number(b.innings_number))
+    .map((i) => ({
+      n: i.innings_number,
+      total_runs: i.total_runs,
+      total_balls: i.total_balls,
+      batting: i.batting,
+      bowling: i.bowling,
+      partnerships: i.partnerships,
+    }));
+}
+
+/** Every stored innings equals a fresh recompute of its ball log. */
+async function expectRecomputed(
+  side: Parameters<typeof scorecards>[0],
+  replay: GoldenReplay,
+) {
+  const stored = scorecards(side);
+  for (const { n } of stored) {
+    await replay.step({ kind: "recompute", innings: Number(n) });
+  }
+  expect(stored).toEqual(scorecards(side));
+}
+
+const wide = (extras: number) => ball(0, { extras, extraType: "wide" });
+
+describe("updateMatchSettings changing the rules mid-match", () => {
+  it.each([
+    { wideRunsToBatsman: true },
+    { wideCountsAsBallFaced: true },
+    { noballExtrasToBatsman: true },
+    { noBallCountsAsBallFaced: false },
+  ])("recomputes every innings after %o", async (rule) => {
+    const { side, replay } = await matchAfter([
+      wide(3),
+      ball(1, { extras: 1, extraType: "no_ball" }),
+      ...firstInnings(1),
+      wide(2),
+      ball(2, { extras: 1, extraType: "no_ball" }),
+    ]);
+    expect(await updateMatchSettings("M", rule)).toEqual({
+      success: true,
+      error: null,
+    });
+    await replay.step(ball(1));
+    await expectRecomputed(side, replay);
+  });
+
+  it("changes the balls an over while no over has a ball", async () => {
+    const { match } = await matchAfter([wide(1)]);
+    expect(await updateMatchSettings("M", { ballsPerOver: 8 })).toEqual({
+      success: true,
+      error: null,
+    });
+    expect(match().balls_per_over).toBe(8);
+  });
+
+  it("refuses another number of balls an over once a ball is bowled", async () => {
+    const { match } = await matchAfter([ball(1)]);
+    expect((await updateMatchSettings("M", { ballsPerOver: 8 })).error).toBe(
+      "Balls per over cannot change once a ball has been bowled",
+    );
+    expect(match().balls_per_over).toBe(6);
+    // The dialog sends the value it showed: unchanged is fine.
+    expect(
+      (await updateMatchSettings("M", { ballsPerOver: 6, freeHit: false }))
+        .error,
+    ).toBeNull();
+    expect(match().free_hit).toBe(false);
+  });
+
+  it("refuses overs the innings in play has already bowled", async () => {
+    const { match } = await matchAfter(
+      Array.from({ length: 13 }, () => ball(0)),
+      { overs_per_innings: 3 },
+    );
+    for (const overs of [1, 2]) {
+      expect(
+        (await updateMatchSettings("M", { oversPerInnings: overs })).error,
+      ).toBe("The overs must be more than the overs already bowled");
+    }
+    expect(match().overs_per_innings).toBe(3);
+    expect(
+      (await updateMatchSettings("M", { oversPerInnings: 4 })).error,
+    ).toBeNull();
+    expect(match().overs_per_innings).toBe(4);
   });
 });
