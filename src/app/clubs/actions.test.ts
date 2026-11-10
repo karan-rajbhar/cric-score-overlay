@@ -45,6 +45,37 @@ describe("Clubs Server Actions", () => {
   });
 
   describe("joinClub", () => {
+    /** The `clubs` read: one row, or none. */
+    const clubRead = (row: Record<string, unknown> | null) => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: row }) }),
+      }),
+    });
+    /** The caller's membership read: one row, or none. */
+    const membershipRead = (row: Record<string, unknown> | null) => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: row }) }),
+        }),
+      }),
+    });
+
+    it("refuses a private club, and one that does not exist", async () => {
+      // No write is mocked: one would throw.
+      for (const [membership, club, error] of [
+        [null, { id: "club-1", is_public: false }, /invite only/],
+        [{ id: "mem-1", status: "inactive" }, { id: "club-1", is_public: false }, /invite only/],
+        [null, null, /not found/],
+      ] as const) {
+        mockGetUser.mockResolvedValueOnce({ data: { user: { id: "u-123" } } });
+        mockFrom
+          .mockReturnValueOnce(membershipRead(membership))
+          .mockReturnValueOnce(clubRead(club));
+        expect((await joinClub("club-1")).error).toMatch(error);
+      }
+      expect(mockFrom).toHaveBeenCalledTimes(6);
+    });
+
     it("fails when unauthenticated", async () => {
       mockGetUser.mockResolvedValueOnce({ data: { user: null } });
       const res = await joinClub("club-1");
@@ -83,6 +114,7 @@ describe("Clubs Server Actions", () => {
 
       mockFrom
         .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce(clubRead({ id: "club-1", is_public: true }))
         .mockReturnValueOnce({ update: mockUpdate });
 
       const res = await joinClub("club-1");
@@ -104,6 +136,7 @@ describe("Clubs Server Actions", () => {
 
       mockFrom
         .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce(clubRead({ id: "club-1", is_public: null }))
         .mockReturnValueOnce({ insert: mockInsert });
 
       const res = await joinClub("club-1");
@@ -131,6 +164,7 @@ describe("Clubs Server Actions", () => {
 
       mockFrom
         .mockReturnValueOnce({ select: mockSelect })
+        .mockReturnValueOnce(clubRead({ id: "club-1", is_public: true }))
         .mockReturnValueOnce({ insert: mockInsert });
 
       const res = await joinClub("club-1");

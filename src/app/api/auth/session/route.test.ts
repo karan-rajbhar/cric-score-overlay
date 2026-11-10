@@ -69,6 +69,34 @@ describe("POST /api/auth/session", () => {
     expect(verifyIdToken).not.toHaveBeenCalled();
   });
 
+  it("refuses a cross-site post, which could sign the browser in as someone else", async () => {
+    const body = JSON.stringify({ idToken: "token" });
+    const cases: [Record<string, string>, number][] = [
+      [{ ...SAME_SITE, Origin: "https://evil.example" }, 403],
+      [{ "Content-Type": "application/json", Host: "localhost:3005" }, 403],
+      [{ ...SAME_SITE, Origin: "null" }, 403],
+      // What a cross-site form can send.
+      [{ ...SAME_SITE, "Content-Type": "application/x-www-form-urlencoded" }, 415],
+      [{ ...SAME_SITE, "Content-Type": "text/plain" }, 415],
+    ];
+    for (const [headers, status] of cases) {
+      const res = await post(body, headers);
+      expect(res.status).toBe(status);
+      expect(res.cookies.get("cric_session")).toBeUndefined();
+    }
+    expect(verifyIdToken).not.toHaveBeenCalled();
+  });
+
+  it("takes the forwarded host behind the hosting proxy", async () => {
+    const res = await post(JSON.stringify({ idToken: "token" }), {
+      "Content-Type": "application/json",
+      Origin: "https://cricscore.example",
+      Host: "internal:8080",
+      "X-Forwarded-Host": "cricscore.example",
+    });
+    expect(res.status).toBe(200);
+  });
+
   it("refuses a missing token or a body that is not JSON", async () => {
     expect((await post("{}")).status).toBe(400);
     expect((await post("{not json")).status).toBe(400);

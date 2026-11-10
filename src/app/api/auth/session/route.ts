@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readCapped } from "~/lib/api-request";
+import { isJsonRequest, isSameOrigin, readCapped } from "~/lib/api-request";
 import { getAdminAuth, getAdminFirestore } from "~/lib/firebase/admin";
 import { AdminDataSource } from "~/lib/firebase/datasource-admin";
 import { derivedFieldsDataSource } from "~/lib/firebase/derived-fields";
@@ -16,19 +16,27 @@ import {
   verifyIdToken,
 } from "~/lib/firebase/session";
 
-/**
- * Exchanges a Firebase ID token for an HTTP-only session cookie and makes
- * sure the signed-in account has a `users` profile. A readable hint cookie
- * is set alongside so the browser can detect a stale server session.
- *
- * The app is invite-only: an account nobody invited gets a 403, and the
- * Firebase Auth account that Google sign-in just created is deleted.
- */
-
 /** `{ idToken }`: an ID token is a few KB at most. */
 const MAX_BODY_BYTES = 16 * 1024;
 
-export async function POST(request: NextRequest) {
+/**
+ * The posted ID token, or the response refusing the request. A cross-site
+ * form could otherwise sign this browser in as another account (login
+ * CSRF), so only a same-origin JSON body is read, and no further than
+ * {@link MAX_BODY_BYTES}.
+ */
+async function postedIdToken(
+  request: NextRequest,
+): Promise<string | NextResponse> {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "bad_origin" }, { status: 403 });
+  }
+  if (!isJsonRequest(request)) {
+    return NextResponse.json(
+      { error: "unsupported_media_type" },
+      { status: 415 },
+    );
+  }
   const raw = await readCapped(request, MAX_BODY_BYTES);
   if (raw === null) {
     return NextResponse.json({ error: "too_large" }, { status: 413 });
@@ -39,9 +47,22 @@ export async function POST(request: NextRequest) {
   } catch {
     idToken = undefined;
   }
-  if (typeof idToken !== "string" || !idToken) {
-    return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
-  }
+  return typeof idToken === "string" && idToken
+    ? idToken
+    : NextResponse.json({ error: "Missing idToken" }, { status: 400 });
+}
+
+/**
+ * Exchanges a Firebase ID token for an HTTP-only session cookie and makes
+ * sure the signed-in account has a `users` profile. A readable hint cookie
+ * is set alongside so the browser can detect a stale server session.
+ *
+ * The app is invite-only: an account nobody invited gets a 403, and the
+ * Firebase Auth account that Google sign-in just created is deleted.
+ */
+export async function POST(request: NextRequest) {
+  const idToken = await postedIdToken(request);
+  if (typeof idToken !== "string") return idToken;
 
   try {
     const decoded = await verifyIdToken(idToken);

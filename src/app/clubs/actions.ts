@@ -78,10 +78,21 @@ export async function joinClub(clubId: string) {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  if (existing?.status === "active") return { success: true };
+
+  // Anyone may join a public club (null or absent: public); a private one
+  // takes its members by invite.
+  const { data: club } = await db
+    .from("clubs")
+    .select("id, is_public")
+    .eq("id", clubId)
+    .maybeSingle();
+  if (!club) return { error: "Club not found" };
+  if (club.is_public === false) {
+    return { error: "This club takes new members by invite only" };
+  }
+
   if (existing) {
-    if (existing.status === "active") {
-      return { success: true };
-    }
     const { error: updateError } = await db
       .from("club_memberships")
       .update({ status: "active", role: "member" })
