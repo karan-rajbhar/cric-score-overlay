@@ -819,6 +819,19 @@ export async function setCurrentBowler(
  * `inningsNumber`: the innings the scorer meant to end; once it has ended
  * (or is not the current one) this does nothing (see `end_innings`).
  */
+/**
+ * The reply reports a match this call finished. A queued End innings
+ * replayed after the match ended changes nothing (it names an ended
+ * innings) and must not pick the player of the match again over the
+ * scorer's choice.
+ */
+function finishedNow(
+  state: ScoringState | null,
+  before: MatchProgress | null,
+): boolean {
+  return Boolean(state?.match_completed) && before?.status !== "completed";
+}
+
 export async function endInnings(
   matchId: string,
   clientActionId?: string | null,
@@ -834,8 +847,12 @@ export async function endInnings(
       return { data: null, error: "You must be logged in to end innings" };
     }
 
-    const isAuthorized = await checkMatchAdminAuth(db, matchId, user.id);
-    if (!isAuthorized) {
+    const { allowed, match: before } = await matchAdminCheck(
+      db,
+      matchId,
+      user.id,
+    );
+    if (!allowed) {
       return {
         data: null,
         error:
@@ -861,7 +878,7 @@ export async function endInnings(
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
 
-    if ((data as ScoringState)?.match_completed) {
+    if (finishedNow(data as ScoringState, before)) {
       await afterMatchCompleted(db, matchId);
     }
 

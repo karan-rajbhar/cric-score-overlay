@@ -37,7 +37,12 @@ import { stage2Driver } from "~/lib/firebase/scoring/__fixtures__/stage2";
 import { serverClientFor } from "~/lib/firebase/server-client";
 import type { OversRow } from "~/lib/firebase/scorecard";
 import { matchMessage, type MatchDoc } from "~/lib/push/notify";
-import { awardTeamPenalty, retirePlayer, updateBall } from "./mutations";
+import {
+  awardTeamPenalty,
+  endInnings,
+  retirePlayer,
+  updateBall,
+} from "./mutations";
 
 /** A match id as the app makes them (getMatch reads only those). */
 const M = "5f1e0c2a-3b4d-4e6f-8a9b-0c1d2e3f4a5b";
@@ -198,5 +203,18 @@ describe("a match finished by an action that is not a delivery", () => {
     await updateBall({ matchId: M, ballId: ballOf(1, 0), runsScored: 2 });
     expect(match().status).toBe("completed");
     expect(match().player_of_the_match_id).toBe("b9");
+  });
+
+  it("leaves the player of the match alone when a queued End innings arrives late", async () => {
+    // The chase is won by a ball; an End innings naming innings 2, queued
+    // offline before that ball's reply, then changes nothing.
+    const { side, match } = await matchAfter([...balls(6, 1), ...balls(2, 4)]);
+    expect(match().status).toBe("completed");
+    await side.ds.update("matches", M, { player_of_the_match_id: "b9" });
+    const res = await endInnings(M, null, 2);
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({ match_completed: true });
+    expect(match().player_of_the_match_id).toBe("b9");
+    expect(revalidatedTournaments()).toEqual([]);
   });
 });
