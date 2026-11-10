@@ -25,6 +25,8 @@ interface StandingsTeam {
   points: number;
   netRunRate: number;
   qualificationStatus?: string | null;
+  /** Fixtures still to play (scheduled or live). */
+  remainingMatches: number;
 }
 
 interface QualificationCalculatorProps {
@@ -32,7 +34,6 @@ interface QualificationCalculatorProps {
   onOpenChange: (open: boolean) => void;
   tournamentName: string;
   teams: StandingsTeam[];
-  totalScheduledMatchesPerTeam?: number;
 }
 
 export function QualificationCalculator({
@@ -40,24 +41,14 @@ export function QualificationCalculator({
   onOpenChange,
   tournamentName,
   teams,
-  totalScheduledMatchesPerTeam = 4,
 }: QualificationCalculatorProps) {
   const [qualSpots, setQualSpots] = useState<number>(2);
 
   const teamScenarios = useMemo(() => {
-    // Calculate remaining matches for each team
-    const data = teams.map((t) => {
-      const remaining = Math.max(
-        0,
-        totalScheduledMatchesPerTeam - t.matchesPlayed,
-      );
-      const maxPoints = t.points + remaining * 2;
-      return {
-        ...t,
-        remainingMatches: remaining,
-        maxPoints,
-      };
-    });
+    const data = teams.map((t) => ({
+      ...t,
+      maxPoints: t.points + t.remainingMatches * 2,
+    }));
 
     // Evaluate mathematical status
     const evalMap = evaluateQualification(
@@ -97,7 +88,7 @@ export function QualificationCalculator({
         conditionText,
       };
     });
-  }, [teams, totalScheduledMatchesPerTeam, qualSpots]);
+  }, [teams, qualSpots]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

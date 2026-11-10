@@ -63,6 +63,7 @@ import { isBracketFormat, NextRoundDialog } from "~/components/tournaments/next-
 import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
+import { remainingMatchesByTeam } from "~/lib/tournament-standings";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +93,8 @@ interface MatchRow {
   win_margin_type: string | null;
   result_description: string | null;
   winning_team_id: string | null;
+  team1_id: string | null;
+  team2_id: string | null;
   team1: { id: string; name: string; short_name: string | null } | null;
   team2: { id: string; name: string; short_name: string | null } | null;
   innings?: InningsRow[];
@@ -334,6 +337,9 @@ export default async function TournamentLayout({
     .filter((r) => r.status === "pending" || r.status === "confirmed")
     .map((r) => r.team_id);
 
+  const remainingMatches = remainingMatchesByTeam(
+    (matches ?? []) as unknown as MatchRow[],
+  );
   const teamsForCalculator = (standings ?? []).map((s) => {
     const teamObj = s.team as { name: string } | null;
     return {
@@ -343,6 +349,7 @@ export default async function TournamentLayout({
       points: Number(s.points ?? 0),
       netRunRate: Number(s.net_run_rate ?? 0),
       qualificationStatus: s.qualification_status ?? "in_contention",
+      remainingMatches: remainingMatches.get(s.team_id) ?? 0,
     };
   });
 

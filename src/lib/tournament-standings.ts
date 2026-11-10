@@ -80,6 +80,24 @@ export function nrrFigures(
   });
 }
 
+/** Each team's matches still to play (scheduled or live) among `matches`. */
+export function remainingMatchesByTeam(
+  matches: readonly {
+    team1_id?: string | null;
+    team2_id?: string | null;
+    status: string | null;
+  }[],
+): Map<string, number> {
+  const remaining = new Map<string, number>();
+  for (const m of matches) {
+    if (m.status !== "scheduled" && m.status !== "live") continue;
+    for (const team of [m.team1_id, m.team2_id]) {
+      if (team) remaining.set(team, (remaining.get(team) ?? 0) + 1);
+    }
+  }
+  return remaining;
+}
+
 export interface InningsPerformance {
   runs: number;
   wickets: number;
