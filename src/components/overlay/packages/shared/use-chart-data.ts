@@ -44,7 +44,7 @@ export function useInningsSeries(
         : name === state.team2_name
           ? 2
           : 1;
-      return { innings: inn, side, name, table: overTable(log.get(inn.id) ?? []) };
+      return { innings: inn, side, name, table: overTable(log.get(inn.id) ?? [], inn) };
     });
   }, [main, log, match, state]);
 }

@@ -195,7 +195,7 @@ type InningsRow = NonNullable<Match["innings"]>[number];
  * awarded to the side yet to bat, which is logged here and carried into its
  * own innings (the engine's `penaltyCountsFor`).
  */
-function countsForInnings(
+export function countsForInnings(
   entry: object,
   inn: Pick<InningsRow, "team_id">,
 ): boolean {

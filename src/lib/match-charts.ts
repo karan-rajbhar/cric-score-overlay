@@ -1,6 +1,19 @@
 import { isWicketFall } from "./cricket";
 import { isLegalDelivery } from "./firebase/scoring/recompute";
+import { countsForInnings } from "./match-report";
 import type { BallEvent, Innings } from "./match-types";
+
+/** The innings a ball log belongs to (its batting side). */
+type BallsOf = Pick<Innings, "team_id"> | null | undefined;
+
+/**
+ * The entries whose runs are the innings': all but a penalty awarded to the
+ * side yet to bat, logged here and carried into its own innings (the
+ * report's and the engine's rule). Without the innings, every entry.
+ */
+function ownBalls(balls: BallEvent[], innings: BallsOf): BallEvent[] {
+  return innings ? balls.filter((b) => countsForInnings(b, innings)) : balls;
+}
 
 /** Report-parity palette — teal vs amber distinguishes innings at a glance. */
 export const CHART_TEAM1 = "#0f766e";
@@ -19,10 +32,16 @@ export interface OverPoint {
   balls: number;
 }
 
-/** Group balls by over_number → per-over + cumulative totals. */
-export function buildOverTable(balls: BallEvent[]): OverPoint[] {
+/**
+ * Group balls by over_number → per-over + cumulative totals; with the
+ * innings, a penalty carried to the other side is left out.
+ */
+export function buildOverTable(
+  balls: BallEvent[],
+  innings?: BallsOf,
+): OverPoint[] {
   const byOver = new Map<number, BallEvent[]>();
-  for (const b of balls) {
+  for (const b of ownBalls(balls, innings)) {
     const ov = b.over_number ?? 0;
     const list = byOver.get(ov) ?? [];
     list.push(b);
@@ -87,11 +106,16 @@ export interface PhaseSplit {
   balls: number;
 }
 
-/** Powerplay / middle / death split scaled to the match length. */
+/**
+ * Powerplay / middle / death split scaled to the match length; with the
+ * innings, a penalty carried to the other side is left out.
+ */
 export function phaseSplits(
   balls: BallEvent[],
   totalOvers: number,
+  innings?: BallsOf,
 ): PhaseSplit[] {
+  const own = ownBalls(balls, innings);
   const safeTotal = Math.max(1, totalOvers || 20);
   // Partition 1..safeTotal with no overlaps or gaps, even for short games:
   // powerplay takes ~first 30% (capped at 6), death the last ~25%, middle
@@ -109,7 +133,7 @@ export function phaseSplits(
     from > to ? "—" : from === to ? `${from}` : `${from}–${to}`;
 
   const summarize = (label: string, overs: string, from: number, to: number) => {
-    const slice = balls.filter((b) =>
+    const slice = own.filter((b) =>
       inRange((b.over_number ?? 0) + 1, from, to),
     );
     return {

@@ -8,7 +8,7 @@
 
 import { buildOverTable, type OverPoint } from "~/lib/match-charts";
 import { phaseBoundaries } from "~/lib/match-report";
-import type { BallEvent } from "~/lib/match-types";
+import type { BallEvent, Innings } from "~/lib/match-types";
 import { SECTORS } from "~/lib/wagon-wheel-utils";
 
 export type { OverPoint };
@@ -18,9 +18,15 @@ export {
   SECTORS,
 } from "~/lib/wagon-wheel-utils";
 
-/** Per-over runs and wickets with running totals, from an innings' balls. */
-export function overTable(balls: readonly BallEvent[]): OverPoint[] {
-  return buildOverTable([...balls]);
+/**
+ * Per-over runs and wickets with running totals, from an innings' balls
+ * (a penalty carried to the other side left out when `innings` is given).
+ */
+export function overTable(
+  balls: readonly BallEvent[],
+  innings?: Pick<Innings, "team_id"> | null,
+): OverPoint[] {
+  return buildOverTable([...balls], innings);
 }
 
 export interface OverBar {

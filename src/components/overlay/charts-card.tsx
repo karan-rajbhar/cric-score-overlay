@@ -69,7 +69,7 @@ function useSeries(
     return main.map((inn) => ({
       innings: inn,
       name: inningsTeamName(state, inn, match?.team1_id),
-      table: buildOverTable(log.get(inn.id) ?? []),
+      table: buildOverTable(log.get(inn.id) ?? [], inn),
     }));
   }, [main, log, match, state]);
 }
