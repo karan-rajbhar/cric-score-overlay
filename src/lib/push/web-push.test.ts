@@ -128,9 +128,12 @@ function decryptFresh(body: Buffer, uaPrivate: string, auth: string): string {
 function keyPair(): VapidKeys {
   const ecdh = createECDH("prime256v1");
   ecdh.generateKeys();
+  // getPrivateKey drops leading zero bytes (about 1 key in 256 is 31
+  // bytes); pad as scripts/generate-vapid-keys.mjs does.
+  const key = ecdh.getPrivateKey();
   return {
     publicKey: b64url(ecdh.getPublicKey()),
-    privateKey: b64url(ecdh.getPrivateKey()),
+    privateKey: b64url(Buffer.concat([Buffer.alloc(32 - key.length), key])),
     subject: "mailto:test@example.com",
   };
 }
