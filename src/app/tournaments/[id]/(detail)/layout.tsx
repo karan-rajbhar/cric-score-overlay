@@ -64,6 +64,7 @@ import { StatGrid, StatTile } from "~/components/ds/stat-tile";
 import { PointsTable } from "~/components/ds/standings";
 import { matchGroupsOf } from "~/lib/match-groups";
 import { remainingMatchesByTeam } from "~/lib/tournament-standings";
+import { isTournamentOver } from "~/app/tournaments/rules";
 import { SponsorLogosDialog } from "~/components/streaming/sponsor-logos-manager";
 
 export const dynamic = "force-dynamic";
@@ -387,7 +388,7 @@ export default async function TournamentLayout({
   });
 
   // Scheduling and following are over when the tournament is.
-  const over = ["completed", "cancelled"].includes(tournament.status ?? "");
+  const over = isTournamentOver(tournament.status);
   const registerTeam = canRegisterTeams && !over && (
     <RegisterTeamDialog
       tournamentId={tournament.id}
@@ -584,17 +585,8 @@ export default async function TournamentLayout({
                 title="No standings yet"
                 description="The points table fills in as registered teams play their fixtures."
               />
-              {canRegisterTeams && (
-                <div className="flex justify-center">
-                  <RegisterTeamDialog
-                    tournamentId={tournament.id}
-                    availableTeams={
-                      isTournamentAdmin ? undefined : availableTeams
-                    }
-                    registeredTeamIds={registeredTeamIds}
-                    isOrganiser={isTournamentAdmin}
-                  />
-                </div>
+              {registerTeam && (
+                <div className="flex justify-center">{registerTeam}</div>
               )}
             </div>
           ) : (
@@ -649,7 +641,7 @@ export default async function TournamentLayout({
 
         {/* TAB 2: FIXTURES & MATCHES */}
         <TabsContent value="fixtures" className="mt-4 space-y-6 sm:mt-6">
-          {isTournamentAdmin && (
+          {isTournamentAdmin && !over && (
             <div className="flex flex-wrap items-center justify-end gap-2">
               {typedMatches.length === 0 &&
                 !isBracketFormat(tournament.tournament_format) && (
@@ -769,17 +761,8 @@ export default async function TournamentLayout({
 
         {/* TAB 3: TEAMS & SQUADS */}
         <TabsContent value="teams" className="mt-4 space-y-6 sm:mt-6">
-          {canRegisterTeams && (
-            <div className="flex justify-end">
-              <RegisterTeamDialog
-                tournamentId={tournament.id}
-                availableTeams={
-                  isTournamentAdmin ? undefined : availableTeams
-                }
-                registeredTeamIds={registeredTeamIds}
-                isOrganiser={isTournamentAdmin}
-              />
-            </div>
+          {registerTeam && (
+            <div className="flex justify-end">{registerTeam}</div>
           )}
 
           {/* Join requests: all for the organisers, your own otherwise */}

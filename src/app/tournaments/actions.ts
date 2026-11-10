@@ -10,8 +10,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   fixtureRulesOf,
+  isTournamentOver,
   TOURNAMENT_STATUSES,
   tournamentRulesFrom,
+  tournamentShapeFrom,
 } from "./rules";
 
 export async function createTournament(formData: FormData) {
@@ -31,6 +33,8 @@ export async function createTournament(formData: FormData) {
 
   const rules = tournamentRulesFrom(formData);
   if ("error" in rules) return { error: rules.error };
+  const shape = tournamentShapeFrom(formData);
+  if ("error" in shape) return { error: shape.error };
 
   if (clubId) {
     const { data: club } = await db
@@ -67,16 +71,13 @@ export async function createTournament(formData: FormData) {
     .insert({
       name,
       description: (formData.get("description") as string) || null,
-      tournament_format:
-        (formData.get("tournament_format") as string) || "league",
+      ...shape,
       match_format: rules.match_format,
       overs_per_innings: rules.overs_per_innings,
       ...(rules.wickets_per_innings !== null
         ? { wickets_per_innings: rules.wickets_per_innings }
         : {}),
       venue: (formData.get("venue") as string) || null,
-      start_date: (formData.get("start_date") as string) || null,
-      end_date: (formData.get("end_date") as string) || null,
       club_id: clubId,
       created_by: user.id,
       status: "upcoming",
@@ -110,6 +111,25 @@ async function checkTournamentAdminAuth(
   if (!tournament) return false;
   if (tournament.created_by === userId) return true;
   return isClubAdminOf(db, tournament.club_id, userId);
+}
+
+/** Refusal for new teams or fixtures once a tournament is over. */
+const OVER = "This tournament is over";
+
+/** The tournament's club, and the refusal when it is over. */
+async function openTournament(
+  db: Awaited<ReturnType<typeof createServerClient>>,
+  tournamentId: string,
+): Promise<{ clubId: string | null; error: string | null }> {
+  const { data } = await db
+    .from("tournaments")
+    .select("club_id, status")
+    .eq("id", tournamentId)
+    .maybeSingle();
+  return {
+    clubId: data?.club_id ?? null,
+    error: isTournamentOver(data?.status) ? OVER : null,
+  };
 }
 
 /** Most teams the "Register team" dialog lists, so it cannot read them all. */
@@ -201,6 +221,9 @@ export async function registerTeamForTournament(
 
   await ensureUserProfile(db, user);
 
+  const tourn = await openTournament(db, tournamentId);
+  if (tourn.error) return { error: tourn.error };
+
   const isTournAdmin = await checkTournamentAdminAuth(
     db,
     tournamentId,
@@ -230,16 +253,8 @@ export async function registerTeamForTournament(
     });
   }
 
-  const { data: tourn } = await db
-    .from("tournaments")
-    .select("club_id")
-    .eq("id", tournamentId)
-    .single();
-
   revalidatePath(`/tournaments/${tournamentId}`);
-  if (tourn?.club_id) {
-    revalidatePath(`/clubs/${tourn.club_id}`);
-  }
+  if (tourn.clubId) revalidatePath(`/clubs/${tourn.clubId}`);
   return { success: true, status };
 }
 
@@ -456,13 +471,14 @@ export async function generateTournamentFixtures(
   const { data: tournament, error: tourError } = await db
     .from("tournaments")
     .select(
-      "id, name, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
+      "id, name, status, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, wickets_per_innings, last_man_stands, golden_ball, season_id",
     )
     .eq("id", tournamentId)
     .single();
 
   if (tourError || !tournament)
     return { error: tourError?.message ?? "Tournament not found" };
+  if (isTournamentOver(tournament.status)) return { error: OVER };
   const rules = fixtureRulesOf(tournament);
 
   // Fetch confirmed teams
@@ -571,11 +587,7 @@ export async function updateTournament(
   if (!name) return { error: "Tournament name is required" };
 
   const description = (formData.get("description") as string)?.trim() || null;
-  const tournament_format =
-    (formData.get("tournament_format") as string) || "league";
   const venue = (formData.get("venue") as string)?.trim() || null;
-  const start_date = (formData.get("start_date") as string) || null;
-  const end_date = (formData.get("end_date") as string) || null;
   const season_id = (formData.get("season_id") as string) || null;
   const is_public = formData.get("is_public") !== "false";
 
@@ -587,9 +599,8 @@ export async function updateTournament(
   if (rawStatus && !TOURNAMENT_STATUSES.has(rawStatus)) {
     return { error: "Unknown tournament status" };
   }
-  if (start_date && end_date && end_date < start_date) {
-    return { error: "The end date is before the start date" };
-  }
+  const shape = tournamentShapeFrom(formData);
+  if ("error" in shape) return { error: shape.error };
 
   const last_man_stands = formData.get("last_man_stands") === "true";
   const golden_ball = formData.get("golden_ball") === "true";
@@ -605,7 +616,7 @@ export async function updateTournament(
     .update({
       name,
       description,
-      tournament_format,
+      ...shape,
       match_format,
       overs_per_innings,
       ...(wickets_per_innings !== null ? { wickets_per_innings } : {}),
@@ -613,8 +624,6 @@ export async function updateTournament(
       last_man_stands,
       golden_ball,
       venue,
-      start_date,
-      end_date,
       season_id: season_id && season_id !== "none" ? season_id : null,
       is_public,
       updated_at: new Date().toISOString(),

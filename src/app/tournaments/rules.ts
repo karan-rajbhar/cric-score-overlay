@@ -69,3 +69,36 @@ export const TOURNAMENT_STATUSES: ReadonlySet<string> = new Set([
   "ongoing",
   "completed",
 ]);
+
+/** Whether a tournament is over: it takes no new teams or fixtures. */
+export function isTournamentOver(status: string | null | undefined): boolean {
+  return status === "completed" || status === "cancelled";
+}
+
+/** The formats the tournament forms offer. */
+const TOURNAMENT_FORMATS: ReadonlySet<string> = new Set([
+  "league",
+  "knockout",
+  "mixed",
+  "round_robin",
+]);
+
+/** The format and dates a tournament form sends, or what is wrong with them. */
+export function tournamentShapeFrom(formData: FormData):
+  | {
+      tournament_format: string;
+      start_date: string | null;
+      end_date: string | null;
+    }
+  | { error: string } {
+  const format = (formData.get("tournament_format") as string) || "league";
+  if (!TOURNAMENT_FORMATS.has(format)) {
+    return { error: "Unknown tournament format" };
+  }
+  const start = (formData.get("start_date") as string) || null;
+  const end = (formData.get("end_date") as string) || null;
+  if (start && end && end < start) {
+    return { error: "The end date is before the start date" };
+  }
+  return { tournament_format: format, start_date: start, end_date: end };
+}

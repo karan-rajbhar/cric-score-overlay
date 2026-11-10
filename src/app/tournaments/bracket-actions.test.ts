@@ -91,6 +91,25 @@ describe("bracket actions", () => {
     expect([finalMatch.team1_id, finalMatch.team2_id]).not.toContain(first!.team1_id);
   });
 
+  it("is for the organiser only", async () => {
+    state.userId = "550e8400-e29b-41d4-a716-446655440003";
+    expect((await previewNextRound(KNOCKOUT)).error).toBe(
+      "Only tournament organisers can create rounds",
+    );
+    state.userId = null;
+    expect((await createNextRound(KNOCKOUT)).error).toBe("You must be logged in");
+  });
+
+  it("explains why a league gets no rounds", async () => {
+    const league = await previewNextRound("850e8400-e29b-41d4-a716-446655440001", {});
+    expect(league.error).toBe("Only tournament organisers can create rounds");
+    state.userId = "550e8400-e29b-41d4-a716-446655440001";
+    const res = await previewNextRound("850e8400-e29b-41d4-a716-446655440001");
+    expect(res.data).toMatchObject({ kind: "invalid" });
+  });
+});
+
+describe("a created round", () => {
   it("takes the tournament's rules and starts at the organiser's chosen time", async () => {
     // The seed's ODI knockout keeps its overs in custom_overs only.
     expect((await createNextRound(KNOCKOUT, {}, "not a date")).error).toBe(
@@ -107,21 +126,10 @@ describe("bracket actions", () => {
     });
   });
 
-  it("is for the organiser only", async () => {
-    state.userId = "550e8400-e29b-41d4-a716-446655440003";
-    expect((await previewNextRound(KNOCKOUT)).error).toBe(
-      "Only tournament organisers can create rounds",
-    );
-    state.userId = null;
-    expect((await createNextRound(KNOCKOUT)).error).toBe("You must be logged in");
-  });
-
-  it("explains why a league gets no rounds", async () => {
-    const league = await previewNextRound("850e8400-e29b-41d4-a716-446655440001", {});
-    expect(league.error).toBe("Only tournament organisers can create rounds");
-    state.userId = "550e8400-e29b-41d4-a716-446655440001";
-    const res = await previewNextRound("850e8400-e29b-41d4-a716-446655440001");
-    expect(res.data).toMatchObject({ kind: "invalid" });
+  it("is not created once the tournament is over", async () => {
+    await ds.update("tournaments", KNOCKOUT, { status: "completed" });
+    expect((await createNextRound(KNOCKOUT)).error).toBe("This tournament is over");
+    expect(await knockoutMatches()).toHaveLength(0);
   });
 });
 

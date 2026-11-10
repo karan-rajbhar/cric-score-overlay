@@ -253,6 +253,50 @@ describe("tournament rules", () => {
       error: "Unknown tournament status",
     });
   });
+
+  it("refuses an end date before the start and an unknown format", async () => {
+    signIn("org");
+    const fd = new FormData();
+    fd.set("name", "Backwards cup");
+    fd.set("start_date", "2026-12-10");
+    fd.set("end_date", "2026-12-01");
+    expect(await createTournament(fd)).toEqual({
+      error: "The end date is before the start date",
+    });
+
+    fd.delete("end_date");
+    fd.set("tournament_format", "swiss");
+    expect(await createTournament(fd)).toEqual({
+      error: "Unknown tournament format",
+    });
+    expect(await updateTournament("tour", fd)).toEqual({
+      error: "Unknown tournament format",
+    });
+    expect(await ds.query("tournaments", [])).toHaveLength(1);
+  });
+});
+
+describe("a completed tournament", () => {
+  it("takes no new registrations or generated fixtures", async () => {
+    signIn("org");
+    await registerTeamForTournament("tour", "tigers");
+    await ds.insert("teams", [{ id: "hawks", name: "Hawks", created_by: "org" }]);
+    await registerTeamForTournament("tour", "hawks");
+    await ds.update("tournaments", "tour", { status: "completed" });
+
+    const over = { error: "This tournament is over" };
+    expect(await registerTeamForTournament("tour", "lions")).toEqual(over);
+    signIn("cap");
+    expect(await registerTeamForTournament("tour", "lions")).toEqual(over);
+    signIn("org");
+    expect(
+      await generateTournamentFixtures("tour", "2026-11-01T04:30:00.000Z"),
+    ).toEqual(over);
+    expect(await registrationOf("lions")).toBeUndefined();
+    expect(
+      await ds.query("matches", [{ field: "tournament_id", op: "==", value: "tour" }]),
+    ).toEqual([]);
+  });
 });
 
 describe("generateTournamentFixtures", () => {

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { TournamentManageDialog } from "~/components/tournaments/tournament-manage-dialog";
 import { RegisterClubTeamDialog } from "~/components/tournaments/register-club-team-dialog";
+import { isTournamentOver } from "~/app/tournaments/rules";
 
 export interface ClubTournamentItem {
   id: string;
@@ -207,7 +208,7 @@ export function ClubTournamentsTab({
                 actions={
                   isAdmin ? (
                     <>
-                      {teams.length > 0 && (
+                      {teams.length > 0 && !isTournamentOver(t.status) && (
                         <RegisterClubTeamDialog
                           tournament={{ id: t.id, name: t.name }}
                           clubTeams={teams}

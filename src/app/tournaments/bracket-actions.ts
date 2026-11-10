@@ -16,7 +16,7 @@ import {
   type NrrMatch,
 } from "~/lib/tournament-standings";
 import type { TournamentRulesSource } from "~/app/matches/create/match-setup";
-import { fixtureRulesOf } from "./rules";
+import { fixtureRulesOf, isTournamentOver } from "./rules";
 
 /**
  * "Create next round" for knockout and mixed tournaments: the groups, the
@@ -119,7 +119,7 @@ async function load(
   const { data: tournament } = await db
     .from("tournaments")
     .select(
-      "id, name, tournament_format, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
+      "id, name, status, tournament_format, match_format, overs_per_innings, custom_overs, venue, start_date, club_id, season_id, wickets_per_innings, last_man_stands, golden_ball, created_by",
     )
     .eq("id", tournamentId)
     .maybeSingle();
@@ -175,6 +175,10 @@ async function load(
 }
 
 function plan(loaded: Loaded, options: NextRoundOptions): NextRound {
+  // A tournament that is over takes no new fixtures.
+  if (isTournamentOver(loaded.tournament.status as string | null)) {
+    return { kind: "invalid", reason: "This tournament is over" };
+  }
   return planNextRound({
     format: loaded.tournament.tournament_format as string | null,
     seeds: loaded.seeds,

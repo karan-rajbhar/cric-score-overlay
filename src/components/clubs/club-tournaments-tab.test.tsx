@@ -109,6 +109,25 @@ describe("ClubTournamentsTab Component", () => {
     expect(screen.getByRole("link", { name: /host tournament/i })).toBeInTheDocument();
   });
 
+  it("offers to enrol a squad only while a tournament is not over", () => {
+    render(
+      <ClubTournamentsTab
+        clubId="club-1"
+        clubName="Metro CC"
+        tournaments={dummyTournaments}
+        seasons={dummySeasons}
+        teams={dummyTeams}
+        isAdmin={true}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Enrol club squad into Championship 2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Enrol club squad into Winter Cup 2025" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders empty state when no tournaments exist", () => {
     render(
       <ClubTournamentsTab
