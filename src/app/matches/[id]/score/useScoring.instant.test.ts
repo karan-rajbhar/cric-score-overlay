@@ -190,6 +190,8 @@ class FakeServer {
   hold = false;
   private waiting: Array<() => void> = [];
   private n = 0;
+  /** Ids of the actions applied: a resent one is a duplicate, as on the server. */
+  private applied = new Set<string>();
 
   release() {
     const w = this.waiting;
@@ -291,12 +293,19 @@ class FakeServer {
         const results = [];
         const deltas: Array<ScoringDelta | null> = [];
         for (const action of batch.actions) {
+          if (this.applied.has(action.id)) {
+            // Like the real route: a duplicate's documents are unknown.
+            results.push({ id: action.id, status: "duplicate" });
+            deltas.push(null);
+            continue;
+          }
           const error = this.fail(action);
           if (error) {
             results.push({ id: action.id, status: "failed", code: "action_failed", error });
             break;
           }
           deltas.push(this.apply(action));
+          this.applied.add(action.id);
           results.push({ id: action.id, status: "applied" });
         }
         const last = deltas.at(-1);
@@ -937,6 +946,47 @@ describe("useScoring: instant scoring", () => {
       expect(server.batches).toHaveLength(0);
     } finally {
       MATCH.overs_per_innings = 20;
+    }
+  });
+
+  it("undoes a ball sent with no reply on the server too, not just on the device", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = await open();
+      const fetchOk = vi.mocked(fetch).getMockImplementation()!;
+      // The server records the ball, but its reply never reaches the phone.
+      vi.mocked(fetch).mockImplementationOnce(async (url, init) => {
+        await fetchOk(url as never, init as never);
+        throw new TypeError("Failed to fetch");
+      });
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+      });
+      await waitFor(() => expect(result.current.syncStuck).toBe(true));
+      expect(server.innings.total_runs).toBe(4);
+
+      // Taken back before the retry: shown at once, and the ball stays
+      // queued (the server may have it) with the undo behind it.
+      await act(async () => {
+        await result.current.handleUndo();
+      });
+      expect(currentInnings(result.current.match)?.total_runs).toBe(0);
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.batches.at(-1)!.actions).toMatchObject([
+        { type: "recordBall", resent: true },
+        { type: "undoLastBall" },
+      ]);
+      expect(server.innings.total_runs).toBe(0);
+
+      // The next ball builds on that: no four comes back.
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 1 });
+      });
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.innings.total_runs).toBe(1);
+      expect(currentInnings(result.current.match)?.total_runs).toBe(1);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

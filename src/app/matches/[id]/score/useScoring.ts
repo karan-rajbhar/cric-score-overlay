@@ -24,7 +24,6 @@ import {
   type FlushResult,
   type QueuedAction,
   type ReplaceBatterPayload,
-  type ReplayTransport,
   type RetireBatterPayload,
 } from "~/lib/offline-queue";
 import {
@@ -276,6 +275,33 @@ function matchWithInningsEnded(prev: Match): Match {
       },
     ],
   };
+}
+
+/** Queued actions that add an entry to the ball log (what an undo removes). */
+const LOG_ENTRY_TYPES: ReadonlySet<QueuedAction["type"]> = new Set([
+  "recordBall",
+  "retireBatter",
+  "awardPenalty",
+]);
+
+/**
+ * The queued actions as the device replays them: a queued undo takes back
+ * the queued ball-log entry before it, and what came after that entry (the
+ * server's undo restores the crease and bowler it was recorded with). An
+ * undo of an entry the server already has stays (the device cannot replay
+ * it).
+ */
+function withoutUndone(actions: readonly QueuedAction[]): QueuedAction[] {
+  const out: QueuedAction[] = [];
+  for (const a of actions) {
+    let at = out.length - 1;
+    if (a.type === "undoLastBall") {
+      while (at >= 0 && !LOG_ENTRY_TYPES.has(out[at]!.type)) at -= 1;
+    }
+    if (a.type === "undoLastBall" && at >= 0) out.length = at;
+    else out.push(a);
+  }
+  return out;
 }
 
 /** What the screen waits for after showing what is queued (`foldPending`). */
@@ -934,16 +960,6 @@ export function useScoring(
     lastBalls,
   ]);
 
-  /** Ids of the queued actions in the request being sent right now. */
-  const inFlightRef = useRef<ReadonlySet<string>>(new Set());
-  const sendBatch = useCallback<ReplayTransport>(async (batch) => {
-    inFlightRef.current = new Set(batch.actions.map((a) => a.id));
-    try {
-      return await postReplayBatch(batch);
-    } finally {
-      inFlightRef.current = new Set();
-    }
-  }, []);
   /** Queued actions are being sent. */
   const [isSaving, setIsSaving] = useState(false);
   /** The last attempt left actions queued (no connection, or refused). */
@@ -1033,7 +1049,7 @@ export function useScoring(
       // change with each deploy, and this queue may predate the current build.
       // Each action carries its queue id as the idempotency key, so a replay
       // after a lost response is not applied twice.
-      const res = await flushPendingActions(matchId, sendBatch);
+      const res = await flushPendingActions(matchId, postReplayBatch);
 
       refreshQueueState();
       const appliedIds = new Set(res.applied ?? []);
@@ -1128,7 +1144,6 @@ export function useScoring(
     },
     [
       matchId,
-      sendBatch,
       syncFromDb,
       applySnapshot,
       squadNames,
@@ -1679,6 +1694,8 @@ export function useScoring(
     nonStriker: string,
     event: BallEvent,
     actionId?: string,
+    /** Sent already, with no reply: the server may have it. */
+    sent = false,
   ) => {
     if (!bowlerId) {
       toast.error("Choose the bowler before scoring");
@@ -1735,6 +1752,7 @@ export function useScoring(
           event,
         },
         actionId,
+        { sent },
       );
 
       const result = processDeliveryLocally(ctxToProcess, event);
@@ -1824,8 +1842,9 @@ export function useScoring(
       actionId,
     );
     if (res.offline) {
-      // Same id: if the server did record it, the replay is a no-op.
-      return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId);
+      // Same id, marked sent: if the server did record it, the replay is a
+      // no-op, and an undo is queued behind it rather than dropping it.
+      return scoreOffline(bowlerId, batsmanId, nonStriker, event, actionId, true);
     }
     if (res.error) {
       toast.error(res.error);
@@ -1967,11 +1986,10 @@ export function useScoring(
     const pending = getPendingActions(matchId);
     const last = pending.at(-1);
     if (INSTANT_SCORING && pending.every((a) => a.instant)) {
-      // A delivery the server has not seen yet: just take it back.
-      if (
-        last?.type === "recordBall" &&
-        !inFlightRef.current.has(last.queueId)
-      ) {
+      // A delivery the server has not seen yet: just take it back. One
+      // that was sent (on its way, or with no reply) may be on the server:
+      // it stays queued, with the undo behind it.
+      if (last?.type === "recordBall" && !last.sentAt) {
         const shown = shownNow(pending);
         const { entry, stack } = shown
           ? takeUndo(undoStackRef.current, shown)
@@ -2008,7 +2026,17 @@ export function useScoring(
     // While actions are still queued, the last action is a queued one: undo
     // it locally rather than undoing the server's last ball out of order.
     if (isOfflineNow() || !(await drainQueue())) {
-      const lastAction = popLastAction(matchId);
+      // A ball (or logged event) sent with no reply may be on the server:
+      // it stays queued, and an undo is queued behind it.
+      const queuedLast = getPendingActions(matchId).at(-1);
+      const sentEntry =
+        queuedLast?.sentAt && LOG_ENTRY_TYPES.has(queuedLast.type)
+          ? queuedLast
+          : null;
+      if (sentEntry) {
+        enqueueAction(matchId, "undoLastBall", {} as Record<string, never>);
+      }
+      const lastAction = sentEntry ?? popLastAction(matchId);
       if (lastAction) {
         setPendingCount(getPendingCount(matchId));
         if (lastAction.type === "recordBall") {
@@ -2025,7 +2053,7 @@ export function useScoring(
             cached.nonStrikerId,
             cached.bowlerId,
           );
-          const remainingActions = getPendingActions(matchId);
+          const remainingActions = withoutUndone(getPendingActions(matchId));
           for (const a of remainingActions) {
             if (a.type === "recordBall") {
               if (a.payload.batsmanId) replayCtx.strikerId = a.payload.batsmanId;
@@ -2096,7 +2124,13 @@ export function useScoring(
     // add a ball to the over strip and prompt for a bowler or batter).
     if (res.offline) {
       // Same id: if the server did undo it, the replay is a no-op.
-      enqueueAction(matchId, "undoLastBall", {} as Record<string, never>, res.queueId);
+      enqueueAction(
+        matchId,
+        "undoLastBall",
+        {} as Record<string, never>,
+        res.queueId,
+        { sent: true },
+      );
       setPendingCount(getPendingCount(matchId));
       noteUndone(undoneBall, true);
     } else if (res.error) {
@@ -2174,8 +2208,10 @@ export function useScoring(
       return { data: null, error: err };
     }
     setIsProcessing(true);
-    const queueIt = () => {
-      enqueueAction(matchId, "updateBall", params);
+    const queueIt = (sent?: { queueId: string }) => {
+      enqueueAction(matchId, "updateBall", params, sent?.queueId, {
+        sent: Boolean(sent),
+      });
       setPendingCount(getPendingCount(matchId));
       setRawDeliveries((prev) =>
         prev.map((d) =>
@@ -2204,7 +2240,7 @@ export function useScoring(
     if (isOfflineNow() || !(await drainQueue())) return queueIt();
     const res = await sendNow("updateBall", params);
     // update_ball sets the delivery's values, so a replay is harmless.
-    if (res.offline) return queueIt();
+    if (res.offline) return queueIt(res);
     if (res.error) toast.error(res.error);
     else await confirmChange(res.delta);
     setIsProcessing(false);
@@ -2222,20 +2258,21 @@ export function useScoring(
   const runOrQueue = async (
     type: QueuedAction["type"],
     payload: QueuedAction["payload"],
-    queue: (actionId: string) => void,
+    queue: (actionId: string, options: { sent: boolean }) => void,
   ): Promise<{ error: string | null; queued: boolean }> => {
     clearUndone();
     setIsProcessing(true);
     const actionId = newActionId();
-    const queueIt = () => {
-      queue(actionId);
+    const queueIt = (sent = false) => {
+      queue(actionId, { sent });
       setPendingCount(getPendingCount(matchId));
       setIsProcessing(false);
       return { error: null, queued: true };
     };
     if (isOfflineNow() || !(await drainQueue())) return queueIt();
     const res = await sendNow(type, payload, actionId);
-    if (res.offline) return queueIt();
+    // No reply: queued as sent (the server may have it).
+    if (res.offline) return queueIt(true);
     if (!res.error) await confirmChange(res.delta);
     setIsProcessing(false);
     return { error: res.error, queued: false };
@@ -2252,8 +2289,8 @@ export function useScoring(
     return runOrQueue(
       "retireBatter",
       payload,
-      (id) => {
-        enqueueAction(matchId, "retireBatter", payload, id);
+      (id, options) => {
+        enqueueAction(matchId, "retireBatter", payload, id, options);
         if (localCtxRef.current) {
           localCtxRef.current = retireLocally(localCtxRef.current, payload);
         }
@@ -2274,8 +2311,8 @@ export function useScoring(
     return runOrQueue(
       "awardPenalty",
       payload,
-      (id) => {
-        enqueueAction(matchId, "awardPenalty", payload, id);
+      (id, options) => {
+        enqueueAction(matchId, "awardPenalty", payload, id, options);
         if (localCtxRef.current) {
           localCtxRef.current = penaltyLocally(
             localCtxRef.current,
@@ -2291,8 +2328,8 @@ export function useScoring(
     runOrQueue(
       "reassignOverBowler",
       { bowlerId },
-      (id) => {
-        enqueueAction(matchId, "reassignOverBowler", { bowlerId }, id);
+      (id, options) => {
+        enqueueAction(matchId, "reassignOverBowler", { bowlerId }, id, options);
         if (localCtxRef.current) localCtxRef.current.bowlerId = bowlerId;
         setCurrentBowlerId(bowlerId);
       },
@@ -2300,8 +2337,8 @@ export function useScoring(
 
   /** The wrong player was recorded as batting: their innings goes to another. */
   const handleReplaceBatter = (payload: ReplaceBatterPayload) =>
-    runOrQueue("replaceBatter", payload, (id) => {
-      enqueueAction(matchId, "replaceBatter", payload, id);
+    runOrQueue("replaceBatter", payload, (id, options) => {
+      enqueueAction(matchId, "replaceBatter", payload, id, options);
       const swap = (x: string | null) =>
         x === payload.fromId ? payload.toId : x;
       if (localCtxRef.current) {
@@ -2437,7 +2474,7 @@ export function useScoring(
     const res = await sendNow("startSuperOver", {});
     if (res.offline) {
       // Same id: if the server did start it, the replay is a no-op.
-      enqueueAction(matchId, "startSuperOver", {}, res.queueId);
+      enqueueAction(matchId, "startSuperOver", {}, res.queueId, { sent: true });
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
       toast.error(res.error);
@@ -2565,6 +2602,7 @@ export function useScoring(
         "setBatsmen",
         { strikerId: sId, nonStrikerId: nsId },
         res.queueId,
+        { sent: true },
       );
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
@@ -2702,7 +2740,9 @@ export function useScoring(
     if (res.offline) {
       // Same id: if the server did take it, the replay is a no-op.
       showLocally();
-      enqueueAction(matchId, "setBowler", { bowlerId }, res.queueId);
+      enqueueAction(matchId, "setBowler", { bowlerId }, res.queueId, {
+        sent: true,
+      });
       setPendingCount(getPendingCount(matchId));
     } else if (res.error) {
       toast.error(res.error);

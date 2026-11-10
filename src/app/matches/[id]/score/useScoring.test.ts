@@ -918,6 +918,45 @@ describe("useScoring", () => {
     expect(queued[0]!.queueId).toBe(sentId);
   });
 
+  it("undoes a ball whose reply was lost behind it, never dropping it from the queue", async () => {
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        // The server may have recorded it; the reply never arrives.
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    const { result } = renderHook(() => useScoring(matchId));
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+    await act(async () => {
+      await result.current.handleScore("u3", "p1", "p2", { runsScored: 4 });
+    });
+    const [ball] = getPendingActions(matchId);
+    expect(ball).toMatchObject({ type: "recordBall", sentAt: expect.any(Number) });
+
+    online.mockReturnValue(false);
+    await act(async () => {
+      await result.current.handleUndo();
+    });
+    expect(getPendingActions(matchId).map((a) => [a.type, a.queueId])).toEqual([
+      ["recordBall", ball!.queueId],
+      ["undoLastBall", expect.any(String)],
+    ]);
+
+    online.mockReturnValue(true);
+    const batches = mockReplayRoute(() => ({ status: "applied" }));
+    await act(async () => {
+      await result.current.flushOfflineQueue();
+    });
+    expect(batches[0]!.actions).toMatchObject([
+      { type: "recordBall", id: ball!.queueId, resent: true },
+      { type: "undoLastBall" },
+    ]);
+  });
+
   it("queues an End innings whose reply was lost under its id, and resends it as such", async () => {
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     const sent: ReplayBatch[] = [];

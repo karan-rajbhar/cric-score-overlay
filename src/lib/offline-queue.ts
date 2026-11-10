@@ -619,12 +619,14 @@ export function hasPendingBalls(matchId: string): boolean {
 export function enqueuePendingBall(
   params: PendingBallParams,
   queueId?: string,
+  options?: { sent?: boolean },
 ): QueuedBall {
   const action = enqueueAction(
     params.matchId,
     "recordBall",
     params,
     queueId,
+    options,
   ) as QueuedRecordBall;
   return {
     ...params,
