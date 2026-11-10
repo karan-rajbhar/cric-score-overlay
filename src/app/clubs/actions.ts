@@ -2,6 +2,7 @@
 
 import { createServerClient } from "~/lib/firebase/server";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
+import { readImageUpload } from "~/lib/image-upload";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -663,20 +664,18 @@ export async function removeHallOfFame(hallOfFameId: string, clubId: string) {
   return { success: true };
 }
 
-const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
-const ALLOWED_LOGO_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/svg+xml",
-];
-
-const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5 MB
-const ALLOWED_BANNER_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-];
+// Logos and banners are typed by their bytes, never by what the browser
+// declares (`readImageUpload`).
+const LOGO_RULES = {
+  maxBytes: 2 * 1024 * 1024, // 2 MB
+  tooLarge: "Logo must be under 2 MB",
+  svg: true,
+};
+const BANNER_RULES = {
+  maxBytes: 5 * 1024 * 1024, // 5 MB
+  tooLarge: "Banner image must be under 5 MB",
+  svg: false,
+};
 
 export async function updateClubLogo(
   clubId: string,
@@ -696,23 +695,14 @@ export async function updateClubLogo(
     };
   }
 
-  if (file.size > MAX_LOGO_BYTES) {
-    return { data: null, error: "Logo must be under 2 MB" };
-  }
-  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-    return { data: null, error: "Use PNG, JPG, WebP, or SVG for club logos" };
-  }
-
-  const ext =
-    file.type === "image/svg+xml"
-      ? "svg"
-      : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
-  const path = `${clubId}/logo-${Date.now()}.${ext}`;
+  const { bytes, image } = await readImageUpload(file, LOGO_RULES);
+  if (!image.ok) return { data: null, error: image.error };
+  const path = `${clubId}/logo-${Date.now()}.${image.ext}`;
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, {
-      contentType: file.type,
+    .upload(path, bytes, {
+      contentType: image.contentType,
       upsert: true,
       // A new path per upload: the file at it never changes.
       immutable: true,
@@ -801,20 +791,14 @@ export async function updateClubBanner(
     };
   }
 
-  if (file.size > MAX_BANNER_BYTES) {
-    return { data: null, error: "Banner image must be under 5 MB" };
-  }
-  if (!ALLOWED_BANNER_TYPES.includes(file.type)) {
-    return { data: null, error: "Use PNG, JPG, or WebP for banner images" };
-  }
-
-  const ext = (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
-  const path = `${clubId}/banner-${Date.now()}.${ext}`;
+  const { bytes, image } = await readImageUpload(file, BANNER_RULES);
+  if (!image.ok) return { data: null, error: image.error };
+  const path = `${clubId}/banner-${Date.now()}.${image.ext}`;
 
   const { error: uploadError } = await db.storage
     .from("club-assets")
-    .upload(path, file, {
-      contentType: file.type,
+    .upload(path, bytes, {
+      contentType: image.contentType,
       upsert: true,
       // A new path per upload: the file at it never changes.
       immutable: true,

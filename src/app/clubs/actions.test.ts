@@ -368,11 +368,60 @@ describe("Clubs Server Actions", () => {
   });
 
   describe("Club Branding: Logo & Banner Uploads", () => {
-    const fakeLogo = new File(["test-image-content"], "logo.png", {
+    const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0];
+    const JPEG = [0xff, 0xd8, 0xff, 0xe0, 0, 0x10];
+    const fakeLogo = new File([new Uint8Array(PNG)], "logo.png", {
       type: "image/png",
     });
-    const fakeBanner = new File(["test-banner-content"], "banner.jpg", {
+    const fakeBanner = new File([new Uint8Array(JPEG)], "banner.jpg", {
       type: "image/jpeg",
+    });
+    const asOwner = () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "u-owner" } },
+      });
+      mockFrom.mockReturnValueOnce({
+        select: vi.fn().mockReturnValueOnce({
+          eq: vi.fn().mockReturnValueOnce({
+            single: vi.fn().mockResolvedValueOnce({
+              data: { owner_id: "u-owner" },
+            }),
+          }),
+        }),
+      });
+    };
+
+    it("refuses a scripted SVG, and HTML declared as an image", async () => {
+      const mockUpload = vi.fn();
+      mockStorageFrom.mockReturnValue({ upload: mockUpload });
+      const svg = new File(
+        ['<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"></svg>'],
+        "logo.svg",
+        { type: "image/svg+xml" },
+      );
+      const html = new File(["<html><body>hi</body></html>"], "x.png", {
+        type: "image/png",
+      });
+      asOwner();
+      expect((await updateClubLogo("club-1", svg)).error).toMatch(/scripts/);
+      asOwner();
+      expect((await updateClubLogo("club-1", html)).error).toMatch(
+        /Use a PNG/,
+      );
+      asOwner();
+      expect((await updateClubBanner("club-1", html)).error).toMatch(
+        /Use a PNG/,
+      );
+      const cleanSvg = new File(
+        ['<svg xmlns="http://www.w3.org/2000/svg"></svg>'],
+        "banner.png",
+        { type: "image/png" },
+      );
+      asOwner();
+      expect((await updateClubBanner("club-1", cleanSvg)).error).toBe(
+        "Use a PNG, JPEG or WebP file",
+      );
+      expect(mockUpload).not.toHaveBeenCalled();
     });
 
     it("rejects logo upload when unauthenticated", async () => {
@@ -445,8 +494,8 @@ describe("Clubs Server Actions", () => {
       // A fresh path per upload, cached for a year.
       expect(mockUpload).toHaveBeenCalledWith(
         expect.stringMatching(/^club-1\/logo-\d+\.png$/),
-        fakeLogo,
-        expect.objectContaining({ immutable: true }),
+        expect.any(Uint8Array),
+        expect.objectContaining({ contentType: "image/png", immutable: true }),
       );
     });
 

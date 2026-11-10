@@ -16,6 +16,7 @@ import { friendlyError } from "~/app/matches/errors";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { parseTeamColor } from "~/lib/team-colors";
+import { readImageUpload } from "~/lib/image-upload";
 import { maskEmail } from "~/lib/mask-email";
 import {
   isPlaceholderProfile,
@@ -857,18 +858,18 @@ export async function mergePlayerInto(
   }
 }
 
-const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2 MB
-const ALLOWED_LOGO_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/svg+xml",
-];
+const LOGO_RULES = {
+  maxBytes: 2 * 1024 * 1024, // 2 MB
+  tooLarge: "Logo must be under 2 MB",
+  svg: true,
+};
 
 /**
  * Upload a crest for a team and store its public URL on the team row.
  * Only the team captain or creator may do this (enforced again by storage
- * RLS via the team-logos/<team_id>/ folder convention).
+ * RLS via the team-logos/<team_id>/ folder convention). The file's type
+ * comes from its bytes (`readImageUpload`), never from what the browser
+ * declares.
  */
 export async function updateTeamLogo(teamId: string, file: File) {
   const db = await createServerClient();
@@ -886,23 +887,14 @@ export async function updateTeamLogo(teamId: string, file: File) {
     };
   }
 
-  if (file.size > MAX_LOGO_BYTES) {
-    return { data: null, error: "Logo must be under 2 MB" };
-  }
-  if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-    return { data: null, error: "Use PNG, JPG, WebP, or SVG" };
-  }
-
-  const ext =
-    file.type === "image/svg+xml"
-      ? "svg"
-      : (file.type.split("/")[1] ?? "png").replace("jpeg", "jpg");
-  const path = `${teamId}/logo-${Date.now()}.${ext}`;
+  const { bytes, image } = await readImageUpload(file, LOGO_RULES);
+  if (!image.ok) return { data: null, error: image.error };
+  const path = `${teamId}/logo-${Date.now()}.${image.ext}`;
 
   const { error: uploadError } = await db.storage
     .from("team-logos")
-    .upload(path, file, {
-      contentType: file.type,
+    .upload(path, bytes, {
+      contentType: image.contentType,
       upsert: true,
       // A new path per upload: the file at it never changes.
       immutable: true,
