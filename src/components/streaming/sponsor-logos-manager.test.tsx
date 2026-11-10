@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-const uploadSponsorLogo = vi.fn(async (_form: FormData) => ({
-  data: [],
-  error: null,
-}));
+const uploadSponsorLogo = vi.fn<
+  (form: FormData) => Promise<{ data: never[]; error: null }>
+>(async () => ({ data: [], error: null }));
 vi.mock("~/app/overlay/sponsor-actions", () => ({
   getSponsorLogos: vi.fn(async () => ({ data: [], error: null })),
   saveSponsorLogos: vi.fn(),

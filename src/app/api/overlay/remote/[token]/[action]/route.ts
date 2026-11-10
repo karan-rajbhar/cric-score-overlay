@@ -86,7 +86,7 @@ export const POST = handle;
  * without sending anything. There is no GET, so a preview never fires a
  * graphic.
  */
-export async function GET(_request: NextRequest, _context: Context) {
+export async function GET() {
   return new Response(null, {
     status: 405,
     headers: { ...NO_STORE, Allow: "POST, HEAD" },
