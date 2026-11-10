@@ -366,4 +366,10 @@ describe("Scoring Security & Authorization Gate", () => {
     expect(res.data).toBeNull();
     expect(res.error).toContain("Only match administrators or designated scorers");
   });
+
+  it("offers no action that sets the player of the match without a caller check", async () => {
+    // Every export of a "use server" file can be called from a browser.
+    const actions = await import("./mutations");
+    expect(actions).not.toHaveProperty("autoAssignPlayerOfTheMatch");
+  });
 });

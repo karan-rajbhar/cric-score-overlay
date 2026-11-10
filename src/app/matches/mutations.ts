@@ -807,8 +807,10 @@ export async function setPlayerOfTheMatch(
 
 /**
  * Automatically calculates and awards Player of the Match using cricket analytics impact scoring.
+ * Not exported: every export of this file is a server action anyone can
+ * call, and this one checks no caller (recordBall / endInnings have).
  */
-export async function autoAssignPlayerOfTheMatch(
+async function autoAssignPlayerOfTheMatch(
   matchId: string,
 ): Promise<{ success: boolean; potmId: string | null; error: string | null }> {
   try {
