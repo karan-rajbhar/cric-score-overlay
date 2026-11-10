@@ -192,8 +192,9 @@ export function applyScoringDelta<M extends SnapshotMatch, D>(
     innings = prevInnings.map((inn) => {
       const doc = written.get(inn.id);
       if (!doc) return inn;
+      // As `getScoringState` shows it: the stands stay.
       return {
-        ...withoutScorecardStorage(doc),
+        ...withoutScorecardStorage(doc, ["partnerships"]),
         batting_performances: withUser(battingRowsOf(doc)),
         bowling_performances: withUser(bowlingRowsOf(doc)),
       } as unknown as SnapshotInnings;

@@ -84,6 +84,7 @@ import {
   bowlingWithBowler,
   canApplyIncrementally,
   checkBallArgs as checkBall,
+  creaseChangeError,
   DISMISSAL_TYPES,
   EXTRA_TYPES,
   fielderOf,
@@ -2312,6 +2313,8 @@ export async function setCurrentBatsmen(
     if (distinct.size >= 11 && !anyExisting) {
       throw new DbQueryError("too_many_batsmen", "22000");
     }
+    const refused = creaseChangeError(current, strikerId, nonStrikerId);
+    if (refused) throw new DbQueryError(refused, "22000");
 
     const next = battingWithCrease(batting, strikerId, nonStrikerId);
     if (!next) return;

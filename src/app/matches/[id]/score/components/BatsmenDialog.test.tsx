@@ -450,6 +450,52 @@ describe("BatsmenDialog changing one batter", () => {
     expect(onConfirm).toHaveBeenCalledWith({ strikerId: "a", nonStrikerId: "c" });
   });
 
+  it("counts a batter in a stand as batted, with no runs or balls of their own", () => {
+    const players: TeamPlayer[] = ["a", "b", "c"].map((id) => ({
+      id: `t-${id}`,
+      team_id: "team-1",
+      user_id: id,
+      user: { id, full_name: id.toUpperCase() },
+    }));
+    const row = (user_id: string, runs: number, balls: number) => ({
+      id: `i1_${user_id}`,
+      match_id: "m1",
+      innings_id: "i1",
+      user_id,
+      runs_scored: runs,
+      balls_faced: balls,
+      fours: 0,
+      sixes: 0,
+      is_out: false,
+    });
+    const onConfirm = vi.fn();
+    render(
+      <BatsmenDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        battingTeamPlayers={players}
+        // A faced two dots with B at the other end.
+        battingPerformances={[row("a", 0, 2), row("b", 0, 0)]}
+        partnerships={[{ batsman1_id: "a", batsman2_id: "b", runs: 0 }]}
+        strikerId="a"
+        nonStrikerId="b"
+        focusEnd="nonStriker"
+        onConfirm={onConfirm}
+        onRetire={vi.fn()}
+        onReplace={vi.fn()}
+        isProcessing={false}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "B has been at the crease for a ball.",
+    );
+    expect(screen.queryByRole("radio", { name: /^C/ })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Wrong player: replace B" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retire B" })).toBeInTheDocument();
+  });
+
   it("corrects a wrong pick after balls: the runs and balls go to the right player", async () => {
     const players: TeamPlayer[] = ["a", "b", "c", "d"].map((id) => ({
       id: `t-${id}`,

@@ -2876,6 +2876,7 @@ function ScoringDialogs({ s }: { s: LoadedScreen }) {
         battingTeamPlayers={battingTeamPlayers}
         battingTeamName={battingTeam?.name}
         battingPerformances={currentInnings?.batting_performances}
+        partnerships={currentInnings?.partnerships}
         bowlingTeamPlayerIds={bowlingTeamPlayerIds}
         currentBowlerId={currentBowlerId}
         strikerId={strikerId}

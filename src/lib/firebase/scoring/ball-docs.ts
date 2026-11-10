@@ -575,12 +575,52 @@ function untouched(b: BattingEntry): boolean {
 }
 
 /**
+ * Whether the innings' ball log names `userId` as a batter, read from the
+ * innings document alone: a batter who shared a logged ball (a wide or an
+ * event at the crease too) is in one of its stands, and one with runs,
+ * balls or a dismissal has an entry.
+ */
+export function hasBattedIn(
+  innings: Pick<InningsRow, "batting" | "partnerships">,
+  userId: string,
+): boolean {
+  const row = (innings.batting ?? []).find((b) => b.user_id === userId);
+  if (row && !untouched(row)) return true;
+  return (innings.partnerships ?? []).some(
+    (p) => p.batsman1_id === userId || p.batsman2_id === userId,
+  );
+}
+
+/**
+ * The engine's error for a crease change that would take off a batter the
+ * ball log names (`batter_has_batted`), else null. Change is for a wrong
+ * pick before their first ball: the next recompute would put such a batter
+ * back from the log. They retire instead, or are replaced throughout
+ * (`replace_batter`, which moves the log's entries).
+ */
+export function creaseChangeError(
+  innings: Pick<InningsRow, "batting" | "partnerships">,
+  strikerId: string,
+  nonStrikerId: string,
+): string | null {
+  const leaving = (innings.batting ?? []).filter(
+    (b) =>
+      b.is_current_batsman &&
+      b.user_id !== strikerId &&
+      b.user_id !== nonStrikerId,
+  );
+  return leaving.some((b) => hasBattedIn(innings, b.user_id))
+    ? "batter_has_batted"
+    : null;
+}
+
+/**
  * The innings' batting entries with `strikerId` / `nonStrikerId` at the
  * crease, or null when nothing changes. Newcomers are appended at the next
  * batting positions. A batter sent away from the crease
  * before anything happened to them (a wrong pick, corrected) is dropped, so
  * they keep no scorecard row or batting position. Validation (roster,
- * already out) is the caller's.
+ * already out, {@link creaseChangeError}) is the caller's.
  */
 export function battingWithCrease(
   batting: readonly BattingEntry[],

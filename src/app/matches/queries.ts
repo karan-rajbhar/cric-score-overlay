@@ -267,9 +267,10 @@ export async function getScoringState(matchId: string) {
       for (const k of INNINGS_INTERNAL_FIELDS) delete copy[k];
       baseInnings = copy as unknown as InningsRow & { id: string };
     }
+    // The stands stay: the batter dialog reads who has shared a ball.
     if (stored?.innings) {
       stored.innings = (stored.innings as object[]).map((inn) =>
-        withoutScorecardStorage(inn),
+        withoutScorecardStorage(inn, ["partnerships"]),
       );
     }
     if (stored) await attachMatchTeams(db, [stored]);

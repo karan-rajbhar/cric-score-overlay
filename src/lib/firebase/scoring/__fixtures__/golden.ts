@@ -19,7 +19,11 @@
  * live_state's target, runs needed and required rate), and the edit that
  * takes the winning chase below its target reopens the match (steps 42 and
  * 43: live, no result, innings 2 open); the undo after them lands on the
- * recorded state again. Replaying
+ * recorded state again. And when a crease change stopped taking off a
+ * batter the ball log names (`batter_has_batted`): in the batsman-credit
+ * scenario, the change of a1 and a2 for a5 and a6 (step 9) is refused, so
+ * no ball is recorded there and the next one (step 10) is a1 and a2's.
+ * Replaying
  * the same steps on the current engine and hashing the legacy-shaped view of
  * its storage (innings arrays and over documents expanded back into rows by
  * `legacyRowsDataSource`) must give identical hashes: same scorecards, ball

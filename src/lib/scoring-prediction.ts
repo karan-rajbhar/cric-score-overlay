@@ -35,6 +35,7 @@ import {
   battingWithCrease,
   bowlingWithBowler,
   checkBallArgs,
+  creaseChangeError,
   eventDocsAfter,
   inningsComplete,
   newEventBall,
@@ -339,6 +340,24 @@ export function predictEvent<M extends SnapshotMatch, D>(
   return stateAfterDocs(state, base, match, docs, names);
 }
 
+/**
+ * The engine's refusal of a crease change that needs no read (the roster is
+ * checked by the screen against its squads, and by the server), or null.
+ */
+function creaseRefusal(
+  innings: InningsRow,
+  strikerId: string,
+  nonStrikerId: string,
+): string | null {
+  const batting = innings.batting ?? [];
+  const named = (b: { user_id: string }) =>
+    b.user_id === strikerId || b.user_id === nonStrikerId;
+  if (batting.some((b) => b.is_out && named(b))) return "player_already_out";
+  const distinct = new Set(batting.map((b) => b.user_id));
+  if (distinct.size >= 11 && !batting.some(named)) return "too_many_batsmen";
+  return creaseChangeError(innings, strikerId, nonStrikerId);
+}
+
 /** A crease change (`set_current_batsmen`) applied to `state`. */
 export function predictBatsmen<M extends SnapshotMatch, D>(
   state: ScreenState<M, D>,
@@ -351,21 +370,8 @@ export function predictBatsmen<M extends SnapshotMatch, D>(
   if (strikerId === nonStrikerId) return fail("invalid_input");
   const batting = base.innings.batting;
   if (!Array.isArray(batting)) return fail("no_scorecard");
-  // The engine's checks that need no read (the roster is checked by the
-  // screen against its squads, and by the server).
-  if (
-    batting.some(
-      (b) =>
-        b.is_out && (b.user_id === strikerId || b.user_id === nonStrikerId),
-    )
-  ) {
-    return fail("player_already_out");
-  }
-  const distinct = new Set(batting.map((b) => b.user_id));
-  const anyExisting = batting.some(
-    (b) => b.user_id === strikerId || b.user_id === nonStrikerId,
-  );
-  if (distinct.size >= 11 && !anyExisting) return fail("too_many_batsmen");
+  const refused = creaseRefusal(base.innings, strikerId, nonStrikerId);
+  if (refused) return fail(refused);
   const next = battingWithCrease(batting, strikerId, nonStrikerId);
   if (!next) return { ok: true, state: { ...state, base }, endsInnings: false };
   try {
