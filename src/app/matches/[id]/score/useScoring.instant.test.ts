@@ -1034,6 +1034,67 @@ describe("useScoring: instant scoring", () => {
     });
   });
 
+  it("retries what a partly answered save left queued", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { result } = await open();
+      const fetchOk = vi.mocked(fetch).getMockImplementation()!;
+      server.hold = true;
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+      // A second ball while the first is on its way.
+      await act(async () => {
+        await result.current.handleScore("b1", "p1", "p2", { runsScored: 2 });
+      });
+      // The first is saved; the request for the second gets no reply.
+      let calls = 0;
+      vi.mocked(fetch).mockImplementation(async (url, init) => {
+        calls += 1;
+        if (calls === 1) throw new TypeError("Failed to fetch");
+        return fetchOk(url as never, init as never);
+      });
+      server.hold = false;
+      await act(async () => {
+        server.release();
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(getPendingActions(M)).toHaveLength(1);
+      expect(server.innings.total_runs).toBe(2);
+      expect(result.current.syncStuck).toBe(true);
+
+      // Sent again by itself, within the first retry delay.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_500);
+      });
+      await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+      expect(server.innings.total_runs).toBe(4);
+      expect(result.current.syncStuck).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sends what is still queued when the screen opens online", async () => {
+    const first = await open();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await act(async () => {
+      await first.result.current.handleScore("b1", "p1", "p2", { runsScored: 4 });
+    });
+    expect(getPendingActions(M)).toHaveLength(1);
+    first.unmount();
+
+    // Reopened later, with signal: no tap needed to send it.
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    const { result } = await open();
+    await waitFor(() => expect(getPendingActions(M)).toHaveLength(0));
+    expect(server.batches).toHaveLength(1);
+    expect(server.innings.total_runs).toBe(4);
+    await waitFor(() =>
+      expect(currentInnings(result.current.match)?.total_runs).toBe(4),
+    );
+  });
+
   it("waits for the server when it has no documents to predict from", async () => {
     vi.mocked(getScoringState).mockImplementation(
       async () => ({ ...server.state(), base: null }) as never,

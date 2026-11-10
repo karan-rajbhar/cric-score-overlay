@@ -1274,7 +1274,12 @@ export function useScoring(
         if (!queued.has(id)) undoTargetsRef.current.delete(id);
       }
 
-      const stuck = getPendingCount(matchId) > 0 && res.synced === 0;
+      // Actions left queued by a pass that did not end cleanly (nothing
+      // saved, or one of them unanswered or refused) are retried: nothing
+      // else may come to send them (the keypad waits on a ball that ends
+      // the innings).
+      const stuck =
+        getPendingCount(matchId) > 0 && (res.synced === 0 || res.failed > 0);
       setSyncStuck(stuck);
       const retry = retryRef.current;
       if (retry.timer) clearTimeout(retry.timer);
@@ -1345,6 +1350,17 @@ export function useScoring(
   useEffect(() => {
     flushQueueRef.current = flushQueue;
   }, [flushQueue]);
+
+  // Opened online with actions still queued (a reload, the app reopened
+  // later): sent once the first state shows, not only on the next tap.
+  const sentOnOpenRef = useRef(false);
+  useEffect(() => {
+    if (loading || sentOnOpenRef.current) return;
+    sentOnOpenRef.current = true;
+    if (getPendingCount(matchId) > 0 && !isOfflineNow()) {
+      void flushQueueRef.current?.();
+    }
+  }, [loading, matchId]);
 
   /** The "Sync now" button. */
   const flushOfflineQueue = useCallback(
