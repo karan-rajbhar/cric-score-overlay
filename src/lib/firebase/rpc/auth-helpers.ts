@@ -57,6 +57,22 @@ export async function isTeamMember(
   return rows.length > 0;
 }
 
+/** A tournament's organisers: its creator and the admins of its club. */
+export async function isTournamentOrganiser(
+  ds: DataSource,
+  tournamentId: string | null | undefined,
+  userId: string | null | undefined,
+): Promise<boolean> {
+  if (!tournamentId || !userId) return false;
+  const tournament = (await ds.getById(
+    "tournaments",
+    tournamentId,
+  )) as unknown as TournamentsRow | null;
+  if (!tournament) return false;
+  if (tournament.created_by === userId) return true;
+  return isClubAdmin(ds, tournament.club_id, userId);
+}
+
 /**
  * Who may delete a match: stricter than scoring. The match creator, admins
  * of the match's club, and for tournament matches the tournament creator

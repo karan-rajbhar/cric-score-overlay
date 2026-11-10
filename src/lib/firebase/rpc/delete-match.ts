@@ -37,7 +37,7 @@ import { OVERS_COLLECTION } from "../scorecard";
 import { firestoreOf, runScoringTransaction } from "../scoring/tx";
 import { syncMatchRecords } from "../stats-sync";
 import type { MatchesRow } from "../types";
-import { canDeleteMatch } from "./auth-helpers";
+import { canDeleteMatch, isTournamentOrganiser } from "./auth-helpers";
 import { recalculateTournamentStandings } from "./standings";
 import { chunk, IN_CHUNK_SIZE } from "../datasource";
 
@@ -183,15 +183,17 @@ async function purge(
 /**
  * For a tournament being deleted: removes its fixtures that never started
  * (status scheduled, no innings) with everything they own (steps 3 and 4).
- * The caller has checked that the user may delete the tournament; the
- * points table is not recomputed, as it goes with the tournament. Matches
+ * Only the tournament's organisers may; the points table is not
+ * recomputed, as it goes with the tournament. Matches
  * that started stay. Answers how many fixtures were removed.
  */
 export async function deleteUnplayedFixtures(
   ctx: DeleteMatchContext,
   tournamentId: string,
 ): Promise<number> {
-  if (!ctx.uid) throw new DbQueryError("not_authorized", "42501");
+  if (!(await isTournamentOrganiser(ctx.ds, tournamentId, ctx.uid))) {
+    throw new DbQueryError("not_authorized", "42501");
+  }
   const fixtures = await ctx.ds.query("matches", [
     { field: "tournament_id", op: "==", value: tournamentId },
     { field: "status", op: "==", value: "scheduled" },
