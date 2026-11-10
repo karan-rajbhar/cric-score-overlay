@@ -16,7 +16,8 @@ import {
   userIdsByEmail,
   userIdsByPhone,
 } from "../user-private";
-import { remapScorecardUserId } from "../scorecard-sync";
+import { followKey, renameFollowTarget } from "~/lib/follows/store";
+import { refreshLiveScorecards, remapScorecardUserId } from "../scorecard-sync";
 import { isClubAdmin, isMatchAdmin } from "./auth-helpers";
 
 export const RESERVED_USERNAMES = new Set([
@@ -211,7 +212,7 @@ export async function remapUserId(
 ): Promise<void> {
   if (oldId === newId) return;
   // Nested ids first: it finds the matches through the old team_players.
-  await remapScorecardUserId(ds, oldId, newId);
+  const matches = await remapScorecardUserId(ds, oldId, newId);
   await rewriteUserReferences(ds, oldId, newId);
   const old = await ds.getById("users", oldId);
   if (old) {
@@ -221,6 +222,8 @@ export async function remapUserId(
     await ds.delete("users", oldId);
   }
   await moveUserPrivate(ds, oldId, newId);
+  // Once the profile has its new id, so the scorecards name the player.
+  await refreshLiveScorecards(ds, matches);
 }
 
 /** Rows naming a person once per group (a squad, a club's members). */
@@ -230,8 +233,9 @@ const ONE_ROW_PER_USER: Partial<Record<string, string>> = {
 };
 
 /**
- * Points everything in `USER_REFERENCES` at `newId`. `merge`: `newId` is an
- * existing player, so a squad or club holding both keeps one row.
+ * Points everything in `USER_REFERENCES`, and follows of the player, at
+ * `newId`. `merge`: `newId` is an existing player, so a squad or club
+ * holding both keeps one row.
  */
 export async function rewriteUserReferences(
   ds: DataSource,
@@ -276,6 +280,11 @@ export async function rewriteUserReferences(
       await ds.update(ref.table, row.id, { [ref.column]: newId });
     }
   }
+  await renameFollowTarget(
+    ds,
+    followKey("player", oldId),
+    followKey("player", newId),
+  );
 }
 
 function buildUserDoc(values: Partial<UsersRow> & { id: string }): Doc {

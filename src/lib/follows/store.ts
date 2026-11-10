@@ -158,6 +158,29 @@ export async function setFollowTarget(
 }
 
 /**
+ * Points every follow of `from` at `to` (a player claimed by an account or
+ * merged into another), so followers keep them; one following both keeps
+ * one. 1 query + 1 write per follower.
+ */
+export async function renameFollowTarget(
+  ds: DataSource,
+  from: string,
+  to: string,
+  now = new Date(),
+): Promise<void> {
+  const docs = await ds.query(FOLLOWS, [
+    { field: "targets", op: "array-contains", value: from },
+  ]);
+  for (const doc of docs) {
+    const targets = (doc.targets as string[]).map((k) => (k === from ? to : k));
+    await ds.update(FOLLOWS, doc.id, {
+      targets: Array.from(new Set(targets)),
+      updated_at: now.toISOString(),
+    });
+  }
+}
+
+/**
  * Users following any of `keys` (a match, its two teams, its tournament):
  * one `array-contains` query per key, in parallel; reads = the follower
  * documents, at least 1 per query. Single-field array index, no composite.

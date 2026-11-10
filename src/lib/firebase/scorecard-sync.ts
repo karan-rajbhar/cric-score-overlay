@@ -8,11 +8,16 @@
  *   matches whose tournament / club / club side / season / date changed.
  * - {@link remapScorecardUserId}: rewrite a user id inside innings
  *   scorecards, over documents and player records when an auth account
- *   takes over an existing profile.
+ *   takes over an existing profile, dropping the ball-log archives it
+ *   outdates; {@link refreshLiveScorecards} then rebuilds the live
+ *   scorecards.
  */
 
+import { BALL_LOGS_COLLECTION } from "./ball-log-archive";
 import type { DataSource } from "./datasource";
+import { LIVE_SCORECARD_COLLECTION } from "./live-scorecard";
 import type { WriteEvent } from "./query-builder";
+import { refreshLiveScorecard } from "./scorecard-refresh";
 import {
   OVERS_COLLECTION,
   PLAYER_MATCHES_COLLECTION,
@@ -88,15 +93,19 @@ export async function syncPlayerMatchesAfterWrite(
 
 /**
  * Rewrites `oldId` to `newId` inside the scorecards of every match the
- * player has a record in or whose teams they belong to. Run before the
- * top-level references (team_players) move.
+ * player has a record in or whose teams they belong to, and drops the
+ * ball-log archives of the innings it rewrote (outside a scoring
+ * transaction, nothing else would: they are rebuilt on the next read). Run
+ * before the top-level references (team_players) move. Returns the matches
+ * it changed, whose live scorecards the caller rebuilds once the new
+ * profile exists ({@link refreshLiveScorecards}).
  */
 export async function remapScorecardUserId(
   ds: DataSource,
   oldId: string,
   newId: string,
-): Promise<void> {
-  if (oldId === newId) return;
+): Promise<string[]> {
+  if (oldId === newId) return [];
   const [records, memberships] = await Promise.all([
     ds.query(PLAYER_MATCHES_COLLECTION, [
       { field: "user_id", op: "==", value: oldId },
@@ -120,6 +129,7 @@ export async function remapScorecardUserId(
     }
   }
 
+  const changed: string[] = [];
   for (const matchId of matchIds) {
     const [innings, overs] = await Promise.all([
       ds.query("innings", [{ field: "match_id", op: "==", value: matchId }]),
@@ -128,6 +138,7 @@ export async function remapScorecardUserId(
       ]),
     ]);
     let touched = false;
+    const rewritten = new Set<string>();
     for (const inn of innings) {
       const patch: Record<string, unknown> = {};
       for (const field of SCORECARD_FIELDS) {
@@ -139,16 +150,38 @@ export async function remapScorecardUserId(
       if (Object.keys(patch).length) {
         await ds.update("innings", inn.id, patch);
         touched = true;
+        rewritten.add(inn.id);
       }
     }
     for (const over of overs) {
       const balls = replaceDeep(over.balls, oldId, newId);
       if (JSON.stringify(balls) !== JSON.stringify(over.balls)) {
         await ds.update(OVERS_COLLECTION, over.id, { balls });
+        rewritten.add(String(over.innings_id));
       }
     }
+    for (const inningsId of rewritten) {
+      await ds.delete(BALL_LOGS_COLLECTION, inningsId);
+    }
+    if (rewritten.size) changed.push(matchId);
     if (touched || records.some((r) => r.match_id === matchId)) {
       await rebuildPlayerMatches(ds, matchId);
+    }
+  }
+  return changed;
+}
+
+/**
+ * Rebuild the live scorecards of `matchIds` that have one from their
+ * stored innings (the scorecard's player list and names follow).
+ */
+export async function refreshLiveScorecards(
+  ds: DataSource,
+  matchIds: readonly string[],
+): Promise<void> {
+  for (const matchId of matchIds) {
+    if (await ds.getById(LIVE_SCORECARD_COLLECTION, matchId)) {
+      await refreshLiveScorecard(ds, matchId);
     }
   }
 }
