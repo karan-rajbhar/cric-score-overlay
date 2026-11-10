@@ -182,6 +182,19 @@ describe("matchMessage", () => {
   });
 });
 
+describe("matchMessage for a match ended early", () => {
+  it("names the side the match was awarded to", () => {
+    const awarded = {
+      ...match,
+      result_type: "win",
+      result_description: "Match awarded to Warriors: Match Forfeited / Walkover",
+    };
+    expect(matchMessage(awarded, "abandoned").body).toBe(
+      "Match awarded to Warriors: Match Forfeited / Walkover",
+    );
+  });
+});
+
 // The replies below come from the engine itself: the message used to be
 // built from totals the reply was assumed to carry, and read "0/0".
 describe.each([true, false])(

@@ -94,6 +94,8 @@ export interface MatchDoc {
   toss_winner_team_id?: string | null;
   toss_decision?: string | null;
   result_description?: string | null;
+  /** "win" on an abandoned match: awarded to one side. */
+  result_type?: string | null;
   balls_per_over?: number | null;
   innings_summary?: SummaryEntry[] | null;
 }
@@ -208,7 +210,15 @@ export function matchMessage(
     case "innings_break":
       return inningsBreakMessage(match, base, state);
     case "abandoned":
-      return { ...base, key: "abandoned", body: "Match abandoned." };
+      return {
+        ...base,
+        key: "abandoned",
+        // An awarded match's result names the side.
+        body:
+          match.result_type === "win" && match.result_description
+            ? match.result_description
+            : "Match abandoned.",
+      };
     case "result":
       return {
         ...base,

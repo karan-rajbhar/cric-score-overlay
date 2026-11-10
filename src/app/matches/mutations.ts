@@ -1397,14 +1397,69 @@ export async function updateMatchSettings(
   }
 }
 
+interface AbandonParams {
+  reason: string;
+  resultType?: "abandoned" | "no_result" | "win";
+  winningTeamId?: string | null;
+  notes?: string | null;
+}
+
+interface AbandonedMatch {
+  status: string | null;
+  team1_id: string;
+  team2_id: string;
+  team1_snapshot: { name?: string | null } | null;
+  team2_snapshot: { name?: string | null } | null;
+}
+
+/**
+ * The result fields of a match ended early. Only a match still to finish
+ * ends early (the menu offers it for live and scheduled matches): a
+ * finished one keeps its result. Awarded, it names the side and has no
+ * margin; otherwise nobody won.
+ */
+function abandonedResult(
+  match: AbandonedMatch,
+  params: AbandonParams,
+): { fields: Record<string, unknown> } | { error: string } {
+  if (match.status !== "live" && match.status !== "scheduled") {
+    return { error: "This match has already ended" };
+  }
+  const resultType = params.resultType ?? "abandoned";
+  const winner = resultType === "win" ? awardedSide(match, params) : null;
+  if (resultType === "win" && !winner) {
+    return { error: "Choose the side the match is awarded to" };
+  }
+  const outcome = winner
+    ? `Match awarded to ${winner.name}: ${params.reason}`
+    : `Match abandoned: ${params.reason}`;
+  return {
+    fields: {
+      status: "abandoned",
+      result_type: resultType,
+      result_description: [outcome, params.notes].filter(Boolean).join(". "),
+      winning_team_id: winner ? winner.id : null,
+      win_margin: null,
+      win_margin_type: null,
+    },
+  };
+}
+
+/** The side named as the winner, if it plays in the match. */
+function awardedSide(
+  match: AbandonedMatch,
+  params: AbandonParams,
+): { id: string; name: string } | null {
+  const id = params.winningTeamId;
+  if (id !== match.team1_id && id !== match.team2_id) return null;
+  const snapshot =
+    id === match.team1_id ? match.team1_snapshot : match.team2_snapshot;
+  return { id, name: snapshot?.name ?? "the winners" };
+}
+
 export async function abandonMatch(
   matchId: string,
-  params: {
-    reason: string;
-    resultType?: "abandoned" | "no_result" | "win";
-    winningTeamId?: string | null;
-    notes?: string | null;
-  },
+  params: AbandonParams,
 ): Promise<{ success: boolean; error: string | null }> {
   try {
     const db = await createServerClient();
@@ -1424,24 +1479,18 @@ export async function abandonMatch(
       };
     }
 
-    const resultDescription = params.notes
-      ? `Match abandoned: ${params.reason}. ${params.notes}`
-      : `Match abandoned: ${params.reason}`;
-
-    const updatePayload: Record<string, unknown> = {
-      status: "abandoned",
-      result_type: params.resultType ?? "abandoned",
-      result_description: resultDescription,
-      actual_end_time: new Date().toISOString(),
-    };
-
-    if (params.resultType === "win" && params.winningTeamId) {
-      updatePayload.winning_team_id = params.winningTeamId;
-    }
+    const { data: match } = await db
+      .from("matches")
+      .select("status, team1_id, team2_id, team1_snapshot, team2_snapshot")
+      .eq("id", matchId)
+      .single();
+    if (!match) return { success: false, error: "Match not found" };
+    const result = abandonedResult(match as AbandonedMatch, params);
+    if ("error" in result) return { success: false, error: result.error };
 
     const { error: matchErr } = await db
       .from("matches")
-      .update(updatePayload)
+      .update({ ...result.fields, actual_end_time: new Date().toISOString() })
       .eq("id", matchId);
 
     if (matchErr) {
