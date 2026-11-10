@@ -753,6 +753,87 @@ export async function addPlayerToTeam(
   return { success: true };
 }
 
+/** Roles a squad row holds (the squad's row menu offers each). */
+const SQUAD_ROLES = ["captain", "vice_captain", "wicket_keeper", "player"];
+
+/** The team column naming the one holder of a role. */
+const LEAD_COLUMNS = {
+  captain: "captain_id",
+  vice_captain: "vice_captain_id",
+} as const;
+
+type LeadColumn = (typeof LEAD_COLUMNS)[keyof typeof LEAD_COLUMNS];
+
+/**
+ * What the team's captain / vice-captain columns become when `userId`
+ * takes `role` (null: leaves the squad): each names its role's holder, and
+ * nobody is both.
+ */
+function leadColumns(
+  team: Partial<Record<LeadColumn, string | null>>,
+  userId: string,
+  role: string | null,
+): Partial<Record<LeadColumn, string | null>> {
+  const patch: Partial<Record<LeadColumn, string | null>> = {};
+  for (const [lead, column] of Object.entries(LEAD_COLUMNS)) {
+    if (role === lead && team[column] !== userId) patch[column] = userId;
+    if (role !== lead && team[column] === userId) patch[column] = null;
+  }
+  return patch;
+}
+
+/**
+ * Gives a squad player a role, keeping `teams.captain_id` /
+ * `vice_captain_id` and the squad rows' `role_in_team` in step: the
+ * previous captain or vice-captain becomes a player. Why not, or null.
+ */
+async function setSquadRole(
+  db: ServerClient,
+  teamId: string,
+  userId: string,
+  role: string,
+): Promise<string | null> {
+  if (!SQUAD_ROLES.includes(role)) {
+    return "Choose captain, vice-captain, wicket-keeper or player";
+  }
+  const [{ data: team }, { data: entry }] = await Promise.all([
+    db
+      .from("teams")
+      .select("captain_id, vice_captain_id")
+      .eq("id", teamId)
+      .maybeSingle(),
+    db
+      .from("team_players")
+      .select("id")
+      .eq("team_id", teamId)
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
+  if (!team) return "Team no longer exists";
+  if (!entry) return "That player is not in this team's squad";
+
+  const patch = leadColumns(team, userId, role);
+  if (Object.keys(patch).length) {
+    const { error } = await db.from("teams").update(patch).eq("id", teamId);
+    if (error) return error.message;
+  }
+  if (role in LEAD_COLUMNS) {
+    // The previous holder steps down.
+    const { error } = await db
+      .from("team_players")
+      .update({ role_in_team: "player" })
+      .eq("team_id", teamId)
+      .eq("role_in_team", role);
+    if (error) return error.message;
+  }
+  const { error } = await db
+    .from("team_players")
+    .update({ role_in_team: role })
+    .eq("team_id", teamId)
+    .eq("user_id", userId);
+  return error?.message ?? null;
+}
+
 export async function removePlayerFromTeam(
   teamId: string,
   userInputId: string,
@@ -776,6 +857,11 @@ export async function removePlayerFromTeam(
     }
   }
 
+  const { data: team } = await db
+    .from("teams")
+    .select("captain_id, vice_captain_id")
+    .eq("id", teamId)
+    .maybeSingle();
   const { error } = await db
     .from("team_players")
     .delete()
@@ -785,6 +871,11 @@ export async function removePlayerFromTeam(
   if (error) {
     console.error("Error removing player:", error);
     return { error: error.message };
+  }
+  // No captain or vice-captain outside the squad.
+  const leads = team ? leadColumns(team, userInputId, null) : {};
+  if (Object.keys(leads).length) {
+    await db.from("teams").update(leads).eq("id", teamId);
   }
 
   revalidatePath(`/teams/${teamId}`);
@@ -813,31 +904,8 @@ export async function updatePlayerRole(
     };
   }
 
-  // Start a transaction-like update if we're setting captain
-  if (role === "captain") {
-    // Update team captain_id
-    await db
-      .from("teams")
-      .update({ captain_id: userId })
-      .eq("id", teamId);
-  } else if (role === "vice_captain") {
-    // Update team vice_captain_id
-    await db
-      .from("teams")
-      .update({ vice_captain_id: userId })
-      .eq("id", teamId);
-  }
-
-  const { error } = await db
-    .from("team_players")
-    .update({ role_in_team: role })
-    .eq("team_id", teamId)
-    .eq("user_id", userId);
-
-  if (error) {
-    console.error("Error updating player role:", error);
-    return { error: error.message };
-  }
+  const refused = await setSquadRole(db, teamId, userId, role);
+  if (refused) return { error: refused };
 
   revalidatePath(`/teams/${teamId}`);
   // Captain / vice-captain markers show on a live match's squads.
