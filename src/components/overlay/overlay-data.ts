@@ -128,7 +128,8 @@ export interface OverlayData {
 /**
  * The overlay's data for a match, from the stable `/api/overlay/match/{id}`
  * route (a page left open in OBS outlives deploys, which would break a
- * server action). Null when it is gone.
+ * server action). Null when it is gone (404); a failed read (a server
+ * error, no connection) throws, so the caller can try again.
  */
 export async function loadOverlayData(
   matchId: string,
@@ -138,7 +139,8 @@ export async function loadOverlayData(
     cache: "no-store",
     signal,
   });
-  if (!res.ok) return null;
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`overlay data: ${res.status}`);
   return (await res.json()) as OverlayData;
 }
 

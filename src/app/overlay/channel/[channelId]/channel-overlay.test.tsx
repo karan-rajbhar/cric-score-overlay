@@ -35,6 +35,8 @@ import { ChannelOverlay } from "./channel-overlay";
 
 /** Fetch answers per match id; a pending one resolves when told to. */
 const pending = new Map<string, () => void>();
+/** How many reads of a match id answer 503 before one succeeds. */
+const failures = new Map<string, number>();
 let fetched: string[] = [];
 
 function stubFetch(holdFor: string[] = []) {
@@ -43,9 +45,15 @@ function stubFetch(holdFor: string[] = []) {
     vi.fn((url: string) => {
       const id = decodeURIComponent(String(url).split("/").pop()!);
       fetched.push(id);
+      const failing = failures.get(id) ?? 0;
+      if (failing > 0) failures.set(id, failing - 1);
       const respond = () =>
-        id === "gone"
-          ? ({ ok: false, json: async () => ({}) } as Response)
+        id === "gone" || failing > 0
+          ? ({
+              ok: false,
+              status: id === "gone" ? 404 : 503,
+              json: async () => ({}),
+            } as Response)
           : ({
               ok: true,
               json: async () => ({
@@ -70,6 +78,7 @@ describe("ChannelOverlay", () => {
   beforeEach(() => {
     watchers.length = 0;
     pending.clear();
+    failures.clear();
     fetched = [];
   });
   afterEach(() => {
@@ -124,6 +133,45 @@ describe("ChannelOverlay", () => {
     await act(async () => pending.get("a")!());
     expect(await screen.findByTestId("overlay")).toHaveTextContent("a:10");
     expect(fetched).toEqual(["a", "a"]);
+  });
+
+});
+
+describe("ChannelOverlay loads", () => {
+  beforeEach(() => {
+    watchers.length = 0;
+    pending.clear();
+    failures.clear();
+    fetched = [];
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the match on air and tries again when a load fails", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      stubFetch();
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      render(<ChannelOverlay channelId="ch1" />);
+      await channel("a");
+      await act(async () => {});
+      expect(screen.getByTestId("overlay")).toHaveTextContent("a:10");
+
+      failures.set("match-b", 2);
+      await channel("match-b");
+      await act(async () => {});
+      // The server failed: the previous match stays on air.
+      expect(screen.getByTestId("overlay")).toHaveTextContent("a:10");
+      expect(fetched).toEqual(["a", "match-b"]);
+      await act(async () => vi.advanceTimersByTime(2_000));
+      expect(fetched).toEqual(["a", "match-b", "match-b"]);
+      await act(async () => vi.advanceTimersByTime(4_000));
+      expect(screen.getByTestId("overlay")).toHaveTextContent("match-b:70");
+      expect(fetched).toHaveLength(4);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows nothing for a match that no longer exists", async () => {

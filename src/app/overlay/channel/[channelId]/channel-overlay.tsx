@@ -12,6 +12,9 @@ import { OverlayClient } from "../../[matchId]/overlay-client";
 /** Mirrors `STREAM_CHANNELS` in `~/lib/overlay/channels` (server). */
 const STREAM_CHANNELS = "stream_channels";
 
+/** Wait before trying a failed load again: 2 s, doubling, at most 30 s. */
+const retryDelay = (attempt: number) => Math.min(30_000, 2_000 * 2 ** attempt);
+
 /** The channel's match; `epoch` moves on every change (incl. off air). */
 interface OnAir {
   matchId: string | null;
@@ -24,11 +27,46 @@ interface Shown extends OverlayData {
 }
 
 /**
+ * The overlay data of the channel's match, loaded on each switch; a failed
+ * load is tried again, and whatever was loaded before stays meanwhile.
+ */
+function useLoadedMatch(onAir: OnAir): Shown | null {
+  const [shown, setShown] = useState<Shown | null>(null);
+  useEffect(() => {
+    const { matchId, epoch } = onAir;
+    if (!matchId) return;
+    const controller = new AbortController();
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const load = (attempt: number) => {
+      loadOverlayData(matchId, controller.signal)
+        .then((data) => {
+          // A match that is gone takes the channel off air.
+          if (!controller.signal.aborted) {
+            setShown(data ? { matchId, epoch, ...data } : null);
+          }
+        })
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return;
+          console.error("[overlay channel] could not load the match:", err);
+          retry = setTimeout(() => load(attempt + 1), retryDelay(attempt));
+        });
+    };
+    load(0);
+    return () => {
+      controller.abort();
+      clearTimeout(retry);
+    };
+  }, [onAir]);
+  return shown;
+}
+
+/**
  * Follows `stream_channels/{channelId}` (1 read, then 1 per switch) and
  * shows the match overlay (`OverlayClient`: `live_state`, 1 read per ball,
  * and `overlay_state`) for its match. A switch keeps the previous match on
- * air until the next one has loaded, then swaps without a reload; off air
- * (or a missing channel / match) renders nothing.
+ * air until the next one has loaded (a failed load is tried again, from
+ * 2 s up to every 30 s), then swaps without a reload; off air (or a
+ * missing channel / match) renders nothing.
  */
 export function ChannelOverlay({
   channelId,
@@ -47,7 +85,6 @@ export function ChannelOverlay({
   delaySeconds?: number;
 }) {
   const [onAir, setOnAir] = useState<OnAir>({ matchId: null, epoch: 0 });
-  const [shown, setShown] = useState<Shown | null>(null);
 
   useEffect(
     () =>
@@ -74,24 +111,7 @@ export function ChannelOverlay({
     [channelId],
   );
 
-  useEffect(() => {
-    const { matchId, epoch } = onAir;
-    if (!matchId) return;
-    const controller = new AbortController();
-    loadOverlayData(matchId, controller.signal)
-      .then((data) => {
-        // A match that is gone takes the channel off air.
-        if (!controller.signal.aborted) {
-          setShown(data ? { matchId, epoch, ...data } : null);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!controller.signal.aborted) {
-          console.error("[overlay channel] could not load the match:", err);
-        }
-      });
-    return () => controller.abort();
-  }, [onAir]);
+  const shown = useLoadedMatch(onAir);
 
   // The current match once loaded, or the previous one while switching
   // straight from it; never a match from before an off-air spell.
