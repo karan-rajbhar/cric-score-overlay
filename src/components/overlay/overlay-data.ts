@@ -78,10 +78,12 @@ export function useDocWhenShown<T>(
 ): { data: T | null; loaded: boolean } {
   const key = id ? `${table}/${id}` : null;
   const cached = key ? docCache.get(key) : undefined;
-  const [data, setData] = useState<T | null>(
-    (cached?.data as T | undefined) ?? null,
-  );
-  const [loaded, setLoaded] = useState(!!cached);
+  // Kept with the document it is about, so another player's never shows.
+  const [read, setRead] = useState<{
+    key: string | null;
+    data: T | null;
+    loaded: boolean;
+  }>({ key, data: (cached?.data as T | undefined) ?? null, loaded: !!cached });
   const freshnessRef = useRef(freshness);
   // Declared before the read below, so it runs first.
   useEffect(() => {
@@ -92,8 +94,7 @@ export function useDocWhenShown<T>(
     if (!active || !key || !id) return;
     const hit = docCache.get(key);
     if (hit && hit.freshness === freshnessRef.current) {
-      setData(hit.data as T | null);
-      setLoaded(true);
+      setRead({ key, data: hit.data as T | null, loaded: true });
       return;
     }
     let cancelled = false;
@@ -101,21 +102,22 @@ export function useDocWhenShown<T>(
     readDoc<T>(getFirebaseDb(), table, id)
       .then((doc) => {
         docCache.set(key, { freshness: wanted, data: doc });
-        if (!cancelled) {
-          setData(doc);
-          setLoaded(true);
-        }
+        if (!cancelled) setRead({ key, data: doc, loaded: true });
       })
       .catch((err) => {
         console.error(`[overlay] could not read ${key}:`, err);
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setRead({ key, data: null, loaded: true });
       });
     return () => {
       cancelled = true;
     };
   }, [active, key, id, table]);
 
-  return { data, loaded };
+  if (read.key === key) return { data: read.data, loaded: read.loaded };
+  // Another document than the last read: its cached read, else nothing yet.
+  return cached
+    ? { data: cached.data as T | null, loaded: true }
+    : { data: null, loaded: false };
 }
 
 export interface OverlayData {
