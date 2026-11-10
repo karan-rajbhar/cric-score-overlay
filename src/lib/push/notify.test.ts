@@ -9,13 +9,21 @@ const adminDataSource = vi.fn(() => {
 vi.mock("~/lib/admin-data-source", () => ({ adminDataSource: () => adminDataSource() }));
 
 import { MemoryDataSource } from "~/lib/firebase/datasource";
+import {
+  GoldenReplay,
+  SYNTHETIC_ROSTERS,
+  syntheticTables,
+} from "~/lib/firebase/scoring/__fixtures__/golden";
+import { stage2Driver } from "~/lib/firebase/scoring/__fixtures__/stage2";
 import { setFollowTarget } from "~/lib/follows/store";
 import {
   PUSH_LOG,
+  inningsEndEventOf,
   matchEventOf,
   matchMessage,
   notifyFollowersAfter,
   notifyMatchEvent,
+  type EventState,
   type MatchDoc,
 } from "./notify";
 import { PUSH_SUBSCRIPTIONS, saveSubscription, subscriptionId } from "./subscriptions";
@@ -39,8 +47,33 @@ const match: MatchDoc & Record<string, unknown> = {
   result_description: "Strikers won by 12 runs",
   balls_per_over: 6,
   innings_summary: [
-    { team_id: "t1", innings_number: 1, total_runs: 150, total_wickets: 9, total_balls: 118 },
+    {
+      team_id: "t1",
+      innings_number: 1,
+      total_runs: 150,
+      total_wickets: 9,
+      total_balls: 118,
+      is_completed: true,
+    },
+    {
+      team_id: "t2",
+      innings_number: 2,
+      total_runs: 0,
+      total_wickets: 0,
+      total_balls: 0,
+      is_completed: false,
+      target_runs: 151,
+    },
   ],
+};
+
+/** What the engine answers once an innings has ended: the next one, 0/0. */
+const nextInningsReply = {
+  current_innings: 2,
+  total_runs: 0,
+  total_wickets: 0,
+  total_balls: 0,
+  innings_completed: false,
 };
 
 describe("matchEventOf", () => {
@@ -48,7 +81,23 @@ describe("matchEventOf", () => {
     expect(matchEventOf(null)).toBeNull();
     expect(matchEventOf({ match_completed: false, innings_completed: false })).toBeNull();
     expect(matchEventOf({ innings_completed: true })).toBe("innings_break");
+    expect(matchEventOf({ innings_break: true })).toBe("innings_break");
     expect(matchEventOf({ innings_completed: true, match_completed: true })).toBe("result");
+    // A reply to "End innings" has no flag: on its own it reports nothing.
+    expect(matchEventOf(nextInningsReply)).toBeNull();
+  });
+});
+
+describe("inningsEndEventOf", () => {
+  it("is the innings break unless the match is over", () => {
+    expect(inningsEndEventOf(null)).toBeNull();
+    expect(inningsEndEventOf(nextInningsReply)).toBe("innings_break");
+    expect(inningsEndEventOf({ ...nextInningsReply, innings_break: true })).toBe(
+      "innings_break",
+    );
+    expect(inningsEndEventOf({ innings_completed: true, match_completed: true })).toBe(
+      "result",
+    );
   });
 });
 
@@ -61,25 +110,136 @@ describe("matchMessage", () => {
       tag: "match-m1",
       key: "started",
     });
-    expect(
-      matchMessage(match, "innings_break", {
-        current_innings: 1,
-        total_runs: 156,
-        total_wickets: 7,
-        total_balls: 120,
-      }),
-    ).toMatchObject({
-      key: "innings_break:1",
-      body: "Innings break. Strikers 156/7 (20 overs). Warriors need 157 to win.",
-    });
-    // From the summary when the reply has no totals: 118 balls = 19.4 overs.
-    expect(matchMessage(match, "innings_break").body).toBe(
-      "Innings break. Strikers 150/9 (19.4 overs). Warriors need 151 to win.",
-    );
     expect(matchMessage(match, "result").body).toBe("Strikers won by 12 runs");
     expect(matchMessage(match, "abandoned").body).toBe("Match abandoned.");
   });
+
+  // 118 balls = 19.4 overs.
+  const firstInnings =
+    "Innings break. Strikers 150/9 (19.4 overs). Warriors need 151 to win.";
+
+  it("reports the innings that ended, not the next one the reply describes", () => {
+    for (const reply of [
+      { ...nextInningsReply, innings_break: true },
+      nextInningsReply,
+    ]) {
+      expect(matchMessage(match, "innings_break", reply)).toMatchObject({
+        key: "innings_break:1",
+        body: firstInnings,
+      });
+    }
+    // A reply about the ended innings itself, and no reply at all (the
+    // latest completed innings).
+    expect(
+      matchMessage(match, "innings_break", { current_innings: 1, innings_completed: true }),
+    ).toMatchObject({ key: "innings_break:1", body: firstInnings });
+    expect(matchMessage(match, "innings_break")).toMatchObject({
+      key: "innings_break:1",
+      body: firstInnings,
+    });
+  });
+
+  it("takes the target from the next innings, or the first innings' runs", () => {
+    const [first, second] = match.innings_summary!;
+    // A stored target that is not runs + 1.
+    const revised = { ...match, innings_summary: [first!, { ...second!, target_runs: 140 }] };
+    expect(matchMessage(revised, "innings_break", nextInningsReply).body).toBe(
+      "Innings break. Strikers 150/9 (19.4 overs). Warriors need 140 to win.",
+    );
+    const unopened = { ...match, innings_summary: [first!] };
+    expect(matchMessage(unopened, "innings_break", nextInningsReply).body).toBe(firstInnings);
+    // A super over: the side batting second chases the first one's score.
+    const superOver = {
+      ...match,
+      innings_summary: [
+        first!,
+        { ...second!, total_runs: 150, total_balls: 120, is_completed: true },
+        {
+          team_id: "t2",
+          innings_number: 3,
+          total_runs: 12,
+          total_wickets: 1,
+          total_balls: 6,
+          is_completed: true,
+        },
+        { team_id: "t1", innings_number: 4, is_completed: false, target_runs: 13 },
+      ],
+    };
+    expect(
+      matchMessage(superOver, "innings_break", { current_innings: 4, innings_break: true }),
+    ).toMatchObject({
+      key: "innings_break:3",
+      body: "Innings break. Warriors 12/1 (1 over). Strikers need 13 to win.",
+    });
+  });
+
+  it("names no score it does not have", () => {
+    const bare = { ...match, innings_summary: null };
+    expect(matchMessage(bare, "innings_break", nextInningsReply)).toMatchObject({
+      key: "innings_break:1",
+      body: "Innings break.",
+    });
+  });
 });
+
+// The replies below come from the engine itself: the message used to be
+// built from totals the reply was assumed to carry, and read "0/0".
+describe.each([true, false])(
+  "innings break from the engine's replies (incremental: %s)",
+  (incremental) => {
+    const snapshot = (id: string, name: string) => ({
+      id,
+      name,
+      short_name: name.slice(0, 3).toUpperCase(),
+      logo_url: null,
+    });
+    const play = (overs: number) => {
+      const side = stage2Driver(
+        syntheticTables({
+          overs_per_innings: overs,
+          team1_snapshot: snapshot("TA", "Alpha"),
+          team2_snapshot: snapshot("TB", "Bravo"),
+        }),
+        incremental,
+      );
+      const stored = () =>
+        side.ds.all("matches").find((m) => m.id === "M") as unknown as MatchDoc;
+      return { replay: new GoldenReplay(side, "M", SYNTHETIC_ROSTERS), stored };
+    };
+
+    it("after the ball that ends the innings", async () => {
+      const { replay, stored } = play(1);
+      let reply: EventState = {};
+      for (let i = 0; i < 6; i += 1) {
+        expect(matchEventOf(reply)).toBeNull();
+        reply = (await replay.step({ kind: "ball", ball: { runs: 1 } })) as EventState;
+      }
+      expect(reply).toMatchObject({ current_innings: 2, innings_break: true });
+      const event = matchEventOf(reply);
+      expect(event).toBe("innings_break");
+      expect(matchMessage(stored(), event!, reply)).toMatchObject({
+        title: "Alpha vs Bravo",
+        key: "innings_break:1",
+        body: "Innings break. Alpha 6/0 (1 over). Bravo need 7 to win.",
+      });
+    });
+
+    it("after the innings is ended by hand", async () => {
+      const { replay, stored } = play(5);
+      for (let i = 0; i < 4; i += 1) {
+        await replay.step({ kind: "ball", ball: { runs: 2 } });
+      }
+      const reply = (await replay.step({ kind: "end_innings" })) as EventState;
+      expect(reply).toMatchObject({ current_innings: 2, innings_completed: false });
+      const event = inningsEndEventOf(reply);
+      expect(event).toBe("innings_break");
+      expect(matchMessage(stored(), event!, reply)).toMatchObject({
+        key: "innings_break:1",
+        body: "Innings break. Alpha 8/0 (0.4 overs). Bravo need 9 to win.",
+      });
+    });
+  },
+);
 
 describe("notifyMatchEvent", () => {
   let ds: MemoryDataSource;

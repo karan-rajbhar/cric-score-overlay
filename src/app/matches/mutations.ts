@@ -5,7 +5,11 @@ import { prefixSearch } from "~/lib/firebase/search";
 import { createServerClient } from "~/lib/firebase/server";
 import { isClubAdminOf } from "~/lib/firebase/permissions";
 import { refreshLiveState } from "~/lib/firebase/live-sync";
-import { matchEventOf, notifyFollowersAfter } from "~/lib/push/notify";
+import {
+  inningsEndEventOf,
+  matchEventOf,
+  notifyFollowersAfter,
+} from "~/lib/push/notify";
 import { ensureUserProfile } from "~/lib/firebase/user-profile";
 import { teamSnapshot } from "~/lib/firebase/team-snapshot";
 import { isClubSide } from "~/lib/firebase/derive.mjs";
@@ -710,7 +714,11 @@ export async function endInnings(
       console.error("end_innings failed:", error);
       return { data: null, error: friendlyError(error.message) };
     }
-    notifyFollowersAfter(matchId, matchEventOf(data as ScoringState), data as ScoringState);
+    notifyFollowersAfter(
+      matchId,
+      inningsEndEventOf(data as ScoringState),
+      data as ScoringState,
+    );
     invalidateMatchCache(matchId);
     revalidatePath(`/matches/${matchId}`);
     revalidatePath(`/matches/${matchId}/score`);
