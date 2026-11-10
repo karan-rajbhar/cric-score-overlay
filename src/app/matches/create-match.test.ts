@@ -93,3 +93,52 @@ describe("createMatch", () => {
     expect(res.error).toMatch(/opponent/i);
   });
 });
+
+describe("createMatch in someone else's tournament", () => {
+  const confirm = (teamId: string) =>
+    ds.insert("tournament_registrations", [
+      {
+        id: `reg-${teamId}`,
+        tournament_id: "tour",
+        team_id: teamId,
+        status: "confirmed",
+      },
+    ]);
+
+  beforeEach(async () => {
+    await ds.insert("tournaments", [
+      {
+        id: "tour",
+        name: "Summer Cup",
+        created_by: "someone-else",
+        club_id: null,
+      },
+    ]);
+  });
+
+  it("refuses a team that is not confirmed against one that is", async () => {
+    await confirm("t3");
+    const res = await createMatch({
+      ...base,
+      team1Id: "t1",
+      team2Id: "t3",
+      tournamentId: "tour",
+    });
+    expect(res.data).toBeNull();
+    expect(res.error).toBe("Team 1 is not registered in this tournament.");
+    expect(await ds.query("matches", [])).toHaveLength(0);
+  });
+
+  it("lets a confirmed team's captain schedule a match against another", async () => {
+    await confirm("t1");
+    await confirm("t3");
+    const res = await createMatch({
+      ...base,
+      team1Id: "t1",
+      team2Id: "t3",
+      tournamentId: "tour",
+    });
+    expect(res.error).toBeNull();
+    expect(res.data).toMatchObject({ tournament_id: "tour", created_by: "u1" });
+  });
+});

@@ -208,22 +208,19 @@ export async function createMatch(formData: MatchFormData) {
         .map((r) => r.team_id),
     );
 
-    if (
-      !isTournamentAdmin &&
-      !registeredTeamIds.has(formData.team1Id) &&
-      !registeredTeamIds.has(formData.team2Id)
-    ) {
-      return {
-        data: null,
-        error:
-          "Neither team is registered in the selected tournament, and you are not an organizer of this tournament.",
-      };
-    }
-
     if (!registeredTeamIds.has(formData.team2Id)) {
       return {
         data: null,
         error: "The selected opponent team is not registered in this tournament.",
+      };
+    }
+
+    // Only organisers may bring in a host side the tournament has not
+    // confirmed: the match counts in its points table.
+    if (!isTournamentAdmin && !registeredTeamIds.has(formData.team1Id)) {
+      return {
+        data: null,
+        error: "Team 1 is not registered in this tournament.",
       };
     }
   }
